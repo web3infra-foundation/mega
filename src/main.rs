@@ -6,6 +6,9 @@
 mod errors;
 mod cli;
 mod commands;
+mod git;
+mod utils;
+mod gateway;
 
 fn main() {
     // Parse the command line arguments
