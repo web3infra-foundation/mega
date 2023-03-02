@@ -39,7 +39,7 @@ pub enum GitError {
     InvalidHashValue(String),
 
     #[error("Delta Object Error Info:{0}")]
-    DeltaObjError(String),
+    DeltaObjectError(String),
 
     #[error("The object to be packed is incomplete ,{0}")]
     UnCompletedPackObject(String),
@@ -49,4 +49,7 @@ pub enum GitError {
 
     #[error("Can't found Hash value :{0} from current file")]
     NotFountHashValue(String),
+
+    #[error("Can't encode the object which id [{0}] to bytes")]
+    EncodeObjectError(String)
 }

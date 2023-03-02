@@ -1,0 +1,7 @@
+# Ignore all files and directories in this directory
+objects/*
+
+
+# Except for the data directory and its subdirectory
+!.gitignore
+!objects/.gitkeep
