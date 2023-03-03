@@ -238,10 +238,10 @@ mod tests {
         //
         // "Hello, World!" is [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33]
         // "Hello, World!" read from file is [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]
-        let mut project = PathBuf::from(env::current_dir().unwrap());
-        project.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
 
-        let meta = super::Meta::new_from_file(project.as_path().to_str().unwrap()).unwrap();
+        let meta = super::Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
 
         assert_eq!(meta.object_type, ObjectType::Blob);
         assert_eq!(meta.size, 14);
