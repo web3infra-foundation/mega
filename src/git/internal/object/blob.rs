@@ -113,9 +113,78 @@ mod tests {
         use crate::git::internal::object::blob::Blob;
         use crate::git::internal::ObjectType;
 
-        let meta = Meta::new_from_data(ObjectType::Blob, "Hello, world!".as_bytes().to_vec());
+        let meta = Meta::new_from_data(ObjectType::Blob, "Hello, World!".as_bytes().to_vec());
         let blob = Blob::new_from_meta(meta);
 
-        assert_eq!(blob.meta.data, "Hello, world!".as_bytes().to_vec());
+        assert_eq!(blob.meta.data, "Hello, World!".as_bytes().to_vec());
+    }
+
+    #[test]
+    fn test_new_from_data() {
+        use crate::git::internal::object::blob::Blob;
+
+        let blob = Blob::new_from_data("Hello, World!".as_bytes().to_vec());
+
+        assert_eq!(blob.meta.id.to_plain_str(), "b45ef6fec89518d314f546fd6c3025367b721684");
+        assert_eq!(blob.meta.data, "Hello, World!".as_bytes().to_vec());
+    }
+
+    #[test]
+    #[cfg(any(unix))]
+    fn test_new_from_file() {
+        use std::env;
+        use std::path::PathBuf;
+
+        use crate::git::internal::object::blob::Blob;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+
+        let blob = Blob::new_from_file(source.to_str().unwrap()).unwrap();
+
+        assert_eq!(blob.meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        // Remove the last byte of the data, because the last byte is a newline character.
+        assert_eq!(blob.meta.data[..blob.meta.size - 1], "Hello, World!".as_bytes().to_vec());
+    }
+
+    #[test]
+    #[cfg(any(unix))]
+    fn test_write_2file() {
+        use std::env;
+        use std::path::PathBuf;
+        use std::fs::remove_file;
+
+        use crate::git::internal::object::blob::Blob;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        let blob = Blob::new_from_file(source.to_str().unwrap()).unwrap();
+
+        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        dest_file.push("tests/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        if dest_file.exists() {
+            remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
+        }
+
+        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        dest.push("tests/objects");
+        let file = blob.write_2file(dest.as_path().to_str().unwrap()).unwrap();
+
+        dest.push("8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(file, dest.as_path().to_str().unwrap());
+    }
+
+    #[test]
+    fn test_generate_tree_item() {
+        use crate::git::internal::object::blob::Blob;
+        use crate::git::internal::object::tree::TreeItemType;
+
+        let blob = Blob::new_from_data("Hello, World!".as_bytes().to_vec());
+        let tree_item = blob.generate_tree_item("hello-world").unwrap();
+
+        assert_eq!(tree_item.mode, TreeItemType::Blob.to_bytes().to_vec());
+        assert_eq!(tree_item.item_type, TreeItemType::Blob);
+        assert_eq!(tree_item.id.to_plain_str(), "b45ef6fec89518d314f546fd6c3025367b721684");
+        assert_eq!(tree_item.filename, "hello-world");
     }
 }
