@@ -50,7 +50,7 @@ impl Meta {
     ///     assert_eq!(meta.delta_header, vec![]);
     /// ```
     #[allow(unused)]
-    fn new_from_data(object_type: ObjectType, data: Vec<u8>) -> Self {
+    pub fn new_from_data(object_type: ObjectType, data: Vec<u8>) -> Self {
         Meta {
             object_type,
             id: Meta::calculate_id(object_type, data.clone()),
@@ -70,7 +70,7 @@ impl Meta {
     /// The object header is followed by a null byte (0x00) and then the object data.
     ///
     /// The object id is calculated from the object header and the object data.
-    fn calculate_id(object_type: ObjectType, data: Vec<u8>) -> Hash {
+    pub fn calculate_id(object_type: ObjectType, data: Vec<u8>) -> Hash {
         let mut d: Vec<u8> = Vec::new();
 
         d.extend(object_type.to_bytes().unwrap());
