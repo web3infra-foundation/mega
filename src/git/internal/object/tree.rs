@@ -7,6 +7,7 @@ use std::fmt::Display;
 
 use colored::Colorize;
 
+use crate::git::errors::GitError;
 use crate::git::hash::Hash;
 use crate::git::internal::object::meta::Meta;
 
@@ -30,6 +31,37 @@ impl Display for TreeItemType {
             TreeItemType::Link => "link",
         };
         write!(f, "{}", String::from(_print).blue())
+    }
+}
+
+impl TreeItemType {
+    #[allow(unused)]
+    pub(crate) fn to_bytes(self) -> &'static [u8] {
+        match self {
+            TreeItemType::Blob => b"100644",
+            TreeItemType::BlobExecutable => b"100755",
+            TreeItemType::Tree => b"40000",
+            TreeItemType::Link => b"120000",
+            TreeItemType::Commit => b"160000",
+        }
+    }
+
+    #[allow(unused)]
+    pub(crate) fn tree_item_type_from(mode: &[u8]) -> Result<TreeItemType, GitError> {
+        Ok(match mode {
+            b"40000" => TreeItemType::Tree,
+            b"100644" => TreeItemType::Blob,
+            b"100755" => TreeItemType::BlobExecutable,
+            b"120000" => TreeItemType::Link,
+            b"160000" => TreeItemType::Commit,
+            b"100664" => TreeItemType::Blob,
+            b"100640" => TreeItemType::Blob,
+            _ => {
+                return Err(GitError::InvalidTreeItem(
+                    String::from_utf8(mode.to_vec()).unwrap(),
+                ));
+            }
+        })
     }
 }
 
