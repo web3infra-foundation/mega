@@ -45,9 +45,9 @@ impl Hash {
         // Input the data into the Sha1 object
         hasher.update(data);
         // Get the result of the hash
-        let hash_re = hasher.finalize();
+        let hash_result = hasher.finalize();
         // Convert the result to a 20-byte array
-        let result = <[u8; 20]>::from(hash_re);
+        let result = <[u8; 20]>::from(hash_result);
 
         Hash(result)
     }
@@ -62,7 +62,13 @@ impl Hash {
 mod tests {
     #[test]
     fn test_hash_new() {
-        let hash = super::Hash::new(&vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
-        assert_eq!(hash.to_plain_str(), "e89ad5a9631c3efdded7e3ecce79b4d0fedce1bf");
+        // [98, 108, 111, 98] = blob
+        // [32] = Space
+        // [49, 52] = 14
+        // [0] = \x00
+        // [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10] = Hello, World! + LF
+        let hash =
+            super::Hash::new(&vec![98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]);
+        assert_eq!(hash.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
     }
 }
