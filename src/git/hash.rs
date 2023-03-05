@@ -59,6 +59,7 @@ impl Hash {
     }
 }
 
+#[cfg(test)]
 mod tests {
     #[test]
     fn test_hash_new() {

@@ -13,6 +13,7 @@ pub struct AuthorSignature {
     pub timezone: String,
 }
 
+#[cfg(test)]
 mod tests {
 
 }

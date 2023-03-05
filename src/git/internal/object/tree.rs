@@ -154,6 +154,7 @@ impl Tree {
     }
 }
 
+#[cfg(test)]
 mod tests {
     #[test]
     fn test_empty_tree_hash() {

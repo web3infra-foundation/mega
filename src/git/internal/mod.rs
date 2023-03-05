@@ -127,6 +127,7 @@ impl ObjectType {
     }
 }
 
+#[cfg(test)]
 mod tests{
     #[test]
     fn test_object_type_to_bytes() {

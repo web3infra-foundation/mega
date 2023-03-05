@@ -16,3 +16,11 @@ pub fn cli() -> Command {
 pub(crate) fn exec(_config: Config, _args: &ArgMatches) -> MegaResult {
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}
