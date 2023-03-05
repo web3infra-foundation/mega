@@ -19,6 +19,7 @@ pub struct Tag {
     pub message: String,
 }
 
+#[cfg(test)]
 mod tests {
 
 }

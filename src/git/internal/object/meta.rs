@@ -184,6 +184,7 @@ impl Meta {
     }
 }
 
+#[cfg(test)]
 mod tests {
     #[test]
     fn test_new_from_data() {

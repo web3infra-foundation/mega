@@ -53,3 +53,11 @@ pub enum GitError {
     #[error("Can't encode the object which id [{0}] to bytes")]
     EncodeObjectError(String)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}
