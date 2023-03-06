@@ -131,7 +131,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(unix))]
     fn test_new_from_file() {
         use std::env;
         use std::path::PathBuf;
@@ -149,7 +148,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(unix))]
     fn test_write_2file() {
         use std::env;
         use std::path::PathBuf;
@@ -171,7 +169,8 @@ mod tests {
         dest.push("tests/objects");
         let file = blob.write_2file(dest.as_path().to_str().unwrap()).unwrap();
 
-        dest.push("8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        dest.push("8a");
+        dest.push("b686eafeb1f44702738c8b0f24f2567c36da6d");
         assert_eq!(file, dest.as_path().to_str().unwrap());
     }
 
