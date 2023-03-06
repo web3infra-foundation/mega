@@ -28,7 +28,7 @@ use crate::git::internal::object::meta::Meta;
 /// specify the file mode or permissions.
 #[allow(unused)]
 #[derive(PartialEq, Eq, Hash, Ord, PartialOrd, Debug, Clone, Copy)]
-pub enum TreeItemType {
+pub enum TreeItemMode {
     Blob,
     BlobExecutable,
     Tree,
@@ -36,32 +36,32 @@ pub enum TreeItemType {
     Link,
 }
 
-impl Display for TreeItemType {
+impl Display for TreeItemMode {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let _print = match *self {
-            TreeItemType::Blob => "blob",
-            TreeItemType::BlobExecutable => "blob executable",
-            TreeItemType::Tree => "tree",
-            TreeItemType::Commit => "commit",
-            TreeItemType::Link => "link",
+            TreeItemMode::Blob => "blob",
+            TreeItemMode::BlobExecutable => "blob executable",
+            TreeItemMode::Tree => "tree",
+            TreeItemMode::Commit => "commit",
+            TreeItemMode::Link => "link",
         };
         write!(f, "{}", String::from(_print).blue())
     }
 }
 
-impl TreeItemType {
+impl TreeItemMode {
     #[allow(unused)]
     /// 32-bit mode, split into (high to low bits):
     /// - 4-bit object type: valid values in binary are 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
     /// - 3-bit unused
     /// - 9-bit unix permission: Only 0755 and 0644 are valid for regular files. Symbolic links and gitlink have value 0 in this field.
-    pub(crate) fn to_bytes(self) -> &'static [u8] {
+    pub fn to_bytes(self) -> &'static [u8] {
         match self {
-            TreeItemType::Blob => b"100644",
-            TreeItemType::BlobExecutable => b"100755",
-            TreeItemType::Link => b"120000",
-            TreeItemType::Tree => b"040000",
-            TreeItemType::Commit => b"160000",
+            TreeItemMode::Blob => b"100644",
+            TreeItemMode::BlobExecutable => b"100755",
+            TreeItemMode::Link => b"120000",
+            TreeItemMode::Tree => b"040000",
+            TreeItemMode::Commit => b"160000",
         }
     }
 
@@ -93,15 +93,15 @@ impl TreeItemType {
     /// components. However, they can also add complexity to your workflow, so it's important to
     /// understand how they work and when to use them.
     #[allow(unused)]
-    pub(crate) fn tree_item_type_from(mode: &[u8]) -> Result<TreeItemType, GitError> {
+    pub fn tree_item_type_from(mode: &[u8]) -> Result<TreeItemMode, GitError> {
         Ok(match mode {
-            b"040000" => TreeItemType::Tree,
-            b"100644" => TreeItemType::Blob,
-            b"100755" => TreeItemType::BlobExecutable,
-            b"120000" => TreeItemType::Link,
-            b"160000" => TreeItemType::Commit,
-            b"100664" => TreeItemType::Blob,
-            b"100640" => TreeItemType::Blob,
+            b"040000" => TreeItemMode::Tree,
+            b"100644" => TreeItemMode::Blob,
+            b"100755" => TreeItemMode::BlobExecutable,
+            b"120000" => TreeItemMode::Link,
+            b"160000" => TreeItemMode::Commit,
+            b"100664" => TreeItemMode::Blob,
+            b"100640" => TreeItemMode::Blob,
             _ => {
                 return Err(GitError::InvalidTreeItem(
                     String::from_utf8(mode.to_vec()).unwrap(),
@@ -132,10 +132,61 @@ impl TreeItemType {
 #[allow(unused)]
 #[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone)]
 pub struct TreeItem {
-    pub mode: Vec<u8>,
-    pub item_type: TreeItemType,
+    pub mode: TreeItemMode,
     pub id: Hash,
-    pub filename: String,
+    pub name: String,
+}
+
+impl Display for TreeItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.mode,
+            self.name,
+            self.id.to_string().blue()
+        )
+    }
+}
+
+impl TreeItem {
+    /// Create a new TreeItem from a mode, id and name
+    #[allow(unused)]
+    pub fn new(mode: TreeItemMode, id: Hash, name: String) -> Self {
+        TreeItem {
+            mode,
+            id,
+            name,
+        }
+    }
+
+    #[allow(unused)]
+    pub fn new_from_bytes(bytes: &[u8]) -> Result<Self, GitError> {
+        let mut parts = bytes.splitn(2, |b| *b == b' ');
+        let mode = parts.next().unwrap();
+        let rest = parts.next().unwrap();
+        let mut parts = rest.splitn(2, |b| *b == b'\0');
+        let name = parts.next().unwrap();
+        let id = parts.next().unwrap();
+
+        Ok(TreeItem {
+            mode: TreeItemMode::tree_item_type_from(mode)?,
+            id: Hash::from_bytes(id),
+            name: String::from_utf8(name.to_vec())?,
+        })
+    }
+
+    /// Convert a TreeItem to a byte vector
+    #[allow(unused)]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(self.mode.to_bytes());
+        bytes.push(b' ');
+        bytes.extend_from_slice(self.name.as_bytes());
+        bytes.push(b'\0');
+        bytes.extend_from_slice(&self.id.to_bytes());
+        bytes
+    }
 }
 
 /// A tree object is a Git object that represents a directory. It contains a list of entries, one
@@ -144,7 +195,18 @@ pub struct TreeItem {
 #[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone)]
 pub struct Tree {
     pub meta: Meta,
+    pub name: String,
     pub tree_items: Vec<TreeItem>,
+}
+
+impl Display for Tree {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Tree: {}", self.meta.id.to_string().blue())?;
+        for item in &self.tree_items {
+            write!(f, "{}", item)?;
+        }
+        Ok(())
+    }
 }
 
 impl Tree {
@@ -152,10 +214,66 @@ impl Tree {
     pub fn empty_tree_hash() -> Hash {
         Hash::default()
     }
+
+    /// Generate a TreeItem from Tree object.
+    /// This is used to generate a TreeItem for the parent directory of the current Tree object.
+    #[allow(unused)]
+    pub fn generate_self_2tree_item(&self) -> Result<TreeItem, GitError> {
+        Ok(TreeItem::new(
+            TreeItemMode::Tree,
+            self.meta.id,
+            self.name.clone(),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn test_tree_item_new() {
+        use crate::git::hash::Hash;
+
+        let tree_item = super::TreeItem::new(
+            super::TreeItemMode::Blob,
+            Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
+            "hello-world".to_string(),
+        );
+
+        assert_eq!(tree_item.mode, super::TreeItemMode::Blob);
+        assert_eq!(tree_item.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+    }
+
+    #[test]
+    fn test_tree_item_to_bytes() {
+        use crate::git::hash::Hash;
+
+        let tree_item = super::TreeItem::new(
+            super::TreeItemMode::Blob,
+            Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
+            "hello-world".to_string(),
+        );
+
+        let bytes = tree_item.to_bytes();
+        assert_eq!(bytes, vec![49, 48, 48, 54, 52, 52, 32, 104, 101, 108, 108, 111, 45, 119, 111, 114, 108, 100, 0, 138, 182, 134, 234, 254, 177, 244, 71, 2, 115, 140, 139, 15, 36, 242, 86, 124, 54, 218, 109]);
+    }
+
+    #[test]
+    fn test_tree_item_from_bytes() {
+        use crate::git::hash::Hash;
+
+        let item = super::TreeItem::new(
+            super::TreeItemMode::Blob,
+            Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
+            "hello-world".to_string(),
+        );
+
+        let bytes = item.to_bytes();
+        let tree_item = super::TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
+
+        assert_eq!(tree_item.mode, super::TreeItemMode::Blob);
+        assert_eq!(tree_item.id.to_plain_str(), item.id.to_plain_str());
+    }
+
     #[test]
     fn test_empty_tree_hash() {
         let hash = super::Tree::empty_tree_hash();

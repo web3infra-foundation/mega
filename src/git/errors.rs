@@ -3,6 +3,8 @@
 //!
 //!
 
+use std::string::FromUtf8Error;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -51,7 +53,17 @@ pub enum GitError {
     NotFountHashValue(String),
 
     #[error("Can't encode the object which id [{0}] to bytes")]
-    EncodeObjectError(String)
+    EncodeObjectError(String),
+
+    #[error("UTF-8 conversion error: {0}")]
+    ConversionError(String),
+}
+
+impl From<FromUtf8Error> for GitError {
+    fn from(err: FromUtf8Error) -> Self {
+        // convert the FromUtf8Error to GitError and return it
+        GitError::ConversionError(err.to_string())
+    }
 }
 
 #[cfg(test)]
