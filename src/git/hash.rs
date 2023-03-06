@@ -4,6 +4,7 @@
 //!
 
 use std::fmt::Display;
+use bstr::ByteSlice;
 
 use colored::Colorize;
 use sha1::{Digest, Sha1};
@@ -52,10 +53,30 @@ impl Hash {
         Hash(result)
     }
 
+    /// Create Hash from a string, which is a 40-character hexadecimal string
+    #[allow(unused)]
+    pub fn new_from_str(s: &str) -> Hash {
+        let mut h = Hash::default();
+        h.0.copy_from_slice(&hex::decode(s).unwrap());
+        h
+    }
+
     /// Create plain String without the color chars
     #[allow(unused)]
     pub fn to_plain_str(self) -> String {
         hex::encode(self.0)
+    }
+
+    #[allow(unused)]
+    pub fn to_bytes(self) -> Vec<u8> {
+        self.0.repeatn(1)
+    }
+
+    #[allow(unused)]
+    pub fn from_bytes(bytes: &[u8]) -> Hash {
+        let mut h = Hash::default();
+        h.0.copy_from_slice(bytes);
+        h
     }
 }
 
@@ -70,6 +91,24 @@ mod tests {
         // [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10] = Hello, World! + LF
         let hash =
             super::Hash::new(&vec![98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]);
+        assert_eq!(hash.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+    }
+
+    #[test]
+    fn test_hash_new_from_str() {
+        let hash = super::Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(hash.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+    }
+
+    #[test]
+    fn test_hash_to_bytes() {
+        let hash = super::Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(hash.to_bytes(), vec![0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24, 0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d]);
+    }
+
+    #[test]
+    fn test_hash_from_bytes() {
+        let hash = super::Hash::from_bytes(&vec![0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24, 0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d]);
         assert_eq!(hash.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
     }
 }

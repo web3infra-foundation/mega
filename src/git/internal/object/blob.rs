@@ -33,7 +33,7 @@ use std::str;
 
 use crate::git::errors::GitError;
 use crate::git::internal::object::meta::Meta;
-use crate::git::internal::object::tree::{TreeItem, TreeItemType};
+use crate::git::internal::object::tree::{TreeItem, TreeItemMode};
 use crate::git::internal::ObjectType;
 
 /// **The Blob Object**
@@ -97,10 +97,9 @@ impl Blob {
     pub fn generate_tree_item(&self, filename: &str) -> Result<TreeItem, GitError> {
         Ok(
             TreeItem {
-                mode: TreeItemType::Blob.to_bytes().to_vec(),
-                item_type: TreeItemType::Blob,
+                mode: TreeItemMode::Blob,
                 id: self.meta.id,
-                filename: filename.to_string(),
+                name: filename.to_string(),
             }
         )
     }
@@ -177,14 +176,13 @@ mod tests {
     #[test]
     fn test_generate_tree_item() {
         use crate::git::internal::object::blob::Blob;
-        use crate::git::internal::object::tree::TreeItemType;
+        use crate::git::internal::object::tree::TreeItemMode;
 
         let blob = Blob::new_from_data("Hello, World!".as_bytes().to_vec());
         let tree_item = blob.generate_tree_item("hello-world").unwrap();
 
-        assert_eq!(tree_item.mode, TreeItemType::Blob.to_bytes().to_vec());
-        assert_eq!(tree_item.item_type, TreeItemType::Blob);
+        assert_eq!(tree_item.mode, TreeItemMode::Blob);
         assert_eq!(tree_item.id.to_plain_str(), "b45ef6fec89518d314f546fd6c3025367b721684");
-        assert_eq!(tree_item.filename, "hello-world");
+        assert_eq!(tree_item.name, "hello-world");
     }
 }
