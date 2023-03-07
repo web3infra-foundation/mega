@@ -17,6 +17,7 @@
 use std::fmt::Display;
 
 use colored::Colorize;
+use bstr::ByteSlice;
 
 use crate::git::errors::GitError;
 use crate::git::hash::Hash;
@@ -45,6 +46,7 @@ impl Display for TreeItemMode {
             TreeItemMode::Commit => "commit",
             TreeItemMode::Link => "link",
         };
+
         write!(f, "{}", String::from(_print).blue())
     }
 }
@@ -180,11 +182,13 @@ impl TreeItem {
     #[allow(unused)]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
+
         bytes.extend_from_slice(self.mode.to_bytes());
         bytes.push(b' ');
         bytes.extend_from_slice(self.name.as_bytes());
         bytes.push(b'\0');
         bytes.extend_from_slice(&self.id.to_bytes());
+
         bytes
     }
 }
@@ -195,7 +199,6 @@ impl TreeItem {
 #[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone)]
 pub struct Tree {
     pub meta: Meta,
-    pub name: String,
     pub tree_items: Vec<TreeItem>,
 }
 
@@ -205,6 +208,7 @@ impl Display for Tree {
         for item in &self.tree_items {
             write!(f, "{}", item)?;
         }
+
         Ok(())
     }
 }
@@ -218,12 +222,41 @@ impl Tree {
     /// Generate a TreeItem from Tree object.
     /// This is used to generate a TreeItem for the parent directory of the current Tree object.
     #[allow(unused)]
-    pub fn generate_self_2tree_item(&self) -> Result<TreeItem, GitError> {
+    pub fn generate_self_2tree_item(&self, name: String) -> Result<TreeItem, GitError> {
         Ok(TreeItem::new(
             TreeItemMode::Tree,
             self.meta.id,
-            self.name.clone(),
+            name,
         ))
+    }
+
+    #[allow(unused)]
+    pub fn new_from_meta(meta: Meta) -> Result<Self, GitError> {
+        let mut tree_items = Vec::new();
+
+        let mut i = 0;
+        while i < meta.size {
+            let index = meta.data[i..].find_byte(0x00).unwrap();
+            let next = i + index + 21;
+
+            tree_items.push(TreeItem::new_from_bytes(
+                &meta.data[i..next],
+            )?);
+
+            i = next
+        }
+
+        Ok(Tree {
+            meta,
+            tree_items,
+        })
+    }
+
+    #[allow(unused)]
+    pub fn net_from_file(path: &str) -> Result<Self, GitError> {
+        let meta = Meta::new_from_file(path)?;
+
+        Tree::new_from_meta(meta)
     }
 }
 
