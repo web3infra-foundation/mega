@@ -253,7 +253,7 @@ impl Tree {
     }
 
     #[allow(unused)]
-    pub fn net_from_file(path: &str) -> Result<Self, GitError> {
+    pub fn new_from_file(path: &str) -> Result<Self, GitError> {
         let meta = Meta::new_from_file(path)?;
 
         Tree::new_from_meta(meta)
