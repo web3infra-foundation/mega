@@ -40,6 +40,17 @@ pub struct Meta {
 }
 
 impl Meta {
+    /// Create a new `Meta` struct from a Git object without data.
+    #[allow(unused)]
+    pub fn default(object_type: ObjectType) -> Self {
+        Meta {
+            object_type,
+            id: Hash::default(),
+            size: 0,
+            data: vec![],
+        }
+    }
+
     /// Create a new `Meta` struct from a Git object include object type and data.
     /// # Examples
     /// ```
@@ -141,6 +152,25 @@ impl Meta {
         Ok(path.to_str().unwrap().to_string())
     }
 
+    #[allow(unused)]
+    pub fn new_from_bytes(bytes: Vec<u8>) -> Result<Self, GitError> {
+        let type_index = bytes.find_byte(0x20).unwrap();
+        let type_object = &bytes[0..type_index];
+
+        let size_index = bytes.find_byte(0x00).unwrap();
+        let data = bytes[size_index + 1..].to_vec();
+
+        match String::from_utf8(type_object.to_vec()).unwrap().as_str() {
+            "blob" => Ok(Meta::new_from_data(ObjectType::Blob, data)),
+            "tree" => Ok(Meta::new_from_data(ObjectType::Tree, data)),
+            "commit" => Ok(Meta::new_from_data(ObjectType::Commit, data)),
+            "tag" => Ok(Meta::new_from_data(ObjectType::Tag, data)),
+            _ => Err(GitError::InvalidObjectType(
+                String::from_utf8(type_object.to_vec()).unwrap(),
+            )),
+        }
+    }
+
     /// # Attention
     /// In the ASCII character set, the character corresponding 10(hex: 0x0A) is the line feed (LF)
     /// character, which is commonly used as a symbol for a new line in text files. The LF character
@@ -158,34 +188,22 @@ impl Meta {
         let mut decoded = Vec::new();
         decoder.read_to_end(&mut decoded).unwrap();
 
-        let type_index = decoded.find_byte(0x20).unwrap();
-        let t = &decoded[0..type_index];
-
-        let size_index = decoded.find_byte(0x00).unwrap();
-        let size = decoded[type_index + 1..size_index]
-            .iter()
-            .copied()
-            .map(|x| x as char)
-            .collect::<String>()
-            .parse::<usize>()
-            .unwrap();
-
-        let mut data = decoded[size_index + 1..].to_vec();
-
-        match String::from_utf8(t.to_vec()).unwrap().as_str() {
-            "blob" => Ok(Meta::new_from_data(ObjectType::Blob, data)),
-            "tree" => Ok(Meta::new_from_data(ObjectType::Tree, data)),
-            "commit" => Ok(Meta::new_from_data(ObjectType::Commit, data)),
-            "tag" => Ok(Meta::new_from_data(ObjectType::Tag, data)),
-            _ => Err(GitError::InvalidObjectType(
-                String::from_utf8(t.to_vec()).unwrap(),
-            )),
-        }
+        Self::new_from_bytes(decoded)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn test_meta_default() {
+        use crate::git::internal::ObjectType;
+
+        let meta = super::Meta::default(ObjectType::Blob);
+
+        assert_eq!(meta.object_type, ObjectType::Blob);
+        assert_eq!(meta.size, 0);
+    }
+
     #[test]
     fn test_new_from_data() {
         use crate::git::internal::ObjectType;
@@ -222,6 +240,7 @@ mod tests {
     fn test_new_from_file() {
         use std::env;
         use std::path::PathBuf;
+
         use crate::git::internal::ObjectType;
 
         // "Hello, World!" is [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33] without
