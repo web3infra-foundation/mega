@@ -65,8 +65,12 @@ impl Display for Blob {
 impl Blob {
     /// Create a new Blob object from a Meta object.
     #[allow(unused)]
-    pub fn new_from_meta(meta: Meta) -> Self {
-        Self { meta }
+    pub fn new_from_meta(meta: Meta) -> Result<Blob, GitError> {
+        if meta.object_type != ObjectType::Blob {
+            return Err(GitError::InvalidBlobObject(meta.object_type.to_string()));
+        }
+
+        Ok(Self { meta })
     }
 
     /// Create a new Blob object from a data.
@@ -114,7 +118,7 @@ mod tests {
         use crate::git::internal::ObjectType;
 
         let meta = Meta::new_from_data(ObjectType::Blob, "Hello, World!".as_bytes().to_vec());
-        let blob = Blob::new_from_meta(meta);
+        let blob = Blob::new_from_meta(meta).unwrap();
 
         assert_eq!(blob.meta.data, "Hello, World!".as_bytes().to_vec());
     }

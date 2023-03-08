@@ -4,8 +4,8 @@
 //!
 
 use std::fmt::Display;
-use bstr::ByteSlice;
 
+use bstr::ByteSlice;
 use colored::Colorize;
 use sha1::{Digest, Sha1};
 
