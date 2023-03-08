@@ -52,17 +52,18 @@ impl Display for TreeItemMode {
 }
 
 impl TreeItemMode {
-    #[allow(unused)]
+
     /// 32-bit mode, split into (high to low bits):
     /// - 4-bit object type: valid values in binary are 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
     /// - 3-bit unused
     /// - 9-bit unix permission: Only 0755 and 0644 are valid for regular files. Symbolic links and gitlink have value 0 in this field.
+    #[allow(unused)]
     pub fn to_bytes(self) -> &'static [u8] {
         match self {
             TreeItemMode::Blob => b"100644",
             TreeItemMode::BlobExecutable => b"100755",
             TreeItemMode::Link => b"120000",
-            TreeItemMode::Tree => b"040000",
+            TreeItemMode::Tree => b"40000",
             TreeItemMode::Commit => b"160000",
         }
     }
@@ -97,7 +98,7 @@ impl TreeItemMode {
     #[allow(unused)]
     pub fn tree_item_type_from(mode: &[u8]) -> Result<TreeItemMode, GitError> {
         Ok(match mode {
-            b"040000" => TreeItemMode::Tree,
+            b"40000" => TreeItemMode::Tree,
             b"100644" => TreeItemMode::Blob,
             b"100755" => TreeItemMode::BlobExecutable,
             b"120000" => TreeItemMode::Link,
@@ -153,6 +154,18 @@ impl Display for TreeItem {
 
 impl TreeItem {
     /// Create a new TreeItem from a mode, id and name
+    ///
+    /// # Example
+    /// ```rust
+    /// // Create a empty TreeItem with the default Hash
+    /// let default_item = TreeItem::new(TreeItemMode::Blob, Hash::default(), String::new());
+    ///
+    /// // Create a blob TreeItem with a custom Hash, and file name
+    /// let file_item = TreeItem::new(TreeItemMode::Blob, Hash::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("hello.txt"));
+    ///
+    /// // Create a tree TreeItem with a custom Hash, and directory name
+    /// let dir_item = TreeItem::new(TreeItemMode::Tree, Hash::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("data"));
+    /// ```
     #[allow(unused)]
     pub fn new(mode: TreeItemMode, id: Hash, name: String) -> Self {
         TreeItem {
@@ -162,6 +175,17 @@ impl TreeItem {
         }
     }
 
+    /// Create a new TreeItem from a byte vector, split into a mode, id and name, the TreeItem format is:
+    ///
+    /// ```bash
+    /// <mode> <name>\0<binary object ID>
+    /// ```
+    ///
+    /// # Example
+    /// ```rust
+    /// let bytes = Vec<u8>::new().to_bytes();
+    //  let tree_item = TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
+    /// ```
     #[allow(unused)]
     pub fn new_from_bytes(bytes: &[u8]) -> Result<Self, GitError> {
         let mut parts = bytes.splitn(2, |b| *b == b' ');
@@ -179,6 +203,15 @@ impl TreeItem {
     }
 
     /// Convert a TreeItem to a byte vector
+    /// ```rust
+    /// let tree_item = super::TreeItem::new(
+    ///     TreeItemMode::Blob,
+    ///     Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
+    ///     "hello-world".to_string(),
+    /// );
+    ///
+    /// let bytes = tree_item.to_bytes();
+    /// ```
     #[allow(unused)]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
@@ -214,6 +247,7 @@ impl Display for Tree {
 }
 
 impl Tree {
+    /// Create a new Tree with special hash id, **0000000000000000000000000000000000000000**
     #[allow(unused)]
     pub fn empty_tree_hash() -> Hash {
         Hash::default()
@@ -230,6 +264,7 @@ impl Tree {
         ))
     }
 
+    /// Create a new Tree from a Meta object
     #[allow(unused)]
     pub fn new_from_meta(meta: Meta) -> Result<Self, GitError> {
         let mut tree_items = Vec::new();
@@ -252,16 +287,24 @@ impl Tree {
         })
     }
 
+    /// Crate a new Tree from a tree file
     #[allow(unused)]
     pub fn new_from_file(path: &str) -> Result<Self, GitError> {
         let meta = Meta::new_from_file(path)?;
 
         Tree::new_from_meta(meta)
     }
+
+    /// Write to a file with path
+    #[allow(unused)]
+    pub fn write_2file(&self, path: &str) -> Result<String, GitError> {
+        self.meta.loose_2file(path)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+
     #[test]
     fn test_tree_item_new() {
         use crate::git::hash::Hash;
@@ -311,5 +354,76 @@ mod tests {
     fn test_empty_tree_hash() {
         let hash = super::Tree::empty_tree_hash();
         assert_eq!(hash.to_plain_str(), "0000000000000000000000000000000000000000");
+    }
+
+    #[test]
+    fn test_tree_new_from_file_with_one_item() {
+        use std::env;
+        use std::path::PathBuf;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/f9/a1667a0dfce06819394c2aad557a04e9a13e56");
+
+        let tree = super::Tree::new_from_file(source.to_str().unwrap()).unwrap();
+
+        assert_eq!(tree.tree_items.len(), 1);
+        assert_eq!(tree.tree_items[0].mode, super::TreeItemMode::Blob);
+        assert_eq!(tree.tree_items[0].id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(tree.tree_items[0].name, "hello-world");
+        assert_eq!(tree.meta.id.to_plain_str(), "f9a1667a0dfce06819394c2aad557a04e9a13e56");
+    }
+
+    #[test]
+    fn test_tree_new_from_file_with_two_items() {
+        use std::env;
+        use std::path::PathBuf;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
+
+        let tree = super::Tree::new_from_file(source.to_str().unwrap()).unwrap();
+
+        for item in tree.tree_items.iter() {
+            if item.mode == super::TreeItemMode::Blob {
+                assert_eq!(item.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+                assert_eq!(item.name, "hello-world");
+            }
+
+            if item.mode == super::TreeItemMode::Tree {
+                assert_eq!(item.id.to_plain_str(), "c44c09a88097e5fb0c833d4178b2df78055ad2e9");
+                assert_eq!(item.name, "rust");
+            }
+        }
+
+        assert_eq!(tree.tree_items.len(), 2);
+        assert_eq!(tree.meta.id.to_plain_str(), "e7002dbbc79a209462247302c7757a31ab16df1e");
+    }
+
+    #[test]
+    fn test_tree_write_2file() {
+        use std::env;
+        use std::path::PathBuf;
+        use std::fs::remove_file;
+
+        use crate::git::internal::object::meta::Meta;
+        use crate::git::internal::object::tree::Tree;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let tree = Tree::new_from_meta(meta).unwrap();
+
+        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        dest_file.push("tests/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
+        if dest_file.exists() {
+            remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
+        }
+
+        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        dest.push("tests/objects");
+
+        let path = tree.write_2file(dest.as_path().to_str().unwrap()).unwrap();
+
+        assert_eq!(path, dest_file.as_path().to_str().unwrap());
     }
 }
