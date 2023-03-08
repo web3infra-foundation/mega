@@ -157,6 +157,7 @@ impl Meta {
         let type_index = bytes.find_byte(0x20).unwrap();
         let type_object = &bytes[0..type_index];
 
+
         let size_index = bytes.find_byte(0x00).unwrap();
         let data = bytes[size_index + 1..].to_vec();
 
