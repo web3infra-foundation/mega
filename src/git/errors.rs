@@ -22,6 +22,9 @@ pub enum GitError {
     #[error("The `{0}` is not a valid git tree item.")]
     InvalidTreeItem(String),
 
+    #[error("The `{0}` is not a valid git commit signature.")]
+    InvalidSignatureType(String),
+
     #[error("The `{0}` is not a valid git commit object.")]
     InvalidCommitObject(String),
 
