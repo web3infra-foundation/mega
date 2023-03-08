@@ -37,8 +37,8 @@ pub enum SignatureType {
 impl Display for SignatureType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            SignatureType::Author => write!(f, "Author"),
-            SignatureType::Committer => write!(f, "Committer"),
+            SignatureType::Author => write!(f, "author"),
+            SignatureType::Committer => write!(f, "committer"),
         }
     }
 }
@@ -72,6 +72,7 @@ impl SignatureType {
 }
 
 #[allow(unused)]
+#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone)]
 pub struct Signature {
     pub signature_type: SignatureType,
     pub name: String,
@@ -90,7 +91,7 @@ impl Display for Signature {
 
 impl Signature {
     #[allow(unused)]
-    pub fn new_from_data(&mut self, data: Vec<u8>) -> Result<(), GitError> {
+    pub fn new_from_data(data: Vec<u8>) -> Result<Signature, GitError> {
         // Make a mutable copy of the input data vector.
         let mut sign = data;
 
@@ -99,33 +100,33 @@ impl Signature {
 
         // Parse the author name from the bytes up to the first space byte.
         // If the parsing fails, unwrap will panic.
-        self.signature_type = SignatureType::from_data(sign[..name_start].to_vec()).unwrap();
+        let signature_type = SignatureType::from_data(sign[..name_start].to_vec()).unwrap();
 
-        // Find the indices of the email address bytes within the data vector.
-        let email_start = sign.find_byte(0x3C).unwrap();
-        let email_end = sign.find_byte(0x3E).unwrap();
+        let (name, email) = {
+            let email_start = sign.find_byte(0x3C).unwrap();
+            let email_end = sign.find_byte(0x3E).unwrap();
 
-        // Parse the name and email address from the data vector using slicing and string conversion.
-        // If the parsing fails, unwrap will panic.
-        self.name = sign[name_start + 1..email_start - 1]
-            .to_str()
-            .unwrap()
-            .to_string();
-
-        self.email = sign[email_start + 1..email_end]
-            .to_str()
-            .unwrap()
-            .to_string();
+            (
+                sign[name_start + 1..email_start - 1]
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                sign[email_start + 1..email_end]
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            )
+        };
 
         // Update the data vector to remove the author and email bytes.
-        sign = sign[email_end + 2..].to_vec();
+        sign = sign[sign.find_byte(0x3E).unwrap() + 2..].to_vec();
 
         // Find the index of the second space byte in the updated data vector.
         let timestamp_split = sign.find_byte(0x20).unwrap();
 
         // Parse the timestamp integer from the bytes up to the second space byte.
         // If the parsing fails, unwrap will panic.
-        self.timestamp = sign[0..timestamp_split]
+        let timestamp = sign[0..timestamp_split]
             .to_str()
             .unwrap()
             .parse::<usize>()
@@ -133,10 +134,10 @@ impl Signature {
 
         // Parse the timezone string from the bytes after the second space byte.
         // If the parsing fails, unwrap will panic.
-        self.timezone = sign[timestamp_split + 1..].to_str().unwrap().to_string();
+        let timezone = sign[timestamp_split + 1..].to_str().unwrap().to_string();
 
-        // Return a Result object indicating success.
-        Ok(())
+        // Return a Result object indicating success
+        Ok(Signature { signature_type, name, email, timestamp, timezone })
     }
 
     ///
@@ -147,21 +148,19 @@ impl Signature {
 
         // Append the author name bytes to the data vector, followed by a space byte.
         sign.extend_from_slice(&self.signature_type.to_bytes());
-        sign.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        sign.extend_from_slice(&[0x20]);
 
         // Append the name bytes to the data vector, followed by a space byte.
         sign.extend_from_slice(self.name.as_bytes());
-        sign.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        sign.extend_from_slice(&[0x20]);
 
         // Append the email address bytes to the data vector, enclosed in angle brackets.
-        sign.extend_from_slice(0x3Cu8.to_be_bytes().as_ref());
-        sign.extend_from_slice(self.email.as_bytes());
-        sign.extend_from_slice(0x3Eu8.to_be_bytes().as_ref());
+        sign.extend_from_slice(format!("<{}>", self.email).as_bytes());
+        sign.extend_from_slice(&[0x20]);
 
         // Append the timestamp integer bytes to the data vector, followed by a space byte.
-        sign.extend_from_slice(0x20u8.to_be_bytes().as_ref());
         sign.extend_from_slice(self.timestamp.to_string().as_bytes());
-        sign.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        sign.extend_from_slice(&[0x20]);
 
         // Append the timezone string bytes to the data vector.
         sign.extend_from_slice(self.timezone.as_bytes());
@@ -173,6 +172,8 @@ impl Signature {
 
 #[cfg(test)]
 mod tests {
+    use crate::git::internal::object::signature::Signature;
+
     #[test]
     fn test_signature_type_from_str() {
         assert_eq!(
@@ -214,15 +215,7 @@ mod tests {
 
     #[test]
     fn test_signature_new_from_data() {
-        let mut sign = super::Signature {
-            signature_type: super::SignatureType::Author,
-            name: String::new(),
-            email: String::new(),
-            timestamp: 0,
-            timezone: String::new(),
-        };
-
-        sign.new_from_data(
+        let sign = Signature::new_from_data(
             "author Quanyi Ma <eli@patch.sh> 1678101573 +0800".to_string().into_bytes()).unwrap();
 
         assert_eq!(sign.signature_type, super::SignatureType::Author);
@@ -234,15 +227,7 @@ mod tests {
 
     #[test]
     fn test_signature_to_data() {
-        let mut sign = super::Signature {
-            signature_type: super::SignatureType::Author,
-            name: String::new(),
-            email: String::new(),
-            timestamp: 0,
-            timezone: String::new(),
-        };
-
-        sign.new_from_data(
+        let sign = Signature::new_from_data(
             "committer Quanyi Ma <eli@patch.sh> 1678101573 +0800".to_string().into_bytes()).unwrap();
 
         let dest = sign.to_data().unwrap();
