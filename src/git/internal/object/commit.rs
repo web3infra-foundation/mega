@@ -83,11 +83,17 @@ impl Commit {
         })
     }
 
+    /// Create a new commit object from a file
     #[allow(unused)]
     pub fn new_from_file(path: &str) -> Result<Self, GitError> {
         let meta = Meta::new_from_file(path)?;
 
         Commit::new_from_meta(meta)
+    }
+
+    #[allow(unused)]
+    pub fn write_to_file(&self, path: &str) -> Result<String, GitError> {
+        self.meta.write_to_file(path)
     }
 }
 

@@ -92,8 +92,8 @@ impl Blob {
     /// Write the Blob object to a file with the given root path.
     /// The file path is the root path + ID[..2] + ID[2..]
     #[allow(unused)]
-    pub fn write_2file(&self, path: &str) -> Result<String, GitError> {
-        self.meta.loose_2file(path)
+    pub fn write_to_file(&self, path: &str) -> Result<String, GitError> {
+        self.meta.write_to_file(path)
     }
 
     /// Generate a tree item string for the Blob object.
@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_2file() {
+    fn test_write_to_file() {
         use std::env;
         use std::path::PathBuf;
         use std::fs::remove_file;
@@ -170,7 +170,7 @@ mod tests {
 
         let mut dest = PathBuf::from(env::current_dir().unwrap());
         dest.push("tests/objects");
-        let file = blob.write_2file(dest.as_path().to_str().unwrap()).unwrap();
+        let file = blob.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
 
         dest.push("8a");
         dest.push("b686eafeb1f44702738c8b0f24f2567c36da6d");
