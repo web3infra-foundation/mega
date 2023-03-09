@@ -16,12 +16,13 @@
 //!
 use std::fmt::Display;
 
-use colored::Colorize;
 use bstr::ByteSlice;
+use colored::Colorize;
 
 use crate::git::errors::GitError;
 use crate::git::hash::Hash;
 use crate::git::internal::object::meta::Meta;
+use crate::git::internal::ObjectType;
 
 /// In Git, the mode field in a tree object's entry specifies the type of the object represented by
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
@@ -52,7 +53,6 @@ impl Display for TreeItemMode {
 }
 
 impl TreeItemMode {
-
     /// 32-bit mode, split into (high to low bits):
     /// - 4-bit object type: valid values in binary are 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
     /// - 3-bit unused
@@ -247,23 +247,6 @@ impl Display for Tree {
 }
 
 impl Tree {
-    /// Create a new Tree with special hash id, **0000000000000000000000000000000000000000**
-    #[allow(unused)]
-    pub fn empty_tree_hash() -> Hash {
-        Hash::default()
-    }
-
-    /// Generate a TreeItem from Tree object.
-    /// This is used to generate a TreeItem for the parent directory of the current Tree object.
-    #[allow(unused)]
-    pub fn generate_self_2tree_item(&self, name: String) -> Result<TreeItem, GitError> {
-        Ok(TreeItem::new(
-            TreeItemMode::Tree,
-            self.meta.id,
-            name,
-        ))
-    }
-
     /// Create a new Tree from a Meta object
     #[allow(unused)]
     pub fn new_from_meta(meta: Meta) -> Result<Self, GitError> {
@@ -295,16 +278,42 @@ impl Tree {
         Tree::new_from_meta(meta)
     }
 
+    #[allow(unused)]
+    pub fn new_from_tree_items(tree_items: Vec<TreeItem>) -> Result<Self, GitError> {
+        if tree_items.is_empty() {
+            return Err(GitError::EmptyTreeItems(
+                "When export tree object to meta, the items is empty".parse().unwrap()
+            ));
+        }
+
+        let mut data = Vec::new();
+
+        for item in &tree_items {
+            data.extend_from_slice(item.to_bytes().as_slice());
+        }
+
+        Ok(
+            Tree {
+                meta: Meta {
+                    object_type: ObjectType::Tree,
+                    id: Meta::calculate_id(ObjectType::Tree, &data),
+                    size: data.len(),
+                    data,
+                },
+                tree_items,
+            }
+        )
+    }
+
     /// Write to a file with path
     #[allow(unused)]
-    pub fn write_2file(&self, path: &str) -> Result<String, GitError> {
-        self.meta.loose_2file(path)
+    pub fn write_to_file(&self, path: &str) -> Result<String, GitError> {
+        self.meta.write_to_file(path)
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn test_tree_item_new() {
         use crate::git::hash::Hash;
@@ -351,12 +360,6 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_tree_hash() {
-        let hash = super::Tree::empty_tree_hash();
-        assert_eq!(hash.to_plain_str(), "0000000000000000000000000000000000000000");
-    }
-
-    #[test]
     fn test_tree_new_from_file_with_one_item() {
         use std::env;
         use std::path::PathBuf;
@@ -400,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tree_write_2file() {
+    fn test_tree_write_to_file() {
         use std::env;
         use std::path::PathBuf;
         use std::fs::remove_file;
@@ -422,8 +425,25 @@ mod tests {
         let mut dest = PathBuf::from(env::current_dir().unwrap());
         dest.push("tests/objects");
 
-        let path = tree.write_2file(dest.as_path().to_str().unwrap()).unwrap();
+        let path = tree.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
 
         assert_eq!(path, dest_file.as_path().to_str().unwrap());
+    }
+
+    #[test]
+    fn test_new_from_tree_items() {
+        use std::env;
+        use std::path::PathBuf;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
+
+        let source_tree = super::Tree::new_from_file(source.to_str().unwrap()).unwrap();
+        let dest_tree = super::Tree::new_from_tree_items(source_tree.tree_items.clone()).unwrap();
+
+        assert_eq!(source_tree.tree_items.len(), dest_tree.tree_items.len());
+        assert_eq!(source_tree.meta.id.to_plain_str(), dest_tree.meta.id.to_plain_str());
+        assert_eq!(source_tree.meta.size, dest_tree.meta.size);
+        assert_eq!(source_tree.tree_items[0].id, dest_tree.tree_items[0].id);
     }
 }

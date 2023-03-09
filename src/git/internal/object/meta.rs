@@ -64,7 +64,7 @@ impl Meta {
     pub fn new_from_data(object_type: ObjectType, data: Vec<u8>) -> Self {
         Meta {
             object_type,
-            id: Meta::calculate_id(object_type, data.clone()),
+            id: Meta::calculate_id(object_type, &data),
             size: data.len(),
             data,
         }
@@ -81,7 +81,7 @@ impl Meta {
     /// The object header is followed by a null byte (0x00) and then the object data.
     ///
     /// The object id is calculated from the object header and the object data.
-    pub fn calculate_id(object_type: ObjectType, data: Vec<u8>) -> Hash {
+    pub fn calculate_id(object_type: ObjectType, data: &Vec<u8>) -> Hash {
         let mut d: Vec<u8> = Vec::new();
 
         d.extend(object_type.to_bytes().unwrap());
@@ -115,7 +115,7 @@ impl Meta {
     /// TODO: Add a overwrite flag to control whether to overwrite the existing file.
     /// TODO: Add a file path parameter to control where to store the file without flow Git store spec.
     #[allow(unused)]
-    pub fn  loose_2file(&self, root: &str) -> Result<String, GitError> {
+    pub fn write_to_file(&self, root: &str) -> Result<String, GitError> {
         // e is a ZlibEncoder, which is a wrapper around a Writer that compresses the data written to
         let mut e = ZlibEncoder::new(Vec::new(), Compression::Default);
 
@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn test_loose_2file() {
+    fn test_write_to_file() {
         use std::env;
         use std::path::PathBuf;
         use std::fs::remove_file;
@@ -286,7 +286,7 @@ mod tests {
 
         let mut dest = PathBuf::from(env::current_dir().unwrap());
         dest.push("tests/objects");
-        let file = m.loose_2file(dest.as_path().to_str().unwrap()).unwrap();
+        let file = m.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
 
         dest.push("8a");
         dest.push("b686eafeb1f44702738c8b0f24f2567c36da6d");
