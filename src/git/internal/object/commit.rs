@@ -11,6 +11,7 @@ use crate::git::errors::GitError;
 use crate::git::hash::Hash;
 use crate::git::internal::object::meta::Meta;
 use crate::git::internal::object::signature::Signature;
+use crate::git::internal::ObjectType;
 
 #[allow(unused)]
 #[derive(Eq, Debug, Clone)]
@@ -42,10 +43,9 @@ impl Display for Commit {
 }
 
 impl Commit {
-    /// Create a new commit object from a meta object
     #[allow(unused)]
-    pub fn new_from_meta(meta: Meta) -> Result<Self, GitError> {
-        let mut commit = meta.data.clone();
+    pub fn new_from_data(data: Vec<u8>) -> Result<Commit, GitError> {
+        let mut commit = data.clone();
 
         // Find the tree id and remove it from the data
         let tree_end = commit.find_byte(0x0a).unwrap();
@@ -74,13 +74,42 @@ impl Commit {
         let message = String::from_utf8(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec()).unwrap();
 
         Ok(Commit {
-            meta,
+            meta: Meta::new_from_data( ObjectType::Commit, data),
             tree_id,
             parent_tree_ids,
             author,
             committer,
             message,
         })
+    }
+
+    #[allow(unused)]
+    pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
+        let mut data = Vec::new();
+
+        data.extend(b"tree ");
+        data.extend(self.tree_id.to_plain_str().as_bytes());
+        data.extend(&[0x0a]);
+
+        for parent_tree_id in &self.parent_tree_ids {
+            data.extend(b"parent ");
+            data.extend(parent_tree_id.to_plain_str().as_bytes());
+            data.extend(&[0x0a]);
+        }
+
+        data.extend(self.author.to_data()?);
+        data.extend(&[0x0a]);
+        data.extend(self.committer.to_data()?);
+        data.extend(&[0x0a]);
+        data.extend(self.message.as_bytes());
+
+        Ok(data)
+    }
+
+    /// Create a new commit object from a meta object
+    #[allow(unused)]
+    pub fn new_from_meta(meta: Meta) -> Result<Self, GitError> {
+        Commit::new_from_data(meta.data)
     }
 
     /// Create a new commit object from a file
@@ -124,5 +153,82 @@ mod tests {
 
         assert_eq!(commit.parent_tree_ids.len(), 1);
         assert_eq!(commit.meta.id.to_plain_str(), "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
+    }
+
+    #[test]
+    fn test_new_from_meta() {
+        use std::env;
+        use std::path::PathBuf;
+
+        use crate::git::internal::ObjectType;
+        use crate::git::internal::object::meta::Meta;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
+
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let commit = super::Commit::new_from_meta(meta).unwrap();
+
+        assert_eq!(commit.meta.id.to_plain_str(), "c5170dd0aae2dc2a9142add9bb24597d326714d7");
+        assert_eq!(commit.meta.object_type, ObjectType::Commit);
+        assert_eq!(commit.author.name, "Quanyi Ma");
+    }
+
+    #[test]
+    fn test_new_from_data() {
+        use std::env;
+        use std::path::PathBuf;
+
+        use crate::git::internal::ObjectType;
+        use crate::git::internal::object::meta::Meta;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
+
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let commit = super::Commit::new_from_data(meta.data).unwrap();
+
+        assert_eq!(commit.meta.id.to_plain_str(), "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
+        assert_eq!(commit.meta.object_type, ObjectType::Commit);
+        assert_eq!(commit.author.name, "Quanyi Ma");
+    }
+
+    #[test]
+    fn test_to_data() {
+        use std::env;
+        use std::path::PathBuf;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
+
+        let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
+
+        let data = commit.to_data().unwrap();
+
+        assert_eq!(data, commit.meta.data);
+    }
+
+    #[test]
+    fn test_write_to_file() {
+        use std::env;
+        use std::path::PathBuf;
+        use std::fs::remove_file;
+
+        let mut source = PathBuf::from(env::current_dir().unwrap());
+        source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
+        let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
+
+        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        dest_file.push("tests/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
+        if dest_file.exists() {
+            remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
+        }
+
+        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        dest.push("tests/objects");
+
+        let path = commit.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
+
+        assert_eq!(path, dest_file.as_path().to_str().unwrap());
     }
 }
