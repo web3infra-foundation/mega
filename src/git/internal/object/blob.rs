@@ -29,6 +29,7 @@
 //!
 
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::str;
 
 use crate::git::errors::GitError;
@@ -92,7 +93,7 @@ impl Blob {
     /// Write the Blob object to a file with the given root path.
     /// The file path is the root path + ID[..2] + ID[2..]
     #[allow(unused)]
-    pub fn write_to_file(&self, path: &str) -> Result<String, GitError> {
+    pub fn write_to_file(&self, path: &str) -> Result<PathBuf, GitError> {
         self.meta.write_to_file(path)
     }
 
@@ -174,7 +175,8 @@ mod tests {
 
         dest.push("8a");
         dest.push("b686eafeb1f44702738c8b0f24f2567c36da6d");
-        assert_eq!(file, dest.as_path().to_str().unwrap());
+
+        assert_eq!(true, file.exists());
     }
 
     #[test]

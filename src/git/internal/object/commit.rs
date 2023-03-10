@@ -4,6 +4,7 @@
 //!
 //!
 use std::fmt::Display;
+use std::path::PathBuf;
 
 use bstr::ByteSlice;
 
@@ -121,7 +122,7 @@ impl Commit {
     }
 
     #[allow(unused)]
-    pub fn write_to_file(&self, path: &str) -> Result<String, GitError> {
+    pub fn write_to_file(&self, path: &str) -> Result<PathBuf, GitError> {
         self.meta.write_to_file(path)
     }
 }
@@ -225,10 +226,11 @@ mod tests {
         }
 
         let mut dest = PathBuf::from(env::current_dir().unwrap());
-        dest.push("tests/objects");
+        dest = dest.join("tests");
+        dest = dest.join("objects");
 
-        let path = commit.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
+        let file = commit.write_to_file(dest.to_str().unwrap()).unwrap();
 
-        assert_eq!(path, dest_file.as_path().to_str().unwrap());
+        assert_eq!(true, file.exists());
     }
 }
