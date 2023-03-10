@@ -15,6 +15,7 @@
 //! operations like merging and rebasing more quickly and accurately.
 //!
 use std::fmt::Display;
+use std::path::PathBuf;
 
 use bstr::ByteSlice;
 use colored::Colorize;
@@ -307,7 +308,7 @@ impl Tree {
 
     /// Write to a file with path
     #[allow(unused)]
-    pub fn write_to_file(&self, path: &str) -> Result<String, GitError> {
+    pub fn write_to_file(&self, path: &str) -> Result<PathBuf, GitError> {
         self.meta.write_to_file(path)
     }
 }
@@ -425,9 +426,9 @@ mod tests {
         let mut dest = PathBuf::from(env::current_dir().unwrap());
         dest.push("tests/objects");
 
-        let path = tree.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
+        let file = tree.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
 
-        assert_eq!(path, dest_file.as_path().to_str().unwrap());
+        assert_eq!(true, file.exists());
     }
 
     #[test]
