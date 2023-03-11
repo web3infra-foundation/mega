@@ -53,24 +53,6 @@ impl Display for ObjectType {
 }
 
 impl ObjectType {
-    /// Convert an object type to a byte array.
-    /// # Examples
-    /// ```
-    ///     let blob = ObjectType::Blob;
-    ///     let blob_bytes = blob.to_bytes().unwrap();
-    ///     assert_eq!(blob_bytes, vec![0x62, 0x6c, 0x6f, 0x62]);
-    /// ```
-    #[allow(unused)]
-    pub fn to_bytes(self) -> Result<Vec<u8>, GitError> {
-        match self {
-            ObjectType::Blob => Ok(vec![0x62, 0x6c, 0x6f, 0x62]),
-            ObjectType::Tree => Ok(vec![0x74, 0x72, 0x65, 0x65]),
-            ObjectType::Commit => Ok(vec![0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74]),
-            ObjectType::Tag => Ok(vec![0x74, 0x61, 0x67]),
-            _ => Err(GitError::InvalidObjectType(self.to_string())),
-        }
-    }
-
     /// Parses a string representation of a Git object type and returns an ObjectType value
     /// # Examples
     /// ```
@@ -84,6 +66,24 @@ impl ObjectType {
             "commit" => Ok(ObjectType::Commit),
             "tag" => Ok(ObjectType::Tag),
             _ => Err(GitError::InvalidObjectType(s.to_string())),
+        }
+    }
+
+    /// Convert an object type to a byte array.
+    /// # Examples
+    /// ```
+    ///     let blob = ObjectType::Blob;
+    ///     let blob_bytes = blob.to_bytes().unwrap();
+    ///     assert_eq!(blob_bytes, vec![0x62, 0x6c, 0x6f, 0x62]);
+    /// ```
+    #[allow(unused)]
+    pub fn to_data(self) -> Result<Vec<u8>, GitError> {
+        match self {
+            ObjectType::Blob => Ok(vec![0x62, 0x6c, 0x6f, 0x62]),
+            ObjectType::Tree => Ok(vec![0x74, 0x72, 0x65, 0x65]),
+            ObjectType::Commit => Ok(vec![0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74]),
+            ObjectType::Tag => Ok(vec![0x74, 0x61, 0x67]),
+            _ => Err(GitError::InvalidObjectType(self.to_string())),
         }
     }
 
@@ -130,9 +130,9 @@ impl ObjectType {
 #[cfg(test)]
 mod tests{
     #[test]
-    fn test_object_type_to_bytes() {
+    fn test_object_type_to_data() {
         let blob = super::ObjectType::Blob;
-        let blob_bytes = blob.to_bytes().unwrap();
+        let blob_bytes = blob.to_data().unwrap();
         assert_eq!(blob_bytes, vec![0x62, 0x6c, 0x6f, 0x62]);
     }
 

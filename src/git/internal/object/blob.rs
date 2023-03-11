@@ -78,7 +78,7 @@ impl Blob {
     #[allow(unused)]
     pub fn new_from_data(data: Vec<u8>) -> Self {
         Self {
-            meta: Meta::new_from_data(ObjectType::Blob, data),
+            meta: Meta::new_from_data_with_object_type(ObjectType::Blob, data),
         }
     }
 
@@ -93,8 +93,13 @@ impl Blob {
     /// Write the Blob object to a file with the given root path.
     /// The file path is the root path + ID[..2] + ID[2..]
     #[allow(unused)]
-    pub fn write_to_file(&self, path: &str) -> Result<PathBuf, GitError> {
-        self.meta.write_to_file(path)
+    pub fn to_file(&self, path: &str) -> Result<PathBuf, GitError> {
+        self.meta.to_file(path)
+    }
+
+    #[allow(unused)]
+    pub fn to_data(&self) -> Vec<u8> {
+        self.meta.data.clone()
     }
 
     /// Generate a tree item string for the Blob object.
@@ -118,7 +123,7 @@ mod tests {
         use crate::git::internal::object::blob::Blob;
         use crate::git::internal::ObjectType;
 
-        let meta = Meta::new_from_data(ObjectType::Blob, "Hello, World!".as_bytes().to_vec());
+        let meta = Meta::new_from_data_with_object_type(ObjectType::Blob, "Hello, World!".as_bytes().to_vec());
         let blob = Blob::new_from_meta(meta).unwrap();
 
         assert_eq!(blob.meta.data, "Hello, World!".as_bytes().to_vec());
@@ -152,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_to_file() {
+    fn test_to_file() {
         use std::env;
         use std::path::PathBuf;
         use std::fs::remove_file;
@@ -171,7 +176,7 @@ mod tests {
 
         let mut dest = PathBuf::from(env::current_dir().unwrap());
         dest.push("tests/objects");
-        let file = blob.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
+        let file = blob.to_file(dest.as_path().to_str().unwrap()).unwrap();
 
         dest.push("8a");
         dest.push("b686eafeb1f44702738c8b0f24f2567c36da6d");

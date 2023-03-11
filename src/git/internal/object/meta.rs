@@ -51,25 +51,6 @@ impl Meta {
         }
     }
 
-    /// Create a new `Meta` struct from a Git object include object type and data.
-    /// # Examples
-    /// ```
-    ///     let meta = Meta::new(ObjectType::Blob, vec![98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]);
-    ///     assert_eq!(meta.object_type, ObjectType::Blob);
-    ///     assert_eq!(meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
-    ///     assert_eq!(meta.size, 14);
-    ///     assert_eq!(meta.delta_header, vec![]);
-    /// ```
-    #[allow(unused)]
-    pub fn new_from_data(object_type: ObjectType, data: Vec<u8>) -> Self {
-        Meta {
-            object_type,
-            id: Meta::calculate_id(object_type, &data),
-            size: data.len(),
-            data,
-        }
-    }
-
     /// A Git object in the Loose Format consists of two parts: the object header and the object data.
     /// The object header is stored in plain text format and contains the following information:
     ///
@@ -84,13 +65,72 @@ impl Meta {
     pub fn calculate_id(object_type: ObjectType, data: &Vec<u8>) -> Hash {
         let mut d: Vec<u8> = Vec::new();
 
-        d.extend(object_type.to_bytes().unwrap());
+        d.extend(object_type.to_data().unwrap());
         d.push(b' ');
         d.extend(data.len().to_string().as_bytes());
         d.push(b'\x00');
         d.extend(data);
 
         Hash::new(&d)
+    }
+
+    /// Create a new `Meta` struct from a Git object include object type and data.
+    /// # Examples
+    /// ```
+    ///     let meta = Meta::new(ObjectType::Blob, vec![98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]);
+    ///     assert_eq!(meta.object_type, ObjectType::Blob);
+    ///     assert_eq!(meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+    ///     assert_eq!(meta.size, 14);
+    ///     assert_eq!(meta.delta_header, vec![]);
+    /// ```
+    #[allow(unused)]
+    pub fn new_from_data_with_object_type(object_type: ObjectType, data: Vec<u8>) -> Self {
+        Meta {
+            object_type,
+            id: Meta::calculate_id(object_type, &data),
+            size: data.len(),
+            data,
+        }
+    }
+
+    #[allow(unused)]
+    pub fn new_from_data(bytes: Vec<u8>) -> Result<Self, GitError> {
+        let type_index = bytes.find_byte(0x20).unwrap();
+        let type_object = &bytes[0..type_index];
+
+
+        let size_index = bytes.find_byte(0x00).unwrap();
+        let data = bytes[size_index + 1..].to_vec();
+
+        match String::from_utf8(type_object.to_vec()).unwrap().as_str() {
+            "blob" => Ok(Meta::new_from_data_with_object_type(ObjectType::Blob, data)),
+            "tree" => Ok(Meta::new_from_data_with_object_type(ObjectType::Tree, data)),
+            "commit" => Ok(Meta::new_from_data_with_object_type(ObjectType::Commit, data)),
+            "tag" => Ok(Meta::new_from_data_with_object_type(ObjectType::Tag, data)),
+            _ => Err(GitError::InvalidObjectType(
+                String::from_utf8(type_object.to_vec()).unwrap(),
+            )),
+        }
+    }
+
+    /// # Attention
+    /// In the ASCII character set, the character corresponding 10(hex: 0x0A) is the line feed (LF)
+    /// character, which is commonly used as a symbol for a new line in text files. The LF character
+    /// is represented by the hexadecimal value of 0x0A in ASCII. The way that new lines are
+    /// represented in text files can vary across different operating systems and programming
+    /// languages. In Linux and Unix systems, LF is commonly used to represent new lines in text
+    /// files, while in Windows systems, a combination of carriage return (CR) and LF ("\r\n") is
+    /// commonly used.
+    #[allow(unused)]
+    pub fn new_from_file(path: &str) -> Result<Self, GitError> {
+        let file = File::open(path).unwrap();
+        let mut reader = BufReader::new(file);
+
+        let mut decoder = ZlibDecoder::new(reader);
+        let mut decoded = Vec::new();
+        decoder.read_to_end(&mut decoded).unwrap();
+
+        Self::new_from_data(decoded)
     }
 
     #[allow(unused)]
@@ -115,13 +155,13 @@ impl Meta {
     /// TODO: Add a overwrite flag to control whether to overwrite the existing file.
     /// TODO: Add a file path parameter to control where to store the file without flow Git store spec.
     #[allow(unused)]
-    pub fn write_to_file(&self, root: &str) -> Result<PathBuf, GitError> {
+    pub fn to_file(&self, root: &str) -> Result<PathBuf, GitError> {
         // e is a ZlibEncoder, which is a wrapper around a Writer that compresses the data written to
         let mut e = ZlibEncoder::new(Vec::new(), Compression::Default);
 
         // Write the object type to the encoder
         // Object Type + Space + Object Size + \0 + Object Data
-        e.write_all(&self.object_type.to_bytes().unwrap());
+        e.write_all(&self.object_type.to_data().unwrap());
         e.write(&[b' ']);
         e.write(self.size.to_string().as_bytes());
         e.write(&[b'\0']);
@@ -151,46 +191,6 @@ impl Meta {
 
         Ok(path)
     }
-
-    #[allow(unused)]
-    pub fn new_from_bytes(bytes: Vec<u8>) -> Result<Self, GitError> {
-        let type_index = bytes.find_byte(0x20).unwrap();
-        let type_object = &bytes[0..type_index];
-
-
-        let size_index = bytes.find_byte(0x00).unwrap();
-        let data = bytes[size_index + 1..].to_vec();
-
-        match String::from_utf8(type_object.to_vec()).unwrap().as_str() {
-            "blob" => Ok(Meta::new_from_data(ObjectType::Blob, data)),
-            "tree" => Ok(Meta::new_from_data(ObjectType::Tree, data)),
-            "commit" => Ok(Meta::new_from_data(ObjectType::Commit, data)),
-            "tag" => Ok(Meta::new_from_data(ObjectType::Tag, data)),
-            _ => Err(GitError::InvalidObjectType(
-                String::from_utf8(type_object.to_vec()).unwrap(),
-            )),
-        }
-    }
-
-    /// # Attention
-    /// In the ASCII character set, the character corresponding 10(hex: 0x0A) is the line feed (LF)
-    /// character, which is commonly used as a symbol for a new line in text files. The LF character
-    /// is represented by the hexadecimal value of 0x0A in ASCII. The way that new lines are
-    /// represented in text files can vary across different operating systems and programming
-    /// languages. In Linux and Unix systems, LF is commonly used to represent new lines in text
-    /// files, while in Windows systems, a combination of carriage return (CR) and LF ("\r\n") is
-    /// commonly used.
-    #[allow(unused)]
-    pub fn new_from_file(path: &str) -> Result<Self, GitError> {
-        let file = File::open(path).unwrap();
-        let mut reader = BufReader::new(file);
-
-        let mut decoder = ZlibDecoder::new(reader);
-        let mut decoded = Vec::new();
-        decoder.read_to_end(&mut decoded).unwrap();
-
-        Self::new_from_bytes(decoded)
-    }
 }
 
 #[cfg(test)]
@@ -206,11 +206,11 @@ mod tests {
     }
 
     #[test]
-    fn test_new_from_data() {
+    fn test_new_from_data_with_object_type() {
         use crate::git::internal::ObjectType;
 
-        let meta = super::Meta::new_from_data(ObjectType::Blob,
-                                              "Hello, World!".as_bytes().to_vec());
+        let meta = super::Meta::new_from_data_with_object_type(ObjectType::Blob,
+                                                               "Hello, World!".as_bytes().to_vec());
 
         assert_eq!(meta.object_type, ObjectType::Blob);
         assert_eq!(meta.size, 13);
@@ -221,8 +221,8 @@ mod tests {
     fn test_to_folder_name() {
         use crate::git::internal::ObjectType;
 
-        let meta = super::Meta::new_from_data(ObjectType::Blob,
-                                              "Hello, World!".as_bytes().to_vec());
+        let meta = super::Meta::new_from_data_with_object_type(ObjectType::Blob,
+                                                               "Hello, World!".as_bytes().to_vec());
 
         assert_eq!(meta.to_folder_name(), "b4");
     }
@@ -231,8 +231,8 @@ mod tests {
     fn test_to_file_name() {
         use crate::git::internal::ObjectType;
 
-        let meta = super::Meta::new_from_data(ObjectType::Blob,
-                                              "Hello, World!".as_bytes().to_vec());
+        let meta = super::Meta::new_from_data_with_object_type(ObjectType::Blob,
+                                                               "Hello, World!".as_bytes().to_vec());
 
         assert_eq!(meta.to_file_name(), "5ef6fec89518d314f546fd6c3025367b721684");
     }
@@ -286,7 +286,7 @@ mod tests {
 
         let mut dest = PathBuf::from(env::current_dir().unwrap());
         dest.push("tests/objects");
-        let file = m.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
+        let file = m.to_file(dest.as_path().to_str().unwrap()).unwrap();
 
         assert_eq!(true, file.exists());
     }
