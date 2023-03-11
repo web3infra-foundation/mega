@@ -1,5 +1,8 @@
 //!
+//! In the Git object binary model:
 //!
+//! - **Null** bytes are used as separators between the different fields to allow for efficient parsing
+//! of the object.
 //!
 //!
 //!
