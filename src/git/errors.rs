@@ -71,11 +71,3 @@ impl From<FromUtf8Error> for GitError {
         GitError::ConversionError(err.to_string())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
