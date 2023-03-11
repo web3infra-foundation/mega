@@ -32,6 +32,7 @@ use crate::git::errors::GitError;
 pub enum SignatureType {
     Author,
     Committer,
+    Tagger,
 }
 
 impl Display for SignatureType {
@@ -39,6 +40,7 @@ impl Display for SignatureType {
         match self {
             SignatureType::Author => write!(f, "author"),
             SignatureType::Committer => write!(f, "committer"),
+            SignatureType::Tagger => write!(f, "tagger"),
         }
     }
 }
@@ -50,6 +52,7 @@ impl SignatureType {
         match s {
             "author" => Ok(SignatureType::Author),
             "committer" => Ok(SignatureType::Committer),
+            "tagger" => Ok(SignatureType::Tagger),
             _ => Err(GitError::InvalidSignatureType(s.to_string())),
         }
     }
@@ -67,6 +70,7 @@ impl SignatureType {
         match self {
             SignatureType::Author => "author".to_string().into_bytes(),
             SignatureType::Committer => "committer".to_string().into_bytes(),
+            SignatureType::Tagger => "tagger".to_string().into_bytes(),
         }
     }
 }
@@ -84,8 +88,7 @@ pub struct Signature {
 impl Display for Signature {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "{} <{}>", self.name, self.email).unwrap();
-        writeln!(f, "Date: {}", self.timestamp).unwrap();
-        writeln!(f, "{}", self.signature_type)
+        writeln!(f, "Date: {}", self.timestamp)
     }
 }
 

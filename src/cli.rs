@@ -74,9 +74,4 @@ fn exec_subcommand(config: Config, cmd: &str, args: &ArgMatches) -> MegaResult {
 }
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod tests {}
