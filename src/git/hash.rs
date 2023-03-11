@@ -53,6 +53,14 @@ impl Hash {
         Hash(result)
     }
 
+    /// Create Hash from a byte array
+    #[allow(unused)]
+    pub fn new_from_bytes(bytes: &[u8]) -> Hash {
+        let mut h = Hash::default();
+        h.0.copy_from_slice(bytes);
+        h
+    }
+
     /// Create Hash from a string, which is a 40-character hexadecimal string
     #[allow(unused)]
     pub fn new_from_str(s: &str) -> Hash {
@@ -68,15 +76,8 @@ impl Hash {
     }
 
     #[allow(unused)]
-    pub fn to_bytes(self) -> Vec<u8> {
+    pub fn to_data(self) -> Vec<u8> {
         self.0.repeatn(1)
-    }
-
-    #[allow(unused)]
-    pub fn from_bytes(bytes: &[u8]) -> Hash {
-        let mut h = Hash::default();
-        h.0.copy_from_slice(bytes);
-        h
     }
 }
 
@@ -101,14 +102,14 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_to_bytes() {
+    fn test_hash_to_data() {
         let hash = super::Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d");
-        assert_eq!(hash.to_bytes(), vec![0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24, 0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d]);
+        assert_eq!(hash.to_data(), vec![0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24, 0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d]);
     }
 
     #[test]
     fn test_hash_from_bytes() {
-        let hash = super::Hash::from_bytes(&vec![0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24, 0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d]);
+        let hash = super::Hash::new_from_bytes(&vec![0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24, 0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d]);
         assert_eq!(hash.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
     }
 }

@@ -96,13 +96,27 @@ impl Commit {
         let message = String::from_utf8(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec()).unwrap();
 
         Ok(Commit {
-            meta: Meta::new_from_data( ObjectType::Commit, data),
+            meta: Meta::new_from_data_with_object_type(ObjectType::Commit, data),
             tree_id,
             parent_tree_ids,
             author,
             committer,
             message,
         })
+    }
+
+    /// Create a new commit object from a meta object
+    #[allow(unused)]
+    pub fn new_from_meta(meta: Meta) -> Result<Commit, GitError> {
+        Commit::new_from_data(meta.data)
+    }
+
+    /// Create a new commit object from a file
+    #[allow(unused)]
+    pub fn new_from_file(path: &str) -> Result<Commit, GitError> {
+        let meta = Meta::new_from_file(path)?;
+
+        Commit::new_from_meta(meta)
     }
 
     #[allow(unused)]
@@ -128,23 +142,9 @@ impl Commit {
         Ok(data)
     }
 
-    /// Create a new commit object from a meta object
     #[allow(unused)]
-    pub fn new_from_meta(meta: Meta) -> Result<Self, GitError> {
-        Commit::new_from_data(meta.data)
-    }
-
-    /// Create a new commit object from a file
-    #[allow(unused)]
-    pub fn new_from_file(path: &str) -> Result<Self, GitError> {
-        let meta = Meta::new_from_file(path)?;
-
-        Commit::new_from_meta(meta)
-    }
-
-    #[allow(unused)]
-    pub fn write_to_file(&self, path: &str) -> Result<PathBuf, GitError> {
-        self.meta.write_to_file(path)
+    pub fn to_file(&self, path: &str) -> Result<PathBuf, GitError> {
+        self.meta.to_file(path)
     }
 }
 
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_to_file() {
+    fn test_to_file() {
         use std::env;
         use std::path::PathBuf;
         use std::fs::remove_file;
@@ -250,7 +250,7 @@ mod tests {
         dest = dest.join("tests");
         dest = dest.join("objects");
 
-        let file = commit.write_to_file(dest.to_str().unwrap()).unwrap();
+        let file = commit.to_file(dest.to_str().unwrap()).unwrap();
 
         assert_eq!(true, file.exists());
     }

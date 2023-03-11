@@ -54,21 +54,6 @@ impl Display for TreeItemMode {
 }
 
 impl TreeItemMode {
-    /// 32-bit mode, split into (high to low bits):
-    /// - 4-bit object type: valid values in binary are 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
-    /// - 3-bit unused
-    /// - 9-bit unix permission: Only 0755 and 0644 are valid for regular files. Symbolic links and gitlink have value 0 in this field.
-    #[allow(unused)]
-    pub fn to_bytes(self) -> &'static [u8] {
-        match self {
-            TreeItemMode::Blob => b"100644",
-            TreeItemMode::BlobExecutable => b"100755",
-            TreeItemMode::Link => b"120000",
-            TreeItemMode::Tree => b"40000",
-            TreeItemMode::Commit => b"160000",
-        }
-    }
-
     /// Convert a 32-bit mode to a TreeItemType
     ///
     /// |0100000000000000| (040000)| Directory|
@@ -97,7 +82,7 @@ impl TreeItemMode {
     /// components. However, they can also add complexity to your workflow, so it's important to
     /// understand how they work and when to use them.
     #[allow(unused)]
-    pub fn tree_item_type_from(mode: &[u8]) -> Result<TreeItemMode, GitError> {
+    pub fn tree_item_type_from_bytes(mode: &[u8]) -> Result<TreeItemMode, GitError> {
         Ok(match mode {
             b"40000" => TreeItemMode::Tree,
             b"100644" => TreeItemMode::Blob,
@@ -112,6 +97,21 @@ impl TreeItemMode {
                 ));
             }
         })
+    }
+
+    /// 32-bit mode, split into (high to low bits):
+    /// - 4-bit object type: valid values in binary are 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
+    /// - 3-bit unused
+    /// - 9-bit unix permission: Only 0755 and 0644 are valid for regular files. Symbolic links and gitlink have value 0 in this field.
+    #[allow(unused)]
+    pub fn to_bytes(self) -> &'static [u8] {
+        match self {
+            TreeItemMode::Blob => b"100644",
+            TreeItemMode::BlobExecutable => b"100755",
+            TreeItemMode::Link => b"120000",
+            TreeItemMode::Tree => b"40000",
+            TreeItemMode::Commit => b"160000",
+        }
     }
 }
 
@@ -197,8 +197,8 @@ impl TreeItem {
         let id = parts.next().unwrap();
 
         Ok(TreeItem {
-            mode: TreeItemMode::tree_item_type_from(mode)?,
-            id: Hash::from_bytes(id),
+            mode: TreeItemMode::tree_item_type_from_bytes(mode)?,
+            id: Hash::new_from_bytes(id),
             name: String::from_utf8(name.to_vec())?,
         })
     }
@@ -214,14 +214,14 @@ impl TreeItem {
     /// let bytes = tree_item.to_bytes();
     /// ```
     #[allow(unused)]
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_data(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
         bytes.extend_from_slice(self.mode.to_bytes());
         bytes.push(b' ');
         bytes.extend_from_slice(self.name.as_bytes());
         bytes.push(b'\0');
-        bytes.extend_from_slice(&self.id.to_bytes());
+        bytes.extend_from_slice(&self.id.to_data());
 
         bytes
     }
@@ -248,27 +248,32 @@ impl Display for Tree {
 }
 
 impl Tree {
-    /// Create a new Tree from a Meta object
     #[allow(unused)]
-    pub fn new_from_meta(meta: Meta) -> Result<Self, GitError> {
+    pub fn new_from_data(data: Vec<u8>) -> Result<Tree, GitError> {
         let mut tree_items = Vec::new();
 
         let mut i = 0;
-        while i < meta.size {
-            let index = meta.data[i..].find_byte(0x00).unwrap();
+        while i < data.len() {
+            let index = data[i..].find_byte(0x00).unwrap();
             let next = i + index + 21;
 
             tree_items.push(TreeItem::new_from_bytes(
-                &meta.data[i..next],
+                &data[i..next],
             )?);
 
             i = next
         }
 
         Ok(Tree {
-            meta,
+            meta: Meta::new_from_data_with_object_type(ObjectType::Tree, data),
             tree_items,
         })
+    }
+
+    /// Create a new Tree from a Meta object
+    #[allow(unused)]
+    pub fn new_from_meta(meta: Meta) -> Result<Tree, GitError> {
+        Tree::new_from_data(meta.data)
     }
 
     /// Crate a new Tree from a tree file
@@ -290,7 +295,7 @@ impl Tree {
         let mut data = Vec::new();
 
         for item in &tree_items {
-            data.extend_from_slice(item.to_bytes().as_slice());
+            data.extend_from_slice(item.to_data().as_slice());
         }
 
         Ok(
@@ -306,10 +311,22 @@ impl Tree {
         )
     }
 
+    #[allow(unused)]
+    pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
+        let mut data: Vec<u8> = Vec::new();
+
+        for item in &self.tree_items {
+            data.extend_from_slice(item.to_data().as_slice());
+            data.push(b'\0');
+        }
+
+        Ok(data)
+    }
+
     /// Write to a file with path
     #[allow(unused)]
-    pub fn write_to_file(&self, path: &str) -> Result<PathBuf, GitError> {
-        self.meta.write_to_file(path)
+    pub fn to_file(&self, path: &str) -> Result<PathBuf, GitError> {
+        self.meta.to_file(path)
     }
 }
 
@@ -339,7 +356,7 @@ mod tests {
             "hello-world".to_string(),
         );
 
-        let bytes = tree_item.to_bytes();
+        let bytes = tree_item.to_data();
         assert_eq!(bytes, vec![49, 48, 48, 54, 52, 52, 32, 104, 101, 108, 108, 111, 45, 119, 111, 114, 108, 100, 0, 138, 182, 134, 234, 254, 177, 244, 71, 2, 115, 140, 139, 15, 36, 242, 86, 124, 54, 218, 109]);
     }
 
@@ -353,7 +370,7 @@ mod tests {
             "hello-world".to_string(),
         );
 
-        let bytes = item.to_bytes();
+        let bytes = item.to_data();
         let tree_item = super::TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
 
         assert_eq!(tree_item.mode, super::TreeItemMode::Blob);
@@ -404,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tree_write_to_file() {
+    fn test_tree_to_file() {
         use std::env;
         use std::path::PathBuf;
         use std::fs::remove_file;
@@ -426,7 +443,7 @@ mod tests {
         let mut dest = PathBuf::from(env::current_dir().unwrap());
         dest.push("tests/objects");
 
-        let file = tree.write_to_file(dest.as_path().to_str().unwrap()).unwrap();
+        let file = tree.to_file(dest.as_path().to_str().unwrap()).unwrap();
 
         assert_eq!(true, file.exists());
     }
