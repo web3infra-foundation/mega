@@ -1,5 +1,16 @@
+//! The Commit object is  is a data structure used to represent a specific version of a project's
+//! files at a particular point in time. In Git, the commit object is a fundamental data structure
+//! that is used to track changes to a repository's files over time. Whenever a developer makes
+//! changes to the files in a repository, they create a new commit object that records those changes.
 //!
+//! Each commit object in Git contains the following information:
 //!
+//! - A unique SHA-1 hash that identifies the commit.
+//! - The author and committer of the commit (which may be different people).
+//! - The date and time the commit was made.
+//! - A commit message that describes the changes made in the commit.
+//! - A reference to the parent commit or commits (in the case of a merge commit) that the new commit is based on.
+//! - The contents of the files in the repository at the time the commit was made.
 //!
 //!
 //!
@@ -14,6 +25,16 @@ use crate::git::internal::object::meta::Meta;
 use crate::git::internal::object::signature::Signature;
 use crate::git::internal::ObjectType;
 
+/// The `Commit` struct is used to represent a commit object.
+///
+/// - The tree object SHA points to the top level tree for this commit, which reflects the complete
+/// state of the repository at the time of the commit. The tree object in turn points to blobs and
+/// subtrees which represent the files in the repository.
+/// - The parent commit SHAs allow Git to construct a linked list of commits and build the full
+/// commit history. By chaining together commits in this fashion, Git is able to represent the entire
+/// history of a repository with a single commit object at its root.
+/// - The author and committer fields contain the name, email address, timestamp and timezone.
+/// - The message field contains the commit message, which maybe include signed or DCO.
 #[allow(unused)]
 #[derive(Eq, Debug, Clone)]
 pub struct Commit {
