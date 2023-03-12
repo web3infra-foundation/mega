@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 config = "0.13.3"
-serde = { version = "1.0.152", features = ["derive"] }
+serde = { version = "1.0.155", features = ["derive"] }
 serde_json = "1.0.89"
 clap = { version = "4.1.6", features = ["derive"] }
 anyhow = "1.0.69"
@@ -17,3 +17,7 @@ deflate = "1.0.0"
 flate2 = "1.0.22"
 bstr = "1.2.0"
 lazy_static = "1.4.0"
+shadow-rs = "0.7.2"
+
+[build-dependencies]
+shadow-rs = "0.7.2"
