@@ -17,7 +17,7 @@ deflate = "1.0.0"
 flate2 = "1.0.22"
 bstr = "1.2.0"
 lazy_static = "1.4.0"
-shadow-rs = "0.7.2"
+shadow-rs = "0.21.0"
 
 [build-dependencies]
-shadow-rs = "0.7.2"
+shadow-rs = "0.21.0"
