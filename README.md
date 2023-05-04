@@ -32,18 +32,12 @@ To contribute to Mega, you should:
 - Respond to any feedback on your pull request. The Mega maintainers will review your changes and may request modifications before merging.
 - Once your pull request is merged, you will be listed as a contributor in the project repository and documentation.
 
-Contributors sign-off that they adhere to these requirements by adding a Signed-off-by line to commit messages.
+To comply with the requirements, contributors must include both a `Signed-off-by` line and a PGP signature in their commit messages. You can find more information about how to generate a PGP key [here](https://docs.github.com/en/github/authenticating-to-github/managing-commit-signature-verification/generating-a-new-gpg-key).
+
+Git even has a `-s` command line option to append this automatically to your commit message, and `-S` to sign your commit with your PGP key. For example:
 
 ```bash
-This is my commit message
-
-Signed-off-by: Random J Developer <random@developer.example.org>
-```
-
-Git even has a -s command line option to append this automatically to your commit message:
-
-```bash
-$ git commit -s -m 'This is my commit message'
+$ git commit -S -s -m 'This is my commit message'
 ```
 
 ### Rebase the branch
