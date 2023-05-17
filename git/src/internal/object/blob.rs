@@ -32,10 +32,10 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::str;
 
-use crate::git::errors::GitError;
-use crate::git::internal::object::meta::Meta;
-use crate::git::internal::object::tree::{TreeItem, TreeItemMode};
-use crate::git::internal::ObjectType;
+use crate::errors::GitError;
+use crate::internal::object::meta::Meta;
+use crate::internal::object::tree::{TreeItem, TreeItemMode};
+use crate::internal::ObjectType;
 
 /// **The Blob Object**
 ///
@@ -105,25 +105,30 @@ impl Blob {
     /// Generate a tree item string for the Blob object.
     #[allow(unused)]
     pub fn generate_tree_item(&self, filename: &str) -> Result<TreeItem, GitError> {
-        Ok(
-            TreeItem {
-                mode: TreeItemMode::Blob,
-                id: self.meta.id,
-                name: filename.to_string(),
-            }
-        )
+        Ok(TreeItem {
+            mode: TreeItemMode::Blob,
+            id: self.meta.id,
+            name: filename.to_string(),
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::internal::object::blob::Blob;
+    use crate::internal::object::meta::Meta;
+    use crate::internal::object::tree::TreeItemMode;
+    use crate::internal::ObjectType;
+    use std::env;
+    use std::fs::remove_file;
+    use std::path::PathBuf;
+
     #[test]
     fn test_new_from_meta() {
-        use crate::git::internal::object::meta::Meta;
-        use crate::git::internal::object::blob::Blob;
-        use crate::git::internal::ObjectType;
-
-        let meta = Meta::new_from_data_with_object_type(ObjectType::Blob, "Hello, World!".as_bytes().to_vec());
+        let meta = Meta::new_from_data_with_object_type(
+            ObjectType::Blob,
+            "Hello, World!".as_bytes().to_vec(),
+        );
         let blob = Blob::new_from_meta(meta).unwrap();
 
         assert_eq!(blob.meta.data, "Hello, World!".as_bytes().to_vec());
@@ -131,39 +136,35 @@ mod tests {
 
     #[test]
     fn test_new_from_data() {
-        use crate::git::internal::object::blob::Blob;
-
         let blob = Blob::new_from_data("Hello, World!".as_bytes().to_vec());
 
-        assert_eq!(blob.meta.id.to_plain_str(), "b45ef6fec89518d314f546fd6c3025367b721684");
+        assert_eq!(
+            blob.meta.id.to_plain_str(),
+            "b45ef6fec89518d314f546fd6c3025367b721684"
+        );
         assert_eq!(blob.meta.data, "Hello, World!".as_bytes().to_vec());
     }
 
     #[test]
     fn test_new_from_file() {
-        use std::env;
-        use std::path::PathBuf;
-
-        use crate::git::internal::object::blob::Blob;
-
         let mut source = PathBuf::from(env::current_dir().unwrap());
         source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
 
         let blob = Blob::new_from_file(source.to_str().unwrap()).unwrap();
 
-        assert_eq!(blob.meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(
+            blob.meta.id.to_plain_str(),
+            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+        );
         // Remove the last byte of the data, because the last byte is a newline character.
-        assert_eq!(blob.meta.data[..blob.meta.size - 1], "Hello, World!".as_bytes().to_vec());
+        assert_eq!(
+            blob.meta.data[..blob.meta.size - 1],
+            "Hello, World!".as_bytes().to_vec()
+        );
     }
 
     #[test]
     fn test_to_file() {
-        use std::env;
-        use std::path::PathBuf;
-        use std::fs::remove_file;
-
-        use crate::git::internal::object::blob::Blob;
-
         let mut source = PathBuf::from(env::current_dir().unwrap());
         source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
         let blob = Blob::new_from_file(source.to_str().unwrap()).unwrap();
@@ -186,14 +187,14 @@ mod tests {
 
     #[test]
     fn test_generate_tree_item() {
-        use crate::git::internal::object::blob::Blob;
-        use crate::git::internal::object::tree::TreeItemMode;
-
         let blob = Blob::new_from_data("Hello, World!".as_bytes().to_vec());
         let tree_item = blob.generate_tree_item("hello-world").unwrap();
 
         assert_eq!(tree_item.mode, TreeItemMode::Blob);
-        assert_eq!(tree_item.id.to_plain_str(), "b45ef6fec89518d314f546fd6c3025367b721684");
+        assert_eq!(
+            tree_item.id.to_plain_str(),
+            "b45ef6fec89518d314f546fd6c3025367b721684"
+        );
         assert_eq!(tree_item.name, "hello-world");
     }
 }

@@ -20,10 +20,10 @@ use std::path::PathBuf;
 use bstr::ByteSlice;
 use colored::Colorize;
 
-use crate::git::errors::GitError;
-use crate::git::hash::Hash;
-use crate::git::internal::object::meta::Meta;
-use crate::git::internal::ObjectType;
+use crate::errors::GitError;
+use crate::hash::Hash;
+use crate::internal::object::meta::Meta;
+use crate::internal::ObjectType;
 
 /// In Git, the mode field in a tree object's entry specifies the type of the object represented by
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
@@ -334,7 +334,7 @@ impl Tree {
 mod tests {
     #[test]
     fn test_tree_item_new() {
-        use crate::git::hash::Hash;
+        use crate::hash::Hash;
 
         let tree_item = super::TreeItem::new(
             super::TreeItemMode::Blob,
@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_tree_item_to_bytes() {
-        use crate::git::hash::Hash;
+        use crate::hash::Hash;
 
         let tree_item = super::TreeItem::new(
             super::TreeItemMode::Blob,
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_tree_item_from_bytes() {
-        use crate::git::hash::Hash;
+        use crate::hash::Hash;
 
         let item = super::TreeItem::new(
             super::TreeItemMode::Blob,
@@ -426,8 +426,8 @@ mod tests {
         use std::path::PathBuf;
         use std::fs::remove_file;
 
-        use crate::git::internal::object::meta::Meta;
-        use crate::git::internal::object::tree::Tree;
+        use crate::internal::object::meta::Meta;
+        use crate::internal::object::tree::Tree;
 
         let mut source = PathBuf::from(env::current_dir().unwrap());
         source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
