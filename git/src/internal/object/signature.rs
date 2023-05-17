@@ -13,7 +13,7 @@ use std::fmt::Display;
 
 use bstr::ByteSlice;
 
-use crate::git::errors::GitError;
+use crate::errors::GitError;
 
 /// In addition to the author signature, Git also includes a "committer" signature, which indicates
 /// who committed the changes to the repository. The committer signature is similar in structure to
@@ -175,7 +175,7 @@ impl Signature {
 
 #[cfg(test)]
 mod tests {
-    use crate::git::internal::object::signature::Signature;
+    use crate::internal::object::signature::Signature;
 
     #[test]
     fn test_signature_type_from_str() {
