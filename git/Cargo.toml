@@ -1,0 +1,22 @@
+[package]
+name = "git"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[lib]
+name = "git"
+path = "src/mod.rs"
+
+
+[dependencies]
+anyhow = "1.0.71"
+bstr = "1.4.0"
+colored = "2.0.0"
+deflate = "1.0.0"
+flate2 = "1.0.26"
+hex = "0.4.3"
+sha1 = "0.10.5"
+thiserror = "1.0.38"

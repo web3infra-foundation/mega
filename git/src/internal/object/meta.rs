@@ -10,13 +10,13 @@ use std::io::BufReader;
 use std::path::PathBuf;
 
 use anyhow::Context;
-use deflate::{Compression, write::ZlibEncoder};
-use flate2::read::ZlibDecoder;
 use bstr::ByteSlice;
+use deflate::{write::ZlibEncoder, Compression};
+use flate2::read::ZlibDecoder;
 
-use crate::git::errors::GitError;
-use crate::git::hash::Hash;
-use crate::git::internal::ObjectType;
+use crate::errors::GitError;
+use crate::hash::Hash;
+use crate::internal::ObjectType;
 
 /// `Meta` struct that provides metadata information for Git objects, including object type,
 /// object ID (represented by a Hash struct), object size, object data, and delta header.
@@ -98,14 +98,16 @@ impl Meta {
         let type_index = bytes.find_byte(0x20).unwrap();
         let type_object = &bytes[0..type_index];
 
-
         let size_index = bytes.find_byte(0x00).unwrap();
         let data = bytes[size_index + 1..].to_vec();
 
         match String::from_utf8(type_object.to_vec()).unwrap().as_str() {
             "blob" => Ok(Meta::new_from_data_with_object_type(ObjectType::Blob, data)),
             "tree" => Ok(Meta::new_from_data_with_object_type(ObjectType::Tree, data)),
-            "commit" => Ok(Meta::new_from_data_with_object_type(ObjectType::Commit, data)),
+            "commit" => Ok(Meta::new_from_data_with_object_type(
+                ObjectType::Commit,
+                data,
+            )),
             "tag" => Ok(Meta::new_from_data_with_object_type(ObjectType::Tag, data)),
             _ => Err(GitError::InvalidObjectType(
                 String::from_utf8(type_object.to_vec()).unwrap(),
@@ -165,8 +167,8 @@ impl Meta {
         e.write(&[b' ']);
         e.write(self.size.to_string().as_bytes());
         e.write(&[b'\0']);
-        e.write_all(&self.data).with_context(
-            || format!("Failed to write to encoder: {}", self.id.to_plain_str()));
+        e.write_all(&self.data)
+            .with_context(|| format!("Failed to write to encoder: {}", self.id.to_plain_str()));
         let c = e.finish().unwrap();
 
         // Create the folder
@@ -195,10 +197,14 @@ impl Meta {
 
 #[cfg(test)]
 mod tests {
+
+    use crate::internal::ObjectType;
+    use std::env;
+    use std::fs::remove_file;
+    use std::path::PathBuf;
+
     #[test]
     fn test_meta_default() {
-        use crate::git::internal::ObjectType;
-
         let meta = super::Meta::default(ObjectType::Blob);
 
         assert_eq!(meta.object_type, ObjectType::Blob);
@@ -207,43 +213,44 @@ mod tests {
 
     #[test]
     fn test_new_from_data_with_object_type() {
-        use crate::git::internal::ObjectType;
-
-        let meta = super::Meta::new_from_data_with_object_type(ObjectType::Blob,
-                                                               "Hello, World!".as_bytes().to_vec());
+        let meta = super::Meta::new_from_data_with_object_type(
+            ObjectType::Blob,
+            "Hello, World!".as_bytes().to_vec(),
+        );
 
         assert_eq!(meta.object_type, ObjectType::Blob);
         assert_eq!(meta.size, 13);
-        assert_eq!(meta.id.to_plain_str(), "b45ef6fec89518d314f546fd6c3025367b721684");
+        assert_eq!(
+            meta.id.to_plain_str(),
+            "b45ef6fec89518d314f546fd6c3025367b721684"
+        );
     }
 
     #[test]
     fn test_to_folder_name() {
-        use crate::git::internal::ObjectType;
-
-        let meta = super::Meta::new_from_data_with_object_type(ObjectType::Blob,
-                                                               "Hello, World!".as_bytes().to_vec());
+        let meta = super::Meta::new_from_data_with_object_type(
+            ObjectType::Blob,
+            "Hello, World!".as_bytes().to_vec(),
+        );
 
         assert_eq!(meta.to_folder_name(), "b4");
     }
 
     #[test]
     fn test_to_file_name() {
-        use crate::git::internal::ObjectType;
+        let meta = super::Meta::new_from_data_with_object_type(
+            ObjectType::Blob,
+            "Hello, World!".as_bytes().to_vec(),
+        );
 
-        let meta = super::Meta::new_from_data_with_object_type(ObjectType::Blob,
-                                                               "Hello, World!".as_bytes().to_vec());
-
-        assert_eq!(meta.to_file_name(), "5ef6fec89518d314f546fd6c3025367b721684");
+        assert_eq!(
+            meta.to_file_name(),
+            "5ef6fec89518d314f546fd6c3025367b721684"
+        );
     }
 
     #[test]
     fn test_new_from_file() {
-        use std::env;
-        use std::path::PathBuf;
-
-        use crate::git::internal::ObjectType;
-
         // "Hello, World!" is [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33] without
         // line feed(LF), which is a control character used to represent the end of a line of text and the
         // beginning of a new line. The LF character is commonly used in Unix and Unix-like operating
@@ -265,15 +272,14 @@ mod tests {
 
         assert_eq!(meta.object_type, ObjectType::Blob);
         assert_eq!(meta.size, 14);
-        assert_eq!(meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(
+            meta.id.to_plain_str(),
+            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+        );
     }
 
     #[test]
     fn test_write_to_file() {
-        use std::env;
-        use std::path::PathBuf;
-        use std::fs::remove_file;
-
         let mut source = PathBuf::from(env::current_dir().unwrap());
         source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
         let m = super::Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
