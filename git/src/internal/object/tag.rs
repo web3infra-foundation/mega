@@ -42,11 +42,11 @@ use std::path::PathBuf;
 
 use bstr::ByteSlice;
 
-use crate::git::hash::Hash;
-use crate::git::errors::GitError;
-use crate::git::internal::ObjectType;
-use crate::git::internal::object::meta::Meta;
-use crate::git::internal::object::signature::Signature;
+use crate::hash::Hash;
+use crate::errors::GitError;
+use crate::internal::ObjectType;
+use crate::internal::object::meta::Meta;
+use crate::internal::object::signature::Signature;
 
 
 /// The tag object is used to Annotated tag
