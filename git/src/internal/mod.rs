@@ -3,8 +3,8 @@
 //!
 //!
 //!
-mod object;
-mod pack;
+pub mod object;
+pub mod pack;
 
 use std::fmt::Display;
 
@@ -122,13 +122,16 @@ impl ObjectType {
             4 => Ok(ObjectType::Tag),
             6 => Ok(ObjectType::OffsetDelta),
             7 => Ok(ObjectType::HashDelta),
-            _ => Err(GitError::InvalidObjectType(format!("Invalid object type number: {}", number))),
+            _ => Err(GitError::InvalidObjectType(format!(
+                "Invalid object type number: {}",
+                number
+            ))),
         }
     }
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     #[test]
     fn test_object_type_to_data() {
         let blob = super::ObjectType::Blob;

@@ -3,17 +3,24 @@
 //!
 //!
 //!
-use clap::{ArgMatches, Command};
+use clap::{ArgMatches, Args, Command, FromArgMatches};
 
-use crate::errors::MegaResult;
-use crate::cli::Config;
+use crate::{cli::Config, commands::https};
+use mega_core::errors::MegaResult;
+
+use gateway::https::{http_server, HttpOptions};
 
 pub fn cli() -> Command {
-    Command::new("https")
-        .about("Start Git HTTPS server")
+    HttpOptions::augment_args_for_update(Command::new("https").about("Start Git HTTPS server"))
 }
 
-pub(crate) fn exec(_config: Config, _args: &ArgMatches) -> MegaResult {
+#[tokio::main]
+pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
+    let server_matchers = HttpOptions::from_arg_matches(args)
+        .map_err(|err| err.exit())
+        .unwrap();
+    println!("{server_matchers:#?}");
+    https::http_server(&server_matchers).await.unwrap();
     Ok(())
 }
 

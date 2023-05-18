@@ -9,7 +9,7 @@
 //! - Timezone: The timezone offset of the author's local time from Coordinated Universal Time (UTC),
 //! encoded as a string in the format "+HHMM" or "-HHMM".
 //!
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 use bstr::ByteSlice;
 
@@ -44,11 +44,10 @@ impl Display for SignatureType {
         }
     }
 }
-
-impl SignatureType {
+impl FromStr for SignatureType {
+    type Err = GitError;
     /// The `from_str` method is used to convert a string to a `SignatureType` enum.
-    #[allow(unused)]
-    pub fn from_str(s: &str) -> Result<Self, GitError> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "author" => Ok(SignatureType::Author),
             "committer" => Ok(SignatureType::Committer),
@@ -56,7 +55,8 @@ impl SignatureType {
             _ => Err(GitError::InvalidSignatureType(s.to_string())),
         }
     }
-
+}
+impl SignatureType {
     /// The `from_data` method is used to convert a `Vec<u8>` to a `SignatureType` enum.
     #[allow(unused)]
     pub fn from_data(data: Vec<u8>) -> Result<Self, GitError> {
@@ -140,7 +140,13 @@ impl Signature {
         let timezone = sign[timestamp_split + 1..].to_str().unwrap().to_string();
 
         // Return a Result object indicating success
-        Ok(Signature { signature_type, name, email, timestamp, timezone })
+        Ok(Signature {
+            signature_type,
+            name,
+            email,
+            timestamp,
+            timezone,
+        })
     }
 
     ///
@@ -175,6 +181,8 @@ impl Signature {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use crate::internal::object::signature::Signature;
 
     #[test]
@@ -219,7 +227,11 @@ mod tests {
     #[test]
     fn test_signature_new_from_data() {
         let sign = Signature::new_from_data(
-            "author Quanyi Ma <eli@patch.sh> 1678101573 +0800".to_string().into_bytes()).unwrap();
+            "author Quanyi Ma <eli@patch.sh> 1678101573 +0800"
+                .to_string()
+                .into_bytes(),
+        )
+        .unwrap();
 
         assert_eq!(sign.signature_type, super::SignatureType::Author);
         assert_eq!(sign.name, "Quanyi Ma");
@@ -231,11 +243,19 @@ mod tests {
     #[test]
     fn test_signature_to_data() {
         let sign = Signature::new_from_data(
-            "committer Quanyi Ma <eli@patch.sh> 1678101573 +0800".to_string().into_bytes()).unwrap();
+            "committer Quanyi Ma <eli@patch.sh> 1678101573 +0800"
+                .to_string()
+                .into_bytes(),
+        )
+        .unwrap();
 
         let dest = sign.to_data().unwrap();
 
-        assert_eq!(dest, "committer Quanyi Ma <eli@patch.sh> 1678101573 +0800".to_string().into_bytes());
+        assert_eq!(
+            dest,
+            "committer Quanyi Ma <eli@patch.sh> 1678101573 +0800"
+                .to_string()
+                .into_bytes()
+        );
     }
-
 }
