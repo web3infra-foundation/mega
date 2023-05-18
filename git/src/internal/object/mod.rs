@@ -6,12 +6,12 @@
 //!
 //!
 //!
-mod blob;
-mod tree;
-mod tag;
-mod commit;
-mod meta;
-mod signature;
+pub mod blob;
+pub mod commit;
+pub mod meta;
+pub mod signature;
+pub mod tag;
+pub mod tree;
 
 #[cfg(test)]
 mod tests {}
