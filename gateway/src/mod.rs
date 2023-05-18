@@ -3,9 +3,9 @@
 //!
 //!
 //!
-mod https;
-mod ssh;
-mod lfs;
+pub mod https;
+pub mod lfs;
+pub mod ssh;
 
 #[cfg(test)]
 mod tests {}

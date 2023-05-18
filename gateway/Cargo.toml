@@ -11,3 +11,14 @@ path = "src/mod.rs"
 
 
 [dependencies]
+git = {path = "../git"}
+storage = {path = "../storage"}
+anyhow = "1.0.71"
+axum = "0.6.18"
+clap = "4.2.7"
+hyper = "0.14.26"
+regex = "1.8.1"
+serde = "1.0.163"
+tokio = {version = "1.28.1", features = ["full"]}
+tracing = "0.1.37"
+

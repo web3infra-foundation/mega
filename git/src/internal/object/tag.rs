@@ -42,12 +42,11 @@ use std::path::PathBuf;
 
 use bstr::ByteSlice;
 
-use crate::hash::Hash;
 use crate::errors::GitError;
-use crate::internal::ObjectType;
+use crate::hash::Hash;
 use crate::internal::object::meta::Meta;
 use crate::internal::object::signature::Signature;
-
+use crate::internal::ObjectType;
 
 /// The tag object is used to Annotated tag
 #[allow(unused)]
@@ -71,7 +70,6 @@ impl Display for Tag {
 }
 
 impl Tag {
-
     /// The tag object is used to Annotated tag, it's binary format is:
     ///
     /// ```bash
@@ -93,12 +91,13 @@ impl Tag {
 
         let type_begin = data.find_byte(0x20).unwrap();
         let type_end = data.find_byte(0x0a).unwrap();
-        let object_type = ObjectType::from_string(data[type_begin + 1..type_end].to_str().unwrap())?;
+        let object_type =
+            ObjectType::from_string(data[type_begin + 1..type_end].to_str().unwrap())?;
         data = data[type_end + 1..].to_vec();
 
         let tag_begin = data.find_byte(0x20).unwrap();
         let tag_end = data.find_byte(0x0a).unwrap();
-        let tag_name = String::from_utf8( data[tag_begin + 1..tag_end].to_vec()).unwrap();
+        let tag_name = String::from_utf8(data[tag_begin + 1..tag_end].to_vec()).unwrap();
         data = data[tag_end + 1..].to_vec();
 
         let tagger_begin = data.find("tagger").unwrap();
@@ -107,9 +106,20 @@ impl Tag {
         let tagger = Signature::new_from_data(tagger_data)?;
         data = data[data.find_byte(0x0a).unwrap() + 1..].to_vec();
 
-        let message = data[data.find_byte(0x0a).unwrap()..].to_vec().to_str().unwrap().to_string();
+        let message = data[data.find_byte(0x0a).unwrap()..]
+            .to_vec()
+            .to_str()
+            .unwrap()
+            .to_string();
 
-        Ok(Tag { meta, object_hash, object_type, tag_name, tagger, message })
+        Ok(Tag {
+            meta,
+            object_hash,
+            object_type,
+            tag_name,
+            tagger,
+            message,
+        })
     }
 
     #[allow(unused)]
@@ -167,7 +177,7 @@ impl Tag {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_new_from_file(){
+    fn test_new_from_file() {
         use std::env;
         use std::path::PathBuf;
 
@@ -176,8 +186,14 @@ mod tests {
 
         let tag = super::Tag::new_from_file(source.to_str().unwrap()).unwrap();
 
-        assert_eq!(tag.meta.id.to_plain_str(), "854aac1e94777f3ffc8722b69f087d1244587ab7");
-        assert_eq!(tag.object_hash.to_plain_str(), "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
+        assert_eq!(
+            tag.meta.id.to_plain_str(),
+            "854aac1e94777f3ffc8722b69f087d1244587ab7"
+        );
+        assert_eq!(
+            tag.object_hash.to_plain_str(),
+            "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa"
+        );
         assert_eq!(tag.tag_name, "v.0.1.0");
         assert_eq!(tag.tagger.name, "Quanyi Ma");
     }
@@ -199,8 +215,8 @@ mod tests {
     #[test]
     fn test_to_file() {
         use std::env;
-        use std::path::PathBuf;
         use std::fs::remove_file;
+        use std::path::PathBuf;
 
         let mut source = PathBuf::from(env::current_dir().unwrap());
         source.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
