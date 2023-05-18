@@ -8,7 +8,7 @@ mod https;
 use clap::{ArgMatches, Command};
 
 use crate::cli::Config;
-use crate::errors::MegaResult;
+use mega_core::errors::MegaResult;
 
 pub fn builtin() -> Vec<Command> {
     vec![https::cli()]

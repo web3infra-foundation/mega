@@ -7,17 +7,15 @@ use clap::{Arg, ArgMatches, Command};
 use config as c;
 use serde::Deserialize;
 
-use crate::errors::{MegaError, MegaResult};
 use crate::commands::{builtin, builtin_exec};
+use mega_core::errors::{MegaError, MegaResult};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {}
 
 impl Config {
     pub fn new(path: &str) -> Result<Self, c::ConfigError> {
-        let builder = c::Config::builder()
-            .add_source(c::File::new(path,
-                                     c::FileFormat::Toml));
+        let builder = c::Config::builder().add_source(c::File::new(path, c::FileFormat::Toml));
         let config = builder.build().unwrap();
 
         Config::from_config(&config)
@@ -32,7 +30,7 @@ impl Config {
     }
 }
 
-pub fn parse() -> MegaResult{
+pub fn parse() -> MegaResult {
     let matches = cli().try_get_matches().unwrap_or_else(|e| e.exit());
     let mut config = Config::default();
 
@@ -41,7 +39,7 @@ pub fn parse() -> MegaResult{
     }
 
     let (cmd, subcommand_args) = match matches.subcommand() {
-      Some((cmd, args)) => (cmd, args),
+        Some((cmd, args)) => (cmd, args),
         _ => {
             // No subcommand provided.
             return Ok(());

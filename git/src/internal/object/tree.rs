@@ -169,11 +169,7 @@ impl TreeItem {
     /// ```
     #[allow(unused)]
     pub fn new(mode: TreeItemMode, id: Hash, name: String) -> Self {
-        TreeItem {
-            mode,
-            id,
-            name,
-        }
+        TreeItem { mode, id, name }
     }
 
     /// Create a new TreeItem from a byte vector, split into a mode, id and name, the TreeItem format is:
@@ -257,9 +253,7 @@ impl Tree {
             let index = data[i..].find_byte(0x00).unwrap();
             let next = i + index + 21;
 
-            tree_items.push(TreeItem::new_from_bytes(
-                &data[i..next],
-            )?);
+            tree_items.push(TreeItem::new_from_bytes(&data[i..next])?);
 
             i = next
         }
@@ -288,7 +282,9 @@ impl Tree {
     pub fn new_from_tree_items(tree_items: Vec<TreeItem>) -> Result<Self, GitError> {
         if tree_items.is_empty() {
             return Err(GitError::EmptyTreeItems(
-                "When export tree object to meta, the items is empty".parse().unwrap()
+                "When export tree object to meta, the items is empty"
+                    .parse()
+                    .unwrap(),
             ));
         }
 
@@ -298,17 +294,15 @@ impl Tree {
             data.extend_from_slice(item.to_data().as_slice());
         }
 
-        Ok(
-            Tree {
-                meta: Meta {
-                    object_type: ObjectType::Tree,
-                    id: Meta::calculate_id(ObjectType::Tree, &data),
-                    size: data.len(),
-                    data,
-                },
-                tree_items,
-            }
-        )
+        Ok(Tree {
+            meta: Meta {
+                object_type: ObjectType::Tree,
+                id: Meta::calculate_id(ObjectType::Tree, &data),
+                size: data.len(),
+                data,
+            },
+            tree_items,
+        })
     }
 
     #[allow(unused)]
@@ -343,7 +337,10 @@ mod tests {
         );
 
         assert_eq!(tree_item.mode, super::TreeItemMode::Blob);
-        assert_eq!(tree_item.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(
+            tree_item.id.to_plain_str(),
+            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+        );
     }
 
     #[test]
@@ -357,7 +354,14 @@ mod tests {
         );
 
         let bytes = tree_item.to_data();
-        assert_eq!(bytes, vec![49, 48, 48, 54, 52, 52, 32, 104, 101, 108, 108, 111, 45, 119, 111, 114, 108, 100, 0, 138, 182, 134, 234, 254, 177, 244, 71, 2, 115, 140, 139, 15, 36, 242, 86, 124, 54, 218, 109]);
+        assert_eq!(
+            bytes,
+            vec![
+                49, 48, 48, 54, 52, 52, 32, 104, 101, 108, 108, 111, 45, 119, 111, 114, 108, 100,
+                0, 138, 182, 134, 234, 254, 177, 244, 71, 2, 115, 140, 139, 15, 36, 242, 86, 124,
+                54, 218, 109
+            ]
+        );
     }
 
     #[test]
@@ -389,9 +393,15 @@ mod tests {
 
         assert_eq!(tree.tree_items.len(), 1);
         assert_eq!(tree.tree_items[0].mode, super::TreeItemMode::Blob);
-        assert_eq!(tree.tree_items[0].id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        assert_eq!(
+            tree.tree_items[0].id.to_plain_str(),
+            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+        );
         assert_eq!(tree.tree_items[0].name, "hello-world");
-        assert_eq!(tree.meta.id.to_plain_str(), "f9a1667a0dfce06819394c2aad557a04e9a13e56");
+        assert_eq!(
+            tree.meta.id.to_plain_str(),
+            "f9a1667a0dfce06819394c2aad557a04e9a13e56"
+        );
     }
 
     #[test]
@@ -406,25 +416,34 @@ mod tests {
 
         for item in tree.tree_items.iter() {
             if item.mode == super::TreeItemMode::Blob {
-                assert_eq!(item.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+                assert_eq!(
+                    item.id.to_plain_str(),
+                    "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+                );
                 assert_eq!(item.name, "hello-world");
             }
 
             if item.mode == super::TreeItemMode::Tree {
-                assert_eq!(item.id.to_plain_str(), "c44c09a88097e5fb0c833d4178b2df78055ad2e9");
+                assert_eq!(
+                    item.id.to_plain_str(),
+                    "c44c09a88097e5fb0c833d4178b2df78055ad2e9"
+                );
                 assert_eq!(item.name, "rust");
             }
         }
 
         assert_eq!(tree.tree_items.len(), 2);
-        assert_eq!(tree.meta.id.to_plain_str(), "e7002dbbc79a209462247302c7757a31ab16df1e");
+        assert_eq!(
+            tree.meta.id.to_plain_str(),
+            "e7002dbbc79a209462247302c7757a31ab16df1e"
+        );
     }
 
     #[test]
     fn test_tree_to_file() {
         use std::env;
-        use std::path::PathBuf;
         use std::fs::remove_file;
+        use std::path::PathBuf;
 
         use crate::internal::object::meta::Meta;
         use crate::internal::object::tree::Tree;
@@ -460,7 +479,10 @@ mod tests {
         let dest_tree = super::Tree::new_from_tree_items(source_tree.tree_items.clone()).unwrap();
 
         assert_eq!(source_tree.tree_items.len(), dest_tree.tree_items.len());
-        assert_eq!(source_tree.meta.id.to_plain_str(), dest_tree.meta.id.to_plain_str());
+        assert_eq!(
+            source_tree.meta.id.to_plain_str(),
+            dest_tree.meta.id.to_plain_str()
+        );
         assert_eq!(source_tree.meta.size, dest_tree.meta.size);
         assert_eq!(source_tree.tree_items[0].id, dest_tree.tree_items[0].id);
     }

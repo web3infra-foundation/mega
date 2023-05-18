@@ -12,11 +12,19 @@ path = "src/mod.rs"
 
 
 [dependencies]
+storage = {path = "../storage"}
 anyhow = "1.0.71"
 bstr = "1.4.0"
+chrono = "0.4.24"
 colored = "2.0.0"
 deflate = "1.0.0"
 flate2 = "1.0.26"
 hex = "0.4.3"
 sha1 = "0.10.5"
 thiserror = "1.0.38"
+futures = "0.3.28"
+bytes = "1.4.0"
+tracing = "0.1.37"
+tokio = "1.28.1"
+axum = "0.6.18"
+hyper = "0.14.26"

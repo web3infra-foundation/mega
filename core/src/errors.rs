@@ -62,4 +62,3 @@ impl From<std::io::Error> for MegaError {
 
 #[cfg(test)]
 mod tests {}
-
