@@ -10,7 +10,7 @@ pub mod ssh;
 
 use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
 
-use storage::driver::ObjectStorage;
+use storage::driver::{ObjectStorage, mysql::storage::MysqlStorage};
 
 use crate::{internal::pack::Pack, protocol::pack::SP};
 
@@ -124,18 +124,18 @@ pub struct RefUpdateRequet {
     pub comand_list: Vec<RefCommand>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RefCommand {
     pub ref_name: String,
     pub old_id: String,
     pub new_id: String,
     pub status: String,
     pub error_msg: String,
-    pub command_type: Command,
+    pub command_type: CommandType,
 }
 
-#[derive(Debug, Clone)]
-pub enum Command {
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandType {
     Create,
     Delete,
     Update,
@@ -148,11 +148,11 @@ impl RefCommand {
 
     pub fn new(old_id: String, new_id: String, ref_name: String) -> Self {
         let command_type = if ZERO_ID == old_id {
-            Command::Create
+            CommandType::Create
         } else if ZERO_ID == new_id {
-            Command::Delete
+            CommandType::Delete
         } else {
-            Command::Update
+            CommandType::Update
         };
         RefCommand {
             ref_name,
@@ -234,6 +234,17 @@ impl PackProtocol {
             service_type,
             path,
             storage,
+            command_list: Vec::new(),
+        }
+    }
+
+    pub fn mock() -> Self {
+        PackProtocol {
+            protocol: Protocol::default(),
+            capabilities: Vec::new(),
+            path: PathBuf::new(),
+            service_type: None,
+            storage: Arc::new(MysqlStorage::default()),
             command_list: Vec::new(),
         }
     }

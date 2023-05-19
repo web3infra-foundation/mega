@@ -35,6 +35,30 @@ const UPLOAD_CAP_LIST: &str =
     "shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done ";
 
 impl PackProtocol {
+    /// # Retrieves the information about Git references (refs) for the specified service type.
+    ///
+    /// The function returns a `BytesMut` object containing the Git reference information.
+    ///
+    /// The `service_type` is extracted from the `PackProtocol` instance.
+    ///
+    /// The function checks if the `object_id` of the head object in the storage is zero. If it is zero,
+    /// the name is set to "capabilities^{}" to include capability declarations behind a NUL on the first ref.
+    /// Otherwise, the name is set to "HEAD".
+    ///
+    /// The `cap_list` is determined based on the `service_type` and contains the appropriate capability lists.
+    ///
+    /// A packet line (`pkt_line`) is constructed using the `object_id`, `name`, `NUL` delimiter, `cap_list`, and line feed (`LF`).
+    /// The `pkt_line` is added to the `ref_list`.
+    ///
+    /// The `object_id` and `name` pairs for other refs are retrieved using the `get_ref_object_id` method from the storage.
+    /// Each pair is used to construct a packet line (`pkt_line`) and added to the `ref_list`.
+    ///
+    /// The `build_smart_reply` method is called with the `ref_list`, `service_type`, and its string representation
+    /// to build a smart reply packet line stream.
+    ///
+    /// Tracing information is logged regarding the response packet line stream.
+    ///
+    /// Finally, the constructed packet line stream is returned.
     pub async fn git_info_refs(&mut self) -> BytesMut {
         let service_type = self.service_type.unwrap();
         // The stream MUST include capability declarations behind a NUL on the first ref.
@@ -207,7 +231,23 @@ impl PackProtocol {
         }
     }
 
-    // if SideBand/64k capability is enabled, pack data should send with sideband format
+    /// # Builds the packet data in the sideband format if the SideBand/64k capability is enabled.
+    ///
+    /// If the `SideBand` or `SideBand64k` capability is present in the `capabilities` vector,
+    /// the `from_bytes` data is transformed into the sideband format.
+    /// The resulting packet data is returned in a `BytesMut` object.
+    ///
+    /// The `length` parameter represents the length of the `from_bytes` data.
+    /// It is used to calculate the length of the transformed packet data.
+    ///
+    /// If the sideband format is enabled, the resulting packet data is constructed as follows:
+    /// - The length of the packet data (including header) is calculated by adding 5 to the `length`.
+    /// - The length value is formatted as a hexadecimal string and prepended to the `to_bytes` buffer.
+    /// - The sideband type (`PackfileData`) is added as a single byte to the `to_bytes` buffer.
+    /// - The `from_bytes` data is appended to the `to_bytes` buffer.
+    /// - The `to_bytes` buffer containing the transformed packet data is returned.
+    ///
+    /// If the sideband format is not enabled, the `from_bytes` data is returned unchanged.
     pub fn build_side_band_format(&self, from_bytes: BytesMut, length: usize) -> BytesMut {
         let capabilities = &self.capabilities;
         if capabilities.contains(&Capability::SideBand)
@@ -274,8 +314,38 @@ fn add_pkt_line_string(pkt_line_stream: &mut BytesMut, buf_str: String) {
     pkt_line_stream.put(Bytes::from(format!("{buf_str_length:04x}")));
     pkt_line_stream.put(buf_str.as_bytes());
 }
-
-/// Read a single pkt-format line from body chunk, return the single line length and line bytes
+/// Read a single pkt-format line from the `bytes` buffer and return the line length and line bytes.
+///
+/// If the `bytes` buffer is empty, indicating no more data is available, the function returns a line length of 0 and an empty `Bytes` object.
+///
+/// The pkt-format line consists of a 4-byte length field followed by the line content. The length field specifies the total length of the line, including the length field itself. The line content is returned as a `Bytes` object.
+///
+/// The function first reads the 4-byte length field from the `bytes` buffer. The length value is then parsed as a hexadecimal string and converted into a `usize` value.
+///
+/// If the resulting line length is 0, indicating an empty line, the function returns a line length of 0 and an empty `Bytes` object.
+///
+/// If the line length is non-zero, the function extracts the line content from the `bytes` buffer. The extracted line content is returned as a `Bytes` object.
+/// Note that this operation modifies the `bytes` buffer, consuming the bytes up to the end of the line.
+///
+/// # Arguments
+///
+/// * `bytes` - A mutable reference to a `Bytes` object representing the buffer containing pkt-format data.
+///
+/// # Returns
+///
+/// A tuple `(usize, Bytes)` representing the line length and line bytes respectively. If there is no more data available in the `bytes` buffer, the line length is 0 and an empty `Bytes` object is returned.
+///
+/// # Examples
+///
+/// ```
+/// use bytes::Bytes;
+/// use git::protocol::pack::read_pkt_line;
+///
+/// let mut bytes = Bytes::from_static(b"000Bexample");
+/// let (length, line) = read_pkt_line(&mut bytes);
+/// assert_eq!(length, 11);
+/// assert_eq!(line, Bytes::from_static(b"example"));
+/// ```
 pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
     if bytes.is_empty() {
         return (0, Bytes::new());
@@ -297,7 +367,9 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 pub mod test {
     use bytes::{Bytes, BytesMut};
 
-    use super::{add_pkt_line_string, read_pkt_line};
+    use crate::protocol::{Capability, CommandType, PackProtocol, RefCommand};
+
+    use super::{add_pkt_line_string, read_pkt_line, read_until_white_space};
 
     #[test]
     pub fn test_read_pkt_line() {
@@ -307,13 +379,13 @@ pub mod test {
         assert_eq!(&pkt_line[..], b"# service=git-upload-pack\n");
     }
 
-    // #[test]
-    // pub fn test_build_smart_reply() {
-    //     PackProtocol
-    //     let ref_list = vec![String::from("7bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n")];
-    //     let pkt_line_stream = build_smart_reply(&ref_list, String::from("git-upload-pack"));
-    //     assert_eq!(&pkt_line_stream[..], b"001e# service=git-upload-pack\n000000e87bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n0000")
-    // }
+    #[test]
+    pub fn test_build_smart_reply() {
+        let mock = PackProtocol::mock();
+        let ref_list = vec![String::from("7bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n")];
+        let pkt_line_stream = mock.build_smart_reply(&ref_list, String::from("git-upload-pack"));
+        assert_eq!(&pkt_line_stream[..], b"001e# service=git-upload-pack\n000000e87bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n0000")
+    }
 
     #[test]
     pub fn test_add_to_pkt_line() {
@@ -330,5 +402,47 @@ pub mod test {
             format!("ACK {} ready\n", "7bdc783132575d5b3e78400ace9971970ff43a18"),
         );
         assert_eq!(&buf.freeze()[..], b"0038ACK 7bdc783132575d5b3e78400ace9971970ff43a18 common\n0037ACK 7bdc783132575d5b3e78400ace9971970ff43a18 ready\n");
+    }
+
+    #[test]
+    pub fn test_read_until_white_space() {
+        let mut bytes = Bytes::from("Mega - A Monorepo Platform Engine".as_bytes());
+        let result = read_until_white_space(&mut bytes);
+        assert_eq!(result, "Mega");
+
+        let mut bytes = Bytes::from("Hello,World!".as_bytes());
+        let result = read_until_white_space(&mut bytes);
+        assert_eq!(result, "Hello,World!");
+
+        let mut bytes = Bytes::from("".as_bytes());
+        let result = read_until_white_space(&mut bytes);
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    pub fn test_parse_ref_update() {
+        let mock = PackProtocol::mock();
+        let mut bytes = Bytes::from("0000000000000000000000000000000000000000 27dd8d4cf39f3868c6eee38b601bc9e9939304f5 refs/heads/master\0".as_bytes());
+        let result = mock.parse_ref_update(&mut bytes);
+
+        let command = RefCommand {
+            ref_name: String::from("refs/heads/master\0"),
+            old_id: String::from("0000000000000000000000000000000000000000"),
+            new_id: String::from("27dd8d4cf39f3868c6eee38b601bc9e9939304f5"),
+            status: String::from("ok"),
+            error_msg: String::new(),
+            command_type: CommandType::Create,
+        };
+        assert_eq!(result, command);
+    }
+
+    #[test]
+    pub fn test_parse_capabilities() {
+        let mut mock = PackProtocol::mock();
+        mock.parse_capabilities("report-status-v2 side-band-64k object-format=sha10000");
+        assert_eq!(
+            mock.capabilities,
+            vec![Capability::ReportStatusv2, Capability::SideBand64k]
+        );
     }
 }
