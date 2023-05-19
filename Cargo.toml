@@ -15,7 +15,6 @@ anyhow = "1.0.69"
 lazy_static = "1.4.0"
 shadow-rs = "0.21.0"
 gateway = { path = "gateway" }
-git = { path = "git" }
 mega-core = { path = "core" }
 tokio = {version = "1.28.1", features = ["full"]}
 
