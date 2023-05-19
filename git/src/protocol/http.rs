@@ -20,6 +20,9 @@ use tokio::io::{AsyncReadExt, BufReader};
 
 use super::{pack, PackProtocol};
 
+/// # Build Response headers for Smart Server.
+/// Clients MUST NOT reuse or revalidate a cached response.
+/// Servers MUST include sufficient Cache-Control headers to prevent caching of the response.
 pub fn build_res_header(content_type: String) -> Builder {
     let mut headers = HashMap::new();
     headers.insert("Content-Type".to_string(), content_type);
@@ -35,6 +38,25 @@ pub fn build_res_header(content_type: String) -> Builder {
     resp
 }
 
+/// # Sends a Git pack to the remote server.
+///
+/// This function takes a `Sender` for sending data to the remote server, the `result` vector
+/// containing the pack data, and the `pack_protocol` describing the pack transfer protocol.
+/// It asynchronously reads the pack data from the `result` vector in chunks, formats it using the
+/// side-band format specified by the `pack_protocol`, and sends it to the remote server using
+/// the `Sender`.
+///
+/// # Arguments
+///
+/// * `sender` - The sender for sending data to the remote server.
+/// * `result` - The vector containing the pack data to be sent.
+/// * `pack_protocol` - The pack protocol describing the pack transfer.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the pack data is successfully sent to the remote server.
+/// * `Err((StatusCode, &'static str))` - If there is an error during the sending process, with the
+///   error status code and a corresponding error message.
 pub async fn send_pack(
     mut sender: Sender,
     result: Vec<u8>,
@@ -57,7 +79,26 @@ pub async fn send_pack(
         sender.send_data(bytes_out.freeze()).await.unwrap();
     }
 }
-
+/// # Handles a Git upload pack request and prepares the response.
+///
+/// The function takes a `req` parameter representing the HTTP request received and a `pack_protocol`
+/// parameter containing the configuration for the Git pack protocol.
+///
+/// The function extracts the request body into a `BytesMut` buffer by iterating over the chunks
+/// of the request body using `body.next().await`. The chunks are concatenated into the `upload_request`
+/// buffer.
+///
+/// The `pack_protocol` is then used to process the `upload_request` using the `git_upload_pack` method.
+/// It returns the `send_pack_data` and `buf` containing the response data.
+///
+/// A response header is constructed using the `build_res_header` function with a content type of
+/// "application/x-git-upload-pack-result". The response body channel is created using `Body::channel()`.
+///
+/// The `buf` is sent as the initial data using the `sender` to establish the response body.
+///
+/// A new task is spawned to send the remaining `send_pack_data` using the `send_pack` function.
+///
+/// Finally, the constructed response with the response body is returned.
 pub async fn git_upload_pack(
     req: Request<Body>,
     mut pack_protocol: PackProtocol,
@@ -87,6 +128,26 @@ pub async fn git_upload_pack(
     Ok(resp.body(body).unwrap())
 }
 
+/// # Handles a Git receive pack request and prepares the response.
+///
+/// The function takes a `req` parameter representing the HTTP request received and a `pack_protocol`
+/// parameter containing the configuration for the Git pack protocol.
+///
+/// The function extracts the request body into a vector of bytes, `combined_body_bytes`, by iterating over the
+/// chunks of the request body using `body.next().await`. The chunks are appended to the `combined_body_bytes`.
+///
+/// The `pack_protocol` is then used to process the `combined_body_bytes` using the `git_receive_pack` method.
+/// It returns the `pack_data` containing the response data.
+///
+/// The `pack_data` is passed to the `git_receive_pack` method again to obtain the final response data as a `buf`.
+///
+/// The `buf` is converted into a `Body` using `Body::from()` and assigned to `body`.
+/// Tracing information is logged regarding the status of the response body.
+///
+/// A response header is constructed using the `build_res_header` function with a content type of
+/// "application/x-git-receive-pack-result". The response body is set to `body`.
+///
+/// Finally, the constructed response is returned.
 pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: PackProtocol,
