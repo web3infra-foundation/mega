@@ -10,11 +10,10 @@ pub mod ssh;
 
 use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
 
-use storage::driver::{ObjectStorage, mysql::storage::MysqlStorage};
+use storage::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
 use crate::{internal::pack::Pack, protocol::pack::SP};
-
-// use super::pack::Pack;
+use mega_core::errors::MegaError;
 
 pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Ok(s) => s,
@@ -26,7 +25,6 @@ pub struct PackProtocol {
     pub protocol: Protocol,
     pub capabilities: Vec<Capability>,
     pub path: PathBuf,
-    pub service_type: Option<ServiceType>,
     pub storage: Arc<dyn ObjectStorage>,
     pub command_list: Vec<RefCommand>,
 }
@@ -56,13 +54,16 @@ impl ToString for ServiceType {
 }
 
 impl FromStr for ServiceType {
-    type Err = ();
+    type Err = MegaError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "git-upload-pack" => Ok(ServiceType::UploadPack),
             "git-receive-pack" => Ok(ServiceType::ReceivePack),
-            _ => Err(()),
+            _ => Err(MegaError {
+                error: anyhow::anyhow!("Invalid service name: {}", s).into(),
+                code: 400,
+            }),
         }
     }
 }
@@ -172,12 +173,12 @@ impl RefCommand {
         // match Pack::decode(pack_file, storage).await {
         //     Ok(decoded_pack) => {
         //         self.status = RefCommand::OK_STATUS.to_owned();
-        //         Ok(decoded_pack)
+        //         return Ok(decoded_pack);
         //     }
         //     Err(err) => {
         //         self.status = RefCommand::FAILED_STATUS.to_owned();
         //         self.error_msg = err.to_string();
-        //         Err(err.into())
+        //         return Err(err.into());
         //     }
         // }
         // TODO
@@ -217,21 +218,10 @@ impl RefCommand {
 }
 
 impl PackProtocol {
-    pub fn new(
-        path: PathBuf,
-        service_name: &str,
-        storage: Arc<dyn ObjectStorage>,
-        protocol: Protocol,
-    ) -> Self {
-        let service_type = if service_name.is_empty() {
-            None
-        } else {
-            Some(service_name.parse::<ServiceType>().unwrap())
-        };
+    pub fn new(path: PathBuf, storage: Arc<dyn ObjectStorage>, protocol: Protocol) -> Self {
         PackProtocol {
             protocol,
             capabilities: Vec::new(),
-            service_type,
             path,
             storage,
             command_list: Vec::new(),
@@ -243,7 +233,6 @@ impl PackProtocol {
             protocol: Protocol::default(),
             capabilities: Vec::new(),
             path: PathBuf::new(),
-            service_type: None,
             storage: Arc::new(MysqlStorage::default()),
             command_list: Vec::new(),
         }
