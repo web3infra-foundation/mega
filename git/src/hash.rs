@@ -39,7 +39,6 @@ impl Hash {
     /// let hash = Hash::new(&vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
     /// assert_eq!(hash.to_plain_str(), "e89ad5a9631c3efdded7e3ecce79b4d0fedce1bf");
     /// ```
-    #[allow(unused)]
     pub fn new(data: &Vec<u8>) -> Hash {
         // Create a Sha1 object for calculating the SHA-1 hash
         let mut hasher = Sha1::new();
@@ -54,7 +53,6 @@ impl Hash {
     }
 
     /// Create Hash from a byte array
-    #[allow(unused)]
     pub fn new_from_bytes(bytes: &[u8]) -> Hash {
         let mut h = Hash::default();
         h.0.copy_from_slice(bytes);
@@ -62,20 +60,22 @@ impl Hash {
     }
 
     /// Create Hash from a string, which is a 40-character hexadecimal string
-    #[allow(unused)]
     pub fn new_from_str(s: &str) -> Hash {
         let mut h = Hash::default();
         h.0.copy_from_slice(&hex::decode(s).unwrap());
         h
     }
 
+    /// Create a Hash value by the row value
+    pub fn from_row(hex_hash: &[u8]) -> Hash {
+        Hash(<[u8; 20]>::try_from(hex_hash).unwrap())
+    }
+
     /// Create plain String without the color chars
-    #[allow(unused)]
     pub fn to_plain_str(self) -> String {
         hex::encode(self.0)
     }
 
-    #[allow(unused)]
     pub fn to_data(self) -> Vec<u8> {
         self.0.repeatn(1)
     }

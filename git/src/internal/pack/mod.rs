@@ -8,13 +8,15 @@ use std::path::PathBuf;
 
 use crate::hash::Hash;
 
+pub mod decode;
+
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
 /// `version`: The pack file version <br>
 /// `number_of_objects` : The total number of objects in the pack <br>
 /// `signature`:The pack file's hash signature <br>
 /// `result`: decoded cache of pack objects <br>
-/// `pack_file` : The path to the pack file on disk
+/// `path` : The path to the pack file on disk
 #[allow(unused)]
 #[derive(Default)]
 pub struct Pack {
@@ -22,8 +24,32 @@ pub struct Pack {
     version: u32,
     number_of_objects: usize,
     pub signature: Hash,
-    // pub result: Arc<PackObjectCache>,
-    pack_file: PathBuf,
+    path: PathBuf,
+}
+
+impl Pack {
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+
+    pub fn number_of_objects(&self) -> usize {
+        self.number_of_objects
+    }
+}
+
+pub enum EntryHeader {
+    Commit,
+    Tree,
+    Blob,
+    Tag,
+    RefDelta { base_id: Hash },
+    OfsDelta { base_distance: u64 },
+}
+
+pub struct Entry {
+    pub header: EntryHeader,
+    pub decompressed_size: u64,
+    pub offset: u64,
 }
 
 pub mod git_object_size {
@@ -85,12 +111,11 @@ pub mod git_object_size {
 
         #[test]
         fn test_decode() {
-            let data = [0x82, 0x01]; 
+            let data = [0x82, 0x01];
             let cursor = Cursor::new(data);
             let result = decode(cursor).unwrap();
             assert_eq!(result, 130);
         }
-        
 
         #[test]
         fn test_encode() {

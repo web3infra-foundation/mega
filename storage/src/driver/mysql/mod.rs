@@ -5,9 +5,12 @@ use std::{env, time::Duration};
 use sea_orm::{ConnectOptions, Database};
 use tracing::log;
 
+use crate::utils::id_generator;
+
 use self::storage::MysqlStorage;
 
 pub async fn init() -> MysqlStorage {
+    id_generator::set_up_options().unwrap();
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
     let mut opt = ConnectOptions::new(db_url.to_owned());
     // max_connections is properly for double size of the cpu core
