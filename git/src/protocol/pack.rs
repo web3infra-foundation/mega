@@ -59,8 +59,7 @@ impl PackProtocol {
     /// Tracing information is logged regarding the response packet line stream.
     ///
     /// Finally, the constructed packet line stream is returned.
-    pub async fn git_info_refs(&mut self) -> BytesMut {
-        let service_type = self.service_type.unwrap();
+    pub async fn git_info_refs(&mut self, service_type: ServiceType) -> BytesMut {
         // The stream MUST include capability declarations behind a NUL on the first ref.
         let object_id = self.storage.get_head_object_id(&self.path).await;
         let name = if object_id == ZERO_ID {
@@ -68,10 +67,10 @@ impl PackProtocol {
         } else {
             "HEAD"
         };
-        let cap_list = match self.service_type {
-            Some(ServiceType::UploadPack) => format!("{}{}", UPLOAD_CAP_LIST, CAP_LIST),
-            Some(ServiceType::ReceivePack) => format!("{}{}", RECEIVE_CAP_LIST, CAP_LIST),
-            _ => CAP_LIST.to_owned(),
+        let cap_list = match service_type {
+            ServiceType::UploadPack => format!("{}{}", UPLOAD_CAP_LIST, CAP_LIST),
+            ServiceType::ReceivePack => format!("{}{}", RECEIVE_CAP_LIST, CAP_LIST),
+            // _ => CAP_LIST.to_owned(),
         };
         let pkt_line = format!("{}{}{}{}{}{}", object_id, SP, name, NUL, cap_list, LF);
         let mut ref_list = vec![pkt_line];

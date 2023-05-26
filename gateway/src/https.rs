@@ -16,7 +16,7 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::{Router, Server};
 use clap::Args;
-use git::protocol::http;
+use git::protocol::{http, ServiceType};
 use git::protocol::{PackProtocol, Protocol};
 use hyper::{Body, Request, StatusCode, Uri};
 use regex::Regex;
@@ -27,7 +27,7 @@ use storage::driver::{mysql, ObjectStorage};
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
     /// Server start hostname
-    #[arg(long, default_value_t = String::from("0.0.0.0"))]
+    #[arg(long, default_value_t = String::from("127.0.0.1"))]
     host: String,
 
     #[arg(short, long, default_value_t = 8000)]
@@ -77,7 +77,12 @@ struct ServiceName {
     pub service: String,
 }
 
-/// Discovering Reference
+/// # Discovering Reference
+/// HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
+/// discover references by making a parameterized request for the info/refs file of the repository.
+/// The request MUST contain exactly one query parameter, service=$servicename,
+/// where $servicename MUST be the service name the client wishes to contact to complete the operation.
+/// The request MUST NOT contain additional query parameters.
 async fn git_info_refs(
     state: State<AppState>,
     Query(service): Query<ServiceName>,
@@ -85,46 +90,37 @@ async fn git_info_refs(
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let service_name = service.service;
 
+    let service_type = service_name.parse::<ServiceType>().unwrap();
+
     if !Regex::new(r"/info/refs$").unwrap().is_match(uri.path()) {
         return Err((
             StatusCode::FORBIDDEN,
             String::from("Operation not supported"),
         ));
     }
-    if service_name == "git-upload-pack" || service_name == "git-receive-pack" {
-        let mut pack_protocol = PackProtocol::new(
-            remove_git_suffix(uri, "/info/refs"),
-            &service_name,
-            state.storage.clone(),
-            Protocol::Http,
-        );
-        let mut headers = HashMap::new();
-        headers.insert(
-            "Content-Type".to_string(),
-            format!(
-                "application/x-{}-advertisement",
-                pack_protocol.service_type.unwrap().to_string()
-            ),
-        );
-        headers.insert(
-            "Cache-Control".to_string(),
-            "no-cache, max-age=0, must-revalidate".to_string(),
-        );
-        tracing::info!("headers: {:?}", headers);
-        let mut resp = Response::builder();
-        for (key, val) in headers {
-            resp = resp.header(&key, val);
-        }
-
-        let pkt_line_stream = pack_protocol.git_info_refs().await;
-        let body = Body::from(pkt_line_stream.freeze());
-        Ok(resp.body(body).unwrap())
-    } else {
-        Err((
-            StatusCode::FORBIDDEN,
-            String::from("Operation not supported"),
-        ))
+    let mut pack_protocol = PackProtocol::new(
+        remove_git_suffix(uri, "/info/refs"),
+        state.storage.clone(),
+        Protocol::Http,
+    );
+    let mut headers = HashMap::new();
+    headers.insert(
+        "Content-Type".to_string(),
+        format!("application/x-{}-advertisement", service_name),
+    );
+    headers.insert(
+        "Cache-Control".to_string(),
+        "no-cache, max-age=0, must-revalidate".to_string(),
+    );
+    tracing::info!("headers: {:?}", headers);
+    let mut resp = Response::builder();
+    for (key, val) in headers {
+        resp = resp.header(&key, val);
     }
+
+    let pkt_line_stream = pack_protocol.git_info_refs(service_type).await;
+    let body = Body::from(pkt_line_stream.freeze());
+    Ok(resp.body(body).unwrap())
 }
 
 async fn data_transfer(
@@ -136,42 +132,28 @@ async fn data_transfer(
         .unwrap()
         .is_match(uri.path())
     {
-        git_upload_pack(state, remove_git_suffix(uri, "/git-upload-pack"), req).await
+        let pack_protocol = PackProtocol::new(
+            remove_git_suffix(uri, "/git-upload-pack"),
+            state.storage.clone(),
+            Protocol::Http,
+        );
+        http::git_upload_pack(req, pack_protocol).await
     } else if Regex::new(r"/git-receive-pack$")
         .unwrap()
         .is_match(uri.path())
     {
-        git_receive_pack(state, remove_git_suffix(uri, "/git-receive-pack"), req).await
+        let pack_protocol = PackProtocol::new(
+            remove_git_suffix(uri, "/git-receive-pack"),
+            state.storage.clone(),
+            Protocol::Http,
+        );
+        http::git_receive_pack(req, pack_protocol).await
     } else {
         Err((
             StatusCode::FORBIDDEN,
             String::from("Operation not supported"),
         ))
     }
-}
-
-/// Smart Service git-upload-pack, handle git pull and clone
-async fn git_upload_pack(
-    state: State<AppState>,
-    path: PathBuf,
-    req: Request<Body>,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let pack_protocol = PackProtocol::new(path, "", state.storage.clone(), Protocol::Http);
-
-    http::git_upload_pack(req, pack_protocol).await
-}
-
-// http://localhost:8000/org1/apps/App2.git
-// http://localhost:8000/org1/libs/lib1.git
-/// Smart Service git-receive-pack, handle git push
-async fn git_receive_pack(
-    state: State<AppState>,
-    path: PathBuf,
-    req: Request<Body>,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    tracing::info!("req: {:?}", req);
-    let pack_protocol = PackProtocol::new(path, "", state.storage.clone(), Protocol::Http);
-    http::git_receive_pack(req, pack_protocol).await
 }
 
 #[cfg(test)]

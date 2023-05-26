@@ -13,6 +13,7 @@ path = "src/mod.rs"
 
 [dependencies]
 storage = {path = "../storage"}
+mega-core = { path = "../core" }
 anyhow = "1.0.71"
 bstr = "1.4.0"
 chrono = "0.4.24"
@@ -28,3 +29,6 @@ tracing = "0.1.37"
 tokio = "1.28.1"
 axum = "0.6.18"
 hyper = "0.14.26"
+byteorder = "1.4.3"
+crc = "3.0.1"
+tokio-test = "0.4.2"
