@@ -4,7 +4,6 @@
 //!
 //!
 pub mod http;
-pub mod lfs;
 pub mod pack;
 pub mod ssh;
 
@@ -29,7 +28,6 @@ pub struct PackProtocol {
     pub command_list: Vec<RefCommand>,
     // only needed in ssh protocal
     pub service_type: Option<ServiceType>,
-
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
