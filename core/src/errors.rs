@@ -3,6 +3,8 @@
 //!
 //!
 //!
+use thiserror::Error;
+
 use anyhow::Result;
 
 pub type MegaResult = Result<(), MegaError>;
@@ -58,6 +60,13 @@ impl From<std::io::Error> for MegaError {
     fn from(err: std::io::Error) -> MegaError {
         MegaError::new(err.into(), 1)
     }
+}
+
+#[derive(Error, Debug)]
+#[allow(unused)]
+pub enum GitLFSError {
+    #[error("Something went wrong in Git LFS")]
+    GeneralError(String),
 }
 
 #[cfg(test)]

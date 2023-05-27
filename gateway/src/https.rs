@@ -16,11 +16,13 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::{Router, Server};
 use clap::Args;
+use git::lfs::{self, LfsConfig};
 use git::protocol::{http, ServiceType};
 use git::protocol::{PackProtocol, Protocol};
 use hyper::{Body, Request, StatusCode, Uri};
 use regex::Regex;
 use serde::Deserialize;
+use storage::driver::lfs::structs::LockListQuery;
 use storage::driver::{mysql, ObjectStorage};
 
 /// Parameters for starting the HTTP service
@@ -28,21 +30,35 @@ use storage::driver::{mysql, ObjectStorage};
 pub struct HttpOptions {
     /// Server start hostname
     #[arg(long, default_value_t = String::from("127.0.0.1"))]
-    host: String,
+    pub host: String,
 
     #[arg(short, long, default_value_t = 8000)]
-    port: u16,
+    pub port: u16,
 
     #[arg(short, long, value_name = "FILE")]
     key_path: Option<PathBuf>,
 
     #[arg(short, long, value_name = "FILE")]
     cert_path: Option<PathBuf>,
+
+    #[arg(short, long, default_value_os_t = PathBuf::from("lfs_content"))]
+    pub lfs_content_path: PathBuf,
 }
 
 #[derive(Clone)]
-struct AppState {
-    storage: Arc<dyn ObjectStorage>,
+pub struct AppState {
+    pub storage: Arc<dyn ObjectStorage>,
+    pub options: HttpOptions,
+}
+
+#[derive(Deserialize, Debug)]
+struct GetParams {
+    pub service: Option<String>,
+    pub refspec: Option<String>,
+    pub id: Option<String>,
+    pub path: Option<String>,
+    pub limit: Option<String>,
+    pub cursor: Option<String>,
 }
 
 pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
@@ -55,26 +71,29 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
         port,
         key_path: _,
         cert_path: _,
+        lfs_content_path: _,
     } = options;
     let server_url = format!("{}:{}", host, port);
 
+    // let config =  LfsConfig::from(options.to_owned());
+    // config.storage =
     let state = AppState {
         storage: Arc::new(mysql::init().await),
+        options: options.to_owned(),
     };
-
     let app = Router::new()
-        .route("/*path", get(git_info_refs).post(data_transfer))
+        .route(
+            "/*path",
+            get(get_method_router)
+                .post(post_method_router)
+                .put(put_method_router),
+        )
         .with_state(state);
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
     Server::bind(&addr).serve(app.into_make_service()).await?;
 
     Ok(())
-}
-/// QueryParameters ServiceName
-#[derive(Deserialize, Debug)]
-struct ServiceName {
-    pub service: String,
 }
 
 /// # Discovering Reference
@@ -83,19 +102,43 @@ struct ServiceName {
 /// The request MUST contain exactly one query parameter, service=$servicename,
 /// where $servicename MUST be the service name the client wishes to contact to complete the operation.
 /// The request MUST NOT contain additional query parameters.
-async fn git_info_refs(
+async fn get_method_router(
     state: State<AppState>,
-    Query(service): Query<ServiceName>,
+    Query(params): Query<GetParams>,
     uri: Uri,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let service_name = service.service;
+    let mut lfs_config: LfsConfig = state.options.clone().into();
+    lfs_config.storage = state.storage.clone();
 
+    // Routing LFS services.
+    if Regex::new(r"/objects/[a-z0-9]+$")
+        .unwrap()
+        .is_match(uri.path())
+    {
+        // Retrieve the `:oid` field from path.
+        let path = uri.path().to_owned();
+        let tokens: Vec<&str> = path.split('/').collect();
+        // The `:oid` field is the last field.
+        return lfs::http::lfs_download_object(&lfs_config, tokens[tokens.len() - 1]).await;
+    } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
+        // Load query parameters into struct.
+        let lock_list_query = LockListQuery {
+            path: params.path,
+            id: params.id,
+            cursor: params.cursor,
+            limit: params.limit,
+            refspec: params.refspec,
+        };
+        return lfs::http::lfs_retrieve_lock(&lfs_config, lock_list_query).await;
+    }
+
+    let service_name = params.service.unwrap();
     let service_type = service_name.parse::<ServiceType>().unwrap();
 
     if !Regex::new(r"/info/refs$").unwrap().is_match(uri.path()) {
         return Err((
             StatusCode::FORBIDDEN,
-            String::from("Operation not supported"),
+            String::from("Operation not supported\n"),
         ));
     }
     let mut pack_protocol = PackProtocol::new(
@@ -123,11 +166,29 @@ async fn git_info_refs(
     Ok(resp.body(body).unwrap())
 }
 
-async fn data_transfer(
+async fn post_method_router(
     state: State<AppState>,
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
+    let mut lfs_config: LfsConfig = state.options.clone().into();
+    lfs_config.storage = state.storage.clone();
+
+    // Routing LFS services.
+    if Regex::new(r"/locks/verify$").unwrap().is_match(uri.path()) {
+        return lfs::http::lfs_verify_lock(&lfs_config, req).await;
+    } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
+        return lfs::http::lfs_create_lock(&lfs_config, req).await;
+    } else if Regex::new(r"/unlock$").unwrap().is_match(uri.path()) {
+        // Retrieve the `:id` field from path.
+        let path = uri.path().to_owned();
+        let tokens: Vec<&str> = path.split('/').collect();
+        // The `:id` field is just ahead of the last field.
+        return lfs::http::lfs_delete_lock(&lfs_config, tokens[tokens.len() - 2], req).await;
+    } else if Regex::new(r"/objects/batch$").unwrap().is_match(uri.path()) {
+        return lfs::http::lfs_process_batch(&lfs_config, req).await;
+    }
+
     if Regex::new(r"/git-upload-pack$")
         .unwrap()
         .is_match(uri.path())
@@ -148,6 +209,30 @@ async fn data_transfer(
             Protocol::Http,
         );
         http::git_receive_pack(req, pack_protocol).await
+    } else {
+        Err((
+            StatusCode::FORBIDDEN,
+            String::from("Operation not supported"),
+        ))
+    }
+}
+
+async fn put_method_router(
+    state: State<AppState>,
+    uri: Uri,
+    req: Request<Body>,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    let mut lfs_config: LfsConfig = state.options.clone().into();
+    lfs_config.storage = state.storage.clone();
+    if Regex::new(r"/objects/[a-z0-9]+$")
+        .unwrap()
+        .is_match(uri.path())
+    {
+        // Retrieve the `:oid` field from path.
+        let path = uri.path().to_owned();
+        let tokens: Vec<&str> = path.split('/').collect();
+        // The `:oid` field is the last field.
+        lfs::http::lfs_upload_object(&lfs_config, tokens[tokens.len() - 1], req).await
     } else {
         Err((
             StatusCode::FORBIDDEN,
