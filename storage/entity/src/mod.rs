@@ -3,5 +3,7 @@
 pub mod prelude;
 
 pub mod commit;
+pub mod locks;
+pub mod meta;
 pub mod node;
 pub mod refs;

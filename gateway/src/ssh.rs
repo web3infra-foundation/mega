@@ -31,6 +31,9 @@ pub struct SshOptions {
 
     #[arg(short, long, value_name = "FILE")]
     cert_path: Option<PathBuf>,
+
+    #[arg(short, long, default_value_os_t = PathBuf::from("lfs_content"))]
+    lfs_content_path: PathBuf,
 }
 
 /// start a ssh server
@@ -59,6 +62,7 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
         port,
         key_path: _,
         cert_path: _,
+        lfs_content_path: _,
     } = command;
     let server_url = format!("{}:{}", host, port);
     let addr = SocketAddr::from_str(&server_url).unwrap();

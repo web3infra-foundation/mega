@@ -12,3 +12,4 @@ path = "src/mod.rs"
 [dependencies]
 anyhow = "1.0.71"
 clap = "4.2.7"
+thiserror = "1.0.40"
