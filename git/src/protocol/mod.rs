@@ -20,13 +20,16 @@ pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Err(_) => panic!("can't get ZERO_ID"),
 };
 
-// #[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PackProtocol {
     pub protocol: Protocol,
     pub capabilities: Vec<Capability>,
     pub path: PathBuf,
     pub storage: Arc<dyn ObjectStorage>,
     pub command_list: Vec<RefCommand>,
+    // only needed in ssh protocal
+    pub service_type: Option<ServiceType>,
+
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -225,6 +228,7 @@ impl PackProtocol {
             path,
             storage,
             command_list: Vec::new(),
+            service_type: None,
         }
     }
 
@@ -235,6 +239,7 @@ impl PackProtocol {
             path: PathBuf::new(),
             storage: Arc::new(MysqlStorage::default()),
             command_list: Vec::new(),
+            service_type: None,
         }
     }
 }
