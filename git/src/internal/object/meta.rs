@@ -77,11 +77,14 @@ impl Meta {
     /// Create a new `Meta` struct from a Git object include object type and data.
     /// # Examples
     /// ```
-    ///     let meta = Meta::new(ObjectType::Blob, vec![98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]);
+    ///     use git::internal::object::meta::Meta;
+    ///     use git::internal::ObjectType;
+    /// 
+    ///     let meta = Meta::new_from_data_with_object_type(ObjectType::Blob, vec![98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]);
     ///     assert_eq!(meta.object_type, ObjectType::Blob);
-    ///     assert_eq!(meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
-    ///     assert_eq!(meta.size, 14);
-    ///     assert_eq!(meta.delta_header, vec![]);
+    //      assert_eq!(meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+    //      assert_eq!(meta.size, 14);
+    //      assert_eq!(meta.delta_header, vec![]);
     /// ```
     #[allow(unused)]
     pub fn new_from_data_with_object_type(object_type: ObjectType, data: Vec<u8>) -> Self {
@@ -265,7 +268,7 @@ mod tests {
         //
         // "Hello, World!" is [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33]
         // "Hello, World!" read from file is [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
 
         let meta = super::Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
@@ -280,17 +283,18 @@ mod tests {
 
     #[test]
     fn test_write_to_file() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
-        source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
-        let m = super::Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source_file = source.clone();
+        source_file.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        let m = super::Meta::new_from_file(source_file.as_path().to_str().unwrap()).unwrap();
 
-        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        let mut dest_file = source.clone();
         dest_file.push("tests/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
         if dest_file.exists() {
             remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
         }
 
-        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        let mut dest = source.clone();
         dest.push("tests/objects");
         let file = m.to_file(dest.as_path().to_str().unwrap()).unwrap();
 

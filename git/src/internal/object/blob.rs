@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_new_from_file() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
 
         let blob = Blob::new_from_file(source.to_str().unwrap()).unwrap();
@@ -165,17 +165,18 @@ mod tests {
 
     #[test]
     fn test_to_file() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
-        source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
-        let blob = Blob::new_from_file(source.to_str().unwrap()).unwrap();
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source_file = source.clone();
+        source_file.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        let blob = Blob::new_from_file(source_file.to_str().unwrap()).unwrap();
 
-        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        let mut dest_file = source.clone();
         dest_file.push("tests/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
         if dest_file.exists() {
             remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
         }
 
-        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        let mut dest = source.clone();
         dest.push("tests/objects");
         let file = blob.to_file(dest.as_path().to_str().unwrap()).unwrap();
 

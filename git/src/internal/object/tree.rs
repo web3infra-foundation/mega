@@ -158,6 +158,9 @@ impl TreeItem {
     ///
     /// # Example
     /// ```rust
+    /// use git::internal::object::tree::{TreeItem, TreeItemMode};
+    /// use git::hash::Hash;
+    /// 
     /// // Create a empty TreeItem with the default Hash
     /// let default_item = TreeItem::new(TreeItemMode::Blob, Hash::default(), String::new());
     ///
@@ -180,7 +183,7 @@ impl TreeItem {
     ///
     /// # Example
     /// ```rust
-    /// let bytes = Vec<u8>::new().to_bytes();
+    //  let bytes = Vec::<u8>::new().to_bytes();
     //  let tree_item = TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
     /// ```
     #[allow(unused)]
@@ -201,13 +204,16 @@ impl TreeItem {
 
     /// Convert a TreeItem to a byte vector
     /// ```rust
-    /// let tree_item = super::TreeItem::new(
+    /// use git::internal::object::tree::{TreeItem, TreeItemMode};
+    /// use git::hash::Hash;
+    /// 
+    /// let tree_item = TreeItem::new(
     ///     TreeItemMode::Blob,
     ///     Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
     ///     "hello-world".to_string(),
     /// );
     ///
-    /// let bytes = tree_item.to_bytes();
+    //  let bytes = tree_item.to_bytes();
     /// ```
     #[allow(unused)]
     pub fn to_data(&self) -> Vec<u8> {
@@ -386,7 +392,7 @@ mod tests {
         use std::env;
         use std::path::PathBuf;
 
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/f9/a1667a0dfce06819394c2aad557a04e9a13e56");
 
         let tree = super::Tree::new_from_file(source.to_str().unwrap()).unwrap();
@@ -409,7 +415,7 @@ mod tests {
         use std::env;
         use std::path::PathBuf;
 
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
 
         let tree = super::Tree::new_from_file(source.to_str().unwrap()).unwrap();
@@ -448,18 +454,19 @@ mod tests {
         use crate::internal::object::meta::Meta;
         use crate::internal::object::tree::Tree;
 
-        let mut source = PathBuf::from(env::current_dir().unwrap());
-        source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
-        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source_file = source.clone();
+        source_file.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
+        let meta = Meta::new_from_file(source_file.to_str().unwrap()).unwrap();
         let tree = Tree::new_from_meta(meta).unwrap();
 
-        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        let mut dest_file = source.clone();
         dest_file.push("tests/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
         if dest_file.exists() {
             remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
         }
 
-        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        let mut dest = source.clone();
         dest.push("tests/objects");
 
         let file = tree.to_file(dest.as_path().to_str().unwrap()).unwrap();
@@ -472,7 +479,7 @@ mod tests {
         use std::env;
         use std::path::PathBuf;
 
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
 
         let source_tree = super::Tree::new_from_file(source.to_str().unwrap()).unwrap();
