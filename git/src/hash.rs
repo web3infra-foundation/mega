@@ -36,6 +36,8 @@ impl Hash {
     /// Calculate the SHA-1 hash of `Vec<u8>` data
     /// # Example
     /// ```
+    /// use git::hash::Hash;
+    /// 
     /// let hash = Hash::new(&vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
     /// assert_eq!(hash.to_plain_str(), "e89ad5a9631c3efdded7e3ecce79b4d0fedce1bf");
     /// ```

@@ -10,7 +10,6 @@ use git::lfs::LfsConfig;
 use https::HttpOptions;
 use storage::driver::mysql::storage::MysqlStorage;
 pub mod https;
-pub mod lfs;
 pub mod ssh;
 
 impl From<HttpOptions> for LfsConfig {

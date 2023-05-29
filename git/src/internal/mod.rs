@@ -56,6 +56,7 @@ impl ObjectType {
     /// Parses a string representation of a Git object type and returns an ObjectType value
     /// # Examples
     /// ```
+    ///     use git::internal::ObjectType;
     ///     let blob = ObjectType::from_string("blob").unwrap();
     /// ```
     #[allow(unused)]
@@ -72,8 +73,10 @@ impl ObjectType {
     /// Convert an object type to a byte array.
     /// # Examples
     /// ```
+    ///     use git::internal::ObjectType;
+    ///
     ///     let blob = ObjectType::Blob;
-    ///     let blob_bytes = blob.to_bytes().unwrap();
+    ///     let blob_bytes = blob.to_data().unwrap();
     ///     assert_eq!(blob_bytes, vec![0x62, 0x6c, 0x6f, 0x62]);
     /// ```
     #[allow(unused)]
@@ -90,6 +93,8 @@ impl ObjectType {
     /// Convert an object type to a number.
     /// # Examples
     /// ```
+    ///    use git::internal::ObjectType;
+    ///
     ///    let blob = ObjectType::Blob;
     ///    let blob_number = blob.type2number();
     ///    assert_eq!(blob_number, 1);
@@ -109,6 +114,8 @@ impl ObjectType {
     /// Convert a number to an object type.
     /// # Examples
     /// ```
+    ///   use git::internal::ObjectType;
+    ///
     ///   let blob_number = 1;
     ///   let blob = ObjectType::number2type(blob_number).unwrap();
     ///   assert_eq!(blob, ObjectType::Blob);

@@ -152,27 +152,35 @@ pub fn read_offset_encoding<R: Read>(stream: &mut R) -> io::Result<u64> {
     }
 }
 
+/// Converts a number to variable-length offset encoding.
 ///
-/// # Example
+/// The number is converted to a byte array using a variable-length encoding scheme where each byte
+/// represents 7 bits of the number. The most significant bit of each byte is used as a continuation
+/// marker, except for the last byte.
 ///
-/// ```
-/// let ns :u64 = 0x4af;
-/// let re = write_offset_encoding(ns);
-/// println!("{:?}",re);
-/// ```
+/// # Arguments
 ///
+/// * `number` - The number to be encoded.
+///
+/// # Returns
+///
+/// A byte vector representing the variable-length offset encoding of the number.
 pub fn write_offset_encoding(number: u64) -> Vec<u8> {
     let mut num = vec![];
     let mut number = number;
 
+    // Encode the least significant 7 bits of the number in the first byte
     num.push((number & 0x7f) as u8);
     number >>= 7;
 
+    // Encode the remaining bits in subsequent bytes
     while number > 0 {
+        // Set the most significant bit to indicate continuation
         num.push(((number & 0x7f) - 1) as u8 | 0x80);
         number >>= 7;
     }
 
+    // Reverse the byte vector to maintain the correct order
     num.reverse();
 
     num
@@ -265,25 +273,6 @@ pub fn get_offset(file: &mut impl Seek) -> io::Result<u64> {
 /// of the reader function is returned as `Ok(result)`. Otherwise, an `Err` variant is returned, wrapping
 /// a `GitError` that describes the specific error that occurred.
 ///
-/// # Example
-///
-/// ```rust
-/// use std::fs::File;
-/// use std::io;
-/// use flate2::read::ZlibDecoder;
-///
-/// fn main() -> io::Result<()> {
-///     let mut file = File::open("compressed.dat")?;
-///     let data = read_zlib_stream_exact(&mut file, |decompressed| {
-///         // Custom logic to process the decompressed data
-///         let mut buffer = String::new();
-///         decompressed.read_to_string(&mut buffer)?;
-///         Ok(buffer)
-///     })?;
-///     println!("Decompressed data: {}", data);
-///     Ok(())
-/// }
-/// ```
 pub fn read_zlib_stream_exact<T, F>(file: &mut File, reader: F) -> Result<T, GitError>
 where
     F: FnOnce(&mut ZlibDecoder<&mut File>) -> Result<T, GitError>,

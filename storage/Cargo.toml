@@ -11,7 +11,7 @@ path = "src/mod.rs"
 
 
 [dependencies]
-mega-core = {path = "../core"}
+megacore = {path = "../megacore"}
 entity = {path = "./entity"}
 anyhow = "1.0.71"
 async-recursion = "1.0.4"
