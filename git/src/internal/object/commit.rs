@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_new_from_file_without_parent() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
 
         let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_new_from_file_with_parent() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
 
         let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_new_from_meta() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
 
         let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_new_from_data() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
 
         let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_to_data() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
 
         let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
@@ -239,17 +239,18 @@ mod tests {
 
     #[test]
     fn test_to_file() {
-        let mut source = PathBuf::from(env::current_dir().unwrap());
-        source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
-        let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source_file = source.clone();
+        source_file.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
+        let commit = super::Commit::new_from_file(source_file.to_str().unwrap()).unwrap();
 
-        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        let mut dest_file = source.clone();
         dest_file.push("tests/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
         if dest_file.exists() {
             remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
         }
 
-        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        let mut dest = source.clone();
         dest = dest.join("tests");
         dest = dest.join("objects");
 
