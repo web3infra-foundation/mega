@@ -181,7 +181,7 @@ mod tests {
         use std::env;
         use std::path::PathBuf;
 
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
 
         let tag = super::Tag::new_from_file(source.to_str().unwrap()).unwrap();
@@ -203,7 +203,7 @@ mod tests {
         use std::env;
         use std::path::PathBuf;
 
-        let mut source = PathBuf::from(env::current_dir().unwrap());
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
 
         let tag = super::Tag::new_from_file(source.to_str().unwrap()).unwrap();
@@ -218,17 +218,18 @@ mod tests {
         use std::fs::remove_file;
         use std::path::PathBuf;
 
-        let mut source = PathBuf::from(env::current_dir().unwrap());
-        source.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
-        let tag = super::Tag::new_from_file(source.to_str().unwrap()).unwrap();
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source_file = source.clone();
+        source_file.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
+        let tag = super::Tag::new_from_file(source_file.to_str().unwrap()).unwrap();
 
-        let mut dest_file = PathBuf::from(env::current_dir().unwrap());
+        let mut dest_file = source.clone();
         dest_file.push("tests/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
         if dest_file.exists() {
             remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
         }
 
-        let mut dest = PathBuf::from(env::current_dir().unwrap());
+        let mut dest = source.clone();
         dest.push("tests");
         dest.push("objects");
 

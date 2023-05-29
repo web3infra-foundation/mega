@@ -9,7 +9,7 @@ mod ssh;
 use clap::{ArgMatches, Command};
 
 use crate::cli::Config;
-use mega_core::errors::MegaResult;
+use megacore::errors::MegaResult;
 
 pub fn builtin() -> Vec<Command> {
     vec![https::cli(), ssh::cli()]

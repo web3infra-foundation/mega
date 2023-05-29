@@ -12,7 +12,7 @@ use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
 use storage::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
 use crate::{internal::pack::Pack, protocol::pack::SP};
-use mega_core::errors::MegaError;
+use megacore::errors::MegaError;
 
 pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Ok(s) => s,
