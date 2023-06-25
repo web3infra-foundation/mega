@@ -13,7 +13,7 @@ use anyhow::Result;
 use clap::Args;
 use russh_keys::key::KeyPair;
 
-use storage::driver::mysql;
+use database::driver::mysql;
 use tokio::io::AsyncWriteExt;
 
 use git::protocol::ssh::SshServer;

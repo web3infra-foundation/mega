@@ -9,10 +9,10 @@ pub mod ssh;
 
 use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
 
-use storage::driver::{mysql::storage::MysqlStorage, ObjectStorage};
+use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
 use crate::{internal::pack::Pack, protocol::pack::SP};
-use megacore::errors::MegaError;
+use common::errors::MegaError;
 
 pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Ok(s) => s,
