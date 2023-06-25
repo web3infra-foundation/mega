@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [".","gateway", "git", "megacore", "storage"]
+members = [".","gateway", "git", "common", "database"]
 
 [dependencies]
 gateway = { path = "gateway" }
-megacore = { path = "megacore" }
+common = { path = "common" }
 
 config = "0.13.3"
 serde = { version = "1.0.163", features = ["derive"] }

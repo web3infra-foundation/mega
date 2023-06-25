@@ -12,9 +12,9 @@ use chrono::{prelude::*, Duration};
 use futures::StreamExt;
 use hyper::Request;
 use rand::prelude::*;
-use storage::driver::lfs::storage::{ContentStore, MetaObject};
-use storage::driver::lfs::structs::BatchResponse;
-use storage::driver::lfs::structs::*;
+use database::driver::lfs::storage::{ContentStore, MetaObject};
+use database::driver::lfs::structs::BatchResponse;
+use database::driver::lfs::structs::*;
 
 use super::LfsConfig;
 
