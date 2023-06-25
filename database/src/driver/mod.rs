@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use megacore::errors::{GitLFSError, MegaError};
+use common::errors::{GitLFSError, MegaError};
 
 use self::lfs::{
     storage::MetaObject,

@@ -12,8 +12,8 @@ path = "src/mod.rs"
 
 
 [dependencies]
-storage = {path = "../storage"}
-megacore = { path = "../megacore" }
+database = {path = "../database"}
+common = { path = "../common" }
 anyhow = "1.0.71"
 bstr = "1.4.0"
 chrono = "0.4.24"

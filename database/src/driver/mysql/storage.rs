@@ -8,7 +8,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use entity::locks;
 use entity::meta;
-use megacore::errors::GitLFSError;
+use common::errors::GitLFSError;
 use sea_orm::ActiveModelTrait;
 use sea_orm::DatabaseConnection;
 use sea_orm::EntityTrait;
