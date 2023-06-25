@@ -8,7 +8,7 @@ use config as c;
 use serde::Deserialize;
 
 use crate::commands::{builtin, builtin_exec};
-use megacore::errors::{MegaError, MegaResult};
+use common::errors::{MegaError, MegaResult};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Config {}

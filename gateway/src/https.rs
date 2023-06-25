@@ -22,8 +22,8 @@ use git::protocol::{PackProtocol, Protocol};
 use hyper::{Body, Request, StatusCode, Uri};
 use regex::Regex;
 use serde::Deserialize;
-use storage::driver::lfs::structs::LockListQuery;
-use storage::driver::{mysql, ObjectStorage};
+use database::driver::lfs::structs::LockListQuery;
+use database::driver::{mysql, ObjectStorage};
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -96,12 +96,6 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-/// # Discovering Reference
-/// HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
-/// discover references by making a parameterized request for the info/refs file of the repository.
-/// The request MUST contain exactly one query parameter, service=$servicename,
-/// where $servicename MUST be the service name the client wishes to contact to complete the operation.
-/// The request MUST NOT contain additional query parameters.
 async fn get_method_router(
     state: State<AppState>,
     Query(params): Query<GetParams>,
@@ -135,6 +129,12 @@ async fn get_method_router(
     let service_name = params.service.unwrap();
     let service_type = service_name.parse::<ServiceType>().unwrap();
 
+    // # Discovering Reference
+    // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
+    // discover references by making a parameterized request for the info/refs file of the repository.
+    // The request MUST contain exactly one query parameter, service=$servicename,
+    // where $servicename MUST be the service name the client wishes to contact to complete the operation.
+    // The request MUST NOT contain additional query parameters.
     if !Regex::new(r"/info/refs$").unwrap().is_match(uri.path()) {
         return Err((
             StatusCode::FORBIDDEN,

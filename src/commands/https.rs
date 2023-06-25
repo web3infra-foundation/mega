@@ -6,7 +6,7 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
 use crate::{cli::Config, commands::https};
-use megacore::errors::MegaResult;
+use common::errors::MegaResult;
 
 use gateway::https::{http_server, HttpOptions};
 

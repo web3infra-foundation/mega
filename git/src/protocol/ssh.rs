@@ -11,7 +11,7 @@ use russh::{Channel, ChannelId};
 
 use russh_keys::key;
 use std::collections::HashMap;
-use storage::driver::ObjectStorage;
+use database::driver::ObjectStorage;
 
 use std::path::PathBuf;
 use std::str::FromStr;

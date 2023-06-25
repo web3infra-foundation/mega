@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use git::lfs::LfsConfig;
 use https::HttpOptions;
-use storage::driver::mysql::storage::MysqlStorage;
+use database::driver::mysql::storage::MysqlStorage;
 pub mod https;
 pub mod ssh;
 
