@@ -75,7 +75,7 @@ fn transform_key(key: String) -> String {
 mod tests {
     use super::*;
 
-    // #[tokio::test]
+    #[test]
     fn test_content_store() {
         let meta = MetaObject {
             oid: "6ae8a75555209fd6c44157c0aed8016e763ff435a19cf186f76863140143ff72".to_owned(),
