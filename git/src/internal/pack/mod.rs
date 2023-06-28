@@ -4,12 +4,13 @@
 //!
 //!
 
+use super::object::cache::ObjectCache;
+use crate::hash::Hash;
 use std::path::PathBuf;
 
-use crate::hash::Hash;
-
 pub mod decode;
-
+pub mod delta;
+mod iterator;
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
 /// `version`: The pack file version <br>
@@ -25,6 +26,7 @@ pub struct Pack {
     number_of_objects: usize,
     pub signature: Hash,
     path: PathBuf,
+    cache: ObjectCache,
 }
 
 impl Pack {

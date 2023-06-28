@@ -5,7 +5,7 @@
 //!
 pub mod object;
 pub mod pack;
-
+pub mod zlib;
 use std::fmt::Display;
 
 use crate::errors::GitError;
@@ -38,7 +38,6 @@ pub enum ObjectType {
     HashDelta,
 }
 
-/// Display trait for Git objects type
 impl Display for ObjectType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -51,8 +50,22 @@ impl Display for ObjectType {
         }
     }
 }
-
+const COMMIT_OBJECT_TYPE: &[u8] = b"commit";
+const TREE_OBJECT_TYPE: &[u8] = b"tree";
+const BLOB_OBJECT_TYPE: &[u8] = b"blob";
+const TAG_OBJECT_TYPE: &[u8] = b"tag";
+/// Display trait for Git objects type
 impl ObjectType {
+    pub fn to_bytes(&self) -> &[u8] {
+        match self {
+            ObjectType::Commit => COMMIT_OBJECT_TYPE,
+            ObjectType::Tree => TREE_OBJECT_TYPE,
+            ObjectType::Blob => BLOB_OBJECT_TYPE,
+            ObjectType::Tag => TAG_OBJECT_TYPE,
+            _ => panic!("can put compute the delta hash value"),
+        }
+    }
+
     /// Parses a string representation of a Git object type and returns an ObjectType value
     /// # Examples
     /// ```
@@ -97,14 +110,14 @@ impl ObjectType {
     ///
     ///    let blob = ObjectType::Blob;
     ///    let blob_number = blob.type2number();
-    ///    assert_eq!(blob_number, 1);
+    ///    assert_eq!(blob_number, 3);
     /// ```
     #[allow(unused)]
     pub fn type2number(&self) -> u8 {
         match self {
-            ObjectType::Blob => 1,
+            ObjectType::Commit => 1,
             ObjectType::Tree => 2,
-            ObjectType::Commit => 3,
+            ObjectType::Blob => 3,
             ObjectType::Tag => 4,
             ObjectType::OffsetDelta => 6,
             ObjectType::HashDelta => 7,
@@ -118,14 +131,14 @@ impl ObjectType {
     ///
     ///   let blob_number = 1;
     ///   let blob = ObjectType::number2type(blob_number).unwrap();
-    ///   assert_eq!(blob, ObjectType::Blob);
+    ///   assert_eq!(blob, ObjectType::Commit);
     /// ```
     #[allow(unused)]
     pub fn number2type(number: u8) -> Result<ObjectType, GitError> {
         match number {
-            1 => Ok(ObjectType::Blob),
+            1 => Ok(ObjectType::Commit),
             2 => Ok(ObjectType::Tree),
-            3 => Ok(ObjectType::Commit),
+            3 => Ok(ObjectType::Blob),
             4 => Ok(ObjectType::Tag),
             6 => Ok(ObjectType::OffsetDelta),
             7 => Ok(ObjectType::HashDelta),
@@ -156,7 +169,7 @@ mod tests {
     fn test_object_type_type2number() {
         let commit = super::ObjectType::Commit;
         let commit_number = commit.type2number();
-        assert_eq!(commit_number, 3);
+        assert_eq!(commit_number, 1);
     }
 
     #[test]
