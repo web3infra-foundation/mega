@@ -79,7 +79,7 @@ impl Meta {
     /// ```
     ///     use git::internal::object::meta::Meta;
     ///     use git::internal::ObjectType;
-    /// 
+    ///
     ///     let meta = Meta::new_from_data_with_object_type(ObjectType::Blob, vec![98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10]);
     ///     assert_eq!(meta.object_type, ObjectType::Blob);
     //      assert_eq!(meta.id.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
