@@ -6,9 +6,9 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
 use crate::{cli::Config, commands::ssh};
+use common::errors::MegaResult;
 use gateway::ssh::server;
 use gateway::ssh::SshOptions;
-use common::errors::MegaResult;
 
 pub fn cli() -> Command {
     SshOptions::augment_args_for_update(Command::new("ssh").about("Start Git SSH server"))

@@ -9,12 +9,12 @@ use axum::body::Body;
 use axum::http::{Response, StatusCode};
 use bytes::{BufMut, BytesMut};
 use chrono::{prelude::*, Duration};
-use futures::StreamExt;
-use hyper::Request;
-use rand::prelude::*;
 use database::driver::lfs::storage::{ContentStore, MetaObject};
 use database::driver::lfs::structs::BatchResponse;
 use database::driver::lfs::structs::*;
+use futures::StreamExt;
+use hyper::Request;
+use rand::prelude::*;
 
 use super::LfsConfig;
 
@@ -255,7 +255,7 @@ pub async fn lfs_delete_lock(
         request_body.extend_from_slice(&bytes);
     }
 
-    if id.is_empty(){
+    if id.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "Invalid lock id!".to_string()));
     }
 

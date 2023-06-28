@@ -34,7 +34,7 @@ impl RequestVars {
         }
 
         let repo = &self.repo;
-        if !repo.is_empty(){
+        if !repo.is_empty() {
             path.push(repo);
         }
 

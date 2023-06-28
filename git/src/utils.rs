@@ -10,9 +10,6 @@ use std::{
     vec,
 };
 
-use flate2::read::ZlibDecoder;
-
-use crate::errors::GitError;
 use crate::hash::Hash;
 
 const TYPE_BITS: u8 = 3;
@@ -28,11 +25,27 @@ fn keep_bits(value: usize, bits: u8) -> usize {
 
 /// Read the next N bytes from the reader
 ///
+#[inline]
 pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> io::Result<[u8; N]> {
     let mut bytes = [0; N];
     stream.read_exact(&mut bytes)?;
 
     Ok(bytes)
+}
+pub fn get_7bit_count(n: usize) -> usize {
+    if n == 0 {
+        return 1;
+    }
+
+    let mut count = 0;
+    let mut num = n;
+
+    while num > 0 {
+        count += 1;
+        num >>= 7;
+    }
+
+    count
 }
 
 /// Read a u32 from the reader
@@ -43,8 +56,24 @@ pub fn read_u32<R: Read>(stream: &mut R) -> io::Result<u32> {
     Ok(u32::from_be_bytes(bytes))
 }
 
+pub fn read_chars<R: Read>(input: &mut R, buf: &mut Vec<u8>, size: usize) -> io::Result<()> {
+    buf.resize(size, 0); // Resize the buffer to the specified size
+    let mut bytes_read = 0;
+    while bytes_read < size {
+        match input.read(&mut buf[bytes_read..size]) {
+            Ok(0) => break, // Reached EOF
+            Ok(n) => bytes_read += n,
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    buf.resize(bytes_read, 0); // Resize the buffer to the actual number of bytes read
+    Ok(())
+}
 /// Read a hash from the reader
 ///
+///
+#[inline]
 pub fn read_hash<R: Read>(stream: &mut R) -> io::Result<Hash> {
     let bytes = read_bytes(stream)?;
 
@@ -273,27 +302,27 @@ pub fn get_offset(file: &mut impl Seek) -> io::Result<u64> {
 /// of the reader function is returned as `Ok(result)`. Otherwise, an `Err` variant is returned, wrapping
 /// a `GitError` that describes the specific error that occurred.
 ///
-pub fn read_zlib_stream_exact<T, F>(file: &mut File, reader: F) -> Result<T, GitError>
-where
-    F: FnOnce(&mut ZlibDecoder<&mut File>) -> Result<T, GitError>,
-{
-    // Get the current offset position within the file
-    let offset = get_offset(file).unwrap();
+// pub fn read_zlib_stream_exact<T, F>(file: &mut (impl Read+Seek), reader: F) -> Result<T, GitError>
+// where
+//     F: FnMut(&mut ZlibDecoder<impl Read+Seek>) -> Result<T, GitError>,
+// {
+//     // Get the current offset position within the file
+//     let offset = get_offset(file).unwrap();
 
-    // Create a zlib decoder for the file
-    let mut decompressed = ZlibDecoder::new(file);
+//     // Create a zlib decoder for the file
+//     let mut decompressed = ZlibDecoder::new(file);
 
-    // Invoke the reader function, passing the zlib decoder
-    let result = reader(&mut decompressed);
+//     // Invoke the reader function, passing the zlib decoder
+//     let result = reader(&mut decompressed);
 
-    // Calculate the end position of the zlib stream
-    let zlib_end = offset + decompressed.total_in();
+//     // Calculate the end position of the zlib stream
+//     let zlib_end = offset + decompressed.total_in();
 
-    // Seek to the end of the zlib stream
-    seek(decompressed.into_inner(), zlib_end).unwrap();
+//     // Seek to the end of the zlib stream
+//     seek(decompressed.into_inner(), zlib_end).unwrap();
 
-    result
-}
+//     result
+// }
 
 ///
 ///
@@ -335,6 +364,15 @@ pub fn find_all_pack_file(pack_dir: &str) -> (Vec<PathBuf>, Vec<Hash>) {
     }
 
     (file_path, hash_list)
+}
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
+use std::io::Write;
+pub fn compress_zlib(data: &[u8]) -> io::Result<Vec<u8>> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(data)?;
+    let compressed_data = encoder.finish()?;
+    Ok(compressed_data)
 }
 
 #[cfg(test)]
