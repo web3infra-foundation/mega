@@ -16,14 +16,14 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::{Router, Server};
 use clap::Args;
+use database::driver::lfs::structs::LockListQuery;
+use database::driver::{mysql, ObjectStorage};
 use git::lfs::{self, LfsConfig};
 use git::protocol::{http, ServiceType};
 use git::protocol::{PackProtocol, Protocol};
 use hyper::{Body, Request, StatusCode, Uri};
 use regex::Regex;
 use serde::Deserialize;
-use database::driver::lfs::structs::LockListQuery;
-use database::driver::{mysql, ObjectStorage};
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
