@@ -15,7 +15,7 @@ path = "src/mod.rs"
 database = {path = "../database"}
 common = { path = "../common" }
 anyhow = "1.0.71"
-bstr = "1.4.0"
+bstr = "1.5.0"
 chrono = "0.4.24"
 colored = "2.0.0"
 deflate = "1.0.0"
