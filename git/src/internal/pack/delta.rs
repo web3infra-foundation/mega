@@ -1,7 +1,13 @@
-use std::io::{BufRead, BufReader, Cursor, ErrorKind, Read};
+use std::io::{BufRead, BufReader, Cursor, ErrorKind, Read,Error};
+use std::sync::Arc;
+use sha1::digest::core_api::CoreWrapper;
+use sha1::{Digest, Sha1};
+
+use tokio::io::AsyncRead;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 use crate::internal::ObjectType;
-
 use crate::internal::object::ObjectT;
 use crate::{errors::GitError, utils};
 
@@ -10,32 +16,22 @@ const COPY_OFFSET_BYTES: u8 = 4;
 const COPY_SIZE_BYTES: u8 = 3;
 const COPY_ZERO_SIZE: usize = 0x10000;
 
-use std::sync::Arc;
-
-use flate2::Decompress;
-
-use sha1::digest::core_api::CoreWrapper;
-use sha1::{Digest, Sha1};
-use std::io::Error;
-use tokio::io::AsyncRead;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
-
+/// The Delta Reader to deal with the Delta Object. 
+/// 
+/// Impl The [`Read`] trait and [`BufRead`] trait.
+/// Receive a Read object, decompress the data in it with zlib, and 
+/// return it to Object after delta processing.
 pub struct DeltaReader {
-    
     #[allow(unused)]
     inner: AsyncDeltaBuffer,
     result: BufReader<Cursor<Vec<u8>>>,
     len: usize,
-    #[allow(unused)]
-    decompressor: Box<Decompress>,
     pub hash: CoreWrapper<sha1::Sha1Core>,
 }
 impl DeltaReader {
     pub async fn new(reader: &mut impl Read, bash_object: Arc<dyn ObjectT>) -> Self {
         let copy_obj = bash_object.clone();
         let buffer = AsyncDeltaBuffer::new(reader, bash_object).await;
-
 
         let mut h = Sha1::new();
         h.update(copy_obj.get_type().to_bytes());
@@ -52,7 +48,6 @@ impl DeltaReader {
             len: result.len(),
             inner: buffer,
             result: BufReader::with_capacity(4096, Cursor::new(result)),
-            decompressor: Box::new(Decompress::new(true)),
             hash: h,
         }
     }
@@ -62,13 +57,13 @@ impl DeltaReader {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len==0
+        self.len == 0
     }
-
 }
 impl Read for DeltaReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let o = self.result.read(buf)?;
+        //
         self.hash.update(&buf[..o]);
         Ok(o)
     }
@@ -169,10 +164,7 @@ async fn process_delta(
             Err(err) => {
                 panic!(
                     "{}",
-                    GitError::DeltaObjectError(format!(
-                        "Wrong instruction in delta :{}",
-                        err
-                    ))
+                    GitError::DeltaObjectError(format!("Wrong instruction in delta :{}", err))
                 );
             }
         };

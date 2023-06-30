@@ -32,19 +32,17 @@ pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> io::Result<[u8; N]
 
     Ok(bytes)
 }
-pub fn get_7bit_count(n: usize) -> usize {
+
+#[inline]
+pub fn get_7bit_count(mut n: usize) -> usize {
     if n == 0 {
         return 1;
     }
-
     let mut count = 0;
-    let mut num = n;
-
-    while num > 0 {
+    while n > 0 {
         count += 1;
-        num >>= 7;
+        n >>= 7;
     }
-
     count
 }
 

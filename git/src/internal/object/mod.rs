@@ -60,7 +60,6 @@ pub trait ObjectT: Send + Sync + Display {
     {
         let mut content: Vec<u8> = Vec::with_capacity(size);
         read.read_to_end(&mut content).unwrap();
-        //TODO : hash
         let h = read.hash.clone();
         let hash_str = h.finalize();
         let mut result = Self::new_from_data(content);
@@ -75,7 +74,6 @@ pub trait ObjectT: Send + Sync + Display {
     {
         let mut content: Vec<u8> = Vec::with_capacity(read.len());
         read.read_to_end(&mut content).unwrap();
-        //TODO : hash
         let h = read.hash.clone();
         let hash_str = h.finalize();
         let mut result = Self::new_from_data(content);

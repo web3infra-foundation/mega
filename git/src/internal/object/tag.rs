@@ -187,7 +187,7 @@ impl ObjectT for Tag {
             .to_string();
 
         Tag {
-            id: Hash([0u8;20]),
+            id: Hash([0u8; 20]),
             object_hash,
             object_type,
             tag_name,
