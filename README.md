@@ -1,4 +1,4 @@
-# Mega - A Monorepo Platform Engine
+# Mega - Monorepo Engine for Enterprise and Individual
 
 Mega is developing a monorepo engine similar to Google's Piper using Rust, which will facilitate Git and trunk-based development on a large scale.
 
