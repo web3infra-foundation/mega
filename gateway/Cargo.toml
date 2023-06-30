@@ -18,8 +18,8 @@ axum = "0.6.18"
 clap = { version = "4.3.0", features = ["derive"] }
 hyper = "0.14.26"
 regex = "1.8.1"
-serde = "1.0.163"
-tokio = {version = "1.28.1", features = ["full"]}
+serde = "1.0.164"
+tokio = {version = "1.29.1", features = ["full"]}
 tracing = "0.1.37"
 russh = "0.37.1"
 russh-keys = "0.37.1"
