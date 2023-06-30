@@ -3,12 +3,11 @@ use crate::hash::Hash;
 use lru::LruCache;
 use std::{num::NonZeroUsize, sync::Arc};
 
-#[derive(Hash, Clone,PartialEq,Eq)]
+#[derive(Hash, Clone, PartialEq, Eq)]
 struct OffHash {
     o: usize,
     h: Hash,
 }
-
 
 pub struct ObjectCache {
     ioffset: LruCache<usize, OffHash>,

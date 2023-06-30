@@ -118,7 +118,7 @@ impl ObjectT for Blob {
     #[allow(unused)]
     fn new_from_data(content: Vec<u8>) -> Self {
         Self {
-            id: Hash([0u8;20]),
+            id: Hash([0u8; 20]),
             data: content,
         }
     }

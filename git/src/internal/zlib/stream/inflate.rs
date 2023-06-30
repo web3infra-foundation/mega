@@ -1,24 +1,52 @@
 use std::{io, io::BufRead};
 
+use crate::internal::ObjectType;
 use flate2::{Decompress, FlushDecompress, Status};
+use sha1::digest::Update;
 use sha1::{digest::core_api::CoreWrapper, Digest, Sha1};
-
-/// The boxed variant is faster for what we do (moving the decompressor in and out a lot)
+/// ReadBoxed is to unzip information from a  DEFLATE stream,
+/// which hash [`BufRead`] trait.
+/// For a continuous stream of DEFLATE information, the structure
+/// does not read too many bytes to affect subsequent information 
+/// reads
 pub struct ReadBoxed<R> {
     /// The reader from which bytes should be decompressed.
     pub inner: R,
     /// The decompressor doing all the work.
     pub decompressor: Box<Decompress>,
+    /// the [`_count_hash`] decide whether to calculate the hash value in the [`read`] method
+    _count_hash: bool,
     pub hash: CoreWrapper<sha1::Sha1Core>,
 }
 impl<R> ReadBoxed<R>
 where
     R: BufRead,
 {
-    pub fn new(inner: R) -> Self {
+
+    /// Nen a ReadBoxed for zlib read, the Output ReadBoxed is for the Common Object,
+    /// but not for the Delta Object,if that ,see[`new_for_delta`] method below.
+    /// 
+    /// C
+    pub fn new(inner: R, obj_type: ObjectType, size: usize) -> Self {
+        let mut hash = sha1::Sha1::new();
+        hash = hash
+            .chain(obj_type.to_bytes())
+            .chain(b" ")
+            .chain(size.to_string())
+            .chain(b"\0");
+        ReadBoxed {
+            inner,
+            hash,
+            _count_hash: true,
+            decompressor: Box::new(Decompress::new(true)),
+        }
+    }
+
+    pub fn new_for_delta(inner: R) -> Self {
         ReadBoxed {
             inner,
             hash: Sha1::new(),
+            _count_hash: false,
             decompressor: Box::new(Decompress::new(true)),
         }
     }
@@ -30,17 +58,15 @@ where
     fn read(&mut self, into: &mut [u8]) -> io::Result<usize> {
         let o = read(&mut self.inner, &mut self.decompressor, into)?;
         //update the hash value
-        self.hash.update(&into[..o]);
+        if self._count_hash {
+            Update::update(&mut self.hash, &into[..o]);
+        }
         Ok(o)
     }
 }
 
 /// Read bytes from `rd` and decompress them using `state` into a pre-allocated fitting buffer `dst`, returning the amount of bytes written.
-pub fn read(
-    rd: &mut impl BufRead,
-    state: &mut Decompress,
-    mut dst: &mut [u8],
-) -> io::Result<usize> {
+fn read(rd: &mut impl BufRead, state: &mut Decompress, mut dst: &mut [u8]) -> io::Result<usize> {
     let mut total_written = 0;
     loop {
         let (written, consumed, ret, eof);

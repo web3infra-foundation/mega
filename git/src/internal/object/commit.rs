@@ -216,7 +216,7 @@ impl ObjectT for Commit {
             String::from_utf8(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec()).unwrap();
 
         Commit {
-            id: Hash([0u8;20]),
+            id: Hash([0u8; 20]),
             tree_id,
             parent_tree_ids,
             author,
