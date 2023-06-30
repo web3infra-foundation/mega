@@ -73,6 +73,8 @@ fn transform_key(key: String) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::*;
 
     #[test]
@@ -85,7 +87,10 @@ mod tests {
 
         let content = "test content".as_bytes();
 
-        let content_store = ContentStore::new(PathBuf::from("content-store"));
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/objects");
+
+        let content_store = ContentStore::new(source);
         assert!(content_store.put(&meta, content));
 
         assert!(content_store.exist(&meta));
