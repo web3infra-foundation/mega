@@ -240,16 +240,19 @@ mod tests {
         use std::path::PathBuf;
 
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        let mut source_file = source.clone();
+        let mut source_file = source;
         source_file.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
         let _tag = super::Tag::new_from_file(source_file.to_str().unwrap()).unwrap();
-        let mut dest_file = source.clone();
+
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut dest_file = source;
         dest_file.push("tests/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
         if dest_file.exists() {
             remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
         }
 
-        let mut dest = source.clone();
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut dest = source;
         dest.push("tests");
         dest.push("objects");
 
