@@ -116,14 +116,6 @@ impl AsyncDeltaBuffer {
         }
     }
 
-    // fn init_thread(&mut self,mut reader: &mut (impl Read +  Seek + Send), bash_object: Arc<dyn ObjectT>){
-    //         let in_arc = Arc::clone(&self.inner);
-    //         let mut stream= ZlibDecoder::new(reader);
-    //         let processing_task = tokio::spawn( async move  {
-    //         process_delta(&mut stream,in_arc,bash_object);
-    //     });
-    //         self.processing_task = Some(processing_task)
-    // }
 }
 
 impl AsyncRead for AsyncDeltaBuffer {
