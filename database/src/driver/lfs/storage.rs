@@ -88,7 +88,7 @@ mod tests {
         let content = "test content".as_bytes();
 
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/objects");
+        source.push("tests/objects");
 
         let content_store = ContentStore::new(source);
         assert!(content_store.put(&meta, content));
