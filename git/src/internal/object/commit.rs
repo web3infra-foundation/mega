@@ -227,16 +227,7 @@ impl ObjectT for Commit {
     }
 }
 
-// impl ObjectT for Commit{
-//     fn get_hash(&self) -> Hash {
-//         self.id
-//     }
 
-//     fn new(input : ObjReader<impl std::io::Read>) -> Self  {
-
-//         Self { id: (), tree_id: (), parent_tree_ids: (), author: (), committer: (), message: () }
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

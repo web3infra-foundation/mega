@@ -129,16 +129,17 @@ mod tests {
     use std::io::Cursor;
 
     use crate::internal::object::blob::Blob;
-    use crate::internal::object::reader;
     use crate::internal::object::ObjectT;
     use crate::internal::ObjectType;
+    use crate::internal::zlib::stream::inflate::ReadBoxed;
     use crate::utils;
 
     #[test]
     fn test_new_from_meta() {
-        let mut t_test = Cursor::new(utils::compress_zlib("Hello, World!".as_bytes()).unwrap());
-        let mut _reader = reader::ObjReader::new(&mut t_test, 13, ObjectType::Blob);
-        let _blob = Blob::new(_reader);
+        let t_test = Cursor::new(utils::compress_zlib("Hello, World!".as_bytes()).unwrap());
+        let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, 13);
+
+        let _blob = Blob::new_from_read(&mut deco,13);
         assert_eq!(
             _blob.id.to_plain_str(),
             "b45ef6fec89518d314f546fd6c3025367b721684"
@@ -147,8 +148,8 @@ mod tests {
 
     #[test]
     fn test_real_blob() {
-        let contenet = String::from(
-            r#"[package]
+        let content = String::from(
+r#"[package]
 name = "mega"
 version = "0.1.0"
 edition = "2021"
@@ -178,9 +179,13 @@ thiserror = "1.0.40"
 shadow-rs = "0.23.0"
 "#,
         );
-        let mut t_test = Cursor::new(utils::compress_zlib(contenet.as_bytes()).unwrap());
-        let mut _reader = reader::ObjReader::new(&mut t_test, contenet.len(), ObjectType::Blob);
-        let _blob = Blob::new(_reader);
+        let  t_test = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
+      
+        
+        let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, content.len());
+
+        let _blob = Blob::new_from_read(&mut deco,content.len());
+
         assert_eq!(
             _blob.id.to_plain_str(),
             "b5e463cf00f754127a71c4ca09d53717672a93a2"

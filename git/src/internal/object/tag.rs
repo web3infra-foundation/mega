@@ -122,14 +122,6 @@ impl ObjectT for Tag {
     fn get_hash(&self) -> Hash {
         self.id
     }
-    // fn new(mut input : ObjReader<impl Read + Seek + Send >) -> Self  {
-    //     let mut content:Vec<u8> = Vec::with_capacity(input.glen());
-    //     input.read_to_end(&mut content).unwrap();
-    //     let mut tag = Tag::new_from_data(content).unwrap();
-    //     let h =Hash::new_from_str(&input.finalize());
-    //     tag.id = h;
-    //     tag
-    // }
 
     fn get_raw(&self) -> &[u8] {
         &self.row_data
