@@ -2,7 +2,6 @@ use std::{io, io::BufRead};
 
 use crate::internal::ObjectType;
 use flate2::{Decompress, FlushDecompress, Status};
-use sha1::digest::Update;
 use sha1::{digest::core_api::CoreWrapper, Digest, Sha1};
 /// ReadBoxed is to unzip information from a  DEFLATE stream,
 /// which hash [`BufRead`] trait.
@@ -25,15 +24,12 @@ where
 
     /// Nen a ReadBoxed for zlib read, the Output ReadBoxed is for the Common Object,
     /// but not for the Delta Object,if that ,see[`new_for_delta`] method below.
-    /// 
-    /// C
     pub fn new(inner: R, obj_type: ObjectType, size: usize) -> Self {
         let mut hash = sha1::Sha1::new();
-        hash = hash
-            .chain(obj_type.to_bytes())
-            .chain(b" ")
-            .chain(size.to_string())
-            .chain(b"\0");
+        hash.update(obj_type.to_bytes());
+        hash.update(b" ");
+        hash.update(size.to_string());
+        hash.update(b"\0");
         ReadBoxed {
             inner,
             hash,
@@ -50,6 +46,7 @@ where
             decompressor: Box::new(Decompress::new(true)),
         }
     }
+
 }
 impl<R> io::Read for ReadBoxed<R>
 where
@@ -59,7 +56,7 @@ where
         let o = read(&mut self.inner, &mut self.decompressor, into)?;
         //update the hash value
         if self._count_hash {
-            Update::update(&mut self.hash, &into[..o]);
+           self.hash.update(&into[..o]);
         }
         Ok(o)
     }
