@@ -66,20 +66,6 @@ impl Display for Blob {
 }
 
 impl Blob {
-    // /// Create a new Blob object from a file.
-    // #[allow(unused)]
-    // pub fn new_from_file(path: &str) -> Result<Self, GitError> {
-    //     Ok(Self {
-    //         meta: Meta::new_from_file(path)?,
-    //     })
-    // }
-
-    // /// Write the Blob object to a file with the given root path.
-    // /// The file path is the root path + ID[..2] + ID[2..]
-    // #[allow(unused)]
-    // pub fn to_file(&self, path: &str) -> Result<PathBuf, GitError> {
-    //     self.meta.to_file(path)
-    // }
 
     #[allow(unused)]
     pub fn to_data(&self) -> Vec<u8> {
@@ -126,11 +112,15 @@ impl ObjectT for Blob {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::fs::File;
     use std::io::Cursor;
+    use std::path::PathBuf;
 
     use crate::internal::object::blob::Blob;
     use crate::internal::object::ObjectT;
     use crate::internal::ObjectType;
+    use crate::internal::object::meta::Meta;
     use crate::internal::zlib::stream::inflate::ReadBoxed;
     use crate::utils;
 
@@ -192,23 +182,24 @@ shadow-rs = "0.23.0"
         );
     }
 
-    // #[test]
-    // fn test_new_from_file() {
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+    #[test]
+    fn test_new_from_file() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let blob = Blob::from_meta(meta);
 
-    //     let blob = Blob::new_from_file(source.to_str().unwrap()).unwrap();
-
-    //     assert_eq!(
-    //         blob.meta.id.to_plain_str(),
-    //         "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-    //     );
-    //     // Remove the last byte of the data, because the last byte is a newline character.
-    //     assert_eq!(
-    //         blob.meta.data[..blob.meta.size - 1],
-    //         "Hello, World!".as_bytes().to_vec()
-    //     );
-    // }
+        // Check Hash value
+        assert_eq!(
+            blob.id.to_plain_str(),
+            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+        );
+        // Check text content
+        assert_eq!(
+            blob.data[..],
+            "Hello, World!\n".as_bytes().to_vec()
+        );
+    }
 
     // #[test]
     // fn test_to_file() {
