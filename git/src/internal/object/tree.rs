@@ -180,13 +180,6 @@ impl TreeItem {
     /// ```bash
     /// <mode> <name>\0<binary object ID>
     /// ```
-    ///
-    /// # Example
-    /// 
-    /// ```rust
-    ///  let bytes = Vec::<u8>::new().to_bytes();
-    ///  let tree_item = TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
-    /// ```
     /// 
     #[allow(unused)]
     pub fn new_from_bytes(bytes: &[u8]) -> Result<Self, GitError> {
