@@ -81,6 +81,8 @@ impl Blob {
             name: filename.to_string(),
         })
     }
+
+
 }
 
 impl ObjectT for Blob {
@@ -113,7 +115,6 @@ impl ObjectT for Blob {
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::fs::File;
     use std::io::Cursor;
     use std::path::PathBuf;
 
