@@ -23,8 +23,8 @@
 //! and then move the tag to a different commit, the tag will still point to the original commit.
 //!
 //! The lightweight just a text file with the commit hash in it, and the file name is the tag name.
-//! If one of -a, -s, or -u <key-id> is passed, the command creates a tag object, and requires a tag
-//! message. Unless -m <msg> or -F <file> is given, an editor is started for the user to type in the
+//! If one of -a, -s, or -u \<key-id\> is passed, the command creates a tag object, and requires a tag
+//! message. Unless -m \<msg\> or -F \<file\> is given, an editor is started for the user to type in the
 //! tag message.
 //!
 //! ```bash
