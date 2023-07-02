@@ -17,7 +17,7 @@ use crate::{hash::Hash};
 use sha1::Digest;
 use std::{
     fmt::Display,
-    io::{BufRead, Read, Seek},
+    io::{BufRead, Read},
 };
 use self::meta::Meta;
 use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectType};

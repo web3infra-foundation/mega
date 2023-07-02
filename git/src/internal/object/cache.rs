@@ -13,15 +13,16 @@ struct OffHash {
 /// In ObjectCache ,we need the bounds like:
 /// - between offset and object data
 /// - between hash value and object data
+/// 
 /// Cause we use the lru Cache , these two bound should be consistent.
 /// So ,build map like this
-///  
+/// ```text
 ///     Offset
-///            \
-///             OffHash(usize,hash) -> Object
-///           /
+///            ↘
+///             OffHash(usize,hash) → Object
+///           ↗
 ///     Hash 
-/// 
+/// ```
 pub struct ObjectCache {
     ioffset: LruCache<usize, OffHash>,
     ihash: LruCache<Hash, OffHash>,
