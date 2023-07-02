@@ -72,7 +72,7 @@ mod test {
 
     #[test]
     fn test_async_buffer() {
-        let mut file = File::open(&Path::new(
+        let mut file = File::open(Path::new(
             "../tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack",
         ))
         .unwrap();
@@ -85,7 +85,7 @@ mod test {
     #[test]
 
     fn test_async_buffer2() {
-        let mut file = File::open(&Path::new(
+        let mut file = File::open(Path::new(
             "../tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack",
         ))
         .unwrap();
