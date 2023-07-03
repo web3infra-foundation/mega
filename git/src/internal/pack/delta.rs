@@ -1,6 +1,8 @@
 use std::io::{BufRead, BufReader, Cursor, ErrorKind, Read};
+use std::sync::Arc;
+use sha1::digest::core_api::CoreWrapper;
+use sha1::{Digest, Sha1};
 
-use crate::internal::ObjectType;
 
 use crate::internal::object::ObjectT;
 use crate::{errors::GitError, utils};
@@ -10,32 +12,20 @@ const COPY_OFFSET_BYTES: u8 = 4;
 const COPY_SIZE_BYTES: u8 = 3;
 const COPY_ZERO_SIZE: usize = 0x10000;
 
-use std::sync::Arc;
-
-use flate2::Decompress;
-
-use sha1::digest::core_api::CoreWrapper;
-use sha1::{Digest, Sha1};
-use std::io::Error;
-use tokio::io::AsyncRead;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
-
+/// The Delta Reader to deal with the Delta Object. 
+/// 
+/// Impl The [`Read`] trait and [`BufRead`] trait.
+/// Receive a Read object, decompress the data in it with zlib, and 
+/// return it to Object after delta processing.
 pub struct DeltaReader {
-    
-    #[allow(unused)]
-    inner: AsyncDeltaBuffer,
     result: BufReader<Cursor<Vec<u8>>>,
     len: usize,
-    #[allow(unused)]
-    decompressor: Box<Decompress>,
     pub hash: CoreWrapper<sha1::Sha1Core>,
 }
 impl DeltaReader {
-    pub async fn new(reader: &mut impl Read, bash_object: Arc<dyn ObjectT>) -> Self {
-        let copy_obj = bash_object.clone();
-        let buffer = AsyncDeltaBuffer::new(reader, bash_object).await;
-
+    pub async fn new(reader: &mut impl Read, base_object: Arc<dyn ObjectT>) -> Self {
+        let copy_obj = base_object.clone();
+        let buffer = AsyncDeltaBuffer::new(reader, base_object).await;
 
         let mut h = Sha1::new();
         h.update(copy_obj.get_type().to_bytes());
@@ -44,15 +34,13 @@ impl DeltaReader {
         h.update(b"\0");
 
         //buffer.read_to_end(&mut result).await.unwrap();
-        let data = buffer.inner.lock().await;
+        let data = buffer.inner;
         let result: Vec<u8> = data.clone();
         drop(data);
 
         Self {
             len: result.len(),
-            inner: buffer,
             result: BufReader::with_capacity(4096, Cursor::new(result)),
-            decompressor: Box::new(Decompress::new(true)),
             hash: h,
         }
     }
@@ -62,13 +50,13 @@ impl DeltaReader {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len==0
+        self.len == 0
     }
-
 }
 impl Read for DeltaReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let o = self.result.read(buf)?;
+        //
         self.hash.update(&buf[..o]);
         Ok(o)
     }
@@ -85,79 +73,37 @@ impl BufRead for DeltaReader {
 }
 
 struct AsyncDeltaBuffer {
-    inner: Arc<Mutex<Vec<u8>>>,
-    #[allow(unused)]
-    obj_type: ObjectType,
-    #[allow(unused)]
-    processing_task: Option<JoinHandle<()>>,
+    inner: Vec<u8>,
     result_size: usize,
 }
 
 impl AsyncDeltaBuffer {
-    async fn new(mut stream: &mut impl Read, bash_object: Arc<dyn ObjectT>) -> Self {
+    async fn new(mut stream: &mut impl Read, base_object: Arc<dyn ObjectT>) -> Self {
         // Read the bash object size & Result Size
         let base_size = utils::read_size_encoding(&mut stream).unwrap();
         let result_size = utils::read_size_encoding(&mut stream).unwrap();
 
         //Get the base object row data
-        let base_info: &[u8] = bash_object.get_raw();
+        let base_info: &[u8] = base_object.get_raw();
         assert_eq!(base_info.len(), base_size);
 
-        let obj_type = bash_object.get_type();
 
-        let inner: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::with_capacity(result_size)));
-        let in_arc = Arc::clone(&inner);
+        let mut  inner = Vec::with_capacity(result_size);
+        
 
-        // let processing_task = tokio::spawn( async move  {
-        //     process_delta(&mut stream,in_arc,bash_object);
-        // });
-        process_delta(&mut stream, in_arc, bash_object).await;
+        process_delta(&mut stream, &mut inner, base_object).await;
 
         AsyncDeltaBuffer {
             inner,
-            obj_type,
-            processing_task: None,
             result_size,
         }
     }
 
-    // fn init_thread(&mut self,mut reader: &mut (impl Read +  Seek + Send), bash_object: Arc<dyn ObjectT>){
-    //         let in_arc = Arc::clone(&self.inner);
-    //         let mut stream= ZlibDecoder::new(reader);
-    //         let processing_task = tokio::spawn( async move  {
-    //         process_delta(&mut stream,in_arc,bash_object);
-    //     });
-    //         self.processing_task = Some(processing_task)
-    // }
-}
-
-impl AsyncRead for AsyncDeltaBuffer {
-    fn poll_read(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> std::task::Poll<Result<(), Error>> {
-        let inner = self.inner.try_lock();
-        if let Ok(mut guard) = inner {
-            if guard.is_empty() {
-                cx.waker().wake_by_ref();
-                std::task::Poll::Pending
-            } else {
-                let bytes_read = std::cmp::min(buf.remaining(), guard.len());
-                buf.put_slice(&guard[..bytes_read]);
-                guard.drain(..bytes_read);
-                std::task::Poll::Ready(Ok(()))
-            }
-        } else {
-            cx.waker().wake_by_ref();
-            std::task::Poll::Pending
-        }
-    }
 }
 
 async fn process_delta(
     mut stream: &mut impl Read,
-    buffer: Arc<Mutex<Vec<u8>>>,
+    buffer: &mut Vec<u8>,
     base_object: Arc<dyn ObjectT>,
 ) {
     let base_info = base_object.get_raw();
@@ -169,10 +115,7 @@ async fn process_delta(
             Err(err) => {
                 panic!(
                     "{}",
-                    GitError::DeltaObjectError(format!(
-                        "Wrong instruction in delta :{}",
-                        err
-                    ))
+                    GitError::DeltaObjectError(format!("Wrong instruction in delta :{}", err))
                 );
             }
         };
@@ -190,7 +133,7 @@ async fn process_delta(
             // Append the provided bytes
             let mut data = vec![0; instruction as usize];
             stream.read_exact(&mut data).unwrap();
-            buffer.lock().await.extend_from_slice(&data);
+            buffer.extend_from_slice(&data);
         // result.extend_from_slice(&data);
         } else {
             // Copy instruction
@@ -210,7 +153,7 @@ async fn process_delta(
                 .ok_or_else(|| GitError::DeltaObjectError("Invalid copy instruction".to_string()));
 
             match base_data {
-                Ok(data) => buffer.lock().await.extend_from_slice(data),
+                Ok(data) => buffer.extend_from_slice(data),
                 Err(e) => panic!("{}", e),
             }
         }

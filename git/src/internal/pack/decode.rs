@@ -11,7 +11,7 @@ impl Pack {
     /// ## Decode the Pack File without the `.idx` File
     ///  - in: pack_file: &mut impl Read + Seek + Send
     ///  - out: The `Pack` Struct
-    
+
     pub async fn decode(mut pack_file: &mut (impl Read + Seek + Send)) -> Result<Self, GitError> {
         // Check the Header of Pack File
         let mut pack = Pack::check_header(pack_file)?;
