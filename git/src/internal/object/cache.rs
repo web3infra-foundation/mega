@@ -3,19 +3,47 @@ use crate::hash::Hash;
 use lru::LruCache;
 use std::{num::NonZeroUsize, sync::Arc};
 
-#[derive(Hash, Clone,PartialEq,Eq)]
+
+#[derive(Hash, Clone, PartialEq, Eq)]
 struct OffHash {
     o: usize,
     h: Hash,
 }
 
-
+/// In ObjectCache ,we need the bounds like:
+/// - between offset and object data
+/// - between hash value and object data
+/// 
+/// Cause we use the lru Cache , these two bound should be consistent.
+/// So ,build map like this
+/// ```text
+///     Offset
+///            ↘
+///             OffHash(usize,hash) → Object
+///           ↗
+///     Hash 
+/// ```
 pub struct ObjectCache {
     ioffset: LruCache<usize, OffHash>,
     ihash: LruCache<Hash, OffHash>,
     inner: LruCache<OffHash, Arc<dyn ObjectT>>,
 }
-
+/// The Size of Object Cache during the decode operation should be talked about.
+/// There are --window and --depth options in the process of git pack packaging
+/// 
+/// These two options affect how the objects contained in the package are stored
+///  using incremental compression. Objects are first internally sorted by type, 
+/// size, and optional name, and compared to other objects in --window to see if
+///  using incremental compression saves space. - Depth limits the maximum depth; 
+/// making it too deep affects the performance of the unpacking party, as incremental 
+/// data needs to be applied multiple times to get the necessary objects.
+///  --window defaults to 10, --depth is 50.
+/// 
+/// So if the options are defaults, the size of cache size should be 10 ~ 50 is ok.
+/// 
+/// But After the test, The size "50" also may meet a "cache miss" problem . This Size 
+/// adjust to 300 more, the decode operation is normal. 
+/// TODO : deal with "cache miss", get the miss object from DataBase or other sink target.
 const CACHE_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(300) };
 impl Default for ObjectCache {
     fn default() -> Self {

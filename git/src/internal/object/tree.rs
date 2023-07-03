@@ -263,7 +263,7 @@ impl Tree {
         }
         //TODO : Fixme : deal with the hash value
         Ok(Tree {
-            id: Hash::new(&data), 
+            id: Hash::new(&data),
             tree_items,
             row_data: vec![],
         })
@@ -319,7 +319,7 @@ impl ObjectT for Tree {
         }
 
         Tree {
-            id:Hash([0u8;20]),
+            id: Hash([0u8; 20]),
             tree_items,
             row_data: data,
         }

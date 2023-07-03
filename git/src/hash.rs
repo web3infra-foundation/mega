@@ -18,7 +18,9 @@ use sha1::{Digest, Sha1};
 #[allow(unused)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct Hash(pub [u8; 20]);
-
+pub trait CompHash {
+    fn compute_hash(&self) -> Hash;
+}
 /// Display trait for Hash type
 impl Display for Hash {
     /// # Attention
