@@ -1,10 +1,25 @@
-use std::io;
+
+use std::io::{self, BufRead};
 use std::io::{Read, Seek};
 
+use sha1::Sha1;
+use sha1::Digest;
+use sha1::digest::core_api::CoreWrapper;
+
+use crate::hash::Hash;
 use crate::{errors::GitError, utils};
-
 use super::{iterator::EntriesIter, Pack};
-
+enum DecodeMod {
+    Plain,
+    HashCount,
+}
+///TODO:
+///
+///1. 计算hash
+///     commit 的 raw_data
+///2. encode 全量  options-decide
+///3. 多pack decode
+///4. zlib encode
 impl Pack {
     /// Git [Pack Format](https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt)
     /// Git Pack-Format [Introduce](https://git-scm.com/docs/pack-format)
@@ -13,25 +28,42 @@ impl Pack {
     ///  - out: The `Pack` Struct
 
     pub async fn decode(mut pack_file: &mut (impl Read + Seek + Send)) -> Result<Self, GitError> {
-        // Check the Header of Pack File
-        let mut pack = Pack::check_header(pack_file)?;
+        // change this to input ?
+        let mut mode = DecodeMod::Plain;
+        mode = DecodeMod::HashCount;
+        let mut count_hash: bool;
+        match mode {
+            DecodeMod::Plain => {
+                count_hash= false;
+            },
+            DecodeMod::HashCount => {
+                count_hash=true;
+            },
+        }
+        let mut reader = HashCounter::new(io::BufReader::new(&mut pack_file), count_hash);
+        // Read the header of the pack file
+        let mut pack=Pack::check_header(&mut reader)?;
 
-        let obj_total = pack.number_of_objects();
 
-        let mut inter = EntriesIter::new(
-            io::BufReader::with_capacity(4096, &mut pack_file),
-            obj_total as u32,
-        );
-        for _ in 0..obj_total {
-            let obj = inter.next_obj().await?;
+        let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects as u32);
+        for _ in 0..pack.number_of_objects {
+            let obj = iterator.next_obj().await?;
             println!("{}", obj);
         }
+        drop(iterator);
+
+        let _hash = reader.final_hash();
 
         //pack.signature = Hash::new_from_bytes(&id[..]);
-        pack.signature = inter.read_tail_hash();
+        pack.signature = read_tail_hash(&mut reader);
+
+        assert_eq!(_hash,pack.signature);
 
         Ok(pack)
     }
+
+
+
 
     /// Check the Header of the Pack File ,<br>
     /// include the **"PACK" head** , **Version Number** and  **Number of the Objects**
@@ -62,6 +94,59 @@ impl Pack {
         Ok(pack)
     }
 }
+/// A BufReader for hash count during the pack data stream "read".
+struct HashCounter<R>{
+    inner: R,
+    hash: CoreWrapper<sha1::Sha1Core>,
+    count_hash : bool,
+    
+}
+impl<R> HashCounter<R> where R:BufRead {
+    pub fn new(inner :  R, count_hash: bool)-> Self{
+        Self{
+            inner,
+            hash: Sha1::new(),
+            count_hash,
+           
+        }
+    }
+    pub fn final_hash(&self)-> Hash{
+        let re: [u8; 20] = self.hash.clone().finalize().into();
+        Hash(re)
+    }
+}
+impl<R>  BufRead for HashCounter<R> where R:BufRead{
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.inner.fill_buf()
+
+    }
+    /// Count the Hash : Update the hash core value by consume's amt
+    fn consume(&mut self, amt: usize) {
+        let buffer = self.inner.fill_buf().expect("Failed to fill buffer");
+        if self.count_hash {
+            self.hash.update(&buffer[..amt]);
+        }
+        self.inner.consume(amt);
+    }
+}
+impl<R> Read for HashCounter<R> where R: BufRead{
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let o = self.inner.read(buf)?;
+        if self.count_hash{
+            self.hash.update(&buf[..o]);
+        }
+        Ok(o)
+    }
+}
+
+fn read_tail_hash(tail:&mut impl Read) -> Hash{
+    let id: [u8; 20] = {
+        let mut id_buf = [0u8; 20];
+        tail.read_exact(&mut id_buf).unwrap();
+        id_buf
+    };
+    Hash::new_from_bytes(&id[..])
+}
 #[cfg(test)]
 mod test {
     use std::{fs::File, path::Path};
@@ -83,7 +168,6 @@ mod test {
     }
 
     #[test]
-
     fn test_async_buffer2() {
         let mut file = File::open(&Path::new(
             "../tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack",
