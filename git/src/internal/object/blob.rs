@@ -66,7 +66,6 @@ impl Display for Blob {
 }
 
 impl Blob {
-
     #[allow(unused)]
     pub fn to_data(&self) -> Vec<u8> {
         self.data.clone()
@@ -81,8 +80,6 @@ impl Blob {
             name: filename.to_string(),
         })
     }
-
-
 }
 
 impl ObjectT for Blob {
@@ -114,15 +111,17 @@ impl ObjectT for Blob {
 
 #[cfg(test)]
 mod tests {
+    use std::any::Any;
     use std::env;
     use std::io::Cursor;
     use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
 
     use crate::internal::object::blob::Blob;
-    use crate::internal::object::ObjectT;
-    use crate::internal::ObjectType;
     use crate::internal::object::meta::Meta;
+    use crate::internal::object::ObjectT;
     use crate::internal::zlib::stream::inflate::ReadBoxed;
+    use crate::internal::ObjectType;
     use crate::utils;
 
     #[test]
@@ -130,17 +129,22 @@ mod tests {
         let t_test = Cursor::new(utils::compress_zlib("Hello, World!".as_bytes()).unwrap());
         let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, 13);
 
-        let _blob = Blob::new_from_read(&mut deco,13);
+        let _blob = Blob::new_from_read(&mut deco, 13);
         assert_eq!(
             _blob.id.to_plain_str(),
             "b45ef6fec89518d314f546fd6c3025367b721684"
         );
+        let rrr: Arc<Mutex<dyn Any>> = Arc::new(Mutex::new(_blob));
+        let mut binding = rrr.lock().unwrap();
+        let bb = binding.downcast_mut::<Blob>().unwrap();
+
+        print!("{}", bb);
     }
 
     #[test]
     fn test_real_blob() {
         let content = String::from(
-r#"[package]
+            r#"[package]
 name = "mega"
 version = "0.1.0"
 edition = "2021"
@@ -170,12 +174,11 @@ thiserror = "1.0.40"
 shadow-rs = "0.23.0"
 "#,
         );
-        let  t_test = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
-      
-        
+        let t_test = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
+
         let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, content.len());
 
-        let _blob = Blob::new_from_read(&mut deco,content.len());
+        let _blob = Blob::new_from_read(&mut deco, content.len());
 
         assert_eq!(
             _blob.id.to_plain_str(),
@@ -196,10 +199,7 @@ shadow-rs = "0.23.0"
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
         );
         // Check text content
-        assert_eq!(
-            blob.data[..],
-            "Hello, World!\n".as_bytes().to_vec()
-        );
+        assert_eq!(blob.data[..], "Hello, World!\n".as_bytes().to_vec());
     }
 
     // #[test]

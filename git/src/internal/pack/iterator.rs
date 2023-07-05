@@ -1,4 +1,3 @@
-use crate::hash::Hash;
 use crate::{
     internal::{
         object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree},
@@ -9,9 +8,8 @@ use crate::{
     utils,
 };
 
-use std::{io::BufRead, sync::Arc};
-
 use crate::internal::object::{cache::ObjectCache, ObjectT};
+use std::sync::Arc;
 type IteratorResult = Result<Arc<dyn ObjectT>, GitError>;
 
 ///
@@ -43,7 +41,27 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
         iter_offset += utils::get_7bit_count(size << 3);
 
         let obj = if (1..=4).contains(&type_num) {
-            read_object(&mut self.inner, obj_type, size, &mut iter_offset).await?
+            let mut decompressed_reader = ReadBoxed::new(&mut self.inner, obj_type, size);
+            let re: Result<Arc<dyn ObjectT>, GitError> = match obj_type {
+                ObjectType::Commit => Ok(Arc::new(Commit::new_from_read(
+                    &mut decompressed_reader,
+                    size,
+                ))),
+                ObjectType::Tree => Ok(Arc::new(Tree::new_from_read(
+                    &mut decompressed_reader,
+                    size,
+                ))),
+                ObjectType::Blob => Ok(Arc::new(Blob::new_from_read(
+                    &mut decompressed_reader,
+                    size,
+                ))),
+                ObjectType::Tag => Ok(Arc::new(Tag::new_from_read(&mut decompressed_reader, size))),
+                _ => Err(GitError::InvalidObjectType(
+                    "from iterator:109,Unknown".to_string(),
+                )),
+            };
+            iter_offset += decompressed_reader.decompressor.total_in() as usize;
+            re
         } else {
             let base_object: Arc<dyn ObjectT>;
 
@@ -100,8 +118,8 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                 }
             };
             iter_offset += decompressed_reader.decompressor.total_in() as usize;
-            re
-        };
+            Ok(re)
+        }?;
 
         let result = obj.clone();
         let h = Arc::clone(&obj).get_hash();
@@ -109,42 +127,4 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
         self.offset += iter_offset;
         Ok(result)
     }
-
-    pub fn read_tail_hash(&mut self) -> Hash {
-        let id: [u8; 20] = {
-            let mut id_buf = [0u8; 20];
-            self.inner.read_exact(&mut id_buf).unwrap();
-            id_buf
-        };
-        Hash::new_from_bytes(&id[..])
-    }
-}
-
-async fn read_object(
-    inner: &mut dyn BufRead,
-    obj_type: ObjectType,
-    size: usize,
-    rsize: &mut usize,
-) -> Result<Arc<dyn ObjectT>, GitError> {
-    let mut decompressed_reader = ReadBoxed::new(inner, obj_type, size);
-    let re: Result<Arc<dyn ObjectT>, GitError> = match obj_type {
-        ObjectType::Commit => Ok(Arc::new(Commit::new_from_read(
-            &mut decompressed_reader,
-            size,
-        ))),
-        ObjectType::Tree => Ok(Arc::new(Tree::new_from_read(
-            &mut decompressed_reader,
-            size,
-        ))),
-        ObjectType::Blob => Ok(Arc::new(Blob::new_from_read(
-            &mut decompressed_reader,
-            size,
-        ))),
-        ObjectType::Tag => Ok(Arc::new(Tag::new_from_read(&mut decompressed_reader, size))),
-        _ => Err(GitError::InvalidObjectType(
-            "from iterator:109,Unknown".to_string(),
-        )),
-    };
-    *rsize += decompressed_reader.decompressor.total_in() as usize;
-    re
 }
