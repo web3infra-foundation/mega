@@ -3,16 +3,17 @@
 //!
 //!
 use std::collections::HashSet;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::path::Path;
 
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use chrono::Utc;
+use entity::commit;
 
+use crate::internal::pack::decode::ObjDecodedMap;
 use crate::protocol::ZERO_ID;
+use crate::structure::nodes::build_node_tree;
 
-use super::{Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
+use super::{Capability, CommandType, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
 
 const LF: char = '\n';
 
@@ -180,30 +181,16 @@ impl PackProtocol {
         }
 
         if body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) {
-            let _command = self.command_list.last_mut().unwrap();
-            let temp_file = format!("./temp-{}.pack", Utc::now().timestamp());
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(&temp_file)
-                .unwrap();
-            file.write_all(&body_bytes).unwrap();
-            // let decoded_pack = command
-            //     .unpack(
-            //         &mut std::fs::File::open(&temp_file).unwrap(),
-            //         self.storage.as_ref(),
-            //     )
-            //     .await
-            //     .unwrap();
-            // let pack_result = self.storage.save_packfile(decoded_pack, &self.path).await;
+            let command = self.command_list.last_mut().unwrap();
+            let object_map = command.unpack(&mut body_bytes).await.unwrap();
+            let path = &self.path;
+            let _pack_result = self.save_packfile(object_map, path).await;
             // if pack_result.is_ok() {
-            //     self.storage.handle_refs(command, &self.path).await;
+            //     self.handle_refs(command, path).await;
             // } else {
             //     tracing::error!("{}", pack_result.err().unwrap());
             //     command.failed(String::from("db operation failed"));
             // }
-            fs::remove_file(temp_file).unwrap();
-
             // After receiving the pack data from the sender, the receiver sends a report
             let mut report_status = BytesMut::new();
             // TODO: replace this hard code "unpack ok\n"
@@ -228,6 +215,39 @@ impl PackProtocol {
             self.command_list.push(command);
             Ok(body_bytes.split_off(4))
         }
+    }
+
+    pub async fn handle_refs(&self, command: &RefCommand, path: &Path) {
+        match command.command_type {
+            CommandType::Create => {
+                self.storage
+                    .save_refs(vec![command.convert_to_model(path.to_str().unwrap())])
+                    .await
+            }
+            CommandType::Delete => self.storage.delete_refs(command.old_id.clone(), path).await,
+            CommandType::Update => {
+                self.storage
+                    .update_refs(command.old_id.clone(), command.new_id.clone(), path)
+                    .await
+            }
+        }
+    }
+
+    pub async fn save_packfile(
+        &self,
+        object_map: ObjDecodedMap,
+        repo_path: &Path,
+    ) -> Result<(), anyhow::Error> {
+        let nodes = build_node_tree(&object_map, repo_path).await.unwrap();
+        self.storage.save_nodes(nodes).await.unwrap();
+
+        let mut save_models: Vec<commit::ActiveModel> = Vec::new();
+        for commit in &object_map.commits {
+            save_models.push(commit.convert_to_model(repo_path));
+        }
+
+        self.storage.save_commits(save_models).await.unwrap();
+        Ok(())
     }
 
     /// # Builds the packet data in the sideband format if the SideBand/64k capability is enabled.
