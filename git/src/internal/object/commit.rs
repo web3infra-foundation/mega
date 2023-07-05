@@ -24,6 +24,7 @@ use crate::internal::ObjectType;
 
 use crate::internal::object::signature::Signature;
 
+use super::meta::Meta;
 use super::ObjectT;
 
 /// The `Commit` struct is used to represent a commit object.
@@ -117,11 +118,11 @@ impl Commit {
     //     })
     // }
 
-    // /// Create a new commit object from a meta object
-    // #[allow(unused)]
-    // pub fn new_from_meta(meta: Meta) -> Result<Commit, GitError> {
-    //     Commit::new_from_data(meta.data)
-    // }
+    /// Create a new commit object from a meta object
+    #[allow(unused)]
+    pub fn new_from_meta(meta: Meta) -> Result<Commit, GitError> {
+        Ok(Commit::new_from_data(meta.data))
+    }
 
     // /// Create a new commit object from a file
     // #[allow(unused)]
