@@ -1,4 +1,3 @@
-
 use crate::{
     internal::{
         object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree},
@@ -9,14 +8,13 @@ use crate::{
     utils,
 };
 
-
-use std::sync::Arc;
 use crate::internal::object::{cache::ObjectCache, ObjectT};
+use std::sync::Arc;
 type IteratorResult = Result<Arc<dyn ObjectT>, GitError>;
 
 ///
 pub struct EntriesIter<BR> {
-    inner:  BR,
+    inner: BR,
     offset: usize,
     objects_left: u32,
     cache: ObjectCache,
@@ -32,7 +30,6 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
             cache: ObjectCache::new(),
         }
     }
-
 
     pub async fn next_obj(&mut self) -> IteratorResult {
         self.objects_left -= 1;
@@ -65,7 +62,6 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
             };
             iter_offset += decompressed_reader.decompressor.total_in() as usize;
             re
-            
         } else {
             let base_object: Arc<dyn ObjectT>;
 
@@ -131,7 +127,4 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
         self.offset += iter_offset;
         Ok(result)
     }
-
 }
-
-

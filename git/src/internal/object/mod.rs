@@ -13,24 +13,27 @@ pub mod meta;
 pub mod signature;
 pub mod tag;
 pub mod tree;
-use crate::{hash::Hash};
-use sha1::Digest;
-use std::{
-    fmt::Display,
-    io::{BufRead, Read}, any::Any,
-};
 use self::meta::Meta;
 use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectType};
+use crate::hash::Hash;
+use sha1::Digest;
+use std::{
+    any::Any,
+    fmt::Display,
+    io::{BufRead, Read},
+};
 
-
-/// The [`ObjectT`] Trait is for the Blob、Commit、Tree and Tag Structs , which are four common object 
+/// The [`ObjectT`] Trait is for the Blob、Commit、Tree and Tag Structs , which are four common object
 /// of git object . In that case, the four kinds of object can be store in same Arc<dyn ObjectT>.
-/// 
+///
 /// This trait  receive a "Reader" to generate the target object. We now have two kind of "Reader":
 /// 1. ReadBoxed. Input the zlib stream of four kinds of objects data stream. The Object should be the base objects ,that is ,"Blob、Commit、Tree and Tag". After read, Output Object will auto compute hash value while call the "read" method.
 /// 2. DeltaReader. To deal with the DELTA object store in the pack file,including the Ref Delta Object and the Offset Delta Object. Its' input "read" is always the [`ReadBoxed`], cause the delta data is also the zlib stream, which should also be unzip.
 pub trait ObjectT: Send + Sync + Display {
-    fn as_any<'a>(&'a self) -> &(dyn Any+'a)  where Self: Sized {
+    fn as_any<'a>(&'a self) -> &(dyn Any + 'a)
+    where
+        Self: Sized,
+    {
         self
     }
     /// Get the hash value .
@@ -42,7 +45,7 @@ pub trait ObjectT: Send + Sync + Display {
 
     /// Generate a new Object from a ReadBoxed<BufRead>.
     /// the input [`size`],is only for new a vec with directive space allocation
-    /// the Input data stream and  Output object should be plain base object . 
+    /// the Input data stream and  Output object should be plain base object .
     fn new_from_read<R: BufRead>(read: &mut ReadBoxed<R>, size: usize) -> Self
     where
         Self: Sized,
@@ -71,18 +74,18 @@ pub trait ObjectT: Send + Sync + Display {
         result
     }
 
-    /// Get raw data from the Object. 
+    /// Get raw data from the Object.
     fn get_raw(&self) -> &[u8];
     fn new_from_data(data: Vec<u8>) -> Self
     where
         Self: Sized;
 
-    fn from_meta(meta:Meta) ->Self 
+    fn from_meta(meta: Meta) -> Self
     where
         Self: Sized,
     {
-        let mut  r = Self::new_from_data(meta.data);
-        r.set_hash(meta.id) ;
+        let mut r = Self::new_from_data(meta.data);
+        r.set_hash(meta.id);
         r
     }
 }
