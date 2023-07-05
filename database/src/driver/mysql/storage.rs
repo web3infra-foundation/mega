@@ -7,12 +7,20 @@ use async_trait::async_trait;
 use chrono::DateTime;
 use chrono::Utc;
 use common::errors::GitLFSError;
+use entity::commit;
 use entity::locks;
 use entity::meta;
+use entity::node;
+use entity::refs;
 use sea_orm::ActiveModelTrait;
+use sea_orm::ColumnTrait;
+use sea_orm::DatabaseBackend;
 use sea_orm::DatabaseConnection;
+use sea_orm::DbErr;
 use sea_orm::EntityTrait;
+use sea_orm::QueryFilter;
 use sea_orm::Set;
+use sea_orm::Statement;
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -34,8 +42,18 @@ impl ObjectStorage for MysqlStorage {
         todo!()
     }
 
-    async fn get_ref_object_id(&self, _path: &Path) -> HashMap<String, String> {
-        todo!()
+    async fn get_ref_object_id(&self, repo_path: &Path) -> HashMap<String, String> {
+        // assuming HEAD points to branch master.
+        let mut map = HashMap::new();
+        let refs: Vec<refs::Model> = refs::Entity::find()
+            .filter(refs::Column::RepoPath.eq(repo_path.to_str()))
+            .all(&self.connection)
+            .await
+            .unwrap();
+        for git_ref in refs {
+            map.insert(git_ref.ref_git_id, git_ref.ref_name);
+        }
+        map
     }
 
     async fn get_full_pack_data(&self, _repo_path: &Path) -> Result<Vec<u8>, MegaError> {
@@ -57,6 +75,72 @@ impl ObjectStorage for MysqlStorage {
 
     async fn get_hash_object(&self, _hash: &str) -> Result<Vec<u8>, MegaError> {
         todo!()
+    }
+
+    async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) {
+        batch_save_model(&self.connection, save_models)
+            .await
+            .unwrap();
+    }
+
+    async fn update_refs(&self, old_id: String, new_id: String, path: &Path) {
+        let ref_data: Option<refs::Model> = refs::Entity::find()
+            .filter(refs::Column::RefGitId.eq(old_id))
+            .filter(refs::Column::RepoPath.eq(path.to_str().unwrap()))
+            .one(&self.connection)
+            .await
+            .unwrap();
+        let mut ref_data: refs::ActiveModel = ref_data.unwrap().into();
+        ref_data.ref_git_id = Set(new_id);
+        ref_data.updated_at = Set(chrono::Utc::now().naive_utc());
+        ref_data.update(&self.connection).await.unwrap();
+    }
+
+    async fn delete_refs(&self, old_id: String, path: &Path) {
+        let delete_ref = refs::ActiveModel {
+            ref_git_id: Set(old_id),
+            repo_path: Set(path.to_str().unwrap().to_owned()),
+            ..Default::default()
+        };
+        refs::Entity::delete(delete_ref)
+            .exec(&self.connection)
+            .await
+            .unwrap();
+    }
+
+    async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, anyhow::Error> {
+        let conn = &self.connection;
+        let mut sum = 0;
+        let mut batch_nodes = Vec::new();
+        for node in nodes {
+            // let model = node.try_into_model().unwrap();
+            let size = node.data.as_ref().len();
+            let limit = 10 * 1024 * 1024;
+            if sum + size < limit && batch_nodes.len() < 50 {
+                sum += size;
+                batch_nodes.push(node);
+            } else {
+                node::Entity::insert_many(batch_nodes)
+                    .exec(conn)
+                    .await
+                    .unwrap();
+                sum = 0;
+                batch_nodes = vec![node];
+            }
+        }
+        if !batch_nodes.is_empty() {
+            node::Entity::insert_many(batch_nodes)
+                .exec(conn)
+                .await
+                .unwrap();
+        }
+        Ok(true)
+    }
+
+    async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, anyhow::Error> {
+        let conn = &self.connection;
+        batch_save_model(conn, commits).await.unwrap();
+        Ok(true)
     }
 
     async fn lfs_get_meta(&self, v: &RequestVars) -> Result<MetaObject, GitLFSError> {
@@ -332,4 +416,167 @@ impl ObjectStorage for MysqlStorage {
             None => Err(GitLFSError::GeneralError("".to_string())),
         }
     }
+}
+
+impl MysqlStorage {
+    // async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<MetaData>, anyhow::Error> {
+    //     let commits: Vec<commit::Model> = commit::Entity::find()
+    //         .filter(commit::Column::RepoPath.eq(path.to_str().unwrap()))
+    //         .all(&self.connection)
+    //         .await
+    //         .unwrap();
+    //     let mut result = vec![];
+    //     for commit in commits {
+    //         result.push(MetaData::new(ObjectType::Commit, &commit.meta))
+    //     }
+    //     Ok(result)
+    // }
+
+    #[allow(unused)]
+    async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, DbErr> {
+        refs::Entity::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DatabaseBackend::MySql,
+            r#"SELECT * FROM gust.refs where ? LIKE CONCAT(repo_path, '%') and ref_name = 'refs/heads/master' "#,
+            [path_str.into()],
+        ))
+        .all(&self.connection)
+        .await
+    }
+
+    #[allow(unused)]
+    async fn search_commits(&self, path_str: &str) -> Result<Vec<commit::Model>, DbErr> {
+        commit::Entity::find()
+            .from_raw_sql(Statement::from_sql_and_values(
+                DatabaseBackend::MySql,
+                r#"SELECT * FROM gust.commit where ? LIKE CONCAT(repo_path, '%')"#,
+                [path_str.into()],
+            ))
+            .all(&self.connection)
+            .await
+    }
+
+    /// Because the requested path is a subdirectory of the original project directory,
+    /// a new fake commit is needed to point the subdirectory, so we need to
+    /// 1. find root commit by root_ref
+    /// 2. convert commit to git Commit object,  and calculate it's hash
+    /// 3. save the new fake commit with hash and repo_path
+    // async fn generate_child_commit_and_refs(&self, refs: &refs::Model, repo_path: &Path) -> String {
+    //     let root_commit = commit::Entity::find()
+    //         .filter(commit::Column::GitId.eq(&refs.ref_git_id))
+    //         .one(&self.connection)
+    //         .await
+    //         .unwrap()
+    //         .unwrap();
+
+    //     if let Some(root_tree) = self.search_root_node_by_path(repo_path).await {
+    //         let child_commit = Commit::build_from_model_and_root(&root_commit, root_tree);
+    //         self.save_commits(&vec![child_commit.clone()], repo_path)
+    //             .await
+    //             .unwrap();
+    //         let commit_id = child_commit.meta.id.to_plain_str();
+    //         let child_refs = refs::ActiveModel {
+    //             id: NotSet,
+    //             repo_path: Set(repo_path.to_str().unwrap().to_string()),
+    //             ref_name: Set(refs.ref_name.clone()),
+    //             ref_git_id: Set(commit_id.clone()),
+    //             created_at: Set(chrono::Utc::now().naive_utc()),
+    //             updated_at: Set(chrono::Utc::now().naive_utc()),
+    //         };
+    //         batch_save_model(&self.connection, vec![child_refs])
+    //             .await
+    //             .unwrap();
+    //         commit_id
+    //     } else {
+    //         ZERO_ID.to_string()
+    //     }
+    // }
+
+    #[allow(unused)]
+    async fn search_root_node_by_path(&self, repo_path: &Path) -> Option<node::Model> {
+        tracing::debug!("file_name: {:?}", repo_path.file_name());
+        let res = node::Entity::find()
+            .filter(node::Column::Name.eq(repo_path.file_name().unwrap().to_str().unwrap()))
+            .one(&self.connection)
+            .await
+            .unwrap();
+        if let Some(res) = res {
+            Some(res)
+        } else {
+            node::Entity::find()
+                // .filter(node::Column::Path.eq(repo_path.to_str().unwrap()))
+                .filter(node::Column::Name.eq(""))
+                .one(&self.connection)
+                .await
+                .unwrap()
+        }
+    }
+
+    #[allow(unused)]
+    async fn get_node_by_id(&self, id: &str) -> Option<node::Model> {
+        node::Entity::find()
+            .filter(node::Column::GitId.eq(id))
+            .one(&self.connection)
+            .await
+            .unwrap()
+    }
+
+    // async fn get_nodes_by_ids(&self, ids: Vec<String>) -> HashMap<Hash, node::Model> {
+    //     node::Entity::find()
+    //         .filter(node::Column::GitId.is_in(ids))
+    //         .all(&self.connection)
+    //         .await
+    //         .unwrap()
+    //         .into_iter()
+    //         .map(|f| (Hash::from_str(&f.git_id).unwrap(), f))
+    //         .collect()
+    // }
+
+    // retrieve all sub trees recursively
+    // #[async_recursion]
+    // async fn get_child_trees(&self, root: &node::Model, hash_meta: &mut HashMap<String, MetaData>) {
+    //     let t = Tree::new(Arc::new(MetaData::new(ObjectType::Tree, &root.data)));
+    //     let mut child_ids = vec![];
+    //     for item in t.tree_items {
+    //         if !hash_meta.contains_key(&item.id.to_plain_str()) {
+    //             child_ids.push(item.id.to_plain_str());
+    //         }
+    //     }
+    //     let childs = node::Entity::find()
+    //         .filter(node::Column::GitId.is_in(child_ids))
+    //         .all(&self.connection)
+    //         .await
+    //         .unwrap();
+    //     for c in childs {
+    //         if c.node_type == "tree" {
+    //             self.get_child_trees(&c, hash_meta).await;
+    //         } else {
+    //             let b_meta = MetaData::new(ObjectType::Blob, &c.data);
+    //             hash_meta.insert(b_meta.id.to_plain_str(), b_meta);
+    //         }
+    //     }
+    //     let t_meta = t.meta;
+    //     tracing::info!("{}, {}", t_meta.id, t.tree_name);
+    //     hash_meta.insert(t_meta.id.to_plain_str(), Arc::try_unwrap(t_meta).unwrap());
+    // }
+}
+
+// mysql sea_orm bathc insert
+async fn batch_save_model<E, A>(
+    conn: &DatabaseConnection,
+    save_models: Vec<A>,
+) -> Result<(), anyhow::Error>
+where
+    E: EntityTrait,
+    A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
+{
+    let mut futures = Vec::new();
+
+    // notice that sqlx not support packets larger than 16MB now
+    for chunk in save_models.chunks(100) {
+        let save_result = E::insert_many(chunk.iter().cloned()).exec(conn).await;
+        futures.push(save_result);
+    }
+    // futures::future::join_all(futures).await;
+    Ok(())
 }

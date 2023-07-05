@@ -285,11 +285,11 @@ mod tests {
     fn test_write_to_file() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
 
-        let mut source_file = source; 
+        let mut source_file = source;
         source_file.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
         let m = super::Meta::new_from_file(source_file.as_path().to_str().unwrap()).unwrap();
-    
-        let mut dest  = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+
+        let mut dest = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         dest.push("tests/objects");
 
         let mut dest_file = dest.clone();
@@ -297,9 +297,9 @@ mod tests {
         if dest_file.exists() {
             remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
         }
-    
+
         let file = m.to_file(dest.as_path().to_str().unwrap()).unwrap();
-    
+
         assert!(file.exists());
     }
 }

@@ -7,17 +7,27 @@ pub mod http;
 pub mod pack;
 pub mod ssh;
 
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    io::{BufReader, Cursor},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 
 use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
 use crate::protocol::pack::SP;
-use common::errors::MegaError;
 
-pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
-    Ok(s) => s,
-    Err(_) => panic!("can't get ZERO_ID"),
+use bytes::Bytes;
+use entity::refs;
+use sea_orm::{ActiveValue::NotSet, Set};
+
+use crate::internal::{
+    object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree, ObjectT},
+    pack::{decode::ObjDecodedMap, iterator::EntriesIter, Pack},
+    ObjectType,
 };
+use common::{errors::MegaError, utils::ZERO_ID};
 
 #[derive(Clone)]
 pub struct PackProtocol {
@@ -166,25 +176,43 @@ impl RefCommand {
         }
     }
 
-    // pub async fn unpack<T: ObjectStorage>(
-    //     &mut self,
-    //     _pack_file: &mut File,
-    //     _storage: &T,
-    // ) -> Result<Pack, anyhow::Error> {
-    //     // match Pack::decode(pack_file, storage).await {
-    //     //     Ok(decoded_pack) => {
-    //     //         self.status = RefCommand::OK_STATUS.to_owned();
-    //     //         return Ok(decoded_pack);
-    //     //     }
-    //     //     Err(err) => {
-    //     //         self.status = RefCommand::FAILED_STATUS.to_owned();
-    //     //         self.error_msg = err.to_string();
-    //     //         return Err(err.into());
-    //     //     }
-    //     // }
-    //     // TODO
-    //     Ok(Pack::default())
-    // }
+    pub async fn unpack(
+        &mut self,
+        pack_file: &mut Bytes,
+        // storage: &T,
+    ) -> Result<ObjDecodedMap, anyhow::Error> {
+        match Pack::decode(&mut Cursor::new(&pack_file)).await {
+            Ok(decoded_pack) => {
+                let inner = &mut Cursor::new(&pack_file);
+                let mut inter = EntriesIter::new(
+                    BufReader::with_capacity(4096, inner),
+                    decoded_pack.number_of_objects() as u32,
+                );
+                let mut object_map = ObjDecodedMap::default();
+                for _ in 0..decoded_pack.number_of_objects() {
+                    let obj = inter.next_obj().await?;
+                    println!("{}", obj);
+                    let raw = obj.get_raw().to_vec();
+
+                    match obj.get_type() {
+                        ObjectType::Commit => object_map.commits.push(Commit::new_from_data(raw)),
+                        ObjectType::Tree => object_map.trees.push(Tree::new_from_data(raw)),
+                        ObjectType::Blob => object_map.blobs.push(Blob::new_from_data(raw)),
+                        ObjectType::Tag => object_map.tags.push(Tag::new_from_data(raw)),
+                        _ => todo!(),
+                    }
+                }
+
+                self.status = RefCommand::OK_STATUS.to_owned();
+                Ok(object_map)
+            }
+            Err(err) => {
+                self.status = RefCommand::FAILED_STATUS.to_owned();
+                self.error_msg = err.to_string();
+                Err(err.into())
+            }
+        }
+    }
 
     pub fn get_status(&self) -> String {
         if RefCommand::OK_STATUS == self.status {
@@ -206,16 +234,16 @@ impl RefCommand {
         self.error_msg = msg;
     }
 
-    // pub fn convert_to_model(&self, path: &str) -> refs::ActiveModel {
-    //     refs::ActiveModel {
-    //         id: NotSet,
-    //         ref_git_id: Set(self.new_id.to_owned()),
-    //         ref_name: Set(self.ref_name.to_string()),
-    //         repo_path: Set(path.to_owned()),
-    //         created_at: Set(chrono::Utc::now().naive_utc()),
-    //         updated_at: Set(chrono::Utc::now().naive_utc()),
-    //     }
-    // }
+    pub fn convert_to_model(&self, path: &str) -> refs::ActiveModel {
+        refs::ActiveModel {
+            id: NotSet,
+            ref_git_id: Set(self.new_id.to_owned()),
+            ref_name: Set(self.ref_name.to_string()),
+            repo_path: Set(path.to_owned()),
+            created_at: Set(chrono::Utc::now().naive_utc()),
+            updated_at: Set(chrono::Utc::now().naive_utc()),
+        }
+    }
 }
 
 impl PackProtocol {

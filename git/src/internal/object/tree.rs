@@ -180,7 +180,7 @@ impl TreeItem {
     /// ```bash
     /// <mode> <name>\0<binary object ID>
     /// ```
-    /// 
+    ///
     #[allow(unused)]
     pub fn new_from_bytes(bytes: &[u8]) -> Result<Self, GitError> {
         let mut parts = bytes.splitn(2, |b| *b == b' ');
@@ -279,6 +279,10 @@ impl Tree {
         }
 
         Ok(data)
+    }
+
+    pub fn get_row_data(&self) -> Result<Vec<u8>, GitError> {
+        Ok(self.row_data.clone())
     }
 
     // #[allow(unused)]
