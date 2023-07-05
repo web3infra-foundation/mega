@@ -7,11 +7,11 @@ pub mod http;
 pub mod pack;
 pub mod ssh;
 
-use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
-use crate::{internal::pack::Pack, protocol::pack::SP};
+use crate::protocol::pack::SP;
 use common::errors::MegaError;
 
 pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
@@ -166,25 +166,25 @@ impl RefCommand {
         }
     }
 
-    pub async fn unpack<T: ObjectStorage>(
-        &mut self,
-        _pack_file: &mut File,
-        _storage: &T,
-    ) -> Result<Pack, anyhow::Error> {
-        // match Pack::decode(pack_file, storage).await {
-        //     Ok(decoded_pack) => {
-        //         self.status = RefCommand::OK_STATUS.to_owned();
-        //         return Ok(decoded_pack);
-        //     }
-        //     Err(err) => {
-        //         self.status = RefCommand::FAILED_STATUS.to_owned();
-        //         self.error_msg = err.to_string();
-        //         return Err(err.into());
-        //     }
-        // }
-        // TODO
-        Ok(Pack::default())
-    }
+    // pub async fn unpack<T: ObjectStorage>(
+    //     &mut self,
+    //     _pack_file: &mut File,
+    //     _storage: &T,
+    // ) -> Result<Pack, anyhow::Error> {
+    //     // match Pack::decode(pack_file, storage).await {
+    //     //     Ok(decoded_pack) => {
+    //     //         self.status = RefCommand::OK_STATUS.to_owned();
+    //     //         return Ok(decoded_pack);
+    //     //     }
+    //     //     Err(err) => {
+    //     //         self.status = RefCommand::FAILED_STATUS.to_owned();
+    //     //         self.error_msg = err.to_string();
+    //     //         return Err(err.into());
+    //     //     }
+    //     // }
+    //     // TODO
+    //     Ok(Pack::default())
+    // }
 
     pub fn get_status(&self) -> String {
         if RefCommand::OK_STATUS == self.status {

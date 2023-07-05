@@ -6,7 +6,7 @@ use sha1::{digest::core_api::CoreWrapper, Digest, Sha1};
 /// ReadBoxed is to unzip information from a  DEFLATE stream,
 /// which hash [`BufRead`] trait.
 /// For a continuous stream of DEFLATE information, the structure
-/// does not read too many bytes to affect subsequent information 
+/// does not read too many bytes to affect subsequent information
 /// reads
 pub struct ReadBoxed<R> {
     /// The reader from which bytes should be decompressed.
@@ -21,7 +21,6 @@ impl<R> ReadBoxed<R>
 where
     R: BufRead,
 {
-
     /// Nen a ReadBoxed for zlib read, the Output ReadBoxed is for the Common Object,
     /// but not for the Delta Object,if that ,see[`new_for_delta`] method below.
     pub fn new(inner: R, obj_type: ObjectType, size: usize) -> Self {
@@ -46,7 +45,6 @@ where
             decompressor: Box::new(Decompress::new(true)),
         }
     }
-
 }
 impl<R> io::Read for ReadBoxed<R>
 where
@@ -56,7 +54,7 @@ where
         let o = read(&mut self.inner, &mut self.decompressor, into)?;
         //update the hash value
         if self._count_hash {
-           self.hash.update(&into[..o]);
+            self.hash.update(&into[..o]);
         }
         Ok(o)
     }
