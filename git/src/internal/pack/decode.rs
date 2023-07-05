@@ -9,13 +9,14 @@ use sha1::digest::core_api::CoreWrapper;
 use crate::hash::Hash;
 use crate::{errors::GitError, utils};
 use super::{iterator::EntriesIter, Pack};
+#[allow(unused)]
 enum DecodeMod {
     Plain,
     HashCount,
 }
 ///TODO:
 ///
-///1. 计算hash
+///1. hash count
 ///     commit 的 raw_data
 ///2. encode 全量  options-decide
 ///3. 多pack decode
@@ -29,17 +30,16 @@ impl Pack {
 
     pub async fn decode(mut pack_file: &mut (impl Read + Seek + Send)) -> Result<Self, GitError> {
         // change this to input ?
-        let mut mode = DecodeMod::Plain;
-        mode = DecodeMod::HashCount;
-        let mut count_hash: bool;
-        match mode {
-            DecodeMod::Plain => {
-                count_hash= false;
-            },
-            DecodeMod::HashCount => {
-                count_hash=true;
-            },
-        }
+        // let mode = DecodeMod::HashCount;
+        // match mode {
+        //     DecodeMod::Plain => {
+        //         count_hash= false;
+        //     },
+        //     DecodeMod::HashCount => {
+        //         count_hash=true;
+        //     },
+        // }
+        let  count_hash: bool = true;
         let mut reader = HashCounter::new(io::BufReader::new(&mut pack_file), count_hash);
         // Read the header of the pack file
         let mut pack=Pack::check_header(&mut reader)?;

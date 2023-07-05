@@ -114,9 +114,11 @@ impl ObjectT for Blob {
 
 #[cfg(test)]
 mod tests {
+    use std::any::Any;
     use std::env;
     use std::io::Cursor;
     use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
 
     use crate::internal::object::blob::Blob;
     use crate::internal::object::ObjectT;
@@ -135,6 +137,11 @@ mod tests {
             _blob.id.to_plain_str(),
             "b45ef6fec89518d314f546fd6c3025367b721684"
         );
+        let  rrr: Arc<Mutex<dyn Any>> = Arc::new(Mutex::new(_blob));
+        let mut binding = rrr.lock().unwrap();
+        let bb = binding.downcast_mut::<Blob>().unwrap();
+    
+        print!("{}",bb);
     }
 
     #[test]

@@ -17,7 +17,7 @@ use crate::{hash::Hash};
 use sha1::Digest;
 use std::{
     fmt::Display,
-    io::{BufRead, Read},
+    io::{BufRead, Read}, any::Any,
 };
 use self::meta::Meta;
 use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectType};
@@ -30,6 +30,9 @@ use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectTy
 /// 1. ReadBoxed. Input the zlib stream of four kinds of objects data stream. The Object should be the base objects ,that is ,"Blob、Commit、Tree and Tag". After read, Output Object will auto compute hash value while call the "read" method.
 /// 2. DeltaReader. To deal with the DELTA object store in the pack file,including the Ref Delta Object and the Offset Delta Object. Its' input "read" is always the [`ReadBoxed`], cause the delta data is also the zlib stream, which should also be unzip.
 pub trait ObjectT: Send + Sync + Display {
+    fn as_any<'a>(&'a self) -> &(dyn Any+'a)  where Self: Sized {
+        self
+    }
     /// Get the hash value .
     fn get_hash(&self) -> Hash;
     /// Set the hash value for object .
