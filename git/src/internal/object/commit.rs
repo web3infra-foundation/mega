@@ -227,8 +227,6 @@ impl ObjectT for Commit {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
 
