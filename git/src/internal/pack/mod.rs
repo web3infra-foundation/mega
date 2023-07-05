@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 pub mod decode;
 pub mod delta;
-mod iterator;
+pub mod iterator;
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
 /// `version`: The pack file version <br>
