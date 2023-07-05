@@ -4,7 +4,6 @@
 //!
 
 use std::{
-    fs::File,
     io::{self, Read, Seek, SeekFrom},
     path::PathBuf,
     vec,
@@ -264,7 +263,7 @@ pub fn read_partial_int<R: Read>(
 /// If the seek operation is successful, `Ok(())` is returned. Otherwise, an `Err` variant is returned
 /// with an `io::Error` describing the specific error that occurred.
 ///
-pub fn seek(file: &mut File, offset: u64) -> io::Result<()> {
+pub fn seek<R: Seek>(file: &mut R, offset: u64) -> io::Result<()> {
     file.seek(SeekFrom::Start(offset))?;
 
     Ok(())
@@ -282,7 +281,7 @@ pub fn seek(file: &mut File, offset: u64) -> io::Result<()> {
 /// If the operation is successful, the current offset position is returned as `Ok(offset)`.
 /// Otherwise, an `Err` variant is returned with an `io::Error` describing the specific error that occurred.
 ///
-pub fn get_offset(file: &mut impl Seek) -> io::Result<u64> {
+pub fn get_offset<R: Seek>(file: &mut R) -> io::Result<u64> {
     file.stream_position()
 }
 

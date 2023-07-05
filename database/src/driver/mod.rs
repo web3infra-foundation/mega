@@ -9,6 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use common::errors::{GitLFSError, MegaError};
+use entity::{commit, node, refs};
 
 use self::lfs::{
     storage::MetaObject,
@@ -37,6 +38,16 @@ pub trait ObjectStorage: Send + Sync {
 
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
     async fn get_hash_object(&self, hash: &str) -> Result<Vec<u8>, MegaError>;
+
+    async fn save_refs(&self, save_models: Vec<refs::ActiveModel>);
+
+    async fn update_refs(&self, old_id: String, new_id: String, path: &Path);
+
+    async fn delete_refs(&self, old_id: String, path: &Path);
+
+    async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, anyhow::Error>;
+
+    async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, anyhow::Error>;
 
     async fn lfs_get_meta(&self, v: &RequestVars) -> Result<MetaObject, GitLFSError>;
 
