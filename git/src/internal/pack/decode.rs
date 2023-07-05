@@ -1,26 +1,19 @@
-
 use std::io::{self, BufRead};
 use std::io::{Read, Seek};
 
-use sha1::Sha1;
-use sha1::Digest;
 use sha1::digest::core_api::CoreWrapper;
+use sha1::Digest;
+use sha1::Sha1;
 
+use super::{iterator::EntriesIter, Pack};
 use crate::hash::Hash;
 use crate::{errors::GitError, utils};
-use super::{iterator::EntriesIter, Pack};
 #[allow(unused)]
 enum DecodeMod {
     Plain,
     HashCount,
 }
-///TODO:
-///
-///1. hash count
-///     commit 的 raw_data
-///2. encode 全量  options-decide
-///3. 多pack decode
-///4. zlib encode
+
 impl Pack {
     /// Git [Pack Format](https://github.com/git/git/blob/master/Documentation/technical/pack-format.txt)
     /// Git Pack-Format [Introduce](https://git-scm.com/docs/pack-format)
@@ -39,11 +32,10 @@ impl Pack {
         //         count_hash=true;
         //     },
         // }
-        let  count_hash: bool = true;
+        let count_hash: bool = true;
         let mut reader = HashCounter::new(io::BufReader::new(&mut pack_file), count_hash);
         // Read the header of the pack file
-        let mut pack=Pack::check_header(&mut reader)?;
-
+        let mut pack = Pack::check_header(&mut reader)?;
 
         let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects as u32);
         for _ in 0..pack.number_of_objects {
@@ -57,13 +49,10 @@ impl Pack {
         //pack.signature = Hash::new_from_bytes(&id[..]);
         pack.signature = read_tail_hash(&mut reader);
 
-        assert_eq!(_hash,pack.signature);
+        assert_eq!(_hash, pack.signature);
 
         Ok(pack)
     }
-
-
-
 
     /// Check the Header of the Pack File ,<br>
     /// include the **"PACK" head** , **Version Number** and  **Number of the Objects**
@@ -95,30 +84,33 @@ impl Pack {
     }
 }
 /// A BufReader for hash count during the pack data stream "read".
-struct HashCounter<R>{
+struct HashCounter<R> {
     inner: R,
     hash: CoreWrapper<sha1::Sha1Core>,
-    count_hash : bool,
-    
+    count_hash: bool,
 }
-impl<R> HashCounter<R> where R:BufRead {
-    pub fn new(inner :  R, count_hash: bool)-> Self{
-        Self{
+impl<R> HashCounter<R>
+where
+    R: BufRead,
+{
+    pub fn new(inner: R, count_hash: bool) -> Self {
+        Self {
             inner,
             hash: Sha1::new(),
             count_hash,
-           
         }
     }
-    pub fn final_hash(&self)-> Hash{
+    pub fn final_hash(&self) -> Hash {
         let re: [u8; 20] = self.hash.clone().finalize().into();
         Hash(re)
     }
 }
-impl<R>  BufRead for HashCounter<R> where R:BufRead{
+impl<R> BufRead for HashCounter<R>
+where
+    R: BufRead,
+{
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         self.inner.fill_buf()
-
     }
     /// Count the Hash : Update the hash core value by consume's amt
     fn consume(&mut self, amt: usize) {
@@ -129,17 +121,20 @@ impl<R>  BufRead for HashCounter<R> where R:BufRead{
         self.inner.consume(amt);
     }
 }
-impl<R> Read for HashCounter<R> where R: BufRead{
+impl<R> Read for HashCounter<R>
+where
+    R: BufRead,
+{
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let o = self.inner.read(buf)?;
-        if self.count_hash{
+        if self.count_hash {
             self.hash.update(&buf[..o]);
         }
         Ok(o)
     }
 }
 
-fn read_tail_hash(tail:&mut impl Read) -> Hash{
+fn read_tail_hash(tail: &mut impl Read) -> Hash {
     let id: [u8; 20] = {
         let mut id_buf = [0u8; 20];
         tail.read_exact(&mut id_buf).unwrap();

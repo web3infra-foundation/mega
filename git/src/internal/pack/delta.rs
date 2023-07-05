@@ -1,8 +1,7 @@
-use std::io::{BufRead, BufReader, Cursor, ErrorKind, Read};
-use std::sync::Arc;
 use sha1::digest::core_api::CoreWrapper;
 use sha1::{Digest, Sha1};
-
+use std::io::{BufRead, BufReader, Cursor, ErrorKind, Read};
+use std::sync::Arc;
 
 use crate::internal::object::ObjectT;
 use crate::{errors::GitError, utils};
@@ -12,10 +11,10 @@ const COPY_OFFSET_BYTES: u8 = 4;
 const COPY_SIZE_BYTES: u8 = 3;
 const COPY_ZERO_SIZE: usize = 0x10000;
 
-/// The Delta Reader to deal with the Delta Object. 
-/// 
+/// The Delta Reader to deal with the Delta Object.
+///
 /// Impl The [`Read`] trait and [`BufRead`] trait.
-/// Receive a Read object, decompress the data in it with zlib, and 
+/// Receive a Read object, decompress the data in it with zlib, and
 /// return it to Object after delta processing.
 pub struct DeltaReader {
     result: BufReader<Cursor<Vec<u8>>>,
@@ -87,18 +86,12 @@ impl AsyncDeltaBuffer {
         let base_info: &[u8] = base_object.get_raw();
         assert_eq!(base_info.len(), base_size);
 
-
-        let mut  inner = Vec::with_capacity(result_size);
-        
+        let mut inner = Vec::with_capacity(result_size);
 
         process_delta(&mut stream, &mut inner, base_object).await;
 
-        AsyncDeltaBuffer {
-            inner,
-            result_size,
-        }
+        AsyncDeltaBuffer { inner, result_size }
     }
-
 }
 
 async fn process_delta(

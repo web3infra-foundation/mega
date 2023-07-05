@@ -7,7 +7,7 @@ pub mod http;
 pub mod pack;
 pub mod ssh;
 
-use std::{ path::PathBuf, str::FromStr, sync::Arc};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
