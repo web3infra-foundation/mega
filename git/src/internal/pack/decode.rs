@@ -5,6 +5,8 @@ use sha1::digest::core_api::CoreWrapper;
 use sha1::Digest;
 use sha1::Sha1;
 
+use crate::internal::object::{blob, commit, tag, tree};
+
 use super::{iterator::EntriesIter, Pack};
 use crate::hash::Hash;
 use crate::{errors::GitError, utils};
@@ -12,6 +14,14 @@ use crate::{errors::GitError, utils};
 enum DecodeMod {
     Plain,
     HashCount,
+}
+
+#[derive(Default)]
+pub struct ObjDecodedMap {
+    pub blobs: Vec<blob::Blob>,
+    pub trees: Vec<tree::Tree>,
+    pub tags: Vec<tag::Tag>,
+    pub commits: Vec<commit::Commit>,
 }
 
 impl Pack {
