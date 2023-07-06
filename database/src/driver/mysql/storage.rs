@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use chrono::DateTime;
 use chrono::Utc;
 use common::errors::GitLFSError;
+use common::utils::ZERO_ID;
 use entity::commit;
 use entity::locks;
 use entity::meta;
@@ -38,8 +39,27 @@ impl MysqlStorage {
 
 #[async_trait]
 impl ObjectStorage for MysqlStorage {
-    async fn get_head_object_id(&self, _path: &Path) -> String {
-        todo!()
+    async fn get_head_object_id(&self, repo_path: &Path) -> String {
+        let path_str = repo_path.to_str().unwrap();
+        let refs_list = self.search_refs(path_str).await.unwrap();
+
+        if refs_list.is_empty() {
+            ZERO_ID.to_string()
+        } else {
+            for refs in &refs_list {
+                if repo_path.to_str().unwrap() == refs.repo_path {
+                    return refs.ref_git_id.clone();
+                }
+            }
+            for refs in &refs_list {
+                // if repo_path is subdirectory of some commit, we should generae a fake commit
+                if repo_path.starts_with(refs.repo_path.clone()) {
+                    // return self.generate_child_commit_and_refs(refs, repo_path).await;
+                }
+            }
+            //situation: repo_path: root/repotest2/src, commit: root/repotest
+            ZERO_ID.to_string()
+        }
     }
 
     async fn get_ref_object_id(&self, repo_path: &Path) -> HashMap<String, String> {
@@ -71,6 +91,24 @@ impl ObjectStorage for MysqlStorage {
 
     async fn get_commit_by_hash(&self, _hash: &str) -> Result<Vec<u8>, MegaError> {
         todo!()
+    }
+
+    async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError> {
+        Ok(commit::Entity::find()
+            .filter(commit::Column::GitId.eq(git_id))
+            .one(&self.connection)
+            .await
+            .unwrap()
+            .unwrap())
+    }
+
+    async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<commit::Model>, MegaError> {
+        let commits: Vec<commit::Model> = commit::Entity::find()
+            .filter(commit::Column::RepoPath.eq(path.to_str().unwrap()))
+            .all(&self.connection)
+            .await
+            .unwrap();
+        Ok(commits)
     }
 
     async fn get_hash_object(&self, _hash: &str) -> Result<Vec<u8>, MegaError> {
@@ -419,19 +457,6 @@ impl ObjectStorage for MysqlStorage {
 }
 
 impl MysqlStorage {
-    // async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<MetaData>, anyhow::Error> {
-    //     let commits: Vec<commit::Model> = commit::Entity::find()
-    //         .filter(commit::Column::RepoPath.eq(path.to_str().unwrap()))
-    //         .all(&self.connection)
-    //         .await
-    //         .unwrap();
-    //     let mut result = vec![];
-    //     for commit in commits {
-    //         result.push(MetaData::new(ObjectType::Commit, &commit.meta))
-    //     }
-    //     Ok(result)
-    // }
-
     #[allow(unused)]
     async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, DbErr> {
         refs::Entity::find()
@@ -456,20 +481,19 @@ impl MysqlStorage {
             .await
     }
 
-    /// Because the requested path is a subdirectory of the original project directory,
-    /// a new fake commit is needed to point the subdirectory, so we need to
-    /// 1. find root commit by root_ref
-    /// 2. convert commit to git Commit object,  and calculate it's hash
-    /// 3. save the new fake commit with hash and repo_path
+    /// Generates a new commit for a subdirectory of the original project directory.
+    /// Steps:
+    /// 1. Retrieve the root commit based on the provided reference's Git ID.
+    /// 2. If a root tree is found by searching for the repository path:
+    ///    a. Construct a child commit using the retrieved root commit and the root tree.
+    ///    b. Save the child commit.
+    ///    c. Obtain the commit ID of the child commit.
+    ///    d. Construct a child reference with the repository path, reference name, commit ID, and other relevant information.
+    ///    e. Save the child reference in the database.
+    /// 3. Return the commit ID of the child commit if successful; otherwise, return a default ID.
     // async fn generate_child_commit_and_refs(&self, refs: &refs::Model, repo_path: &Path) -> String {
-    //     let root_commit = commit::Entity::find()
-    //         .filter(commit::Column::GitId.eq(&refs.ref_git_id))
-    //         .one(&self.connection)
-    //         .await
-    //         .unwrap()
-    //         .unwrap();
-
     //     if let Some(root_tree) = self.search_root_node_by_path(repo_path).await {
+    //         let root_commit = self.get_commit_by_id(refs.ref_git_id).await.unwrap();
     //         let child_commit = Commit::build_from_model_and_root(&root_commit, root_tree);
     //         self.save_commits(&vec![child_commit.clone()], repo_path)
     //             .await

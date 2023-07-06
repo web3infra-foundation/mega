@@ -2,11 +2,12 @@
 //!
 //!
 //!
-use std::collections::HashSet;
 use std::path::Path;
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use database::driver::ObjectStorage;
 use entity::commit;
 
 use crate::internal::pack::decode::ObjDecodedMap;
@@ -184,13 +185,14 @@ impl PackProtocol {
             let command = self.command_list.last_mut().unwrap();
             let object_map = command.unpack(&mut body_bytes).await.unwrap();
             let path = &self.path;
-            let _pack_result = self.save_packfile(object_map, path).await;
-            // if pack_result.is_ok() {
-            //     self.handle_refs(command, path).await;
-            // } else {
-            //     tracing::error!("{}", pack_result.err().unwrap());
-            //     command.failed(String::from("db operation failed"));
-            // }
+            // let storgae = self.storage.clone();
+            let pack_result = save_packfile(self.storage.clone(), object_map, path).await;
+            if pack_result.is_ok() {
+                handle_refs(self.storage.clone(), command, path).await;
+            } else {
+                tracing::error!("{}", pack_result.err().unwrap());
+                command.failed(String::from("db operation failed"));
+            }
             // After receiving the pack data from the sender, the receiver sends a report
             let mut report_status = BytesMut::new();
             // TODO: replace this hard code "unpack ok\n"
@@ -215,39 +217,6 @@ impl PackProtocol {
             self.command_list.push(command);
             Ok(body_bytes.split_off(4))
         }
-    }
-
-    pub async fn handle_refs(&self, command: &RefCommand, path: &Path) {
-        match command.command_type {
-            CommandType::Create => {
-                self.storage
-                    .save_refs(vec![command.convert_to_model(path.to_str().unwrap())])
-                    .await
-            }
-            CommandType::Delete => self.storage.delete_refs(command.old_id.clone(), path).await,
-            CommandType::Update => {
-                self.storage
-                    .update_refs(command.old_id.clone(), command.new_id.clone(), path)
-                    .await
-            }
-        }
-    }
-
-    pub async fn save_packfile(
-        &self,
-        object_map: ObjDecodedMap,
-        repo_path: &Path,
-    ) -> Result<(), anyhow::Error> {
-        let nodes = build_node_tree(&object_map, repo_path).await.unwrap();
-        self.storage.save_nodes(nodes).await.unwrap();
-
-        let mut save_models: Vec<commit::ActiveModel> = Vec::new();
-        for commit in &object_map.commits {
-            save_models.push(commit.convert_to_model(repo_path));
-        }
-
-        self.storage.save_commits(save_models).await.unwrap();
-        Ok(())
     }
 
     /// # Builds the packet data in the sideband format if the SideBand/64k capability is enabled.
@@ -313,6 +282,40 @@ impl PackProtocol {
             read_until_white_space(pkt_line),
             read_until_white_space(pkt_line),
         )
+    }
+}
+
+pub async fn save_packfile(
+    // &self,
+    storage: Arc<dyn ObjectStorage>,
+    object_map: ObjDecodedMap,
+    repo_path: &Path,
+) -> Result<(), anyhow::Error> {
+    let nodes = build_node_tree(&object_map, repo_path).await.unwrap();
+    storage.save_nodes(nodes).await.unwrap();
+
+    let mut save_models: Vec<commit::ActiveModel> = Vec::new();
+    for commit in &object_map.commits {
+        save_models.push(commit.convert_to_model(repo_path));
+    }
+
+    storage.save_commits(save_models).await.unwrap();
+    Ok(())
+}
+
+pub async fn handle_refs(storage: Arc<dyn ObjectStorage>, command: &RefCommand, path: &Path) {
+    match command.command_type {
+        CommandType::Create => {
+            storage
+                .save_refs(vec![command.convert_to_model(path.to_str().unwrap())])
+                .await
+        }
+        CommandType::Delete => storage.delete_refs(command.old_id.clone(), path).await,
+        CommandType::Update => {
+            storage
+                .update_refs(command.old_id.clone(), command.new_id.clone(), path)
+                .await
+        }
     }
 }
 
