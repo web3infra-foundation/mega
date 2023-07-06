@@ -156,8 +156,12 @@ pub fn read_type_and_size<R: Read>(stream: &mut R) -> io::Result<(u8, usize)> {
 }
 
 /// The offset for an OffsetDelta object
+/// # Arguments
 ///
-pub fn read_offset_encoding<R: Read>(stream: &mut R) -> io::Result<u64> {
+/// * `stream`: Input Data Stream to read
+/// * `consume`: This variable records the number of bytes consumed.
+///
+pub fn read_offset_encoding<R: Read>(stream: &mut R, consume: &mut usize) -> io::Result<u64> {
     // Like the object length, the offset for an OffsetDelta object
     // is stored in a variable number of bytes,
     // with the most significant bit of each byte indicating whether more bytes follow.
@@ -168,7 +172,7 @@ pub fn read_offset_encoding<R: Read>(stream: &mut R) -> io::Result<u64> {
     let mut value = 0;
     loop {
         let (byte_value, more_bytes) = read_var_int_byte(stream)?;
-
+        *consume += 1;
         value = (value << VAR_INT_ENCODING_BITS) | byte_value as u64;
         if !more_bytes {
             return Ok(value);
