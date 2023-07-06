@@ -36,6 +36,10 @@ pub trait ObjectStorage: Send + Sync {
 
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Vec<u8>, MegaError>;
 
+    async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError>;
+
+    async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<commit::Model>, MegaError>;
+
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
     async fn get_hash_object(&self, hash: &str) -> Result<Vec<u8>, MegaError>;
 
