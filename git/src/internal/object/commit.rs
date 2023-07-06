@@ -46,7 +46,6 @@ pub struct Commit {
     pub author: Signature,
     pub committer: Signature,
     pub message: String,
-    row_data: Vec<u8>,
 }
 
 impl PartialEq for Commit {
@@ -166,8 +165,8 @@ impl ObjectT for Commit {
         self.id
     }
 
-    fn get_raw(&self) -> &[u8] {
-        &self.row_data
+    fn get_raw(&self) -> Vec<u8> {
+        self.to_data().unwrap()
     }
     fn get_type(&self) -> crate::internal::ObjectType {
         ObjectType::Commit
@@ -180,7 +179,7 @@ impl ObjectT for Commit {
     where
         Self: Sized,
     {
-        let mut commit = data.clone();
+        let mut commit = data;
         // Find the tree id and remove it from the data
         let tree_end = commit.find_byte(0x0a).unwrap();
         let tree_id: Hash = Hash::new_from_str(
@@ -223,7 +222,6 @@ impl ObjectT for Commit {
             author,
             committer,
             message,
-            row_data: data,
         }
     }
 }
