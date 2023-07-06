@@ -279,10 +279,6 @@ impl Tree {
         Ok(data)
     }
 
-    pub fn get_row_data(&self) -> Result<Vec<u8>, GitError> {
-        Ok(self.row_data.clone())
-    }
-
     // #[allow(unused)]
     // pub fn to_file(&self, path: &str) -> Result<PathBuf, GitError> {
     //     self.meta.to_file(path)
