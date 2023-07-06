@@ -22,7 +22,7 @@ where
     R: BufRead,
 {
     /// Nen a ReadBoxed for zlib read, the Output ReadBoxed is for the Common Object,
-    /// but not for the Delta Object,if that ,see[`new_for_delta`] method below.
+    /// but not for the Delta Object,if that ,see new_for_delta method below.
     pub fn new(inner: R, obj_type: ObjectType, size: usize) -> Self {
         let mut hash = sha1::Sha1::new();
         hash.update(obj_type.to_bytes());
