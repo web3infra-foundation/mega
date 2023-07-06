@@ -57,7 +57,6 @@ pub struct Tag {
     pub tag_name: String,
     pub tagger: Signature,
     pub message: String,
-    row_data: Vec<u8>,
 }
 
 impl Display for Tag {
@@ -123,8 +122,8 @@ impl ObjectT for Tag {
         self.id
     }
 
-    fn get_raw(&self) -> &[u8] {
-        &self.row_data
+    fn get_raw(&self) -> Vec<u8> {
+        self.to_data().unwrap()
     }
     fn get_type(&self) -> crate::internal::ObjectType {
         ObjectType::Tag
@@ -148,7 +147,7 @@ impl ObjectT for Tag {
     where
         Self: Sized,
     {
-        let mut data = row_data.clone();
+        let mut data = row_data;
 
         let hash_begin = data.find_byte(0x20).unwrap();
         let hash_end = data.find_byte(0x0a).unwrap();
@@ -185,7 +184,6 @@ impl ObjectT for Tag {
             tag_name,
             tagger,
             message,
-            row_data,
         }
     }
 }
