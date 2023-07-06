@@ -87,8 +87,8 @@ impl ObjectT for Blob {
         self.id
     }
 
-    fn get_raw(&self) -> &[u8] {
-        &self.data
+    fn get_raw(&self) -> Vec<u8> {
+        self.data.clone()
     }
 
     fn get_type(&self) -> crate::internal::ObjectType {
