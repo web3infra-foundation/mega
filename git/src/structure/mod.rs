@@ -6,11 +6,15 @@ use sea_orm::{ActiveValue::NotSet, Set};
 
 use crate::{
     hash::Hash,
-    internal::object::{
-        blob::Blob,
-        commit::Commit,
-        tree::{Tree, TreeItem, TreeItemMode},
-        ObjectT,
+    internal::{
+        object::{
+            blob::Blob,
+            commit::Commit,
+            meta::Meta,
+            tree::{Tree, TreeItem, TreeItemMode},
+            ObjectT,
+        },
+        ObjectType,
     },
 };
 
@@ -71,13 +75,16 @@ impl GitNodeObject for Blob {
 }
 
 impl Commit {
-    // pub fn build_from_model_and_root(model: &commit::Model, root: node::Model) -> Commit {
-    //     let mut c = Commit::new_from_meta(Meta::new_from_data_with_object_type(ObjectType::Commit, model.meta)).unwrap();
-    //     c.tree_id = Hash::new_from_str(&root.git_id);
-    //     c.parent_tree_ids.clear();
-    //     c.meta = Arc::new(c.encode_metadata().unwrap());
-    //     c
-    // }
+    pub fn build_from_model_and_root(model: &commit::Model, root: node::Model) -> Commit {
+        let mut c = Commit::new_from_meta(Meta::new_from_data_with_object_type(
+            ObjectType::Commit,
+            model.meta.clone(),
+        ))
+        .unwrap();
+        c.tree_id = Hash::new_from_str(&root.git_id);
+        c.parent_tree_ids.clear();
+        c
+    }
 
     pub fn convert_to_model(&self, repo_path: &Path) -> commit::ActiveModel {
         commit::ActiveModel {
