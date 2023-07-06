@@ -10,6 +10,7 @@ use crate::{
         blob::Blob,
         commit::Commit,
         tree::{Tree, TreeItem, TreeItemMode},
+        ObjectT,
     },
 };
 
@@ -121,7 +122,7 @@ impl GitNodeObject for Tree {
                 Vec::new()
             },
             children: Vec::new(),
-            data: self.get_row_data().unwrap(),
+            data: self.get_raw(),
         })
     }
 }
