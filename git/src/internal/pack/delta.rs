@@ -83,7 +83,7 @@ impl AsyncDeltaBuffer {
         let result_size = utils::read_size_encoding(&mut stream).unwrap();
 
         //Get the base object row data
-        let base_info: &[u8] = base_object.get_raw();
+        let base_info: &[u8] = &base_object.get_raw();
         assert_eq!(base_info.len(), base_size);
 
         let mut inner = Vec::with_capacity(result_size);
