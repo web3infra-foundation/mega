@@ -2,12 +2,15 @@
 //!
 //！
 
+extern crate common;
+
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
 };
 
 use async_trait::async_trait;
+
 use common::errors::{GitLFSError, MegaError};
 use entity::{commit, node, refs};
 
