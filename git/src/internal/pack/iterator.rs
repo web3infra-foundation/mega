@@ -68,8 +68,9 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
             if type_num == 6 {
                 // Offset Delta Object
                 let offset = self.offset;
-                let delta_offset = utils::read_offset_encoding(&mut self.inner).unwrap() as usize;
-                iter_offset += utils::get_7bit_count(delta_offset);
+                let delta_offset = utils::read_offset_encoding(&mut self.inner, &mut iter_offset)
+                    .unwrap() as usize;
+                //iter_offset += utils::get_7bit_count(delta_offset);
                 // Count the base object offset and get the base object from the cache in EntriesIter
                 let base_offset = offset
                     .checked_sub(delta_offset)
