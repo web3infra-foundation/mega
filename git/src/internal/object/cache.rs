@@ -43,7 +43,7 @@ pub struct ObjectCache {
 /// But After the test, The size "50" also may meet a "cache miss" problem . This Size
 /// adjust to 300 more, the decode operation is normal.
 /// TODO : deal with "cache miss", get the miss object from DataBase or other sink target.
-const CACHE_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(300) };
+const CACHE_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(800) };
 impl Default for ObjectCache {
     fn default() -> Self {
         Self {

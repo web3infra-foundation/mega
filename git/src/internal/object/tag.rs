@@ -50,6 +50,7 @@ use super::ObjectT;
 
 /// The tag object is used to Annotated tag
 #[allow(unused)]
+#[derive(Clone)]
 pub struct Tag {
     pub id: Hash,
     pub object_hash: Hash,
