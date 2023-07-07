@@ -21,6 +21,23 @@ use std::{
     fmt::Display,
     io::{BufRead, Read},
 };
+#[derive(Clone)]
+pub enum GitObjects {
+    COMMIT(commit::Commit),
+    TREE(tree::Tree),
+    BLOB(blob::Blob),
+    TAG(tag::Tag),
+}
+impl Display for GitObjects {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GitObjects::COMMIT(a) => writeln!(f, "{}", a),
+            GitObjects::TREE(a) => writeln!(f, "{}", a),
+            GitObjects::BLOB(a) => writeln!(f, "{}", a),
+            GitObjects::TAG(a) => writeln!(f, "{}", a),
+        }
+    }
+}
 
 /// The [`ObjectT`] Trait is for the Blob、Commit、Tree and Tag Structs , which are four common object
 /// of git object . In that case, the four kinds of object can be store in same `Arc<dyn ObjectT>`.
