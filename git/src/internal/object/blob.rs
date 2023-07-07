@@ -137,8 +137,7 @@ mod tests {
         let rrr: Arc<Mutex<dyn Any>> = Arc::new(Mutex::new(_blob));
         let mut binding = rrr.lock().unwrap();
         let bb = binding.downcast_mut::<Blob>().unwrap();
-
-        print!("{}", bb);
+        print!("{}",bb);
     }
 
     #[test]

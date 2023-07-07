@@ -3,7 +3,6 @@
 //!
 //!
 //!
-
 use super::object::cache::ObjectCache;
 use crate::hash::Hash;
 use std::path::PathBuf;
@@ -27,6 +26,7 @@ pub struct Pack {
     pub signature: Hash,
     path: PathBuf,
     cache: ObjectCache,
+    //iterator: Option<iterator::EntriesIter<BR>>,
 }
 
 impl Pack {
@@ -36,6 +36,9 @@ impl Pack {
 
     pub fn number_of_objects(&self) -> usize {
         self.number_of_objects
+    }
+    pub fn get_cache(self) -> ObjectCache {
+        self.cache
     }
 }
 

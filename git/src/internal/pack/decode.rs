@@ -49,7 +49,7 @@ impl Pack {
 
         let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects as u32);
         for _ in 0..pack.number_of_objects {
-            let obj = iterator.next_obj().await?;
+            let obj = iterator.next_git_obj().await?;
             println!("{}", obj);
         }
         drop(iterator);
@@ -57,8 +57,8 @@ impl Pack {
         let _hash = reader.final_hash();
 
         //pack.signature = Hash::new_from_bytes(&id[..]);
-        pack.signature = read_tail_hash(&mut reader);
 
+        pack.signature = read_tail_hash(&mut reader);
         assert_eq!(_hash, pack.signature);
 
         Ok(pack)
@@ -66,7 +66,7 @@ impl Pack {
 
     /// Check the Header of the Pack File ,<br>
     /// include the **"PACK" head** , **Version Number** and  **Number of the Objects**
-    fn check_header(pack_file: &mut impl Read) -> Result<Self, GitError> {
+    pub fn check_header(pack_file: &mut impl Read) -> Result<Self, GitError> {
         //init a Pack Struct ,which is all empty
         let mut pack = Self::default();
 
@@ -94,7 +94,7 @@ impl Pack {
     }
 }
 /// A BufReader for hash count during the pack data stream "read".
-struct HashCounter<R> {
+pub struct HashCounter<R> {
     inner: R,
     hash: CoreWrapper<sha1::Sha1Core>,
     count_hash: bool,
@@ -182,4 +182,5 @@ mod test {
         assert_eq!(p.version, 2);
         assert_eq!(p.number_of_objects, p.number_of_objects());
     }
+
 }
