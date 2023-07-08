@@ -30,8 +30,7 @@ impl Pack {
     /// ## Decode the Pack File without the `.idx` File
     ///  - in: pack_file: &mut impl Read + Seek + Send
     ///  - out: The `Pack` Struct
-
-    pub async fn decode(mut pack_file: &mut (impl Read + Seek + Send)) -> Result<Self, GitError> {
+    pub async fn decode(pack_file: &mut (impl Read + Seek + Send)) -> Result<Self, GitError> {
         // change this to input ?
         // let mode = DecodeMod::HashCount;
         // match mode {
@@ -43,7 +42,7 @@ impl Pack {
         //     },
         // }
         let count_hash: bool = true;
-        let mut reader = HashCounter::new(io::BufReader::new(&mut pack_file), count_hash);
+        let mut reader = HashCounter::new(io::BufReader::new(pack_file), count_hash);
         // Read the header of the pack file
         let mut pack = Pack::check_header(&mut reader)?;
 
@@ -54,10 +53,10 @@ impl Pack {
         }
         drop(iterator);
 
+        // Compute the Checksum Hash value of all pack file.
+        // Read the Checksum Hash form the Pack stream tail.
+        // Check if the two are consistent.
         let _hash = reader.final_hash();
-
-        //pack.signature = Hash::new_from_bytes(&id[..]);
-
         pack.signature = read_tail_hash(&mut reader);
         assert_eq!(_hash, pack.signature);
 
@@ -182,5 +181,4 @@ mod test {
         assert_eq!(p.version, 2);
         assert_eq!(p.number_of_objects, p.number_of_objects());
     }
-
 }
