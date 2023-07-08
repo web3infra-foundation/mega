@@ -229,84 +229,83 @@ impl ObjectT for Commit {
 #[cfg(test)]
 mod tests {
 
-    // use std::env;
-    // use std::path::PathBuf;
+    use std::env;
+    use std::path::PathBuf;
+
+    use crate::internal::object::commit::Commit;
+    use crate::internal::object::meta::Meta;
+    use crate::internal::object::ObjectT;
+    use crate::internal::ObjectType;
 
     // use crate::internal::object::meta::Meta;
     // use crate::internal::ObjectType;
     // use std::fs::remove_file;
 
-    // #[test]
-    // fn test_new_from_file_without_parent() {
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
+    #[test]
+    fn test_new_from_file_without_parent() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
 
-    //     let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let commit = Commit::from_meta(meta);
+        assert_eq!(
+            commit.tree_id.to_plain_str(),
+            "f9a1667a0dfce06819394c2aad557a04e9a13e56"
+        );
+        assert_eq!(
+            commit.id.to_plain_str(),
+            "c5170dd0aae2dc2a9142add9bb24597d326714d7"
+        )
+    }
 
-    //     assert_eq!(
-    //         commit.tree_id.to_plain_str(),
-    //         "c5170dd0aae2dc2a9142add9bb24597d326714d7"
-    //     );
-    // }
+    #[test]
+    fn test_new_from_file_with_parent() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let commit = Commit::from_meta(meta);
+        assert_eq!(commit.parent_tree_ids.len(), 1);
+        assert_eq!(
+            commit.tree_id.to_plain_str(),
+            "e7002dbbc79a209462247302c7757a31ab16df1e"
+        );
+        assert_eq!(
+            commit.get_hash().to_plain_str(),
+            "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa"
+        );
+    }
 
-    // #[test]
-    // fn test_new_from_file_with_parent() {
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
+    #[test]
+    fn test_new_from_meta() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
 
-    //     let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let commit = Commit::from_meta(meta);
+        assert_eq!(
+            commit.id.to_plain_str(),
+            "c5170dd0aae2dc2a9142add9bb24597d326714d7"
+        );
+        assert_eq!(commit.get_type(), ObjectType::Commit);
+        assert_eq!(commit.author.name, "Quanyi Ma");
+        println!("{}", commit)
+    }
 
-    //     assert_eq!(commit.parent_tree_ids.len(), 1);
-    //     assert_eq!(
-    //         commit.tree_id.to_plain_str(),
-    //         "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa"
-    //     );
-    // }
+    #[test]
+    fn test_new_from_data() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
 
-    // #[test]
-    // fn test_new_from_meta() {
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
+        let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
+        let commit = Commit::from_meta(meta);
 
-    //     let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
-    //     let commit = super::Commit::new_from_meta(meta).unwrap();
-
-    //     assert_eq!(
-    //         commit.tree_id.to_plain_str(),
-    //         "c5170dd0aae2dc2a9142add9bb24597d326714d7"
-    //     );
-    //     //assert_eq!(commit.meta.object_type, ObjectType::Commit);
-    //     assert_eq!(commit.author.name, "Quanyi Ma");
-    // }
-
-    // #[test]
-    // fn test_new_from_data() {
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
-
-    //     let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
-    //     let commit = super::Commit::new_from_data(meta.data).unwrap();
-
-    //     print!("{}",commit);
-    //     assert_eq!(
-    //         commit.tree_id.to_plain_str(),
-    //         "e7002dbbc79a209462247302c7757a31ab16df1e"
-    //     );
-    //     //assert_eq!(commit.meta.object_type, ObjectType::Commit);
-    //     assert_eq!(commit.author.name, "Quanyi Ma");
-    // }
-
-    // #[test]
-    // fn test_to_data() {
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");
-
-    //     let commit = super::Commit::new_from_file(source.to_str().unwrap()).unwrap();
-
-    //     let data = commit.to_data().unwrap();
-
-    //     //assert_eq!(data, commit.meta.data);
-    // }
+        assert_eq!(
+            commit.tree_id.to_plain_str(),
+            "e7002dbbc79a209462247302c7757a31ab16df1e"
+        );
+        assert_eq!(commit.get_type(), ObjectType::Commit);
+        assert_eq!(commit.author.name, "Quanyi Ma");
+    }
 
     // #[test]
     // fn test_to_file() {

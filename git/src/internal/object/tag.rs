@@ -191,37 +191,28 @@ impl ObjectT for Tag {
 
 #[cfg(test)]
 mod tests {
-    // #[test]
-    // fn test_new_from_file() {
-    //     use std::env;
-    //     use std::path::PathBuf;
-
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
-
-    //     let tag = super::Tag::new_from_file(source.to_str().unwrap()).unwrap();
-
-    //     assert_eq!(
-    //         tag.id.to_plain_str(),
-    //         "854aac1e94777f3ffc8722b69f087d1244587ab7"
-    //     );
-    //     assert_eq!(
-    //         tag.object_hash.to_plain_str(),
-    //         "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa"
-    //     );
-    //     assert_eq!(tag.tag_name, "v.0.1.0");
-    //     assert_eq!(tag.tagger.name, "Quanyi Ma");
-    // }
+    use crate::internal::object::{meta::Meta, tag::Tag, ObjectT};
 
     #[test]
-    fn test_to_data() {
+    fn test_new_from_file() {
         use std::env;
         use std::path::PathBuf;
 
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
+        let m = Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
+        let tag = Tag::from_meta(m);
 
-        let _tag = super::Tag::new_from_file(source.to_str().unwrap()).unwrap();
+        assert_eq!(
+            tag.id.to_plain_str(),
+            "854aac1e94777f3ffc8722b69f087d1244587ab7"
+        );
+        assert_eq!(
+            tag.object_hash.to_plain_str(),
+            "4b00093bee9b3ef5afc5f8e3645dc39cfa2f49aa"
+        );
+        assert_eq!(tag.tag_name, "v.0.1.0");
+        assert_eq!(tag.tagger.name, "Quanyi Ma");
     }
 
     #[test]
