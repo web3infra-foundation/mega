@@ -93,7 +93,8 @@ impl AsyncDeltaBuffer {
         AsyncDeltaBuffer { inner, result_size }
     }
 }
-
+/// Compte the Delta Object based on the "base object"
+///
 async fn process_delta(
     mut stream: &mut impl Read,
     buffer: &mut Vec<u8>,

@@ -391,20 +391,19 @@ mod tests {
         source.push("tests/data/objects/f9/a1667a0dfce06819394c2aad557a04e9a13e56");
 
         let m = Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
-        let raw_data = m.data.clone();
-        let tree = Tree::new_from_data(raw_data);
+        let tree = Tree::from_meta(m.clone());
         println!("{}", tree);
         assert_eq!(tree.tree_items.len(), 1);
         assert_eq!(tree.tree_items[0].mode, super::TreeItemMode::Blob);
-        // assert_eq!(
-        //     tree.tree_items[0].id.to_plain_str(),
-        //     "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-        // );
+        assert_eq!(
+            tree.tree_items[0].id.to_plain_str(),
+            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+        );
         assert_eq!(tree.tree_items[0].name, "hello-world");
-        // assert_eq!(
-        //     tree.id.to_plain_str(),
-        //     "f9a1667a0dfce06819394c2aad557a04e9a13e56"
-        // );
+        assert_eq!(
+            tree.id.to_plain_str(),
+            "f9a1667a0dfce06819394c2aad557a04e9a13e56"
+        );
         assert_eq!(tree.to_data().unwrap(), m.data);
     }
 
@@ -417,32 +416,31 @@ mod tests {
         source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
 
         let m = Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
-        let raw_data = m.data.clone();
-        let tree = Tree::new_from_data(raw_data);
-        println!("{}", tree);
-        // for item in tree.tree_items.iter() {
-        //     if item.mode == super::TreeItemMode::Blob {
-        //         assert_eq!(
-        //             item.id.to_plain_str(),
-        //             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-        //         );
-        //         assert_eq!(item.name, "hello-world");
-        //     }
 
-        //     if item.mode == super::TreeItemMode::Tree {
-        //         assert_eq!(
-        //             item.id.to_plain_str(),
-        //             "c44c09a88097e5fb0c833d4178b2df78055ad2e9"
-        //         );
-        //         assert_eq!(item.name, "rust");
-        //     }
-        // }
+        let tree = Tree::from_meta(m.clone());
+        for item in tree.tree_items.iter() {
+            if item.mode == super::TreeItemMode::Blob {
+                assert_eq!(
+                    item.id.to_plain_str(),
+                    "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+                );
+                assert_eq!(item.name, "hello-world");
+            }
+
+            if item.mode == super::TreeItemMode::Tree {
+                assert_eq!(
+                    item.id.to_plain_str(),
+                    "c44c09a88097e5fb0c833d4178b2df78055ad2e9"
+                );
+                assert_eq!(item.name, "rust");
+            }
+        }
         assert_eq!(tree.to_data().unwrap(), m.data);
         assert_eq!(tree.tree_items.len(), 2);
-        // assert_eq!(
-        //     tree.id.to_plain_str(),
-        //     "e7002dbbc79a209462247302c7757a31ab16df1e"
-        // );
+        assert_eq!(
+            tree.id.to_plain_str(),
+            "e7002dbbc79a209462247302c7757a31ab16df1e"
+        );
     }
 
     // #[test]
@@ -472,25 +470,5 @@ mod tests {
     //     // let file = tree.to_file(dest.as_path().to_str().unwrap()).unwrap();
 
     //     // assert_eq!(true, file.exists());
-    // }
-
-    // #[test]
-    // fn test_new_from_tree_items() {
-    //     use std::env;
-    //     use std::path::PathBuf;
-
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/data/objects/e7/002dbbc79a209462247302c7757a31ab16df1e");
-
-    //     let source_tree = super::Tree::new_from_file(source.to_str().unwrap()).unwrap();
-    //     let dest_tree = super::Tree::new_from_tree_items(source_tree.tree_items.clone()).unwrap();
-
-    //     assert_eq!(source_tree.tree_items.len(), dest_tree.tree_items.len());
-    //     assert_eq!(
-    //         source_tree.id.to_plain_str(),
-    //         dest_tree.id.to_plain_str()
-    //     );
-
-    //     assert_eq!(source_tree.tree_items[0].id, dest_tree.tree_items[0].id);
     // }
 }
