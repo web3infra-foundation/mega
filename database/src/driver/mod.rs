@@ -4,10 +4,7 @@
 
 extern crate common;
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
+use std::{collections::HashMap, path::Path};
 
 use async_trait::async_trait;
 
@@ -28,16 +25,7 @@ pub trait ObjectStorage: Send + Sync {
 
     async fn get_ref_object_id(&self, path: &Path) -> HashMap<String, String>;
 
-    async fn get_full_pack_data(&self, repo_path: &Path) -> Result<Vec<u8>, MegaError>;
-
-    async fn get_incremental_pack_data(
-        &self,
-        repo_path: &Path,
-        want: &HashSet<String>,
-        have: &HashSet<String>,
-    ) -> Result<Vec<u8>, MegaError>;
-
-    async fn get_commit_by_hash(&self, hash: &str) -> Result<Vec<u8>, MegaError>;
+    async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<commit::Model>, MegaError>;
 
     async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError>;
 
@@ -46,15 +34,21 @@ pub trait ObjectStorage: Send + Sync {
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
     async fn get_hash_object(&self, hash: &str) -> Result<Vec<u8>, MegaError>;
 
-    async fn save_refs(&self, save_models: Vec<refs::ActiveModel>);
+    async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) -> Result<bool, MegaError>;
 
     async fn update_refs(&self, old_id: String, new_id: String, path: &Path);
 
     async fn delete_refs(&self, old_id: String, path: &Path);
 
-    async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, anyhow::Error>;
+    async fn get_nodes_by_ids(&self, ids: Vec<String>) -> Result<Vec<node::Model>, MegaError>;
 
-    async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, anyhow::Error>;
+    async fn get_node_by_id(&self, id: &str) -> Option<node::Model>;
+
+    async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError>;
+
+    async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, MegaError>;
+
+    async fn search_root_node_by_path(&self, repo_path: &Path) -> Option<node::Model>;
 
     async fn lfs_get_meta(&self, v: &RequestVars) -> Result<MetaObject, GitLFSError>;
 
