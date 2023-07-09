@@ -20,8 +20,8 @@ use crate::{
 
 use self::nodes::{FileNode, Node, TreeNode};
 
+pub mod conversion;
 pub mod nodes;
-
 /// only blob and tree should implement this trait
 pub trait GitNodeObject {
     fn convert_to_node(&self, item: Option<&TreeItem>) -> Box<dyn Node>;
