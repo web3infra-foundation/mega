@@ -304,6 +304,7 @@ pub async fn build_node_tree(
 
     for commit in &result.commits {
         let commit_tree_id = commit.tree_id;
+        //fetch the tree which commit points to
         let tree = &repo.tree_map.get(&commit_tree_id).unwrap().clone();
         let mut root_node = tree.convert_to_node(None);
         repo.build_node_tree(tree, &mut root_node);

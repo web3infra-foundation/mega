@@ -3,7 +3,7 @@
 //!
 //!
 use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 use async_trait::async_trait;
@@ -85,21 +85,17 @@ impl ObjectStorage for MysqlStorage {
         map
     }
 
-    async fn get_full_pack_data(&self, _repo_path: &Path) -> Result<Vec<u8>, MegaError> {
-        todo!()
-    }
-
-    async fn get_incremental_pack_data(
-        &self,
-        _repo_path: &Path,
-        _want: &HashSet<String>,
-        _have: &HashSet<String>,
-    ) -> Result<Vec<u8>, MegaError> {
-        todo!()
-    }
-
-    async fn get_commit_by_hash(&self, _hash: &str) -> Result<Vec<u8>, MegaError> {
-        todo!()
+    async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<commit::Model>, MegaError> {
+        Ok(commit::Entity::find()
+            .filter(commit::Column::GitId.eq(hash))
+            .one(&self.connection)
+            .await
+            .unwrap())
+        // if let Some(commit) = commit {
+        //     Ok(MetaData::new(ObjectType::Commit, &commit.meta))
+        // } else {
+        //     return Err(GitError::InvalidCommitObject(hash.to_string()));
+        // }
     }
 
     async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError> {
@@ -124,10 +120,9 @@ impl ObjectStorage for MysqlStorage {
         todo!()
     }
 
-    async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) {
-        batch_save_model(&self.connection, save_models)
-            .await
-            .unwrap();
+    async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) -> Result<bool, MegaError> {
+        self.batch_save_model(save_models).await.unwrap();
+        Ok(true)
     }
 
     async fn update_refs(&self, old_id: String, new_id: String, path: &Path) {
@@ -155,7 +150,23 @@ impl ObjectStorage for MysqlStorage {
             .unwrap();
     }
 
-    async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, anyhow::Error> {
+    async fn get_nodes_by_ids(&self, ids: Vec<String>) -> Result<Vec<node::Model>, MegaError> {
+        Ok(node::Entity::find()
+            .filter(node::Column::GitId.is_in(ids))
+            .all(&self.connection)
+            .await
+            .unwrap())
+    }
+
+    async fn get_node_by_id(&self, id: &str) -> Option<node::Model> {
+        node::Entity::find()
+            .filter(node::Column::GitId.eq(id))
+            .one(&self.connection)
+            .await
+            .unwrap()
+    }
+
+    async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
         let conn = &self.connection;
         let mut sum = 0;
         let mut batch_nodes = Vec::new();
@@ -184,10 +195,28 @@ impl ObjectStorage for MysqlStorage {
         Ok(true)
     }
 
-    async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, anyhow::Error> {
-        let conn = &self.connection;
-        batch_save_model(conn, commits).await.unwrap();
+    async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, MegaError> {
+        self.batch_save_model(commits).await.unwrap();
         Ok(true)
+    }
+
+    async fn search_root_node_by_path(&self, repo_path: &Path) -> Option<node::Model> {
+        tracing::debug!("file_name: {:?}", repo_path.file_name());
+        let res = node::Entity::find()
+            .filter(node::Column::Name.eq(repo_path.file_name().unwrap().to_str().unwrap()))
+            .one(&self.connection)
+            .await
+            .unwrap();
+        if let Some(res) = res {
+            Some(res)
+        } else {
+            node::Entity::find()
+                // .filter(node::Column::Path.eq(repo_path.to_str().unwrap()))
+                .filter(node::Column::Name.eq(""))
+                .one(&self.connection)
+                .await
+                .unwrap()
+        }
     }
 
     async fn lfs_get_meta(&self, v: &RequestVars) -> Result<MetaObject, GitLFSError> {
@@ -490,126 +519,44 @@ impl MysqlStorage {
             .await
     }
 
-    /// Generates a new commit for a subdirectory of the original project directory.
-    /// Steps:
-    /// 1. Retrieve the root commit based on the provided reference's Git ID.
-    /// 2. If a root tree is found by searching for the repository path:
-    ///    a. Construct a child commit using the retrieved root commit and the root tree.
-    ///    b. Save the child commit.
-    ///    c. Obtain the commit ID of the child commit.
-    ///    d. Construct a child reference with the repository path, reference name, commit ID, and other relevant information.
-    ///    e. Save the child reference in the database.
-    /// 3. Return the commit ID of the child commit if successful; otherwise, return a default ID.
-    // async fn generate_child_commit_and_refs(&self, refs: &refs::Model, repo_path: &Path) -> String {
-    //     if let Some(root_tree) = self.search_root_node_by_path(repo_path).await {
-    //         let root_commit = self.get_commit_by_id(refs.ref_git_id).await.unwrap();
-    //         let child_commit = Commit::build_from_model_and_root(&root_commit, root_tree);
-    //         self.save_commits(&vec![child_commit.clone()], repo_path)
-    //             .await
-    //             .unwrap();
-    //         let commit_id = child_commit.meta.id.to_plain_str();
-    //         let child_refs = refs::ActiveModel {
-    //             id: NotSet,
-    //             repo_path: Set(repo_path.to_str().unwrap().to_string()),
-    //             ref_name: Set(refs.ref_name.clone()),
-    //             ref_git_id: Set(commit_id.clone()),
-    //             created_at: Set(chrono::Utc::now().naive_utc()),
-    //             updated_at: Set(chrono::Utc::now().naive_utc()),
-    //         };
-    //         batch_save_model(&self.connection, vec![child_refs])
-    //             .await
-    //             .unwrap();
-    //         commit_id
-    //     } else {
-    //         ZERO_ID.to_string()
-    //     }
-    // }
+    /// Performs batch saving of models in the database.
+    ///
+    /// The method takes a vector of models to be saved and performs batch inserts using the given entity type `E`.
+    /// The models should implement the `ActiveModelTrait` trait, which provides the necessary functionality for saving and inserting the models.
+    ///
+    /// The method splits the models into smaller chunks, each containing up to 100 models, and inserts them into the database using the `E::insert_many` function.
+    /// The results of each insertion are collected into a vector of futures.
+    ///
+    /// Note: Currently, SQLx does not support packets larger than 16MB.
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `save_models` - A vector of models to be saved.
+    ///
+    /// # Generic Constraints
+    ///
+    /// * `E` - The entity type that implements the `EntityTrait` trait.
+    /// * `A` - The model type that implements the `ActiveModelTrait` trait and is convertible from the corresponding model type of `E`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `MegaError` if an error occurs during the batch save operation.
+    async fn batch_save_model<E, A>(&self, save_models: Vec<A>) -> Result<(), MegaError>
+    where
+        E: EntityTrait,
+        A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
+    {
+        let mut futures = Vec::new();
 
-    #[allow(unused)]
-    async fn search_root_node_by_path(&self, repo_path: &Path) -> Option<node::Model> {
-        tracing::debug!("file_name: {:?}", repo_path.file_name());
-        let res = node::Entity::find()
-            .filter(node::Column::Name.eq(repo_path.file_name().unwrap().to_str().unwrap()))
-            .one(&self.connection)
-            .await
-            .unwrap();
-        if let Some(res) = res {
-            Some(res)
-        } else {
-            node::Entity::find()
-                // .filter(node::Column::Path.eq(repo_path.to_str().unwrap()))
-                .filter(node::Column::Name.eq(""))
-                .one(&self.connection)
-                .await
-                .unwrap()
+        // notice that sqlx not support packets larger than 16MB now
+        for chunk in save_models.chunks(100) {
+            let save_result = E::insert_many(chunk.iter().cloned())
+                .exec(&self.connection)
+                .await;
+            futures.push(save_result);
         }
+        // futures::future::join_all(futures).await;
+        Ok(())
     }
-
-    #[allow(unused)]
-    async fn get_node_by_id(&self, id: &str) -> Option<node::Model> {
-        node::Entity::find()
-            .filter(node::Column::GitId.eq(id))
-            .one(&self.connection)
-            .await
-            .unwrap()
-    }
-
-    // async fn get_nodes_by_ids(&self, ids: Vec<String>) -> HashMap<Hash, node::Model> {
-    //     node::Entity::find()
-    //         .filter(node::Column::GitId.is_in(ids))
-    //         .all(&self.connection)
-    //         .await
-    //         .unwrap()
-    //         .into_iter()
-    //         .map(|f| (Hash::from_str(&f.git_id).unwrap(), f))
-    //         .collect()
-    // }
-
-    // retrieve all sub trees recursively
-    // #[async_recursion]
-    // async fn get_child_trees(&self, root: &node::Model, hash_meta: &mut HashMap<String, MetaData>) {
-    //     let t = Tree::new(Arc::new(MetaData::new(ObjectType::Tree, &root.data)));
-    //     let mut child_ids = vec![];
-    //     for item in t.tree_items {
-    //         if !hash_meta.contains_key(&item.id.to_plain_str()) {
-    //             child_ids.push(item.id.to_plain_str());
-    //         }
-    //     }
-    //     let childs = node::Entity::find()
-    //         .filter(node::Column::GitId.is_in(child_ids))
-    //         .all(&self.connection)
-    //         .await
-    //         .unwrap();
-    //     for c in childs {
-    //         if c.node_type == "tree" {
-    //             self.get_child_trees(&c, hash_meta).await;
-    //         } else {
-    //             let b_meta = MetaData::new(ObjectType::Blob, &c.data);
-    //             hash_meta.insert(b_meta.id.to_plain_str(), b_meta);
-    //         }
-    //     }
-    //     let t_meta = t.meta;
-    //     tracing::info!("{}, {}", t_meta.id, t.tree_name);
-    //     hash_meta.insert(t_meta.id.to_plain_str(), Arc::try_unwrap(t_meta).unwrap());
-    // }
-}
-
-// mysql sea_orm bathc insert
-async fn batch_save_model<E, A>(
-    conn: &DatabaseConnection,
-    save_models: Vec<A>,
-) -> Result<(), anyhow::Error>
-where
-    E: EntityTrait,
-    A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
-{
-    let mut futures = Vec::new();
-
-    // notice that sqlx not support packets larger than 16MB now
-    for chunk in save_models.chunks(100) {
-        let save_result = E::insert_many(chunk.iter().cloned()).exec(conn).await;
-        futures.push(save_result);
-    }
-    // futures::future::join_all(futures).await;
-    Ok(())
 }
