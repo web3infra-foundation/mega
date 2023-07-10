@@ -21,11 +21,7 @@ use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
 
 impl PackProtocol {
-    pub async fn get_full_pack_data(
-        &self,
-        // storage: Arc<dyn ObjectStorage>,
-        repo_path: &Path,
-    ) -> Result<Vec<u8>, GitError> {
+    pub async fn get_full_pack_data(&self, repo_path: &Path) -> Result<Vec<u8>, GitError> {
         let mut hash_meta: HashMap<String, Meta> = HashMap::new();
 
         let commit_models = self
@@ -97,12 +93,7 @@ impl PackProtocol {
 
     // retrieve all sub trees recursively
     #[async_recursion]
-    async fn get_child_trees(
-        &self,
-        // storage: Arc<dyn ObjectStorage>,
-        root: &node::Model,
-        hash_meta: &mut HashMap<String, Meta>,
-    ) {
+    async fn get_child_trees(&self, root: &node::Model, hash_meta: &mut HashMap<String, Meta>) {
         let t = Tree::new_from_data(root.data.clone());
         let mut child_ids = vec![];
         for item in &t.tree_items {
@@ -122,6 +113,30 @@ impl PackProtocol {
         let t_meta = Meta::new_from_data_with_object_type(ObjectType::Tree, t.get_raw());
         // tracing::info!("{}, {}", t_meta.id, t.tree_name);
         hash_meta.insert(t.id.to_plain_str(), t_meta);
+    }
+
+    pub async fn get_head_object_id(&self, repo_path: &Path) -> String {
+        let path_str = repo_path.to_str().unwrap();
+        let refs_list = self.storage.search_refs(path_str).await.unwrap();
+
+        if refs_list.is_empty() {
+            ZERO_ID.to_string()
+        } else {
+            for refs in &refs_list {
+                if repo_path.to_str().unwrap() == refs.repo_path {
+                    return refs.ref_git_id.clone();
+                }
+            }
+            for refs in &refs_list {
+                // if repo_path is subdirectory of some commit, we should generae a fake commit
+                if repo_path.starts_with(refs.repo_path.clone()) {
+                    return generate_child_commit_and_refs(self.storage.clone(), refs, repo_path)
+                        .await;
+                }
+            }
+            //situation: repo_path: root/repotest2/src, commit: root/repotest
+            ZERO_ID.to_string()
+        }
     }
 }
 
