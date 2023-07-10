@@ -12,7 +12,16 @@ When it comes to managing large codebases in a centralized manner, trunk-based d
 
 ## Getting Started
 
-Coming soon...
+1. Certificate Generation process(optional,not finished yet)
+2. Default Content(not finished yet)
+3. Config environment variables for local test
+   1. For local testing, Mega uses the .env file to configure the required parameters. However, before starting the project, you also need to configure the environment variables such as DB_USERNAME, DB_SECRET, and DB_HOST.
+4. Database init
+   1.  Find the dump file in the SQL directory and import it into the database.
+5. Start the Mega server: Use `cargo run https` to launch the HTTP service, which by default starts on port 8000.
+6. Test repo: 
+   1. First, add the local source to the Git repository that needs to be tested: `git remote add local http://localhost:8000/root/${your_test_repo}.git`
+   2. Use `git push local ${branch}` and `git clone http://localhost:8000/root/${your_test_repo}.git for repo testing`
 
 ## Contributing
 
