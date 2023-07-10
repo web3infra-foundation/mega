@@ -62,6 +62,12 @@ impl From<std::io::Error> for MegaError {
     }
 }
 
+impl From<sea_orm::DbErr> for MegaError {
+    fn from(err: sea_orm::DbErr) -> MegaError {
+        MegaError::new(err.into(), 1)
+    }
+}
+
 #[derive(Error, Debug)]
 #[allow(unused)]
 pub enum GitLFSError {

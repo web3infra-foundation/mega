@@ -20,7 +20,6 @@ use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::DatabaseBackend;
 use sea_orm::DatabaseConnection;
-use sea_orm::DbErr;
 use sea_orm::EntityTrait;
 use sea_orm::QueryFilter;
 use sea_orm::Set;
@@ -33,7 +32,6 @@ use crate::driver::MegaError;
 use crate::driver::ObjectStorage;
 
 use common::errors::GitLFSError;
-use common::utils::ZERO_ID;
 
 #[derive(Debug, Default, Clone)]
 pub struct MysqlStorage {
@@ -48,29 +46,6 @@ impl MysqlStorage {
 
 #[async_trait]
 impl ObjectStorage for MysqlStorage {
-    async fn get_head_object_id(&self, repo_path: &Path) -> String {
-        let path_str = repo_path.to_str().unwrap();
-        let refs_list = self.search_refs(path_str).await.unwrap();
-
-        if refs_list.is_empty() {
-            ZERO_ID.to_string()
-        } else {
-            for refs in &refs_list {
-                if repo_path.to_str().unwrap() == refs.repo_path {
-                    return refs.ref_git_id.clone();
-                }
-            }
-            for refs in &refs_list {
-                // if repo_path is subdirectory of some commit, we should generae a fake commit
-                if repo_path.starts_with(refs.repo_path.clone()) {
-                    // return self.generate_child_commit_and_refs(refs, repo_path).await;
-                }
-            }
-            //situation: repo_path: root/repotest2/src, commit: root/repotest
-            ZERO_ID.to_string()
-        }
-    }
-
     async fn get_ref_object_id(&self, repo_path: &Path) -> HashMap<String, String> {
         // assuming HEAD points to branch master.
         let mut map = HashMap::new();
@@ -91,11 +66,6 @@ impl ObjectStorage for MysqlStorage {
             .one(&self.connection)
             .await
             .unwrap())
-        // if let Some(commit) = commit {
-        //     Ok(MetaData::new(ObjectType::Commit, &commit.meta))
-        // } else {
-        //     return Err(GitError::InvalidCommitObject(hash.to_string()));
-        // }
     }
 
     async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError> {
@@ -118,6 +88,28 @@ impl ObjectStorage for MysqlStorage {
 
     async fn get_hash_object(&self, _hash: &str) -> Result<Vec<u8>, MegaError> {
         todo!()
+    }
+
+    async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError> {
+        Ok(refs::Entity::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DatabaseBackend::MySql,
+            r#"SELECT * FROM gust.refs where ? LIKE CONCAT(repo_path, '%') and ref_name = 'refs/heads/master' "#,
+            [path_str.into()],
+        ))
+        .all(&self.connection)
+        .await?)
+    }
+
+    async fn search_commits(&self, path_str: &str) -> Result<Vec<commit::Model>, MegaError> {
+        Ok(commit::Entity::find()
+            .from_raw_sql(Statement::from_sql_and_values(
+                DatabaseBackend::MySql,
+                r#"SELECT * FROM gust.commit where ? LIKE CONCAT(repo_path, '%')"#,
+                [path_str.into()],
+            ))
+            .all(&self.connection)
+            .await?)
     }
 
     async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) -> Result<bool, MegaError> {
@@ -495,30 +487,6 @@ impl ObjectStorage for MysqlStorage {
 }
 
 impl MysqlStorage {
-    #[allow(unused)]
-    async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, DbErr> {
-        refs::Entity::find()
-        .from_raw_sql(Statement::from_sql_and_values(
-            DatabaseBackend::MySql,
-            r#"SELECT * FROM gust.refs where ? LIKE CONCAT(repo_path, '%') and ref_name = 'refs/heads/master' "#,
-            [path_str.into()],
-        ))
-        .all(&self.connection)
-        .await
-    }
-
-    #[allow(unused)]
-    async fn search_commits(&self, path_str: &str) -> Result<Vec<commit::Model>, DbErr> {
-        commit::Entity::find()
-            .from_raw_sql(Statement::from_sql_and_values(
-                DatabaseBackend::MySql,
-                r#"SELECT * FROM gust.commit where ? LIKE CONCAT(repo_path, '%')"#,
-                [path_str.into()],
-            ))
-            .all(&self.connection)
-            .await
-    }
-
     /// Performs batch saving of models in the database.
     ///
     /// The method takes a vector of models to be saved and performs batch inserts using the given entity type `E`.

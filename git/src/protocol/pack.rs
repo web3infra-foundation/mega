@@ -58,7 +58,7 @@ impl PackProtocol {
     /// Finally, the constructed packet line stream is returned.
     pub async fn git_info_refs(&mut self, service_type: ServiceType) -> BytesMut {
         // The stream MUST include capability declarations behind a NUL on the first ref.
-        let object_id = self.storage.get_head_object_id(&self.path).await;
+        let object_id = self.get_head_object_id(&self.path).await;
         let name = if object_id == ZERO_ID {
             "capabilities^{}"
         } else {

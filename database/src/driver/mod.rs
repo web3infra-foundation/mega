@@ -21,9 +21,10 @@ pub mod mysql;
 
 #[async_trait]
 pub trait ObjectStorage: Send + Sync {
-    async fn get_head_object_id(&self, path: &Path) -> String;
 
     async fn get_ref_object_id(&self, path: &Path) -> HashMap<String, String>;
+
+    async fn search_commits(&self, path_str: &str) -> Result<Vec<commit::Model>, MegaError>;
 
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<commit::Model>, MegaError>;
 
@@ -33,6 +34,8 @@ pub trait ObjectStorage: Send + Sync {
 
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
     async fn get_hash_object(&self, hash: &str) -> Result<Vec<u8>, MegaError>;
+
+    async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError>;
 
     async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) -> Result<bool, MegaError>;
 
