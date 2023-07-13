@@ -8,10 +8,9 @@ use crate::internal::object::commit::Commit;
 use crate::internal::object::meta::Meta;
 use crate::internal::object::tree::Tree;
 use crate::internal::object::ObjectT;
-use crate::internal::pack::decode::ObjDecodedMap;
 use crate::internal::ObjectType;
 use crate::protocol::{CommandType, PackProtocol, RefCommand};
-use crate::structure::nodes::build_node_tree;
+// use crate::structure::nodes::build_node_tree;
 use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
@@ -19,6 +18,8 @@ use database::driver::ObjectStorage;
 use entity::{commit, node, refs};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
+
+use super::nodes::Repo;
 
 impl PackProtocol {
     pub async fn get_full_pack_data(&self, repo_path: &Path) -> Result<Vec<u8>, GitError> {
@@ -184,14 +185,26 @@ pub async fn generate_child_commit_and_refs(
 
 pub async fn save_packfile(
     storage: Arc<dyn ObjectStorage>,
-    object_map: ObjDecodedMap,
+    mr_id: i64,
     repo_path: &Path,
 ) -> Result<(), anyhow::Error> {
-    let nodes = build_node_tree(&object_map, repo_path).await.unwrap();
+    let mut repo = Repo {
+        storage: storage.clone(),
+        mr_id,
+        tree_build_cache: HashSet::new(),
+    };
+
+    let mut commits: Vec<Commit> = Vec::new();
+    let commit_model = storage.get_git_objects(mr_id, "commit").await.unwrap();
+    for model in commit_model {
+        commits.push(Commit::new_from_data(model.data))
+    }
+
+    let nodes = repo.build_node_tree(&commits).await.unwrap();
     storage.save_nodes(nodes).await.unwrap();
 
     let mut save_models: Vec<commit::ActiveModel> = Vec::new();
-    for commit in &object_map.commits {
+    for commit in commits {
         save_models.push(commit.convert_to_model(repo_path));
     }
 

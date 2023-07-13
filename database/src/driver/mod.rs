@@ -9,7 +9,7 @@ use std::{collections::HashMap, path::Path};
 use async_trait::async_trait;
 
 use common::errors::{GitLFSError, MegaError};
-use entity::{commit, node, refs};
+use entity::{commit, git_objects, node, refs};
 
 use self::lfs::{
     storage::MetaObject,
@@ -21,6 +21,22 @@ pub mod mysql;
 
 #[async_trait]
 pub trait ObjectStorage: Send + Sync {
+    async fn save_git_objects(
+        &self,
+        objects: Vec<git_objects::ActiveModel>,
+    ) -> Result<bool, MegaError>;
+
+    async fn get_git_objects(
+        &self,
+        mr_id: i64,
+        object_type: &str,
+    ) -> Result<Vec<git_objects::Model>, MegaError>;
+
+    // get hash object from db if missing cache in unpack process, this object must be tree or blob
+    async fn get_git_object_by_hash(
+        &self,
+        hash: &str,
+    ) -> Result<Option<git_objects::Model>, MegaError>;
 
     async fn get_ref_object_id(&self, path: &Path) -> HashMap<String, String>;
 
@@ -31,9 +47,6 @@ pub trait ObjectStorage: Send + Sync {
     async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError>;
 
     async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<commit::Model>, MegaError>;
-
-    // get hash object from db if missing cache in unpack process, this object must be tree or blob
-    async fn get_hash_object(&self, hash: &str) -> Result<Vec<u8>, MegaError>;
 
     async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError>;
 
