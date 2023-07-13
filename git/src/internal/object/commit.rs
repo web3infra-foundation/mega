@@ -17,6 +17,9 @@
 use std::fmt::Display;
 
 use bstr::ByteSlice;
+use database::utils::id_generator::generate_id;
+use entity::git_objects;
+use sea_orm::Set;
 
 use crate::errors::GitError;
 use crate::hash::Hash;
@@ -67,6 +70,18 @@ impl Display for Commit {
 }
 
 impl Commit {
+    pub fn convert_to_git_obj_model(&self, mr_id: i64) -> git_objects::ActiveModel {
+        git_objects::ActiveModel {
+            id: Set(generate_id()),
+            mr_id: Set(mr_id),
+            git_id: Set(self.id.to_plain_str()),
+            object_type: Set("commit".to_owned()),
+            data: Set(self.get_raw()),
+            created_at: Set(chrono::Utc::now().naive_utc()),
+            updated_at: Set(chrono::Utc::now().naive_utc()),
+        }
+    }
+
     // #[allow(unused)]
     // pub fn new_from_data(data: Vec<u8>) -> Result<Commit, GitError> {
     //     let mut commit = data.clone();

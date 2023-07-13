@@ -144,7 +144,7 @@ impl TreeItem {
         TreeItem {
             mode,
             id: Hash::new_from_bytes(model.git_id.as_bytes()),
-            name: model.name,
+            name: model.name.unwrap(),
         }
     }
 }

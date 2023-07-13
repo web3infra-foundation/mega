@@ -177,11 +177,12 @@ impl PackProtocol {
 
         if body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) {
             let command = self.command_list.last_mut().unwrap();
-            let object_map = command.unpack(&mut body_bytes).await.unwrap();
+            let mr_id = command
+                .unpack(self.storage.clone(), &mut body_bytes)
+                .await
+                .unwrap();
             let path = &self.path;
-            // let storgae = self.storage.clone();
-            let pack_result =
-                conversion::save_packfile(self.storage.clone(), object_map, path).await;
+            let pack_result = conversion::save_packfile(self.storage.clone(), mr_id, path).await;
             if pack_result.is_ok() {
                 conversion::handle_refs(self.storage.clone(), command, path).await;
             } else {

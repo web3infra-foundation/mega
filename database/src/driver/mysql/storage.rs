@@ -11,6 +11,7 @@ use chrono::DateTime;
 use chrono::Utc;
 
 use entity::commit;
+use entity::git_objects;
 use entity::locks;
 use entity::meta;
 use entity::node;
@@ -46,6 +47,39 @@ impl MysqlStorage {
 
 #[async_trait]
 impl ObjectStorage for MysqlStorage {
+    async fn save_git_objects(
+        &self,
+        objects: Vec<git_objects::ActiveModel>,
+    ) -> Result<bool, MegaError> {
+        self.batch_save_model(objects).await.unwrap();
+        Ok(true)
+    }
+
+    async fn get_git_objects(
+        &self,
+        mr_id: i64,
+        object_type: &str,
+    ) -> Result<Vec<git_objects::Model>, MegaError> {
+        Ok(git_objects::Entity::find()
+            .filter(git_objects::Column::MrId.eq(mr_id))
+            .filter(git_objects::Column::ObjectType.eq(object_type))
+            .all(&self.connection)
+            .await
+            .unwrap())
+    }
+
+    async fn get_git_object_by_hash(
+        &self,
+        hash: &str,
+    ) -> Result<Option<git_objects::Model>, MegaError> {
+        // get original data from database
+        Ok(git_objects::Entity::find()
+            .filter(git_objects::Column::GitId.eq(hash))
+            .one(&self.connection)
+            .await
+            .unwrap())
+    }
+
     async fn get_ref_object_id(&self, repo_path: &Path) -> HashMap<String, String> {
         // assuming HEAD points to branch master.
         let mut map = HashMap::new();
@@ -84,10 +118,6 @@ impl ObjectStorage for MysqlStorage {
             .await
             .unwrap();
         Ok(commits)
-    }
-
-    async fn get_hash_object(&self, _hash: &str) -> Result<Vec<u8>, MegaError> {
-        todo!()
     }
 
     async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError> {
