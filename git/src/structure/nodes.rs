@@ -1,21 +1,20 @@
-use std::{
-    any::Any,
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-};
+use std::{any::Any, collections::HashSet, path::PathBuf, sync::Arc};
 
-use database::utils::id_generator::{self, generate_id};
+use async_recursion::async_recursion;
+use database::{
+    driver::ObjectStorage,
+    utils::id_generator::{self, generate_id},
+};
 use entity::node;
 use sea_orm::{ActiveValue::NotSet, Set};
 
 use crate::{
     hash::Hash,
-    internal::{
-        object::{
-            blob::Blob,
-            tree::{Tree, TreeItemMode},
-        },
-        pack::decode::ObjDecodedMap,
+    internal::object::{
+        blob::Blob,
+        commit::Commit,
+        tree::{Tree, TreeItemMode},
+        ObjectT,
     },
 };
 
@@ -23,8 +22,8 @@ use super::GitNodeObject;
 
 pub struct Repo {
     // pub repo_root: Box<dyn Node>,
-    pub tree_map: HashMap<Hash, Tree>,
-    pub blob_map: HashMap<Hash, Blob>,
+    pub storage: Arc<dyn ObjectStorage>,
+    pub mr_id: i64,
     pub tree_build_cache: HashSet<Hash>,
 }
 
@@ -51,7 +50,7 @@ pub struct FileNode {
 }
 
 /// define the node common behaviour
-pub trait Node {
+pub trait Node: Send {
     fn get_id(&self) -> i64;
 
     fn get_pid(&self) -> &str;
@@ -137,7 +136,7 @@ impl Node for TreeNode {
             node_id: Set(self.nid),
             git_id: Set(self.git_id.to_plain_str()),
             node_type: Set("tree".to_owned()),
-            name: Set(self.name.to_string()),
+            name: Set(Some(self.name.to_string())),
             mode: Set(self.mode.clone()),
             content_sha: NotSet,
             data: Set(self.data.clone()),
@@ -218,7 +217,7 @@ impl Node for FileNode {
             node_id: Set(self.nid),
             git_id: Set(self.git_id.to_plain_str()),
             node_type: Set("blob".to_owned()),
-            name: Set(self.name.to_string()),
+            name: Set(Some(self.name.to_string())),
             mode: Set(self.mode.clone()),
             content_sha: NotSet,
             data: Set(self.data.clone()),
@@ -271,71 +270,65 @@ impl TreeNode {
     }
 }
 
-/// this method is used to build node tree and persist node data to database. Conversion order:
-/// 1. Git TreeItem => Struct Node => DB Model
-/// 2. Git Blob => DB Model
-/// current: protocol => storage => structure
-/// expected: protocol => structure => storage
-pub async fn build_node_tree(
-    result: &ObjDecodedMap,
-    _: &Path,
-) -> Result<Vec<node::ActiveModel>, anyhow::Error> {
-    let tree_map: HashMap<Hash, Tree> = result
-        .trees
-        .clone()
-        .into_iter()
-        .map(|tree| (tree.id, tree))
-        .collect();
-
-    let blob_map: HashMap<Hash, Blob> = result
-        .blobs
-        .clone()
-        .into_iter()
-        .map(|b| (b.id, b))
-        .collect();
-
-    let mut repo = Repo {
-        tree_map,
-        blob_map,
-        tree_build_cache: HashSet::new(),
-    };
-
-    let mut nodes = Vec::new();
-
-    for commit in &result.commits {
-        let commit_tree_id = commit.tree_id;
-        //fetch the tree which commit points to
-        let tree = &repo.tree_map.get(&commit_tree_id).unwrap().clone();
-        let mut root_node = tree.convert_to_node(None);
-        repo.build_node_tree(tree, &mut root_node);
-        nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
-        println!("------------ end of commit ------------");
-    }
-    Ok(nodes)
-}
-
 impl Repo {
+    pub async fn get_git_object_from_hash<T: ObjectT>(&self, hash: Hash) -> T {
+        let data = self
+            .storage
+            .get_git_object_by_hash(&hash.to_plain_str())
+            .await
+            .unwrap()
+            .unwrap()
+            .data;
+        T::new_from_data(data)
+    }
+
+    /// this method is used to build node tree and persist node data to database. Conversion order:
+    /// 1. Git TreeItem => Struct Node => DB Model
+    /// 2. Git Blob => DB Model
+    /// current: protocol => storage => structure
+    /// expected: protocol => structure => storage
+    pub async fn build_node_tree(
+        &mut self,
+        commits: &Vec<Commit>,
+    ) -> Result<Vec<node::ActiveModel>, anyhow::Error> {
+        let mut nodes = Vec::new();
+
+        for commit in commits {
+            // let commit = Commit::new_from_data(model.data);
+            let commit_tree_id = commit.tree_id;
+            //fetch the tree which commit points to
+            let tree: Tree = self.get_git_object_from_hash(commit_tree_id).await;
+
+            let mut root_node = tree.convert_to_node(None);
+            self.convert_tree_to_node(tree, &mut root_node).await;
+            nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
+            println!("------------ end of commit ------------");
+        }
+        Ok(nodes)
+    }
+
     /// convert Git TreeItem => Struct Node and build node tree
-    pub fn build_node_tree(&mut self, tree: &Tree, node: &mut Box<dyn Node>) {
+    #[async_recursion]
+    pub async fn convert_tree_to_node(&mut self, tree: Tree, node: &mut Box<dyn Node>) {
         for item in &tree.tree_items {
             if self.tree_build_cache.get(&item.id).is_some() {
                 continue;
             }
             if item.mode == TreeItemMode::Tree {
                 // repo_path.push(item.filename.clone());
-                let tree = self.tree_map.get(&item.id).unwrap();
+                let tree: Tree = self.get_git_object_from_hash(item.id).await;
                 node.add_child(tree.convert_to_node(Some(item)));
                 let child_node = match node.find_child(&item.name) {
                     Some(child) => child,
                     None => panic!("Something wrong!:{}", &item.name),
                 };
-                let item = self.tree_map.get(&item.id);
-                if let Some(item) = item {
-                    self.build_node_tree(&item.clone(), child_node);
-                }
+                // let item: Tree = self.get_git_object_from_hash(item.id).await;
+                // if let Some(item) = item {
+                self.convert_tree_to_node(tree.clone(), child_node).await;
+                // }
                 // repo_path.pop();
             } else {
-                let blob = self.blob_map.get(&item.id).unwrap();
+                let blob: Blob = self.get_git_object_from_hash(item.id).await;
                 node.add_child(blob.convert_to_node(Some(item)));
             }
             self.tree_build_cache.insert(item.id);
