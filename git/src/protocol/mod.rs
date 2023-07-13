@@ -9,7 +9,10 @@ pub mod ssh;
 
 use std::{io::Cursor, path::PathBuf, str::FromStr, sync::Arc};
 
-use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
+use database::{
+    driver::{mysql::storage::MysqlStorage, ObjectStorage},
+    utils::id_generator::generate_id,
+};
 
 use crate::{
     errors::GitError,
@@ -18,10 +21,10 @@ use crate::{
 };
 
 use bytes::Bytes;
-use entity::refs;
+use entity::{git_objects, refs};
 use sea_orm::{ActiveValue::NotSet, Set};
 
-use crate::internal::pack::{decode::ObjDecodedMap, iterator::EntriesIter, Pack};
+use crate::internal::pack::{iterator::EntriesIter, Pack};
 use common::{errors::MegaError, utils::ZERO_ID};
 
 #[derive(Clone)]
@@ -173,11 +176,10 @@ impl RefCommand {
 
     pub async fn unpack(
         &mut self,
+        storage: Arc<dyn ObjectStorage>,
         pack_file: &mut Bytes,
-        // storage: &T,
-    ) -> Result<ObjDecodedMap, anyhow::Error> {
-        let obj: Result<ObjDecodedMap, GitError> = {
-            let mut object_map = ObjDecodedMap::default();
+    ) -> Result<i64, anyhow::Error> {
+        let result: Result<i64, GitError> = {
             let count_hash: bool = true;
             let curosr_pack = Cursor::new(pack_file);
             let mut reader = HashCounter::new(curosr_pack, count_hash);
@@ -185,26 +187,29 @@ impl RefCommand {
             let mut pack = Pack::check_header(&mut reader)?;
 
             let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects() as u32);
+
+            let mut save_models: Vec<git_objects::ActiveModel> = Vec::new();
+            let mr_id = generate_id();
             for _ in 0..pack.number_of_objects() {
                 let obj = iterator.next_git_obj().await?;
-                println!("{}", obj);
+                // println!("{}", obj);
                 match obj {
                     GitObjects::COMMIT(a) => {
-                        object_map.commits.push(a);
+                        save_models.push(a.convert_to_git_obj_model(mr_id));
                     }
                     GitObjects::TREE(a) => {
-                        object_map.trees.push(a);
+                        save_models.push(a.convert_to_git_obj_model(mr_id));
                     }
                     GitObjects::BLOB(a) => {
-                        object_map.blobs.push(a);
+                        save_models.push(a.convert_to_git_obj_model(mr_id));
                     }
                     GitObjects::TAG(a) => {
-                        object_map.tags.push(a);
+                        save_models.push(a.convert_to_git_obj_model(mr_id));
                     }
                 }
             }
             drop(iterator);
-
+            storage.save_git_objects(save_models).await.unwrap();
             let _hash = reader.final_hash();
             pack.signature = _hash;
             //pack.signature = Hash::new_from_bytes(&id[..]);
@@ -212,12 +217,12 @@ impl RefCommand {
             // pack.signature = read_tail_hash(&mut reader);
             // assert_eq!(_hash, pack.signature);
 
-            Ok(object_map)
+            Ok(mr_id)
         };
-        match obj {
-            Ok(object_map) => {
+        match result {
+            Ok(mr_id) => {
                 self.status = RefCommand::OK_STATUS.to_owned();
-                Ok(object_map)
+                Ok(mr_id)
             }
             Err(err) => {
                 self.status = RefCommand::FAILED_STATUS.to_owned();
@@ -225,37 +230,6 @@ impl RefCommand {
                 Err(err.into())
             }
         }
-
-        // match Pack::decode(&mut Cursor::new(&pack_file)).await {
-        //     Ok(decoded_pack) => {
-        //         let inner = &mut Cursor::new(&pack_file);
-        //         let mut inter = EntriesIter::new(
-        //             BufReader::with_capacity(4096, inner),
-        //             decoded_pack.number_of_objects() as u32,
-        //         );
-
-        //         for _ in 0..decoded_pack.number_of_objects() {
-        //             let obj = inter.next_obj().await?;
-        //             println!("{}", obj);
-        //             let raw = obj.get_raw().to_vec();
-        //             //let rrr: Arc<Mutex<dyn Any>> = Arc::new(Mutex::new(_blob));
-        //             match obj.get_type() {
-        //                 ObjectType::Commit => object_map.commits.push(Commit::new_from_data(raw)),
-        //                 ObjectType::Tree => object_map.trees.push(Tree::new_from_data(raw)),
-        //                 ObjectType::Blob => object_map.blobs.push(Blob::new_from_data(raw)),
-        //                 ObjectType::Tag => object_map.tags.push(Tag::new_from_data(raw)),
-        //                 _ => todo!(),
-        //             }
-        //         }
-
-        //         self.status = RefCommand::OK_STATUS.to_owned();
-        //         Ok(object_map)
-        //     }
-        //     Err(err) => {
-        //         self.status = RefCommand::FAILED_STATUS.to_owned();
-        //         self.error_msg = err.to_string();
-        //         Err(err.into())
-        //     }
     }
 
     pub fn get_status(&self) -> String {
