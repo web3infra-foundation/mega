@@ -187,7 +187,7 @@ impl RefCommand {
             let mut pack = Pack::check_header(&mut reader)?;
 
             let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects() as u32);
-
+            iterator.set_storage(Some(storage.clone()));
             let mut save_models: Vec<git_objects::ActiveModel> = Vec::new();
             let mr_id = generate_id();
             for _ in 0..pack.number_of_objects() {
