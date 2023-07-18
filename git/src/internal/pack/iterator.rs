@@ -1,6 +1,8 @@
+use database::driver::ObjectStorage;
+
 use crate::{
     internal::{
-        object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree, GitObjects},
+        object::{blob::Blob, commit::Commit, from_model, tag::Tag, tree::Tree, GitObjects},
         pack::delta::DeltaReader,
         zlib::stream::inflate::ReadBoxed,
         GitError, ObjectType,
@@ -19,6 +21,7 @@ pub struct EntriesIter<BR> {
     offset: usize,
     objects_left: u32,
     cache: ObjectCache,
+    storage: Option<Arc<dyn ObjectStorage>>,
 }
 
 impl<BR: std::io::BufRead> EntriesIter<BR> {
@@ -29,9 +32,12 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
             offset: 12,
             objects_left: obj_num,
             cache: ObjectCache::new(),
+            storage: None,
         }
     }
-
+    pub fn set_storage(&mut self, s: Option<Arc<dyn ObjectStorage>>) {
+        self.storage = s;
+    }
     pub async fn next_obj(&mut self) -> IteratorResult {
         self.objects_left -= 1;
         let mut iter_offset: usize = 0;
@@ -80,27 +86,52 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                     })
                     .unwrap();
 
-                base_object = self
-                    .cache
-                    .get(base_offset)
-                    .ok_or_else(|| {
-                        println!("wrong base offset :{}", base_offset);
-                        GitError::DeltaObjectError("cant' find base obj from offset".to_string())
-                    })
-                    .unwrap();
+                if let Some(bo) = self.cache.get(base_offset) {
+                    base_object = bo;
+                } else {
+                    let base_hash = self.cache.get_hash(base_offset).unwrap();
+                    if let Some(storage) = &self.storage {
+                        let _model = storage
+                            .get_git_object_by_hash(&base_hash.to_plain_str())
+                            .await
+                            .unwrap()
+                            .ok_or_else(|| {
+                                println!("wrong base offset :{}", base_offset);
+                                GitError::DeltaObjectError(
+                                    "cant' find base obj from offset".to_string(),
+                                )
+                            })?; //TODO: Handler mega error to Git Error?
+                        base_object = from_model(_model);
+                    } else {
+                        return Err(GitError::DeltaObjectError(
+                            "we don't have a storage ".to_string(),
+                        ));
+                    }
+                }
             } else if type_num == 7 {
                 // Ref Delta Object
                 let hash = utils::read_hash(&mut self.inner).unwrap();
                 iter_offset += 20;
-                base_object = self
-                    .cache
-                    .get_hash(hash)
-                    .ok_or_else(|| {
-                        GitError::DeltaObjectError(
-                            "cant' find base obj from hash value ".to_string(),
-                        )
-                    })
-                    .unwrap();
+
+                if let Some(bo) = self.cache.get_by_hash(hash) {
+                    base_object = bo;
+                } else if let Some(storage) = &self.storage {
+                    let _model = storage
+                        .get_git_object_by_hash(&hash.to_plain_str())
+                        .await
+                        .unwrap()
+                        .ok_or_else(|| {
+                            println!("wrong base hash value :{}", hash);
+                            GitError::DeltaObjectError(
+                                "cant' find base obj from hash value ".to_string(),
+                            )
+                        })?; //TODO: Handler mega error to Git Error?
+                    base_object = from_model(_model);
+                } else {
+                    return Err(GitError::DeltaObjectError(
+                        "we don't have a storage ".to_string(),
+                    ));
+                };
             } else {
                 return Err(ObjectType::number2type(type_num).err().unwrap());
             }
@@ -181,27 +212,52 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                     })
                     .unwrap();
 
-                base_object = self
-                    .cache
-                    .get(base_offset)
-                    .ok_or_else(|| {
-                        println!("wrong base offset :{}", base_offset);
-                        GitError::DeltaObjectError("cant' find base obj from offset".to_string())
-                    })
-                    .unwrap();
+                if let Some(bo) = self.cache.get(base_offset) {
+                    base_object = bo;
+                } else {
+                    let base_hash = self.cache.get_hash(base_offset).unwrap();
+                    if let Some(storage) = &self.storage {
+                        let _model = storage
+                            .get_git_object_by_hash(&base_hash.to_plain_str())
+                            .await
+                            .unwrap()
+                            .ok_or_else(|| {
+                                println!("wrong base offset :{}", base_offset);
+                                GitError::DeltaObjectError(
+                                    "cant' find base obj from offset".to_string(),
+                                )
+                            })?; //TODO: Handler mega error to Git Error?
+                        base_object = from_model(_model);
+                    } else {
+                        return Err(GitError::DeltaObjectError(
+                            "we don't have a storage ".to_string(),
+                        ));
+                    }
+                }
             } else if type_num == 7 {
                 // Ref Delta Object
                 let hash = utils::read_hash(&mut self.inner).unwrap();
                 iter_offset += 20;
-                base_object = self
-                    .cache
-                    .get_hash(hash)
-                    .ok_or_else(|| {
-                        GitError::DeltaObjectError(
-                            "cant' find base obj from hash value ".to_string(),
-                        )
-                    })
-                    .unwrap();
+
+                if let Some(bo) = self.cache.get_by_hash(hash) {
+                    base_object = bo;
+                } else if let Some(storage) = &self.storage {
+                    let _model = storage
+                        .get_git_object_by_hash(&hash.to_plain_str())
+                        .await
+                        .unwrap()
+                        .ok_or_else(|| {
+                            println!("wrong base hash value :{}", hash);
+                            GitError::DeltaObjectError(
+                                "cant' find base obj from hash value ".to_string(),
+                            )
+                        })?; //TODO: Handler mega error to Git Error?
+                    base_object = from_model(_model);
+                } else {
+                    return Err(GitError::DeltaObjectError(
+                        "we don't have a storage ".to_string(),
+                    ));
+                }
             } else {
                 return Err(ObjectType::number2type(type_num).err().unwrap());
             }
