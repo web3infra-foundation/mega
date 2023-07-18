@@ -10,7 +10,6 @@ use crate::internal::object::tree::Tree;
 use crate::internal::object::ObjectT;
 use crate::internal::ObjectType;
 use crate::protocol::{CommandType, PackProtocol, RefCommand};
-// use crate::structure::nodes::build_node_tree;
 use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;

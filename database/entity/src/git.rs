@@ -3,14 +3,14 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "git_objects")]
+#[sea_orm(table_name = "git")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub mr_id: i64,
     pub git_id: String,
     pub object_type: String,
-    #[sea_orm(column_type = "Binary(BlobSize::Blob(None))")]
+    #[sea_orm(column_type = "Binary(BlobSize::Medium)")]
     pub data: Vec<u8>,
     pub created_at: DateTime,
     pub updated_at: DateTime,

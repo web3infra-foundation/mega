@@ -3,7 +3,7 @@
 pub mod prelude;
 
 pub mod commit;
-pub mod git_objects;
+pub mod git;
 pub mod locks;
 pub mod meta;
 pub mod node;

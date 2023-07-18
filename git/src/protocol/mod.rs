@@ -14,14 +14,10 @@ use database::{
     utils::id_generator::generate_id,
 };
 
-use crate::{
-    errors::GitError,
-    internal::{object::GitObjects, pack::decode::HashCounter},
-    protocol::pack::SP,
-};
+use crate::{errors::GitError, internal::pack::decode::HashCounter, protocol::pack::SP};
 
 use bytes::Bytes;
-use entity::{git_objects, refs};
+use entity::{git, refs};
 use sea_orm::{ActiveValue::NotSet, Set};
 
 use crate::internal::pack::{iterator::EntriesIter, Pack};
@@ -188,28 +184,21 @@ impl RefCommand {
 
             let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects() as u32);
             iterator.set_storage(Some(storage.clone()));
-            let mut save_models: Vec<git_objects::ActiveModel> = Vec::new();
+            let mut save_models: Vec<git::ActiveModel> = Vec::new();
             let mr_id = generate_id();
-            for _ in 0..pack.number_of_objects() {
-                let obj = iterator.next_git_obj().await?;
+            for i in 0..pack.number_of_objects() {
+                let obj = iterator.next_obj().await?;
                 // println!("{}", obj);
-                match obj {
-                    GitObjects::COMMIT(a) => {
-                        save_models.push(a.convert_to_git_obj_model(mr_id));
-                    }
-                    GitObjects::TREE(a) => {
-                        save_models.push(a.convert_to_git_obj_model(mr_id));
-                    }
-                    GitObjects::BLOB(a) => {
-                        save_models.push(a.convert_to_git_obj_model(mr_id));
-                    }
-                    GitObjects::TAG(a) => {
-                        save_models.push(a.convert_to_git_obj_model(mr_id));
-                    }
+                if i % 1000 == 0 {
+                    tracing::info!("{}", i)
+                }
+                save_models.push(obj.convert_to_mr_model(mr_id));
+                if save_models.len() == 100 {
+                    storage.save_git_objects(save_models.clone()).await.unwrap();
+                    save_models.clear();
                 }
             }
             drop(iterator);
-            storage.save_git_objects(save_models).await.unwrap();
             let _hash = reader.final_hash();
             pack.signature = _hash;
             //pack.signature = Hash::new_from_bytes(&id[..]);

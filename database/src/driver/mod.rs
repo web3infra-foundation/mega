@@ -9,7 +9,7 @@ use std::{collections::HashMap, path::Path};
 use async_trait::async_trait;
 
 use common::errors::{GitLFSError, MegaError};
-use entity::{commit, git_objects, node, refs};
+use entity::{commit, git, node, refs};
 
 use self::lfs::{
     storage::MetaObject,
@@ -23,20 +23,20 @@ pub mod mysql;
 pub trait ObjectStorage: Send + Sync {
     async fn save_git_objects(
         &self,
-        objects: Vec<git_objects::ActiveModel>,
+        objects: Vec<git::ActiveModel>,
     ) -> Result<bool, MegaError>;
 
     async fn get_git_objects(
         &self,
         mr_id: i64,
         object_type: &str,
-    ) -> Result<Vec<git_objects::Model>, MegaError>;
+    ) -> Result<Vec<git::Model>, MegaError>;
 
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
     async fn get_git_object_by_hash(
         &self,
         hash: &str,
-    ) -> Result<Option<git_objects::Model>, MegaError>;
+    ) -> Result<Option<git::Model>, MegaError>;
 
     async fn get_ref_object_id(&self, path: &Path) -> HashMap<String, String>;
 
