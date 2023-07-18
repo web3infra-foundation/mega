@@ -11,7 +11,7 @@ use chrono::DateTime;
 use chrono::Utc;
 
 use entity::commit;
-use entity::git_objects;
+use entity::git;
 use entity::locks;
 use entity::meta;
 use entity::node;
@@ -47,11 +47,8 @@ impl MysqlStorage {
 
 #[async_trait]
 impl ObjectStorage for MysqlStorage {
-    async fn save_git_objects(
-        &self,
-        objects: Vec<git_objects::ActiveModel>,
-    ) -> Result<bool, MegaError> {
-        self.batch_save_model(objects).await.unwrap();
+    async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError> {
+        self.batch_save_model(objects.to_vec()).await?;
         Ok(true)
     }
 
@@ -59,22 +56,19 @@ impl ObjectStorage for MysqlStorage {
         &self,
         mr_id: i64,
         object_type: &str,
-    ) -> Result<Vec<git_objects::Model>, MegaError> {
-        Ok(git_objects::Entity::find()
-            .filter(git_objects::Column::MrId.eq(mr_id))
-            .filter(git_objects::Column::ObjectType.eq(object_type))
+    ) -> Result<Vec<git::Model>, MegaError> {
+        Ok(git::Entity::find()
+            .filter(git::Column::MrId.eq(mr_id))
+            .filter(git::Column::ObjectType.eq(object_type))
             .all(&self.connection)
             .await
             .unwrap())
     }
 
-    async fn get_git_object_by_hash(
-        &self,
-        hash: &str,
-    ) -> Result<Option<git_objects::Model>, MegaError> {
+    async fn get_git_object_by_hash(&self, hash: &str) -> Result<Option<git::Model>, MegaError> {
         // get original data from database
-        Ok(git_objects::Entity::find()
-            .filter(git_objects::Column::GitId.eq(hash))
+        Ok(git::Entity::find()
+            .filter(git::Column::GitId.eq(hash))
             .one(&self.connection)
             .await
             .unwrap())
@@ -547,12 +541,21 @@ impl MysqlStorage {
     {
         let mut futures = Vec::new();
 
-        // notice that sqlx not support packets larger than 16MB now
         for chunk in save_models.chunks(100) {
-            let save_result = E::insert_many(chunk.iter().cloned())
-                .exec(&self.connection)
-                .await;
-            futures.push(save_result);
+            // notice that sqlx not support packets larger than 16MB now
+            if std::mem::size_of_val(chunk) > 0x2F_FF_FF {
+                for new_chunk in chunk.chunks(10) {
+                    let save_result = E::insert_many(new_chunk.iter().cloned())
+                        .exec(&self.connection)
+                        .await;
+                    futures.push(save_result);
+                }
+            } else {
+                let save_result = E::insert_many(chunk.iter().cloned())
+                    .exec(&self.connection)
+                    .await;
+                futures.push(save_result);
+            }
         }
         // futures::future::join_all(futures).await;
         Ok(())
