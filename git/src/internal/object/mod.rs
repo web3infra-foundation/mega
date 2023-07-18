@@ -13,13 +13,15 @@ pub mod meta;
 pub mod signature;
 pub mod tag;
 pub mod tree;
-use self::meta::Meta;
+use self::{blob::Blob, commit::Commit, meta::Meta, tag::Tag, tree::Tree};
 use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectType};
 use crate::hash::Hash;
+use entity::git_objects::Model;
 use sha1::Digest;
 use std::{
     fmt::Display,
     io::{BufRead, Read},
+    sync::Arc,
 };
 #[derive(Clone)]
 pub enum GitObjects {
@@ -37,6 +39,17 @@ impl Display for GitObjects {
             GitObjects::TAG(a) => writeln!(f, "{}", a),
         }
     }
+}
+pub fn from_model(model: Model) -> Arc<dyn ObjectT> {
+    let obj: Arc<dyn ObjectT> = match &model.object_type as &str {
+        "blob" => Arc::new(Blob::new_from_data(model.data)),
+        "commit" => Arc::new(Commit::new_from_data(model.data)),
+        "tag" => Arc::new(Tag::new_from_data(model.data)),
+        "tree" => Arc::new(Tree::new_from_data(model.data)),
+        //TODO: error type
+        &_ => todo!(),
+    };
+    obj
 }
 
 /// The [`ObjectT`] Trait is for the Blob、Commit、Tree and Tag Structs , which are four common object
@@ -99,6 +112,5 @@ pub trait ObjectT: Send + Sync + Display {
         r
     }
 }
-
 #[cfg(test)]
 mod tests {}

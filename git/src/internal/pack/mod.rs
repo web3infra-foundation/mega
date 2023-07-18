@@ -6,7 +6,6 @@
 use super::object::cache::ObjectCache;
 use crate::hash::Hash;
 use std::path::PathBuf;
-
 pub mod decode;
 pub mod delta;
 pub mod iterator;
