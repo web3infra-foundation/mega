@@ -1,4 +1,4 @@
-CREATE TABLE `git_objects` (
+CREATE TABLE `git` (
   `id` bigint NOT NULL,
   `mr_id` bigint NOT NULL,
   `git_id` varchar(64) NOT NULL,
