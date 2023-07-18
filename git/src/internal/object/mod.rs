@@ -13,10 +13,13 @@ pub mod meta;
 pub mod signature;
 pub mod tag;
 pub mod tree;
+
 use self::{blob::Blob, commit::Commit, meta::Meta, tag::Tag, tree::Tree};
 use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectType};
 use crate::hash::Hash;
-use entity::git_objects::Model;
+use database::utils::id_generator::generate_id;
+use entity::git::{self, Model};
+use sea_orm::Set;
 use sha1::Digest;
 use std::{
     fmt::Display,
@@ -110,6 +113,18 @@ pub trait ObjectT: Send + Sync + Display {
         let mut r = Self::new_from_data(meta.data);
         r.set_hash(meta.id);
         r
+    }
+
+    fn convert_to_mr_model(&self, mr_id: i64) -> git::ActiveModel {
+        git::ActiveModel {
+            id: Set(generate_id()),
+            mr_id: Set(mr_id),
+            git_id: Set(self.get_hash().to_plain_str()),
+            object_type: Set(String::from_utf8_lossy(self.get_type().to_bytes()).to_string()),
+            data: Set(self.get_raw()),
+            created_at: Set(chrono::Utc::now().naive_utc()),
+            updated_at: Set(chrono::Utc::now().naive_utc()),
+        }
     }
 }
 #[cfg(test)]
