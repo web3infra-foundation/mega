@@ -55,18 +55,21 @@ impl ObjectStorage for MysqlStorage {
             .sum::<usize>();
 
         if packet_size > 0xDF_FF_FF {
-            let mut batch_nodes = Vec::new();
+            let mut batch_obj = Vec::new();
             let mut sum = 0;
             for model in objects {
                 let size = model.data.as_ref().len();
                 if sum + size < 0xDF_FF_FF {
                     sum += size;
-                    batch_nodes.push(model);
+                    batch_obj.push(model);
                 } else {
-                    self.batch_save_model(batch_nodes).await?;
-                    sum = 0;
-                    batch_nodes = vec![model];
+                    self.batch_save_model(batch_obj).await?;
+                    sum = size;
+                    batch_obj = vec![model];
                 }
+            }
+            if !batch_obj.is_empty() {
+                self.batch_save_model(batch_obj).await?;
             }
         } else {
             self.batch_save_model(objects).await?;
