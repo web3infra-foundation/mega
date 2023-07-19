@@ -198,6 +198,9 @@ impl RefCommand {
                     save_models.clear();
                 }
             }
+            if save_models.len() != 0 {
+                storage.save_git_objects(save_models).await.unwrap();
+            }
             drop(iterator);
             let _hash = reader.final_hash();
             pack.signature = _hash;

@@ -3,7 +3,7 @@ CREATE TABLE `git` (
   `mr_id` bigint NOT NULL,
   `git_id` varchar(64) NOT NULL,
   `object_type` varchar(16) NOT NULL,
-  `data` blob NOT NULL,
+  `data` mediumblob NOT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
   PRIMARY KEY (`id`),

@@ -96,7 +96,7 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                             .await
                             .unwrap()
                             .ok_or_else(|| {
-                                println!("wrong base offset :{}", base_offset);
+                                tracing::error!("invalid base offset: {}, invalid hash: {}", base_offset, base_hash.to_plain_str());
                                 GitError::DeltaObjectError(
                                     "cant' find base obj from offset".to_string(),
                                 )
