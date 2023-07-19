@@ -38,7 +38,7 @@ impl Pack {
 
         let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects as u32);
         for _ in 0..pack.number_of_objects {
-            let obj = iterator.next_git_obj().await?;
+            let obj = iterator.next_obj().await?;
             println!("{}", obj);
         }
         drop(iterator);
