@@ -186,6 +186,7 @@ impl RefCommand {
             iterator.set_storage(Some(storage.clone()));
             let mut save_models: Vec<git::ActiveModel> = Vec::new();
             let mr_id = generate_id();
+            let batch_size = 100;
             for i in 0..pack.number_of_objects() {
                 let obj = iterator.next_obj().await?;
                 // println!("{}", obj);
@@ -193,10 +194,13 @@ impl RefCommand {
                     tracing::info!("{}", i)
                 }
                 save_models.push(obj.convert_to_mr_model(mr_id));
-                if save_models.len() == 100 {
+                if save_models.len() == batch_size {
                     storage.save_git_objects(save_models.clone()).await.unwrap();
                     save_models.clear();
                 }
+            }
+            if !save_models.is_empty() {
+                storage.save_git_objects(save_models).await.unwrap();
             }
             drop(iterator);
             let _hash = reader.final_hash();

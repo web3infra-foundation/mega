@@ -25,6 +25,7 @@ use sea_orm::EntityTrait;
 use sea_orm::QueryFilter;
 use sea_orm::Set;
 use sea_orm::Statement;
+use sea_orm::TryIntoModel;
 
 use crate::driver::lfs::storage::MetaObject;
 use crate::driver::lfs::structs::Lock;
@@ -48,7 +49,31 @@ impl MysqlStorage {
 #[async_trait]
 impl ObjectStorage for MysqlStorage {
     async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError> {
-        self.batch_save_model(objects.to_vec()).await?;
+        let packet_size = objects
+            .iter()
+            .map(|model| model.clone().try_into_model().unwrap().data.len())
+            .sum::<usize>();
+
+        if packet_size > 0xDF_FF_FF {
+            let mut batch_obj = Vec::new();
+            let mut sum = 0;
+            for model in objects {
+                let size = model.data.as_ref().len();
+                if sum + size < 0xDF_FF_FF {
+                    sum += size;
+                    batch_obj.push(model);
+                } else {
+                    self.batch_save_model(batch_obj).await?;
+                    sum = size;
+                    batch_obj = vec![model];
+                }
+            }
+            if !batch_obj.is_empty() {
+                self.batch_save_model(batch_obj).await?;
+            }
+        } else {
+            self.batch_save_model(objects).await?;
+        }
         Ok(true)
     }
 
@@ -543,19 +568,10 @@ impl MysqlStorage {
 
         for chunk in save_models.chunks(100) {
             // notice that sqlx not support packets larger than 16MB now
-            if std::mem::size_of_val(chunk) > 0x2F_FF_FF {
-                for new_chunk in chunk.chunks(10) {
-                    let save_result = E::insert_many(new_chunk.iter().cloned())
-                        .exec(&self.connection)
-                        .await;
-                    futures.push(save_result);
-                }
-            } else {
-                let save_result = E::insert_many(chunk.iter().cloned())
-                    .exec(&self.connection)
-                    .await;
-                futures.push(save_result);
-            }
+            let save_result = E::insert_many(chunk.iter().cloned())
+                .exec(&self.connection)
+                .await;
+            futures.push(save_result);
         }
         // futures::future::join_all(futures).await;
         Ok(())
