@@ -54,11 +54,16 @@ impl Default for ObjectCache {
     }
 }
 impl ObjectCache {
-    pub fn new() -> Self {
+    pub fn new(size: Option<usize> ) -> Self {
+        let lru_size = if let Some(size) = size{
+            NonZeroUsize::new(size).unwrap()
+        }else {
+            CACHE_SIZE
+        };
         ObjectCache {
             ioffset: HashMap::new(),
-            ihash: LruCache::new(CACHE_SIZE),
-            inner: LruCache::new(CACHE_SIZE),
+            ihash: LruCache::new(lru_size),
+            inner: LruCache::new(lru_size),
         }
     }
     pub fn get_hash(&mut self, offset: usize) -> Option<Hash> {
@@ -92,7 +97,7 @@ mod test {
     use crate::{hash::Hash, internal::object::blob};
     #[test] //TODO: to test
     fn test_cache() {
-        let mut cache = ObjectCache::new();
+        let mut cache = ObjectCache::new(None);
 
         let data = to_vec("sdfsdfsdf").unwrap();
         let h1 = Hash::new(&data);
