@@ -27,11 +27,16 @@ pub struct EntriesIter<BR> {
 impl<BR: std::io::BufRead> EntriesIter<BR> {
     //After Pack::check_header
     pub fn new(r: BR, obj_num: u32) -> Self {
+        let cache_size = if obj_num<10000 {
+             None
+        }else {
+             Some((obj_num as usize)/10)
+        };
         Self {
             inner: r,
             offset: 12,
             objects_left: obj_num,
-            cache: ObjectCache::new(),
+            cache: ObjectCache::new(cache_size),
             storage: None,
         }
     }
