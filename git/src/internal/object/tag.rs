@@ -116,7 +116,6 @@ impl Tag {
 
         Ok(data)
     }
-
 }
 
 impl ObjectT for Tag {

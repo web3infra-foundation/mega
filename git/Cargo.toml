@@ -46,3 +46,4 @@ sea-orm = {version = "0.11.3", features = [
     "macros",
 ]}
 async-recursion = "1.0.4"
+num_cpus = "1.16.0"
