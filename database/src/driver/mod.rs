@@ -26,10 +26,16 @@ pub trait ObjectStorage: Send + Sync {
         objects: Vec<git::ActiveModel>,
     ) -> Result<bool, MegaError>;
 
-    async fn get_git_objects(
+    async fn get_git_objects_by_type(
         &self,
         mr_id: i64,
         object_type: &str,
+    ) -> Result<Vec<git::Model>, MegaError>;
+
+    async fn get_git_objects_by_hashes(
+        &self,
+        mr_id: i64,
+        hashes: Vec<String>,
     ) -> Result<Vec<git::Model>, MegaError>;
 
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
