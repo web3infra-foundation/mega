@@ -77,7 +77,7 @@ impl ObjectStorage for MysqlStorage {
         Ok(true)
     }
 
-    async fn get_git_objects(
+    async fn get_git_objects_by_type(
         &self,
         mr_id: i64,
         object_type: &str,
@@ -85,6 +85,19 @@ impl ObjectStorage for MysqlStorage {
         Ok(git::Entity::find()
             .filter(git::Column::MrId.eq(mr_id))
             .filter(git::Column::ObjectType.eq(object_type))
+            .all(&self.connection)
+            .await
+            .unwrap())
+    }
+
+    async fn get_git_objects_by_hashes(
+        &self,
+        mr_id: i64,
+        hashes: Vec<String>,
+    ) -> Result<Vec<git::Model>, MegaError> {
+        Ok(git::Entity::find()
+            .filter(git::Column::MrId.eq(mr_id))
+            .filter(git::Column::GitId.is_in(hashes))
             .all(&self.connection)
             .await
             .unwrap())
@@ -143,7 +156,7 @@ impl ObjectStorage for MysqlStorage {
         Ok(refs::Entity::find()
         .from_raw_sql(Statement::from_sql_and_values(
             DatabaseBackend::MySql,
-            r#"SELECT * FROM gust.refs where ? LIKE CONCAT(repo_path, '%') and ref_name = 'refs/heads/master' "#,
+            r#"SELECT * FROM refs where ? LIKE CONCAT(repo_path, '%') and ref_name = 'refs/heads/master' "#,
             [path_str.into()],
         ))
         .all(&self.connection)
@@ -154,7 +167,7 @@ impl ObjectStorage for MysqlStorage {
         Ok(commit::Entity::find()
             .from_raw_sql(Statement::from_sql_and_values(
                 DatabaseBackend::MySql,
-                r#"SELECT * FROM gust.commit where ? LIKE CONCAT(repo_path, '%')"#,
+                r#"SELECT * FROM commit where ? LIKE CONCAT(repo_path, '%')"#,
                 [path_str.into()],
             ))
             .all(&self.connection)
@@ -208,30 +221,22 @@ impl ObjectStorage for MysqlStorage {
     }
 
     async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
-        let conn = &self.connection;
         let mut sum = 0;
         let mut batch_nodes = Vec::new();
         for node in nodes {
-            // let model = node.try_into_model().unwrap();
             let size = node.data.as_ref().len();
-            let limit = 10 * 1024 * 1024;
-            if sum + size < limit && batch_nodes.len() < 50 {
+            let limit = 0xAF_FF_FF;
+            if sum + size < limit {
                 sum += size;
                 batch_nodes.push(node);
             } else {
-                node::Entity::insert_many(batch_nodes)
-                    .exec(conn)
-                    .await
-                    .unwrap();
-                sum = 0;
+                self.batch_save_model(batch_nodes).await?;
+                sum = size;
                 batch_nodes = vec![node];
             }
         }
         if !batch_nodes.is_empty() {
-            node::Entity::insert_many(batch_nodes)
-                .exec(conn)
-                .await
-                .unwrap();
+            self.batch_save_model(batch_nodes).await?;
         }
         Ok(true)
     }
