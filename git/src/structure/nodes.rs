@@ -1,4 +1,9 @@
-use std::{any::Any, collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    any::Any,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use async_recursion::async_recursion;
 use database::{
@@ -14,7 +19,6 @@ use crate::{
         blob::Blob,
         commit::Commit,
         tree::{Tree, TreeItemMode},
-        ObjectT,
     },
 };
 
@@ -25,6 +29,8 @@ pub struct Repo {
     pub storage: Arc<dyn ObjectStorage>,
     pub mr_id: i64,
     pub tree_build_cache: HashSet<Hash>,
+    pub tree_map: HashMap<Hash, Tree>,
+    pub blob_map: HashMap<Hash, Blob>,
 }
 
 pub struct TreeNode {
@@ -271,17 +277,6 @@ impl TreeNode {
 }
 
 impl Repo {
-    pub async fn get_git_object_from_hash<T: ObjectT>(&self, hash: Hash) -> T {
-        let data = self
-            .storage
-            .get_git_object_by_hash(&hash.to_plain_str())
-            .await
-            .unwrap()
-            .unwrap()
-            .data;
-        T::new_from_data(data)
-    }
-
     /// this method is used to build node tree and persist node data to database. Conversion order:
     /// 1. Git TreeItem => Struct Node => DB Model
     /// 2. Git Blob => DB Model
@@ -294,15 +289,14 @@ impl Repo {
         let mut nodes = Vec::new();
 
         for commit in commits {
-            // let commit = Commit::new_from_data(model.data);
             let commit_tree_id = commit.tree_id;
             //fetch the tree which commit points to
-            let tree: Tree = self.get_git_object_from_hash(commit_tree_id).await;
+            let tree = self.tree_map.get(&commit_tree_id).unwrap();
 
             let mut root_node = tree.convert_to_node(None);
-            self.convert_tree_to_node(tree, &mut root_node).await;
+            self.convert_tree_to_node(tree.clone(), &mut root_node)
+                .await;
             nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
-            println!("------------ end of commit ------------");
         }
         Ok(nodes)
     }
@@ -316,19 +310,15 @@ impl Repo {
             }
             if item.mode == TreeItemMode::Tree {
                 // repo_path.push(item.filename.clone());
-                let tree: Tree = self.get_git_object_from_hash(item.id).await;
+                let tree = self.tree_map.get(&item.id).unwrap();
                 node.add_child(tree.convert_to_node(Some(item)));
                 let child_node = match node.find_child(&item.name) {
                     Some(child) => child,
                     None => panic!("Something wrong!:{}", &item.name),
                 };
-                // let item: Tree = self.get_git_object_from_hash(item.id).await;
-                // if let Some(item) = item {
                 self.convert_tree_to_node(tree.clone(), child_node).await;
-                // }
-                // repo_path.pop();
             } else {
-                let blob: Blob = self.get_git_object_from_hash(item.id).await;
+                let blob = self.blob_map.get(&item.id).unwrap();
                 node.add_child(blob.convert_to_node(Some(item)));
             }
             self.tree_build_cache.insert(item.id);
@@ -368,9 +358,9 @@ pub fn convert_node_to_model(node: &dyn Node, depth: u32) -> Vec<node::ActiveMod
 /// Print a node with format.
 pub fn print_node(node: &dyn Node, depth: u32) {
     if depth == 0 {
-        println!("{}", node.get_name());
+        tracing::debug!("{}", node.get_name());
     } else {
-        println!(
+        tracing::debug!(
             "{:indent$}└── {} {}",
             "",
             node.get_name(),
