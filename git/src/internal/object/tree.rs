@@ -283,7 +283,6 @@ impl Tree {
     // pub fn to_file(&self, path: &str) -> Result<PathBuf, GitError> {
     //     self.meta.to_file(path)
     // }
-
 }
 
 impl ObjectT for Tree {

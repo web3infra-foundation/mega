@@ -60,6 +60,36 @@ where
     }
 }
 
+pub struct ReadPlain<R> {
+    /// The reader from which bytes should be decompressed.
+    pub inner: R,
+    /// The decompressor doing all the work.
+    pub decompressor: Box<Decompress>,
+}
+impl<R> ReadPlain<R>
+where
+    R: BufRead,
+{
+    pub fn new(inner: R) -> Self {
+        ReadPlain {
+            inner,
+            decompressor: Box::new(Decompress::new(true)),
+        }
+    }
+    pub fn fresh(&mut self, inner: R) {
+        self.decompressor.reset(true);
+        self.inner = inner;
+    }
+}
+impl<R> io::Read for ReadPlain<R>
+where
+    R: BufRead,
+{
+    fn read(&mut self, into: &mut [u8]) -> io::Result<usize> {
+        read(&mut self.inner, &mut self.decompressor, into)
+    }
+}
+
 /// Read bytes from `rd` and decompress them using `state` into a pre-allocated fitting buffer `dst`, returning the amount of bytes written.
 fn read(rd: &mut impl BufRead, state: &mut Decompress, mut dst: &mut [u8]) -> io::Result<usize> {
     let mut total_written = 0;
