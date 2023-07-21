@@ -66,6 +66,8 @@ pub trait ObjectStorage: Send + Sync {
 
     async fn get_node_by_id(&self, id: &str) -> Option<node::Model>;
 
+    async fn get_node_by_path(&self, path: &Path) -> Result<Vec<node::Model>, MegaError>;
+
     async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError>;
 
     async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, MegaError>;
