@@ -4,6 +4,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use crate::errors::GitError;
 use crate::hash::Hash;
+use crate::internal::object::blob::Blob;
 use crate::internal::object::commit::Commit;
 use crate::internal::object::meta::Meta;
 use crate::internal::object::tree::Tree;
@@ -187,25 +188,25 @@ pub async fn save_packfile(
     mr_id: i64,
     repo_path: &Path,
 ) -> Result<(), anyhow::Error> {
+    let tree_map: HashMap<Hash, Tree> = get_objects_from_mr(storage.clone(), mr_id, "tree").await;
+    let blob_map: HashMap<Hash, Blob> = get_objects_from_mr(storage.clone(), mr_id, "blob").await;
+    let commit_map: HashMap<Hash, Commit> =
+        get_objects_from_mr(storage.clone(), mr_id, "commit").await;
     let mut repo = Repo {
         storage: storage.clone(),
         mr_id,
         tree_build_cache: HashSet::new(),
+        tree_map,
+        blob_map,
     };
-
-    let mut commits: Vec<Commit> = Vec::new();
-    let commit_model = storage.get_git_objects(mr_id, "commit").await.unwrap();
-    for model in commit_model {
-        commits.push(Commit::new_from_data(model.data))
-    }
-
+    let commits = commit_map.values().cloned().collect();
     let nodes = repo.build_node_tree(&commits).await.unwrap();
     storage.save_nodes(nodes).await.unwrap();
 
-    let mut save_models: Vec<commit::ActiveModel> = Vec::new();
-    for commit in commits {
-        save_models.push(commit.convert_to_model(repo_path));
-    }
+    let save_models: Vec<commit::ActiveModel> = commits
+        .iter()
+        .map(|commit| commit.convert_to_model(repo_path))
+        .collect();
 
     storage.save_commits(save_models).await.unwrap();
     Ok(())
@@ -226,4 +227,24 @@ pub async fn handle_refs(storage: Arc<dyn ObjectStorage>, command: &RefCommand, 
                 .await;
         }
     }
+}
+
+pub async fn get_objects_from_mr<T: ObjectT>(
+    storage: Arc<dyn ObjectStorage>,
+    mr_id: i64,
+    object_type: &str,
+) -> HashMap<Hash, T> {
+    let models = storage
+        .get_git_objects_by_type(mr_id, object_type)
+        .await
+        .unwrap();
+    models
+        .iter()
+        .map(|model| {
+            let mut obj = T::new_from_data(model.data.clone());
+            let hash = Hash::new_from_str(&model.git_id);
+            obj.set_hash(hash);
+            (hash, obj)
+        })
+        .collect()
 }
