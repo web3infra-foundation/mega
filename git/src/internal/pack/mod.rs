@@ -8,6 +8,7 @@ use crate::hash::Hash;
 use std::path::PathBuf;
 pub mod decode;
 pub mod delta;
+pub mod encode;
 pub mod iterator;
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
