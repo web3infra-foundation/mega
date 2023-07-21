@@ -24,7 +24,7 @@ pub mod conversion;
 pub mod nodes;
 /// only blob and tree should implement this trait
 pub trait GitNodeObject {
-    fn convert_to_node(&self, item: Option<&TreeItem>) -> Box<dyn Node>;
+    fn convert_to_node(&self, item: Option<&TreeItem>, path: PathBuf) -> Box<dyn Node>;
 
     // fn convert_from_model(model: &node::Model) -> Self
     // where
@@ -39,12 +39,12 @@ pub trait GitNodeObject {
 }
 
 impl GitNodeObject for Blob {
-    fn convert_to_node(&self, item: Option<&TreeItem>) -> Box<dyn Node> {
+    fn convert_to_node(&self, item: Option<&TreeItem>, path: PathBuf) -> Box<dyn Node> {
         Box::new(FileNode {
             nid: self.generate_id(),
             pid: "".to_owned(),
             git_id: self.id,
-            path: PathBuf::new(),
+            path,
             mode: if let Some(item) = item {
                 item.mode.to_bytes().to_vec()
             } else {
@@ -112,7 +112,7 @@ impl GitNodeObject for Tree {
     //     }
     // }
 
-    fn convert_to_node(&self, item: Option<&TreeItem>) -> Box<dyn Node> {
+    fn convert_to_node(&self, item: Option<&TreeItem>, path: PathBuf) -> Box<dyn Node> {
         Box::new(TreeNode {
             nid: generate_id(),
             pid: "".to_owned(),
@@ -122,7 +122,7 @@ impl GitNodeObject for Tree {
             } else {
                 "".to_owned()
             },
-            path: PathBuf::new(),
+            path,
             mode: if let Some(item) = item {
                 item.mode.to_bytes().to_vec()
             } else {

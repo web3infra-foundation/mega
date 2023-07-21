@@ -31,6 +31,7 @@ pub struct Repo {
     pub tree_build_cache: HashSet<Hash>,
     pub tree_map: HashMap<Hash, Tree>,
     pub blob_map: HashMap<Hash, Blob>,
+    pub repo_path: PathBuf,
 }
 
 pub struct TreeNode {
@@ -146,6 +147,7 @@ impl Node for TreeNode {
             mode: Set(self.mode.clone()),
             content_sha: NotSet,
             data: Set(self.data.clone()),
+            repo_path: Set(self.path.to_string_lossy().into_owned()),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
         }
@@ -227,6 +229,7 @@ impl Node for FileNode {
             mode: Set(self.mode.clone()),
             content_sha: NotSet,
             data: Set(self.data.clone()),
+            repo_path: Set(self.path.to_string_lossy().into_owned()),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
         }
@@ -294,7 +297,7 @@ impl Repo {
                 //fetch the tree which commit points to
                 let tree = self.tree_map.get(&commit_tree_id).unwrap();
 
-                let mut root_node = tree.convert_to_node(None);
+                let mut root_node = tree.convert_to_node(None, self.repo_path.to_path_buf());
                 self.convert_tree_to_node(tree.clone(), &mut root_node)
                     .await;
                 nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
@@ -314,7 +317,7 @@ impl Repo {
             if item.mode == TreeItemMode::Tree {
                 // repo_path.push(item.filename.clone());
                 let tree = self.tree_map.get(&item.id).unwrap();
-                node.add_child(tree.convert_to_node(Some(item)));
+                node.add_child(tree.convert_to_node(Some(item), self.repo_path.to_path_buf()));
                 let child_node = match node.find_child(&item.name) {
                     Some(child) => child,
                     None => panic!("Something wrong!:{}", &item.name),
@@ -322,7 +325,7 @@ impl Repo {
                 self.convert_tree_to_node(tree.clone(), child_node).await;
             } else {
                 let blob = self.blob_map.get(&item.id).unwrap();
-                node.add_child(blob.convert_to_node(Some(item)));
+                node.add_child(blob.convert_to_node(Some(item), self.repo_path.to_path_buf()));
             }
             self.tree_build_cache.insert(item.id);
         }
