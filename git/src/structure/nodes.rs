@@ -290,13 +290,16 @@ impl Repo {
 
         for commit in commits {
             let commit_tree_id = commit.tree_id;
-            //fetch the tree which commit points to
-            let tree = self.tree_map.get(&commit_tree_id).unwrap();
+            if !self.tree_build_cache.contains(&commit_tree_id) {
+                //fetch the tree which commit points to
+                let tree = self.tree_map.get(&commit_tree_id).unwrap();
 
-            let mut root_node = tree.convert_to_node(None);
-            self.convert_tree_to_node(tree.clone(), &mut root_node)
-                .await;
-            nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
+                let mut root_node = tree.convert_to_node(None);
+                self.convert_tree_to_node(tree.clone(), &mut root_node)
+                    .await;
+                nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
+                self.tree_build_cache.insert(commit_tree_id);
+            }
         }
         Ok(nodes)
     }
