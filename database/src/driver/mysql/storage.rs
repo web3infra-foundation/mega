@@ -219,6 +219,13 @@ impl ObjectStorage for MysqlStorage {
             .await
             .unwrap()
     }
+    async fn get_node_by_path(&self, path: &Path) -> Result<Vec<node::Model>, MegaError> {
+        Ok(node::Entity::find()
+            .filter(node::Column::RepoPath.eq(path.to_str().unwrap()))
+            .all(&self.connection)
+            .await
+            .unwrap())
+    }
 
     async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
         let mut sum = 0;
