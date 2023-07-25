@@ -1,8 +1,7 @@
-use super::{delta::undelta, Pack};
+  use super::{delta::undelta, Pack, cache::ObjectCache};
 use crate::{
     errors::GitError,
     internal::{
-        object::cache::ObjectCache,
         pack::Hash,
         zlib::stream::inflate::ReadPlain,
     },
