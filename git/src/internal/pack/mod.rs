@@ -3,14 +3,17 @@
 //!
 //!
 //!
-use super::object::{cache::ObjectCache, ObjectT};
+use self::cache::ObjectCache;
+
+use super::object::ObjectT;
 use crate::hash::Hash;
 use std::{path::PathBuf, sync::Arc};
+
 pub mod decode;
 pub mod delta;
 pub mod encode;
 pub mod iterator;
-
+mod cache;
 mod preload;
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
