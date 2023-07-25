@@ -80,7 +80,6 @@ impl Blob {
             name: filename.to_string(),
         })
     }
-
 }
 
 impl ObjectT for Blob {
