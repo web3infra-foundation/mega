@@ -213,7 +213,7 @@ impl ObjectT for Commit {
 
         // The rest is the message
         let message =
-            String::from_utf8(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec()).unwrap();
+            unsafe { String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec()) };
 
         Commit {
             id: Hash([0u8; 20]),

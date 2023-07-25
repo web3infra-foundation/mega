@@ -1,7 +1,6 @@
-use super::ObjectT;
 use crate::hash::Hash;
 use lru::LruCache;
-use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
+use std::{collections::HashMap, num::NonZeroUsize};
 
 #[derive(Hash, Clone, PartialEq, Eq)]
 struct OffHash {
@@ -22,10 +21,10 @@ struct OffHash {
 ///           ↗
 ///     Hash
 /// ```
-pub struct ObjectCache {
+pub struct ObjectCache<T> {
     ioffset: HashMap<usize, OffHash>,
     ihash: LruCache<Hash, OffHash>,
-    inner: LruCache<OffHash, Arc<dyn ObjectT>>,
+    inner: LruCache<OffHash, T>,
 }
 /// The Size of Object Cache during the decode operation should be talked about.
 /// There are --window and --depth options in the process of git pack packaging
@@ -44,7 +43,7 @@ pub struct ObjectCache {
 /// adjust to 300 more, the decode operation is normal.
 /// TODO : deal with "cache miss", get the miss object from DataBase or other sink target.
 const CACHE_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1000) };
-impl Default for ObjectCache {
+impl<T> Default for ObjectCache<T> {
     fn default() -> Self {
         Self {
             ioffset: HashMap::new(),
@@ -53,11 +52,14 @@ impl Default for ObjectCache {
         }
     }
 }
-impl ObjectCache {
-    pub fn new(size: Option<usize> ) -> Self {
-        let lru_size = if let Some(size) = size{
+impl<T> ObjectCache<T>
+where
+    T: Clone,
+{
+    pub fn new(size: Option<usize>) -> Self {
+        let lru_size = if let Some(size) = size {
             NonZeroUsize::new(size).unwrap()
-        }else {
+        } else {
             CACHE_SIZE
         };
         ObjectCache {
@@ -66,23 +68,23 @@ impl ObjectCache {
             inner: LruCache::new(lru_size),
         }
     }
-    pub fn get_hash(&mut self, offset: usize) -> Option<Hash> {
+    pub fn get_hash(&self, offset: usize) -> Option<Hash> {
         self.ioffset.get(&offset).map(|oh| oh.h)
     }
-    pub fn put(&mut self, offset: usize, hash: Hash, obj: Arc<dyn ObjectT>) {
+    pub fn put(&mut self, offset: usize, hash: Hash, obj: T) {
         let oh: OffHash = OffHash { o: offset, h: hash };
         self.ioffset.insert(offset, oh.clone());
         self.ihash.put(hash, oh.clone());
-        self.inner.put(oh, Arc::clone(&obj));
+        self.inner.put(oh, obj);
     }
 
-    pub fn get(&mut self, offset: usize) -> Option<Arc<dyn ObjectT>> {
+    pub fn get(&mut self, offset: usize) -> Option<T> {
         let oh = self.ioffset.get(&offset)?;
         self.ihash.get(&oh.h)?;
         self.inner.get(oh).cloned()
     }
 
-    pub fn get_by_hash(&mut self, h: Hash) -> Option<Arc<dyn ObjectT>> {
+    pub fn get_by_hash(&mut self, h: Hash) -> Option<T> {
         let oh = self.ihash.get(&h)?;
         self.inner.get(oh).cloned()
     }
