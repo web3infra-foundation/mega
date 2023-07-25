@@ -21,10 +21,7 @@ pub mod mysql;
 
 #[async_trait]
 pub trait ObjectStorage: Send + Sync {
-    async fn save_git_objects(
-        &self,
-        objects: Vec<git::ActiveModel>,
-    ) -> Result<bool, MegaError>;
+    async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError>;
 
     async fn get_git_objects_by_type(
         &self,
@@ -39,10 +36,7 @@ pub trait ObjectStorage: Send + Sync {
     ) -> Result<Vec<git::Model>, MegaError>;
 
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
-    async fn get_git_object_by_hash(
-        &self,
-        hash: &str,
-    ) -> Result<Option<git::Model>, MegaError>;
+    async fn get_git_object_by_hash(&self, hash: &str) -> Result<Option<git::Model>, MegaError>;
 
     async fn get_ref_object_id(&self, path: &Path) -> HashMap<String, String>;
 

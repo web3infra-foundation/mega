@@ -20,17 +20,17 @@ pub struct EntriesIter<BR> {
     inner: BR,
     offset: usize,
     objects_left: u32,
-    cache: ObjectCache,
+    cache: ObjectCache<Arc<dyn ObjectT>>,
     storage: Option<Arc<dyn ObjectStorage>>,
 }
 
 impl<BR: std::io::BufRead> EntriesIter<BR> {
     //After Pack::check_header
     pub fn new(r: BR, obj_num: u32) -> Self {
-        let cache_size = if obj_num<10000 {
-             None
-        }else {
-             Some((obj_num as usize)/10)
+        let cache_size = if obj_num < 10000 {
+            None
+        } else {
+            Some((obj_num as usize) / 10)
         };
         Self {
             inner: r,
@@ -101,7 +101,11 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                             .await
                             .unwrap()
                             .ok_or_else(|| {
-                                tracing::error!("invalid base offset: {}, invalid hash: {}", base_offset, base_hash.to_plain_str());
+                                tracing::error!(
+                                    "invalid base offset: {}, invalid hash: {}",
+                                    base_offset,
+                                    base_hash.to_plain_str()
+                                );
                                 GitError::DeltaObjectError(
                                     "cant' find base obj from offset".to_string(),
                                 )
