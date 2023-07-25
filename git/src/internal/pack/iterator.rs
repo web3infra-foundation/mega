@@ -10,8 +10,10 @@ use crate::{
     utils,
 };
 
-use crate::internal::object::{cache::ObjectCache, ObjectT};
+use crate::internal::object::ObjectT;
 use std::sync::Arc;
+
+use super::cache::ObjectCache;
 type IteratorResult = Result<Arc<dyn ObjectT>, GitError>;
 type GitIteratorResult = Result<GitObjects, GitError>;
 
