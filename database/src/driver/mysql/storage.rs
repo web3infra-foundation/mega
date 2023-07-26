@@ -134,15 +134,6 @@ impl ObjectStorage for MysqlStorage {
             .unwrap())
     }
 
-    async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError> {
-        Ok(commit::Entity::find()
-            .filter(commit::Column::GitId.eq(git_id))
-            .one(&self.connection)
-            .await
-            .unwrap()
-            .unwrap())
-    }
-
     async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<commit::Model>, MegaError> {
         let commits: Vec<commit::Model> = commit::Entity::find()
             .filter(commit::Column::RepoPath.eq(path.to_str().unwrap()))
@@ -204,20 +195,20 @@ impl ObjectStorage for MysqlStorage {
             .unwrap();
     }
 
-    async fn get_nodes_by_ids(&self, ids: Vec<String>) -> Result<Vec<node::Model>, MegaError> {
+    async fn get_nodes_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<node::Model>, MegaError> {
         Ok(node::Entity::find()
-            .filter(node::Column::GitId.is_in(ids))
+            .filter(node::Column::GitId.is_in(hashes))
             .all(&self.connection)
             .await
             .unwrap())
     }
 
-    async fn get_node_by_id(&self, id: &str) -> Option<node::Model> {
-        node::Entity::find()
-            .filter(node::Column::GitId.eq(id))
+    async fn get_node_by_hash(&self, hash: &str) -> Result<Option<node::Model>, MegaError> {
+        Ok(node::Entity::find()
+            .filter(node::Column::GitId.eq(hash))
             .one(&self.connection)
             .await
-            .unwrap()
+            .unwrap())
     }
     async fn get_node_by_path(&self, path: &Path) -> Result<Vec<node::Model>, MegaError> {
         Ok(node::Entity::find()
