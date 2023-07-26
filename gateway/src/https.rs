@@ -76,12 +76,12 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
     let server_url = format!("{}:{}", host, port);
 
     // let config =  LfsConfig::from(options.to_owned());
-    // config.storage =
     let state = AppState {
         storage: Arc::new(mysql::init().await),
         options: options.to_owned(),
     };
     let app = Router::new()
+        .nest("/api/v1", api_routers::routers(state.clone()))
         .route(
             "/*path",
             get(get_method_router)
@@ -238,6 +238,61 @@ async fn put_method_router(
             StatusCode::FORBIDDEN,
             String::from("Operation not supported"),
         ))
+    }
+}
+
+mod api_routers {
+    use std::collections::HashMap;
+
+    use axum::{
+        extract::{Query, State},
+        response::IntoResponse,
+        routing::get,
+        Json, Router,
+    };
+    use hyper::StatusCode;
+
+    use crate::{
+        api_service::obj_service,
+        model::object_detail::{BlobObjects, TreeObjects},
+    };
+
+    use super::AppState;
+
+    pub fn routers<S>(state: AppState) -> Router<S> {
+        Router::new()
+            .route("/blob", get(get_blob_object))
+            .route("/tree", get(get_tree_objects))
+            .route("/object", get(get_origin_object))
+            .with_state(state)
+    }
+
+    async fn get_blob_object(
+        Query(query): Query<HashMap<String, String>>,
+        state: State<AppState>,
+    ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
+        let repo_path = query.get("repo_path").unwrap();
+        let object_id = query.get("object_id").unwrap();
+
+        obj_service::get_blob_objects(state.storage.clone(), object_id, repo_path).await
+    }
+
+    async fn get_tree_objects(
+        Query(query): Query<HashMap<String, String>>,
+        state: State<AppState>,
+    ) -> Result<Json<TreeObjects>, (StatusCode, String)> {
+        let object_id = query.get("object_id");
+        let repo_path = query.get("repo_path").unwrap();
+        obj_service::get_tree_objects(state.storage.clone(), object_id, repo_path).await
+    }
+
+    async fn get_origin_object(
+        Query(query): Query<HashMap<String, String>>,
+        state: State<AppState>,
+    ) -> Result<impl IntoResponse, (StatusCode, String)> {
+        let repo_path = query.get("repo_path").unwrap();
+        let object_id = query.get("object_id").unwrap();
+        obj_service::get_objects_data(state.storage.clone(), object_id, repo_path).await
     }
 }
 

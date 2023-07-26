@@ -11,6 +11,9 @@ use git::lfs::LfsConfig;
 use https::HttpOptions;
 pub mod https;
 pub mod ssh;
+mod model;
+mod api_service;
+
 
 impl From<HttpOptions> for LfsConfig {
     fn from(value: HttpOptions) -> Self {

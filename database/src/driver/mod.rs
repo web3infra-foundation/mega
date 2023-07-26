@@ -44,8 +44,6 @@ pub trait ObjectStorage: Send + Sync {
 
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<commit::Model>, MegaError>;
 
-    async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError>;
-
     async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<commit::Model>, MegaError>;
 
     async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError>;
@@ -56,9 +54,9 @@ pub trait ObjectStorage: Send + Sync {
 
     async fn delete_refs(&self, old_id: String, path: &Path);
 
-    async fn get_nodes_by_ids(&self, ids: Vec<String>) -> Result<Vec<node::Model>, MegaError>;
+    async fn get_nodes_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<node::Model>, MegaError>;
 
-    async fn get_node_by_id(&self, id: &str) -> Option<node::Model>;
+    async fn get_node_by_hash(&self, hash: &str) -> Result<Option<node::Model>, MegaError>;
 
     async fn get_node_by_path(&self, path: &Path) -> Result<Vec<node::Model>, MegaError>;
 
