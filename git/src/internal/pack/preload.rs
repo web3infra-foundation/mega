@@ -1,10 +1,8 @@
-  use super::{delta::undelta, Pack, cache::ObjectCache};
+
+use super::{cache::ObjectCache, delta::undelta, Pack};
 use crate::{
     errors::GitError,
-    internal::{
-        pack::Hash,
-        zlib::stream::inflate::ReadPlain,
-    },
+    internal::{pack::Hash, zlib::stream::inflate::ReadPlain},
     utils,
 };
 use database::{driver::ObjectStorage, utils::id_generator::generate_id};
@@ -53,9 +51,13 @@ pub enum EntryHeader {
     Blob,
     Tag,
     #[allow(unused)]
-    RefDelta { base_id: Hash },
+    RefDelta {
+        base_id: Hash,
+    },
     #[allow(unused)]
-    OfsDelta { base_distance: usize },
+    OfsDelta {
+        base_distance: usize,
+    },
 }
 
 const COMMIT_OBJECT_TYPE: &[u8] = b"commit";
@@ -115,11 +117,11 @@ impl PackPreload {
             let (type_num, size) = utils::read_type_and_size(&mut r).unwrap();
             //Get the Object according to the Types Enum
             iter_offset += utils::get_7bit_count(size << 3);
-            let header: EntryHeader=match type_num {
-                1 =>  EntryHeader::Commit,
-                2 =>  EntryHeader::Tree,
-                3 =>  EntryHeader::Blob,
-                4 =>  EntryHeader::Tag,
+            let header: EntryHeader = match type_num {
+                1 => EntryHeader::Commit,
+                2 => EntryHeader::Tree,
+                3 => EntryHeader::Blob,
+                4 => EntryHeader::Tag,
 
                 6 => {
                     let delta_offset =
@@ -168,7 +170,7 @@ impl PackPreload {
 }
 
 #[allow(unused)]
-pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>){
+pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
     let all_len = p.len();
     let (cpu_number, chunk) = thread_chunk(all_len);
     let share: Arc<RwLock<PackPreload>> = Arc::new(RwLock::new(p));
@@ -176,7 +178,6 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>){
     let (tx, rx) = mpsc::channel();
     println!("begin_____");
 
-   
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
             let tx_clone = tx.clone();
@@ -185,10 +186,10 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>){
             thread::spawn(move || {
                 //produce_data(i, tx_clone)
                 let begin = i * chunk;
-                let end= if i == cpu_number - 1 {
+                let end = if i == cpu_number - 1 {
                     all_len
                 } else {
-                    (i+1) * chunk  
+                    (i + 1) * chunk
                 };
                 produce_object(shard_clone, tx_clone, st_clone, begin, end);
             })
@@ -210,7 +211,6 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>){
 
     // 等待消费者任务结束
     consume_handle.join().unwrap();
-
 }
 
 use std::sync::mpsc::Receiver;
@@ -273,24 +273,19 @@ fn consume_object(rx: Receiver<Entry>, storage: Arc<dyn ObjectStorage>) {
     let mr_id = generate_id();
     let mut handler: Option<tokio::task::JoinHandle<()>> = None;
     for data in rx.into_iter() {
-
         save_model.push(data.convert_to_mr_model(mr_id));
         if save_model.len() >= 100 {
             // Don't await for db, just give save_models to db connect, and continue receiver entry
             // only wait the db operation, when the vev is "full" again
-            if let Some(hand) = handler{
-             rt.block_on( 
-                async move {
+            if let Some(hand) = handler {
+                rt.block_on(async move {
                     hand.await.unwrap();
-                }
-             )
+                })
             }
             let st = storage.clone();
-            handler = Some(rt.spawn(
-                async move{
-                    st.save_git_objects(save_model).await.unwrap();
-                }
-            ));
+            handler = Some(rt.spawn(async move {
+                st.save_git_objects(save_model).await.unwrap();
+            }));
             save_model = Vec::with_capacity(101);
         }
     }
@@ -347,7 +342,7 @@ fn compute_hash(mut e: Entry) -> Entry {
     }
 
     let mut h = Sha1::new();
-    h.update(e.header.to_bytes() );
+    h.update(e.header.to_bytes());
     h.update(b" ");
     h.update(e.data.len().to_string());
     h.update(b"\0");
@@ -384,11 +379,10 @@ mod tests {
         .unwrap();
 
         let p = PackPreload::new(BufReader::new(file));
-        println!("{}",p.len());
+        println!("{}", p.len());
         for it in p.entries {
             println!("{:?},offset:{}", it.header, it.offset);
         }
-        
     }
 
     #[test]

@@ -212,8 +212,9 @@ impl ObjectT for Commit {
             Signature::new_from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
 
         // The rest is the message
-        let message =
-            unsafe { String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec()) };
+        let message = unsafe {
+            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
+        };
 
         Commit {
             id: Hash([0u8; 20]),

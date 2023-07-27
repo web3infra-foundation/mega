@@ -1,27 +1,29 @@
+use sha1::{Digest, Sha1};
 use std::io::{Cursor, Write};
 use std::sync::Arc;
-use sha1::{Digest, Sha1};
 
 use crate::internal::object::ObjectT;
 use crate::internal::zlib::stream::deflate::Write as Writer;
 
 use std::io::Error;
 #[allow(unused)]
-struct Encoder<W>{
+struct Encoder<W> {
     inner: W,
-    hash : Sha1,
+    hash: Sha1,
 }
 #[allow(unused)]
-impl<W> Encoder<W> where W: Write{
-    pub fn init(object_number: usize,mut inner :W) -> Self{
-        let head =encode_header(object_number);
+impl<W> Encoder<W>
+where
+    W: Write,
+{
+    pub fn init(object_number: usize, mut inner: W) -> Self {
+        let head = encode_header(object_number);
         inner.write_all(&head).unwrap();
         let mut hash = Sha1::new();
         hash.update(&head);
-        Self { inner ,hash }
+        Self { inner, hash }
     }
-    pub fn add_objects(&mut self,obj_vec: Vec<Arc<dyn ObjectT>>) -> Result<(),Error> {
-
+    pub fn add_objects(&mut self, obj_vec: Vec<Arc<dyn ObjectT>>) -> Result<(), Error> {
         for obj in obj_vec {
             let obj_data = encode_one_object(obj)?;
             self.hash.update(&obj_data);
@@ -29,13 +31,13 @@ impl<W> Encoder<W> where W: Write{
         }
         Ok(())
     }
-    pub fn finish(&mut self)-> Result<(),Error>{
+    pub fn finish(&mut self) -> Result<(), Error> {
         let hash_result = self.hash.clone().finalize();
         self.inner.write_all(&hash_result)?;
         Ok(())
     }
 }
-// 
+//
 
 pub fn pack_encode(obj_vec: Vec<Arc<dyn ObjectT>>) -> Result<Vec<u8>, Error> {
     let mut hash = Sha1::new();
@@ -143,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pack_encoder(){
+    fn test_pack_encoder() {
         let id = Hash([0u8; 20]);
         let mut pack_data = Vec::with_capacity(1000);
         // Encoder::init
