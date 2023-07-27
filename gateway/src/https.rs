@@ -24,6 +24,8 @@ use git::protocol::{PackProtocol, Protocol};
 use hyper::{Body, Request, StatusCode, Uri};
 use regex::Regex;
 use serde::Deserialize;
+use tower::ServiceBuilder;
+use tower_http::cors::{Any, CorsLayer};
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -88,6 +90,7 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
                 .post(post_method_router)
                 .put(put_method_router),
         )
+        .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
         .with_state(state);
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
