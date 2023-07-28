@@ -145,13 +145,13 @@ impl ObjectStorage for MysqlStorage {
 
     async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError> {
         Ok(refs::Entity::find()
-        .from_raw_sql(Statement::from_sql_and_values(
-            DatabaseBackend::MySql,
-            r#"SELECT * FROM refs where ? LIKE CONCAT(repo_path, '%') and ref_name = 'refs/heads/master' "#,
-            [path_str.into()],
-        ))
-        .all(&self.connection)
-        .await?)
+            .from_raw_sql(Statement::from_sql_and_values(
+                DatabaseBackend::MySql,
+                r#"SELECT * FROM refs where ? LIKE CONCAT(repo_path, '%') "#,
+                [path_str.into()],
+            ))
+            .all(&self.connection)
+            .await?)
     }
 
     async fn search_commits(&self, path_str: &str) -> Result<Vec<commit::Model>, MegaError> {
@@ -195,7 +195,10 @@ impl ObjectStorage for MysqlStorage {
             .unwrap();
     }
 
-    async fn get_nodes_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<node::Model>, MegaError> {
+    async fn get_nodes_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<node::Model>, MegaError> {
         Ok(node::Entity::find()
             .filter(node::Column::GitId.is_in(hashes))
             .all(&self.connection)
@@ -567,16 +570,12 @@ impl MysqlStorage {
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
     {
-        let mut futures = Vec::new();
-
         for chunk in save_models.chunks(100) {
             // notice that sqlx not support packets larger than 16MB now
-            let save_result = E::insert_many(chunk.iter().cloned())
+            E::insert_many(chunk.iter().cloned())
                 .exec(&self.connection)
-                .await;
-            futures.push(save_result);
+                .await?;
         }
-        // futures::future::join_all(futures).await;
         Ok(())
     }
 }
