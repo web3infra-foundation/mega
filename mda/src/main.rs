@@ -205,8 +205,8 @@ fn generate_mda_file(
     let header = Header {
         tags,
         train_data: TrainData {
-            data_type: file_type.to_string(),
-            metadata: meta.to_string(),
+            data_type: file_type,
+            metadata: meta,
         },
     };
 

@@ -1,8 +1,8 @@
 
-use super::{cache::ObjectCache, delta::undelta, Pack};
+use super::{cache::ObjectCache, delta::undelta, Pack, EntryHeader, counter::GitTypeCounter};
 use crate::{
     errors::GitError,
-    internal::{pack::Hash, zlib::stream::inflate::ReadPlain},
+    internal::{pack::{Hash, counter::DecodeCounter}, zlib::stream::inflate::ReadPlain},
     utils,
 };
 use database::{driver::ObjectStorage, utils::id_generator::generate_id};
@@ -15,7 +15,7 @@ use std::sync::RwLock;
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
-    sync::{mpsc, Arc},
+    sync::{mpsc, Arc,Mutex},
     thread,
 };
 use tokio::runtime::Runtime;
@@ -44,61 +44,16 @@ impl Entry {
         }
     }
 }
-#[derive(Debug, Clone)]
-pub enum EntryHeader {
-    Commit,
-    Tree,
-    Blob,
-    Tag,
-    #[allow(unused)]
-    RefDelta {
-        base_id: Hash,
-    },
-    #[allow(unused)]
-    OfsDelta {
-        base_distance: usize,
-    },
-}
 
-const COMMIT_OBJECT_TYPE: &[u8] = b"commit";
-const TREE_OBJECT_TYPE: &[u8] = b"tree";
-const BLOB_OBJECT_TYPE: &[u8] = b"blob";
-const TAG_OBJECT_TYPE: &[u8] = b"tag";
 
-impl EntryHeader {
-    fn from_string(t: &str) -> Self {
-        match t {
-            "commit" => EntryHeader::Commit,
-            "tree" => EntryHeader::Tree,
-            "tag" => EntryHeader::Tag,
-            "blob" => EntryHeader::Blob,
-            _ => panic!("cat to not base obj"),
-        }
-    }
-    fn is_base(&self) -> bool {
-        match self {
-            EntryHeader::Commit => true,
-            EntryHeader::Tree => true,
-            EntryHeader::Blob => true,
-            EntryHeader::Tag => true,
-            EntryHeader::RefDelta { base_id: _ } => false,
-            EntryHeader::OfsDelta { base_distance: _ } => false,
-        }
-    }
-    pub fn to_bytes(&self) -> &[u8] {
-        match self {
-            EntryHeader::Commit => COMMIT_OBJECT_TYPE,
-            EntryHeader::Tree => TREE_OBJECT_TYPE,
-            EntryHeader::Blob => BLOB_OBJECT_TYPE,
-            EntryHeader::Tag => TAG_OBJECT_TYPE,
-            _ => panic!("can put compute the delta hash value"),
-        }
-    }
-}
+
 pub struct PackPreload {
     map: HashMap<usize, usize>, //Offset -> iterator in entity
     entries: Vec<Entry>,
+    counter: GitTypeCounter,
 }
+
+
 #[allow(unused)]
 impl PackPreload {
     pub fn new<R>(mut r: R) -> PackPreload
@@ -106,7 +61,7 @@ impl PackPreload {
         R: std::io::BufRead,
     {
         let mut offset: usize = 12;
-
+        let mut counter = GitTypeCounter::default();
         let pack = Pack::check_header(&mut r).unwrap();
         let mut map = HashMap::new();
         let obj_number = pack.number_of_objects();
@@ -117,6 +72,7 @@ impl PackPreload {
             let (type_num, size) = utils::read_type_and_size(&mut r).unwrap();
             //Get the Object according to the Types Enum
             iter_offset += utils::get_7bit_count(size << 3);
+            counter.count(type_num);
             let header: EntryHeader = match type_num {
                 1 => EntryHeader::Commit,
                 2 => EntryHeader::Tree,
@@ -147,7 +103,7 @@ impl PackPreload {
                 _ => todo!(), //error
             };
             let mut reader = ReadPlain::new(&mut r);
-            let mut content = Vec::new();
+            let mut content = Vec::with_capacity(size);
             reader.read_to_end(&mut content).unwrap();
             iter_offset += reader.decompressor.total_in() as usize;
 
@@ -161,28 +117,39 @@ impl PackPreload {
             map.insert(offset, i);
             offset += iter_offset;
         }
-        PackPreload { map, entries }
+        PackPreload { map, entries ,counter }
     }
 
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+    pub fn is_empty(&self) -> bool{
+        self.entries.is_empty()
+    }
 }
+
 
 #[allow(unused)]
 pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
+    let decode_counter: Arc<Mutex<DecodeCounter>> = Arc::new(Mutex::new(DecodeCounter::default())) ;
+
     let all_len = p.len();
+    tracing::info!("Decode the preload git object\n{}",p.counter);
+          println!("Decode the preload git object\n{}",p.counter);
     let (cpu_number, chunk) = thread_chunk(all_len);
+    
+    tracing::info!("Deal with the object using {} threads. ",cpu_number);
+          println!("Deal with the object using {} threads. ",cpu_number);
     let share: Arc<RwLock<PackPreload>> = Arc::new(RwLock::new(p));
     // 创建一个多生产者，单消费者的通道
     let (tx, rx) = mpsc::channel();
-    println!("begin_____");
 
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
             let tx_clone = tx.clone();
             let shard_clone = share.clone();
             let st_clone = storage.clone();
+            let counter_clone = decode_counter.clone();
             thread::spawn(move || {
                 //produce_data(i, tx_clone)
                 let begin = i * chunk;
@@ -191,7 +158,7 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
                 } else {
                     (i + 1) * chunk
                 };
-                produce_object(shard_clone, tx_clone, st_clone, begin, end);
+                produce_object(shard_clone, tx_clone, st_clone, begin, end,counter_clone);
             })
         })
         .collect();
@@ -211,16 +178,21 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
 
     // 等待消费者任务结束
     consume_handle.join().unwrap();
+    let re = decode_counter.lock().unwrap();
+    tracing::info!("Summary : {}",re);
+          println!("Summary : {}",re);
 }
 
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
+use super::counter::CounterType::*;
 fn produce_object(
     data: Arc<RwLock<PackPreload>>,
     send: Sender<Entry>,
     storage: Arc<dyn ObjectStorage>,
     range_begin: usize,
     range_end: usize,
+    counter: Arc<Mutex<DecodeCounter>>,
 ) {
     let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(100));
 
@@ -234,6 +206,9 @@ fn produce_object(
             EntryHeader::RefDelta { base_id } => {
                 let base_type;
                 let base_data = if let Some(b_obj) = cache.get_by_hash(base_id) {
+                    {
+                        counter.lock().unwrap().count(CacheHit);
+                    }
                     base_type = b_obj.header;
                     b_obj.data
                 } else {
@@ -242,6 +217,9 @@ fn produce_object(
                         .unwrap()
                         .unwrap();
                     base_type = EntryHeader::from_string(&db_obj.object_type);
+                    {
+                        counter.lock().unwrap().count(DB);
+                    }
                     db_obj.data
                 };
 
@@ -253,12 +231,23 @@ fn produce_object(
                     hash: None,
                 };
                 result_entity = compute_hash(undelta_obj);
+                {
+                    counter.lock().unwrap().count(Delta);
+                }
             }
             EntryHeader::OfsDelta { base_distance: _ } => {
-                let re_obj = delta_offset_obj(data.clone(), e, &mut cache);
+                let re_obj = delta_offset_obj(data.clone(), e, &mut cache, counter.clone());
                 result_entity = compute_hash(re_obj);
+                {   
+                    counter.lock().unwrap().count(Delta);
+                }
             }
-            _ => result_entity = compute_hash(e.clone()),
+            _ =>{
+                {
+                    counter.lock().unwrap().count(Base);
+                }
+                result_entity = compute_hash(e.clone());
+            } 
         }
         cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
         send.send(result_entity).unwrap();
@@ -298,6 +287,7 @@ fn delta_offset_obj(
     data: Arc<RwLock<PackPreload>>,
     delta_obj: &Entry,
     cache: &mut ObjectCache<Entry>,
+    counter: Arc<Mutex<DecodeCounter>>,
 ) -> Entry {
     let share: std::sync::RwLockReadGuard<'_, PackPreload> = data.read().unwrap();
     if let EntryHeader::OfsDelta { base_distance } = delta_obj.header {
@@ -305,6 +295,9 @@ fn delta_offset_obj(
         let base_obj;
         let buff_obj;
         if let Some(b_obj) = cache.get(base_distance) {
+            {
+                counter.lock().unwrap().count(CacheHit);
+            }
             buff_obj = b_obj;
             base_obj = &buff_obj;
         } else {
@@ -315,7 +308,10 @@ fn delta_offset_obj(
         let re;
         // check its weather need to deeper recursion
         if !base_obj.header.is_base() {
-            let d_obj = delta_offset_obj(data.clone(), base_obj, cache);
+            {
+                counter.lock().unwrap().count(Depth);
+            }
+            let d_obj =  delta_offset_obj(data.clone(), base_obj, cache,counter);
             re = undelta(&mut Cursor::new(&delta_obj.data), &d_obj.data);
             basic_type = d_obj.header;
         } else {
@@ -388,6 +384,7 @@ mod tests {
     #[test]
     #[ignore]
     async fn test_demo_channel() {
+        std::env::set_var("MEGA_DATABASE_URL", "mysql://root:123456@localhost:3306/mega");
         let file = File::open(Path::new(
             "../tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack",
         ))
