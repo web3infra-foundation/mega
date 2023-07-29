@@ -1,12 +1,43 @@
+use sha1::{Digest, Sha1};
 use std::io::{Cursor, Write};
 use std::sync::Arc;
-
-use sha1::{Digest, Sha1};
 
 use crate::internal::object::ObjectT;
 use crate::internal::zlib::stream::deflate::Write as Writer;
 
 use std::io::Error;
+#[allow(unused)]
+struct Encoder<W> {
+    inner: W,
+    hash: Sha1,
+}
+#[allow(unused)]
+impl<W> Encoder<W>
+where
+    W: Write,
+{
+    pub fn init(object_number: usize, mut inner: W) -> Self {
+        let head = encode_header(object_number);
+        inner.write_all(&head).unwrap();
+        let mut hash = Sha1::new();
+        hash.update(&head);
+        Self { inner, hash }
+    }
+    pub fn add_objects(&mut self, obj_vec: Vec<Arc<dyn ObjectT>>) -> Result<(), Error> {
+        for obj in obj_vec {
+            let obj_data = encode_one_object(obj)?;
+            self.hash.update(&obj_data);
+            self.inner.write_all(&obj_data)?;
+        }
+        Ok(())
+    }
+    pub fn finish(&mut self) -> Result<(), Error> {
+        let hash_result = self.hash.clone().finalize();
+        self.inner.write_all(&hash_result)?;
+        Ok(())
+    }
+}
+//
 
 pub fn pack_encode(obj_vec: Vec<Arc<dyn ObjectT>>) -> Result<Vec<u8>, Error> {
     let mut hash = Sha1::new();
@@ -76,7 +107,7 @@ fn u32_vec(value: u32) -> Vec<u8> {
         (value >> 24 & 0xff) as u8,
         (value >> 16 & 0xff) as u8,
         (value >> 8 & 0xff) as u8,
-        (value & 0xff) as u8     
+        (value & 0xff) as u8,
     ]
 }
 
@@ -95,7 +126,7 @@ mod tests {
     use std::io::Cursor;
     use std::sync::Arc;
 
-    use super::pack_encode;
+    use super::{pack_encode, Encoder};
 
     #[test]
     fn test_a_simple_encode() {
@@ -110,6 +141,27 @@ mod tests {
 
         let result = pack_encode(obj_vec).unwrap();
         let mut buff = Cursor::new(result);
+        block_on(Pack::decode(&mut buff)).unwrap();
+    }
+
+    #[test]
+    fn test_pack_encoder() {
+        let id = Hash([0u8; 20]);
+        let mut pack_data = Vec::with_capacity(1000);
+        // Encoder::init
+        let mut encoder = Encoder::init(2, &mut pack_data);
+        let mut obj_vec: Vec<Arc<dyn ObjectT>> = Vec::new();
+        let data = String::from("hello,1").into_bytes();
+        let b1 = Blob { id, data };
+        obj_vec.push(Arc::new(b1));
+        let data = String::from("hello,2").into_bytes();
+        let b2 = Blob { id, data };
+        obj_vec.push(Arc::new(b2));
+        // Encoder::add_objects
+        encoder.add_objects(obj_vec).unwrap();
+        // Encoder::finish
+        encoder.finish().unwrap();
+        let mut buff = Cursor::new(pack_data);
         block_on(Pack::decode(&mut buff)).unwrap();
     }
 }

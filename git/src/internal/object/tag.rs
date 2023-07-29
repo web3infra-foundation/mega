@@ -116,7 +116,6 @@ impl Tag {
 
         Ok(data)
     }
-
 }
 
 impl ObjectT for Tag {
@@ -173,11 +172,10 @@ impl ObjectT for Tag {
         let tagger = Signature::new_from_data(tagger_data).unwrap();
         data = data[data.find_byte(0x0a).unwrap() + 1..].to_vec();
 
-        let message = data[data.find_byte(0x0a).unwrap()..]
+        let message = unsafe { data[data.find_byte(0x0a).unwrap()..]
             .to_vec()
-            .to_str()
-            .unwrap()
-            .to_string();
+            .to_str_unchecked()
+            .to_string() };
 
         Tag {
             id: Hash([0u8; 20]),
