@@ -38,3 +38,6 @@ ui/.env.production.local
 ui/npm-debug.log*
 ui/yarn-debug.log*
 ui/yarn-error.log*
+
+#p2p download
+download/*

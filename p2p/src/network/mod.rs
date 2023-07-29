@@ -5,11 +5,8 @@
 //!
 //!
 
-pub mod client;
-mod lib;
-pub mod relay_server;
+pub mod behaviour;
+pub mod event_handler;
 
 #[cfg(test)]
 mod tests {}
-
-

@@ -1,18 +1,23 @@
-use super::lib;
+use super::input_command;
+use crate::network::behaviour::{self, Behaviour, Event};
+use crate::network::event_handler;
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
 use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::core::upgrade;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{Kademlia, KademliaEvent};
+use libp2p::kad::{Kademlia, QueryId};
 use libp2p::rendezvous::Cookie;
-use libp2p::swarm::{NetworkBehaviour, SwarmBuilder, SwarmEvent};
+use libp2p::request_response::{ProtocolSupport, RequestId};
+use libp2p::swarm::{AddressScore, SwarmBuilder, SwarmEvent};
 use libp2p::{
-    dcutr, identify, identity, multiaddr, noise, relay, rendezvous, tcp, yamux, Multiaddr, PeerId,
-    Transport,
+    dcutr, identify, identity, multiaddr, noise, relay, rendezvous, request_response, tcp, yamux,
+    Multiaddr, PeerId, Transport,
 };
+use std::collections::HashMap;
 use std::error::Error;
+use std::iter;
 
 pub fn run(
     local_key: identity::Keypair,
@@ -44,6 +49,11 @@ pub fn run(
         dcutr: dcutr::Behaviour::new(local_peer_id),
         kademlia: Kademlia::new(local_peer_id, store),
         rendezvous: rendezvous::client::Behaviour::new(local_key),
+        request_response: request_response::Behaviour::new(
+            behaviour::FileExchangeCodec(),
+            iter::once((behaviour::FileExchangeProtocol(), ProtocolSupport::Full)),
+            Default::default(),
+        ),
     };
     let mut swarm = SwarmBuilder::without_executor(tcp_transport, behaviour, local_peer_id).build();
 
@@ -54,6 +64,9 @@ pub fn run(
         cookie: None,
         rendezvous_point: None,
         bootstrap_node_addr: None,
+        file_provide_map: HashMap::new(),
+        pending_request_file: HashMap::new(),
+        pending_get_file: HashMap::new(),
     };
 
     // Wait to listen on all interfaces.
@@ -92,12 +105,12 @@ pub fn run(
                     event = swarm.next() => {
                         match event.unwrap() {
                             SwarmEvent::NewListenAddr { .. } => {}
-                            SwarmEvent::Dialing{peer_id,connection_id} => {
-                                tracing::info!("Dialing: {:?}, via :{:?}", peer_id, connection_id)
+                            SwarmEvent::Dialing(peer_id) => {
+                                tracing::info!("Dialing: {:?}", peer_id)
                             },
                             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                                 client_paras.rendezvous_point.replace(peer_id);
-                                let p2p_suffix = multiaddr::Protocol::P2p(peer_id);
+                                let p2p_suffix = multiaddr::Protocol::P2p(*peer_id.as_ref());
                                 let bootstrap_node_addr =
                                     if !bootstrap_node_addr.ends_with(&Multiaddr::empty().with(p2p_suffix.clone())) {
                                         bootstrap_node_addr.clone().with(p2p_suffix)
@@ -108,7 +121,7 @@ pub fn run(
                                 swarm.behaviour_mut().kademlia.add_address(&peer_id.clone(),bootstrap_node_addr.clone());
                                 tracing::info!("ConnectionEstablished:{} at {}", peer_id, bootstrap_node_addr);
                             },
-                            SwarmEvent::Behaviour(Event::Identify(identify::Event::Sent {
+                            SwarmEvent::Behaviour(behaviour::Event::Identify(identify::Event::Sent {
                                 ..
                             })) => {
                                 tracing::info!("Told Bootstrap Node our public address.");
@@ -131,15 +144,13 @@ pub fn run(
                             if let Some(bootstrap_node_addr) = client_paras.bootstrap_node_addr.clone(){
                                 let public_addr = bootstrap_node_addr.with(multiaddr::Protocol::P2pCircuit);
                                 swarm.listen_on(public_addr.clone()).unwrap();
-                                swarm.add_external_address(public_addr);
+                                swarm.add_external_address(public_addr,AddressScore::Infinite);
                                 //register rendezvous
-                                if let Err(error) = swarm.behaviour_mut().rendezvous.register(
-                                        rendezvous::Namespace::from_static(lib::NAMESPACE),
-                                        relay_peer_id.unwrap(),
-                                        None,
-                                    ) {
-                                    tracing::error!("Failed to register rendezvous point: {error}");
-                                }
+                                swarm.behaviour_mut().rendezvous.register(
+                                    rendezvous::Namespace::from_static(event_handler::NAMESPACE),
+                                    relay_peer_id.unwrap(),
+                                    None,
+                                )
                             }
 
                             break;
@@ -155,7 +166,6 @@ pub fn run(
     }
 
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
-
     block_on(async {
         loop {
             futures::select! {
@@ -165,50 +175,51 @@ pub fn run(
                             continue;
                     }
                     //kad input
-                     lib::handle_input_line(&mut swarm.behaviour_mut().kademlia,line.to_string());
+                     input_command::handle_input_command(&mut swarm,&mut client_paras,line.to_string());
                 },
-                event = swarm.select_next_some() => match event{
-                    SwarmEvent::NewListenAddr { address, .. } => {
-                        tracing::info!("Listening on {:?}", address);
-                    }
-                    SwarmEvent::ConnectionEstablished {
-                        peer_id, endpoint, ..
-                        } => {
-                            tracing::info!("Established connection to {:?} via {:?}", peer_id, endpoint);
-                            swarm.behaviour_mut().kademlia.add_address(&peer_id,endpoint.get_remote_address().clone());
-                            let peers = swarm.connected_peers();
-                            for p in peers {
-                                tracing::info!("Connected peer: {}",p);
-                            };
+                event = swarm.select_next_some() => {
+                    match event{
+                        SwarmEvent::NewListenAddr { address, .. } => {
+                            tracing::info!("Listening on {:?}", address);
+                        }
+                        SwarmEvent::ConnectionEstablished {
+                            peer_id, endpoint, ..
+                            } => {
+                                tracing::info!("Established connection to {:?} via {:?}", peer_id, endpoint);
+                                swarm.behaviour_mut().kademlia.add_address(&peer_id,endpoint.get_remote_address().clone());
+                                let peers = swarm.connected_peers();
+                                for p in peers {
+                                    tracing::info!("Connected peer: {}",p);
+                                };
+                            },
+                        SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                            tracing::info!("Disconnect {:?}", peer_id);
                         },
-                    SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                        tracing::info!("Disconnect {:?}", peer_id);
-                    },
-                    SwarmEvent::OutgoingConnectionError{error,..} => {
-                        tracing::debug!("OutgoingConnectionError {:?}", error);
-                        // if let Some(peer_id) = peer_id{
-                        //     tracing::info!("kad remove peer: {:?}", peer_id);
-                        //     swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
-                        // }
-                    },
-                    //Identify events
-                    SwarmEvent::Behaviour(Event::Identify(event)) => {
-                        lib::identify_event_handler(&mut swarm.behaviour_mut().kademlia, event);
-                    },
-                    //RendezvousClient events
-                    SwarmEvent::Behaviour(Event::Rendezvous(event)) => {
-                        lib::rendezvous_client_event_handler(&mut swarm,&mut client_paras, event);
-                    },
-
-                    //kad events
-                    SwarmEvent::Behaviour(Event::Kademlia(event)) => {
-                         lib::kad_event_handler(event);
-                    },
-
-                    _ => {
-                        tracing::debug!("Event: {:?}", event);
-                    }
-                },
+                        SwarmEvent::OutgoingConnectionError{error,..} => {
+                            tracing::debug!("OutgoingConnectionError {:?}", error);
+                        },
+                        //Identify events
+                        SwarmEvent::Behaviour(Event::Identify(event)) => {
+                            event_handler::identify_event_handler(&mut swarm.behaviour_mut().kademlia, event);
+                        },
+                        //RendezvousClient events
+                        SwarmEvent::Behaviour(Event::Rendezvous(event)) => {
+                            event_handler::rendezvous_client_event_handler(&mut swarm, &mut client_paras, event);
+                        },
+                        //kad events
+                        SwarmEvent::Behaviour(Event::Kademlia(event)) => {
+                            event_handler::kad_event_handler(event.clone());
+                            event_handler::kad_event_callback(&mut swarm, &mut client_paras, event);
+                        },
+                        //file transfer events
+                        SwarmEvent::Behaviour(Event::RequestResponse(event)) => {
+                             event_handler::file_transfer_event_handler(&mut swarm, &mut client_paras, event);
+                        },
+                        _ => {
+                            tracing::debug!("Event: {:?}", event);
+                        }
+                    };
+                }
             }
         }
     });
@@ -220,54 +231,7 @@ pub struct ClientParas {
     pub cookie: Option<Cookie>,
     pub rendezvous_point: Option<PeerId>,
     pub bootstrap_node_addr: Option<Multiaddr>,
-}
-
-#[derive(NetworkBehaviour)]
-#[behaviour(to_swarm = "Event")]
-pub struct Behaviour {
-    pub relay_client: relay::client::Behaviour,
-    pub identify: identify::Behaviour,
-    pub dcutr: dcutr::Behaviour,
-    pub kademlia: Kademlia<MemoryStore>,
-    pub rendezvous: rendezvous::client::Behaviour,
-}
-
-#[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub enum Event {
-    Identify(identify::Event),
-    RelayClient(relay::client::Event),
-    Dcutr(dcutr::Event),
-    Kademlia(KademliaEvent),
-    Rendezvous(rendezvous::client::Event),
-}
-
-impl From<identify::Event> for Event {
-    fn from(e: identify::Event) -> Self {
-        Event::Identify(e)
-    }
-}
-
-impl From<relay::client::Event> for Event {
-    fn from(e: relay::client::Event) -> Self {
-        Event::RelayClient(e)
-    }
-}
-
-impl From<dcutr::Event> for Event {
-    fn from(e: dcutr::Event) -> Self {
-        Event::Dcutr(e)
-    }
-}
-
-impl From<KademliaEvent> for Event {
-    fn from(e: KademliaEvent) -> Self {
-        Event::Kademlia(e)
-    }
-}
-
-impl From<rendezvous::client::Event> for Event {
-    fn from(e: rendezvous::client::Event) -> Self {
-        Event::Rendezvous(e)
-    }
+    pub file_provide_map: HashMap<String, String>,
+    pub pending_request_file: HashMap<QueryId, String>,
+    pub pending_get_file: HashMap<RequestId, String>,
 }
