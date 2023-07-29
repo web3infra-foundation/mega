@@ -6,7 +6,7 @@
 //!
 
 pub mod client;
-mod lib;
+mod input_command;
 pub mod relay_server;
 
 #[cfg(test)]
