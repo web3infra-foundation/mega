@@ -5,9 +5,8 @@
 //!
 //!
 
-pub mod network;
-pub mod node;
-pub mod peer;
+pub mod behaviour;
+pub mod event_handler;
 
 #[cfg(test)]
 mod tests {}
