@@ -2,11 +2,11 @@ use crate::network::behaviour;
 use crate::node::client::ClientParas;
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{Kademlia, Quorum, Record, RecordKey};
+use libp2p::kad::{Kademlia, Quorum, Record};
 use libp2p::{PeerId, Swarm};
 use std::str::{FromStr, SplitWhitespace};
 
-pub fn handle_input_commend(
+pub fn handle_input_command(
     swarm: &mut Swarm<behaviour::Behaviour>,
     client_paras: &mut ClientParas,
     line: String,
@@ -18,18 +18,18 @@ pub fn handle_input_commend(
     let mut args = line.split_whitespace();
     match args.next() {
         Some("kad") => {
-            handle_kad_commend(&mut swarm.behaviour_mut().kademlia, args);
+            handle_kad_command(&mut swarm.behaviour_mut().kademlia, args);
         }
         Some("file") => {
-            handle_file_commend(swarm, client_paras, args);
+            handle_file_command(swarm, client_paras, args);
         }
         _ => {
-            eprintln!("expected commend: kad, file");
+            eprintln!("expected command: kad, file");
         }
     }
 }
 
-pub fn handle_kad_commend(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitWhitespace) {
+pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitWhitespace) {
     match args.next() {
         Some("get") => {
             let key = {
@@ -94,24 +94,18 @@ pub fn handle_kad_commend(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitW
             kademlia.get_closest_peers(peer_id);
         }
         _ => {
-            eprintln!("expected commend: get, put, k_buckets, get_peer");
+            eprintln!("expected command: get, put, k_buckets, get_peer");
         }
     }
 }
 
-pub fn handle_file_commend(
+pub fn handle_file_command(
     swarm: &mut Swarm<behaviour::Behaviour>,
     client_paras: &mut ClientParas,
     mut args: SplitWhitespace,
 ) {
     match args.next() {
         Some("get") => {
-            let peer_id = match parse_peer_id(args.next()) {
-                Some(peer_id) => peer_id,
-                None => {
-                    return;
-                }
-            };
             let file_name = {
                 match args.next() {
                     Some(key) => key,
@@ -121,12 +115,13 @@ pub fn handle_file_commend(
                     }
                 }
             };
-            let query_id = swarm.behaviour_mut().kademlia.get_providers(Key::new(&file_name));
-            client_paras.pending_get_file.insert(query_id,file_name.to_string());
-            // swarm
-            //     .behaviour_mut()
-            //     .request_response
-            //     .send_request(&peer_id, behaviour::FileRequest(file_name.to_string()));
+            let query_id = swarm
+                .behaviour_mut()
+                .kademlia
+                .get_providers(Key::new(&file_name));
+            client_paras
+                .pending_request_file
+                .insert(query_id, file_name.to_string());
         }
         Some("get_providers") => {
             let key = {
@@ -171,7 +166,7 @@ pub fn handle_file_commend(
             client_paras.file_provide_map.insert(key, path);
         }
         _ => {
-            eprintln!("expected commend: get, provide");
+            eprintln!("expected command: get, provide, get_providers");
         }
     }
 }

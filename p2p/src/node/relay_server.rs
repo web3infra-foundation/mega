@@ -1,4 +1,4 @@
-use super::lib;
+use super::input_command;
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
 use futures::executor::block_on;
@@ -11,10 +11,11 @@ use libp2p::{
     identify, identity,
     identity::PeerId,
     noise, relay, rendezvous,
-    swarm::{NetworkBehaviour, SwarmBuilder, SwarmEvent},
+    swarm::{AddressScore, NetworkBehaviour, SwarmBuilder, SwarmEvent},
     tcp,
 };
 use std::error::Error;
+use crate::network::event_handler;
 
 pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<dyn Error>> {
     let local_peer_id = PeerId::from(local_key.public());
@@ -58,13 +59,13 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
                         continue;
                     }
                     //kad input
-                     lib::handle_input_line(&mut swarm.behaviour_mut().kademlia,line.to_string());
+                     input_command::handle_kad_command(&mut swarm.behaviour_mut().kademlia,line.to_string().split_whitespace());
                 },
                 event = swarm.select_next_some() => match event{
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Identify(identify::Event::Received {
                         info,peer_id
                     })) => {
-                        swarm.add_external_address(info.observed_addr.clone());
+                        swarm.add_external_address(info.observed_addr.clone(),AddressScore::Infinite);
                         for listen_addr in info.listen_addrs.clone(){
                             swarm.behaviour_mut().kademlia.add_address(&peer_id.clone(),listen_addr);
                         }
@@ -75,11 +76,11 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
                     }
                     //kad events
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Kademlia(event)) => {
-                         lib::kad_event_handler(event);
+                         event_handler::kad_event_handler(event);
                     }
                     //RendezvousServer events
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Rendezvous(event)) => {
-                        lib::rendezvous_server_event_handler(event);
+                        event_handler::rendezvous_server_event_handler(event);
                     },
                     _ => {
                         tracing::debug!("Event: {:?}", event);
