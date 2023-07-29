@@ -154,5 +154,65 @@ async fn process_delta(
     }
 }
 
+pub fn undelta(mut stream: &mut impl Read, base_info: &Vec<u8>) -> Vec<u8> {
+    // Read the bash object size & Result Size
+    let base_size = utils::read_size_encoding(&mut stream).unwrap();
+    assert!(base_info.len() == base_size);
+    let result_size = utils::read_size_encoding(&mut stream).unwrap();
+    let mut buffer = Vec::with_capacity(result_size);
+    loop {
+        // Check if the stream has ended, meaning the new object is done
+        let instruction = match utils::read_bytes(stream) {
+            Ok([instruction]) => instruction,
+            Err(err) if err.kind() == ErrorKind::UnexpectedEof => break,
+            Err(err) => {
+                panic!(
+                    "{}",
+                    GitError::DeltaObjectError(format!("Wrong instruction in delta :{}", err))
+                );
+            }
+        };
+
+        if instruction & COPY_INSTRUCTION_FLAG == 0 {
+            // Data instruction; the instruction byte specifies the number of data bytes
+            if instruction == 0 {
+                // Appending 0 bytes doesn't make sense, so git disallows it
+                panic!(
+                    "{}",
+                    GitError::DeltaObjectError(String::from("Invalid data instruction"))
+                );
+            }
+
+            // Append the provided bytes
+            let mut data = vec![0; instruction as usize];
+            stream.read_exact(&mut data).unwrap();
+            buffer.extend_from_slice(&data);
+        // result.extend_from_slice(&data);
+        } else {
+            // Copy instruction
+            let mut nonzero_bytes = instruction;
+            let offset =
+                utils::read_partial_int(&mut stream, COPY_OFFSET_BYTES, &mut nonzero_bytes)
+                    .unwrap();
+            let mut size =
+                utils::read_partial_int(&mut stream, COPY_SIZE_BYTES, &mut nonzero_bytes).unwrap();
+            if size == 0 {
+                // Copying 0 bytes doesn't make sense, so git assumes a different size
+                size = COPY_ZERO_SIZE;
+            }
+            // Copy bytes from the base object
+            let base_data = base_info
+                .get(offset..(offset + size))
+                .ok_or_else(|| GitError::DeltaObjectError("Invalid copy instruction".to_string()));
+
+            match base_data {
+                Ok(data) => buffer.extend_from_slice(data),
+                Err(e) => panic!("{}", e),
+            }
+        }
+    }
+    assert!(buffer.len() == result_size);
+    buffer
+}
 #[cfg(test)]
 mod tests {}

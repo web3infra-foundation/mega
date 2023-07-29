@@ -3,13 +3,20 @@
 //!
 //!
 //!
-use super::object::cache::ObjectCache;
+use self::{cache::ObjectCache, header::EntryHeader};
+
+use super::object::ObjectT;
 use crate::hash::Hash;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
+
+mod cache;
 pub mod decode;
 pub mod delta;
 pub mod encode;
 pub mod iterator;
+mod header;
+pub mod preload;
+mod counter;
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
 /// `version`: The pack file version <br>
@@ -25,7 +32,7 @@ pub struct Pack {
     number_of_objects: usize,
     pub signature: Hash,
     path: PathBuf,
-    cache: ObjectCache,
+    cache: ObjectCache<Arc<dyn ObjectT>>,
     //iterator: Option<iterator::EntriesIter<BR>>,
 }
 
@@ -37,18 +44,9 @@ impl Pack {
     pub fn number_of_objects(&self) -> usize {
         self.number_of_objects
     }
-    pub fn get_cache(self) -> ObjectCache {
+    pub fn get_cache(self) -> ObjectCache<Arc<dyn ObjectT>> {
         self.cache
     }
-}
-
-pub enum EntryHeader {
-    Commit,
-    Tree,
-    Blob,
-    Tag,
-    RefDelta { base_id: Hash },
-    OfsDelta { base_distance: u64 },
 }
 
 pub struct Entry {

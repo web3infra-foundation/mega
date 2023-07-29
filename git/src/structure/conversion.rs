@@ -87,7 +87,7 @@ impl PackProtocol {
         }
         let trees: HashMap<Hash, node::Model> = self
             .storage
-            .get_nodes_by_ids(tree_ids)
+            .get_nodes_by_hashes(tree_ids)
             .await
             .unwrap()
             .into_iter()
@@ -122,7 +122,7 @@ impl PackProtocol {
         for c_data in all_commits {
             if want.contains(&c_data.git_id) {
                 let c = Commit::new_from_data(c_data.meta);
-                if let Some(root) = self.storage.get_node_by_id(&c.tree_id.to_plain_str()).await {
+                if let Some(root) = self.storage.get_node_by_hash(&c.tree_id.to_plain_str()).await.unwrap() {
                     get_child_trees(&root, &mut hash_meta, &HashMap::new()).await
                 } else {
                     return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
@@ -204,8 +204,9 @@ pub async fn generate_child_commit_and_refs(
 ) -> String {
     if let Some(root_tree) = storage.search_root_node_by_path(repo_path).await {
         let root_commit = storage
-            .get_commit_by_id(refs.ref_git_id.clone())
+            .get_commit_by_hash(&refs.ref_git_id.clone())
             .await
+            .unwrap()
             .unwrap();
         let child_commit = Commit::build_from_model_and_root(&root_commit, root_tree);
         let child_model = child_commit.convert_to_model(repo_path);

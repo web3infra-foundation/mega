@@ -7,7 +7,6 @@
 //!
 //!
 pub mod blob;
-pub mod cache;
 pub mod commit;
 pub mod meta;
 pub mod signature;

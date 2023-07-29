@@ -21,10 +21,7 @@ pub mod mysql;
 
 #[async_trait]
 pub trait ObjectStorage: Send + Sync {
-    async fn save_git_objects(
-        &self,
-        objects: Vec<git::ActiveModel>,
-    ) -> Result<bool, MegaError>;
+    async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError>;
 
     async fn get_git_objects_by_type(
         &self,
@@ -39,18 +36,13 @@ pub trait ObjectStorage: Send + Sync {
     ) -> Result<Vec<git::Model>, MegaError>;
 
     // get hash object from db if missing cache in unpack process, this object must be tree or blob
-    async fn get_git_object_by_hash(
-        &self,
-        hash: &str,
-    ) -> Result<Option<git::Model>, MegaError>;
+    async fn get_git_object_by_hash(&self, hash: &str) -> Result<Option<git::Model>, MegaError>;
 
     async fn get_ref_object_id(&self, path: &Path) -> HashMap<String, String>;
 
     async fn search_commits(&self, path_str: &str) -> Result<Vec<commit::Model>, MegaError>;
 
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<commit::Model>, MegaError>;
-
-    async fn get_commit_by_id(&self, git_id: String) -> Result<commit::Model, MegaError>;
 
     async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<commit::Model>, MegaError>;
 
@@ -62,9 +54,9 @@ pub trait ObjectStorage: Send + Sync {
 
     async fn delete_refs(&self, old_id: String, path: &Path);
 
-    async fn get_nodes_by_ids(&self, ids: Vec<String>) -> Result<Vec<node::Model>, MegaError>;
+    async fn get_nodes_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<node::Model>, MegaError>;
 
-    async fn get_node_by_id(&self, id: &str) -> Option<node::Model>;
+    async fn get_node_by_hash(&self, hash: &str) -> Result<Option<node::Model>, MegaError>;
 
     async fn get_node_by_path(&self, path: &Path) -> Result<Vec<node::Model>, MegaError>;
 
