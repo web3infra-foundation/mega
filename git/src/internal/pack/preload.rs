@@ -5,25 +5,23 @@ use crate::{
     internal::{pack::{Hash, counter::DecodeCounter}, zlib::stream::inflate::ReadPlain},
     utils,
 };
+use async_recursion::async_recursion;
 use database::{driver::ObjectStorage, utils::id_generator::generate_id};
 use entity::git;
 use num_cpus;
 
 use sea_orm::Set;
 use sha1::{Digest, Sha1};
-use std::sync::RwLock;
+use tokio::sync::RwLock;
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
     sync::{mpsc, Arc,Mutex},
-    thread,
 };
-use tokio::runtime::Runtime;
-///
-///
-///
-///
-///
+
+/// 
+/// One Pre loading Git object in memory
+/// 
 #[derive(Clone)]
 struct Entry {
     header: EntryHeader,
@@ -46,13 +44,12 @@ impl Entry {
 }
 
 
-
+/// All Git Objects pre loading in memeory of one pack file.
 pub struct PackPreload {
     map: HashMap<usize, usize>, //Offset -> iterator in entity
-    entries: Vec<Entry>,
+    entries: Vec<Entry>,// store git entries by vec.
     counter: GitTypeCounter,
 }
-
 
 #[allow(unused)]
 impl PackPreload {
@@ -147,37 +144,37 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
             let tx_clone = tx.clone();
-            let shard_clone = share.clone();
+            let shard_clone = Arc::clone(&share) ;
             let st_clone = storage.clone();
             let counter_clone = decode_counter.clone();
-            thread::spawn(move || {
-                //produce_data(i, tx_clone)
-                let begin = i * chunk;
-                let end = if i == cpu_number - 1 {
-                    all_len
-                } else {
-                    (i + 1) * chunk
-                };
-                produce_object(shard_clone, tx_clone, st_clone, begin, end,counter_clone);
-            })
+            //produce_data(i, tx_clone)
+            let begin = i * chunk;
+            let end = if i == cpu_number - 1 {
+                all_len
+            } else {
+                (i + 1) * chunk
+            };
+            tokio::spawn(async move{
+                produce_object(shard_clone, tx_clone, st_clone, begin, end,counter_clone).await;
+            } )
         })
         .collect();
 
     // 启动消费者任务
-    let consume_handle = thread::spawn(move || {
-        consume_object(rx, storage.clone());
+    let consume_handle = tokio::spawn(async move  {
+        consume_object(rx, storage.clone()).await;
     });
 
     // 等待所有生产者任务结束
     for handle in producer_handles {
-        handle.join().unwrap();
+        handle.await;
     }
 
     // 关闭通道以结束消费者任务
     drop(tx);
 
     // 等待消费者任务结束
-    consume_handle.join().unwrap();
+    consume_handle.await;
     let re = decode_counter.lock().unwrap();
     tracing::info!("Summary : {}",re);
           println!("Summary : {}",re);
@@ -186,7 +183,7 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use super::counter::CounterType::*;
-fn produce_object(
+async fn produce_object(
     data: Arc<RwLock<PackPreload>>,
     send: Sender<Entry>,
     storage: Arc<dyn ObjectStorage>,
@@ -196,9 +193,9 @@ fn produce_object(
 ) {
     let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(100));
 
-    let rt: Runtime = Runtime::new().unwrap();
+    
     for i in range_begin..range_end {
-        let read_auth = data.read().unwrap();
+        let read_auth = data.read().await;
         let e = &read_auth.entries[i];
         //todo hash .
         let result_entity;
@@ -212,8 +209,7 @@ fn produce_object(
                     base_type = b_obj.header;
                     b_obj.data
                 } else {
-                    let db_obj = rt
-                        .block_on(storage.get_git_object_by_hash(&base_id.to_plain_str()))
+                    let db_obj =storage.get_git_object_by_hash(&base_id.to_plain_str()).await 
                         .unwrap()
                         .unwrap();
                     base_type = EntryHeader::from_string(&db_obj.object_type);
@@ -236,7 +232,7 @@ fn produce_object(
                 }
             }
             EntryHeader::OfsDelta { base_distance: _ } => {
-                let re_obj = delta_offset_obj(data.clone(), e, &mut cache, counter.clone());
+                let re_obj = delta_offset_obj(data.clone(), e, &mut cache, counter.clone()).await;
                 result_entity = compute_hash(re_obj);
                 {   
                     counter.lock().unwrap().count(Delta);
@@ -256,40 +252,30 @@ fn produce_object(
     }
 }
 
-fn consume_object(rx: Receiver<Entry>, storage: Arc<dyn ObjectStorage>) {
+async fn consume_object(rx: Receiver<Entry>, storage: Arc<dyn ObjectStorage>) {
     let mut save_model = Vec::<git::ActiveModel>::with_capacity(101);
-    let rt = Runtime::new().unwrap();
+    
     let mr_id = generate_id();
-    let mut handler: Option<tokio::task::JoinHandle<()>> = None;
+   
     for data in rx.into_iter() {
         save_model.push(data.convert_to_mr_model(mr_id));
         if save_model.len() >= 100 {
-            // Don't await for db, just give save_models to db connect, and continue receiver entry
-            // only wait the db operation, when the vev is "full" again
-            if let Some(hand) = handler {
-                rt.block_on(async move {
-                    hand.await.unwrap();
-                })
-            }
-            let st = storage.clone();
-            handler = Some(rt.spawn(async move {
-                st.save_git_objects(save_model).await.unwrap();
-            }));
+            storage.save_git_objects(save_model).await.unwrap();
             save_model = Vec::with_capacity(101);
         }
     }
     if !save_model.is_empty() {
-        rt.block_on(storage.save_git_objects(save_model)).unwrap();
+        storage.save_git_objects(save_model).await.unwrap();
     }
 }
-
-fn delta_offset_obj(
+#[async_recursion]//TODO del recursion
+async fn delta_offset_obj(
     data: Arc<RwLock<PackPreload>>,
     delta_obj: &Entry,
     cache: &mut ObjectCache<Entry>,
     counter: Arc<Mutex<DecodeCounter>>,
 ) -> Entry {
-    let share: std::sync::RwLockReadGuard<'_, PackPreload> = data.read().unwrap();
+    let share = data.read().await;
     if let EntryHeader::OfsDelta { base_distance } = delta_obj.header {
         let basic_type;
         let base_obj;
@@ -311,7 +297,7 @@ fn delta_offset_obj(
             {
                 counter.lock().unwrap().count(Depth);
             }
-            let d_obj =  delta_offset_obj(data.clone(), base_obj, cache,counter);
+            let d_obj =  delta_offset_obj(data.clone(), base_obj, cache,counter).await;
             re = undelta(&mut Cursor::new(&delta_obj.data), &d_obj.data);
             basic_type = d_obj.header;
         } else {
