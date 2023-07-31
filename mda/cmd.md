@@ -50,3 +50,21 @@ cargo run -p mda -- --action=extract --mda=mda/test/output/ --train=mda/test/out
 
 ```
 
+
+
+## Update annotation data
+
+```
+cargo run -p mda -- --action=extract --mda=mda/test/output/1.mda --train=mda/test/output/ --anno=mda/test/output/ --rev=0
+```
+
+rev: version
+
+## List versions
+
+list versions of the targeted file
+
+```
+cargo run -p mda -- --action=version --mda=mda/test/output/1.mda
+```
+
