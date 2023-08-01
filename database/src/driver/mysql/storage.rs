@@ -35,7 +35,7 @@ use crate::driver::ObjectStorage;
 
 use common::errors::GitLFSError;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct MysqlStorage {
     pub connection: DatabaseConnection,
 }
@@ -49,31 +49,31 @@ impl MysqlStorage {
 #[async_trait]
 impl ObjectStorage for MysqlStorage {
     async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError> {
-        let packet_size = objects
-            .iter()
-            .map(|model| model.clone().try_into_model().unwrap().data.len())
-            .sum::<usize>();
+        // let packet_size = objects
+        //     .iter()
+        //     .map(|model| model.clone().try_into_model().unwrap().data.len())
+        //     .sum::<usize>();
 
-        if packet_size > 0xDF_FF_FF {
-            let mut batch_obj = Vec::new();
-            let mut sum = 0;
-            for model in objects {
-                let size = model.data.as_ref().len();
-                if sum + size < 0xDF_FF_FF {
-                    sum += size;
-                    batch_obj.push(model);
-                } else {
-                    self.batch_save_model(batch_obj).await?;
-                    sum = size;
-                    batch_obj = vec![model];
-                }
-            }
-            if !batch_obj.is_empty() {
-                self.batch_save_model(batch_obj).await?;
-            }
-        } else {
-            self.batch_save_model(objects).await?;
-        }
+        // if packet_size > 0xDF_FF_FF {
+        //     let mut batch_obj = Vec::new();
+        //     let mut sum = 0;
+        //     for model in objects {
+        //         let size = model.data.as_ref().len();
+        //         if sum + size < 0xDF_FF_FF {
+        //             sum += size;
+        //             batch_obj.push(model);
+        //         } else {
+        //             self.batch_save_model(batch_obj).await?;
+        //             sum = size;
+        //             batch_obj = vec![model];
+        //         }
+        //     }
+        //     if !batch_obj.is_empty() {
+        //         self.batch_save_model(batch_obj).await?;
+        //     }
+        // } else {
+        self.batch_save_model(objects).await?;
+        // }
         Ok(true)
     }
 
@@ -145,28 +145,33 @@ impl ObjectStorage for MysqlStorage {
 
     async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError> {
         Ok(refs::Entity::find()
-            .from_raw_sql(Statement::from_sql_and_values(
-                DatabaseBackend::MySql,
-                r#"SELECT * FROM refs where ? LIKE CONCAT(repo_path, '%') "#,
-                [path_str.into()],
-            ))
+            .filter(refs::Column::RepoPath.contains(path_str))
+            // .from_raw_sql(Statement::from_sql_and_values(
+            //     DatabaseBackend::MySql,
+            //     r#"SELECT * FROM refs where ? LIKE CONCAT(repo_path, '%') "#,
+            //     [path_str.into()],
+            // ))
             .all(&self.connection)
             .await?)
     }
 
     async fn search_commits(&self, path_str: &str) -> Result<Vec<commit::Model>, MegaError> {
         Ok(commit::Entity::find()
-            .from_raw_sql(Statement::from_sql_and_values(
-                DatabaseBackend::MySql,
-                r#"SELECT * FROM commit where ? LIKE CONCAT(repo_path, '%')"#,
-                [path_str.into()],
-            ))
+            .filter(commit::Column::RepoPath.contains(path_str))
+            // .from_raw_sql(Statement::from_sql_and_values(
+            //     DatabaseBackend::MySql,
+            //     r#"SELECT * FROM commit where ? LIKE CONCAT(repo_path, '%')"#,
+            //     [path_str.into()],
+            // ))
             .all(&self.connection)
             .await?)
     }
 
     async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) -> Result<bool, MegaError> {
-        self.batch_save_model(save_models).await.unwrap();
+        refs::Entity::insert_many(save_models)
+            .exec(&self.connection)
+            .await
+            .unwrap();
         Ok(true)
     }
 
@@ -570,12 +575,13 @@ impl MysqlStorage {
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
     {
-        for chunk in save_models.chunks(100) {
+        let mut results = Vec::new();
+        for chunk in save_models.chunks(1000) {
             // notice that sqlx not support packets larger than 16MB now
-            E::insert_many(chunk.iter().cloned())
-                .exec(&self.connection)
-                .await?;
+            let res = E::insert_many(chunk.iter().cloned()).exec(&self.connection);
+            results.push(res);
         }
+        futures::future::join_all(results).await;
         Ok(())
     }
 }

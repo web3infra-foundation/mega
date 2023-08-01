@@ -285,7 +285,7 @@ fn read_until_white_space(bytes: &mut Bytes) -> String {
     let mut buf = Vec::new();
     while bytes.has_remaining() {
         let c = bytes.get_u8();
-        if c.is_ascii_whitespace() {
+        if c.is_ascii_whitespace() || c == 0 {
             break;
         }
         buf.push(c);
