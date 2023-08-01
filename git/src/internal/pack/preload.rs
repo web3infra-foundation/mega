@@ -16,7 +16,8 @@ use tokio::sync::RwLock;
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
-    sync::{mpsc, Arc,Mutex},
+    sync::{Arc,Mutex},
+    time::Instant,
 };
 
 /// 
@@ -56,19 +57,28 @@ impl PackPreload {
     pub fn new<R>(mut r: R) -> PackPreload
     where
         R: std::io::BufRead,
-    {
+    {   
+        let start = Instant::now();
         let mut offset: usize = 12;
+        // Object Types Counter 
         let mut counter = GitTypeCounter::default();
         let pack = Pack::check_header(&mut r).unwrap();
+        // Offset - index in vec Map for preload struct 
         let mut map = HashMap::new();
         let obj_number = pack.number_of_objects();
         let mut entries = Vec::with_capacity(obj_number);
+        tracing::info!("Start Preload git objects:{} ", obj_number);
         for i in 0..obj_number {
+            if i%10000==0{
+                tracing::info!(" Preloading  git objects:{} ", i);    
+            }
+            // [`iter_offset`] records the number of bytes occupied by a single object.
             let mut iter_offset: usize = 0;
             // Read the Object Type and Total Size of one Object
             let (type_num, size) = utils::read_type_and_size(&mut r).unwrap();
             //Get the Object according to the Types Enum
             iter_offset += utils::get_7bit_count(size << 3);
+            // Count Type 
             counter.count(type_num);
             let header: EntryHeader = match type_num {
                 1 => EntryHeader::Commit,
@@ -77,6 +87,7 @@ impl PackPreload {
                 4 => EntryHeader::Tag,
 
                 6 => {
+                    // Offset Delta Object  
                     let delta_offset =
                         utils::read_offset_encoding(&mut r, &mut iter_offset).unwrap() as usize;
 
@@ -100,6 +111,7 @@ impl PackPreload {
                 _ => todo!(), //error
             };
             let mut reader = ReadPlain::new(&mut r);
+            // init vec by given size.
             let mut content = Vec::with_capacity(size);
             reader.read_to_end(&mut content).unwrap();
             iter_offset += reader.decompressor.total_in() as usize;
@@ -114,6 +126,8 @@ impl PackPreload {
             map.insert(offset, i);
             offset += iter_offset;
         }
+        let end = start.elapsed().as_millis();
+        tracing::info!("Preload time cost:{} ms", end);
         PackPreload { map, entries ,counter }
     }
 
@@ -125,29 +139,37 @@ impl PackPreload {
     }
 }
 
-
-#[allow(unused)]
-pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
+/// Decide the preloaded objects, and store it .
+/// `decode_load` function used for decoding and loading data.
+///
+/// The `decode_load` function takes a `PackPreload` parameter and an `ObjectStorage` parameter.
+/// It asynchronously decodes and loads data from the provided `PackPreload` using the given `ObjectStorage`.
+///
+/// # Arguments
+///
+/// - `p`: A `PackPreload` struct representing the data to be decoded and loaded.
+/// - `storage`: An `Arc<dyn ObjectStorage>` trait object providing storage capabilities.
+///
+/// # Returns
+///
+/// The function returns a `Result<i64, GitError>`, where the `i64` represents the `mr_id`
+/// and `GitError` represents any potential error that might occur during the process.
+///
+pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Result<i64,GitError> {
     let decode_counter: Arc<Mutex<DecodeCounter>> = Arc::new(Mutex::new(DecodeCounter::default())) ;
-
     let all_len = p.len();
-    tracing::info!("Decode the preload git object\n{}",p.counter);
-          println!("Decode the preload git object\n{}",p.counter);
+    tracing::info!("Decode the preload git object\n{}",p.counter); 
     let (cpu_number, chunk) = thread_chunk(all_len);
-    
     tracing::info!("Deal with the object using {} threads. ",cpu_number);
-          println!("Deal with the object using {} threads. ",cpu_number);
     let share: Arc<RwLock<PackPreload>> = Arc::new(RwLock::new(p));
-    // 创建一个多生产者，单消费者的通道
-    let (tx, rx) = mpsc::channel();
+
+    let mr_id = generate_id();
 
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
-            let tx_clone = tx.clone();
             let shard_clone = Arc::clone(&share) ;
             let st_clone = storage.clone();
             let counter_clone = decode_counter.clone();
-            //produce_data(i, tx_clone)
             let begin = i * chunk;
             let end = if i == cpu_number - 1 {
                 all_len
@@ -155,49 +177,54 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) {
                 (i + 1) * chunk
             };
             tokio::spawn(async move{
-                produce_object(shard_clone, tx_clone, st_clone, begin, end,counter_clone).await;
+                produce_object(shard_clone, st_clone, begin, end,counter_clone,mr_id).await;
             } )
         })
         .collect();
-
-    // 启动消费者任务
-    let consume_handle = tokio::spawn(async move  {
-        consume_object(rx, storage.clone()).await;
-    });
-
-    // 等待所有生产者任务结束
+       
     for handle in producer_handles {
-        handle.await;
+        let _ = handle.await;
     }
 
-    // 关闭通道以结束消费者任务
-    drop(tx);
-
-    // 等待消费者任务结束
-    consume_handle.await;
     let re = decode_counter.lock().unwrap();
     tracing::info!("Summary : {}",re);
-          println!("Summary : {}",re);
+
+    Ok(mr_id)
 }
 
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::Sender;
+
+
+
 use super::counter::CounterType::*;
+/// Asynchronous function to produce Git objects.
+///
+/// The `produce_object` function asynchronously produces Git objects based on the provided parameters.
+///
+/// # Arguments
+///
+/// - `data`: A shared `Arc<RwLock<PackPreload>>` containing the preload data.
+/// - `storage`: A shared `Arc<dyn ObjectStorage>` trait object providing storage capabilities.
+/// - `range_begin`: The starting index of the range of entries to process.
+/// - `range_end`: The ending index of the range of entries to process.
+/// - `counter`: A shared `Arc<Mutex<DecodeCounter>>` for counting decode operations.
+/// - `mr_id`: An identifier for the produced Git objects.
+///
 async fn produce_object(
     data: Arc<RwLock<PackPreload>>,
-    send: Sender<Entry>,
     storage: Arc<dyn ObjectStorage>,
     range_begin: usize,
     range_end: usize,
     counter: Arc<Mutex<DecodeCounter>>,
+    mr_id: i64,
 ) {
-    let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(100));
-
+    let mut save_model = Vec::<git::ActiveModel>::with_capacity(101);
+    let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(1000));
+    let start = Instant::now();
     
     for i in range_begin..range_end {
         let read_auth = data.read().await;
         let e = &read_auth.entries[i];
-        //todo hash .
+        
         let result_entity;
         match e.header {
             EntryHeader::RefDelta { base_id } => {
@@ -246,19 +273,7 @@ async fn produce_object(
             } 
         }
         cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
-        send.send(result_entity).unwrap();
-
-        // TYPE HASH DATA  // DELTA
-    }
-}
-
-async fn consume_object(rx: Receiver<Entry>, storage: Arc<dyn ObjectStorage>) {
-    let mut save_model = Vec::<git::ActiveModel>::with_capacity(101);
-    
-    let mr_id = generate_id();
-   
-    for data in rx.into_iter() {
-        save_model.push(data.convert_to_mr_model(mr_id));
+        save_model.push(result_entity.convert_to_mr_model(mr_id));
         if save_model.len() >= 100 {
             storage.save_git_objects(save_model).await.unwrap();
             save_model = Vec::with_capacity(101);
@@ -267,7 +282,26 @@ async fn consume_object(rx: Receiver<Entry>, storage: Arc<dyn ObjectStorage>) {
     if !save_model.is_empty() {
         storage.save_git_objects(save_model).await.unwrap();
     }
+    let end = start.elapsed().as_millis();
+    tracing::info!("Git Object Produce thread one  time cost:{} ms", end);
+
 }
+
+/// Asynchronous function to perform delta offset operation.
+///
+/// The `delta_offset_obj` function asynchronously performs the delta offset operation on the given data.
+///
+/// # Arguments
+///
+/// - `data`: A shared `Arc<RwLock<PackPreload>>` containing the preload data.
+/// - `delta_obj`: A reference to the `Entry` representing the delta object to process.
+/// - `cache`: A mutable reference to the `ObjectCache<Entry>` used for caching objects.
+/// - `counter`: A shared `Arc<Mutex<DecodeCounter>>` for counting decode operations.
+///
+/// # Returns
+///
+/// The function returns an `Entry` representing the result of the delta offset operation.
+///
 #[async_recursion]//TODO del recursion
 async fn delta_offset_obj(
     data: Arc<RwLock<PackPreload>>,
@@ -348,9 +382,6 @@ mod tests {
     use std::{fs::File, io::BufReader, path::Path};
 
     use crate::internal::pack::preload::PackPreload;
-
-    use super::decode_load;
-    use database::DataSource;
     use tokio::test;
 
     #[test]
@@ -372,11 +403,15 @@ mod tests {
     async fn test_demo_channel() {
         std::env::set_var("MEGA_DATABASE_URL", "mysql://root:123456@localhost:3306/mega");
         let file = File::open(Path::new(
-            "../tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack",
+            "/home/99211/linux/.git/objects/pack/pack-a3f96bcba83583d37b77a528b82bd1d97ffac70c.pack",
         ))
         .unwrap();
-        let storage = database::init(&DataSource::Mysql).await;
         let p = PackPreload::new(BufReader::new(file));
-        decode_load(p, storage).await;
+        let mut total = 0;
+        for it in p.entries{
+            total += it.data.len();
+        }
+        println!("{}",total);
+
     }
 }
