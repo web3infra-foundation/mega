@@ -16,7 +16,7 @@ fn main() -> Result<(), anyhow::Error> {
     if args.len() <= 1 {
         // If not, print the usage information and exit
         println!("Usage: cargo run -- [mode]");
-        println!("Available modes: generate-key, encrypt, decrypt");
+        println!("Available modes: generate-key , encrypt [message] [public key], decrypt [encrypted message] [secret key]");
         return Ok(());
     }
 
@@ -92,9 +92,12 @@ pub struct KeyPair {
 }
 
 pub fn generate_key_pair() -> Result<KeyPair, anyhow::Error> {
+   // let password = &args[2];
+
     let mut key_params = composed::key::SecretKeyParamsBuilder::default();
     key_params
         .key_type(composed::KeyType::Rsa(2048))
+        //.passphrase(Some(password.clone()))
         .can_create_certificates(false)
         .can_sign(true)
         .primary_user_id("User <phyknife@phyknife.com>".into())
@@ -108,7 +111,7 @@ pub fn generate_key_pair() -> Result<KeyPair, anyhow::Error> {
         .generate()
         .expect("Failed to generate a plain key.");
 
-    let passwd_fn = || String::new();
+    let passwd_fn = String::new;
     let signed_secret_key = secret_key
         .sign(passwd_fn)
         .expect("Secret Key must be able to sign its own metadata");
@@ -151,7 +154,9 @@ pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow
     for msg in decryptor {
         let bytes = msg?.get_content()?.unwrap();
         let clear_text = String::from_utf8(bytes)?;
-        return Ok(clear_text);
+        if String::len(&clear_text) > 0 {
+            return Ok(clear_text);
+        }
     }
 
     Err(anyhow::Error::msg("Failed to find message"))
