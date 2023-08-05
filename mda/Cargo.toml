@@ -26,3 +26,8 @@ walkdir = "2.3.1"
 sha1="0.10.5"
 hex="0.4.3"
 env_logger = "0.10.0"
+csv="1.2.2"
+indicatif = "0.17.0"
+mp4parse = "0.17.0"
+prettytable = "0.10.0"
+

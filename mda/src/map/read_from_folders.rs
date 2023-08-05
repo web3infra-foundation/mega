@@ -1,10 +1,7 @@
 //! Used to map the traning data and its annotation data
-//! There are two cases:
-//! 1. The training data and annotation data are stored in separate folders, 
-//! with the training data files having the same filenames as the annotation data files.
+//! Case2: The training data and annotation data are stored in separate folders, with the training data files having the same filenames as the annotation data files.
 //! 
-//! 2. All the training data is stored in CSV or JSON files and needs to be parsed and matche(TODO)
-
+ 
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
