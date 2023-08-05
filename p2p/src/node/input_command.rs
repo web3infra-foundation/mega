@@ -1,12 +1,18 @@
+use super::get_repo_full_path;
+use super::ClientParas;
 use crate::network::behaviour;
-use crate::node::client::ClientParas;
+use crate::network::behaviour::GitUploadPackReq;
+use database::driver::mysql;
+use git::protocol::{PackProtocol, Protocol, ServiceType};
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Kademlia, Quorum, Record};
 use libp2p::{PeerId, Swarm};
-use std::str::{FromStr, SplitWhitespace};
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::sync::Arc;
 
-pub fn handle_input_command(
+pub async fn handle_input_command(
     swarm: &mut Swarm<behaviour::Behaviour>,
     client_paras: &mut ClientParas,
     line: String,
@@ -18,22 +24,23 @@ pub fn handle_input_command(
     let mut args = line.split_whitespace();
     match args.next() {
         Some("kad") => {
-            handle_kad_command(&mut swarm.behaviour_mut().kademlia, args);
+            handle_kad_command(&mut swarm.behaviour_mut().kademlia, args.collect());
         }
-        Some("file") => {
-            handle_file_command(swarm, client_paras, args);
+        Some("mega") => {
+            handle_mega_command(swarm, client_paras, args.collect()).await;
         }
         _ => {
-            eprintln!("expected command: kad, file");
+            eprintln!("expected command: kad, mega");
         }
     }
 }
 
-pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitWhitespace) {
-    match args.next() {
+pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, args: Vec<&str>) {
+    let mut args_iter = args.iter().copied();
+    match args_iter.next() {
         Some("get") => {
             let key = {
-                match args.next() {
+                match args_iter.next() {
                     Some(key) => Key::new(&key),
                     None => {
                         eprintln!("Expected key");
@@ -45,7 +52,7 @@ pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitW
         }
         Some("put") => {
             let key = {
-                match args.next() {
+                match args_iter.next() {
                     Some(key) => Key::new(&key),
                     None => {
                         eprintln!("Expected key");
@@ -54,7 +61,7 @@ pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitW
                 }
             };
             let value = {
-                match args.next() {
+                match args_iter.next() {
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
                         eprintln!("Expected value");
@@ -85,7 +92,7 @@ pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitW
             }
         }
         Some("get_peer") => {
-            let peer_id = match parse_peer_id(args.next()) {
+            let peer_id = match parse_peer_id(args_iter.next()) {
                 Some(peer_id) => peer_id,
                 None => {
                     return;
@@ -99,74 +106,70 @@ pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, mut args: SplitW
     }
 }
 
-pub fn handle_file_command(
+pub async fn handle_mega_command(
     swarm: &mut Swarm<behaviour::Behaviour>,
     client_paras: &mut ClientParas,
-    mut args: SplitWhitespace,
+    args: Vec<&str>,
 ) {
-    match args.next() {
-        Some("get") => {
-            let file_name = {
-                match args.next() {
+    let mut args_iter = args.iter().copied();
+    match args_iter.next() {
+        //mega provide ${your_repo}.git
+        Some("provide") => {
+            let repo_name = {
+                match args_iter.next() {
+                    Some(path) => path.to_string(),
+                    None => {
+                        eprintln!("Expected repo_name");
+                        return;
+                    }
+                }
+            };
+            if !repo_name.ends_with(".git") {
+                eprintln!("repo_name should end with .git");
+                return;
+            }
+            let repo_name = repo_name.split_at(repo_name.len() - ".git".len()).0;
+            let path = get_repo_full_path(repo_name);
+            let mysql = Arc::new(mysql::init().await);
+            let mut pack_protocol = PackProtocol::new(PathBuf::from(&path), mysql, Protocol::P2p);
+            let res = pack_protocol.git_info_refs(ServiceType::ReceivePack).await;
+            let result = String::from_utf8(res.to_vec()).unwrap();
+            let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+            println!("{}", result);
+            println!("object_id:{}", object_id);
+        }
+        Some("clone") => {
+            // mega clone p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git
+            let mega_address = {
+                match args_iter.next() {
                     Some(key) => key,
                     None => {
-                        eprintln!("Expected file_name");
+                        eprintln!("Expected mega_address");
                         return;
                     }
                 }
             };
-            let query_id = swarm
+            let (peer_id, repo_name) = match parse_mega_address(mega_address) {
+                Ok((peer_id, repo_name)) => (peer_id, repo_name),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return;
+                }
+            };
+            //try to download git package
+            // Pull: git-upload-pack '/root/repotest/src.git'
+            let path = get_repo_full_path(repo_name);
+            let command = format!("{} {}", "git-upload-pack", path);
+            let request_file_id = swarm
                 .behaviour_mut()
-                .kademlia
-                .get_providers(Key::new(&file_name));
+                .git_upload_pack
+                .send_request(&peer_id, GitUploadPackReq(command));
             client_paras
-                .pending_request_file
-                .insert(query_id, file_name.to_string());
-        }
-        Some("get_providers") => {
-            let key = {
-                match args.next() {
-                    Some(key) => key.to_string(),
-                    None => {
-                        eprintln!("Expected key");
-                        return;
-                    }
-                }
-            };
-            swarm.behaviour_mut().kademlia.get_providers(Key::new(&key));
-        }
-        Some("provide") => {
-            let key = {
-                match args.next() {
-                    Some(key) => key.to_string(),
-                    None => {
-                        eprintln!("Expected key");
-                        return;
-                    }
-                }
-            };
-            let path = {
-                match args.next() {
-                    Some(value) => value.to_string(),
-                    None => {
-                        eprintln!("Expected file path");
-                        return;
-                    }
-                }
-            };
-
-            if let Err(e) = swarm
-                .behaviour_mut()
-                .kademlia
-                .start_providing(Key::new(&key))
-            {
-                eprintln!("provide key failed:{:?}", e);
-                return;
-            };
-            client_paras.file_provide_map.insert(key, path);
+                .pending_git_upload_package
+                .insert(request_file_id, repo_name.to_string());
         }
         _ => {
-            eprintln!("expected command: get, provide, get_providers");
+            eprintln!("expected command: clone, provide");
         }
     }
 }
@@ -185,4 +188,17 @@ fn parse_peer_id(peer_id_str: Option<&str>) -> Option<PeerId> {
             None
         }
     }
+}
+
+fn parse_mega_address(mega_address: &str) -> Result<(PeerId, &str), String> {
+    // p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git
+    let v: Vec<&str> = mega_address.split('/').collect();
+    if v.len() < 4 {
+        return Err("mega_address invalid".to_string());
+    };
+    let peer_id = match PeerId::from_str(v[2]) {
+        Ok(peer_id) => peer_id,
+        Err(e) => return Err(e.to_string()),
+    };
+    Ok((peer_id, v[3]))
 }

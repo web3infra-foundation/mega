@@ -11,11 +11,15 @@ path = "src/mod.rs"
 
 
 [dependencies]
+git = { path = "../git" }
+database = { path = "../database" }
+common = { path = "../common" }
 clap = { version = "4.3.0", features = ["derive"] }
 tracing = "0.1.37"
 futures = "0.3.28"
 futures-timer = "3.0.2"
 async-std = { version = "1.10", features = ["attributes"] }
-libp2p = { version = "0.51.3", features = ["dcutr", "kad", "yamux", "identify", "noise", "macros", "relay", "tcp", "async-std", "rendezvous", "dns", "request-response"] }
-tokio = { version = "1.28", features = ["rt-multi-thread", "macros", "time"] }
-async-trait = "0.1.68"
+libp2p = { version = "0.52.1", features = ["dcutr", "kad", "yamux", "tls", "identify", "macros", "relay", "tcp", "async-std", "rendezvous", "request-response", "cbor"] }
+serde = { version = "1.0", features = ["derive"] }
+bytes = "1.4.0"
+tokio = "1.28.1"
