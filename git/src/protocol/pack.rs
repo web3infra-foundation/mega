@@ -410,7 +410,7 @@ pub mod test {
         let result = mock.parse_ref_update(&mut bytes);
 
         let command = RefCommand {
-            ref_name: String::from("refs/heads/master\0"),
+            ref_name: String::from("refs/heads/master"),
             old_id: String::from("0000000000000000000000000000000000000000"),
             new_id: String::from("27dd8d4cf39f3868c6eee38b601bc9e9939304f5"),
             status: String::from("ok"),
