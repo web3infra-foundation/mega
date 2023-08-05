@@ -11,9 +11,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 
 use clap::Args;
+use database::DataSource;
 use russh_keys::key::KeyPair;
 
-use database::driver::mysql;
 use tokio::io::AsyncWriteExt;
 
 use git::protocol::ssh::SshServer;
@@ -34,6 +34,9 @@ pub struct SshOptions {
 
     #[arg(short, long, default_value_os_t = PathBuf::from("lfs_content"))]
     lfs_content_path: PathBuf,
+
+    #[arg(value_enum, default_value = "mysql")]
+    pub data_source: DataSource,
 }
 
 /// start a ssh server
@@ -49,13 +52,6 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
     config.keys.push(client_key);
 
     let config = Arc::new(config);
-    let sh = SshServer {
-        client_pubkey,
-        clients: Arc::new(Mutex::new(HashMap::new())),
-        id: 0,
-        storage: Arc::new(mysql::init().await),
-        pack_protocol: None,
-    };
 
     let SshOptions {
         host,
@@ -63,7 +59,15 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
         key_path: _,
         cert_path: _,
         lfs_content_path: _,
+        data_source,
     } = command;
+    let sh = SshServer {
+        client_pubkey,
+        clients: Arc::new(Mutex::new(HashMap::new())),
+        id: 0,
+        storage: database::init(data_source).await,
+        pack_protocol: None,
+    };
     let server_url = format!("{}:{}", host, port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
     russh::server::run(config, addr, sh).await
