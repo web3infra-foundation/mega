@@ -10,7 +10,7 @@ members = [".", "gateway", "git", "common", "database", "p2p","mda"]
 gateway = { path = "gateway" }
 common = { path = "common" }
 p2p = { path = "p2p" }
-craft ={ path = "craft" }
+git-craft ={ path = "craft" }
 
 config = "0.13.3"
 serde = { version = "1.0.163", features = ["derive"] }
