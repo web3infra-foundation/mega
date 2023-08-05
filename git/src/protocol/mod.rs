@@ -187,7 +187,7 @@ impl RefCommand {
             iterator.set_storage(Some(storage.clone()));
             let mut save_models: Vec<git::ActiveModel> = Vec::new();
             let mr_id = generate_id();
-            let batch_size = 100;
+            let batch_size = 10000;
             for i in 0..pack.number_of_objects() {
                 let obj = iterator.next_obj().await?;
                 // println!("{}", obj);
