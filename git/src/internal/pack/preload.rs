@@ -345,12 +345,12 @@ fn thread_chunk(len: usize) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, io::BufReader, path::Path, sync::Arc};
+    use std::{fs::File, io::BufReader, path::Path};
 
     use crate::internal::pack::preload::PackPreload;
 
     use super::decode_load;
-    use database::driver::mysql;
+    use database::DataSource;
     use tokio::test;
 
     #[test]
@@ -375,7 +375,7 @@ mod tests {
             "../tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack",
         ))
         .unwrap();
-        let storage = Arc::new(mysql::init().await);
+        let storage = database::init(&DataSource::Mysql).await;
         let p = PackPreload::new(BufReader::new(file));
         decode_load(p, storage).await;
     }

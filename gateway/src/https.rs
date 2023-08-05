@@ -17,7 +17,8 @@ use axum::routing::get;
 use axum::{Router, Server};
 use clap::Args;
 use database::driver::lfs::structs::LockListQuery;
-use database::driver::{mysql, ObjectStorage};
+use database::driver::ObjectStorage;
+use database::DataSource;
 use git::lfs::{self, LfsConfig};
 use git::protocol::{http, ServiceType};
 use git::protocol::{PackProtocol, Protocol};
@@ -45,6 +46,9 @@ pub struct HttpOptions {
 
     #[arg(short, long, default_value_os_t = PathBuf::from("lfs_content"))]
     pub lfs_content_path: PathBuf,
+
+    #[arg(short, long, value_enum, default_value = "mysql")]
+    pub data_source: DataSource,
 }
 
 #[derive(Clone)]
@@ -74,12 +78,13 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
         key_path: _,
         cert_path: _,
         lfs_content_path: _,
+        data_source,
     } = options;
     let server_url = format!("{}:{}", host, port);
 
     // let config =  LfsConfig::from(options.to_owned());
     let state = AppState {
-        storage: Arc::new(mysql::init().await),
+        storage:database::init(data_source).await,
         options: options.to_owned(),
     };
     let app = Router::new()
@@ -256,7 +261,7 @@ mod api_routers {
     use hyper::StatusCode;
 
     use crate::{
-        api_service::obj_service,
+        api_service::obj_service::ObjectService,
         model::object_detail::{BlobObjects, TreeObjects},
     };
 
@@ -276,8 +281,10 @@ mod api_routers {
     ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
         let repo_path = query.get("repo_path").unwrap();
         let object_id = query.get("object_id").unwrap();
-
-        obj_service::get_blob_objects(state.storage.clone(), object_id, repo_path).await
+        let object_service = ObjectService {
+            storage: state.storage.clone(),
+        };
+        object_service.get_blob_objects(object_id, repo_path).await
     }
 
     async fn get_tree_objects(
@@ -286,7 +293,10 @@ mod api_routers {
     ) -> Result<Json<TreeObjects>, (StatusCode, String)> {
         let object_id = query.get("object_id");
         let repo_path = query.get("repo_path").unwrap();
-        obj_service::get_tree_objects(state.storage.clone(), object_id, repo_path).await
+        let object_service = ObjectService {
+            storage: state.storage.clone(),
+        };
+        object_service.get_tree_objects(object_id, repo_path).await
     }
 
     async fn get_origin_object(
@@ -295,7 +305,10 @@ mod api_routers {
     ) -> Result<impl IntoResponse, (StatusCode, String)> {
         let repo_path = query.get("repo_path").unwrap();
         let object_id = query.get("object_id").unwrap();
-        obj_service::get_objects_data(state.storage.clone(), object_id, repo_path).await
+        let object_service = ObjectService {
+            storage: state.storage.clone(),
+        };
+        object_service.get_objects_data(object_id, repo_path).await
     }
 }
 

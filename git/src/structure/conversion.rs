@@ -68,44 +68,6 @@ impl PackProtocol {
         Ok(result)
     }
 
-    //todo: remove later
-    pub async fn get_full_pack_data_history(&self, repo_path: &Path) -> Result<Vec<u8>, GitError> {
-        let mut hash_object: HashMap<String, Arc<dyn ObjectT>> = HashMap::new();
-
-        let commit_models = self
-            .storage
-            .get_all_commits_by_path(repo_path)
-            .await
-            .unwrap();
-        let mut commits = Vec::new();
-        let mut tree_ids = Vec::new();
-
-        for c_model in commit_models {
-            let c = Commit::new_from_data(c_model.meta);
-            tree_ids.push(c.tree_id.to_plain_str());
-            commits.push(c);
-        }
-        let trees: HashMap<Hash, node::Model> = self
-            .storage
-            .get_nodes_by_hashes(tree_ids)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|f| (Hash::new_from_str(&f.git_id), f))
-            .collect();
-        for commit in commits {
-            hash_object.insert(commit.id.to_plain_str(), Arc::new(commit.clone()));
-            if let Some(root) = trees.get(&commit.tree_id) {
-                get_child_trees(root, &mut hash_object, &HashMap::new()).await
-            } else {
-                return Err(GitError::InvalidTreeObject(commit.tree_id.to_plain_str()));
-            };
-        }
-        let meta_vec: Vec<Arc<dyn ObjectT>> = hash_object.into_values().collect();
-        let result: Vec<u8> = pack_encode(meta_vec).unwrap();
-        Ok(result)
-    }
-
     pub async fn get_incremental_pack_data(
         &self,
         repo_path: &Path,
@@ -122,7 +84,12 @@ impl PackProtocol {
         for c_data in all_commits {
             if want.contains(&c_data.git_id) {
                 let c = Commit::new_from_data(c_data.meta);
-                if let Some(root) = self.storage.get_node_by_hash(&c.tree_id.to_plain_str()).await.unwrap() {
+                if let Some(root) = self
+                    .storage
+                    .get_node_by_hash(&c.tree_id.to_plain_str())
+                    .await
+                    .unwrap()
+                {
                     get_child_trees(&root, &mut hash_meta, &HashMap::new()).await
                 } else {
                     return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
