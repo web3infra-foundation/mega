@@ -4,6 +4,7 @@ use crate::network::behaviour::{self, Behaviour, Event};
 use crate::network::event_handler;
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
+use database::DataSource;
 use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::core::upgrade;
@@ -12,16 +13,17 @@ use libp2p::kad::Kademlia;
 use libp2p::request_response::ProtocolSupport;
 use libp2p::swarm::{SwarmBuilder, SwarmEvent};
 use libp2p::{
-    dcutr, identify, identity, multiaddr, relay, rendezvous, request_response, tcp, tls, yamux,
+    dcutr, identify, identity, multiaddr, noise, relay, rendezvous, request_response, tcp, yamux,
     Multiaddr, PeerId, StreamProtocol, Transport,
 };
 use std::collections::HashMap;
 use std::error::Error;
 
-pub fn run(
+pub async fn run(
     local_key: identity::Keypair,
     p2p_address: String,
     bootstrap_node: String,
+    data_source: DataSource,
 ) -> Result<(), Box<dyn Error>> {
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
@@ -33,7 +35,8 @@ pub fn run(
             tcp::Config::default().port_reuse(true),
         ))
         .upgrade(upgrade::Version::V1)
-        .authenticate(tls::Config::new(&local_key).unwrap())
+        .authenticate(noise::Config::new(&local_key)?)
+        // .authenticate(tls::Config::new(&local_key).unwrap())
         .multiplex(yamux::Config::default())
         .boxed();
 
@@ -61,10 +64,13 @@ pub fn run(
     // Listen on all interfaces
     swarm.listen_on(p2p_address.parse()?)?;
 
+    tracing::info!("Connect to database");
+    let storage = database::init(&data_source).await;
     let mut client_paras = ClientParas {
         cookie: None,
         rendezvous_point: None,
         bootstrap_node_addr: None,
+        storage,
         pending_git_upload_package: HashMap::new(),
     };
 
