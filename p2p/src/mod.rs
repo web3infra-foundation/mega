@@ -14,9 +14,6 @@ pub mod network;
 pub mod node;
 pub mod peer;
 
-#[cfg(test)]
-mod tests {}
-
 async fn get_pack_protocol(path: &str, storage: Arc<dyn ObjectStorage>) -> PackProtocol {
     let path = del_ends_str(path, ".git");
     PackProtocol::new(PathBuf::from(path), storage, Protocol::P2p)
@@ -33,3 +30,6 @@ pub fn del_ends_str<'a>(mut s: &'a str, end: &str) -> &'a str {
     }
     s
 }
+
+#[cfg(test)]
+mod tests {}
