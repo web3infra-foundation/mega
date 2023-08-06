@@ -4,11 +4,10 @@ pub use entity::*;
 pub mod utils;
 pub use utils::*;
 
-pub mod map_data;
-pub use map_data::*;
+ 
 
-pub mod anno_version_control;
-pub use anno_version_control::*;
+pub mod rev_anno;
+pub use rev_anno::*;
  
 
 pub mod mda_operations{
@@ -20,3 +19,11 @@ pub use mda_operations::generate;
 pub use mda_operations::extract;
 pub use mda_operations::update;
 
+pub mod map{
+    pub mod read_from_file;
+    pub mod read_from_folders;
+}
+pub use map::*;
+
+
+pub mod run_mda;

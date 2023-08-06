@@ -1,63 +1,58 @@
 use crate::{
-    generate::write_data_to_mda, DataType, MDAHeader, MDAIndex, RevAnno, RevAnnoEntry,
-    RevAnnoHeader, TrainingData,
+    extract::get_rev_anno_from_mda, generate::write_data_to_mda, DataType, MDAHeader, MDAIndex,
+    RevAnno, TrainingData,
 };
 use anyhow::Result;
 use std::error::Error;
 use std::fs::File;
-use std::io::BufReader;
-use std::io::Read;
-use std::io::{Seek, SeekFrom};
-
+use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::process;
 /// Update anno rev_anno and offset in mda
-pub fn update_anno_in_mda(file_path: &str, anno_data_path: &str) -> Result<(), Box<dyn Error>> {
-    // Get old rev_anno
-    let   file = File::open(file_path)?;
-    let mut reader = BufReader::new(&file);
-    let index: MDAIndex = bincode::deserialize_from(&mut reader)?;
-    reader.seek(SeekFrom::Start(index.anno_headers_offset))?;
-   
-    // Get MdaHeader info
-    let mut header_bytes = Vec::new();
-    reader.read_to_end(&mut header_bytes)?;
+pub fn update_anno_in_mda_by_content(
+    file_path: &str,
+    anno_data_content: &str,
+) -> Result<(), Box<dyn Error>> {
+    //Get rev_anno
 
-     let mut headers: Vec<RevAnnoHeader> = Vec::new();
-    let mut offset = 0;
-    while offset < header_bytes.len() {
-        let header: RevAnnoHeader = bincode::deserialize(&header_bytes[offset..])?;
-        headers.push(header.clone());
+    let rev_anno = match get_rev_anno_from_mda(file_path, -1) {
+        Ok(rev_anno) => rev_anno,
+        Err(err) => {
+            println!("Get annotation data fail! {:?}", err);
+            process::exit(1);
+        }
+    };
 
-         offset += bincode::serialized_size(&header)? as usize;
-    }
-
-    // Move to entries offset
-    reader.seek(SeekFrom::Start(index.anno_entries_offset))?;
-    let mut entries_bytes = Vec::new();
-    reader.read_to_end(&mut entries_bytes)?;
-    let mut entries: Vec<RevAnnoEntry> = Vec::new();
-    let mut offset = 0;
-    for rev_anno_header in &headers {
-        let entry_bytes = &&entries_bytes[offset..(offset + rev_anno_header.length as usize)];
-        let entry: RevAnnoEntry = bincode::deserialize(entry_bytes)?;
-        entries.push(entry);
-        offset += rev_anno_header.length as usize;
-    }
-    
     // Rewrite new data
-    let mut anno = File::open(anno_data_path)?;
-    let mut content = String::new();
-    anno.read_to_string(&mut content)?;
-    let (headers, entries) = RevAnnoEntry::add(&content, entries, headers);
-    let mut rev_anno = RevAnno::new(headers, entries);
 
+    let mut rev_anno = RevAnno::add_element(anno_data_content, rev_anno.entries, rev_anno.headers);
 
     let _ = update_rev_anno(file_path, &mut rev_anno);
-    
 
     Ok(())
 }
 
+/// Update anno rev_anno and offset in mda
+pub fn update_anno_in_mda(file_path: &str, anno_data_path: &str) -> Result<(), Box<dyn Error>> {
+    //Get rev_anno
 
+    let rev_anno = match get_rev_anno_from_mda(file_path, -1) {
+        Ok(rev_anno) => rev_anno,
+        Err(err) => {
+            println!("Update annotation data fail! ={:?}", err);
+            process::exit(1);
+        }
+    };
+
+    // Rewrite new data
+    let mut anno = File::open(anno_data_path)?;
+    let mut content = String::new();
+    anno.read_to_string(&mut content)?;
+    let mut rev_anno = RevAnno::add_element(&content, rev_anno.entries, rev_anno.headers);
+
+    let _ = update_rev_anno(file_path, &mut rev_anno);
+
+    Ok(())
+}
 
 /// Update rev_anno
 fn update_rev_anno(mda_path: &str, rev_anno: &mut RevAnno) -> Result<(), Box<dyn Error>> {
