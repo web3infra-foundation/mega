@@ -41,6 +41,7 @@ pub enum Protocol {
     Http,
     Ssh,
     Git,
+    P2p,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
