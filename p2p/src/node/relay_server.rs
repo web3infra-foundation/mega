@@ -1,4 +1,5 @@
 use super::input_command;
+use crate::network::event_handler;
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
 use futures::executor::block_on;
@@ -11,11 +12,10 @@ use libp2p::{
     identify, identity,
     identity::PeerId,
     noise, relay, rendezvous,
-    swarm::{AddressScore, NetworkBehaviour, SwarmBuilder, SwarmEvent},
+    swarm::{NetworkBehaviour, SwarmBuilder, SwarmEvent},
     tcp,
 };
 use std::error::Error;
-use crate::network::event_handler;
 
 pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<dyn Error>> {
     let local_peer_id = PeerId::from(local_key.public());
@@ -25,9 +25,8 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
 
     let tcp_transport = tcp_transport
         .upgrade(upgrade::Version::V1Lazy)
-        .authenticate(
-            noise::Config::new(&local_key).expect("Signing libp2p-noise static DH keypair failed."),
-        )
+        // .authenticate(tls::Config::new(&local_key).unwrap())
+        .authenticate(noise::Config::new(&local_key)?)
         .multiplex(libp2p::yamux::Config::default())
         .boxed();
 
@@ -59,13 +58,13 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
                         continue;
                     }
                     //kad input
-                     input_command::handle_kad_command(&mut swarm.behaviour_mut().kademlia,line.to_string().split_whitespace());
+                     input_command::handle_kad_command(&mut swarm.behaviour_mut().kademlia,line.to_string().split_whitespace().collect());
                 },
                 event = swarm.select_next_some() => match event{
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Identify(identify::Event::Received {
                         info,peer_id
                     })) => {
-                        swarm.add_external_address(info.observed_addr.clone(),AddressScore::Infinite);
+                        swarm.add_external_address(info.observed_addr.clone());
                         for listen_addr in info.listen_addrs.clone(){
                             swarm.behaviour_mut().kademlia.add_address(&peer_id.clone(),listen_addr);
                         }

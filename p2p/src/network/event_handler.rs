@@ -1,14 +1,17 @@
 use super::behaviour;
-use crate::network::behaviour::{FileRequest, FileResponse};
-use crate::node::client::ClientParas;
+use crate::network::behaviour::{GitUploadPackReq, GitUploadPackRes};
+use crate::node::ClientParas;
+use crate::{get_pack_protocol, get_repo_full_path};
+use bytes::Bytes;
+use common::utils;
+use git::protocol::{CommandType, RefCommand};
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{
     AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, Kademlia, KademliaEvent,
     PeerRecord, PutRecordOk, QueryResult,
 };
 use libp2p::{identify, multiaddr, rendezvous, request_response, Swarm};
-use std::fs;
-use std::io::Write;
+use std::path::Path;
 
 pub const NAMESPACE: &str = "rendezvous_mega";
 
@@ -106,14 +109,14 @@ pub fn rendezvous_client_event_handler(
                             .dial(
                                 bootstrap_address
                                     .with(multiaddr::Protocol::P2pCircuit)
-                                    .with(multiaddr::Protocol::P2p(*peer.as_ref())),
+                                    .with(multiaddr::Protocol::P2p(peer)),
                             )
                             .unwrap();
                     }
                 }
             }
         }
-        rendezvous::client::Event::RegisterFailed(error) => {
+        rendezvous::client::Event::RegisterFailed { error, .. } => {
             tracing::error!("Failed to register:  error_code={:?}", error);
         }
         rendezvous::client::Event::DiscoverFailed {
@@ -178,52 +181,46 @@ pub fn identify_event_handler(kademlia: &mut Kademlia<MemoryStore>, event: ident
     }
 }
 
-pub fn file_transfer_event_handler(
+pub async fn git_upload_pack_event_handler(
     swarm: &mut Swarm<behaviour::Behaviour>,
     client_paras: &mut ClientParas,
-    event: request_response::Event<FileRequest, FileResponse>,
+    event: request_response::Event<GitUploadPackReq, GitUploadPackRes>,
 ) {
     match event {
         request_response::Event::Message { message, .. } => match message {
             request_response::Message::Request {
                 request, channel, ..
             } => {
-                //receive file transfer request
-                tracing::info!(
-                    "File transfer event request, {:?}, channel:{:?}",
+                //receive git upload pack request
+                tracing::debug!(
+                    "Git upload pack event handler, {:?}, {:?}",
                     request,
                     channel
                 );
-                //check if we provide this file
-                let file_name = request.0;
-                let file_path = match client_paras.file_provide_map.get(&file_name) {
-                    Some(s) => s,
-                    None => {
-                        tracing::error!("File path not exists");
-                        return;
+                let commend = request.0;
+                // command pull:
+                // git-upload-pack /root/repotest/src.git
+                let command_vec: Vec<_> = commend.split_whitespace().collect();
+                if command_vec.len() < 2 {
+                    tracing::error!("Invalid command:{}", commend);
+                    return;
+                }
+                let path = command_vec[1];
+                tracing::info!("path: {}", path);
+                match git_upload_pack_handler(path, client_paras).await {
+                    Ok((send_pack_data, object_id)) => {
+                        let _ = swarm
+                            .behaviour_mut()
+                            .git_upload_pack
+                            .send_response(channel, GitUploadPackRes(send_pack_data, object_id));
                     }
-                };
-                let file_content = match read_file_to_vec(file_path) {
-                    Ok(s) => s,
                     Err(e) => {
-                        tracing::error!("File open failed  :{:?}", e);
-                        return;
-                    }
-                };
-                let result = swarm
-                    .behaviour_mut()
-                    .request_response
-                    .send_response(channel, FileResponse(file_content));
-                match result {
-                    Ok(()) => {
-                        tracing::info!(
-                            "File send success, fileName:{:?}, filePath:{:?}",
-                            file_name,
-                            file_path
+                        tracing::error!("{}", e);
+                        let response = format!("ERR: {}", e);
+                        let _ = swarm.behaviour_mut().git_upload_pack.send_response(
+                            channel,
+                            GitUploadPackRes(response.into_bytes(), utils::ZERO_ID.to_string()),
                         );
-                    }
-                    Err(e) => {
-                        tracing::error!("File request response Error :{:?}", e);
                     }
                 }
             }
@@ -231,19 +228,50 @@ pub fn file_transfer_event_handler(
                 request_id,
                 response,
             } => {
-                // get a file
-                tracing::info!("File transfer event response, request_id: {:?}", request_id,);
-                if let Some(file_name) = client_paras.pending_get_file.get(&request_id) {
-                    let file_content = response.0;
-                    let file_path = format!("download/{}", file_name);
-                    tracing::info!("Download file {} to {}", file_name, file_path);
-                    if let Err(e) = write_vec_to_file(&file_path, &file_content) {
-                        tracing::info!("Save file failed: {} ", e);
+                // receive a git_upload_pack response
+                tracing::info!(
+                    "Git upload pack event response, request_id: {:?}",
+                    request_id,
+                );
+                if let Some(repo_name) = client_paras.pending_git_upload_package.get(&request_id) {
+                    let package_data = response.0;
+                    let object_id = response.1;
+                    if package_data.starts_with("ERR:".as_bytes()) {
+                        tracing::error!("{}", String::from_utf8(package_data).unwrap());
+                        return;
+                    }
+                    let path = get_repo_full_path(repo_name);
+                    let mut pack_protocol =
+                        get_pack_protocol(&path, client_paras.storage.clone()).await;
+                    let command = RefCommand {
+                        ref_name: String::from("refs/heads/master"),
+                        old_id: String::from("0000000000000000000000000000000000000000"),
+                        new_id: object_id,
+                        status: String::from("ok"),
+                        error_msg: String::new(),
+                        command_type: CommandType::Create,
+                    };
+                    pack_protocol.command_list.push(command);
+                    // let result = command
+                    //     .unpack(client_paras.storage.clone(), &mut Bytes::from(package_data))
+                    //     .await;
+                    let result = pack_protocol
+                        .git_receive_pack(Bytes::from(package_data))
+                        .await;
+                    match result {
+                        Ok(_) => {
+                            tracing::info!("Save git package successfully :{}", repo_name);
+                        }
+                        Err(e) => {
+                            tracing::error!("{}", e);
+                        }
                     }
                 }
             }
         },
-
+        request_response::Event::OutboundFailure { peer, error, .. } => {
+            tracing::error!("Git upload pack outbound failure: {:?},{:?}", peer, error);
+        }
         event => {
             tracing::debug!("Request_response event:{:?}", event);
         }
@@ -252,54 +280,56 @@ pub fn file_transfer_event_handler(
 
 //After accepting the event, a new event needs to be triggered
 pub fn kad_event_callback(
-    swarm: &mut Swarm<behaviour::Behaviour>,
-    client_paras: &mut ClientParas,
+    _swarm: &mut Swarm<behaviour::Behaviour>,
+    _client_paras: &mut ClientParas,
     event: KademliaEvent,
 ) {
     match event {
         KademliaEvent::OutboundQueryProgressed {
-            id,
-            result: QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders { providers, .. })),
+            result: QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders { .. })),
             ..
         } => {
             //check if there is pending_get_file
-            if let Some(file_name) = client_paras.pending_request_file.get(&id) {
-                if providers.is_empty() {
-                    tracing::error!("Cannot find file {} from p2p network", file_name,);
-                }
-                //Trigger file download request
-                for peer_id in providers {
-                    let request_file_id = swarm
-                        .behaviour_mut()
-                        .request_response
-                        .send_request(&peer_id, FileRequest(file_name.to_string()));
-                    tracing::info!("Get File {} from peer {}", file_name, peer_id);
-                    client_paras
-                        .pending_get_file
-                        .insert(request_file_id, file_name.clone());
-                }
-            }
-            client_paras.pending_request_file.remove(&id);
+            // if let Some(file_name) = client_paras.pending_request_file.get(&id) {
+            //     if providers.is_empty() {
+            //         tracing::error!("Cannot find file {} from p2p network", file_name,);
+            //     }
+            //     //Trigger file download request
+            //     for peer_id in providers {
+            //         let request_file_id = swarm
+            //             .behaviour_mut()
+            //             .request_response
+            //             .send_request(&peer_id, FileRequest(file_name.to_string()));
+            //         tracing::info!("Get File {} from peer {}", file_name, peer_id);
+            //         client_paras
+            //             .pending_get_file
+            //             .insert(request_file_id, file_name.clone());
+            //     }
+            // }
+            // client_paras.pending_request_file.remove(&id);
+            println!("111");
         }
         _event => {}
     }
 }
 
-fn read_file_to_vec(filepath: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let data = fs::read(filepath)?;
-    Ok(data)
-}
-
-fn write_vec_to_file(path: &str, data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    let path = std::path::Path::new(path);
-    if let Some(prefix) = path.parent() {
-        if !prefix.exists() {
-            fs::create_dir_all(prefix)?;
-        }
+async fn git_upload_pack_handler(
+    path: &str,
+    client_paras: &mut ClientParas,
+) -> Result<(Vec<u8>, String), String> {
+    let pack_protocol = get_pack_protocol(path, client_paras.storage.clone()).await;
+    let object_id = pack_protocol.get_head_object_id(Path::new(path)).await;
+    if object_id == *utils::ZERO_ID {
+        return Err("Repository not found".to_string());
     }
-    let mut file = fs::File::create(path)?;
-    file.write_all(data)?;
-    let remaining = file.write(data)?;
-    if remaining > 0 {}
-    Ok(())
+    tracing::info!("object_id:{}", object_id);
+    let send_pack_data = match pack_protocol.get_full_pack_data(Path::new(path)).await {
+        Ok(send_pack_data) => send_pack_data,
+        Err(e) => {
+            tracing::error!("{}", e);
+            return Err(e.to_string());
+        }
+    };
+    // tracing::info!("send_pack_data:{:?}", send_pack_data);
+    Ok((send_pack_data, object_id))
 }

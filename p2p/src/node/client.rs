@@ -1,28 +1,29 @@
 use super::input_command;
+use super::ClientParas;
 use crate::network::behaviour::{self, Behaviour, Event};
 use crate::network::event_handler;
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
+use database::DataSource;
 use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::core::upgrade;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{Kademlia, QueryId};
-use libp2p::rendezvous::Cookie;
-use libp2p::request_response::{ProtocolSupport, RequestId};
-use libp2p::swarm::{AddressScore, SwarmBuilder, SwarmEvent};
+use libp2p::kad::Kademlia;
+use libp2p::request_response::ProtocolSupport;
+use libp2p::swarm::{SwarmBuilder, SwarmEvent};
 use libp2p::{
     dcutr, identify, identity, multiaddr, noise, relay, rendezvous, request_response, tcp, yamux,
-    Multiaddr, PeerId, Transport,
+    Multiaddr, PeerId, StreamProtocol, Transport,
 };
 use std::collections::HashMap;
 use std::error::Error;
-use std::iter;
 
-pub fn run(
+pub async fn run(
     local_key: identity::Keypair,
     p2p_address: String,
     bootstrap_node: String,
+    data_source: DataSource,
 ) -> Result<(), Box<dyn Error>> {
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
@@ -34,7 +35,8 @@ pub fn run(
             tcp::Config::default().port_reuse(true),
         ))
         .upgrade(upgrade::Version::V1)
-        .authenticate(noise::Config::new(&local_key).unwrap())
+        .authenticate(noise::Config::new(&local_key)?)
+        // .authenticate(tls::Config::new(&local_key).unwrap())
         .multiplex(yamux::Config::default())
         .boxed();
 
@@ -49,10 +51,12 @@ pub fn run(
         dcutr: dcutr::Behaviour::new(local_peer_id),
         kademlia: Kademlia::new(local_peer_id, store),
         rendezvous: rendezvous::client::Behaviour::new(local_key),
-        request_response: request_response::Behaviour::new(
-            behaviour::FileExchangeCodec(),
-            iter::once((behaviour::FileExchangeProtocol(), ProtocolSupport::Full)),
-            Default::default(),
+        git_upload_pack: request_response::cbor::Behaviour::new(
+            [(
+                StreamProtocol::new("/mega/git_upload_pack"),
+                ProtocolSupport::Full,
+            )],
+            request_response::Config::default(),
         ),
     };
     let mut swarm = SwarmBuilder::without_executor(tcp_transport, behaviour, local_peer_id).build();
@@ -60,13 +64,14 @@ pub fn run(
     // Listen on all interfaces
     swarm.listen_on(p2p_address.parse()?)?;
 
+    tracing::info!("Connect to database");
+    let storage = database::init(&data_source).await;
     let mut client_paras = ClientParas {
         cookie: None,
         rendezvous_point: None,
         bootstrap_node_addr: None,
-        file_provide_map: HashMap::new(),
-        pending_request_file: HashMap::new(),
-        pending_get_file: HashMap::new(),
+        storage,
+        pending_git_upload_package: HashMap::new(),
     };
 
     // Wait to listen on all interfaces.
@@ -105,12 +110,12 @@ pub fn run(
                     event = swarm.next() => {
                         match event.unwrap() {
                             SwarmEvent::NewListenAddr { .. } => {}
-                            SwarmEvent::Dialing(peer_id) => {
+                            SwarmEvent::Dialing{peer_id, ..} => {
                                 tracing::info!("Dialing: {:?}", peer_id)
                             },
                             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                                 client_paras.rendezvous_point.replace(peer_id);
-                                let p2p_suffix = multiaddr::Protocol::P2p(*peer_id.as_ref());
+                                let p2p_suffix = multiaddr::Protocol::P2p(peer_id);
                                 let bootstrap_node_addr =
                                     if !bootstrap_node_addr.ends_with(&Multiaddr::empty().with(p2p_suffix.clone())) {
                                         bootstrap_node_addr.clone().with(p2p_suffix)
@@ -144,13 +149,15 @@ pub fn run(
                             if let Some(bootstrap_node_addr) = client_paras.bootstrap_node_addr.clone(){
                                 let public_addr = bootstrap_node_addr.with(multiaddr::Protocol::P2pCircuit);
                                 swarm.listen_on(public_addr.clone()).unwrap();
-                                swarm.add_external_address(public_addr,AddressScore::Infinite);
+                                swarm.add_external_address(public_addr);
                                 //register rendezvous
-                                swarm.behaviour_mut().rendezvous.register(
+                                if let Err(error) = swarm.behaviour_mut().rendezvous.register(
                                     rendezvous::Namespace::from_static(event_handler::NAMESPACE),
                                     relay_peer_id.unwrap(),
                                     None,
-                                )
+                                ){
+                                    tracing::error!("Failed to register: {error}");
+                                }
                             }
 
                             break;
@@ -175,7 +182,7 @@ pub fn run(
                             continue;
                     }
                     //kad input
-                     input_command::handle_input_command(&mut swarm,&mut client_paras,line.to_string());
+                     input_command::handle_input_command(&mut swarm,&mut client_paras,line.to_string()).await;
                 },
                 event = swarm.select_next_some() => {
                     match event{
@@ -211,9 +218,9 @@ pub fn run(
                             event_handler::kad_event_handler(event.clone());
                             event_handler::kad_event_callback(&mut swarm, &mut client_paras, event);
                         },
-                        //file transfer events
-                        SwarmEvent::Behaviour(Event::RequestResponse(event)) => {
-                             event_handler::file_transfer_event_handler(&mut swarm, &mut client_paras, event);
+                        //GitUploadPack events
+                        SwarmEvent::Behaviour(Event::GitUploadPack(event)) => {
+                             event_handler::git_upload_pack_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         _ => {
                             tracing::debug!("Event: {:?}", event);
@@ -225,13 +232,4 @@ pub fn run(
     });
 
     Ok(())
-}
-
-pub struct ClientParas {
-    pub cookie: Option<Cookie>,
-    pub rendezvous_point: Option<PeerId>,
-    pub bootstrap_node_addr: Option<Multiaddr>,
-    pub file_provide_map: HashMap<String, String>,
-    pub pending_request_file: HashMap<QueryId, String>,
-    pub pending_get_file: HashMap<RequestId, String>,
 }

@@ -7,6 +7,7 @@
 use super::node::client;
 use super::node::relay_server;
 use clap::Args;
+use database::DataSource;
 use libp2p::identity;
 
 /// Parameters for starting the p2p service
@@ -26,6 +27,9 @@ pub struct P2pOptions {
 
     #[arg(short, long, default_value_t = false)]
     pub relay_server: bool,
+
+    #[arg(value_enum, default_value = "mysql")]
+    pub data_source: DataSource,
 }
 
 /// run as a p2p node
@@ -36,6 +40,7 @@ pub async fn run(options: &P2pOptions) -> Result<(), Box<dyn std::error::Error>>
         bootstrap_node,
         secret_key_seed,
         relay_server,
+        data_source,
     } = options;
     let p2p_address = format!("/ip4/{}/tcp/{}", host, port);
 
@@ -51,7 +56,7 @@ pub async fn run(options: &P2pOptions) -> Result<(), Box<dyn std::error::Error>>
     if *relay_server {
         relay_server::run(local_key, p2p_address)?;
     } else {
-        client::run(local_key, p2p_address, bootstrap_node.clone())?;
+        client::run(local_key, p2p_address, bootstrap_node.clone(), *data_source).await?;
     }
     Ok(())
 }
