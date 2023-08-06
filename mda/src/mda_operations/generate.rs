@@ -1,7 +1,7 @@
 use crate::{
     extract_audio_metadata, extract_filename_change_extension, extract_image_metadata,
-    extract_text_metadata, get_file_type, Config, DataType, ImageMetaData, MDAHeader, MDAIndex,
-    RevAnno, RevAnnoEntry ,  TextMetaData, TrainData, TrainingData, 
+    extract_text_metadata, get_file_type, DataType, ImageMetaData, MDAHeader, MDAIndex,
+    RevAnno, TextMetaData, TrainData, TrainingData, extract_video_info, AudioMetaData, VideoMetaData,
 };
 use anyhow::Result;
 use bincode::serialize_into;
@@ -9,38 +9,50 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
-
-/// Generate MDA file
-pub fn generate_mda_file(
+use crate::run_mda::MDAOptions;
+/// Read anno content and generate mda file
+pub fn generate_mda(
     training_data: &str,
     annotation_data: &str,
     output: &str,
-    config: &Config,
+    config: &MDAOptions,
 ) -> Result<(), Box<dyn Error>> {
-    // Config filename and path
+    let mut file = File::open(annotation_data)?;
+    let mut anno_data = String::new();
+    file.read_to_string(&mut anno_data)?;
+    generate_mda_by_content(training_data, &anno_data, output, config)?;
+    Ok(())
+}
+
+/// Generate MDA file by content
+pub fn generate_mda_by_content(
+    training_data: &str,
+    annotation_data: &str,
+    output: &str,
+    config: &MDAOptions,
+) -> Result<(), Box<dyn Error>> {
+    // MDAOptions filename and path
     let filename = extract_filename_change_extension(training_data);
     let output_path = output.to_owned() + filename;
 
-    // Config MDAHeader Begin
-    // Config MDAHeader -- config metadata
-    let metadata = match process_file(training_data) {
-        Some(metadata) => metadata,
-        None => {
-            println!("Failed to extract metadata!");
-            std::process::exit(0);
-        }
-    };
+    // MDAOptions MDAHeader Begin
+    // MDAOptions MDAHeader -- config metadata
+     let metadata = process_file(training_data)
+        .ok_or(training_data.clone().to_owned() + "Failed to extract metadata!" )?;
 
     let meta: String;
     if let Some(image_metadata) = metadata.downcast_ref::<ImageMetaData>() {
-        meta = format!("Image metadata: {:?}", image_metadata);
+        meta = format!("{:?}", image_metadata);
     } else if let Some(text_metadata) = metadata.downcast_ref::<TextMetaData>() {
-        meta = format!("Text metadata: {:?}", text_metadata);
+        meta = format!("{:?}", text_metadata);
+    } else if let Some(audio_metadata) = metadata.downcast_ref::<AudioMetaData>() {
+        meta = format!("{:?}", audio_metadata);
+    } else if let Some(video_metadata) = metadata.downcast_ref::<VideoMetaData>() {
+        meta = format!("{:?}", video_metadata);
     } else {
-        println!("Unknown metadata type");
-        std::process::exit(0);
+        return Err("Unknown metadata type".into());
     }
-    // Config MDAHeader -- config tags
+    // MDAOptions MDAHeader -- config tags
     let tags = match &config.tags {
         Some(tags) => tags.split(',').map(|s| s.trim().to_string()).collect(),
         None => vec![],
@@ -61,9 +73,9 @@ pub fn generate_mda_file(
             metadata: meta.to_string(),
         },
     };
-    // Config MDAHeader finish
+    // MDAOptions MDAHeader finish
 
-    // Config Training Data
+    // MDAOptions Training Data
     let train_data = match config_training_data(training_data) {
         Ok(data) => data,
         Err(error) => {
@@ -71,9 +83,9 @@ pub fn generate_mda_file(
             std::process::exit(0);
         }
     };
-    // Config Annotation data
+    // MDAOptions Annotation data
 
-    let mut anno_data = match config_annotation_data(annotation_data) {
+    let mut anno_data = match config_annotation_data_by_content(annotation_data) {
         Ok(rev_anno) => rev_anno,
         Err(err) => {
             eprintln!("Fail to load annotation data {}", err);
@@ -107,17 +119,9 @@ pub fn config_training_data(file_path: &str) -> Result<TrainingData, String> {
 }
 
 /// Get annotation data
-pub fn config_annotation_data(file_path: &str) -> Result<RevAnno, Box<dyn Error>> {
-    let mut file = File::open(file_path)?;
-
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    let (headers, entries) = RevAnnoEntry::init(&content);
-
-    let rev_anno = RevAnno::new(headers, entries);
-    Ok(rev_anno)
+pub fn config_annotation_data_by_content(content: &str) -> Result<RevAnno, Box<dyn Error>> {
+    Ok(RevAnno::set_initial_element(content))
 }
-
 
 // Create mda file and write data
 pub fn write_data_to_mda(
@@ -178,11 +182,11 @@ pub fn write_data_to_mda(
     let store_anno_entries_offset = anno_entries_offset;
 
     // Write the entries and record their lengths
-    let mut lengths: Vec<u32> = Vec::new();
+    let mut lengths: Vec<u64> = Vec::new();
     for entry in &rev_anno.entries {
         let entry_bytes = bincode::serialize(entry)?;
         file.write_all(&entry_bytes)?;
-        lengths.push(entry_bytes.len() as u32);
+        lengths.push(entry_bytes.len() as u64);
     }
 
     // Record the current offset as the starting position of the headers and update the RevlogIndex
@@ -194,7 +198,7 @@ pub fn write_data_to_mda(
         rev_anno_header.length = length;
         let header_bytes = bincode::serialize(rev_anno_header)?;
         file.write_all(&header_bytes)?;
-        anno_entries_offset += length as u64;
+        anno_entries_offset += length;
     }
 
     file.seek(SeekFrom::Start(index_placeholder_offset))?;
@@ -212,24 +216,24 @@ pub fn write_data_to_mda(
     Ok(())
 }
 
-
-
-
-
 /// Extract metadata from training data
-//TODO
 pub fn process_file(file_path: &str) -> Option<Box<dyn std::any::Any>> {
     if file_path.ends_with(".jpg") || file_path.ends_with(".png") {
         let image_metadata = extract_image_metadata(file_path);
         Some(Box::new(image_metadata) as Box<dyn std::any::Any>)
     } else if file_path.ends_with(".mp4") || file_path.ends_with(".avi") {
-        None
+        match  extract_video_info(file_path) {
+             Some(info)=>  Some(Box::new(info) as Box<dyn std::any::Any>),
+             None=>None
+        } 
     } else if file_path.ends_with(".mp3") || file_path.ends_with(".wav") {
         match extract_audio_metadata(file_path) {
             Ok(audio_metadata) => return Some(Box::new(audio_metadata) as Box<dyn std::any::Any>),
-            Err(err) => eprintln!("Error: {}", err),
+            Err(err) => {
+                eprintln!("Error: {}", err);
+                None
+            }
         }
-        None
     } else if file_path.ends_with(".txt") || file_path.ends_with(".docx") {
         let text_metadata = extract_text_metadata(file_path);
         Some(Box::new(text_metadata) as Box<dyn std::any::Any>)
