@@ -18,7 +18,7 @@ pub struct Behaviour {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitUploadPackReq(pub String);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GitUploadPackRes(pub Vec<u8>);
+pub struct GitUploadPackRes(pub Vec<u8>, pub String);
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]

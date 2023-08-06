@@ -1,16 +1,14 @@
-use super::get_repo_full_path;
 use super::ClientParas;
 use crate::network::behaviour;
 use crate::network::behaviour::GitUploadPackReq;
-use database::driver::mysql;
-use git::protocol::{PackProtocol, Protocol, ServiceType};
+use crate::{get_pack_protocol, get_repo_full_path};
+use common::utils;
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Kademlia, Quorum, Record};
 use libp2p::{PeerId, Swarm};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str::FromStr;
-use std::sync::Arc;
 
 pub async fn handle_input_command(
     swarm: &mut Swarm<behaviour::Behaviour>,
@@ -128,15 +126,42 @@ pub async fn handle_mega_command(
                 eprintln!("repo_name should end with .git");
                 return;
             }
-            let repo_name = repo_name.split_at(repo_name.len() - ".git".len()).0;
-            let path = get_repo_full_path(repo_name);
-            let mysql = Arc::new(mysql::init().await);
-            let mut pack_protocol = PackProtocol::new(PathBuf::from(&path), mysql, Protocol::P2p);
-            let res = pack_protocol.git_info_refs(ServiceType::ReceivePack).await;
-            let result = String::from_utf8(res.to_vec()).unwrap();
+            let path = get_repo_full_path(&repo_name);
+            let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
             let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
-            println!("{}", result);
-            println!("object_id:{}", object_id);
+            if object_id == *utils::ZERO_ID {
+                eprintln!("Repository not found");
+                return;
+            }
+            let address = format!("p2p://{}/{}", swarm.local_peer_id(), repo_name);
+            let record = Record {
+                key: Key::new(&repo_name),
+                value: address.into_bytes(),
+                publisher: None,
+                expires: None,
+            };
+            if let Err(e) = swarm
+                .behaviour_mut()
+                .kademlia
+                .put_record(record, Quorum::One)
+            {
+                eprintln!("Failed to store record:{}", e);
+            }
+        }
+        Some("search") => {
+            let repo_name = {
+                match args_iter.next() {
+                    Some(path) => path.to_string(),
+                    None => {
+                        eprintln!("Expected repo_name");
+                        return;
+                    }
+                }
+            };
+            swarm
+                .behaviour_mut()
+                .kademlia
+                .get_record(Key::new(&repo_name));
         }
         Some("clone") => {
             // mega clone p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git

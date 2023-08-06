@@ -32,20 +32,8 @@ kad put 123 abc
 kad get 123
 ```
 
-### try to share a file
-
-#### in one client terminal
+### try to clone a repository
 
 ```
-file provide aaa.txt README.md
-```
-
-#### in another client terminal
-
-```
-file get aaa.txt
-```
-
-```
-mega pull p2p://12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X/mega_test.git
+mega clone p2p://12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X/mega_test.git
 ```

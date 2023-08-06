@@ -11,9 +11,9 @@ use libp2p::{
     core::Transport,
     identify, identity,
     identity::PeerId,
-    relay, rendezvous,
+    noise, relay, rendezvous,
     swarm::{NetworkBehaviour, SwarmBuilder, SwarmEvent},
-    tcp, tls,
+    tcp,
 };
 use std::error::Error;
 
@@ -25,7 +25,8 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
 
     let tcp_transport = tcp_transport
         .upgrade(upgrade::Version::V1Lazy)
-        .authenticate(tls::Config::new(&local_key).unwrap())
+        // .authenticate(tls::Config::new(&local_key).unwrap())
+        .authenticate(noise::Config::new(&local_key)?)
         .multiplex(libp2p::yamux::Config::default())
         .boxed();
 
