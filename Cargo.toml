@@ -10,6 +10,9 @@ members = [".", "gateway", "git", "common", "database", "p2p","mda"]
 gateway = { path = "gateway" }
 common = { path = "common" }
 p2p = { path = "p2p" }
+
+mda ={path = "mda"}
+ 
 git-craft ={ path = "craft" }
 
 config = "0.13.3"
