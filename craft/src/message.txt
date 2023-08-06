@@ -1,3 +1,1 @@
-hello,world
-$#$&##@(*
-绍兴花雕二年陈
+This is a test message.

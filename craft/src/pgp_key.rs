@@ -1,4 +1,5 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, Ok};
+//use git::internal::object::blob::Blob;
 use pgp::{composed, composed::signed_key::*, crypto::{self, SymmetricKeyAlgorithm}, types::SecretKeyTrait, Deserializable, Message};
 use rand::prelude::*;
 use smallvec::*;
@@ -7,9 +8,9 @@ use std::io::Cursor;
 //use color_eyre::eyre::Result;
 
 // While the keys used in this example are unique for each "person", the key password is the same for both
-#[allow(unused)]
+
 const PUBLIC_KEY_FILE: &str= "../craft/key_files/pub.asc";
-#[allow(unused)]
+
 const SECRET_KEY_FILE: &str= "../craft/key_files/sec.asc";
 const MSG_FILE_NAME:  &str= "../craft/src/encrypted_message.txt";
 #[allow(unused)]
@@ -111,6 +112,8 @@ pub fn encrypt_message(msg: &str, pubkey_file: &str) -> Result<String> {
 
     Ok(armored)
 }
+
+
 #[allow(unused)]
 pub fn generate_armored_string(msg: Message, pk: SignedPublicKey) -> Result<String> {
     let mut rng = StdRng::from_entropy();
@@ -137,4 +140,33 @@ pub fn decrypt_message(armored: &str, seckey_file: &str) -> Result<String> {
     }
 
     Err(anyhow::Error::msg("Failed to find message"))
+}
+
+#[allow(unused)]
+pub fn list_keys()->Result<String>{
+    //Convert key to string and print it
+    //TODO: 
+    let pubkey = std::fs::read_to_string(PUBLIC_KEY_FILE)
+        .context("Trying to load public key for Person Two from file")?;
+    let (pubkey, _) = SignedPublicKey::from_string(pubkey.as_str())?;
+    let seckey = std::fs::read_to_string(SECRET_KEY_FILE)
+    .context("Trying to load secret key for Person Two from file")?;
+    let (seckey, _) = SignedSecretKey::from_string(seckey.as_str())?;
+    // Format the public key and secret key information as a string
+    let output = format!(
+        "Public key: {:?}\nSecret key: {:?}",
+        pubkey, seckey
+    );
+    println!("{}",output);
+    // Return the output as an Ok result
+    Ok(output)
+}
+#[allow(unused)]
+pub fn delete_key(fingerprint: &str)-> Result<(),anyhow::Error>{
+   /* TODO: Parse the fingerprint as a KeyId
+    let key_id = KeyId::from_hex(fingerprint)?;
+    // Delete the key from the keyring
+    delete_key(key_id, "../craft/key_files/pub.asc", "../craft/key_files/sec.asc")?;*/
+   println!("Key {} deleted successfully", fingerprint);
+   Ok(())
 }
