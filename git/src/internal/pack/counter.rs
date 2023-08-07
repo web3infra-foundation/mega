@@ -6,8 +6,9 @@ pub struct GitTypeCounter{
     tree:usize,
     blob:usize,
     tag:usize,
-    ref_delta:usize,
     ofs_delta:usize,
+    ref_delta:usize,
+   
 }
 impl GitTypeCounter {
     pub fn count(&mut self,type_num :u8) {
@@ -16,8 +17,8 @@ impl GitTypeCounter {
             2 => self.tree+=1,
             3 => self.blob+=1,
             4 => self.tag+=1,
-            6 => self.ref_delta+=1,
-            7 => self.ofs_delta+=1,
+            6 => self.ofs_delta+=1,
+            7 => self.ref_delta+=1,
             _ => panic!("unknow git type in GitTypeCounter"),
         }
     }
