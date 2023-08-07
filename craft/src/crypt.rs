@@ -28,9 +28,9 @@ pub fn generate_key(){
 }
 
 //A blob encrypt function,it can encrypt blob.data
-pub fn encrypt_blob()-> Result<(),anyhow::Error>{
+pub fn encrypt_blob(blob_path:&str)-> Result<(),anyhow::Error>{
             //Create blob object to get blob
-            let content = fs::read_to_string("../craft/src/message.txt")?;
+            let content = fs::read_to_string(blob_path)?;
             let t_test = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
             let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, content.len());
             //Set a mut blob  to encrpyt it
@@ -38,41 +38,41 @@ pub fn encrypt_blob()-> Result<(),anyhow::Error>{
             //let data = blob.data;
             //Get blob.data as msg to encrypt
             let msg = std::str::from_utf8(&blob.data).expect("Invalid UTF-8 sequence");
-            println!("message:{}",msg);
+            //println!("message:{}",msg);
             // Encrypt the contents with the public key
             let encrypted = encrypt_message(msg, "../craft/key_files/pub.asc").expect("Failed to encrypt message");
             //Print it to check whether it was encrypted
-            println!("Encrypted: {}", encrypted);
+            //println!("Encrypted: {}", encrypted);
             //Make encrypted message to blob.data and save it to original blob
             let encrypted_data = encrypted.as_bytes().to_vec();
             blob.data = encrypted_data;
             //Write encrypted blob
-            std::fs::write("../craft/src/message.txt",&blob.data).unwrap_or_else(|e| {
+            std::fs::write(blob_path,&blob.data).unwrap_or_else(|e| {
                 panic!("Write failed: {}", e);
             });
             Ok(())
 }
 
 //A blob decrypt function,it can decrypt blob.data encrypted by encrypted_blob()
-pub fn decrypt_blob() -> Result<(),anyhow::Error>{
+pub fn decrypt_blob(blob_path:&str) -> Result<(),anyhow::Error>{
             // Get the encrypted file contents and the secret key from file
-            let content = std::fs::read_to_string("../craft/src/message.txt")?;
+            let content = std::fs::read_to_string(blob_path)?;
             let t_test = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
             let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, content.len());
             //Set a mut blob to encrypt it
             let mut blob = Blob::new_from_read(&mut deco, content.len());
             //Get blob.data as msg to encrypt
             let encrypted_msg = std::str::from_utf8(&blob.data).expect("Invalid UTF-8 sequence");
-            println!("encrypted_message:{}",encrypted_msg);
+            //println!("encrypted_message:{}",encrypted_msg);
             // Decrypt the message with the secret key
             let decrypted_msg = decrypt_message(encrypted_msg,"../craft/key_files/sec.asc" ).expect("Failed to decrypt message");
             //Print decrypted message
-            println!("Decrypted: {}", &decrypted_msg);
+            //println!("Decrypted: {}", &decrypted_msg);
             //Make decrypted_data to blob.data;
             let decrypted_data = decrypted_msg.as_bytes().to_vec();
             blob.data = decrypted_data;
             //Write decrypted file 
-            std::fs::write("../craft/src/message.txt",&blob.data).unwrap_or_else(|e| {
+            std::fs::write(blob_path,&blob.data).unwrap_or_else(|e| {
                 panic!("Write failed: {}", e);
             });
             Ok(())

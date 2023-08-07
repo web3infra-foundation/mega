@@ -41,3 +41,6 @@ ui/yarn-error.log*
 
 #p2p download
 download/*
+
+#craft keys
+craft/key_files/*
