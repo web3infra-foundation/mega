@@ -120,8 +120,8 @@ mod tests {
     # [test]
     fn test_delete_key() {
         // Create a mock argument vector with delete-key as the first element and a valid fingerprint as the second element
-        let data = delete_key("F6B9C0F1E8A7D3B8C6E2E0F9A5A4D8C7B7C6D5A4").unwrap();
+        let data = delete_key("F6B9C0F1E8A7D3B8C6E2E0F9A5A4D8C7B7C6D5A4").expect("Failed to delete key");    
         // Capture the standard output and assert it is not empty
-        assert_eq!(data,"Key F6B9C0F1E8A7D3B8C6E2E0F9A5A4D8C7B7C6D5A4 deleted successfully");
+        assert_eq!(data, "Key F6B9C0F1E8A7D3B8C6E2E0F9A5A4D8C7B7C6D5A4 deleted successfully");
     }
 }
