@@ -8,9 +8,9 @@ use std::io::Cursor;
 //use color_eyre::eyre::Result;
 
 // While the keys used in this example are unique for each "person", the key password is the same for both
-
+#[allow(unused)]
 const PUBLIC_KEY_FILE: &str= "../craft/key_files/pub.asc";
-
+#[allow(unused)]
 const SECRET_KEY_FILE: &str= "../craft/key_files/sec.asc";
 const MSG_FILE_NAME:  &str= "../craft/src/encrypted_message.txt";
 #[allow(unused)]
@@ -143,13 +143,13 @@ pub fn decrypt_message(armored: &str, seckey_file: &str) -> Result<String> {
 }
 
 #[allow(unused)]
-pub fn list_keys()->Result<String>{
+pub fn list_keys(public_key_file:&str,secret_key_file:&str)->Result<String>{
     //Convert key to string and print it
     //TODO: 
-    let pubkey = std::fs::read_to_string(PUBLIC_KEY_FILE)
+    let pubkey = std::fs::read_to_string(public_key_file)
         .context("Trying to load public key for Person Two from file")?;
     let (pubkey, _) = SignedPublicKey::from_string(pubkey.as_str())?;
-    let seckey = std::fs::read_to_string(SECRET_KEY_FILE)
+    let seckey = std::fs::read_to_string(secret_key_file)
     .context("Trying to load secret key for Person Two from file")?;
     let (seckey, _) = SignedSecretKey::from_string(seckey.as_str())?;
     // Format the public key and secret key information as a string
