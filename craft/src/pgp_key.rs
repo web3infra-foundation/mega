@@ -121,7 +121,7 @@ pub fn generate_armored_string(msg: Message, pk: SignedPublicKey) -> Result<Stri
     Ok(new_msg.to_armored_string(None)?)
 }
 #[allow(unused)]
-pub fn decrypt_message(armored: &str, seckey_file: &str) -> Result<String> {
+pub fn decrypt_message(armored: &str, seckey_file: &str) -> Result<String,anyhow::Error> {
     let seckey = std::fs::read_to_string(seckey_file)?;
     let (seckey, _) = SignedSecretKey::from_string(seckey.as_str())?;
 
@@ -162,11 +162,14 @@ pub fn list_keys(public_key_file:&str,secret_key_file:&str)->Result<String>{
     Ok(output)
 }
 #[allow(unused)]
-pub fn delete_key(fingerprint: &str)-> Result<(),anyhow::Error>{
+pub fn delete_key(fingerprint: &str)-> Result<String,anyhow::Error>{
    /* TODO: Parse the fingerprint as a KeyId
     let key_id = KeyId::from_hex(fingerprint)?;
     // Delete the key from the keyring
     delete_key(key_id, "../craft/key_files/pub.asc", "../craft/key_files/sec.asc")?;*/
-   println!("Key {} deleted successfully", fingerprint);
-   Ok(())
+    let output =format!(
+        "Key {} deleted successfully", fingerprint
+    );
+    println!("{}",output);
+    Ok(output)
 }
