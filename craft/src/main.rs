@@ -66,6 +66,7 @@ mod tests {
 
     // Import the names from outer scope
     use super::*;
+    
 
     // Define a test function for generate-key mode
     # [test]
@@ -80,6 +81,7 @@ mod tests {
     // Define a test function for encrypt mode
     # [test]
     fn test_encrypt() {
+        generate_key();
         // Create a mock argument vector with encrypt as the first element
         let _ = encrypt_blob("../tests/data/objects/message.txt");
         // Read the contents of the message.txt file and assert it is not empty
@@ -96,21 +98,24 @@ mod tests {
     // Define a test function for decrypt mode
     # [test]
     fn test_decrypt() {
-        let _ = decrypt_blob("../tests/data/objects/emessage.txt");
+        generate_key();
+        let _ = encrypt_blob("../tests/data/objects/message.txt");
+        let _ = decrypt_blob("../tests/data/objects/message.txt");
         // Read the contents of the message.txt file and assert it is not empty
-        let message = std::fs::read_to_string("../tests/data/objects/emessage.txt").unwrap();
+        let message = std::fs::read_to_string("../tests/data/objects/message.txt").unwrap();
         std::fs::write("../tests/objects/decrypt.txt", message).expect("Unable to write test encrypt output");
         let message = std::fs::read_to_string("../tests/objects/decrypt.txt").unwrap();
         assert!(!message.is_empty());
         // Check if the contents are decrypted by looking for the plain text
         assert!(message.starts_with("This is a test message."));
         // Encrypt it to do next test
-        let _ = encrypt_blob("../tests/data/objects/emessage.txt");
+       // let _ = encrypt_blob("../tests/data/objects/emessage.txt");
     }
 
     // Define a test function for list-keys mode
     # [test]
     fn test_list_keys() {
+        generate_key();
         let actual = list_keys("../craft/key_files/pub.asc","../craft/key_files/sec.asc").unwrap();
         assert!(!actual.is_empty());
         // Check if the output contains the expected key information
@@ -120,7 +125,7 @@ mod tests {
     # [test]
     fn test_delete_key() {
         // Create a mock argument vector with delete-key as the first element and a valid fingerprint as the second element
-        let data = delete_key("F6B9C0F1E8A7D3B8C6E2E0F9A5A4D8C7B7C6D5A4").expect("Failed to delete key");    
+        let data = delete_key("F6B9C0F1E8A7D3B8C6E2E0F9A5A4D8C7B7C6D5A4").unwrap();
         // Capture the standard output and assert it is not empty
         assert_eq!(data, "Key F6B9C0F1E8A7D3B8C6E2E0F9A5A4D8C7B7C6D5A4 deleted successfully");
     }
