@@ -50,4 +50,16 @@ impl EntryHeader {
             _ => panic!("can put compute the delta hash value"),
         }
     }
+    pub fn to_number(&self) -> u8{
+        match self {
+            EntryHeader::Commit => 1,
+            EntryHeader::Tree => 2,
+            EntryHeader::Blob => 3,
+            EntryHeader::Tag => 4,
+            EntryHeader::RefDelta { base_id:_ } => 7,
+            EntryHeader::OfsDelta { base_distance:_ } => 6,
+            
+            
+        }
+    }
 }
