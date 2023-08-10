@@ -35,12 +35,12 @@ fn main() -> Result<(), anyhow::Error> {
         // Encrypt file contents with a public key
         "encrypt" => {
             // Encrypt blob.data
-            let _ = encrypt_blob(&args.file[1],&args.file[2]);
+            let _ = encrypt_blob(&args.file[1],"/root/mega/craft/key_files/pub.asc");
         }
         // Decrypt file contents with a secret key
         "decrypt" => {
             //Decrypt blob.data
-            let _ =decrypt_blob(&args.file[1],&args.file[2]);
+            let _ =decrypt_blob(&args.file[1],"/root/mega/craft/key_files/sec.asc");
         }
         "list-keys" => {
             //Show key lists

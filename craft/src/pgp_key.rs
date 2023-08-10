@@ -12,7 +12,7 @@ use std::io::Cursor;
 const PUBLIC_KEY_FILE: &str= "../craft/key_files/pub.asc";
 #[allow(unused)]
 const SECRET_KEY_FILE: &str= "../craft/key_files/sec.asc";
-const MSG_FILE_NAME:  &str= "../craft/src/encrypted_message.txt";
+const MSG_FILE_NAME:  &str= "/root/mega/craft/src/encrypted_message.txt";
 #[allow(unused)]
 const SECRET_MSG:  &str= "../craft/src/message.txt";
 

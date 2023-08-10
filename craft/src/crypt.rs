@@ -62,7 +62,7 @@ pub fn encrypt_blob(blob_path:&str, public_key_file_path: &str)-> Result<(),anyh
             // Encrypt the contents with the public key
             let encrypted = encrypt_message(msg, public_key_file_path).expect("Failed to encrypt message");
             //Print it to check whether it was encrypted
-            //println!("Encrypted: {}", encrypted);
+            println!("Encrypted: {}", encrypted);
             //Make encrypted message to blob.data and save it to original blob
             let encrypted_data = encrypted.as_bytes().to_vec();
             blob.data = encrypted_data;
