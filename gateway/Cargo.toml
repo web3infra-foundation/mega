@@ -23,7 +23,7 @@ tokio = {version = "1.29.1", features = ["full"]}
 tracing = "0.1.37"
 russh = "0.37.1"
 russh-keys = "0.37.1"
-ed25519-dalek = "1.0.1"
+ed25519-dalek = "2.0.0"
 serde_json = "1.0.103"
 tower = "0.4.13"
 tower-http = {version = "0.4.3", features = ["cors"]}
