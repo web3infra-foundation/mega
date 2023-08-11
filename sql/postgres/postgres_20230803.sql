@@ -1,6 +1,5 @@
 
-DROP TABLE IF EXISTS "commit";
-CREATE TABLE "commit" (
+CREATE TABLE IF NOT EXISTS "commit" (
   "id" SERIAL PRIMARY KEY,
   "git_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
@@ -14,38 +13,33 @@ CREATE TABLE "commit" (
   "updated_at" TIMESTAMP NOT NULL
 );
 
-DROP TABLE IF EXISTS "git";
-CREATE TABLE "git" (
+CREATE TABLE IF NOT EXISTS "git" (
   "id" BIGINT NOT NULL,
   "mr_id" BIGINT NOT NULL,
   "git_id" VARCHAR(64),
   "object_type" VARCHAR(16),
-  "data" BYTEA,
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
   PRIMARY KEY ("id")
 );
 
 CREATE INDEX "idx_hash" ON "git" ("git_id");
 CREATE INDEX "idx_mr_id" ON "git" ("mr_id", "object_type");
 
-DROP TABLE IF EXISTS "locks";
-CREATE TABLE "locks" (
+
+CREATE TABLE IF NOT EXISTS "locks" (
   "id" VARCHAR(200) NOT NULL,
   "data" VARCHAR(10000),
   PRIMARY KEY ("id")
 );
 
-DROP TABLE IF EXISTS "meta";
-CREATE TABLE "meta" (
+CREATE TABLE IF NOT EXISTS "meta" (
   "oid" VARCHAR(100) NOT NULL,
   "size" INT,
   "exist" SMALLINT,
   PRIMARY KEY ("oid")
 );
 
-DROP TABLE IF EXISTS "node";
-CREATE TABLE "node" (
+CREATE TABLE IF NOT EXISTS "node" (
   "id" BIGSERIAL PRIMARY KEY,
   "node_id" BIGINT NOT NULL,
   "git_id" VARCHAR(64) NOT NULL,
@@ -53,8 +47,9 @@ CREATE TABLE "node" (
   "name" VARCHAR(128),
   "mode" BYTEA NOT NULL,
   "content_sha" VARCHAR(40),
-  "data" BYTEA NOT NULL,
+  "size" INT NOT NULL,
   "repo_path" VARCHAR(64) NOT NULL,
+  "full_path" VARCHAR(64) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
@@ -63,8 +58,7 @@ CREATE INDEX "idx_git_id" ON "node" ("git_id");
 CREATE INDEX "idx_name" ON "node" ("name");
 CREATE INDEX "idx_repo_path" ON "node" ("repo_path");
 
-DROP TABLE IF EXISTS "refs";
-CREATE TABLE "refs" (
+CREATE TABLE IF NOT EXISTS "refs" (
   "id" SERIAL PRIMARY KEY,
   "repo_path" VARCHAR(64) NOT NULL,
   "ref_name" VARCHAR(32) NOT NULL,
@@ -72,3 +66,13 @@ CREATE TABLE "refs" (
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS "obj_data" (
+  "id" BIGINT NOT NULL,
+  "git_id" VARCHAR(64),
+  "object_type" VARCHAR(16),
+  "data" BYTEA,
+  PRIMARY KEY ("id")
+);
+CREATE INDEX "idx_data_git_id" ON "obj_data" ("git_id");

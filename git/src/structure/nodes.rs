@@ -28,7 +28,6 @@ pub struct Repo {
     // pub repo_root: Box<dyn Node>,
     pub storage: Arc<dyn ObjectStorage>,
     pub mr_id: i64,
-    pub tree_build_cache: HashSet<Hash>,
     pub tree_map: HashMap<Hash, Tree>,
     pub blob_map: HashMap<Hash, Blob>,
     pub repo_path: PathBuf,
@@ -39,10 +38,11 @@ pub struct TreeNode {
     pub pid: String,
     pub git_id: Hash,
     pub name: String,
-    pub path: PathBuf,
+    pub repo_path: PathBuf,
     pub mode: Vec<u8>,
     pub children: Vec<Box<dyn Node>>,
     pub data: Vec<u8>,
+    pub full_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -51,9 +51,10 @@ pub struct FileNode {
     pub pid: String,
     pub git_id: Hash,
     pub name: String,
-    pub path: PathBuf,
+    pub repo_path: PathBuf,
     pub mode: Vec<u8>,
     pub data: Vec<u8>,
+    pub full_path: PathBuf,
 }
 
 /// define the node common behaviour
@@ -126,7 +127,8 @@ impl Node for TreeNode {
             nid: generate_id(),
             pid,
             name,
-            path: PathBuf::new(),
+            repo_path: PathBuf::new(),
+            full_path: PathBuf::new(),
             mode: Vec::new(),
             git_id: Hash::default(),
             children: Vec::new(),
@@ -146,10 +148,11 @@ impl Node for TreeNode {
             name: Set(Some(self.name.to_string())),
             mode: Set(self.mode.clone()),
             content_sha: NotSet,
-            data: Set(self.data.clone()),
-            repo_path: Set(self.path.to_string_lossy().into_owned()),
+            repo_path: Set(self.repo_path.to_string_lossy().into_owned()),
+            full_path: Set(self.full_path.to_string_lossy().into_owned()),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
+            size: Set(self.data.len().try_into().unwrap()),
         }
     }
 
@@ -211,7 +214,8 @@ impl Node for FileNode {
         FileNode {
             nid: generate_id(),
             pid,
-            path: PathBuf::new(),
+            repo_path: PathBuf::new(),
+            full_path: PathBuf::new(),
             name,
             git_id: Hash::default(),
             mode: Vec::new(),
@@ -228,8 +232,9 @@ impl Node for FileNode {
             name: Set(Some(self.name.to_string())),
             mode: Set(self.mode.clone()),
             content_sha: NotSet,
-            data: Set(self.data.clone()),
-            repo_path: Set(self.path.to_string_lossy().into_owned()),
+            repo_path: Set(self.repo_path.to_string_lossy().into_owned()),
+            full_path: Set(self.full_path.to_string_lossy().into_owned()),
+            size: Set(self.data.len().try_into().unwrap()),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
         }
@@ -271,7 +276,8 @@ impl TreeNode {
             pid: "".to_owned(),
             git_id: Hash::default(),
             name: "".to_owned(),
-            path: PathBuf::from("/"),
+            repo_path: PathBuf::from("/"),
+            full_path: PathBuf::from("/"),
             mode: Vec::new(),
             children: Vec::new(),
             data: Vec::new(),
@@ -286,22 +292,29 @@ impl Repo {
     /// current: protocol => storage => structure
     /// expected: protocol => structure => storage
     pub async fn build_node_tree(
-        &mut self,
-        commits: &Vec<Commit>,
+        &self,
+        commits: &Vec<&Commit>,
     ) -> Result<Vec<node::ActiveModel>, anyhow::Error> {
         let mut nodes = Vec::new();
-
+        let mut tree_build_cache = HashSet::new();
         for commit in commits {
             let commit_tree_id = commit.tree_id;
-            if !self.tree_build_cache.contains(&commit_tree_id) {
+
+            if !tree_build_cache.contains(&commit_tree_id) {
                 //fetch the tree which commit points to
                 let tree = self.tree_map.get(&commit_tree_id).unwrap();
 
-                let mut root_node = tree.convert_to_node(None, self.repo_path.to_path_buf());
-                self.convert_tree_to_node(tree.clone(), &mut root_node)
-                    .await;
+                let mut root_node =
+                    tree.convert_to_node(None, self.repo_path.clone(), self.repo_path.clone());
+                self.convert_tree_to_node(
+                    tree,
+                    &mut root_node,
+                    &mut self.repo_path.clone(),
+                    &mut tree_build_cache,
+                )
+                .await;
                 nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
-                self.tree_build_cache.insert(commit_tree_id);
+                tree_build_cache.insert(commit_tree_id);
             }
         }
         Ok(nodes)
@@ -309,25 +322,43 @@ impl Repo {
 
     /// convert Git TreeItem => Struct Node and build node tree
     #[async_recursion]
-    pub async fn convert_tree_to_node(&mut self, tree: Tree, node: &mut Box<dyn Node>) {
+    pub async fn convert_tree_to_node(
+        &self,
+        tree: &Tree,
+        node: &mut Box<dyn Node>,
+        full_path: &mut PathBuf,
+        tree_build_cache: &mut HashSet<Hash>,
+    ) {
         for item in &tree.tree_items {
-            if self.tree_build_cache.get(&item.id).is_some() {
+            if tree_build_cache.get(&item.id).is_some() {
                 continue;
             }
+            full_path.push(item.name.clone());
             if item.mode == TreeItemMode::Tree {
-                // repo_path.push(item.filename.clone());
-                let tree = self.tree_map.get(&item.id).unwrap();
-                node.add_child(tree.convert_to_node(Some(item), self.repo_path.to_path_buf()));
+                let sub_tree = self.tree_map.get(&item.id).unwrap();
+
+                node.add_child(sub_tree.convert_to_node(
+                    Some(item),
+                    self.repo_path.clone(),
+                    full_path.clone(),
+                ));
                 let child_node = match node.find_child(&item.name) {
                     Some(child) => child,
                     None => panic!("Something wrong!:{}", &item.name),
                 };
-                self.convert_tree_to_node(tree.clone(), child_node).await;
+                self.convert_tree_to_node(sub_tree, child_node, full_path, tree_build_cache)
+                    .await;
             } else {
                 let blob = self.blob_map.get(&item.id).unwrap();
-                node.add_child(blob.convert_to_node(Some(item), self.repo_path.to_path_buf()));
+                node.add_child(blob.convert_to_node(
+                    Some(item),
+                    self.repo_path.to_path_buf(),
+                    full_path.clone(),
+                ));
             }
-            self.tree_build_cache.insert(item.id);
+            full_path.pop();
+
+            tree_build_cache.insert(item.id);
         }
     }
 }

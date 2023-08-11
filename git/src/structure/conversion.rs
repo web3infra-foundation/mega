@@ -14,7 +14,7 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
 use database::driver::ObjectStorage;
-use entity::{commit, node, refs};
+use entity::{commit, obj_data, refs};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
 
@@ -46,9 +46,15 @@ impl PackProtocol {
             hash_object.insert(hash, Arc::new(commit));
         });
         let blob_and_tree = self.storage.get_node_by_path(repo_path).await.unwrap();
-        blob_and_tree.iter().for_each(|model| {
+        let git_ids = blob_and_tree
+            .iter()
+            .map(|model| model.git_id.clone())
+            .collect();
+        // may take lots of time
+        let obj_datas = self.storage.get_obj_data_by_ids(git_ids).await.unwrap();
+        obj_datas.iter().for_each(|model| {
             let hash = Hash::new_from_str(&model.git_id);
-            let obj: Arc<dyn ObjectT> = match model.node_type.as_str() {
+            let obj: Arc<dyn ObjectT> = match model.object_type.as_str() {
                 "blob" => {
                     let mut blob = Blob::new_from_data(model.data.clone());
                     blob.set_hash(hash);
@@ -59,7 +65,7 @@ impl PackProtocol {
                     tree.set_hash(hash);
                     Arc::new(tree)
                 }
-                _ => panic!("not supported node type: {}", model.node_type),
+                _ => panic!("not supported node type: {}", model.object_type),
             };
             hash_object.insert(hash, obj);
         });
@@ -86,10 +92,11 @@ impl PackProtocol {
                 let c = Commit::new_from_data(c_data.meta);
                 if let Some(root) = self
                     .storage
-                    .get_node_by_hash(&c.tree_id.to_plain_str())
+                    .get_obj_data_by_id(&c.tree_id.to_plain_str())
                     .await
                     .unwrap()
                 {
+                    // todo: replace cache;
                     get_child_trees(&root, &mut hash_meta, &HashMap::new()).await
                 } else {
                     return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
@@ -130,9 +137,9 @@ impl PackProtocol {
 // retrieve all sub trees recursively
 #[async_recursion]
 async fn get_child_trees(
-    root: &node::Model,
+    root: &obj_data::Model,
     hash_object: &mut HashMap<String, Arc<dyn ObjectT>>,
-    pack_cache: &HashMap<String, node::Model>,
+    pack_cache: &HashMap<String, obj_data::Model>,
 ) {
     let t = Tree::new_from_data(root.data.clone());
     let mut child_ids = vec![];
@@ -143,7 +150,7 @@ async fn get_child_trees(
     }
     for id in child_ids {
         let model = pack_cache.get(&id).unwrap();
-        if model.node_type == "tree" {
+        if model.object_type == "tree" {
             get_child_trees(model, hash_object, pack_cache).await;
         } else {
             let blob = Blob::new_from_data(model.data.clone());
@@ -206,15 +213,14 @@ pub async fn save_packfile(
     let blob_map: HashMap<Hash, Blob> = get_objects_from_mr(storage.clone(), mr_id, "blob").await;
     let commit_map: HashMap<Hash, Commit> =
         get_objects_from_mr(storage.clone(), mr_id, "commit").await;
-    let mut repo = Repo {
+    let repo = Repo {
         storage: storage.clone(),
         mr_id,
-        tree_build_cache: HashSet::new(),
         tree_map,
         blob_map,
         repo_path: repo_path.to_path_buf(),
     };
-    let commits = commit_map.values().cloned().collect();
+    let commits: Vec<&Commit> = commit_map.values().collect();
     let nodes = repo.build_node_tree(&commits).await.unwrap();
     storage.save_nodes(nodes).await.unwrap();
 
@@ -249,10 +255,15 @@ pub async fn get_objects_from_mr<T: ObjectT>(
     mr_id: i64,
     object_type: &str,
 ) -> HashMap<Hash, T> {
-    let models = storage
-        .get_git_objects_by_type(mr_id, object_type)
+    let git_ids = storage
+        .get_mr_objects_by_type(mr_id, object_type)
         .await
-        .unwrap();
+        .unwrap()
+        .iter()
+        .map(|model| model.git_id.clone())
+        .collect();
+    let models = storage.get_obj_data_by_ids(git_ids).await.unwrap();
+
     models
         .iter()
         .map(|model| {
