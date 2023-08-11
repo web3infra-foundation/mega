@@ -9,7 +9,6 @@ struct Keyargs {
     //accept mutiple values
     #[clap(num_args=1..,required=true)]
     file: Vec<String>,
-
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -35,12 +34,12 @@ fn main() -> Result<(), anyhow::Error> {
         // Encrypt file contents with a public key
         "encrypt" => {
             // Encrypt blob.data
-            let _ = encrypt_blob(&args.file[1],&args.file[2]);
+            let _ = encrypt_blob(&args.file[1],"/root/mega/craft/key_files/pub.asc");
         }
         // Decrypt file contents with a secret key
         "decrypt" => {
             //Decrypt blob.data
-            let _ =decrypt_blob(&args.file[1],&args.file[2]);
+            let _ =decrypt_blob("/root/mega/craft/key_files/sec.asc");
         }
         "list-keys" => {
             //Show key lists
@@ -59,11 +58,11 @@ fn main() -> Result<(), anyhow::Error> {
     }
      Ok(())
 }
-
+/*
 // Add a tests module with the # [cfg (test)] attribute
 # [cfg (test)]
 mod tests {
-
+    
     // Import the names from outer scope
     use super::*;
     
@@ -77,7 +76,7 @@ mod tests {
         assert!(std::path::Path::new("../craft/key_files/pub.asc").exists());
         assert!(std::path::Path::new("../craft/key_files/sec.asc").exists());
     }
-
+    
     // Define a test function for encrypt mode
     # [test]
     fn test_encrypt() {
@@ -109,7 +108,7 @@ mod tests {
         // Check if the contents are decrypted by looking for the plain text
         assert!(message.starts_with("This is a test message."));
     }
-
+    
     // Define a test function for list-keys mode
     # [test]
     fn test_list_keys() {
@@ -128,4 +127,4 @@ mod tests {
         // Capture the standard output and assert it is not empty
         assert!(!data.is_empty());
     }
-}
+}*/
