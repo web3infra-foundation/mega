@@ -20,4 +20,4 @@ WORKDIR /usr/src/mega
 COPY --from=builder /usr/src/mega/target/release/mega .
 
 # Run the Rust executable command
-CMD ["./mega", "https", "--host", "0.0.0.0"]
+CMD ["./mega", "https", "--host", "0.0.0.0", "-d", "postgres"]

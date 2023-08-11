@@ -17,6 +17,7 @@ use entity::git;
 use entity::locks;
 use entity::meta;
 use entity::node;
+use entity::obj_data;
 use entity::refs;
 
 use sea_orm::ActiveModelTrait;
@@ -40,9 +41,14 @@ pub mod postgres;
 pub trait ObjectStorage: Send + Sync {
     fn get_connection(&self) -> &DatabaseConnection;
 
-    async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError>;
+    async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError> {
+        batch_save_model(self.get_connection(), objects).await?;
+        Ok(true)
+    }
 
-    async fn get_git_objects_by_type(
+    async fn save_obj_data(&self, obj_data: Vec<obj_data::ActiveModel>) -> Result<bool, MegaError>;
+
+    async fn get_mr_objects_by_type(
         &self,
         mr_id: i64,
         object_type: &str,
@@ -51,6 +57,25 @@ pub trait ObjectStorage: Send + Sync {
             .filter(git::Column::MrId.eq(mr_id))
             .filter(git::Column::ObjectType.eq(object_type))
             .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    async fn get_obj_data_by_ids(
+        &self,
+        git_ids: Vec<String>,
+    ) -> Result<Vec<obj_data::Model>, MegaError> {
+        Ok(obj_data::Entity::find()
+            .filter(obj_data::Column::GitId.is_in(git_ids))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    async fn get_obj_data_by_id(&self, git_id: &str) -> Result<Option<obj_data::Model>, MegaError> {
+        Ok(obj_data::Entity::find()
+            .filter(obj_data::Column::GitId.eq(git_id))
+            .one(self.get_connection())
             .await
             .unwrap())
     }
@@ -164,6 +189,7 @@ pub trait ObjectStorage: Send + Sync {
             .await
             .unwrap())
     }
+
     async fn get_node_by_path(&self, path: &Path) -> Result<Vec<node::Model>, MegaError> {
         Ok(node::Entity::find()
             .filter(node::Column::RepoPath.eq(path.to_str().unwrap()))
@@ -173,23 +199,7 @@ pub trait ObjectStorage: Send + Sync {
     }
 
     async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
-        let mut sum = 0;
-        let mut batch_nodes = Vec::new();
-        for node in nodes {
-            let size = node.data.as_ref().len();
-            let limit = 0xAF_FF_FF;
-            if sum + size < limit {
-                sum += size;
-                batch_nodes.push(node);
-            } else {
-                batch_save_model(self.get_connection(), batch_nodes).await?;
-                sum = size;
-                batch_nodes = vec![node];
-            }
-        }
-        if !batch_nodes.is_empty() {
-            batch_save_model(self.get_connection(), batch_nodes).await?;
-        }
+        batch_save_model(self.get_connection(), nodes).await?;
         Ok(true)
     }
 
@@ -496,7 +506,6 @@ pub trait ObjectStorage: Send + Sync {
         }
     }
 }
-
 
 /// Performs batch saving of models in the database.
 ///
