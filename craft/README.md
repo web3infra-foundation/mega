@@ -11,7 +11,7 @@
  git-craft encrypt "file_path"
   By this, git-craft will get the file content from src/message.txt, encrypt it and write encrypted content to src/encrypted_message.txt
 ###3.decrypt
- git-craft decrypt "file_path"
+ git-craft decrypt 
   By this, git-craft will get the encrypted file content from src/encrypted_message.txt, decrypt and show it 
 
 
@@ -19,7 +19,7 @@
   
 ###1.edit .git/config
 [filter "crypt"]
-	smudge = /root/mega/target/release/git-craft decrypt "%f"
+	smudge = /root/mega/target/release/git-craft decrypt 
         clean = /root/mega/target/release/git-craft encrypt "%f"
 ###2.edit .gitattributes
    file_need_crypted filter=crypt
