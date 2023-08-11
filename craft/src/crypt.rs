@@ -1,4 +1,4 @@
-use std::{io::Cursor, fs};
+use std::{io::{Cursor, Read}, fs};
 
 use anyhow::{Context, Ok};
 use pgp_key::{generate_key_pair,encrypt_message, decrypt_message};
@@ -62,7 +62,7 @@ pub fn encrypt_blob(blob_path:&str, public_key_file_path: &str)-> Result<(),anyh
             // Encrypt the contents with the public key
             let encrypted = encrypt_message(msg, public_key_file_path).expect("Failed to encrypt message");
             //Print it to check whether it was encrypted
-            println!("Encrypted: {}", encrypted);
+            // println!("Encrypted: {}", encrypted);
             //Make encrypted message to blob.data and save it to original blob
             let encrypted_data = encrypted.as_bytes().to_vec();
             blob.data = encrypted_data;
@@ -74,26 +74,28 @@ pub fn encrypt_blob(blob_path:&str, public_key_file_path: &str)-> Result<(),anyh
 }
 
 //A blob decrypt function,it can decrypt blob.data encrypted by encrypted_blob()
-pub fn decrypt_blob(blob_path:&str, secret_key_file_path:&str) -> Result<(),anyhow::Error>{
+pub fn decrypt_blob(secret_key_file_path:&str) -> Result<(),anyhow::Error>{
             // Get the encrypted file contents and the secret key from file
-            let content = std::fs::read_to_string(blob_path)?;
+            //let content = std::fs::read_to_string(blob_path)?;
+            /*let content = String::from(blob_path);
             let t_test = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
-            let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, content.len());
+            let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, content.len());*/
             //Set a mut blob to encrypt it
-            let mut blob = Blob::new_from_read(&mut deco, content.len());
+            //let blob = Blob::new_from_data(blob_data);
             //Get blob.data as msg to encrypt
-            let encrypted_msg = std::str::from_utf8(&blob.data).expect("Invalid UTF-8 sequence");
-            //println!("encrypted_message:{}",encrypted_msg);
+            //let blob = std::fs::read(blob_data);
+            //let encrypted_msg = std::str::from_utf8(&blob.data).expect("Invalid UTF-8 sequence");
+            let mut blob_data = Vec::new();
+            std::io::stdin().read_to_end(&mut blob_data).unwrap();
+            let encrypted_msg = std::str::from_utf8(&blob_data).expect("Invalid UTF-8 sequence");
             // Decrypt the message with the secret key
             let decrypted_msg = decrypt_message(encrypted_msg,secret_key_file_path ).expect("Failed to decrypt message");
             //Print decrypted message
-            //println!("Decrypted: {}", &decrypted_msg);
+            print!("{}", &decrypted_msg);
             //Make decrypted_data to blob.data;
-            let decrypted_data = decrypted_msg.as_bytes().to_vec();
-            blob.data = decrypted_data;
             //Write decrypted file 
-            std::fs::write(blob_path,&blob.data).unwrap_or_else(|e| {
+            /*std::fs::write(blob_path,&blob.data).unwrap_or_else(|e| {
                 panic!("Write failed: {}", e);
-            });
+            });*/
             Ok(())
 }
