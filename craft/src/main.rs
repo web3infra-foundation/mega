@@ -9,7 +9,6 @@ struct Keyargs {
     //accept mutiple values
     #[clap(num_args=1..,required=true)]
     file: Vec<String>,
-
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -40,7 +39,7 @@ fn main() -> Result<(), anyhow::Error> {
         // Decrypt file contents with a secret key
         "decrypt" => {
             //Decrypt blob.data
-            let _ =decrypt_blob(&args.file[1],"/root/mega/craft/key_files/sec.asc");
+            let _ =decrypt_blob("/root/mega/craft/key_files/sec.asc");
         }
         "list-keys" => {
             //Show key lists
