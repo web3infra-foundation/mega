@@ -14,9 +14,9 @@ pub struct Model {
     #[sea_orm(column_type = "Binary(BlobSize::Blob(None))")]
     pub mode: Vec<u8>,
     pub content_sha: Option<String>,
-    #[sea_orm(column_type = "Binary(BlobSize::Medium)")]
-    pub data: Vec<u8>,
+    pub size: i32,
     pub repo_path: String,
+    pub full_path: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }

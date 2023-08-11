@@ -99,7 +99,7 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                     let base_hash = self.cache.get_hash(base_offset).unwrap();
                     if let Some(storage) = &self.storage {
                         let _model = storage
-                            .get_git_object_by_hash(&base_hash.to_plain_str())
+                            .get_obj_data_by_id(&base_hash.to_plain_str())
                             .await
                             .unwrap()
                             .ok_or_else(|| {
@@ -128,7 +128,7 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                     base_object = bo;
                 } else if let Some(storage) = &self.storage {
                     let _model = storage
-                        .get_git_object_by_hash(&hash.to_plain_str())
+                        .get_obj_data_by_id(&hash.to_plain_str())
                         .await
                         .unwrap()
                         .ok_or_else(|| {
@@ -229,7 +229,7 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                     let base_hash = self.cache.get_hash(base_offset).unwrap();
                     if let Some(storage) = &self.storage {
                         let _model = storage
-                            .get_git_object_by_hash(&base_hash.to_plain_str())
+                            .get_obj_data_by_id(&base_hash.to_plain_str())
                             .await
                             .unwrap()
                             .ok_or_else(|| {
@@ -254,7 +254,7 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
                     base_object = bo;
                 } else if let Some(storage) = &self.storage {
                     let _model = storage
-                        .get_git_object_by_hash(&hash.to_plain_str())
+                        .get_obj_data_by_id(&hash.to_plain_str())
                         .await
                         .unwrap()
                         .ok_or_else(|| {

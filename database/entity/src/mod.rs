@@ -7,4 +7,5 @@ pub mod git;
 pub mod locks;
 pub mod meta;
 pub mod node;
+pub mod obj_data;
 pub mod refs;

@@ -5,4 +5,5 @@ pub use super::git::Entity as Git;
 pub use super::locks::Entity as Locks;
 pub use super::meta::Entity as Meta;
 pub use super::node::Entity as Node;
+pub use super::obj_data::Entity as ObjData;
 pub use super::refs::Entity as Refs;
