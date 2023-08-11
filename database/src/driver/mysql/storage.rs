@@ -6,8 +6,8 @@
 use async_trait::async_trait;
 
 use entity::commit;
-use entity::git;
 
+use entity::obj_data;
 use entity::refs;
 
 use sea_orm::DatabaseBackend;
@@ -39,8 +39,8 @@ impl ObjectStorage for MysqlStorage {
         &self.connection
     }
 
-    async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError> {
-        let packet_size = objects
+    async fn save_obj_data(&self, obj_data: Vec<obj_data::ActiveModel>) -> Result<bool, MegaError> {
+        let packet_size = obj_data
             .iter()
             .map(|model| model.clone().try_into_model().unwrap().data.len())
             .sum::<usize>();
@@ -48,7 +48,7 @@ impl ObjectStorage for MysqlStorage {
         if packet_size > 0xDF_FF_FF {
             let mut batch_obj = Vec::new();
             let mut sum = 0;
-            for model in objects {
+            for model in obj_data {
                 let size = model.data.as_ref().len();
                 if sum + size < 0xDF_FF_FF {
                     sum += size;
@@ -63,7 +63,7 @@ impl ObjectStorage for MysqlStorage {
                 batch_save_model(self.get_connection(), batch_obj).await?;
             }
         } else {
-            batch_save_model(self.get_connection(), objects).await?;
+            batch_save_model(self.get_connection(), obj_data).await?;
         }
         Ok(true)
     }

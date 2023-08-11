@@ -11,12 +11,19 @@ use std::{io::Cursor, path::PathBuf, str::FromStr, sync::Arc};
 
 use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
-use crate::{errors::GitError, internal::pack::{decode::HashCounter, preload::{PackPreload, decode_load}}, protocol::pack::SP};
+use crate::{
+    errors::GitError,
+    internal::pack::{
+        decode::HashCounter,
+        preload::{decode_load, PackPreload},
+    },
+    protocol::pack::SP,
+};
 
 use bytes::Bytes;
+use common::{errors::MegaError, utils::ZERO_ID};
 use entity::refs;
 use sea_orm::{ActiveValue::NotSet, Set};
-use common::{errors::MegaError, utils::ZERO_ID};
 
 #[derive(Clone)]
 pub struct PackProtocol {
@@ -182,10 +189,9 @@ impl RefCommand {
             // iterator.set_storage(Some(storage.clone()));
             // let mut save_models: Vec<git::ActiveModel> = Vec::new();
             // let mr_id = generate_id();
-            // let batch_size = 100;
+            // let batch_size = 10000;
             // for i in 0..pack.number_of_objects() {
             //     let obj = iterator.next_obj().await?;
-            //     // println!("{}", obj);
             //     if i % 1000 == 0 {
             //         tracing::info!("{}", i)
             //     }

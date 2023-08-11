@@ -1,4 +1,4 @@
-use entity::git;
+use entity::obj_data;
 use sha1::{Digest, Sha1};
 use std::io::{Cursor, Write};
 use std::sync::Arc;
@@ -11,7 +11,7 @@ use std::io::Error;
 
 use super::header::EntryHeader;
 
-const SLID_WINDWOS:usize = 20;
+const SLID_WINDWOS: usize = 20;
 
 #[allow(unused)]
 struct Encoder<W> {
@@ -39,36 +39,41 @@ where
         }
         Ok(())
     }
-    /// Added batch insertion support for offset delta compression. 
+    /// Added batch insertion support for offset delta compression.
     /// Note: The input array should meet the requirements of magic sorting, otherwise a good delta compression rate cannot be obtained
-    pub fn add_oject_model(&mut self,obj_vec: Vec<git::Model>) -> Result<(), Error> {
-        let batch_size = obj_vec.len() ;
-        for i in 0..batch_size{
-            let mut best_j = SLID_WINDWOS+1;
+    pub fn add_oject_model(&mut self, obj_vec: Vec<obj_data::Model>) -> Result<(), Error> {
+        let batch_size = obj_vec.len();
+        for i in 0..batch_size {
+            let mut best_j = SLID_WINDWOS + 1;
             let mut best_ssam_rate: f64 = 0.0;
             // delta from base object by slid window
-            for j in 1..SLID_WINDWOS{
-                if i < j  {
+            for j in 1..SLID_WINDWOS {
+                if i < j {
                     break;
                 }
-                let pos = i-j;
-                if !obj_vec[pos].object_type.eq(&obj_vec[i].object_type)  {
+                let pos = i - j;
+                if !obj_vec[pos].object_type.eq(&obj_vec[i].object_type) {
                     break;
                 }
-                let differ= DeltaDiff::new(&obj_vec[i-j].data, &obj_vec[i].data);
+                let differ = DeltaDiff::new(&obj_vec[i - j].data, &obj_vec[i].data);
                 let diff_rate = differ.get_ssam_rate();
                 if (diff_rate > best_ssam_rate) && diff_rate > 0.5 {
                     best_ssam_rate = diff_rate;
                     best_j = j;
                 }
-            }  
-            let obj_data = if best_j==SLID_WINDWOS+1{
-                encode_one_ojbect(EntryHeader::from_string(&obj_vec[i].object_type).to_number() , obj_vec[i].data.len(), &obj_vec[i].data)
-            }else {
-                let differ= DeltaDiff::new(&obj_vec[i-best_j].data, &obj_vec[i].data);
+            }
+            let obj_data = if best_j == SLID_WINDWOS + 1 {
+                encode_one_ojbect(
+                    EntryHeader::from_string(&obj_vec[i].object_type).to_number(),
+                    obj_vec[i].data.len(),
+                    &obj_vec[i].data,
+                )
+            } else {
+                let differ = DeltaDiff::new(&obj_vec[i - best_j].data, &obj_vec[i].data);
                 let after = differ.encode();
-                encode_one_ojbect(6 , after.len(), &after)
-            }.unwrap();
+                encode_one_ojbect(6, after.len(), &after)
+            }
+            .unwrap();
             self.hash.update(&obj_data);
             self.inner.write_all(&obj_data)?;
         }
@@ -145,7 +150,7 @@ fn encode_one_object(obj: Arc<dyn ObjectT>) -> Result<Vec<u8>, Error> {
     Ok(header_data)
 }
 
-fn encode_one_ojbect(git_type: u8, size :usize, data: &[u8])-> Result<Vec<u8>, Error>{
+fn encode_one_ojbect(git_type: u8, size: usize, data: &[u8]) -> Result<Vec<u8>, Error> {
     let mut out = Writer::new(Vec::new());
     let mut header_data = vec![(0x80 | (git_type << 4)) + (size & 0x0f) as u8];
     let mut _size = size >> 4;
@@ -173,7 +178,6 @@ fn encode_one_ojbect(git_type: u8, size :usize, data: &[u8])-> Result<Vec<u8>, E
     out.flush().expect("zlib flush should never fail");
     header_data.append(&mut out.into_inner());
     Ok(header_data)
-
 }
 
 fn u32_vec(value: u32) -> Vec<u8> {

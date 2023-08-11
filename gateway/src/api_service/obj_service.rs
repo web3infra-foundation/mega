@@ -21,9 +21,9 @@ impl ObjectService {
         object_id: &str,
         _repo_path: &str,
     ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
-        let blob_data = match self.storage.get_node_by_hash(object_id).await {
+        let blob_data = match self.storage.get_obj_data_by_id(object_id).await {
             Ok(Some(node)) => {
-                if node.node_type == "blob" {
+                if node.object_type == "blob" {
                     node.data
                 } else {
                     return Err((StatusCode::NOT_FOUND, "Blob not found".to_string()));
@@ -69,9 +69,9 @@ impl ObjectService {
             }
         };
 
-        let tree_data = match self.storage.get_node_by_hash(&tree_id).await {
+        let tree_data = match self.storage.get_obj_data_by_id(&tree_id).await {
             Ok(Some(node)) => {
-                if node.node_type == "tree" {
+                if node.object_type == "tree" {
                     node.data
                 } else {
                     return Err((StatusCode::NOT_FOUND, "Tree not found".to_string()));
@@ -100,7 +100,11 @@ impl ObjectService {
             Ok(Some(node)) => node,
             _ => return Err((StatusCode::NOT_FOUND, "Blob not found".to_string())),
         };
-        let body = Full::new(Bytes::from(node.data));
+        let raw_data = match self.storage.get_obj_data_by_id(object_id).await {
+            Ok(Some(model)) => model,
+            _ => return Err((StatusCode::NOT_FOUND, "Blob not found".to_string())),
+        };
+        let body = Full::new(Bytes::from(raw_data.data));
 
         let file_name = format!("inline; filename=\"{}\"", node.name.unwrap());
         let res = Response::builder()
