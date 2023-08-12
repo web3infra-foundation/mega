@@ -80,8 +80,8 @@ mod tests {
         // Generate key
         let _ = generate_key();
         // Check if the pub.asc and sec.asc files are created in the key_files directory
-        assert!(std::path::Path::new("../craft/key_files/pub.asc").exists());
-        assert!(std::path::Path::new("../craft/key_files/sec.asc").exists());
+        assert!(std::path::Path::new("/mega/craft/key_files/pub.asc").exists());
+        assert!(std::path::Path::new("/mega/craft/key_files/sec.asc").exists());
     }
     /* 
     // Define a test function for encrypt mode
