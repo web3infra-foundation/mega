@@ -3,18 +3,20 @@ use anyhow::{Context, Result, Ok};
 use pgp::{composed, composed::signed_key::*, crypto::{self, SymmetricKeyAlgorithm}, types::{SecretKeyTrait, KeyTrait}, Deserializable, Message};
 use rand::prelude::*;
 use smallvec::*;
-use std::io::Cursor;
+use std::{io::Cursor, path::Path};
 //use directories::ProjectDirs;
 //use color_eyre::eyre::Result;
 
-// While the keys used in this example are unique for each "person", the key password is the same for both
+// Set some default file paths
+// Default public key file path
 #[allow(unused)]
 const PUBLIC_KEY_FILE: &str= "../craft/key_files/pub.asc";
+// Default secret key file path
 #[allow(unused)]
 const SECRET_KEY_FILE: &str= "../craft/key_files/sec.asc";
+// Encrypt function use this file to save encrypted message
 const MSG_FILE_NAME:  &str= "/root/mega/craft/src/encrypted_message.txt";
-#[allow(unused)]
-const SECRET_MSG:  &str= "../craft/src/message.txt";
+
 
 
 pub struct KeyPair {
@@ -22,13 +24,15 @@ pub struct KeyPair {
     pub public_key: pgp::SignedPublicKey,
 }
 
+// Generate key pair function
+// Arguments: primary_user_id, it should input as "User <example@example.com>"
+// Return: KeyPair, it has a signed secret key and a signed public key
 pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error> {
-   // let password = &args[2];
 
+    // Set key_params with primary user id, Rsa with 2048 bites, AES with 256 bit key
     let mut key_params = composed::key::SecretKeyParamsBuilder::default();
     key_params
         .key_type(composed::KeyType::Rsa(2048))
-        //.passphrase(Some(password.clone()))
         .can_create_certificates(false)
         .can_sign(true)
         .primary_user_id(primary_user_id.into())
@@ -46,7 +50,7 @@ pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error
     let signed_secret_key = secret_key
         .sign(passwd_fn)
         .expect("Secret Key must be able to sign its own metadata");
-
+    
     let public_key = signed_secret_key.public_key();
     let signed_public_key = public_key
         .sign(&signed_secret_key, passwd_fn)
@@ -60,11 +64,14 @@ pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error
     Ok(key_pair)
 }
 
+// Encrypt function
+// Arguments: msg, contents need to encrypt; pubkey_str, public key as &str
+// Return: encrypted contents
 pub fn encrypt(msg: &str, pubkey_str: &str) -> Result<String, anyhow::Error> {
     let (pubkey, _) = SignedPublicKey::from_string(pubkey_str)?;
     // Requires a file name as the first arg, in this case I pass "none", as it's not used
     let msg = composed::message::Message::new_literal("none", msg);
-
+    // Encrypt
     let mut rng = StdRng::from_entropy();
     let new_msg = msg.encrypt_to_keys(
         &mut rng,
@@ -74,14 +81,18 @@ pub fn encrypt(msg: &str, pubkey_str: &str) -> Result<String, anyhow::Error> {
     Ok(new_msg.to_armored_string(None)?)
 }
 
+// Decrypt encrypted contents
+// Arguments: armored, encrypted contents; seckey, secket key
 pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow::Error> {
+    // Get encrypted contents
     let buf = Cursor::new(armored);
     let (msg, _) = composed::message::Message::from_armor_single(buf)
         .context("Failed to convert &str to armored message")?;
+    // Set a decryptor
     let (decryptor, _) = msg
         .decrypt(|| String::from(""), || String::from(""), &[seckey])
         .context("Decrypting the message")?;
-
+    // Use decryptor to decrypt encrypted contents
     for msg in decryptor {
         let bytes = msg?.get_content()?.unwrap();
         let clear_text = String::from_utf8(bytes)?;
@@ -138,71 +149,83 @@ pub fn decrypt_message(armored: &str, seckey_file: &str) -> Result<String,anyhow
     Err(anyhow::Error::msg("Failed to find message"))
 }
 
-// List keys and show their fingerprint
+// List keys and show their fingerprint, key id
+// Argument: key_path, key file path, I use a default file path in main.rs 
+// Return: public key and its name, secret key and its name
 #[allow(unused)]
-pub fn list_keys(public_key_file:&str,secret_key_file:&str)->Result<String>{
-    //Convert key to string and print it
-    //TODO: 
-    let pubkey = std::fs::read_to_string(public_key_file)
-        .context("Trying to load public key from file")?;
-    let (pubkey, _) = SignedPublicKey::from_string(pubkey.as_str())?;
-    // Get the fingerprint bytes of the pubkey
-    let fingerprint = pubkey.fingerprint();
-    // Get the key id of the pubkey
-    let  key_id= pubkey.key_id();
-    // Print the fingerprint and key id of public key
-    println!("The public key's fingerprint is: {:?}", fingerprint);
-    println!("The public key's key_id is: {:?}",key_id);
-    
-    let seckey = std::fs::read_to_string(secret_key_file)
-    .context("Trying to load secret key from file")?;
-    let (seckey, _) = SignedSecretKey::from_string(seckey.as_str())?;
-    // Get fingerprint of the seckey
-    let fingerprint =seckey.fingerprint();
-    // Get the key id of seckey
-    let key_id =seckey.key_id();
-    // Print the fingerprint and key id of secret key
-    println!("The secret key's fingerprint is: {:?}", fingerprint);
-    println!("The secret key's key id is: {:?}", key_id);
+pub fn list_keys(key_path: &str)->Result<String>{
+    // Create a vector to store and output strings 
+    let mut output =Vec::new();
+    // Get an itreator over the key files in key file directory
+    let files = std::fs::read_dir(key_path).context("Trying to read key file directory")?;
+    for file in files{
+        // Get file path
+        let file_path = file.context("Trying to get the key file path")?.path();
+        // Get file name
+        let file_name = file_path.file_name().context("Trying to get the key file name")?.to_string_lossy();
+        // If the file name ends with .asc, get a key file
+        if file_name.ends_with(".asc") {
+            // Read the key file content as a string 
+            let key = std::fs::read_to_string(&file_path).context(format!("Trying to load key from {}", file_name))?;
+            // Check this key is a public key or a secret key
+            if key.contains("PUBLIC KEY"){
+                // Parse it as a public key
+                let (pubkey, _) = SignedPublicKey::from_string(key.as_str())?;
+                // Get the fingerprint bytes of the pubkey
+                let fingerprint = pubkey.fingerprint();
+                // Get the key id of the pubkey
+                let  key_id= pubkey.key_id();
+                // Print the fingerprint and key id of public key
+                println!("The {} public key's fingerprint is: {:?}", file_name, fingerprint);
+                println!("The {} public key's key_id is: {:?}", file_name, key_id);
+                // Format public key information as a string and push it to output vector
+                output.push(format!("Public key: {:?}\nFile name: {}\n", pubkey, file_name));
+            }
+            else if key.contains("PRIVATE KEY") {
+                // Parse it as a secret key
+                let (seckey,_) = SignedSecretKey::from_string(key.as_str())?;
+                // Get fingerprint of the seckey
+                let fingerprint =seckey.fingerprint();
+                // Get the key id of seckey
+                let key_id =seckey.key_id();
+                // Print the fingerprint and key id of secret key
+                println!("The {} secret key's fingerprint is: {:?}", file_name, fingerprint);
+                println!("The {} secret key's key id is: {:?}", file_name, key_id);
+                // format secret key information  as a string and push it to output vector
+                output.push(format!("Secret key: {:?}\nFile name: {}\n", seckey, file_name))
+            }
+            else {
+                // The file is not a vaild key file, skip it continue
+            }
+        }
+        else {
+            // The file is not a .asc file, skip it continue
+        } 
 
-    // Format the public key and secret key information as a string
-    let output = format!(
-        "Public key: {:?}\nSecret key: {:?}",
-        pubkey, seckey
-    );
-    // Return the output as an Ok result
-    Ok(output)
+    }
+    // Return the output as Ok result
+    Ok(output.join("\n"))
 }
 
-//This function is directly delete file, it should be updated with another idea.
+// Delete key function, it list keys first, then delete keys you input, 
+// Considering the public key and secret key should be used  together, it will be deleted together 
+// Arguments: key_path, default one is "/mega/craft/key_files"; key_name, key's name you want delete
 #[allow(unused)]
-pub fn delete_key(public_key_file:&str, secret_key_file:&str)-> Result<String,anyhow::Error>{
-   // TODO: I suppose the function should set three option arguments(for delete key with only key id or only fingerprint),
-   // arguments: key_type to find public key/secret key to delete, key id and fingerprint to delete keys from keyring, 
-   // or other better and easier data structure to impl, then saving the keyring
-   // but git-craft v0.1.0 will change crypt crate from crate pgp to another crate Tongsuo at next version
-   // and I dont know about Tongsuo at all, so I just set default OpenPGP key as files,
-   // their file path is "craft/key_files/pub.asc" "craf/key_files/sec.asc"
+pub fn delete_key(key_name: &str, key_path: &str)-> Result<(),anyhow::Error>{
+   // ############################################WARNING############################################# 
+   // git-craft v0.1.0 use crate pgp, and it will change crypt crate to crate Tongsuo at next version,
+   // However, I dont know about Tongsuo at all, so I just set default OpenPGP key as files,
+   // file path: "/mega/craft/key_files/pub.asc" "/mega/craft/key_files/sec.asc"
    // If they are not exist, u can run basic generate-key to generate them, 
-   // or u can use generate-key full to generate at other file path, but please remember the file path u writed.  
-    list_keys(public_key_file, secret_key_file);
-    let pubkey = std::fs::read_to_string(public_key_file)
-        .context("Trying to load public key from file")?;
-    let (pubkey, _) = SignedPublicKey::from_string(pubkey.as_str())?;
-    // Get the fingerprint bytes of the pubkey
-    let fingerprint = pubkey.fingerprint();
-    // Get the key id of the pubkey
-    let  pubkey_id= pubkey.key_id();
-    std::fs::write(public_key_file, "").context("Delete public key from file");
-    println!("Key {:?} deleted successfully",pubkey_id);
-    let seckey =std::fs::read_to_string(secret_key_file)
-        .context("Trying to load secret key from file")?;
-    let (seckey,_)=SignedSecretKey::from_string(seckey.as_str())?;
-    let seckey_id =seckey.key_id();
-    std::fs::write(secret_key_file, "").context("Delete seccret key from file");
-    println!("Key {:?} deleted successfully",seckey_id); 
-    let output =format!(
-        "Key {:?} and {:?} deleted successfully", pubkey_id, seckey_id
-    );
-    Ok(output)
+   // or u can use generate-key-full to generate at other key file.
+   // ##############################################OVER##############################################  
+    list_keys(key_path);
+    let key_file_path = Path::new(key_path);
+    let pubkey_file = key_file_path.join(format!("{}_pub.asc", key_name));
+    std::fs::remove_file(pubkey_file).expect("Unable to remove public key file");
+    println!("Public key {} deleted successfully", key_name);
+    let seckey_file = key_file_path.join(format!("{}_sec.asc", key_name));
+    std::fs::remove_file(seckey_file).expect("Unable to remove secret key file");
+    println!("Secret key {} deleted successfully", key_name);
+    Ok(())
 }
