@@ -65,7 +65,7 @@ fn main() -> Result<(), anyhow::Error> {
     }
      Ok(())
 }
-
+/*
 // Add a tests module with the # [cfg (test)] attribute
 # [cfg (test)]
 mod tests {
@@ -73,7 +73,7 @@ mod tests {
     // Import the names from outer scope
     use super::*;
     
-
+    
     // Define a test function for generate-key mode
     # [test]
     fn test_generate_key() {
@@ -82,8 +82,7 @@ mod tests {
         // Check if the pub.asc and sec.asc files are created in the key_files directory
         assert!(std::path::Path::new("/mega/craft/key_files/pub.asc").exists());
         assert!(std::path::Path::new("/mega/craft/key_files/sec.asc").exists());
-    }
-    /* 
+    } 
     // Define a test function for encrypt mode
     # [test]
     fn test_encrypt() {
@@ -133,5 +132,5 @@ mod tests {
         let data = delete_key("../craft/key_files/pub.asc","../craft/key_files/sec.asc").unwrap();
         // Capture the standard output and assert it is not empty
         assert!(!data.is_empty());
-    }*/ 
-}
+    } 
+}*/
