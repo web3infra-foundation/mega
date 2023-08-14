@@ -15,7 +15,7 @@ const PUBLIC_KEY_FILE: &str= "../craft/key_files/pub.asc";
 #[allow(unused)]
 const SECRET_KEY_FILE: &str= "../craft/key_files/sec.asc";
 // Encrypt function use this file to save encrypted message
-const MSG_FILE_NAME:  &str= "/root/mega/craft/src/encrypted_message.txt";
+const MSG_FILE_NAME:  &str= "../craft/src/encrypted_message.txt";
 
 
 
@@ -221,10 +221,10 @@ pub fn delete_key(key_name: &str, key_path: &str)-> Result<(),anyhow::Error>{
    // ##############################################OVER##############################################  
     list_keys(key_path);
     let key_file_path = Path::new(key_path);
-    let pubkey_file = key_file_path.join(format!("{}_pub.asc", key_name));
+    let pubkey_file = key_file_path.join(format!("{}pub.asc", key_name));
     std::fs::remove_file(pubkey_file).expect("Unable to remove public key file");
     println!("Public key {} deleted successfully", key_name);
-    let seckey_file = key_file_path.join(format!("{}_sec.asc", key_name));
+    let seckey_file = key_file_path.join(format!("{}sec.asc", key_name));
     std::fs::remove_file(seckey_file).expect("Unable to remove secret key file");
     println!("Secret key {} deleted successfully", key_name);
     Ok(())
