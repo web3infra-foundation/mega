@@ -126,7 +126,6 @@ mod tests {
         let mut child = std::process::Command::new("cargo")
             .arg("run")
             .arg("decrypt")
-            .arg("../craft/key_files/sec.asc")
             .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
             .stdout(std::process::Stdio::piped())
             .spawn()
