@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, Ok};
 //use git::internal::object::blob::Blob;
-use pgp::{composed, composed::signed_key::*, crypto::{self, SymmetricKeyAlgorithm}, types::{SecretKeyTrait, KeyTrait}, Deserializable, Message};
+use pgp::{composed, composed::signed_key::*, crypto::{self, sym::SymmetricKeyAlgorithm}, types::{SecretKeyTrait, KeyTrait}, Deserializable, Message};
 use rand::prelude::*;
 use smallvec::*;
 use std::{io::Cursor, path::Path};
@@ -90,7 +90,7 @@ pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow
         .context("Failed to convert &str to armored message")?;
     // Set a decryptor
     let (decryptor, _) = msg
-        .decrypt(|| String::from(""), || String::from(""), &[seckey])
+        .decrypt(|| String::from(""), &[seckey])
         .context("Decrypting the message")?;
     // Use decryptor to decrypt encrypted contents
     for msg in decryptor {
@@ -135,7 +135,7 @@ pub fn decrypt_message(armored: &str, seckey_file: &str) -> Result<String,anyhow
     let buf = Cursor::new(armored);
     let (msg, _) = Message::from_armor_single(buf)?;
     let (decryptor, _) = msg
-        .decrypt(|| String::from(""), || String::from(""), &[&seckey])
+        .decrypt(|| String::from(""), &[&seckey])
         .context("Decrypting the message")?;
 
     for msg in decryptor {
