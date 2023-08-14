@@ -46,7 +46,7 @@ fn main() -> Result<(), anyhow::Error> {
         // Decrypt file contents with a secret key
         "decrypt" => {
             // Decrypt blob.data
-            let _ =decrypt_blob("../craft/key_files/sec.asc");
+            let _ =decrypt_blob(&args.command[1]);
         }
         "list-keys" => {
             // Show key lists and their fingerprint, key id.
@@ -115,8 +115,8 @@ mod tests {
     // Define a test function for decrypt mode
     # [test]
     fn test_decrypt_blob() {
-        let _ = generate_key();
-        let _ = encrypt_blob("../tests/data/objects/emessage.txt","../craft/key_files/pub.asc");
+        let _ = generate_key_full("User2 <sci@sci.com>", "sci");
+        let _ = encrypt_blob("../tests/data/objects/emessage.txt","../craft/key_files/scipub.asc");
         
         // Read the file content and convert it to a vector of bytes
         let vec = std::fs::read("../tests/data/objects/emessage.txt").expect("Failed to read file");
@@ -126,6 +126,7 @@ mod tests {
         let mut child = std::process::Command::new("cargo")
             .arg("run")
             .arg("decrypt")
+            .arg("../craft/key_files/scisec.asc")
             .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
             .stdout(std::process::Stdio::piped())
             .spawn()

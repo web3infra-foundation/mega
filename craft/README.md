@@ -25,9 +25,9 @@ Git-craft is a extension for git, it can encrypt the content when submitting cod
 
 ## About Filter
   
-1. edit .git/config
+1. edit .git/config "../craft/key_files/sec.asc" is a default key, you can use another key.
 - [filter "crypt"]
-	      smudge = /root/mega/target/release/git-craft decrypt 
+	      smudge = /root/mega/target/release/git-craft decrypt ../craft/key_files/sec.asc
         clean = /root/mega/target/release/git-craft encrypt "%f"
 2. edit .gitattributes
 - file_need_crypted filter=crypt -text

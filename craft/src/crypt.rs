@@ -95,7 +95,7 @@ pub fn decrypt_blob(secret_key_file_path:&str) -> Result<(),anyhow::Error>{
             // Set a encrypt_msg to get &str 
             let encrypted_msg = std::str::from_utf8(&blob_data).expect("Invalid UTF-8 sequence");
             // Decrypt contents with the secret key
-            let decrypted_msg = decrypt_message(encrypted_msg,secret_key_file_path ).expect("Failed to decrypt message");
+            let decrypted_msg = decrypt_message(encrypted_msg, secret_key_file_path).expect("Failed to decrypt message");
             // Print decrypted contents, then git will write decrypted contents to origin file
             print!("{}", &decrypted_msg);
             Ok(())
