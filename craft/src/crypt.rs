@@ -7,7 +7,7 @@ use git::{internal::{object::{blob::Blob, ObjectT}, zlib::stream::inflate::ReadB
 use crate::pgp_key::{self, KeyPair};
 
 // Default key file path 
-const KEY_FILE_PATH:  &str= "/mega/craft/key_files";
+const KEY_FILE_PATH:  &str= "../craft/key_files";
 
 // Generate default public key and secret key at /craft/key_files/ 
 pub fn generate_key() -> Result<(), anyhow::Error>{
@@ -21,14 +21,14 @@ pub fn generate_key() -> Result<(), anyhow::Error>{
                 .to_armored_string(None)
                 .expect("Failed to convert public key to armored ASCII string");
             // Write public key to pub.asc,it will replace the old public key
-            _=std::fs::write( "/mega/craft/key_files/pub.asc",pub_key).context("Writing public key to file");
+            _=std::fs::write( "../craft/key_files/pub.asc",pub_key).context("Writing public key to file");
             // Generate a secret key
             let sec_key = key_pair
                 .secret_key
                 .to_armored_string(None)
                 .expect("Failed to convert secret key to armored ASCII string");
             // Write secret key to sec.asc, it will replace the old secret key
-            _=std::fs::write( "/mega/craft/key_files/sec.asc",sec_key).context("Writing secret key to file");
+            _=std::fs::write( "../craft/key_files/sec.asc",sec_key).context("Writing secret key to file");
             Ok(())
 }
 
@@ -36,7 +36,7 @@ pub fn generate_key() -> Result<(), anyhow::Error>{
 // Arguments: primary_id, as &str, it should be written as "User <example@example.com>"; key_name, git-craft will keep ur key file as key_name_pub.asc 
 pub fn generate_key_full(primary_id:&str, key_name:&str)-> Result<KeyPair, anyhow::Error> {
     println!("Creating key pair, this will take a few seconds...");
-    let key_file_path= Path::new("/mega/craft/key_files");
+    let key_file_path= Path::new("../craft/key_files");
     // Create a dir if it is not exist.
     std::fs::create_dir_all(key_file_path)?; 
         // Give primary id to generate_key_pair to generate key with a non-default key id
@@ -47,7 +47,7 @@ pub fn generate_key_full(primary_id:&str, key_name:&str)-> Result<KeyPair, anyho
             .to_armored_string(None)
             .expect("Failed to convert public key to armored ASCII string");
         // Add key_name_pub.asc to key file path
-        let pub_key_file_path =key_file_path.join(format!("{}_pub.asc", key_name));
+        let pub_key_file_path =key_file_path.join(format!("{}pub.asc", key_name));
         // Write public key to file,it will replace the old same name's public key 
         _=std::fs::write( pub_key_file_path,pub_key).context("Writing public key to file");
         // Generate a secret key
@@ -56,7 +56,7 @@ pub fn generate_key_full(primary_id:&str, key_name:&str)-> Result<KeyPair, anyho
             .to_armored_string(None)
             .expect("Failed to convert secret key to armored ASCII string");
         // Add key_name_sec.asc to key file path
-        let sec_key_file_path = key_file_path.join(format!("{}_sec.asc", key_name)); 
+        let sec_key_file_path = key_file_path.join(format!("{}sec.asc", key_name)); 
         // Write secret key to file, it will replace the old same name's secret key.
         _=std::fs::write( sec_key_file_path,sec_key).context("Writing secret key to file");    
             
