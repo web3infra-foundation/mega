@@ -15,7 +15,7 @@ const PUBLIC_KEY_FILE: &str= "../craft/key_files/pub.asc";
 #[allow(unused)]
 const SECRET_KEY_FILE: &str= "../craft/key_files/sec.asc";
 // Encrypt function use this file to save encrypted message
-const MSG_FILE_NAME:  &str= "../craft/src/encrypted_message.txt";
+const MSG_FILE_NAME:  &str= "../mega/craft/src/encrypted_message.txt";
 
 
 
