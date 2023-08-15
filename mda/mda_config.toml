@@ -1,0 +1,19 @@
+title = "mda config"
+
+[[annotation]]
+id = "identify"
+path = "D:/Workplace/internship/project/test_mda/anno/identity_CelebA.txt"
+start = 1
+
+[[annotation]]
+path = "D:/Workplace/internship/project/test_mda/anno/list_attr_celeba.txt"
+start = 3
+
+[[annotation]]
+path = "D:/Workplace/internship/project/test_mda/anno/list_bbox_celeba.txt"
+start = 3
+
+[[annotation]]
+id = "landmarks"
+path = "D:/Workplace/internship/project/test_mda/anno/list_landmarks_celeba.txt"
+start=3
