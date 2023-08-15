@@ -1,1 +1,1 @@
-/root/mega/tests/data/objects/message.txt filter=crypt -text 
+/tests/data/objects/message.txt filter=crypt -text 
