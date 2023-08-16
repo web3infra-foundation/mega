@@ -2,7 +2,7 @@ use super::{cache::ObjectCache, counter::GitTypeCounter, delta::undelta, EntryHe
 use crate::{
     errors::GitError,
     internal::{
-        pack::{counter::DecodeCounter, Hash},
+        pack::{counter::DecodeCounter, Hash, cqueue::CircularQueue},
         zlib::stream::inflate::ReadPlain,
     },
     utils,
@@ -230,7 +230,9 @@ async fn produce_object(
 
     let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(1000));
     let start = Instant::now();
-
+    let batch_size = 10000;
+    let save_task_wait_number=10; // the most await save thread amount
+    let mut  save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
     for i in range_begin..range_end {
         let read_auth = data.read().await;
         let e = &read_auth.entries[i];
@@ -287,12 +289,39 @@ async fn produce_object(
         cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
         git_save_model.push(result_entity.clone().convert_to_mr_model(mr_id));
         data_save_model.push(result_entity.convert_to_data_model());
+
+        //save to storage 
+       
+        if git_save_model.len()>=batch_size{
+            let stc = storage.clone();
+            let h = tokio::spawn(async move {
+                stc.save_git_objects(git_save_model).await.unwrap();
+                stc.save_obj_data(data_save_model).await.unwrap();
+            });
+            println!("put new batch ");
+            // if the save queue if full , wait the fist queue finish
+            if save_queue.is_full(){
+                let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
+                println!("to await from full queue ");
+                first_h.await.unwrap();
+                save_queue.enqueue(h).unwrap();
+            }else {
+                save_queue.enqueue(h).unwrap();
+            }
+            git_save_model  = Vec::with_capacity(batch_size);
+            data_save_model = Vec::with_capacity(batch_size); 
+        }
     }
     if !git_save_model.is_empty() {
         storage.save_git_objects(git_save_model).await.unwrap();
     }
     if !data_save_model.is_empty() {
         storage.save_obj_data(data_save_model).await.unwrap();
+    }
+    // await the remaining threads
+    println!("await last thread");
+    while let Some(h)= save_queue.dequeue() {
+        h.await.unwrap();
     }
     let end = start.elapsed().as_millis();
     tracing::info!("Git Object Produce thread one  time cost:{} ms", end);
