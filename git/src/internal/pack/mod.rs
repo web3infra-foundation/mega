@@ -17,6 +17,7 @@ pub mod iterator;
 mod header;
 pub mod preload;
 mod counter;
+mod cqueue;
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
 /// `version`: The pack file version <br>
