@@ -1,3 +1,4 @@
+
 use entity::obj_data;
 use sha1::{Digest, Sha1};
 use std::io::{Cursor, Write};
