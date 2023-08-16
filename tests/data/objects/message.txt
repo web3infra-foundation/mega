@@ -1,2 +1,1 @@
-Hello, world;
-Hello, rust
+hello world;,;;rust, up!

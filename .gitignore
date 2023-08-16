@@ -44,6 +44,3 @@ download/*
 
 #craft keys
 craft/key_files/*
-
-#filter config
-.gitattributes

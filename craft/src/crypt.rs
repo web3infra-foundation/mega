@@ -1,8 +1,8 @@
-use std::{io::{Cursor, Read}, fs, path::Path};
+use std::{io::Read, path::Path};
 
 use anyhow::{Context, Ok};
 use pgp_key::{generate_key_pair,encrypt_message, decrypt_message};
-use git::{internal::{object::{blob::Blob, ObjectT}, zlib::stream::inflate::ReadBoxed, ObjectType}, utils};
+//use git::internal;
 
 use crate::pgp_key::{self, KeyPair};
 
@@ -64,25 +64,16 @@ pub fn generate_key_full(primary_id:&str, key_name:&str)-> Result<KeyPair, anyho
 }
 // A blob encrypt function,it can encrypt blob.data
 // Argument: blob_path, contents file path; public_key_file_path, public key's file path; I set a default path now.  
-pub fn encrypt_blob(blob_path:&str, public_key_file_path: &str)-> Result<(),anyhow::Error>{
-            // Create blob object to get blob
-            // Read from content path
-            let content = fs::read_to_string(blob_path)?;
-            let t_test = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
-            let mut deco = ReadBoxed::new(t_test, ObjectType::Blob, content.len());
-            // Set a mut blob to encrpyt it
-            let mut blob = Blob::new_from_read(&mut deco, content.len());
+pub fn encrypt_blob(public_key_file_path: &str)-> Result<(),anyhow::Error>{
+            // Read blob data from standard input stream
+            let mut blob_data = Vec::new();
+            std::io::stdin().read_to_end(&mut blob_data).unwrap();
             // Get blob.data as msg to encrypt
-            let msg = std::str::from_utf8(&blob.data).expect("Invalid UTF-8 sequence");
+            let msg = std::str::from_utf8(&blob_data).expect("Invalid UTF-8 sequence");
             // Encrypt the contents with the public key 
             let encrypted = encrypt_message(msg, public_key_file_path).expect("Failed to encrypt message");
-            // Make encrypted message to blob.data and save it to original blob
-            let encrypted_data = encrypted.as_bytes().to_vec();
-            blob.data = encrypted_data;
-            // Write encrypted blob to file
-            std::fs::write(blob_path,&blob.data).unwrap_or_else(|e| {
-                panic!("Write failed: {}", e);
-            });
+            // Print it for git
+            print!("{}", &encrypted);
             Ok(())
 }
 
