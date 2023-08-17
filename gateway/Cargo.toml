@@ -22,7 +22,7 @@ serde = "1.0.164"
 tokio = {version = "1.29.1", features = ["full"]}
 tracing = "0.1.37"
 russh = "0.37.1"
-russh-keys = "0.37.1"
+russh-keys = "0.38.0"
 ed25519-dalek = "1.0.1"
 serde_json = "1.0.103"
 tower = "0.4.13"

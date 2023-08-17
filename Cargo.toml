@@ -26,7 +26,7 @@ tokio = { version = "1.28.1", features = ["full"] }
 dotenvy = "0.15.7"
 tracing-subscriber = "0.3.17"
 russh = "0.37.1"
-russh-keys = "0.37.1"
+russh-keys = "0.38.0"
 thiserror = "1.0.40"
 pgp = "0.9.0"
 rand = "0.8.5"
