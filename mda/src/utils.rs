@@ -2,7 +2,10 @@
 //! that help simplify the development process and provide shared functionalities.
 
 extern crate image;
-use crate::{AudioMetaData, ImageMetaData, TextMetaData, VideoMetaData, MDAIndex, MDAHeader, AnnoOffset};
+use crate::{
+    AnnoOffset, AudioMetaData, ImageMetaData, MDAHeader , MDAIndexTest, TextMetaData,
+    VideoMetaData,
+};
 use anyhow::Context;
 use chrono::Local;
 use encoding::{DecoderTrap, Encoding};
@@ -273,38 +276,32 @@ pub fn record_end_time(start_time: Instant, number_of_mda_files: usize, action: 
     );
 }
 
-pub fn print_table_header()->Table {
-    let mut table = Table::new();
+pub fn print_table_header() -> Table{
+    let mut table1 = Table::new();
 
-    table.add_row(Row::new(vec![
-        Cell::new("Header Offset"),
+    table1.add_row(Row::new(vec![
+        Cell::new("MDA Header Offset"),
         Cell::new("Training Data Offset"),
-        Cell::new("Anno Entries Offset"),
-        Cell::new("Anno Header"),
         Cell::new("Tags"),
         Cell::new("Training MetaData"),
     ]));
-    table
+
+   
+    table1
 }
 
-pub fn print_table_cell(mut table:Table,index:MDAIndex,header:MDAHeader) ->Table{
- 
+pub fn print_table_cell(mut table: Table, index: MDAIndexTest, header: MDAHeader) -> Table {
     table.add_row(Row::new(vec![
         Cell::new(&index.header_offset.to_string()),
         Cell::new(&index.train_data_offset.to_string()),
-        Cell::new(&index.anno_headers_offset.to_string()),
-        Cell::new(&index.anno_entries_offset.to_string()),
         Cell::new(header.tags.join(", ").as_str()),
         Cell::new(&header.train_data.metadata),
- 
     ]));
     table
 }
-//
- 
+
 use serde::Deserialize;
 use std::process;
- 
 
 #[derive(Debug, Deserialize)]
 pub struct AnnoConfigItem {
@@ -314,7 +311,7 @@ pub struct AnnoConfigItem {
     #[serde(default = "default_start")]
     pub start: usize,
     #[serde(default = "default_end")]
-    pub end:usize,
+    pub end: usize,
 }
 
 fn default_id() -> String {
@@ -357,26 +354,18 @@ fn parse_and_process_toml(toml_content: &str) -> Result<Vec<AnnoConfigItem>, tom
 fn read_toml_file(filename: &str) -> Result<String, std::io::Error> {
     fs::read_to_string(filename)
 }
-pub fn get_anno_config(path:&str)->AnnoConfig{
+pub fn get_anno_config(path: &str) -> AnnoConfig {
     match read_toml_file(path) {
-        Ok(toml_content) => {
-            match parse_and_process_toml(&toml_content) {
-                Ok(annos) => {
-                    AnnoConfig{
-                        annotation:annos
-                    }
-                }
-                Err(err) => {
-                    eprintln!("Error parsing and processing TOML: {}", err);
-                    process::exit(1); 
-
-                }
+        Ok(toml_content) => match parse_and_process_toml(&toml_content) {
+            Ok(annos) => AnnoConfig { annotation: annos },
+            Err(err) => {
+                eprintln!("Error parsing and processing TOML: {}", err);
+                process::exit(1);
             }
-        }
+        },
         Err(err) => {
             eprintln!("Error reading the file: {}", err);
-            process::exit(1); 
-
+            process::exit(1);
         }
     }
 }
@@ -387,7 +376,7 @@ pub fn create_anno_offsets(anno_config: &AnnoConfig) -> Vec<AnnoOffset> {
         let anno_offset = AnnoOffset {
             id: item.id.clone(),
             header_offset: 0,
-            entries_offset: 0, 
+            entries_offset: 0,
         };
         anno_offsets.push(anno_offset);
     }

@@ -1,25 +1,27 @@
-use crate::{
-    find_nearest_multiple_of_snapshot_base, get_full_data, print_rev_anno_headers,
-    save_audio_to_file, save_image_to_file, save_text_to_file, save_video_to_file,
-    write_strings_to_file, DataType, MDAHeader, MDAIndex, MDAIndexTest, RevAnno, RevAnnoEntry,
-    RevAnnoHeader,
+ use crate::{
+    extract_file_name, find_nearest_multiple_of_snapshot_base, get_full_data, message,
+    print_rev_anno_headers, save_audio_to_file, save_image_to_file, save_text_to_file,
+    save_video_to_file, write_strings_to_file, DataType, MDAHeader, MDAIndex, MDAIndexTest,
+    RevAnno, RevAnnoEntry, RevAnnoHeader,
 };
 use anyhow::Result;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use std::error::Error;
+use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::process;
-
 /// Read data from an MDA file.
-pub fn read_info_from_mda(file_path: &str) -> Result<(MDAIndex, MDAHeader), Box<dyn Error>> {
+pub fn read_info_from_mda(file_path: &str) -> Result<(MDAIndexTest, MDAHeader), Box<dyn Error>> {
     let file = File::open(file_path)?;
     let mut reader = BufReader::new(file);
-    let index: MDAIndex = bincode::deserialize_from(&mut reader)?;
+    let index: MDAIndexTest = bincode::deserialize_from(&mut reader)?;
     reader.seek(SeekFrom::Start(index.header_offset))?;
     let header: MDAHeader = bincode::deserialize_from(&mut reader)?;
     Ok((index, header))
 }
-
+/// Get anno groups
 pub fn read_anno_groups_from_mda(file_path: &str) -> Result<Vec<String>, Box<dyn Error>> {
     let file = File::open(file_path)?;
     let mut reader = BufReader::new(file);
@@ -28,49 +30,49 @@ pub fn read_anno_groups_from_mda(file_path: &str) -> Result<Vec<String>, Box<dyn
     for item in index.annotations_offset {
         anno_groups.push(item.clone().id);
     }
-    Ok((anno_groups))
+    Ok(anno_groups)
 }
 
 // Read annotations from an MDA file
-pub fn read_anno_from_mda_v1(file_path: &str, group: &str, rev: i32) -> Result<(), Box<dyn Error>> {
+pub fn read_anno_from_mda(file_path: &str, group: &str, rev: i32) -> Result<(), Box<dyn Error>> {
     let rev_anno = match get_rev_anno_from_mda_v1(file_path, group, rev) {
         Ok(rev_anno) => rev_anno,
         Err(err) => {
-            println!("error={:?}", err);
+            println!("Read Version Fail = {:?}", err);
             process::exit(1);
         }
     };
-    println!("Data Version for {:?}", file_path);
+    println!("Data Version for {:?}, anno group: {:?}", file_path, group);
     print_rev_anno_headers(&rev_anno.headers);
 
     Ok(())
 }
-// Read annotations from an MDA file
-pub fn read_anno_from_mda(file_path: &str, rev: i32) -> Result<(), Box<dyn Error>> {
-    let rev_anno = match get_rev_anno_from_mda(file_path, rev) {
-        Ok(rev_anno) => rev_anno,
-        Err(err) => {
-            println!("error={:?}", err);
-            process::exit(1);
-        }
-    };
-    println!("Data Version for {:?}", file_path);
-    print_rev_anno_headers(&rev_anno.headers);
+// // Read annotations from an MDA file
+// pub fn read_anno_from_mda(file_path: &str, rev: i32) -> Result<(), Box<dyn Error>> {
+//     let rev_anno = match get_rev_anno_from_mda(file_path, rev) {
+//         Ok(rev_anno) => rev_anno,
+//         Err(err) => {
+//             println!("error={:?}", err);
+//             process::exit(1);
+//         }
+//     };
+//     println!("Data Version for {:?}", file_path);
+//     print_rev_anno_headers(&rev_anno.headers);
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 /// Extract data from an MDA file.
-pub fn extract_data_from_mda(
-    mda_path: &str,
-    training_data_path: &str,
-    anno_data_path: &str,
-    rev: i32,
-    format: &str,
-) -> Result<DataType, Box<dyn Error>> {
-    let _ = extract_anno_from_mda(mda_path, anno_data_path, rev, format);
-    extract_train_from_mda(mda_path, training_data_path)
-}
+// pub fn extract_data_from_mda(
+//     mda_path: &str,
+//     training_data_path: &str,
+//     anno_data_path: &str,
+//     rev: i32,
+//     format: &str,
+// ) -> Result<DataType, Box<dyn Error>> {
+//     let _ = extract_anno_from_mda(mda_path, anno_data_path, rev, format);
+//     extract_train_from_mda(mda_path, training_data_path)
+// }
 
 /// Extract data from an MDA file.
 pub fn extract_data_from_mda_and_anno_in_one_file(
@@ -127,7 +129,7 @@ fn extract_anno_from_mda_and_anno_in_one_file(
 
 /// Extract anno data from mda
 #[allow(unused_assignments)]
-fn extract_anno_from_mda(
+fn _extract_anno_from_mda(
     file_path: &str,
     anno_data_path: &str,
     rev: i32,
@@ -340,6 +342,7 @@ pub fn get_rev_anno_from_mda(file_path: &str, rev: i32) -> Result<RevAnno, Box<d
     Ok(rev_anno)
 }
 
+#[allow(unused_assignments)]
 pub fn get_rev_anno_from_mda_v1(
     file_path: &str,
     group: &str,
@@ -396,7 +399,7 @@ pub fn get_rev_anno_from_mda_v1(
                 offset += bincode::serialized_size(&header)? as usize;
             }
         } else {
-            let mut current_position = anno_headers_offset.clone();
+            let mut current_position = anno_headers_offset;
 
             while offset < header_bytes.len() && current_position < next_anno_entries_offset {
                 let header: RevAnnoHeader = bincode::deserialize(&header_bytes[offset..])?;
@@ -525,16 +528,126 @@ pub fn get_rev_anno_from_mda_v1(
     Ok(rev_anno)
 }
 
-/// Extract data from an MDA file.
-pub fn extract_data_from_mda_v1(
+use indicatif::ProgressBar;
+pub fn extract_mda(
     mda_path: &str,
     training_data_path: &str,
     anno_data_path: &str,
     rev: i32,
     format: &str,
-    group:&str
+    group: &str,
+) -> Result<(), Box<dyn Error>> {
+    let pb = ProgressBar::new(1);
+
+    let train_data = training_data_path.to_string() + &extract_file_name(mda_path);
+    let anno_data: String = anno_data_path.to_string() + &extract_file_name(mda_path);
+    match extract_data_from_mda(mda_path, &train_data, &anno_data, rev, format, group) {
+        Ok(_) => {
+            pb.inc(1);
+
+            pb.finish_with_message("done");
+        }
+        Err(e) => {
+            eprintln!("Extract Error:{:?}", e);
+        }
+    }
+
+    Ok(())
+}
+pub fn extract_mda_more(
+    mda_path: &str,
+    training_data_path: &str,
+    anno_data_path: &str,
+    rev: i32,
+    format: &str,
+    group: &str,
+    // config:&MDAOptions
+    threads: usize,
+) -> Result<(), Box<dyn Error>> {
+    // get all paths
+    let entries = fs::read_dir(mda_path)?;
+    let entries_vec: Vec<_> = entries.collect();
+    let length = entries_vec.len();
+
+    let mut paths = Vec::new();
+    for entry in entries_vec {
+        let entry = entry?;
+        let file_path = entry.path();
+
+        if file_path.is_file() {
+            paths.push(file_path.to_string_lossy().to_string());
+        }
+    }
+    println!("{:?}", paths);
+    let pb = ProgressBar::new(length.try_into().unwrap());
+    // use thread pool to generate files
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .unwrap();
+
+    pool.install(|| {
+        paths.par_iter().for_each(|path| {
+            match extract_data_from_mda(
+                path,
+                training_data_path,
+                anno_data_path,
+                rev,
+                format,
+                group,
+            ) {
+                Ok(_) => {
+                    pb.inc(1);
+                }
+                Err(err) => {
+                    eprintln!(
+                        "\x1b[31m[ERROR]{}: {} {}\x1b[0m",
+                        path,
+                        message::GENERATE_MSG,
+                        err
+                    );
+                }
+            }
+        });
+    });
+
+    // for entry in entries_vec  {
+    //     let entry = entry?;
+    //     let file_path = entry.path();
+
+    //     if file_path.is_file() {
+    //         println!("{:?}",file_path);
+    //         match extract_data_from_mda(
+    //             &file_path.to_string_lossy(),
+    //             training_data_path,
+    //             anno_data_path,
+    //             rev,
+    //             format,
+    //             group,
+    //         ) {
+    //             Ok(_) => {
+    //                 pb.inc(1);
+    //             }
+    //             Err(e) => {
+    //                 eprintln!("Extract Error:{:?}", e);
+    //             }
+    //         }
+    //     }
+    // }
+    pb.finish_with_message("done");
+
+    Ok(())
+}
+/// Extract data from an MDA file.
+pub fn extract_data_from_mda(
+    mda_path: &str,
+    training_data_path: &str,
+    anno_data_path: &str,
+    rev: i32,
+    format: &str,
+    group: &str,
 ) -> Result<DataType, Box<dyn Error>> {
-    let _ = extract_anno_from_mda_v1(mda_path, anno_data_path, rev, format,group);
+    let _ = extract_anno_from_mda_v1(mda_path, anno_data_path, rev, format, group);
     extract_train_from_mda(mda_path, training_data_path)
 }
 
@@ -545,9 +658,9 @@ fn extract_anno_from_mda_v1(
     anno_data_path: &str,
     rev: i32,
     format: &str,
-    group:&str
+    group: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let rev_anno = match get_rev_anno_from_mda_v1(file_path,group, rev) {
+    let rev_anno = match get_rev_anno_from_mda_v1(file_path, group, rev) {
         Ok(rev_anno) => rev_anno,
         Err(err) => {
             println!("error={:?}", err);
