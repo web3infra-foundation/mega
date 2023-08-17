@@ -6,6 +6,7 @@
 pub mod object;
 pub mod pack;
 pub mod zlib;
+pub mod diff;
 use std::fmt::Display;
 
 use crate::errors::GitError;
