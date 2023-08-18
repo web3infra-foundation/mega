@@ -228,10 +228,17 @@ async fn produce_object(
     let mut git_save_model = Vec::<git::ActiveModel>::with_capacity(1001);
     let mut data_save_model = Vec::<obj_data::ActiveModel>::with_capacity(1001);
 
-    let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(1000));
+    let mut object_cache_size = 1000;
+    utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_SIZE", &mut object_cache_size);
+
+    let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(object_cache_size));
     let start = Instant::now();
-    let batch_size = 10000;
-    let save_task_wait_number=10; // the most await save thread amount
+    let mut batch_size = 10000;
+    utils::get_env_number("GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE", &mut batch_size);
+
+    let mut save_task_wait_number=10; // the most await save thread amount
+    utils::get_env_number("GIT_INTERNAL_DECODE_STORAGE_TQUEUE_SIZE", &mut save_task_wait_number);
+
     let mut  save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
     for i in range_begin..range_end {
         let read_auth = data.read().await;
