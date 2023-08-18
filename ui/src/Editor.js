@@ -18,8 +18,6 @@ import { TRANSFORMERS } from "@lexical/markdown";
 import ListMaxIndentLevelPlugin from "./plugins/ListMaxIndentLevelPlugin";
 import CodeHighlightPlugin from "./plugins/CodeHighlightPlugin";
 import AutoLinkPlugin from "./plugins/AutoLinkPlugin";
-import "./output.css";
-import "./index.css";
 import { useEffect } from "react";
 
 function Placeholder() {
@@ -50,11 +48,11 @@ const editorConfig = {
 };
 
 export default function Editor() {
-  useEffect(()=>{
+  useEffect(() => {
     var editor_placeholder = document.getElementsByClassName("editor-placeholder");
     editor_placeholder[0].innerHTML = "Enter you review..."
   })
-  
+
   return (
     <LexicalComposer initialConfig={editorConfig}>
       <div className="editor-container ">
@@ -76,22 +74,22 @@ export default function Editor() {
 
         </div>
         <div className="review_post_div">
-              <button
-                type="submit"
-                className="review_post_button items-center  px-3 py-2 text-sm font-semibold shadow-md"
-              >
-                Post
-              </button>
+          <button
+            type="submit"
+            className="review_post_button items-center  px-3 py-2 text-sm font-semibold shadow-md"
+          >
+            Post
+          </button>
         </div>
         <div className="review_cancel_div">
-              <button
-                className="review_cancel_button items-center  px-3 py-2 text-sm font-semibold shadow-md"
-              >
-                Cancel
-              </button>
+          <button
+            className="review_cancel_button items-center  px-3 py-2 text-sm font-semibold shadow-md"
+          >
+            Cancel
+          </button>
         </div>
-       
-        </div>
+
+      </div>
     </LexicalComposer>
   );
 }
