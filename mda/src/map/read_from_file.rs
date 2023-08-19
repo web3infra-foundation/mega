@@ -10,7 +10,7 @@ use std::io::{BufRead, BufReader};
 
 /// Matching training data and annotation data
 pub fn get_train_path_and_anno_content(file_path: &str, start_line: usize,end_line: usize) -> Vec<AnnoInfo> {
- 
+   
     if file_path.ends_with("txt") {
         read_txt_file_info(file_path, start_line,end_line)
     } else if file_path.ends_with("csv") {
@@ -40,8 +40,6 @@ impl AnnoInfo {
     }
 }
 fn read_txt_file_info(file_path: &str, start_line: usize, end_line: usize) -> Vec<AnnoInfo> {
-    // 省略文件打开和错误处理
-
     let file = File::open(file_path).expect("Failed to open the file");
     let reader = BufReader::new(file);
     let mut txt_info_vec: Vec<AnnoInfo> = Vec::new();
@@ -136,3 +134,19 @@ fn read_json_file_info(file_path: &str,  start_line: usize,end_line: usize) -> R
 }
 
  
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+    
+//     #[test]
+//     fn test_read_txt_file_info() {
+//         // Create a temporary file for testing
+//         use std::fs::File;
+//         use std::io::Write;
+    
+//         // Test the function with start_line=2 and end_line=4
+//         let result = read_txt_file_info("D:/Workplace/internship/project/test_mda/anno/list_landmarks_celeba.txt", 3, 0);
+        
+//        println!("{:?}",result);
+//     }
+// }

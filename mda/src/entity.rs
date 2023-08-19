@@ -2,16 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MDAIndex {
-    pub header_offset: u64,
-    pub train_data_offset: u64,
-    pub anno_entries_offset: u64,
-    pub anno_headers_offset: u64,
-}
+ 
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct MDAIndexTest {
+pub struct MDAIndex {
     pub header_offset: u64,
     pub train_data_offset: u64,
     pub annotations_offset:Vec<AnnoOffset>

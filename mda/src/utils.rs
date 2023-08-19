@@ -3,7 +3,7 @@
 
 extern crate image;
 use crate::{
-    AnnoOffset, AudioMetaData, ImageMetaData, MDAHeader , MDAIndexTest, TextMetaData,
+    AnnoOffset, AudioMetaData, ImageMetaData, MDAHeader , MDAIndex, TextMetaData,
     VideoMetaData,
 };
 use anyhow::Context;
@@ -290,7 +290,7 @@ pub fn print_table_header() -> Table{
     table1
 }
 
-pub fn print_table_cell(mut table: Table, index: MDAIndexTest, header: MDAHeader) -> Table {
+pub fn print_table_cell(mut table: Table, index: MDAIndex, header: MDAHeader) -> Table {
     table.add_row(Row::new(vec![
         Cell::new(&index.header_offset.to_string()),
         Cell::new(&index.train_data_offset.to_string()),

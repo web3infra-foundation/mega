@@ -4,7 +4,7 @@ use crate::run_mda::MDAOptions;
 use crate::{
     extract_audio_metadata, extract_filename_change_extension, extract_image_metadata,
     extract_text_metadata, extract_video_info, get_anno_config, get_file_type, message, AnnoOffset,
-    AudioMetaData, DataType, ImageMetaData, MDAHeader, MDAIndex, MDAIndexTest, RevAnno,
+    AudioMetaData, DataType, ImageMetaData, MDAHeader, MDAIndex, RevAnno,
     TextMetaData, TrainData, TrainingData, VideoMetaData,
 };
 use anyhow::Result;
@@ -41,7 +41,7 @@ pub fn list_files_in_directory(directory: &str) -> Result<Vec<String>, std::io::
 
     Ok(file_paths)
 }
-
+/// extract last part from a path
 fn extract_last_folder_name(path: &str) -> Option<&str> {
     let path = std::path::Path::new(path);
     if let Some(last_component) = path.components().next_back() {
@@ -51,6 +51,7 @@ fn extract_last_folder_name(path: &str) -> Option<&str> {
     }
     None
 }
+/// get the file extension of the file
 fn get_first_file_extension(folder_path: &str) -> Result<Option<String>, std::io::Error> {
     let dir_path = Path::new(folder_path);
     if dir_path.is_dir() {
@@ -68,7 +69,7 @@ fn get_first_file_extension(folder_path: &str) -> Result<Option<String>, std::io
 
     Ok(None)
 }
-
+/// config the completed path
 fn generate_final_path(train: &str, annos: &str, extension: &str) -> String {
     let train_path = Path::new(train);
     let annos_path = Path::new(annos);
@@ -242,99 +243,7 @@ pub fn config_annotation_data_by_content(content: &str) -> Result<RevAnno, Box<d
     Ok(RevAnno::set_initial_element(content))
 }
 
-// Create mda file and write data
-pub fn write_data_to_mda(
-    file_path: &str,
-    header: MDAHeader,
-    train_data: TrainingData,
-    rev_anno: &mut RevAnno,
-) -> Result<(), Box<dyn Error>> {
-    // Open the file and create a File object to write data to the specified file path
-    let mut file = File::create(file_path)?;
 
-    // Record the current file position as the offset for the index placeholder, which will be used later to update the index information in the file
-    let index_placeholder_offset = file.stream_position()?;
-
-    // Serialize and write an initial MDAIndex struct to the file. This struct contains offsets for the header, training data, annotation headers, and annotation entries, all initialized to 0.
-    serialize_into(
-        &file,
-        &MDAIndex {
-            header_offset: 0,
-            train_data_offset: 0,
-            anno_headers_offset: 0,
-            anno_entries_offset: 0,
-        },
-    )?;
-
-    // Get the file position before writing the header data, which represents the starting position of the header data in the file
-    let header_offset = file.stream_position()?;
-
-    // Serialize and write the header data to the file
-    serialize_into(&file, &header)?;
-
-    // Get the file position before writing the training data, which represents the starting position of the training data in the file
-    let train_data_offset = file.stream_position()?;
-
-    // Depending on the type of training data, choose the appropriate serialization and writing operations
-    match train_data {
-        TrainingData::Text(t) => {
-            serialize_into(&file, &DataType::Text)?; // Write the data type identifier for text type
-            serialize_into(&file, &t)?; // Write the text data
-        }
-        TrainingData::Image(i) => {
-            serialize_into(&file, &DataType::Image)?; // Write the data type identifier for image type
-            serialize_into(&file, &i)?; // Write the image data
-        }
-        TrainingData::Video(v) => {
-            serialize_into(&file, &DataType::Video)?; // Write the data type identifier for video type
-            serialize_into(&file, &v)?; // Write the video data
-        }
-        TrainingData::Audio(a) => {
-            serialize_into(&file, &DataType::Audio)?; // Write the data type identifier for audio type
-            serialize_into(&file, &a)?; // Write the audio data
-        }
-    };
-
-    // Configure annotation
-    // Record the current offset as the starting position of the entries and update the RevlogIndex
-    let mut anno_entries_offset = file.stream_position()?;
-    let store_anno_entries_offset = anno_entries_offset;
-
-    // Write the entries and record their lengths
-    let mut lengths: Vec<u64> = Vec::new();
-    for entry in &rev_anno.entries {
-        let entry_bytes = bincode::serialize(entry)?;
-        file.write_all(&entry_bytes)?;
-        lengths.push(entry_bytes.len() as u64);
-    }
-
-    // Record the current offset as the starting position of the headers and update the RevlogIndex
-    let anno_headers_offset = file.stream_position()?;
-
-    // Write the headers and update their offsets in the vector
-    for (rev_anno_header, &length) in rev_anno.headers.iter_mut().zip(lengths.iter()) {
-        rev_anno_header.offset = anno_entries_offset;
-        rev_anno_header.length = length;
-        let header_bytes = bincode::serialize(rev_anno_header)?;
-        file.write_all(&header_bytes)?;
-        anno_entries_offset += length;
-    }
-
-    file.seek(SeekFrom::Start(index_placeholder_offset))?;
-
-    serialize_into(
-        &file,
-        &MDAIndex {
-            header_offset,
-            train_data_offset,
-            anno_entries_offset: store_anno_entries_offset,
-            anno_headers_offset,
-        },
-    )?;
-
-    Ok(())
-}
-//////////////////////////////////////////
 /// Extract metadata from training data
 pub fn process_file(file_path: &str) -> Option<Box<dyn std::any::Any>> {
     if file_path.ends_with(".jpg") || file_path.ends_with(".png") {
@@ -530,7 +439,7 @@ pub fn config_mda_content(
 }
 
 /// Merge the same group(used to map train and anno)
-fn merge_annos(annos: Vec<Annotation>) -> Vec<Annotation> {
+pub fn merge_annos(annos: Vec<Annotation>) -> Vec<Annotation> {
     let mut merged_annos_map: HashMap<String, Vec<AnnoItem>> = HashMap::new();
 
     for anno in &annos {
@@ -577,7 +486,7 @@ pub fn write_mda_data(
     // Write MDAIndex into mda
     serialize_into(
         &file,
-        &MDAIndexTest {
+        &MDAIndex {
             header_offset: 0,
             train_data_offset: 0,
             annotations_offset: tmp_anno_offsets,
@@ -648,7 +557,7 @@ pub fn write_mda_data(
 
     serialize_into(
         &file,
-        &MDAIndexTest {
+        &MDAIndex {
             header_offset,
             train_data_offset,
             annotations_offset: tmp_anno_offsets_for_annotations,
@@ -754,6 +663,7 @@ pub fn generate_mda_separate_annotation_one_to_one_in_folder(
     Ok(file_combinations.len())
 }
 
+/// extract second last part from a path
 fn extract_second_last_part(input: &str, delimiter: char) -> Option<String> {
     let parts: Vec<&str> = input.split(delimiter).collect();
     
@@ -763,3 +673,5 @@ fn extract_second_last_part(input: &str, delimiter: char) -> Option<String> {
         None
     }
 }
+
+
