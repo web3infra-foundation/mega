@@ -375,6 +375,35 @@ pub fn compress_zlib(data: &[u8]) -> io::Result<Vec<u8>> {
     let compressed_data = encoder.finish()?;
     Ok(compressed_data)
 }
-
+/// GET the env value from var str
+pub fn get_env_number<T:std::str::FromStr>(var_name:&str, value :&mut T) {
+    if let Ok(env_value)  = std::env::var(var_name){
+        if let Ok(true_value) = env_value.parse::<T>(){
+            *value = true_value;
+        }
+    }
+}
 #[cfg(test)]
-mod test {}
+mod test {
+    use crate::utils::*;
+    use std::env;
+
+    #[test]
+    fn test_get_env_value(){
+        env::set_var("GIT_INTERNAL_DECODE_STORAGE_TQUEUE_SIZE", "10");
+        env::set_var("GIT_INTERNAL_DECODE_CACHE_SIZE", "1000");
+        env::set_var("GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE", "10000");
+        
+        let mut save_task_wait_number=0; // the most await save thread amount
+        get_env_number("GIT_INTERNAL_DECODE_STORAGE_TQUEUE_SIZE", &mut save_task_wait_number);
+        assert_eq!(save_task_wait_number, 10);
+
+        let mut cache_size =0; // the most await save thread amount
+        get_env_number("GIT_INTERNAL_DECODE_CACHE_SIZE", &mut cache_size);
+        assert_eq!(cache_size, 1000);
+
+        let mut batch_size =0; // the most await save thread amount
+        get_env_number("GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE", &mut batch_size);
+        assert_eq!(batch_size, 10000);
+    }
+}
