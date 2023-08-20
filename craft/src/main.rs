@@ -4,7 +4,8 @@ use git_craft::{pgp_key::{list_keys, delete_key}, crypt::{generate_key, encrypt_
 use clap::Parser;
 
 #[derive(Parser)]
-#[command(author = "Jiajun Li <frankanepc@gmail.com>", version = "0.1.0", about = "Git crypt tool", long_about=None)]
+#[command(author = "Jiajun Li <frankanepc@gmail.com>", version = "0.1.0")]
+#[command(about = "Git crypt tool", long_about= "Usage: generate-key, generate-key-full [primary_id] [key_name], encrypt [public_key_path], decrypt [secret_key_path], list-keys , delete-key [key_name]")]
 struct CraftOptions {
     //accept mutiple values, it needs 1 value at least
     #[clap(num_args=1..,required=true)]
@@ -20,7 +21,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Check if there is no argument
     if args.command.is_empty() {
         // If not, print the usage information and exit
-        println!("Available modes: generate-key, generate-key-full [primary_id] [key_name], encrypt [file_path] [public_key_path], decrypt [secret_key_path], list-keys [key_path], delete-key [key_name] [key_path]");
+        println!("Available modes: generate-key, generate-key-full [primary_id] [key_name], encrypt [public_key_path], decrypt [secret_key_path], list-keys [key_path], delete-key [key_name] [key_path]");
         return Ok(());
     }
 
@@ -50,11 +51,11 @@ fn main() -> Result<(), anyhow::Error> {
         }
         "list-keys" => {
             // Show key lists and their fingerprint, key id.
-            let _ = list_keys("../mega/craft/key_files");
+            let _ = list_keys("../craft/key_files");
         }
         "delete-key" => {
             // Delete key by key_name
-            let _ =delete_key(&args.command[1], "../mega/craft/key_files");
+            let _ =delete_key(&args.command[1], "../craft/key_files");
         }
         // For any other mode, print an error message and exit
         _ => {
@@ -93,40 +94,20 @@ mod tests {
         assert!(std::path::Path::new("../craft/key_files/goodmanpub.asc").exists());
         assert!(std::path::Path::new("../craft/key_files/goodmanpub.asc").exists());
     } 
-    /* 
+  
     // Define a test function for encrypt mode
     # [test]
     fn test_encrypt() {
         // generate key to crypt
-        let _ = generate_key();
-        // encrypt test contents
-        let _ = encrypt_blob("../tests/data/objects/message.txt","../craft/key_files/pub.asc");
-        // Read the contents of the message.txt file and assert it is not empty
-        let message = std::fs::read_to_string("../tests/data/objects/message.txt").unwrap();
-        std::fs::write("../tests/objects/encrypt.txt", message).expect("Unable to write test encrypt output");
-        let message = std::fs::read_to_string("../tests/objects/encrypt.txt").unwrap();
-        assert!(!message.is_empty());
-        // Check if the contents are encrypted by looking for the PGP header
-        assert!(message.starts_with("-----BEGIN PGP MESSAGE-----"));
-        //Decrypt it to do next test
-        //let _ = decrypt_blob("../tests/data/objects/message.txt","../craft/key_files/sec.asc");
-    }
-    
-    // Define a test function for decrypt mode
-    # [test]
-    fn test_decrypt_blob() {
         let _ = generate_key_full("User2 <sci@sci.com>", "sci");
-        let _ = encrypt_blob("../tests/data/objects/emessage.txt","../craft/key_files/scipub.asc");
-        
         // Read the file content and convert it to a vector of bytes
-        let vec = std::fs::read("../tests/data/objects/emessage.txt").expect("Failed to read file");
-
+        let vec = std::fs::read("../tests/data/objects/message.txt").expect("Failed to read file");
         // Create a standard input stream from the vector of bytes
-        // Create and run a new process to execute the decrypt_blob function
+        // Create and run a new process to execute the encrypt_blob function
         let mut child = std::process::Command::new("cargo")
             .arg("run")
-            .arg("decrypt")
-            .arg("../craft/key_files/scisec.asc")
+            .arg("encrypt")
+            .arg("../craft/key_files/scipub.asc")
             .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
             .stdout(std::process::Stdio::piped())
             .spawn()
@@ -135,18 +116,66 @@ mod tests {
         std::io::Write::write_all(&mut child.stdin.as_mut().unwrap(), &vec).expect("Failed to write to stdin");    
         // Get the output of the child process
         let output = child.wait_with_output().expect("Failed to read stdout");
-
         // Check the output of the child process
         assert_eq!(output.status.code(), Some(0)); // The status code should be 0
         assert_eq!(output.stderr.len(), 0); // The standard error should be empty
-
+        // Check if the contents are encrypted by looking for the PGP header
+        assert!(output.stdout.starts_with("-----BEGIN PGP MESSAGE-----".as_bytes()));
+    }
+    
+    // Define a test function for decrypt mode
+    #[test]
+    fn test_decrypt() {
+        // Generate a key pair for testing
+        let _ = generate_key_full("User3 <basketball@basketball.com>", "ball");
+        // Define the original content as a string
+        let original_data = "This is a test message.";
+        
+        // Create a standard input stream from the string
+        // Create and run a new process to execute the encrypt function
+        let mut child_encrypt = std::process::Command::new("cargo")
+            .arg("run")
+            .arg("encrypt")
+            .arg("../craft/key_files/ballpub.asc")
+            .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn child process");
+        
+        std::io::Write::write_all(&mut child_encrypt.stdin.as_mut().unwrap(), original_data.as_bytes()).expect("Failed to write to stdin");    
+        // Get the output of the child process
+        let output_encrypt = child_encrypt.wait_with_output().expect("Failed to read stdout");
+    
+        // Check the output of the child process
+        assert_eq!(output_encrypt.status.code(), Some(0)); // The status code should be 0
+        assert_eq!(output_encrypt.stderr.len(), 0); // The standard error should be empty
+    
+        // Create a standard input stream from the output of the encrypt function
+        // Create and run a new process to execute the decrypt function
+        let mut child_decrypt = std::process::Command::new("cargo")
+            .arg("run")
+            .arg("decrypt")
+            .arg("../craft/key_files/ballsec.asc")
+            .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn child process");
+        
+        std::io::Write::write_all(&mut child_decrypt.stdin.as_mut().unwrap(), &output_encrypt.stdout).expect("Failed to write to stdin");    
+        // Get the output of the child process
+        let output_decrypt = child_decrypt.wait_with_output().expect("Failed to read stdout");
+    
+        // Check the output of the child process
+        assert_eq!(output_decrypt.status.code(), Some(0)); // The status code should be 0
+        assert_eq!(output_decrypt.stderr.len(), 0); // The standard error should be empty
+    
         // Define the expected decrypted content as a string
-        let expected_data = "This is a test message.";
+        let expected_data = "This is a test message."; 
     
         // Compare the output of the child process with the expected decrypted content
-        assert_eq!(output.stdout, expected_data.as_bytes()); // The standard output should match the expected string
+        assert_eq!(output_decrypt.stdout, expected_data.as_bytes()); // The standard output should match the expected string
     }
-    */
+    
     // Define a test function for list-keys mode
     # [test]
     fn test_list_keys() {
