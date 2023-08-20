@@ -1,11 +1,10 @@
 use anyhow::{Context, Result, Ok};
-//use git::internal::object::blob::Blob;
+
 use pgp::{composed, composed::signed_key::*, crypto::{self, sym::SymmetricKeyAlgorithm}, types::{SecretKeyTrait, KeyTrait}, Deserializable, Message};
 use rand::prelude::*;
 use smallvec::*;
 use std::{io::Cursor, path::Path};
-//use directories::ProjectDirs;
-//use color_eyre::eyre::Result;
+
 
 // Set some default file paths
 // Default public key file path
@@ -15,7 +14,7 @@ const PUBLIC_KEY_FILE: &str= "../craft/key_files/pub.asc";
 #[allow(unused)]
 const SECRET_KEY_FILE: &str= "../craft/key_files/sec.asc";
 // Encrypt function use this file to save encrypted message
-const MSG_FILE_NAME:  &str= "../mega/craft/src/encrypted_message.txt";
+const MSG_FILE_NAME:  &str= "../craft/src/encrypted_message.txt";
 
 
 
@@ -29,7 +28,7 @@ pub struct KeyPair {
 // Return: KeyPair, it has a signed secret key and a signed public key
 pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error> {
 
-    // Set key_params with primary user id, Rsa with 2048 bites, AES with 256 bit key
+    // Set key_params with primary user id, Rsa with 2048 bites, symmetric algorithms key prefer to use is AES with 256 bit
     let mut key_params = composed::key::SecretKeyParamsBuilder::default();
     key_params
         .key_type(composed::KeyType::Rsa(2048))
@@ -38,20 +37,25 @@ pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error
         .primary_user_id(primary_user_id.into())
         .preferred_symmetric_algorithms(smallvec![crypto::sym::SymmetricKeyAlgorithm::AES256]);
 
+    // build a new SecretKeyParams
     let secret_key_params = key_params
         .build()
         .expect("Must be able to create secret key params");
 
+    // generate a secret key    
     let secret_key = secret_key_params
         .generate()
         .expect("Failed to generate a plain key.");
-
+    
+    // new a password to sign the secret key 
     let passwd_fn = String::new;
     let signed_secret_key = secret_key
         .sign(passwd_fn)
         .expect("Secret Key must be able to sign its own metadata");
     
+    // generate a public key by the signed secret key 
     let public_key = signed_secret_key.public_key();
+    // sign public key 
     let signed_public_key = public_key
         .sign(&signed_secret_key, passwd_fn)
         .expect("Public key must be able to sign its own metadata");
@@ -73,6 +77,7 @@ pub fn encrypt(msg: &str, pubkey_str: &str) -> Result<String, anyhow::Error> {
     let msg = composed::message::Message::new_literal("none", msg);
     // Encrypt
     let mut rng = StdRng::from_entropy();
+
     let new_msg = msg.encrypt_to_keys(
         &mut rng,
         crypto::sym::SymmetricKeyAlgorithm::AES128,
@@ -82,7 +87,7 @@ pub fn encrypt(msg: &str, pubkey_str: &str) -> Result<String, anyhow::Error> {
 }
 
 // Decrypt encrypted contents
-// Arguments: armored, encrypted contents; seckey, secket key
+// Arguments: armored, encrypted contents; seckey, secret key
 pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow::Error> {
     // Get encrypted contents
     let buf = Cursor::new(armored);
@@ -104,7 +109,8 @@ pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow
     Err(anyhow::Error::msg("Failed to find message"))
 }
 
-// Encrypt message from file, using two arguments, message and public key file path
+// Encrypt message from file, and write it to a MGS_FILE waiting for decrypt
+// Arguments: message, read from file; public key file path
 #[allow(unused)]
 pub fn encrypt_message(msg: &str, pubkey_file: &str) -> Result<String> {
     let pubkey = std::fs::read_to_string(pubkey_file)
@@ -113,31 +119,41 @@ pub fn encrypt_message(msg: &str, pubkey_file: &str) -> Result<String> {
 
     // Requires a file name as the first arg, in this case I pass "none", as it's not used typically, it's just meta data
     let msg = pgp::Message::new_literal("none", msg);
-
+    // convert data from OpenPGP Message to string
     let armored = generate_armored_string(msg, pubkey)?;
+    // write it to file
     std::fs::write(MSG_FILE_NAME, &armored).context("Writing encrypted message to file")?;
 
     Ok(armored)
 }
 
-
+// Convert data from OpenPGP Message to String
+// Arguments: msg, OpenPGP Message; pk, a signed public key
+// Return: string
 #[allow(unused)]
 pub fn generate_armored_string(msg: Message, pk: SignedPublicKey) -> Result<String> {
     let mut rng = StdRng::from_entropy();
+    // encrypt the message 
     let new_msg = msg.encrypt_to_keys(&mut rng, SymmetricKeyAlgorithm::AES128, &[&pk])?;
+    // return encrypted message as string 
     Ok(new_msg.to_armored_string(None)?)
 }
+
+// Decrypt message from file
+// Arguments: armored, encrypted message;v seckey_file, secret key file path
 #[allow(unused)]
 pub fn decrypt_message(armored: &str, seckey_file: &str) -> Result<String,anyhow::Error> {
+    // read secret key from file path
     let seckey = std::fs::read_to_string(seckey_file)?;
     let (seckey, _) = SignedSecretKey::from_string(seckey.as_str())?;
-
+    // get encrypted message
     let buf = Cursor::new(armored);
     let (msg, _) = Message::from_armor_single(buf)?;
+    // return a decryptor, it can decrypt message with a given key
     let (decryptor, _) = msg
         .decrypt(|| String::from(""), &[&seckey])
         .context("Decrypting the message")?;
-
+    // decrypt message
     for msg in decryptor {
         let bytes = msg?.get_content()?.unwrap();
         let clear = String::from_utf8(bytes)?;
@@ -219,13 +235,22 @@ pub fn delete_key(key_name: &str, key_path: &str)-> Result<(),anyhow::Error>{
    // If they are not exist, u can run basic generate-key to generate them, 
    // or u can use generate-key-full to generate at other key file.
    // ##############################################OVER##############################################  
+    
+    // list keys from default key path
     list_keys(key_path);
+    // get default key file path
     let key_file_path = Path::new(key_path);
+    // get public key file 
     let pubkey_file = key_file_path.join(format!("{}pub.asc", key_name));
+    // delete public key file
     std::fs::remove_file(pubkey_file).expect("Unable to remove public key file");
+    // print Public key XXX deleted successfully message
     println!("Public key {} deleted successfully", key_name);
+    // get secret key file
     let seckey_file = key_file_path.join(format!("{}sec.asc", key_name));
+    // delete secret key file
     std::fs::remove_file(seckey_file).expect("Unable to remove secret key file");
+    // print Secret key XXX deleted successfully message
     println!("Secret key {} deleted successfully", key_name);
     Ok(())
 }
