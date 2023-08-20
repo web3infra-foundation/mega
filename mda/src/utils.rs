@@ -2,7 +2,10 @@
 //! that help simplify the development process and provide shared functionalities.
 
 extern crate image;
-use crate::{AudioMetaData, ImageMetaData, TextMetaData, VideoMetaData, MDAIndex, MDAHeader};
+use crate::{
+    AnnoOffset, AudioMetaData, ImageMetaData, MDAHeader , MDAIndex, TextMetaData,
+    VideoMetaData,
+};
 use anyhow::Context;
 use chrono::Local;
 use encoding::{DecoderTrap, Encoding};
@@ -273,30 +276,110 @@ pub fn record_end_time(start_time: Instant, number_of_mda_files: usize, action: 
     );
 }
 
-pub fn print_table_header()->Table {
-    let mut table = Table::new();
+pub fn print_table_header() -> Table{
+    let mut table1 = Table::new();
 
-    table.add_row(Row::new(vec![
-        Cell::new("Header Offset"),
+    table1.add_row(Row::new(vec![
+        Cell::new("MDA Header Offset"),
         Cell::new("Training Data Offset"),
-        Cell::new("Anno Entries Offset"),
-        Cell::new("Anno Header"),
         Cell::new("Tags"),
         Cell::new("Training MetaData"),
+    ]));
+
+   
+    table1
+}
+
+pub fn print_table_cell(mut table: Table, index: MDAIndex, header: MDAHeader) -> Table {
+    table.add_row(Row::new(vec![
+        Cell::new(&index.header_offset.to_string()),
+        Cell::new(&index.train_data_offset.to_string()),
+        Cell::new(header.tags.join(", ").as_str()),
+        Cell::new(&header.train_data.metadata),
     ]));
     table
 }
 
-pub fn print_table_cell(mut table:Table,index:MDAIndex,header:MDAHeader) ->Table{
- 
-    table.add_row(Row::new(vec![
-        Cell::new(&index.header_offset.to_string()),
-        Cell::new(&index.train_data_offset.to_string()),
-        Cell::new(&index.anno_headers_offset.to_string()),
-        Cell::new(&index.anno_entries_offset.to_string()),
-        Cell::new(header.tags.join(", ").as_str()),
-        Cell::new(&header.train_data.metadata),
- 
-    ]));
-    table
+use serde::Deserialize;
+use std::process;
+
+#[derive(Debug, Deserialize)]
+pub struct AnnoConfigItem {
+    #[serde(default = "default_id")]
+    pub id: String,
+    pub path: String,
+    #[serde(default = "default_start")]
+    pub start: usize,
+    #[serde(default = "default_end")]
+    pub end: usize,
+}
+
+fn default_id() -> String {
+    "NONE".to_string()
+}
+
+fn default_start() -> usize {
+    1
+}
+fn default_end() -> usize {
+    0
+}
+#[derive(Debug, Deserialize)]
+pub struct AnnoConfig {
+    pub annotation: Vec<AnnoConfigItem>,
+}
+fn extract_id_from_path(path: &str) -> String {
+    let path = Path::new(path);
+    path.file_stem().unwrap().to_string_lossy().into_owned()
+}
+fn parse_and_process_toml(toml_content: &str) -> Result<Vec<AnnoConfigItem>, toml::de::Error> {
+    let parsed_toml: Result<AnnoConfig, toml::de::Error> = toml::from_str(toml_content);
+
+    match parsed_toml {
+        Ok(anno_config) => {
+            let mut annos = anno_config.annotation;
+
+            for item in &mut annos {
+                if item.id == "NONE" {
+                    item.id = extract_id_from_path(&item.path); // Call the default_id function to extract ID
+                }
+            }
+
+            Ok(annos)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+fn read_toml_file(filename: &str) -> Result<String, std::io::Error> {
+    fs::read_to_string(filename)
+}
+pub fn get_anno_config(path: &str) -> AnnoConfig {
+    match read_toml_file(path) {
+        Ok(toml_content) => match parse_and_process_toml(&toml_content) {
+            Ok(annos) => AnnoConfig { annotation: annos },
+            Err(err) => {
+                eprintln!("Error parsing and processing TOML: {}", err);
+                process::exit(1);
+            }
+        },
+        Err(err) => {
+            eprintln!("Error reading the file: {}", err);
+            process::exit(1);
+        }
+    }
+}
+pub fn create_anno_offsets(anno_config: &AnnoConfig) -> Vec<AnnoOffset> {
+    let mut anno_offsets = Vec::new();
+
+    for item in &anno_config.annotation {
+        let anno_offset = AnnoOffset {
+            id: item.id.clone(),
+            header_offset: 0,
+            entries_offset: 0,
+        };
+        anno_offsets.push(anno_offset);
+    }
+
+    anno_offsets
 }
