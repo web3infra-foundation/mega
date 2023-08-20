@@ -2,14 +2,25 @@
 
 use serde::{Deserialize, Serialize};
 
+ 
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MDAIndex {
     pub header_offset: u64,
     pub train_data_offset: u64,
-    pub anno_entries_offset: u64,
-    pub anno_headers_offset: u64,
+    pub annotations_offset:Vec<AnnoOffset>
 }
-
+#[derive(Serialize, Deserialize, Debug,Clone)]
+pub struct AnnoOffset{
+    pub id:String,
+    pub header_offset:u64,
+    pub entries_offset:u64,
+}
+impl AnnoOffset {
+    pub fn new (id:&str)->AnnoOffset{
+        AnnoOffset { id: id.to_string(), header_offset: 0, entries_offset: 0 }
+    }
+}
 /// Define the MDAHeader structure
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MDAHeader {
