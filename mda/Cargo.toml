@@ -30,4 +30,5 @@ csv="1.2.2"
 indicatif = "0.17.0"
 mp4parse = "0.17.0"
 prettytable = "0.10.0"
-
+serde_derive = "1.0"
+toml="0.7.6"
