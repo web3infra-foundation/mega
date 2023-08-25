@@ -4,7 +4,7 @@ Git-craft is a extension for git, it can encrypt the content when submitting cod
 
 ## Prepare
 1. cd mega/craft
-2. modify all the key file path, KEY_FILE_PATH and MSG_FILE_NAME to match your project
+2. modify all the key file path, KEY_FILE_PATH, MSG_FILE_NAME and filter to match your project
 3. cargo build --release
 
 ## Usage
@@ -28,8 +28,8 @@ Git-craft is a extension for git, it can encrypt the content when submitting cod
   
 1. edit .git/config "../craft/key_files/sec.asc" is a default key, you can use another key.
 - [filter "crypt"]
-	      smudge = /root/mega/target/release/git-craft decrypt ../craft/key_files/sec.asc
-        clean = /root/mega/target/release/git-craft encrypt ../craft/key_files/pub.asc
+	      smudge = ../craft/target/release/git-craft decrypt ../craft/key_files/sec.asc
+        clean = ../craft/target/release/git-craft encrypt ../craft/key_files/pub.asc
 2. edit .gitattributes
 - file_need_crypted filter=crypt -text
 - *.txt filter=crypt -text (it will use filter crypt at all txt file in this git dir)
