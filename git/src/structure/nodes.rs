@@ -335,7 +335,10 @@ impl Repo {
             }
             full_path.push(item.name.clone());
             if item.mode == TreeItemMode::Tree {
-                let sub_tree = self.tree_map.get(&item.id).unwrap();
+                let sub_tree = match self.tree_map.get(&item.id) {
+                    Some(tree) => tree,
+                    None => continue,
+                };
 
                 node.add_child(sub_tree.convert_to_node(
                     Some(item),
@@ -349,7 +352,10 @@ impl Repo {
                 self.convert_tree_to_node(sub_tree, child_node, full_path, tree_build_cache)
                     .await;
             } else {
-                let blob = self.blob_map.get(&item.id).unwrap();
+                let blob = match self.blob_map.get(&item.id) {
+                    Some(blob) => blob,
+                    None => continue,
+                };
                 node.add_child(blob.convert_to_node(
                     Some(item),
                     self.repo_path.to_path_buf(),

@@ -72,9 +72,9 @@ impl PackProtocol {
         let pkt_line = format!("{}{}{}{}{}{}", object_id, SP, name, NUL, cap_list, LF);
         let mut ref_list = vec![pkt_line];
 
-        let obj_ids = self.storage.get_ref_object_id(&self.path).await;
-        for (object_id, name) in obj_ids {
-            let pkt_line = format!("{}{}{}{}", object_id, SP, name, LF);
+        let git_refs = self.storage.get_ref_object_id(self.path.to_str().unwrap()).await.unwrap();
+        for git_ref in git_refs {
+            let pkt_line = format!("{}{}{}{}", git_ref.ref_git_id, SP, git_ref.ref_name, LF);
             ref_list.push(pkt_line);
         }
         let pkt_line_stream = self.build_smart_reply(&ref_list, service_type.to_string());
