@@ -24,7 +24,12 @@ pub mod conversion;
 pub mod nodes;
 /// only blob and tree should implement this trait
 pub trait GitNodeObject {
-    fn convert_to_node(&self, item: Option<&TreeItem>, repo_path: PathBuf, full_path: PathBuf) -> Box<dyn Node>;
+    fn convert_to_node(
+        &self,
+        item: Option<&TreeItem>,
+        repo_path: PathBuf,
+        full_path: PathBuf,
+    ) -> Box<dyn Node>;
 
     // fn convert_from_model(model: &node::Model) -> Self
     // where
@@ -39,7 +44,12 @@ pub trait GitNodeObject {
 }
 
 impl GitNodeObject for Blob {
-    fn convert_to_node(&self, item: Option<&TreeItem>, repo_path: PathBuf, full_path: PathBuf) -> Box<dyn Node> {
+    fn convert_to_node(
+        &self,
+        item: Option<&TreeItem>,
+        repo_path: PathBuf,
+        full_path: PathBuf,
+    ) -> Box<dyn Node> {
         Box::new(FileNode {
             nid: self.generate_id(),
             pid: "".to_owned(),
@@ -56,7 +66,7 @@ impl GitNodeObject for Blob {
                 "".to_owned()
             },
             data: self.data.clone(),
-            full_path
+            full_path,
         })
     }
     // pub fn convert_to_model(&self, node_id: i64) -> node::ActiveModel {
@@ -88,16 +98,22 @@ impl Commit {
     }
 
     pub fn convert_to_model(&self, repo_path: &Path) -> commit::ActiveModel {
+        let pid = self
+            .parent_tree_ids
+            .iter()
+            .map(|id| id.to_plain_str())
+            .collect::<Vec<_>>();
+
         commit::ActiveModel {
             id: NotSet,
             git_id: Set(self.id.to_plain_str()),
             tree: Set(self.tree_id.to_plain_str()),
-            pid: NotSet,
+            pid: Set(pid),
             meta: Set(self.to_data().unwrap()),
             repo_path: Set(repo_path.to_str().unwrap().to_owned()),
-            author: NotSet,
-            committer: NotSet,
-            content: NotSet,
+            author: Set(Some(self.author.to_string())),
+            committer: Set(Some(self.committer.to_string())),
+            content: Set(Some(self.message.clone())),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
         }
@@ -113,7 +129,12 @@ impl GitNodeObject for Tree {
     //     }
     // }
 
-    fn convert_to_node(&self, item: Option<&TreeItem>, repo_path: PathBuf, full_path: PathBuf) -> Box<dyn Node> {
+    fn convert_to_node(
+        &self,
+        item: Option<&TreeItem>,
+        repo_path: PathBuf,
+        full_path: PathBuf,
+    ) -> Box<dyn Node> {
         Box::new(TreeNode {
             nid: generate_id(),
             pid: "".to_owned(),

@@ -3,12 +3,12 @@ CREATE TABLE IF NOT EXISTS "commit" (
   "id" SERIAL PRIMARY KEY,
   "git_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
-  "pid" VARCHAR(40),
+  "pid" TEXT[],
   "meta" BYTEA NOT NULL,
   "repo_path" VARCHAR(128) NOT NULL,
-  "author" VARCHAR(64),
-  "committer" VARCHAR(64),
-  "content" VARCHAR(128),
+  "author" TEXT,
+  "committer" TEXT,
+  "content" TEXT,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS "node" (
   "mode" BYTEA NOT NULL,
   "content_sha" VARCHAR(40),
   "size" INT NOT NULL,
-  "repo_path" VARCHAR(64) NOT NULL,
-  "full_path" VARCHAR(64) NOT NULL,
+  "repo_path" VARCHAR(256) NOT NULL,
+  "full_path" VARCHAR(512) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );

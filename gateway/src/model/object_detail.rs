@@ -1,4 +1,4 @@
-use git::internal::object::tree::{TreeItem, TreeItemMode};
+use entity::node;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -12,24 +12,29 @@ pub struct Item {
     pub name: String,
     pub path: String,
     pub content_type: String,
+    pub commit_msg: Option<String>,
+    pub commit_date: Option<String>,
+    pub commit_id: Option<String>,
 }
 
-impl From<TreeItem> for Item {
-    fn from(val: TreeItem) -> Self {
-        let content_type = match val.mode {
-            TreeItemMode::Blob => "file".to_owned(),
-            TreeItemMode::Tree => "directory".to_owned(),
+impl From<node::Model> for Item {
+    fn from(val: node::Model) -> Self {
+        let content_type = match val.node_type.as_str() {
+            "blob" => "file".to_owned(),
+            "tree" => "directory".to_owned(),
             _ => unreachable!("not supported type"),
         };
         Item {
-            id: val.id.to_plain_str(),
-            name: val.name.clone(),
-            path: "a".to_owned() + &val.name,
+            id: val.git_id,
+            name: val.name.unwrap(),
+            path: val.full_path,
             content_type,
+            commit_msg: None,
+            commit_date: None,
+            commit_id: None,
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize)]
 pub struct BlobObjects {
