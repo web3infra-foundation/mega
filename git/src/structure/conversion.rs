@@ -36,7 +36,7 @@ impl PackProtocol {
         let mut hash_object: HashMap<Hash, Arc<dyn ObjectT>> = HashMap::new();
         let commit_models = self
             .storage
-            .get_all_commits_by_path(repo_path)
+            .get_all_commits_by_path(repo_path.to_str().unwrap())
             .await
             .unwrap();
         commit_models.iter().for_each(|model| {
@@ -83,7 +83,7 @@ impl PackProtocol {
         let mut hash_meta: HashMap<String, Arc<dyn ObjectT>> = HashMap::new();
         let all_commits = self
             .storage
-            .get_all_commits_by_path(repo_path)
+            .get_all_commits_by_path(repo_path.to_str().unwrap())
             .await
             .unwrap();
 
