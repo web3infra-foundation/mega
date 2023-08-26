@@ -15,19 +15,18 @@ git = {path = "../git"}
 common = {path = "../common"}
 database = {path = "../database"}
 entity = { path = "../database/entity" }
-anyhow = "1.0.71"
-axum = "0.6.18"
-clap = { version = "4.3.0", features = ["derive"] }
-hyper = "0.14.26"
+anyhow = "1.0.75"
+axum = "0.6.20"
+hyper = "0.14.27"
 regex = "1.9.1"
-serde = "1.0.164"
-tokio = {version = "1.32", features = ["full"]}
 tracing = "0.1.37"
 russh = "0.37.1"
 russh-keys = "0.37.1"
 ed25519-dalek = "1.0.1"
-serde_json = "1.0.103"
+serde = "1.0.188"
+serde_json = "1.0.105"
 tower = "0.4.13"
-tower-http = {version = "0.4.3", features = ["cors"]}
 async-recursion = "1.0.4"
-
+clap = { version = "4.4.0", features = ["derive"] }
+tower-http = {version = "0.4.3", features = ["cors"]}
+tokio = {version = "1.32", features = ["full"]}
