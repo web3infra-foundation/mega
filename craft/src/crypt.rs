@@ -3,11 +3,62 @@ use std::{io::Read, path::Path};
 use anyhow::{Context, Ok};
 use pgp_key::{generate_key_pair,encrypt_message, decrypt_message};
 
-use crate::pgp_key::{self, KeyPair};
+use crate::pgp_key::{self, KeyPair, list_keys, delete_key};
 
 // Default key file path 
 const KEY_FILE_PATH:  &str= "../craft/key_files";
 
+// the trait and impl for KeyPair is a preparation for crate Tongsuo. 
+// a trait for key
+pub trait Key {
+    // type
+    type PublicKey;
+    type PrivateKey;
+
+    // function
+    // generate default key 
+    fn generate_key();
+    // generate key with primary id
+    fn generate_key_full(primary_id:&str, key_name:&str);
+    // encrypt with public key
+    fn encrypt(public_key_file_path: &str); 
+    // decrypt with private key
+    fn decrypt(private_key_file_path: &str);
+    // list keys
+    fn list_keys(key_path: &str);
+    // delete key
+    fn delete_key(key_name:&str, key_path: &str);
+}
+
+// OpenPGP Key
+impl Key for KeyPair {
+    type PublicKey = pgp::SignedPublicKey;
+    type PrivateKey = pgp::SignedSecretKey;
+
+    fn generate_key(){
+        let _ = generate_key();
+    }
+
+    fn generate_key_full(primary_id:&str, key_name:&str) {
+        let _ = generate_key_full(primary_id, key_name);
+    }
+
+    fn encrypt(public_key_file_path: &str){
+        let _ = encrypt_blob(public_key_file_path);
+    }
+
+    fn decrypt(private_key_file_path: &str){
+        let _ = decrypt_blob(private_key_file_path);
+    }
+
+    fn list_keys(key_path: &str){
+        let _ = list_keys(key_path);
+    }
+
+    fn delete_key(key_name:&str, key_path: &str){
+        let _ = delete_key(key_name, key_path);
+    }
+}
 // Generate default public key and secret key at /craft/key_files/ 
 pub fn generate_key() -> Result<(), anyhow::Error>{
     println!("Creating key pair, this will take a few seconds...");
