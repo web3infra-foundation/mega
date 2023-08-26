@@ -131,6 +131,7 @@ pub fn run(config: MDAOptions) -> Result<(), Box<dyn Error>> {
                         }
                     }
                 } else {
+                    // do nothing
                 }
             }
             _ => {
@@ -257,6 +258,7 @@ pub fn run(config: MDAOptions) -> Result<(), Box<dyn Error>> {
                         }
                     }
                 } else {
+                    // do nothing
                 }
             }
             _ => {
