@@ -5,7 +5,6 @@
 extern crate common;
 
 use std::cmp::min;
-use std::collections::HashMap;
 use std::path::Path;
 
 use async_trait::async_trait;
@@ -103,18 +102,13 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    async fn get_ref_object_id(&self, repo_path: &Path) -> HashMap<String, String> {
+    async fn get_ref_object_id(&self, repo_path: &str) -> Result<Vec<refs::Model>, MegaError> {
         // assuming HEAD points to branch master.
-        let mut map = HashMap::new();
-        let refs: Vec<refs::Model> = refs::Entity::find()
-            .filter(refs::Column::RepoPath.eq(repo_path.to_str()))
+        Ok(refs::Entity::find()
+            .filter(refs::Column::RepoPath.eq(repo_path))
             .all(self.get_connection())
             .await
-            .unwrap();
-        for git_ref in refs {
-            map.insert(git_ref.ref_git_id, git_ref.ref_name);
-        }
-        map
+            .unwrap())
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<commit::Model>, MegaError> {
@@ -125,9 +119,12 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    async fn get_all_commits_by_path(&self, path: &Path) -> Result<Vec<commit::Model>, MegaError> {
+    async fn get_all_commits_by_path(
+        &self,
+        repo_path: &str,
+    ) -> Result<Vec<commit::Model>, MegaError> {
         let commits: Vec<commit::Model> = commit::Entity::find()
-            .filter(commit::Column::RepoPath.eq(path.to_str().unwrap()))
+            .filter(commit::Column::RepoPath.eq(repo_path))
             .all(self.get_connection())
             .await
             .unwrap();

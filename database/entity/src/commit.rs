@@ -2,15 +2,14 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Hash)]
 #[sea_orm(table_name = "commit")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub git_id: String,
     pub tree: String,
-    pub pid: Option<String>,
-    #[sea_orm(column_type = "Binary(BlobSize::Blob(None))")]
+    pub pid: Vec<String>,
     pub meta: Vec<u8>,
     pub repo_path: String,
     pub author: Option<String>,

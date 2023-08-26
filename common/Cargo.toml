@@ -12,5 +12,5 @@ path = "src/mod.rs"
 [dependencies]
 anyhow = "1.0.71"
 clap = { version = "4.3.10", features = ["derive"] }
-sea-orm = "0.12.1"
+sea-orm = "0.12.2"
 thiserror = "1.0.40"

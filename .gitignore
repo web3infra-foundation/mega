@@ -27,6 +27,7 @@ ui/coverage
 
 # production
 ui/build
+ui/.next
 
 # misc
 ui/.DS_Store
