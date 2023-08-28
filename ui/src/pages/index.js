@@ -58,7 +58,7 @@ export default function HomePage() {
     useEffect(() => {
         async function get_file_dir() {
             try {
-                const response = await axios.get('/api/v1/tree?repo_path=/root/mega.git');
+                const response = await axios.get('/api/v1/tree?repo_path=/root/mega');
                 setdir_file_data(response.data);
                 console.log(dir_file_data);
                 // 检查是否有 README.md 文件
@@ -66,7 +66,7 @@ export default function HomePage() {
                 if (readmeFile && readmeFile.content_type === 'file') {
                     async function getReadmeContent() {
                         try {
-                            const response = await axios.get(`/api/v1/blob?repo_path=/root/mega.git&object_id=${readmeFile.id}`);
+                            const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${readmeFile.id}`);
                             setReadmeContent(response.data.row_data);
                         } catch (error) {
                             console.error(error);
@@ -83,6 +83,13 @@ export default function HomePage() {
         get_file_dir();
     }, []);
     const router = useRouter();
+
+    const handleItemClick = (item) => {
+        router.push({
+            pathname: '/codeViewComponent',
+            query: { itemId: item.id, itemType: item.content_type }
+        });
+    };
     const get_icon_for_content_type = (content_type) => {
         if (content_type === 'directory') {
             return (
@@ -232,14 +239,10 @@ export default function HomePage() {
                                                             <td className="flex whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                                                                 {get_icon_for_content_type(item.content_type)}
                                                                 &ensp;
-                                                                <a className='file_dir_link' onClick={() => router.push({
-                                                                    pathname: "/codeViewComponent",
-
-                                                                })}>{item.name}</a>
+                                                                <a className='file_dir_link' onClick={() => handleItemClick(item)}>{item.name}</a>
                                                             </td>
-                                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500"></td>
-                                                            <td className="whitespace-nowrap pl-7 py-4 text-sm text-gray-500"></td>
-
+                                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text_over_right">{item.commit_msg}</td>
+                                                            <td className="whitespace-nowrap pl-7 py-4 text-sm text-gray-500 text_over_left">{item.commit_date}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>

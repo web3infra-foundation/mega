@@ -1241,3 +1241,22 @@ video {
 .file_dir_link:hover {
   color: rgb(93, 93, 237);
 }
+
+.table-content {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.text_over_left {
+  vertical-align: right;
+  text-align: left;
+  padding-right: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -moz-text-overflow: ellipsis;
+}
+
+.text_over_left {
+  text-align: right;
+}
