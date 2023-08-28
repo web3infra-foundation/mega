@@ -92,11 +92,8 @@
   height: fit-content;
 }
 
-.breadcrumb_text {
-  color: rgb(4, 56, 105);
-  font-weight: 500;
-  font-size: small;
-
+.MuiBreadcrumbs-li {
+  color: rgb(28, 71, 214);
 }
 
 .Breadcrumb-div {
@@ -195,6 +192,11 @@
   height: 110px;
   position: relative;
   z-index: 1;
+}
+
+.return_level_button {
+  height: 56px;
+  margin-left: 25px;
 }
 
 .editor-container {
