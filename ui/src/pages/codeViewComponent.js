@@ -38,6 +38,7 @@ import { UnControlled as CodeMirror } from 'react-codemirror2';
 import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Link from '@mui/material/Link';
 import axios from 'axios';
+import { Typography } from '@mui/material';
 import { useSearchParams } from 'next/navigation';
 
 const timeline = [
@@ -127,11 +128,13 @@ const getFileLanguageMode = (fileName) => {
 };
 
 export default function Code_view() {
+  const router = useRouter();
+  const { itemId, itemType } = router.query;
+
   const [is_node_clicked, setis_node_clicked] = useState(true);
   const [is_file_clicked, setis_file_clicked] = useState(false);
-  const [showButtons, setShowButtons] = useState(false);
+  const [show_buttons, setshow_buttons] = useState(false);
   useEffect(() => {
-
     //使用window判断是否为在浏览器端才执行的代码
     if (typeof window !== "undefined" && is_file_clicked) {
       var Review_Canel_Button = document.getElementsByClassName("review_cancel_button");
@@ -143,7 +146,7 @@ export default function Code_view() {
       Review_Canel_Button[0].addEventListener('click', function () {
         lexical_input[0].style.display = "none";
       })
-      setShowButtons(true);
+      setshow_buttons(true);
       const handleButtonClick = (e) => {
         const lexicalInput = document.getElementsByClassName("review-Editor")[0];
         lexicalInput.style.display = "flex";
@@ -195,6 +198,7 @@ export default function Code_view() {
         if (window.pageYOffset > 200) {
           return_to_top.style.display = "block";
         } else {
+          setIs
           return_to_top.style.display = "none";
         }
       }
@@ -217,6 +221,9 @@ export default function Code_view() {
   const [is_first_load, setis_first_load] = useState(true);
   const [click_history_content, setclick_history_content] = useState([]);
   const [current_sub_nodes, setcurrent_sub_nodes] = useState(null);
+  const [clicked_nodeId, setclicked_nodeId] = useState(null);
+  const [tree_view_key, settree_view_key] = useState(0);
+  const [is_current_folder, setis_current_folder] = useState(false);
   // console.log(click_history);
   const get_icon_for_content_type = (content_type) => {
     if (content_type === 'directory') {
@@ -239,14 +246,23 @@ export default function Code_view() {
   useEffect(() => {
     async function get_file_dir() {
       try {
-        const response = await axios.get('/api/v1/tree?repo_path=/root/mega.git');
-        setdir_file_data(response.data);
-        setcurrent_sub_nodes(response.data);
+        const root_response = await axios.get(`/api/v1/tree?repo_path=/root/mega`);
+        setdir_file_data(root_response.data);
+        const index_clicked_node = root_response.data.items.find(item => item.id === itemId);
+        let response;
+        if (itemType === 'file') {
+          console.log(itemType);
+          handle_file_click(index_clicked_node.id, index_clicked_node.name);
+        } else {
+          response = await axios.get(`/api/v1/tree?repo_path=/root/mega&object_id=${itemId}`);
+          setcurrent_sub_nodes(response.data);
+        }
+        console.log(index_clicked_node.name);
         const readmeFile = response.data.items.find(item => item.name === 'README.md');
         if (readmeFile && readmeFile.content_type === 'file') {
           async function getReadmeContent() {
             try {
-              const response = await axios.get(`/api/v1/blob?repo_path=/root/mega.git&object_id=${readmeFile.id}`);
+              const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${readmeFile.id}`);
               setReadmeContent(response.data.row_data);
             } catch (error) {
               console.error(error);
@@ -258,6 +274,11 @@ export default function Code_view() {
         }
         if (is_first_load) {
           setsub_file_dir(response.data);
+          setclick_history_content([{ id: "root", name: "MEGA" }]);
+          setclick_history_content((prevHistory) => [
+            ...prevHistory,
+            { id: index_clicked_node.id, name: index_clicked_node.name, isFile: false }, // 添加 isFile 属性以区分文件和文件夹
+          ]);
         }
       } catch (error) {
         console.error(error);
@@ -267,21 +288,15 @@ export default function Code_view() {
   }, []);
 
   //获取项目的子目录, 且扫描子目录下是否有readme文件
-  const get_sub_directory_data = async (directory_name, directoryId) => {
+  const get_sub_directory_data = async (directory_name, directoryId, item) => {
     try {
-      const response = await axios.get(`/api/v1/tree?repo_path=/root/mega.git&object_id=${directoryId}`);
+      const response = await axios.get(`/api/v1/tree?repo_path=/root/mega&object_id=${directoryId}`);
       setcurrent_sub_nodes(response.data);
       const readmeFile = response.data.items.find(item => item.name === 'README.md');
-      setclick_history_content([
-        ...click_history_content,
-        { name: directory_name, id: directoryId }
-      ]);
-      console.log(click_history_content);
-      handle_history_click(directory_name, directoryId);
       if (readmeFile && readmeFile.content_type === 'file') {
         async function getReadmeContent() {
           try {
-            const response = await axios.get(`/api/v1/blob?repo_path=/root/mega.git&object_id=${readmeFile.id}`);
+            const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${readmeFile.id}`);
             setReadmeContent(response.data.row_data);
           } catch (error) {
             console.error(error);
@@ -302,46 +317,129 @@ export default function Code_view() {
   // dir点击事件，处理节点展开和关闭
 
 
-  const handle_history_click = (item_name, item_id) => {
-
-  };
+  const [is_table_node_clicked, setis_table_node_clicked] = useState(false);
+  const [expandedNodes, setExpandedNodes] = useState({});
 
   const handle_node_toggle = async (node, nodeId) => {
     setis_first_load(false);
     setis_file_clicked(false);
     setis_node_clicked(true);
 
+    const newExpandedNodes = { ...expandedNodes };
+    let parentNode = node.parent;
+    while (parentNode) {
+      newExpandedNodes[parentNode.id] = true;
+      parentNode = parentNode.parent;
+    }
+
     // 如果节点是目录，则进行加载
     if (node && node.content_type === 'directory') {
-      const newChildren = await get_sub_directory_data(node.name, node.id);
-      if (newChildren) {
-        node.children = newChildren.items;
-        setsub_file_dir(newChildren);
-        setdir_file_data({ ...dir_file_data }); // 更新状态
-
+      if (expandedNodes[nodeId]) {
+        setExpandedNodes(prevExpandedNodes => ({
+          ...prevExpandedNodes,
+          [nodeId]: false
+        }));
+      } else {
+        // 展开节点及其所有父节点
+        const newExpandedNodes = { ...expandedNodes };
+        const expandNodeAndParents = (currentNode) => {
+          newExpandedNodes[currentNode.id] = true;
+          if (currentNode.parentId) {
+            const parent = dir_file_data.items.find(item => item.id === currentNode.parentId);
+            if (parent) {
+              expandNodeAndParents(parent);
+            }
+          }
+        };
+        expandNodeAndParents(node);
+        setExpandedNodes(newExpandedNodes);
+        const newChildren = await get_sub_directory_data(node.name, node.id, node);
+        if (newChildren) {
+          node.children = newChildren.items;
+          setsub_file_dir(newChildren);
+          setdir_file_data({ ...dir_file_data }); // 更新状态
+        }
       }
     }
   };
 
   const handle_sub_table_click = async (item) => {
+    console.log("test items type");
+    console.log(item);
+    setclicked_nodeId(item.id);
+    settree_view_key((prevKey) => prevKey + 1);
     if (item.content_type === "file") {
       handle_file_click(item.id, item.name);
+      setclick_history_content((prevHistory) => [
+        ...prevHistory,
+        { id: item.id, name: item.name, isFile: true }, // 添加 isFile 属性以区分文件和文件夹
+      ]);
     } else {
-      const newChildren = await get_sub_directory_data(item.name, item.id);
+      handle_node_toggle(item, item.id);
+      const newChildren = await get_sub_directory_data(item.name, item.id, item);
+      setsub_file_dir(newChildren);
+      setis_table_node_clicked(true); //当列表的文件夹被点击时，设置状态为true, 使得tree组件重新渲染，模拟节点点击逻辑
+      setclick_history_content((prevHistory) => [
+        ...prevHistory,
+        { id: item.id, name: item.name, isFile: false },
+      ]);
+      var clickA = new Event("clickA");
+      document.dispatchEvent(clickA);
+      var tree_items = document.getElementsByClassName("MuiTreeItem-root");
+      // console.log(click_history_content);
+
+    }
+  };
+
+  const handle_level_return = async () => {
+    // console.log("进入 handle_level_return");
+    if (click_history_content.length <= 1) {
+      // 已经在根目录，不需要返回
+      return;
+    }
+    const previous_item = click_history_content[click_history_content.length - 2];
+    // console.log(previous_item);
+    setis_current_folder(false);
+    if (previous_item.id === "root") {
+      const response = await axios.get('/api/v1/tree?repo_path=/root/mega');
+      setsub_file_dir(response.data);
+    } else {
+      const newChildren = await get_sub_directory_data(previous_item.name, previous_item.id, previous_item);
+      setsub_file_dir(newChildren);
+      // console.log(newChildren);
+    }
+    // 从历史中移除当前项
+    setclick_history_content(current => current.slice(0, -1));
+  }
+
+  const handle_breadcrumb_click = async (index) => {
+    setis_file_clicked(false);
+    setis_node_clicked(true);
+    const clicked_history = click_history_content.slice(0, index + 1);
+    setclick_history_content(clicked_history);
+
+    if (index === 0) {
+      // 处理根目录点击
+      const response = await axios.get('/api/v1/tree?repo_path=/root/mega');
+      setsub_file_dir(response.data);
+    } else {
+      const parent_item = clicked_history[index];
+      console.log(parent_item);
+      const newChildren = await get_sub_directory_data(parent_item.name, parent_item.id, parent_item);
       setsub_file_dir(newChildren);
     }
   };
 
-
   //处理file点击事件，获得文本内容
-  const [fileContent, setFileContent] = useState(null);
-  const [fileMode, setFileMode] = useState('javascript');
+  const [file_content, setfile_content] = useState(null);
+  const [fileMode, setfile_mode] = useState('javascript');
   const handle_file_click = async (fileId, fileName) => {
     try {
       setis_file_clicked(true);
       setis_node_clicked(false);
-      const response = await axios.get(`/api/v1/blob?repo_path=/root/mega.git&object_id=${fileId}`);
-      setFileContent(response.data.row_data);
+      setis_table_node_clicked(false);
+      const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${fileId}`);
+      setfile_content(response.data.row_data);
       // 获取文件扩展名
       const languageMode = getFileLanguageMode(fileName);
       if (languageMode) {
@@ -356,11 +454,10 @@ export default function Code_view() {
 
 
   // 重写 renderTree 组件
-  const renderTree = (nodes) => (
+  const renderTree = (nodes, clicked_nodeId) => (
     <>
       {
         nodes.map((node) => {
-          console.log(node.children);
           is_dir_expand = false;
           const { id, name, content_type } = node;
           if (node.content_type === "file") {
@@ -368,26 +465,42 @@ export default function Code_view() {
           } else {
             is_dir_expand = true;
           }
-          const isFile = content_type === 'file';
+          const is_file = content_type === 'file';
+          const isExpanded = expandedNodes[node.id];
+          const is_clicked = clicked_nodeId === id;
           const handleNodeClick = () => {
-            if (isFile) {
+            if (is_file) {
               // 如果是文件，处理文件点击事件
               handle_file_click(id, name);
             } else {
               // 如果是目录，处理目录点击事件
               handle_node_toggle(node, id);
+              setclicked_nodeId(id);
             }
           };
           if (is_dir_expand) {
             return (
-              <TreeItem key={id} nodeId={id} label={name} onClick={handleNodeClick}>
-                {Array.isArray(node.children) ? renderTree(node.children) : null}
+              <TreeItem
+                key={id}
+                nodeId={id}
+                label={name}
+                onClick={handleNodeClick}
+                onLabelClick={() => handleNodeClick()}
+              // style={nodeStyle} // Apply the style based on expanded state
+              >
+                {is_clicked && Array.isArray(node.children) && renderTree(node.children, clicked_nodeId)}
                 <TreeItem />
               </TreeItem>
             );
           } else {
             return (
-              <TreeItem key={id} nodeId={id} label={name} onClick={handleNodeClick}>
+              <TreeItem
+                key={id}
+                nodeId={id}
+                label={name}
+                onClick={handleNodeClick}
+              // style={nodeStyle} // Apply the style based on expanded state
+              >
                 {Array.isArray(node.children) ? renderTree(node.children) : null}
               </TreeItem>
             );
@@ -395,7 +508,6 @@ export default function Code_view() {
         })}
     </>
   );
-  const router = useRouter();
 
   return (
     <>
@@ -501,12 +613,12 @@ export default function Code_view() {
             <div className=" h-fit border-1">
               {dir_file_data && (
                 <TreeView
-                  // defaultEndIcon={<ChevronRightIcon />}
+                  key={tree_view_key} // 使用状态来触发重新渲染
                   defaultCollapseIcon={<ExpandMoreIcon />}
                   defaultExpandIcon={<ChevronRightIcon />}
                   onNodeToggle={handle_node_toggle}
                 >
-                  {renderTree(dir_file_data.items)}
+                  {renderTree(dir_file_data.items, clicked_nodeId)}
                 </TreeView>
               )}
             </div>
@@ -516,22 +628,23 @@ export default function Code_view() {
             <div className="Breadcrumb-div">
               <div role="presentation">
                 <Breadcrumbs aria-label="breadcrumb">
-                  <Link underline="hover" color="inherit">
-                    MUI
-                  </Link>
-                  <Link
-                    underline="hover"
-                    color="inherit"
-                  >
-                    Core
-                  </Link>
-                  <Link
-                    underline="hover"
-                    color="text.primary"
-                    aria-current="page"
-                  >
-                    Breadcrumbs
-                  </Link>
+                  {click_history_content.map((historyItem, index) => (
+                    <React.Fragment key={index}>
+                      {historyItem.isFile ? (
+                        <Typography color="text.primary">
+                          {historyItem.name}
+                        </Typography>
+                      ) : (
+                        <Link
+                          underline={index === click_history_content.length - 1 ? "none" : "hover"}
+                          color={index === click_history_content.length - 1 ? "text.primary" : "inherit"}
+                          onClick={index === click_history_content.length - 1 ? null : () => handle_breadcrumb_click(index)}
+                        >
+                          {historyItem.name}
+                        </Link>
+                      )}
+                    </React.Fragment>
+                  ))}
                 </Breadcrumbs>
               </div>
             </div>
@@ -558,7 +671,7 @@ export default function Code_view() {
                 {
                   is_file_clicked && (
                     <CodeMirror
-                      value={fileContent}
+                      value={file_content}
                       options={{
                         lineNumbers: true,
                         abSize: 8,
@@ -571,12 +684,12 @@ export default function Code_view() {
                       }}
                       key={fileMode}
                       editorDidMount={(editor) => {
-                        setShowButtons(true);
+                        setshow_buttons(true);
                         const handleButtonClick = (e) => {
                           const lexicalInput = document.getElementsByClassName("review-Editor")[0];
                           lexicalInput.style.display = "flex";
                         };
-                        if (showButtons && is_file_clicked) {
+                        if (show_buttons && is_file_clicked) {
                           for (let i = 0; i < editor.lineCount(); i++) {
                             const button = document.createElement("button");
                             button.textContent = "+";
@@ -619,6 +732,11 @@ export default function Code_view() {
                           </thead>
                         )}
                         <tbody className="divide-y divide-gray-200 bg-white">
+                          <tr className='flex'>
+                            <button className="return_level_button"><svg t="1690163488952" className="flex float-left icon w-5 h-5 text-gray-400" viewBox="0 0 1024 1024" onClick={() => handle_level_return()}>
+                              <path d="M81.16 412.073333L0 709.653333V138.666667a53.393333 53.393333 0 0 1 53.333333-53.333334h253.413334a52.986667 52.986667 0 0 1 37.713333 15.62l109.253333 109.253334a10.573333 10.573333 0 0 0 7.54 3.126666H842.666667a53.393333 53.393333 0 0 1 53.333333 53.333334v74.666666H173.773333a96.2 96.2 0 0 0-92.613333 70.74z m922-7.113333a52.933333 52.933333 0 0 0-42.386667-20.96H173.773333a53.453333 53.453333 0 0 0-51.453333 39.333333L11.773333 828.666667a53.333333 53.333333 0 0 0 51.453334 67.333333h787a53.453333 53.453333 0 0 0 51.453333-39.333333l110.546667-405.333334a52.953333 52.953333 0 0 0-9.073334-46.373333z" fill="#515151" p-id="16616"></path>
+                            </svg>&nbsp;&nbsp;..</button>
+                          </tr>
                           {sub_file_dir && sub_file_dir.items.map((item) => (
                             <tr key={item.name}>
                               <td className="flex whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
@@ -635,7 +753,6 @@ export default function Code_view() {
                     </div>
 
                   </div>
-
                 )}
 
               </div>
