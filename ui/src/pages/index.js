@@ -241,9 +241,8 @@ export default function HomePage() {
                                                                 &ensp;
                                                                 <a className='file_dir_link' onClick={() => handleItemClick(item)}>{item.name}</a>
                                                             </td>
-                                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500"></td>
-                                                            <td className="whitespace-nowrap pl-7 py-4 text-sm text-gray-500"></td>
-
+                                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text_over_right">{item.commit_msg}</td>
+                                                            <td className="whitespace-nowrap pl-7 py-4 text-sm text-gray-500 text_over_left">{item.commit_date}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
