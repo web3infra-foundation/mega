@@ -22,7 +22,7 @@ use crate::{
 
 use bytes::Bytes;
 use common::{errors::MegaError, utils::ZERO_ID};
-use entity::refs;
+use entity::{mr_info, refs};
 use sea_orm::{ActiveValue::NotSet, Set};
 
 #[derive(Clone)]
@@ -212,7 +212,8 @@ impl RefCommand {
             // // pack.signature = read_tail_hash(&mut reader);
             // // assert_eq!(_hash, pack.signature);
             let p = PackPreload::new(reader);
-            let mr_id = decode_load(p, storage).await?;
+            let mr_id = decode_load(p, storage.clone()).await?;
+            storage.save_mr_info(self.new_mr_info(mr_id)).await.unwrap();
             Ok(mr_id)
         };
         match result {
@@ -254,6 +255,17 @@ impl RefCommand {
             ref_git_id: Set(self.new_id.to_owned()),
             ref_name: Set(self.ref_name.to_string()),
             repo_path: Set(path.to_owned()),
+            created_at: Set(chrono::Utc::now().naive_utc()),
+            updated_at: Set(chrono::Utc::now().naive_utc()),
+        }
+    }
+
+    pub fn new_mr_info(&self, mr_id: i64) -> mr_info::ActiveModel {
+        mr_info::ActiveModel {
+            id: NotSet,
+            mr_id: Set(mr_id),
+            mr_msg: Set("repo initialize".to_owned()),
+            mr_date: Set(chrono::Utc::now().naive_utc()),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
         }
