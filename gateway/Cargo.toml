@@ -26,7 +26,6 @@ ed25519-dalek = "1.0.1"
 serde = "1.0.188"
 serde_json = "1.0.105"
 tower = "0.4.13"
-async-recursion = "1.0.4"
 clap = { version = "4.4.0", features = ["derive"] }
 tower-http = {version = "0.4.3", features = ["cors"]}
 tokio = {version = "1.32", features = ["full"]}

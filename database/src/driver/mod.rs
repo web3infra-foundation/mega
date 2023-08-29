@@ -12,11 +12,12 @@ use chrono::DateTime;
 use chrono::Utc;
 
 use entity::commit;
-use entity::git;
+use entity::git_obj;
 use entity::locks;
 use entity::meta;
+use entity::mr;
+use entity::mr_info;
 use entity::node;
-use entity::obj_data;
 use entity::refs;
 
 use sea_orm::ActiveModelTrait;
@@ -40,21 +41,37 @@ pub mod postgres;
 pub trait ObjectStorage: Send + Sync {
     fn get_connection(&self) -> &DatabaseConnection;
 
-    async fn save_git_objects(&self, objects: Vec<git::ActiveModel>) -> Result<bool, MegaError> {
+    async fn save_git_objects(&self, objects: Vec<mr::ActiveModel>) -> Result<bool, MegaError> {
         batch_save_model(self.get_connection(), objects).await?;
         Ok(true)
     }
 
-    async fn save_obj_data(&self, obj_data: Vec<obj_data::ActiveModel>) -> Result<bool, MegaError>;
+    async fn save_obj_data(&self, obj_data: Vec<git_obj::ActiveModel>) -> Result<bool, MegaError>;
 
     async fn get_mr_objects_by_type(
         &self,
         mr_id: i64,
         object_type: &str,
-    ) -> Result<Vec<git::Model>, MegaError> {
-        Ok(git::Entity::find()
-            .filter(git::Column::MrId.eq(mr_id))
-            .filter(git::Column::ObjectType.eq(object_type))
+    ) -> Result<Vec<mr::Model>, MegaError> {
+        Ok(mr::Entity::find()
+            .filter(mr::Column::MrId.eq(mr_id))
+            .filter(mr::Column::ObjectType.eq(object_type))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    async fn save_mr_info(&self, mr_info: mr_info::ActiveModel) -> Result<bool, MegaError> {
+        mr_info::Entity::insert(mr_info)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn get_mr_infos(&self, mr_ids: Vec<i64>) -> Result<Vec<mr_info::Model>, MegaError> {
+        Ok(mr_info::Entity::find()
+            .filter(mr_info::Column::MrId.is_in(mr_ids))
             .all(self.get_connection())
             .await
             .unwrap())
@@ -63,41 +80,26 @@ pub trait ObjectStorage: Send + Sync {
     async fn get_obj_data_by_ids(
         &self,
         git_ids: Vec<String>,
-    ) -> Result<Vec<obj_data::Model>, MegaError> {
-        Ok(obj_data::Entity::find()
-            .filter(obj_data::Column::GitId.is_in(git_ids))
+    ) -> Result<Vec<git_obj::Model>, MegaError> {
+        Ok(git_obj::Entity::find()
+            .filter(git_obj::Column::GitId.is_in(git_ids))
             .all(self.get_connection())
             .await
             .unwrap())
     }
 
-    async fn get_obj_data_by_id(&self, git_id: &str) -> Result<Option<obj_data::Model>, MegaError> {
-        Ok(obj_data::Entity::find()
-            .filter(obj_data::Column::GitId.eq(git_id))
+    async fn get_obj_data_by_id(&self, git_id: &str) -> Result<Option<git_obj::Model>, MegaError> {
+        Ok(git_obj::Entity::find()
+            .filter(git_obj::Column::GitId.eq(git_id))
             .one(self.get_connection())
             .await
             .unwrap())
     }
 
-    async fn get_git_objects_by_hashes(
-        &self,
-        mr_id: i64,
-        hashes: Vec<String>,
-    ) -> Result<Vec<git::Model>, MegaError> {
-        Ok(git::Entity::find()
-            .filter(git::Column::MrId.eq(mr_id))
-            .filter(git::Column::GitId.is_in(hashes))
+    async fn get_mr_id_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<mr::Model>, MegaError> {
+        Ok(mr::Entity::find()
+            .filter(mr::Column::GitId.is_in(hashes))
             .all(self.get_connection())
-            .await
-            .unwrap())
-    }
-
-    // get hash object from db if missing cache in unpack process, this object must be tree or blob
-    async fn get_git_object_by_hash(&self, hash: &str) -> Result<Option<git::Model>, MegaError> {
-        // get original data from database
-        Ok(git::Entity::find()
-            .filter(git::Column::GitId.eq(hash))
-            .one(self.get_connection())
             .await
             .unwrap())
     }

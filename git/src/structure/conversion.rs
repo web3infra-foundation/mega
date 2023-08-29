@@ -14,7 +14,7 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
 use database::driver::ObjectStorage;
-use entity::{commit, obj_data, refs};
+use entity::{commit, git_obj, refs};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
 
@@ -137,9 +137,9 @@ impl PackProtocol {
 // retrieve all sub trees recursively
 #[async_recursion]
 async fn get_child_trees(
-    root: &obj_data::Model,
+    root: &git_obj::Model,
     hash_object: &mut HashMap<String, Arc<dyn ObjectT>>,
-    pack_cache: &HashMap<String, obj_data::Model>,
+    pack_cache: &HashMap<String, git_obj::Model>,
 ) {
     let t = Tree::new_from_data(root.data.clone());
     let mut child_ids = vec![];
