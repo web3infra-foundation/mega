@@ -18,8 +18,8 @@ use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectTy
 use crate::hash::Hash;
 use database::utils::id_generator::generate_id;
 use entity::{
-    git::{self},
-    obj_data,
+    mr::{self},
+    git_obj,
 };
 use sea_orm::Set;
 use sha1::Digest;
@@ -46,7 +46,7 @@ impl Display for GitObjects {
     }
 }
 
-pub fn from_model(model: obj_data::Model) -> Arc<dyn ObjectT> {
+pub fn from_model(model: git_obj::Model) -> Arc<dyn ObjectT> {
     let obj: Arc<dyn ObjectT> = match &model.object_type as &str {
         "blob" => Arc::new(Blob::new_from_data(model.data)),
         "commit" => Arc::new(Commit::new_from_data(model.data)),
@@ -118,8 +118,8 @@ pub trait ObjectT: Send + Sync + Display {
         r
     }
 
-    fn convert_to_mr_model(&self, mr_id: i64) -> git::ActiveModel {
-        git::ActiveModel {
+    fn convert_to_mr_model(&self, mr_id: i64) -> mr::ActiveModel {
+        mr::ActiveModel {
             id: Set(generate_id()),
             mr_id: Set(mr_id),
             git_id: Set(self.get_hash().to_plain_str()),

@@ -2,14 +2,14 @@ use super::{cache::ObjectCache, counter::GitTypeCounter, delta::undelta, EntryHe
 use crate::{
     errors::GitError,
     internal::{
-        pack::{counter::DecodeCounter, Hash, cqueue::CircularQueue},
+        pack::{counter::DecodeCounter, cqueue::CircularQueue, Hash},
         zlib::stream::inflate::ReadPlain,
     },
     utils,
 };
 use async_recursion::async_recursion;
 use database::{driver::ObjectStorage, utils::id_generator::generate_id};
-use entity::{git, obj_data};
+use entity::{git_obj, mr};
 use num_cpus;
 
 use sea_orm::Set;
@@ -33,8 +33,8 @@ struct Entry {
     hash: Option<Hash>,
 }
 impl Entry {
-    fn convert_to_mr_model(self, mr_id: i64) -> git::ActiveModel {
-        git::ActiveModel {
+    fn convert_to_mr_model(self, mr_id: i64) -> mr::ActiveModel {
+        mr::ActiveModel {
             id: Set(generate_id()),
             mr_id: Set(mr_id),
             git_id: Set(self.hash.unwrap().to_plain_str()),
@@ -42,8 +42,8 @@ impl Entry {
             created_at: Set(chrono::Utc::now().naive_utc()),
         }
     }
-    fn convert_to_data_model(self) -> obj_data::ActiveModel {
-        obj_data::ActiveModel {
+    fn convert_to_data_model(self) -> git_obj::ActiveModel {
+        git_obj::ActiveModel {
             id: Set(generate_id()),
             git_id: Set(self.hash.unwrap().to_plain_str()),
             object_type: Set(String::from_utf8_lossy(self.header.to_bytes()).to_string()),
@@ -225,8 +225,8 @@ async fn produce_object(
     counter: Arc<Mutex<DecodeCounter>>,
     mr_id: i64,
 ) {
-    let mut git_save_model = Vec::<git::ActiveModel>::with_capacity(1001);
-    let mut data_save_model = Vec::<obj_data::ActiveModel>::with_capacity(1001);
+    let mut mr_to_obj_model = Vec::<mr::ActiveModel>::with_capacity(1001);
+    let mut git_obj_model = Vec::<git_obj::ActiveModel>::with_capacity(1001);
 
     let mut object_cache_size = 1000;
     utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_SIZE", &mut object_cache_size);
@@ -236,10 +236,13 @@ async fn produce_object(
     let mut batch_size = 10000;
     utils::get_env_number("GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE", &mut batch_size);
 
-    let mut save_task_wait_number=10; // the most await save thread amount
-    utils::get_env_number("GIT_INTERNAL_DECODE_STORAGE_TQUEUE_SIZE", &mut save_task_wait_number);
+    let mut save_task_wait_number = 10; // the most await save thread amount
+    utils::get_env_number(
+        "GIT_INTERNAL_DECODE_STORAGE_TQUEUE_SIZE",
+        &mut save_task_wait_number,
+    );
 
-    let mut  save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
+    let mut save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
     for i in range_begin..range_end {
         let read_auth = data.read().await;
         let e = &read_auth.entries[i];
@@ -294,40 +297,40 @@ async fn produce_object(
             }
         }
         cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
-        git_save_model.push(result_entity.clone().convert_to_mr_model(mr_id));
-        data_save_model.push(result_entity.convert_to_data_model());
+        mr_to_obj_model.push(result_entity.clone().convert_to_mr_model(mr_id));
+        git_obj_model.push(result_entity.convert_to_data_model());
 
-        //save to storage 
-       
-        if git_save_model.len()>=batch_size{
+        //save to storage
+
+        if mr_to_obj_model.len() >= batch_size {
             let stc = storage.clone();
             let h = tokio::spawn(async move {
-                stc.save_git_objects(git_save_model).await.unwrap();
-                stc.save_obj_data(data_save_model).await.unwrap();
+                stc.save_git_objects(mr_to_obj_model).await.unwrap();
+                stc.save_obj_data(git_obj_model).await.unwrap();
             });
             println!("put new batch ");
             // if the save queue if full , wait the fist queue finish
-            if save_queue.is_full(){
+            if save_queue.is_full() {
                 let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
                 println!("to await from full queue ");
                 first_h.await.unwrap();
                 save_queue.enqueue(h).unwrap();
-            }else {
+            } else {
                 save_queue.enqueue(h).unwrap();
             }
-            git_save_model  = Vec::with_capacity(batch_size);
-            data_save_model = Vec::with_capacity(batch_size); 
+            mr_to_obj_model = Vec::with_capacity(batch_size);
+            git_obj_model = Vec::with_capacity(batch_size);
         }
     }
-    if !git_save_model.is_empty() {
-        storage.save_git_objects(git_save_model).await.unwrap();
+    if !mr_to_obj_model.is_empty() {
+        storage.save_git_objects(mr_to_obj_model).await.unwrap();
     }
-    if !data_save_model.is_empty() {
-        storage.save_obj_data(data_save_model).await.unwrap();
+    if !git_obj_model.is_empty() {
+        storage.save_obj_data(git_obj_model).await.unwrap();
     }
     // await the remaining threads
     println!("await last thread");
-    while let Some(h)= save_queue.dequeue() {
+    while let Some(h) = save_queue.dequeue() {
         h.await.unwrap();
     }
     let end = start.elapsed().as_millis();
