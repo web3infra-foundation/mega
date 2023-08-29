@@ -12,9 +12,9 @@ pub struct Item {
     pub name: String,
     pub path: String,
     pub content_type: String,
-    pub commit_msg: Option<String>,
-    pub commit_date: Option<String>,
-    pub commit_id: Option<String>,
+    pub mr_msg: Option<String>,
+    pub mr_date: Option<String>,
+    pub mr_id: Option<i64>,
 }
 
 impl From<node::Model> for Item {
@@ -29,9 +29,9 @@ impl From<node::Model> for Item {
             name: val.name.unwrap(),
             path: val.full_path,
             content_type,
-            commit_msg: None,
-            commit_date: None,
-            commit_id: None,
+            mr_msg: None,
+            mr_date: None,
+            mr_id: None,
         }
     }
 }
