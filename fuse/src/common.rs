@@ -10,6 +10,10 @@ pub const MAX_NAME_LENGTH:u32=255;
 pub const DEFAULT_PERMISSIONS:u16=600;
 pub const FMODE_EXEC: i32 = 0x20;
 
+pub const DEFAULT_DATA_DIR_PREFIX:&str="/tmp";
+pub const DEFAULT_LOG_DIR_PREFIX:&str="/tmp";
+pub const DEFAULT_DIRECT_IO:bool=true;
+
 pub fn init_gu_id(gid: u32, uid: u32) {
     GID.store(gid, std::sync::atomic::Ordering::SeqCst);
     UID.store(uid, std::sync::atomic::Ordering::SeqCst);

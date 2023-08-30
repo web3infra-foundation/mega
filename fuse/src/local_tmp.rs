@@ -26,12 +26,11 @@ enum Ops {
 }
 
 impl TemporaryFileManager {
-    pub fn new(fs_name: String) -> Self {
-        let path = "/tmp/".to_owned() + &fs_name;
-        std::fs::create_dir(path.clone()).unwrap();
+    pub fn new(data_dir: String) -> Self {
+        std::fs::create_dir(data_dir.clone()).unwrap();
         Self {
             caches: HashMap::new(),
-            tmp_dir_prefix: path,
+            tmp_dir_prefix: data_dir,
             ops_seq: Vec::new(),
             counter: 1,
         }
