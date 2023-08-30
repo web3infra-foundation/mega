@@ -25,9 +25,9 @@ pub struct InodeContent {
 }
 
 impl RemoteServer {
-    pub fn new(addr: &str, rt: Arc<Runtime>) -> Self {
+    pub fn new(addr: String, rt: Arc<Runtime>) -> Self {
         Self {
-            base_url: addr.to_string(),
+            base_url: addr,
             rt,
             http_client: Client::new(),
         }
