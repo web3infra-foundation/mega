@@ -14,7 +14,7 @@ use crate::cli::Config;
 use common::errors::MegaResult;
 
 pub fn builtin() -> Vec<Command> {
-    vec![https::cli(), ssh::cli(), p2p::cli(),mda::cli()]
+    vec![https::cli(), ssh::cli(), p2p::cli(),mda::cli(),webhook::cli()]
 }
 
 pub(crate) fn builtin_exec(cmd: &str) -> Option<fn(Config, &ArgMatches) -> MegaResult> {
