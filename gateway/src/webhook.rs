@@ -99,50 +99,14 @@ async fn post_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.options.clone().into();
-    lfs_config.storage = state.storage.clone();
+    
 
-    // Routing LFS services.
-    if Regex::new(r"/locks/verify$").unwrap().is_match(uri.path()) {
-        return lfs::http::lfs_verify_lock(&lfs_config, req).await;
-    } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
-        return lfs::http::lfs_create_lock(&lfs_config, req).await;
-    } else if Regex::new(r"/unlock$").unwrap().is_match(uri.path()) {
-        // Retrieve the `:id` field from path.
-        let path = uri.path().to_owned();
-        let tokens: Vec<&str> = path.split('/').collect();
-        // The `:id` field is just ahead of the last field.
-        return lfs::http::lfs_delete_lock(&lfs_config, tokens[tokens.len() - 2], req).await;
-    } else if Regex::new(r"/objects/batch$").unwrap().is_match(uri.path()) {
-        return lfs::http::lfs_process_batch(&lfs_config, req).await;
-    }
-
-    if Regex::new(r"/git-upload-pack$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        let pack_protocol = PackProtocol::new(
-            remove_git_suffix(uri, "/git-upload-pack"),
-            state.storage.clone(),
-            Protocol::Http,
-        );
-        http::git_upload_pack(req, pack_protocol).await
-    } else if Regex::new(r"/git-receive-pack$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        let pack_protocol = PackProtocol::new(
-            remove_git_suffix(uri, "/git-receive-pack"),
-            state.storage.clone(),
-            Protocol::Http,
-        );
-        http::git_receive_pack(req, pack_protocol).await
-    } else {
-        Err((
-            StatusCode::FORBIDDEN,
-            String::from("Operation not supported"),
-        ))
-    }
+    
+    Err((
+        StatusCode::FORBIDDEN,
+        String::from("Operation not supported"),
+    ))
+    
 }
 
 
