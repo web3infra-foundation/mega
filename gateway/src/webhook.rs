@@ -13,7 +13,7 @@ use anyhow::Result;
 
 use axum::extract::{Query, State};
 use axum::response::Response;
-use axum::routing::get;
+use axum::routing::post;
 use axum::{Router, Server};
 use clap::Args;
 use database::driver::lfs::structs::LockListQuery;
@@ -30,12 +30,12 @@ use tower_http::cors::{Any, CorsLayer};
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
-pub struct HttpOptions {
+pub struct WebhookOptions {
     /// Server start hostname
     #[arg(long, default_value_t = String::from("127.0.0.1"))]
     pub host: String,
 
-    #[arg(short, long, default_value_t = 8000)]
+    #[arg(short, long, default_value_t = 3000)]
     pub port: u16,
 
     #[arg(short, long, value_name = "FILE")]
@@ -54,25 +54,16 @@ pub struct HttpOptions {
 #[derive(Clone)]
 pub struct AppState {
     pub storage: Arc<dyn ObjectStorage>,
-    pub options: HttpOptions,
+    pub options: WebhookOptions,
 }
 
-#[derive(Deserialize, Debug)]
-struct GetParams {
-    pub service: Option<String>,
-    pub refspec: Option<String>,
-    pub id: Option<String>,
-    pub path: Option<String>,
-    pub limit: Option<String>,
-    pub cursor: Option<String>,
-}
 
 pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error::Error>> {
-    let HttpOptions {
+pub async fn webhook_server(options: &WebhookOptions) -> Result<(), Box<dyn std::error::Error>> {
+    let WebhookOptions {
         host,
         port,
         key_path: _,
@@ -88,12 +79,10 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
         options: options.to_owned(),
     };
     let app = Router::new()
-        .nest("/api/v1", api_routers::routers(state.clone()))
+        //.nest("/", api_routers::routers(state.clone()))
         .route(
-            "/*path",
-            get(get_method_router)
-                .post(post_method_router)
-                .put(put_method_router),
+            "/",
+            post(post_method_router)
         )
         .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
         .with_state(state);
@@ -104,75 +93,6 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-async fn get_method_router(
-    state: State<AppState>,
-    Query(params): Query<GetParams>,
-    uri: Uri,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.options.clone().into();
-    lfs_config.storage = state.storage.clone();
-
-    // Routing LFS services.
-    if Regex::new(r"/objects/[a-z0-9]+$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        // Retrieve the `:oid` field from path.
-        let path = uri.path().to_owned();
-        let tokens: Vec<&str> = path.split('/').collect();
-        // The `:oid` field is the last field.
-        return lfs::http::lfs_download_object(&lfs_config, tokens[tokens.len() - 1]).await;
-    } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
-        // Load query parameters into struct.
-        let lock_list_query = LockListQuery {
-            path: params.path,
-            id: params.id,
-            cursor: params.cursor,
-            limit: params.limit,
-            refspec: params.refspec,
-        };
-        return lfs::http::lfs_retrieve_lock(&lfs_config, lock_list_query).await;
-    }
-
-    let service_name = params.service.unwrap();
-    let service_type = service_name.parse::<ServiceType>().unwrap();
-
-    // # Discovering Reference
-    // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
-    // discover references by making a parameterized request for the info/refs file of the repository.
-    // The request MUST contain exactly one query parameter, service=$servicename,
-    // where $servicename MUST be the service name the client wishes to contact to complete the operation.
-    // The request MUST NOT contain additional query parameters.
-    if !Regex::new(r"/info/refs$").unwrap().is_match(uri.path()) {
-        return Err((
-            StatusCode::FORBIDDEN,
-            String::from("Operation not supported\n"),
-        ));
-    }
-    let mut pack_protocol = PackProtocol::new(
-        remove_git_suffix(uri, "/info/refs"),
-        state.storage.clone(),
-        Protocol::Http,
-    );
-    let mut headers = HashMap::new();
-    headers.insert(
-        "Content-Type".to_string(),
-        format!("application/x-{}-advertisement", service_name),
-    );
-    headers.insert(
-        "Cache-Control".to_string(),
-        "no-cache, max-age=0, must-revalidate".to_string(),
-    );
-    tracing::info!("headers: {:?}", headers);
-    let mut resp = Response::builder();
-    for (key, val) in headers {
-        resp = resp.header(&key, val);
-    }
-
-    let pkt_line_stream = pack_protocol.git_info_refs(service_type).await;
-    let body = Body::from(pkt_line_stream.freeze());
-    Ok(resp.body(body).unwrap())
-}
 
 async fn post_method_router(
     state: State<AppState>,
@@ -225,29 +145,7 @@ async fn post_method_router(
     }
 }
 
-async fn put_method_router(
-    state: State<AppState>,
-    uri: Uri,
-    req: Request<Body>,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.options.clone().into();
-    lfs_config.storage = state.storage.clone();
-    if Regex::new(r"/objects/[a-z0-9]+$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        // Retrieve the `:oid` field from path.
-        let path = uri.path().to_owned();
-        let tokens: Vec<&str> = path.split('/').collect();
-        // The `:oid` field is the last field.
-        lfs::http::lfs_upload_object(&lfs_config, tokens[tokens.len() - 1], req).await
-    } else {
-        Err((
-            StatusCode::FORBIDDEN,
-            String::from("Operation not supported"),
-        ))
-    }
-}
+
 
 mod api_routers {
     use std::collections::HashMap;
