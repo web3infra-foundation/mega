@@ -280,6 +280,7 @@ pub fn print_table_header() -> Table{
     let mut table1 = Table::new();
 
     table1.add_row(Row::new(vec![
+        Cell::new("MDA File"),
         Cell::new("MDA Header Offset"),
         Cell::new("Training Data Offset"),
         Cell::new("Tags"),
@@ -290,8 +291,9 @@ pub fn print_table_header() -> Table{
     table1
 }
 
-pub fn print_table_cell(mut table: Table, index: MDAIndex, header: MDAHeader) -> Table {
+pub fn print_table_cell(file:&str,mut table: Table, index: MDAIndex, header: MDAHeader) -> Table {
     table.add_row(Row::new(vec![
+        Cell::new(file),
         Cell::new(&index.header_offset.to_string()),
         Cell::new(&index.train_data_offset.to_string()),
         Cell::new(header.tags.join(", ").as_str()),
