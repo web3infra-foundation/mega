@@ -269,22 +269,28 @@ pub fn process_file(file_path: &str) -> Option<Box<dyn std::any::Any>> {
         None
     }
 }
-
+/// Map training data and anno data
 #[derive(Debug, Clone)]
 pub struct TrainMapAnno {
+    /// anno group
     pub id: String,
+    /// anno content
     pub data: Vec<AnnoInfo>,
 }
 #[derive(Debug, Clone)]
+/// Record anno group and content
 pub struct AnnoItem {
     pub id: String,
     pub content: String,
 }
+
+/// Record all the anno group
 #[derive(Debug, Clone)]
 pub struct Annotation {
     pub file_name: String,
     pub groups: Vec<AnnoItem>,
 }
+
 /// Generate mda files for combine case
 pub fn generate_mda_combined_annotations(
     training_data: &str,
@@ -331,6 +337,7 @@ pub fn generate_mda_combined_annotations(
         item.file_name = training_data.to_owned() + &item.file_name.to_string();
     }
 
+  
     // use pool to generate mda files
     let pb = ProgressBar::new(anno_groups.len() as u64);
     let pool = rayon::ThreadPoolBuilder::new()
@@ -438,32 +445,6 @@ pub fn config_mda_content(
     Ok(())
 }
 
-/// Merge the same group(used to map train and anno)
-pub fn merge_annos(annos: Vec<Annotation>) -> Vec<Annotation> {
-    let mut merged_annos_map: HashMap<String, Vec<AnnoItem>> = HashMap::new();
-
-    for anno in &annos {
-        let file_name = &anno.file_name;
-        let anno_value = anno.groups.clone();
-
-        if let Some(existing_annos) = merged_annos_map.get_mut(file_name) {
-            existing_annos.extend(anno_value);
-        } else {
-            merged_annos_map.insert(file_name.clone(), anno_value);
-        }
-    }
-
-    let mut merged_annos: Vec<Annotation> = Vec::new();
-
-    for (file_name, annos) in merged_annos_map.iter() {
-        merged_annos.push(Annotation {
-            file_name: file_name.clone(),
-            groups: annos.clone(),
-        });
-    }
-
-    merged_annos
-}
 
 /// Write data into mda files
 pub fn write_mda_data(
@@ -565,6 +546,33 @@ pub fn write_mda_data(
     )?;
 
     Ok(())
+}
+
+/// Merge the same group(used to map train and anno)
+pub fn merge_annos(annos: Vec<Annotation>) -> Vec<Annotation> {
+    let mut merged_annos_map: HashMap<String, Vec<AnnoItem>> = HashMap::new();
+
+    for anno in &annos {
+        let file_name = &anno.file_name;
+        let anno_value = anno.groups.clone();
+
+        if let Some(existing_annos) = merged_annos_map.get_mut(file_name) {
+            existing_annos.extend(anno_value);
+        } else {
+            merged_annos_map.insert(file_name.clone(), anno_value);
+        }
+    }
+
+    let mut merged_annos: Vec<Annotation> = Vec::new();
+
+    for (file_name, annos) in merged_annos_map.iter() {
+        merged_annos.push(Annotation {
+            file_name: file_name.clone(),
+            groups: annos.clone(),
+        });
+    }
+
+    merged_annos
 }
 
 /// Used to group anno data

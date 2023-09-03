@@ -22,7 +22,7 @@ pub fn update_anno_in_combined_file(
     group: &str,
 ) -> Result<usize, Box<dyn Error>> {
     let mut mda_anno_map = get_train_path_and_anno_content(anno_data, start, end);
-
+    
     for item in &mut mda_anno_map {
         let extract_name = extract_file_name(&item.file_name) + ".mda";
         let mda_name = mda.to_owned() + &extract_name;
