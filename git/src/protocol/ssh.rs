@@ -119,7 +119,7 @@ impl server::Handler for SshServer {
             Some(ServiceType::ReceivePack) => {
                 self.handle_receive_pack(channel, data, &mut session).await;
             }
-            None => panic!(),
+            _ => panic!(),
         };
         Ok((self, session))
     }
@@ -166,9 +166,9 @@ impl SshServer {
             self.storage.clone(),
             Protocol::Ssh,
         );
-        let res = pack_protocol
-            .git_info_refs(ServiceType::from_str(command[0]).unwrap())
-            .await;
+        let service_type = ServiceType::from_str(command[0]).unwrap();
+        pack_protocol.service_type = Some(service_type);
+        let res = pack_protocol.git_info_refs(service_type).await;
 
         self.pack_protocol = Some(pack_protocol);
         String::from_utf8(res.to_vec()).unwrap()
@@ -217,6 +217,8 @@ impl SshServer {
         if !buf.is_empty() {
             tracing::info!("report status: {:?}", buf);
             session.data(channel, buf.to_vec().into());
+        } else {
+            session.close(channel);
         }
     }
 }

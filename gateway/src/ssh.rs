@@ -12,9 +12,11 @@ use anyhow::Result;
 
 use clap::Args;
 use database::DataSource;
+use ed25519_dalek::{SigningKey, SIGNATURE_LENGTH};
 use russh_keys::key::KeyPair;
 
-use tokio::io::AsyncWriteExt;
+use tokio::fs::File;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use git::protocol::ssh::SshServer;
 
@@ -35,17 +37,18 @@ pub struct SshOptions {
     #[arg(short, long, default_value_os_t = PathBuf::from("lfs_content"))]
     lfs_content_path: PathBuf,
 
-    #[arg(value_enum, default_value = "mysql")]
+    #[arg(short, long, value_enum, default_value = "mysql")]
     pub data_source: DataSource,
 }
 
 /// start a ssh server
 pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
+    // we need to persist the key to prevent key expired after server restart.
     let client_key = load_key().await.unwrap();
     let client_pubkey = Arc::new(client_key.clone_public_key().unwrap());
 
     let mut config = russh::server::Config {
-        connection_timeout: Some(std::time::Duration::from_secs(10)),
+        inactivity_timeout: Some(std::time::Duration::from_secs(10)),
         auth_rejection_time: std::time::Duration::from_secs(3),
         ..Default::default()
     };
@@ -87,7 +90,7 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
 ///
 /// An asynchronous Result containing the loaded SSH keypair if successful, or an error if any of the steps fail.
 async fn load_key() -> Result<KeyPair> {
-    let key_root = env::var("SSH_ROOT").expect("WORK_DIR is not set in .env file");
+    let key_root = env::var("SSH_ROOT").expect("SSH_ROOT is not set in .env file");
     let key_path = PathBuf::from(key_root).join("id_rsa");
     if !key_path.exists() {
         // generate a keypair if not exists
@@ -96,14 +99,16 @@ async fn load_key() -> Result<KeyPair> {
 
         let KeyPair::Ed25519(inner_pair) = keys;
 
-        key_file.write_all(&inner_pair.to_bytes()).await?;
+        key_file.write_all(&inner_pair.to_keypair_bytes()).await?;
 
         Ok(KeyPair::Ed25519(inner_pair))
     } else {
         // load the keypair from the file
-        let key_data = tokio::fs::read(&key_path).await?;
-        let keypair = ed25519_dalek::Keypair::from_bytes(&key_data)?;
-
+        let mut file = File::open(&key_path).await?;
+        let mut secret_key_bytes: [u8; SIGNATURE_LENGTH] = [0; SIGNATURE_LENGTH];
+        file.read_exact(&mut secret_key_bytes).await?;
+        let keypair = SigningKey::from_keypair_bytes(&secret_key_bytes)?;
+        tracing::info!("{:?}", keypair);
         Ok(KeyPair::Ed25519(keypair))
     }
 }
