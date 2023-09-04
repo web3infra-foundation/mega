@@ -1,5 +1,5 @@
 ALTER TABLE IF EXISTS public.git
-    RENAME TO mr_object;
+    RENAME TO mr;
 
 ALTER TABLE IF EXISTS public.obj_data
     RENAME TO git_obj;
