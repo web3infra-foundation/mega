@@ -27,6 +27,10 @@ use regex::Regex;
 use serde::Deserialize;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
+use std::env;
+use octocrab::{Octocrab, models::AppId};
+use jsonwebtoken::EncodingKey;
+
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -63,6 +67,20 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
 }
 
 pub async fn webhook_server(options: &WebhookOptions) -> Result<(), Box<dyn std::error::Error>> {
+    // Read environment variables
+    let github_app_id = env::var("GITHUB_APP_ID").expect("Missing GITHUB_APP_ID");
+    let github_private_key = env::var("GITHUB_PRIVATE_KEY").expect("Missing GITHUB_PRIVATE_KEY");
+    let webhook_secret = env::var("GITHUB_WEBHOOK_SECRET").expect("Missing GITHUB_WEBHOOK_SECRET");
+
+    // Create RSA private key from the provided environment variable
+    let rsa_key = EncodingKey::from_rsa_pem(github_private_key.as_bytes()).expect("Failed to load private key");
+    // Create Octocrab instance for GitHub App authentication
+    let octocrab = Octocrab::builder()
+        .app(AppId::from(github_app_id.parse::<u64>().unwrap()), rsa_key)
+        .build()
+        .expect("Failed to create Octocrab instance");
+
+
     let WebhookOptions {
         host,
         port,
