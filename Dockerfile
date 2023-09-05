@@ -11,7 +11,7 @@ COPY . .
 RUN cargo build --release
 
 # Create a new image without the build dependencies
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # Set the working directory
 WORKDIR /usr/src/mega

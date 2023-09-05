@@ -28,7 +28,7 @@ pub struct P2pOptions {
     #[arg(short, long, default_value_t = false)]
     pub relay_server: bool,
 
-    #[arg(value_enum, default_value = "mysql")]
+    #[arg(short, long, value_enum, default_value = "postgres")]
     pub data_source: DataSource,
 }
 
