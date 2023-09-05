@@ -37,7 +37,7 @@ pub struct SshOptions {
     #[arg(short, long, default_value_os_t = PathBuf::from("lfs_content"))]
     lfs_content_path: PathBuf,
 
-    #[arg(short, long, value_enum, default_value = "mysql")]
+    #[arg(short, long, value_enum, default_value = "postgres")]
     pub data_source: DataSource,
 }
 
