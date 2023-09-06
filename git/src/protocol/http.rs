@@ -75,7 +75,7 @@ pub async fn send_pack(
             return Ok(());
         }
         let bytes_out = pack_protocol.build_side_band_format(temp, length);
-        tracing::info!("send: bytes_out: {:?}", bytes_out.clone().freeze());
+        tracing::info!("send: packet length: {:?}", bytes_out.len());
         sender.send_data(bytes_out.freeze()).await.unwrap();
     }
 }

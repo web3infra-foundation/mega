@@ -17,6 +17,7 @@
 use std::fmt::Display;
 
 use bstr::ByteSlice;
+use entity::commit;
 
 use crate::errors::GitError;
 use crate::hash::Hash;
@@ -63,6 +64,19 @@ impl Display for Commit {
         writeln!(f, "author {}", self.author)?;
         writeln!(f, "committer {}", self.committer)?;
         writeln!(f, "{}", self.message)
+    }
+}
+
+impl From<commit::Model> for Commit {
+    fn from(value: commit::Model) -> Self {
+        Commit {
+            id: Hash::new_from_str(&value.git_id),
+            tree_id: Hash::new_from_str(&value.tree),
+            parent_tree_ids: value.pid.into_iter().map(|id| Hash::new_from_str(&id)).collect(),
+            author: Signature::new_from_data(value.author.unwrap().into()).unwrap(),
+            committer: Signature::new_from_data(value.committer.unwrap().into()).unwrap(),
+            message: value.content.unwrap(),
+        }
     }
 }
 

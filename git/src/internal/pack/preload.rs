@@ -305,7 +305,7 @@ async fn produce_object(
         if mr_to_obj_model.len() >= batch_size {
             let stc = storage.clone();
             let h = tokio::spawn(async move {
-                stc.save_git_objects(mr_to_obj_model).await.unwrap();
+                stc.save_mr_objects(mr_to_obj_model).await.unwrap();
                 stc.save_obj_data(git_obj_model).await.unwrap();
             });
             println!("put new batch ");
@@ -323,7 +323,7 @@ async fn produce_object(
         }
     }
     if !mr_to_obj_model.is_empty() {
-        storage.save_git_objects(mr_to_obj_model).await.unwrap();
+        storage.save_mr_objects(mr_to_obj_model).await.unwrap();
     }
     if !git_obj_model.is_empty() {
         storage.save_obj_data(git_obj_model).await.unwrap();

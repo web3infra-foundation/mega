@@ -10,7 +10,6 @@ pub struct Model {
     pub git_id: String,
     pub tree: String,
     pub pid: Vec<String>,
-    pub meta: Vec<u8>,
     pub repo_path: String,
     pub author: Option<String>,
     pub committer: Option<String>,
