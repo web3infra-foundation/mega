@@ -72,7 +72,11 @@ impl PackProtocol {
         let pkt_line = format!("{}{}{}{}{}{}", object_id, SP, name, NUL, cap_list, LF);
         let mut ref_list = vec![pkt_line];
 
-        let git_refs = self.storage.get_ref_object_id(self.path.to_str().unwrap()).await.unwrap();
+        let git_refs = self
+            .storage
+            .get_ref_object_id(self.path.to_str().unwrap())
+            .await
+            .unwrap();
         for git_ref in git_refs {
             let pkt_line = format!("{}{}{}{}", git_ref.ref_git_id, SP, git_ref.ref_name, LF);
             ref_list.push(pkt_line);
@@ -89,12 +93,17 @@ impl PackProtocol {
         let mut want: HashSet<String> = HashSet::new();
         let mut have: HashSet<String> = HashSet::new();
 
-        let mut first_line = true;
+        let mut read_first_line = false;
         loop {
+            tracing::info!("loop start");
             let (bytes_take, pkt_line) = read_pkt_line(upload_request);
-            // if read 0000
-            if bytes_take == 0 && pkt_line.is_empty() {
-                continue;
+            // read 0000 to continue and read empty str to break
+            if bytes_take == 0 {
+                if upload_request.is_empty() {
+                    break;
+                } else {
+                    continue;
+                }
             }
             tracing::debug!("read line: {:?}", pkt_line);
             let dst = pkt_line.to_vec();
@@ -112,14 +121,14 @@ impl PackProtocol {
                     continue;
                 }
             };
-            if first_line {
+            if !read_first_line {
                 self.parse_capabilities(&String::from_utf8(dst[46..].to_vec()).unwrap());
-                first_line = false;
+                read_first_line = true;
             }
         }
 
         tracing::info!(
-            "want commands: {:?}, have commans: {:?}, caps:{:?}",
+            "want commands: {:?}\n have commans: {:?}\n caps:{:?}",
             want,
             have,
             self.capabilities
