@@ -86,10 +86,10 @@ impl GitNodeObject for Blob {
 }
 
 impl Commit {
-    pub fn build_from_model_and_root(model: &commit::Model, root: node::Model) -> Commit {
+    pub fn build_from_model_and_root(meta: Vec<u8>, root: node::Model) -> Commit {
         let mut c = Commit::new_from_meta(Meta::new_from_data_with_object_type(
             ObjectType::Commit,
-            model.meta.clone(),
+            meta,
         ))
         .unwrap();
         c.tree_id = Hash::new_from_str(&root.git_id);
@@ -109,10 +109,9 @@ impl Commit {
             git_id: Set(self.id.to_plain_str()),
             tree: Set(self.tree_id.to_plain_str()),
             pid: Set(pid),
-            meta: Set(self.to_data().unwrap()),
             repo_path: Set(repo_path.to_str().unwrap().to_owned()),
-            author: Set(Some(self.author.to_string())),
-            committer: Set(Some(self.committer.to_string())),
+            author: Set(Some(String::from_utf8(self.author.to_data().unwrap()).unwrap())),
+            committer: Set(Some(String::from_utf8(self.committer.to_data().unwrap()).unwrap())),
             content: Set(Some(self.message.clone())),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),

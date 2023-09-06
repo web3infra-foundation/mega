@@ -4,7 +4,6 @@ CREATE TABLE IF NOT EXISTS "commit" (
   "git_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
   "pid" TEXT[],
-  "meta" BYTEA NOT NULL,
   "repo_path" VARCHAR(128) NOT NULL,
   "author" TEXT,
   "committer" TEXT,

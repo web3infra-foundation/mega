@@ -197,7 +197,7 @@ impl SshServer {
                 return;
             }
             let bytes_out = pack_protocol.build_side_band_format(temp, length);
-            tracing::info!("send: bytes_out: {:?}", bytes_out.clone().freeze());
+            tracing::info!("send: packet lentgh : {:?}", bytes_out.len());
             session.data(channel, bytes_out.to_vec().into());
         }
     }

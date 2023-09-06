@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS `commit` (
   `tree` varchar(40) NOT NULL,
   -- fix array arguments later 
   `pid` varchar(40) DEFAULT NULL,
-  `meta` blob NOT NULL,
   `repo_path` varchar(128) NOT NULL,
   `author` TINYTEXT DEFAULT NULL,
   `committer` TINYTEXT DEFAULT NULL,

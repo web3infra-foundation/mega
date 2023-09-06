@@ -41,7 +41,7 @@ pub mod postgres;
 pub trait ObjectStorage: Send + Sync {
     fn get_connection(&self) -> &DatabaseConnection;
 
-    async fn save_git_objects(&self, objects: Vec<mr::ActiveModel>) -> Result<bool, MegaError> {
+    async fn save_mr_objects(&self, objects: Vec<mr::ActiveModel>) -> Result<bool, MegaError> {
         batch_save_model(self.get_connection(), objects).await?;
         Ok(true)
     }
