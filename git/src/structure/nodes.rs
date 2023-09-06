@@ -19,6 +19,7 @@ use crate::{
         blob::Blob,
         commit::Commit,
         tree::{Tree, TreeItemMode},
+        ObjectT,
     },
 };
 
@@ -302,12 +303,27 @@ impl Repo {
 
             if !tree_build_cache.contains(&commit_tree_id) {
                 //fetch the tree which commit points to
-                let tree = self.tree_map.get(&commit_tree_id).unwrap();
+
+                let tree = match self.tree_map.get(&commit_tree_id) {
+                    Some(tree) => tree.to_owned(),
+                    None => {
+                        let model = self
+                            .storage
+                            .get_obj_data_by_id(&commit_tree_id.to_plain_str())
+                            .await
+                            .unwrap()
+                            .unwrap();
+                        let mut obj = Tree::new_from_data(model.data.clone());
+                        let hash = Hash::new_from_str(&model.git_id);
+                        obj.set_hash(hash);
+                        obj
+                    }
+                };
 
                 let mut root_node =
                     tree.convert_to_node(None, self.repo_path.clone(), self.repo_path.clone());
                 self.convert_tree_to_node(
-                    tree,
+                    &tree,
                     &mut root_node,
                     &mut self.repo_path.clone(),
                     &mut tree_build_cache,
@@ -370,13 +386,13 @@ impl Repo {
 }
 
 /// conver Node to db entity and for later persistent
-pub fn convert_node_to_model(node: &dyn Node, depth: u32) -> Vec<node::ActiveModel> {
-    print_node(node, depth);
+pub fn convert_node_to_model(node: &dyn Node, _depth: u32) -> Vec<node::ActiveModel> {
+    // print_node(node, depth);
     let mut nodes: Vec<node::ActiveModel> = Vec::new();
     nodes.push(node.convert_to_model());
     if node.is_a_directory() {
         for child in node.get_children() {
-            nodes.extend(convert_node_to_model(child.as_ref(), depth + 1));
+            nodes.extend(convert_node_to_model(child.as_ref(), _depth + 1));
         }
     }
     nodes
@@ -399,6 +415,7 @@ pub fn convert_node_to_model(node: &dyn Node, depth: u32) -> Vec<node::ActiveMod
 // }
 
 /// Print a node with format.
+#[allow(unused)]
 pub fn print_node(node: &dyn Node, depth: u32) {
     if depth == 0 {
         tracing::debug!("{}", node.get_name());

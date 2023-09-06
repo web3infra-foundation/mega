@@ -39,11 +39,9 @@ impl PackProtocol {
             .get_all_commits_by_path(repo_path.to_str().unwrap())
             .await
             .unwrap();
-        commit_models.iter().for_each(|model| {
-            let mut commit = Commit::new_from_data(model.meta.clone());
-            let hash = Hash::new_from_str(&model.git_id);
-            commit.set_hash(hash);
-            hash_object.insert(hash, Arc::new(commit));
+        commit_models.into_iter().for_each(|model| {
+            let commit: Commit = model.into();
+            hash_object.insert(commit.id, Arc::new(commit));
         });
         let blob_and_tree = self.storage.get_node_by_path(repo_path).await.unwrap();
         let git_ids = blob_and_tree
@@ -87,25 +85,25 @@ impl PackProtocol {
             .await
             .unwrap();
 
-        for c_data in all_commits {
-            if want.contains(&c_data.git_id) {
-                let c = Commit::new_from_data(c_data.meta);
+        for model in all_commits {
+            let commit_id = model.git_id.clone();
+            if want.contains(&commit_id) {
+                let c: Commit = model.into();
                 if let Some(root) = self
                     .storage
                     .get_obj_data_by_id(&c.tree_id.to_plain_str())
                     .await
                     .unwrap()
                 {
-                    // todo: replace cache;
-                    get_child_trees(&root, &mut hash_meta, &HashMap::new()).await
+                    get_child_trees(&root, &mut hash_meta, self.storage.clone()).await
                 } else {
                     return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
                 };
+                hash_meta.insert(commit_id, Arc::new(c));
             }
         }
-        // todo: add encode process
-        let result: Vec<u8> = vec![];
-        // Pack::default().encode(Some(hash_meta.into_values().collect()));
+        let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
+        let result: Vec<u8> = pack_encode(meta_vec).unwrap();
         Ok(result)
     }
 
@@ -139,22 +137,22 @@ impl PackProtocol {
 async fn get_child_trees(
     root: &git_obj::Model,
     hash_object: &mut HashMap<String, Arc<dyn ObjectT>>,
-    pack_cache: &HashMap<String, git_obj::Model>,
+    storage: Arc<dyn ObjectStorage>,
 ) {
     let t = Tree::new_from_data(root.data.clone());
-    let mut child_ids = vec![];
+    let mut search_child_ids = vec![];
     for item in &t.tree_items {
         if !hash_object.contains_key(&item.id.to_plain_str()) {
-            child_ids.push(item.id.to_plain_str());
+            search_child_ids.push(item.id.to_plain_str());
         }
     }
-    for id in child_ids {
-        let model = pack_cache.get(&id).unwrap();
-        if model.object_type == "tree" {
-            get_child_trees(model, hash_object, pack_cache).await;
+    let objs = storage.get_obj_data_by_ids(search_child_ids).await.unwrap();
+    for obj in objs {
+        if obj.object_type == "tree" {
+            get_child_trees(&obj, hash_object, storage.clone()).await;
         } else {
-            let blob = Blob::new_from_data(model.data.clone());
-            hash_object.insert(model.git_id.clone(), Arc::new(blob));
+            let blob = Blob::new_from_data(obj.data.clone());
+            hash_object.insert(obj.git_id.clone(), Arc::new(blob));
         }
     }
     let tree = Tree::new_from_data(t.get_raw());
@@ -177,12 +175,13 @@ pub async fn generate_child_commit_and_refs(
     repo_path: &Path,
 ) -> String {
     if let Some(root_tree) = storage.search_root_node_by_path(repo_path).await {
-        let root_commit = storage
-            .get_commit_by_hash(&refs.ref_git_id.clone())
+        let root_commit_obj = storage
+            .get_obj_data_by_id(&refs.ref_git_id.clone())
             .await
             .unwrap()
             .unwrap();
-        let child_commit = Commit::build_from_model_and_root(&root_commit, root_tree);
+
+        let child_commit = Commit::build_from_model_and_root(root_commit_obj.data, root_tree);
         let child_model = child_commit.convert_to_model(repo_path);
         storage
             .save_commits(vec![child_model.clone()])
@@ -225,7 +224,7 @@ pub async fn save_packfile(
     storage.save_nodes(nodes).await.unwrap();
 
     let save_models: Vec<commit::ActiveModel> = commits
-        .iter()
+        .into_iter()
         .map(|commit| commit.convert_to_model(repo_path))
         .collect();
 
@@ -265,7 +264,7 @@ pub async fn get_objects_from_mr<T: ObjectT>(
     let models = storage.get_obj_data_by_ids(git_ids).await.unwrap();
 
     models
-        .iter()
+        .into_iter()
         .map(|model| {
             let mut obj = T::new_from_data(model.data.clone());
             let hash = Hash::new_from_str(&model.git_id);
