@@ -49,13 +49,29 @@ pub async fn run(
             local_key.public(),
         )),
         dcutr: dcutr::Behaviour::new(local_peer_id),
+        //DHT
         kademlia: Kademlia::new(local_peer_id, store),
+        //discover
         rendezvous: rendezvous::client::Behaviour::new(local_key),
+        // git pull, git clone
         git_upload_pack: request_response::cbor::Behaviour::new(
             [(
                 StreamProtocol::new("/mega/git_upload_pack"),
                 ProtocolSupport::Full,
             )],
+            request_response::Config::default(),
+        ),
+        // git info refs
+        git_info_refs: request_response::cbor::Behaviour::new(
+            [(
+                StreamProtocol::new("/mega/git_info_refs"),
+                ProtocolSupport::Full,
+            )],
+            request_response::Config::default(),
+        ),
+        // git download git_obj
+        git_object: request_response::cbor::Behaviour::new(
+            [(StreamProtocol::new("/mega/git_obj"), ProtocolSupport::Full)],
             request_response::Config::default(),
         ),
     };
@@ -72,6 +88,8 @@ pub async fn run(
         bootstrap_node_addr: None,
         storage,
         pending_git_upload_package: HashMap::new(),
+        pending_git_pull: HashMap::new(),
+        pending_git_obj_download: HashMap::new(),
     };
 
     // Wait to listen on all interfaces.
@@ -159,7 +177,6 @@ pub async fn run(
                                     tracing::error!("Failed to register: {error}");
                                 }
                             }
-
                             break;
                         }
                     }
@@ -216,11 +233,18 @@ pub async fn run(
                         //kad events
                         SwarmEvent::Behaviour(Event::Kademlia(event)) => {
                             event_handler::kad_event_handler(event.clone());
-                            event_handler::kad_event_callback(&mut swarm, &mut client_paras, event);
                         },
                         //GitUploadPack events
                         SwarmEvent::Behaviour(Event::GitUploadPack(event)) => {
                              event_handler::git_upload_pack_event_handler(&mut swarm, &mut client_paras, event).await;
+                        },
+                        //GitInfoRefs events
+                        SwarmEvent::Behaviour(Event::GitInfoRefs(event)) => {
+                             event_handler::git_info_refs_event_handler(&mut swarm, &mut client_paras, event).await;
+                        },
+                         //GitObject events
+                        SwarmEvent::Behaviour(Event::GitObject(event)) => {
+                             event_handler::git_object_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         _ => {
                             tracing::debug!("Event: {:?}", event);

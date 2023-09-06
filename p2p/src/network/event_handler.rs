@@ -1,9 +1,12 @@
 use super::behaviour;
-use crate::network::behaviour::{GitUploadPackReq, GitUploadPackRes};
+use crate::network::behaviour::{
+    GitInfoRefsReq, GitInfoRefsRes, GitObjectReq, GitObjectRes, GitUploadPackReq, GitUploadPackRes,
+};
 use crate::node::ClientParas;
 use crate::{get_pack_protocol, get_repo_full_path};
 use bytes::Bytes;
 use common::utils;
+use entity::git_obj;
 use git::protocol::{CommandType, RefCommand};
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{
@@ -11,6 +14,8 @@ use libp2p::kad::{
     PeerRecord, PutRecordOk, QueryResult,
 };
 use libp2p::{identify, multiaddr, rendezvous, request_response, Swarm};
+use sea_orm::Set;
+use std::collections::HashSet;
 use std::path::Path;
 
 pub const NAMESPACE: &str = "rendezvous_mega";
@@ -197,17 +202,11 @@ pub async fn git_upload_pack_event_handler(
                     request,
                     channel
                 );
-                let commend = request.0;
-                // command pull:
-                // git-upload-pack /root/repotest/src.git
-                let command_vec: Vec<_> = commend.split_whitespace().collect();
-                if command_vec.len() < 2 {
-                    tracing::error!("Invalid command:{}", commend);
-                    return;
-                }
-                let path = command_vec[1];
+                let want = request.0;
+                let have = request.1;
+                let path = request.2;
                 tracing::info!("path: {}", path);
-                match git_upload_pack_handler(path, client_paras).await {
+                match git_upload_pack_handler(&path, client_paras, want, have).await {
                     Ok((send_pack_data, object_id)) => {
                         let _ = swarm
                             .behaviour_mut()
@@ -252,9 +251,6 @@ pub async fn git_upload_pack_event_handler(
                         command_type: CommandType::Create,
                     };
                     pack_protocol.command_list.push(command);
-                    // let result = command
-                    //     .unpack(client_paras.storage.clone(), &mut Bytes::from(package_data))
-                    //     .await;
                     let result = pack_protocol
                         .git_receive_pack(Bytes::from(package_data))
                         .await;
@@ -266,6 +262,7 @@ pub async fn git_upload_pack_event_handler(
                             tracing::error!("{}", e);
                         }
                     }
+                    client_paras.pending_git_upload_package.remove(&request_id);
                 }
             }
         },
@@ -278,44 +275,197 @@ pub async fn git_upload_pack_event_handler(
     }
 }
 
-//After accepting the event, a new event needs to be triggered
-pub fn kad_event_callback(
-    _swarm: &mut Swarm<behaviour::Behaviour>,
-    _client_paras: &mut ClientParas,
-    event: KademliaEvent,
+pub async fn git_info_refs_event_handler(
+    swarm: &mut Swarm<behaviour::Behaviour>,
+    client_paras: &mut ClientParas,
+    event: request_response::Event<GitInfoRefsReq, GitInfoRefsRes>,
 ) {
     match event {
-        KademliaEvent::OutboundQueryProgressed {
-            result: QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders { .. })),
-            ..
-        } => {
-            //check if there is pending_get_file
-            // if let Some(file_name) = client_paras.pending_request_file.get(&id) {
-            //     if providers.is_empty() {
-            //         tracing::error!("Cannot find file {} from p2p network", file_name,);
-            //     }
-            //     //Trigger file download request
-            //     for peer_id in providers {
-            //         let request_file_id = swarm
-            //             .behaviour_mut()
-            //             .request_response
-            //             .send_request(&peer_id, FileRequest(file_name.to_string()));
-            //         tracing::info!("Get File {} from peer {}", file_name, peer_id);
-            //         client_paras
-            //             .pending_get_file
-            //             .insert(request_file_id, file_name.clone());
-            //     }
-            // }
-            // client_paras.pending_request_file.remove(&id);
-            println!("111");
+        request_response::Event::Message { message, peer, .. } => match message {
+            request_response::Message::Request {
+                request, channel, ..
+            } => {
+                //receive git info refs  request
+                tracing::debug!("Receive git info refs event, {:?}, {:?}", request, channel);
+                let path = request.0;
+                tracing::info!("path: {}", path);
+                let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+                let ref_git_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+                let mut git_ids: Vec<String> = Vec::new();
+                if let Ok(commit_models) =
+                    pack_protocol.storage.get_all_commits_by_path(&path).await
+                {
+                    commit_models.iter().for_each(|model| {
+                        git_ids.push(model.git_id.clone());
+                    });
+                }
+                if let Ok(blob_and_tree) = pack_protocol
+                    .storage
+                    .get_node_by_path(Path::new(&path))
+                    .await
+                {
+                    blob_and_tree.iter().for_each(|model| {
+                        git_ids.push(model.git_id.clone());
+                    });
+                }
+                let _ = swarm
+                    .behaviour_mut()
+                    .git_info_refs
+                    .send_response(channel, GitInfoRefsRes(ref_git_id, git_ids));
+            }
+            request_response::Message::Response {
+                request_id,
+                response,
+            } => {
+                //receive git info refs  response
+                tracing::info!("Response git info refs event, request_id: {:?}", request_id);
+                if let Some(repo_name) = client_paras.pending_git_pull.get(&request_id) {
+                    //pull request
+                    let ref_git_id = response.0;
+                    let _git_ids = response.1;
+                    tracing::info!("repo_name: {}", repo_name);
+                    tracing::info!("ref_git_id: {:?}", ref_git_id);
+                    if ref_git_id == *utils::ZERO_ID {
+                        eprintln!("Repo not found");
+                        return;
+                    }
+                    let path = get_repo_full_path(repo_name);
+                    let pack_protocol =
+                        get_pack_protocol(&path, client_paras.storage.clone()).await;
+                    //generate want and have collection
+                    let mut want: HashSet<String> = HashSet::new();
+                    let mut have: HashSet<String> = HashSet::new();
+                    want.insert(ref_git_id);
+                    let commit_models = pack_protocol
+                        .storage
+                        .get_all_commits_by_path(&path)
+                        .await
+                        .unwrap();
+                    commit_models.iter().for_each(|model| {
+                        have.insert(model.git_id.clone());
+                    });
+                    //send new request to git_upload_pack
+                    let new_request_id = swarm
+                        .behaviour_mut()
+                        .git_upload_pack
+                        .send_request(&peer, GitUploadPackReq(want, have, path));
+                    client_paras
+                        .pending_git_upload_package
+                        .insert(new_request_id, repo_name.to_string());
+                    client_paras.pending_git_pull.remove(&request_id);
+                    return;
+                }
+                if let Some(repo_name) = client_paras.pending_git_obj_download.get(&request_id) {
+                    // git_obj_download request
+                    let _ref_git_id = response.0;
+                    let git_ids = response.1;
+                    let path = get_repo_full_path(repo_name);
+                    tracing::info!("path: {}", path);
+                    tracing::info!("git_ids: {:?}", git_ids);
+                    //trying to download git_obj from peer
+                    let new_request_id = swarm
+                        .behaviour_mut()
+                        .git_object
+                        .send_request(&peer, GitObjectReq(path, git_ids));
+                    client_paras
+                        .pending_git_obj_download
+                        .insert(new_request_id, repo_name.to_string());
+                }
+            }
+        },
+        request_response::Event::OutboundFailure { peer, error, .. } => {
+            tracing::error!("Git info refs outbound failure: {:?},{:?}", peer, error);
         }
-        _event => {}
+        event => {
+            tracing::debug!("Request_response event:{:?}", event);
+        }
+    }
+}
+
+pub async fn git_object_event_handler(
+    swarm: &mut Swarm<behaviour::Behaviour>,
+    client_paras: &mut ClientParas,
+    event: request_response::Event<GitObjectReq, GitObjectRes>,
+) {
+    match event {
+        request_response::Event::Message { message, .. } => match message {
+            request_response::Message::Request {
+                request, channel, ..
+            } => {
+                //receive git object  request
+                tracing::debug!("Receive git object event, {:?}, {:?}", request, channel);
+                let path = request.0;
+                let git_ids = request.1;
+                tracing::info!("path: {}", path);
+                tracing::info!("git_ids: {:?}", git_ids);
+                let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+                let git_obj_models = match pack_protocol.storage.get_obj_data_by_ids(git_ids).await
+                {
+                    Ok(models) => models,
+                    Err(e) => {
+                        tracing::error!("{:?}", e);
+                        return;
+                    }
+                };
+                let _ = swarm
+                    .behaviour_mut()
+                    .git_object
+                    .send_response(channel, GitObjectRes(git_obj_models));
+            }
+            request_response::Message::Response {
+                request_id,
+                response,
+            } => {
+                //receive git object response
+                tracing::info!("Response git object event, request_id: {:?}", request_id);
+                let git_obj_models = response.0;
+                tracing::info!("Receive {:?} git_obj", git_obj_models.len());
+                if let Some(repo_name) = client_paras.pending_git_obj_download.get(&request_id) {
+                    let path = get_repo_full_path(repo_name);
+                    let pack_protocol =
+                        get_pack_protocol(&path, client_paras.storage.clone()).await;
+                    let git_obj_active_model = git_obj_models
+                        .iter()
+                        .map(|m| git_obj::ActiveModel {
+                            id: Set(m.id),
+                            git_id: Set(m.git_id.clone()),
+                            object_type: Set(m.object_type.clone()),
+                            data: Set(m.data.clone()),
+                        })
+                        .collect();
+                    match pack_protocol
+                        .storage
+                        .save_obj_data(git_obj_active_model)
+                        .await
+                    {
+                        Ok(_) => {
+                            tracing::info!(
+                                "Save {:?} git_obj to database successfully",
+                                git_obj_models.len()
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("{:?}", e);
+                        }
+                    }
+                    client_paras.pending_git_obj_download.remove(&request_id);
+                }
+            }
+        },
+        request_response::Event::OutboundFailure { peer, error, .. } => {
+            tracing::error!("Git object  outbound failure: {:?},{:?}", peer, error);
+        }
+        event => {
+            tracing::debug!("Request_response event:{:?}", event);
+        }
     }
 }
 
 async fn git_upload_pack_handler(
     path: &str,
     client_paras: &mut ClientParas,
+    want: HashSet<String>,
+    have: HashSet<String>,
 ) -> Result<(Vec<u8>, String), String> {
     let pack_protocol = get_pack_protocol(path, client_paras.storage.clone()).await;
     let object_id = pack_protocol.get_head_object_id(Path::new(path)).await;
@@ -323,13 +473,29 @@ async fn git_upload_pack_handler(
         return Err("Repository not found".to_string());
     }
     tracing::info!("object_id:{}", object_id);
-    let send_pack_data = match pack_protocol.get_full_pack_data(Path::new(path)).await {
-        Ok(send_pack_data) => send_pack_data,
-        Err(e) => {
-            tracing::error!("{}", e);
-            return Err(e.to_string());
-        }
-    };
-    // tracing::info!("send_pack_data:{:?}", send_pack_data);
-    Ok((send_pack_data, object_id))
+    tracing::info!("want: {:?}, have: {:?}", want, have);
+    if have.is_empty() {
+        //clone
+        let send_pack_data = match pack_protocol.get_full_pack_data(Path::new(path)).await {
+            Ok(send_pack_data) => send_pack_data,
+            Err(e) => {
+                tracing::error!("{}", e);
+                return Err(e.to_string());
+            }
+        };
+        Ok((send_pack_data, object_id))
+    } else {
+        //pull
+        let send_pack_data = match pack_protocol
+            .get_incremental_pack_data(Path::new(&path), &want, &have)
+            .await
+        {
+            Ok(send_pack_data) => send_pack_data,
+            Err(e) => {
+                tracing::error!("{}", e);
+                return Err(e.to_string());
+            }
+        };
+        Ok((send_pack_data, object_id))
+    }
 }
