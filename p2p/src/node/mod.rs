@@ -32,4 +32,6 @@ pub struct ClientParas {
     pub bootstrap_node_addr: Option<Multiaddr>,
     pub storage: Arc<dyn ObjectStorage>,
     pub pending_git_upload_package: HashMap<RequestId, String>,
+    pub pending_git_pull: HashMap<RequestId, String>,
+    pub pending_git_obj_download: HashMap<RequestId, String>,
 }

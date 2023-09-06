@@ -1,12 +1,13 @@
 use super::ClientParas;
 use crate::network::behaviour;
-use crate::network::behaviour::GitUploadPackReq;
+use crate::network::behaviour::{GitInfoRefsReq, GitUploadPackReq};
 use crate::{get_pack_protocol, get_repo_full_path};
 use common::utils;
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Kademlia, Quorum, Record};
 use libp2p::{PeerId, Swarm};
+use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -181,20 +182,78 @@ pub async fn handle_mega_command(
                     return;
                 }
             };
-            //try to download git package
-            // Pull: git-upload-pack '/root/repotest/src.git'
             let path = get_repo_full_path(repo_name);
-            let command = format!("{} {}", "git-upload-pack", path);
-            let request_file_id = swarm
-                .behaviour_mut()
-                .git_upload_pack
-                .send_request(&peer_id, GitUploadPackReq(command));
+            let request_file_id = swarm.behaviour_mut().git_upload_pack.send_request(
+                &peer_id,
+                GitUploadPackReq(HashSet::new(), HashSet::new(), path),
+            );
             client_paras
                 .pending_git_upload_package
                 .insert(request_file_id, repo_name.to_string());
         }
+        Some("pull") => {
+            // mega pull p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git
+            let mega_address = {
+                match args_iter.next() {
+                    Some(key) => key,
+                    None => {
+                        eprintln!("Expected mega_address");
+                        return;
+                    }
+                }
+            };
+            let (peer_id, repo_name) = match parse_mega_address(mega_address) {
+                Ok((peer_id, repo_name)) => (peer_id, repo_name),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return;
+                }
+            };
+            let path = get_repo_full_path(repo_name);
+            let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+            let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+            if object_id == *utils::ZERO_ID {
+                eprintln!("local repo not found");
+                return;
+            }
+            // Request to get git_info_refs
+            let request_id = swarm
+                .behaviour_mut()
+                .git_info_refs
+                .send_request(&peer_id, GitInfoRefsReq(path));
+            client_paras
+                .pending_git_pull
+                .insert(request_id, repo_name.to_string());
+        }
+        Some("git_obj_download") => {
+            // mega git_obj_download p2p://12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X/mega_test.git
+            let mega_address = {
+                match args_iter.next() {
+                    Some(key) => key,
+                    None => {
+                        eprintln!("Expected mega_address");
+                        return;
+                    }
+                }
+            };
+            let (peer_id, repo_name) = match parse_mega_address(mega_address) {
+                Ok((peer_id, repo_name)) => (peer_id, repo_name),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return;
+                }
+            };
+            let path = get_repo_full_path(repo_name);
+            let request_file_id = swarm
+                .behaviour_mut()
+                .git_info_refs
+                .send_request(&peer_id, GitInfoRefsReq(path));
+            client_paras
+                .pending_git_obj_download
+                .insert(request_file_id, repo_name.to_string());
+        }
         _ => {
-            eprintln!("expected command: clone, provide");
+            eprintln!("expected command: clone, pull, provide, git_obj_download");
         }
     }
 }
