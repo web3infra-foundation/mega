@@ -1,8 +1,10 @@
+use entity::git_obj;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Kademlia, KademliaEvent};
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{dcutr, identify, relay, rendezvous, request_response};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "Event")]
@@ -13,12 +15,31 @@ pub struct Behaviour {
     pub kademlia: Kademlia<MemoryStore>,
     pub rendezvous: rendezvous::client::Behaviour,
     pub git_upload_pack: request_response::cbor::Behaviour<GitUploadPackReq, GitUploadPackRes>,
+    pub git_info_refs: request_response::cbor::Behaviour<GitInfoRefsReq, GitInfoRefsRes>,
+    pub git_object: request_response::cbor::Behaviour<GitObjectReq, GitObjectRes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GitUploadPackReq(pub String);
+pub struct GitUploadPackReq(
+    //want
+    pub HashSet<String>,
+    //have
+    pub HashSet<String>,
+    //path
+    pub String,
+);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitUploadPackRes(pub Vec<u8>, pub String);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GitInfoRefsReq(pub String);
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GitInfoRefsRes(pub String, pub Vec<String>);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GitObjectReq(pub String, pub Vec<String>);
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GitObjectRes(pub Vec<git_obj::Model>);
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -29,6 +50,8 @@ pub enum Event {
     Kademlia(KademliaEvent),
     Rendezvous(rendezvous::client::Event),
     GitUploadPack(request_response::Event<GitUploadPackReq, GitUploadPackRes>),
+    GitInfoRefs(request_response::Event<GitInfoRefsReq, GitInfoRefsRes>),
+    GitObject(request_response::Event<GitObjectReq, GitObjectRes>),
 }
 
 impl From<identify::Event> for Event {
@@ -64,5 +87,17 @@ impl From<rendezvous::client::Event> for Event {
 impl From<request_response::Event<GitUploadPackReq, GitUploadPackRes>> for Event {
     fn from(event: request_response::Event<GitUploadPackReq, GitUploadPackRes>) -> Self {
         Event::GitUploadPack(event)
+    }
+}
+
+impl From<request_response::Event<GitInfoRefsReq, GitInfoRefsRes>> for Event {
+    fn from(event: request_response::Event<GitInfoRefsReq, GitInfoRefsRes>) -> Self {
+        Event::GitInfoRefs(event)
+    }
+}
+
+impl From<request_response::Event<GitObjectReq, GitObjectRes>> for Event {
+    fn from(event: request_response::Event<GitObjectReq, GitObjectRes>) -> Self {
+        Event::GitObject(event)
     }
 }
