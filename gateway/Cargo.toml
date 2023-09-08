@@ -7,7 +7,7 @@ edition = "2021"
 
 [lib]
 name = "gateway"
-path = "src/mod.rs"
+path = "src/lib.rs"
 
 
 [dependencies]
