@@ -45,3 +45,7 @@ download/*
 
 #craft keys
 craft/key_files/*
+
+#bazel build output
+bazel-*
+/**/bazel-*
