@@ -10,6 +10,10 @@ edition = "2021"
 name = "git"
 path = "src/lib.rs"
 
+[features]
+default = ["diff_mydrs"]
+diff_mydrs = []
+diff_pa = []
 
 [dependencies]
 database = { path = "../database" }
