@@ -35,8 +35,20 @@ impl <'a>DeltaDiff<'a> {
             ssam: 0,
             ssam_r: 0.00,
         };
-
+        #[cfg(feature="diff_mydrs")]
         myers::diff(
+            &mut delta_diff,
+            old_data,
+            0,
+            old_data.len(),
+            new_data,
+            0,
+            new_data.len(),
+        )
+        .unwrap();
+
+        #[cfg(feature="diff_pa")]
+        diffs::patience::diff(
             &mut delta_diff,
             old_data,
             0,
