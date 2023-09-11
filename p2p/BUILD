@@ -26,6 +26,7 @@ rust_library(
         "//git",
         "//common",
         "//database",
+        "//database/entity"
     ],
     proc_macro_deps = all_crate_deps(
         proc_macro = True,
