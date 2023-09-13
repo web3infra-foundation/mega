@@ -15,6 +15,7 @@ git = {path = "../git"}
 common = {path = "../common"}
 database = {path = "../database"}
 entity = { path = "../database/entity" }
+sync = { path = "../sync"}
 anyhow = "1.0.75"
 axum = "0.6.20"
 hyper = "0.14.27"

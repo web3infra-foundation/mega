@@ -30,7 +30,7 @@ use tower_http::cors::{Any, CorsLayer};
 use std::env;
 use octocrab::{Octocrab, models::AppId};
 use jsonwebtoken::EncodingKey;
-
+use sync::service;
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -117,8 +117,7 @@ async fn post_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    
-
+    service::issue_generate(req).await;
     
     Err((
         StatusCode::FORBIDDEN,
