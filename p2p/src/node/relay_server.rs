@@ -5,7 +5,7 @@ use async_std::io::prelude::BufReadExt;
 use futures::executor::block_on;
 use futures::stream::StreamExt;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::Kademlia;
+use libp2p::kad::{AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, Kademlia, KademliaEvent, PeerRecord, PutRecordOk, QueryResult};
 use libp2p::{
     core::upgrade,
     core::Transport,
@@ -75,7 +75,7 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
                     }
                     //kad events
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Kademlia(event)) => {
-                         event_handler::kad_event_handler(event);
+                         kad_event_handler(event);
                     }
                     //RendezvousServer events
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Rendezvous(event)) => {
@@ -90,6 +90,55 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
     });
 
     Ok(())
+}
+
+pub fn kad_event_handler(event: KademliaEvent) {
+    if let KademliaEvent::OutboundQueryProgressed {  result, .. } = event {
+        match result {
+            QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(PeerRecord { record, peer }))) => {
+                let peer_id = match peer {
+                    Some(id) => id.to_string(),
+                    None => "local".to_string(),
+                };
+                tracing::info!(
+                    "Got record key[{}]={},from {}",
+                    String::from_utf8(record.key.to_vec()).unwrap(),
+                    String::from_utf8(record.value).unwrap(),
+                    peer_id
+                );
+            }
+            QueryResult::GetRecord(Err(err)) => {
+                tracing::error!("Failed to get record: {err:?}");
+            }
+            QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
+                tracing::info!(
+                    "Successfully put record {:?}",
+                    std::str::from_utf8(key.as_ref()).unwrap()
+                );
+            }
+            QueryResult::PutRecord(Err(err)) => {
+                tracing::error!("Failed to put record: {err:?}");
+            }
+            QueryResult::GetClosestPeers(Ok(GetClosestPeersOk { peers, .. })) => {
+                for x in peers {
+                    tracing::info!("{}", x);
+                }
+            }
+            QueryResult::GetClosestPeers(Err(err)) => {
+                tracing::error!("Failed to get closest peers: {err:?}");
+            }
+            QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders { providers, .. }), ..) => {
+                tracing::info!("FoundProviders: {providers:?}");
+            }
+            QueryResult::GetProviders(Err(e)) => {
+                tracing::error!("GetProviders error: {e:?}");
+            }
+            QueryResult::StartProviding(Ok(AddProviderOk { key, .. }), ..) => {
+                tracing::info!("StartProviding: {key:?}");
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(NetworkBehaviour)]

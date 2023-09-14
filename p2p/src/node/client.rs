@@ -5,6 +5,7 @@ use crate::network::event_handler;
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
 use database::DataSource;
+use entity::git_obj::Model;
 use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::core::upgrade;
@@ -18,6 +19,7 @@ use libp2p::{
 };
 use std::collections::HashMap;
 use std::error::Error;
+use std::sync::{Arc, Mutex};
 
 pub async fn run(
     local_key: identity::Keypair,
@@ -90,8 +92,13 @@ pub async fn run(
         pending_git_upload_package: HashMap::new(),
         pending_git_pull: HashMap::new(),
         pending_git_obj_download: HashMap::new(),
+        pending_repo_info_update_fork: HashMap::new(),
+        pending_repo_info_search_to_download_obj: HashMap::new(),
+        pending_git_obj_id_download: HashMap::new(),
+        repo_node_list: HashMap::new(),
+        repo_id_need_list: Arc::new(Mutex::new(HashMap::<String, Vec<String>>::new())),
+        repo_receive_git_obj_model_list: Arc::new(Mutex::new(HashMap::<String, Vec<Model>>::new())),
     };
-
     // Wait to listen on all interfaces.
     block_on(async {
         let mut delay = futures_timer::Delay::new(std::time::Duration::from_secs(1)).fuse();
@@ -232,7 +239,7 @@ pub async fn run(
                         },
                         //kad events
                         SwarmEvent::Behaviour(Event::Kademlia(event)) => {
-                            event_handler::kad_event_handler(event.clone());
+                            event_handler::kad_event_handler(&mut swarm, &mut client_paras, event);
                         },
                         //GitUploadPack events
                         SwarmEvent::Behaviour(Event::GitUploadPack(event)) => {
