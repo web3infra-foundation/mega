@@ -15,7 +15,7 @@ default = ["diff_mydrs","lru_cache"]
 diff_mydrs = []
 diff_pa = []
 lru_cache=[]
-redis_cache=[]
+
 [dependencies]
 database = { path = "../database" }
 common = { path = "../common" }

@@ -8,9 +8,12 @@ use crate::{
     utils,
 };
 
-#[cfg(feature="redis_cache")]
-use super::cache::{kvstore::ObjectCache, _Cache};
+#[cfg(not(feature="redis_cache"))]
 #[cfg(feature="lru_cache")]
+use super::cache::{kvstore::ObjectCache, _Cache};
+
+#[cfg(not(feature="lru_cache"))]
+#[cfg(feature="redis_cache")]
 use super::cache::{ObjectCache, _Cache};
 
 use serde::{Deserialize, Serialize};
@@ -486,7 +489,7 @@ mod tests {
         ))
         .unwrap();
 
-        let p = PackPreload::new(BufReader::new(file));
+        PackPreload::new(BufReader::new(file));
        
     }
     
@@ -502,6 +505,6 @@ mod tests {
             "/home/99211/linux/.git/objects/pack/pack-a3f96bcba83583d37b77a528b82bd1d97ffac70c.pack",
         ))
         .unwrap();
-        let p = PackPreload::new(BufReader::new(file));
+        PackPreload::new(BufReader::new(file));
     }
 }

@@ -27,7 +27,11 @@ where
         self.con.borrow_mut().set(key, value)
     }
 }
-
+impl<C> Default for KVCache<C> where C: Connector,{
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[cfg(test)]
 mod tests {
 }
