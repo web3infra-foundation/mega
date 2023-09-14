@@ -2,26 +2,33 @@ use super::behaviour;
 use crate::network::behaviour::{
     GitInfoRefsReq, GitInfoRefsRes, GitObjectReq, GitObjectRes, GitUploadPackReq, GitUploadPackRes,
 };
-use crate::node::ClientParas;
+use crate::node::{get_utc_timestamp, ClientParas, Fork, MegaRepoInfo};
 use crate::{get_pack_protocol, get_repo_full_path};
 use bytes::Bytes;
 use common::utils;
 use entity::git_obj;
+use entity::git_obj::Model;
 use git::protocol::{CommandType, RefCommand};
+use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{
     AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, Kademlia, KademliaEvent,
-    PeerRecord, PutRecordOk, QueryResult,
+    PeerRecord, PutRecordOk, QueryResult, Quorum, Record,
 };
-use libp2p::{identify, multiaddr, rendezvous, request_response, Swarm};
+use libp2p::{identify, multiaddr, rendezvous, request_response, PeerId, Swarm};
 use sea_orm::Set;
 use std::collections::HashSet;
 use std::path::Path;
+use std::str::FromStr;
 
 pub const NAMESPACE: &str = "rendezvous_mega";
 
-pub fn kad_event_handler(event: KademliaEvent) {
-    if let KademliaEvent::OutboundQueryProgressed { result, .. } = event {
+pub fn kad_event_handler(
+    swarm: &mut Swarm<behaviour::Behaviour>,
+    client_paras: &mut ClientParas,
+    event: KademliaEvent,
+) {
+    if let KademliaEvent::OutboundQueryProgressed { id, result, .. } = event {
         match result {
             QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(PeerRecord { record, peer }))) => {
                 let peer_id = match peer {
@@ -31,9 +38,67 @@ pub fn kad_event_handler(event: KademliaEvent) {
                 tracing::info!(
                     "Got record key[{}]={},from {}",
                     String::from_utf8(record.key.to_vec()).unwrap(),
-                    String::from_utf8(record.value).unwrap(),
+                    String::from_utf8(record.value.clone()).unwrap(),
                     peer_id
                 );
+                if let Some(object_id) = client_paras.pending_repo_info_update_fork.get(&id) {
+                    tracing::info!("update repo info forks");
+                    // update repo info forks
+                    if let Ok(p) = serde_json::from_slice(&record.value) {
+                        let mut repo_info: MegaRepoInfo = p;
+                        let fork = Fork {
+                            peer: swarm.local_peer_id().to_string(),
+                            latest: object_id.clone(),
+                            timestamp: get_utc_timestamp(),
+                        };
+                        repo_info.forks.push(fork);
+                        let record = Record {
+                            key: Key::new(&repo_info.name),
+                            value: serde_json::to_vec(&repo_info).unwrap(),
+                            publisher: None,
+                            expires: None,
+                        };
+                        if let Err(e) = swarm
+                            .behaviour_mut()
+                            .kademlia
+                            .put_record(record, Quorum::One)
+                        {
+                            eprintln!("Failed to store record:{}", e);
+                        }
+                    }
+                    client_paras.pending_repo_info_update_fork.remove(&id);
+                } else if let Some(repo_name) = client_paras
+                    .pending_repo_info_search_to_download_obj
+                    .get(&id)
+                {
+                    //try to search origin node
+                    tracing::info!("try to get origin node to search git_obj_id_list");
+                    if let Ok(p) = serde_json::from_slice(&record.value) {
+                        let repo_info: MegaRepoInfo = p;
+                        //save all node that have this repo,the first one is origin
+                        let mut node_id_list: Vec<String> = Vec::new();
+                        node_id_list.push(repo_info.origin.clone());
+                        for fork in &repo_info.forks {
+                            node_id_list.push(fork.peer.clone());
+                        }
+                        client_paras
+                            .repo_node_list
+                            .insert(repo_name.clone(), node_id_list);
+                        let remote_peer_id = PeerId::from_str(&repo_info.origin).unwrap();
+                        let path = get_repo_full_path(repo_name);
+                        //to get all git_obj id
+                        let request_file_id = swarm
+                            .behaviour_mut()
+                            .git_info_refs
+                            .send_request(&remote_peer_id, GitInfoRefsReq(path));
+                        client_paras
+                            .pending_git_obj_id_download
+                            .insert(request_file_id, repo_name.to_string());
+                    }
+                }
+                client_paras
+                    .pending_repo_info_search_to_download_obj
+                    .remove(&id);
             }
             QueryResult::GetRecord(Err(err)) => {
                 tracing::error!("Failed to get record: {err:?}");
@@ -245,7 +310,7 @@ pub async fn git_upload_pack_event_handler(
                     let command = RefCommand {
                         ref_name: String::from("refs/heads/master"),
                         old_id: String::from("0000000000000000000000000000000000000000"),
-                        new_id: object_id,
+                        new_id: object_id.clone(),
                         status: String::from("ok"),
                         error_msg: String::new(),
                         command_type: CommandType::Create,
@@ -257,6 +322,14 @@ pub async fn git_upload_pack_event_handler(
                     match result {
                         Ok(_) => {
                             tracing::info!("Save git package successfully :{}", repo_name);
+                            //update repoInfo
+                            let kad_query_id = swarm
+                                .behaviour_mut()
+                                .kademlia
+                                .get_record(Key::new(&repo_name));
+                            client_paras
+                                .pending_repo_info_update_fork
+                                .insert(kad_query_id, object_id);
                         }
                         Err(e) => {
                             tracing::error!("{}", e);
@@ -320,7 +393,7 @@ pub async fn git_info_refs_event_handler(
                 //receive git info refs  response
                 tracing::info!("Response git info refs event, request_id: {:?}", request_id);
                 if let Some(repo_name) = client_paras.pending_git_pull.get(&request_id) {
-                    //pull request
+                    //have git_ids and try to send pull request
                     let ref_git_id = response.0;
                     let _git_ids = response.1;
                     tracing::info!("repo_name: {}", repo_name);
@@ -355,21 +428,45 @@ pub async fn git_info_refs_event_handler(
                     client_paras.pending_git_pull.remove(&request_id);
                     return;
                 }
-                if let Some(repo_name) = client_paras.pending_git_obj_download.get(&request_id) {
-                    // git_obj_download request
+                if let Some(repo_name) = client_paras
+                    .pending_git_obj_id_download
+                    .clone()
+                    .get(&request_id)
+                {
+                    // have git_ids and try to download git obj
                     let _ref_git_id = response.0;
                     let git_ids = response.1;
                     let path = get_repo_full_path(repo_name);
                     tracing::info!("path: {}", path);
                     tracing::info!("git_ids: {:?}", git_ids);
-                    //trying to download git_obj from peer
-                    let new_request_id = swarm
-                        .behaviour_mut()
-                        .git_object
-                        .send_request(&peer, GitObjectReq(path, git_ids));
-                    client_paras
-                        .pending_git_obj_download
-                        .insert(new_request_id, repo_name.to_string());
+                    //trying to download git_obj from peers
+                    if let Some(repo_list) = client_paras.repo_node_list.get(repo_name) {
+                        if !repo_list.is_empty() {
+                            tracing::info!("try to download git object from: {:?}", repo_list);
+                            tracing::info!("the origin is: {}", repo_list[0]);
+                            // Try to download separately
+                            let split_git_ids = split_array(git_ids.clone(), repo_list.len());
+                            let repo_id_need_list_arc = client_paras.repo_id_need_list.clone();
+                            {
+                                let mut repo_id_need_list = repo_id_need_list_arc.lock().unwrap();
+                                repo_id_need_list.insert(repo_name.to_string(), git_ids);
+                            }
+
+                            for i in 0..repo_list.len() {
+                                // send get git object request
+                                let ids = split_git_ids[i].clone();
+                                let repo_peer_id = PeerId::from_str(&repo_list[i].clone()).unwrap();
+                                let new_request_id = swarm
+                                    .behaviour_mut()
+                                    .git_object
+                                    .send_request(&repo_peer_id, GitObjectReq(path.clone(), ids));
+                                client_paras
+                                    .pending_git_obj_download
+                                    .insert(new_request_id, repo_name.to_string());
+                            }
+                        }
+                    }
+                    client_paras.pending_git_obj_id_download.remove(&request_id);
                 }
             }
         },
@@ -388,7 +485,7 @@ pub async fn git_object_event_handler(
     event: request_response::Event<GitObjectReq, GitObjectRes>,
 ) {
     match event {
-        request_response::Event::Message { message, .. } => match message {
+        request_response::Event::Message { peer, message, .. } => match message {
             request_response::Message::Request {
                 request, channel, ..
             } => {
@@ -417,35 +514,95 @@ pub async fn git_object_event_handler(
                 response,
             } => {
                 //receive git object response
-                tracing::info!("Response git object event, request_id: {:?}", request_id);
+                tracing::debug!("Response git object event, request_id: {:?}", request_id);
                 let git_obj_models = response.0;
-                tracing::info!("Receive {:?} git_obj", git_obj_models.len());
+                tracing::info!(
+                    "Receive {:?} git_obj, from {:?}",
+                    git_obj_models.len(),
+                    peer
+                );
+                let receive_id_list: Vec<String> = git_obj_models
+                    .clone()
+                    .iter()
+                    .map(|m| m.git_id.clone())
+                    .collect();
+                tracing::info!("git_obj_id_list:{:?}", receive_id_list);
+
                 if let Some(repo_name) = client_paras.pending_git_obj_download.get(&request_id) {
-                    let path = get_repo_full_path(repo_name);
-                    let pack_protocol =
-                        get_pack_protocol(&path, client_paras.storage.clone()).await;
-                    let git_obj_active_model = git_obj_models
-                        .iter()
-                        .map(|m| git_obj::ActiveModel {
-                            id: Set(m.id),
-                            git_id: Set(m.git_id.clone()),
-                            object_type: Set(m.object_type.clone()),
-                            data: Set(m.data.clone()),
-                        })
-                        .collect();
-                    match pack_protocol
-                        .storage
-                        .save_obj_data(git_obj_active_model)
-                        .await
+                    let repo_receive_git_obj_model_list_arc =
+                        client_paras.repo_receive_git_obj_model_list.clone();
                     {
-                        Ok(_) => {
-                            tracing::info!(
-                                "Save {:?} git_obj to database successfully",
-                                git_obj_models.len()
-                            );
+                        let mut receive_git_obj_model_map =
+                            repo_receive_git_obj_model_list_arc.lock().unwrap();
+                        receive_git_obj_model_map
+                            .entry(repo_name.clone())
+                            .or_insert(Vec::new());
+                        let receive_obj_model_list =
+                            receive_git_obj_model_map.get(repo_name).unwrap();
+                        let mut clone = receive_obj_model_list.clone();
+                        clone.append(&mut git_obj_models.clone());
+                        tracing::info!("receive_obj_model_list:{:?}", clone.len());
+                        receive_git_obj_model_map.insert(repo_name.to_string(), clone);
+                    }
+
+                    let repo_id_need_list_arc = client_paras.repo_id_need_list.clone();
+                    let mut finish = false;
+                    {
+                        let mut repo_id_need_list_map = repo_id_need_list_arc.lock().unwrap();
+                        if let Some(id_need_list) = repo_id_need_list_map.get(repo_name) {
+                            let mut clone = id_need_list.clone();
+                            clone.retain(|x| !receive_id_list.contains(x));
+                            if clone.is_empty() {
+                                finish = true;
+                            }
+                            repo_id_need_list_map.insert(repo_name.to_string(), clone);
                         }
-                        Err(e) => {
-                            tracing::error!("{:?}", e);
+                    }
+                    println!("finish:{}", finish);
+                    if finish {
+                        let repo_receive_git_obj_model_list_arc2 =
+                            client_paras.repo_receive_git_obj_model_list.clone();
+                        let mut obj_model_list: Vec<Model> = Vec::new();
+                        {
+                            let mut receive_git_obj_model_map =
+                                repo_receive_git_obj_model_list_arc2.lock().unwrap();
+                            if !receive_git_obj_model_map.contains_key(repo_name) {
+                                tracing::error!("git_object cache error");
+                                return;
+                            }
+                            let receive_git_obj_model =
+                                receive_git_obj_model_map.get(repo_name).unwrap();
+                            obj_model_list.append(&mut receive_git_obj_model.clone());
+                            receive_git_obj_model_map.remove(repo_name);
+                        }
+
+                        tracing::info!("receive all git_object :{:?}", obj_model_list.len());
+                        let path = get_repo_full_path(repo_name);
+                        let pack_protocol =
+                            get_pack_protocol(&path, client_paras.storage.clone()).await;
+                        let git_obj_active_model = obj_model_list
+                            .iter()
+                            .map(|m| git_obj::ActiveModel {
+                                id: Set(m.id),
+                                git_id: Set(m.git_id.clone()),
+                                object_type: Set(m.object_type.clone()),
+                                data: Set(m.data.clone()),
+                            })
+                            .collect();
+                        match pack_protocol
+                            .storage
+                            .save_obj_data(git_obj_active_model)
+                            .await
+                        {
+                            Ok(_) => {
+                                tracing::info!(
+                                    "Save {:?} git_obj to database successfully",
+                                    obj_model_list.len()
+                                );
+                            }
+                            Err(e) => {
+                                tracing::error!("{:?}", e);
+                            }
                         }
                     }
                     client_paras.pending_git_obj_download.remove(&request_id);
@@ -498,4 +655,20 @@ async fn git_upload_pack_handler(
         };
         Ok((send_pack_data, object_id))
     }
+}
+
+fn split_array(a: Vec<String>, count: usize) -> Vec<Vec<String>> {
+    let mut result = vec![];
+    let split_num = a.len() / count;
+    for i in 0..count {
+        let v: Vec<_> = if i != count - 1 {
+            a.clone()
+                .drain(i * split_num..(i + 1) * split_num)
+                .collect()
+        } else {
+            a.clone().drain(i * split_num..).collect()
+        };
+        result.push(v);
+    }
+    result
 }
