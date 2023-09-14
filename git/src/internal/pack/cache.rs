@@ -8,6 +8,16 @@ struct OffHash {
     h: Hash,
 }
 
+pub trait _Cache{
+    type T ;
+    fn new(size: Option<usize>) -> Self where Self: Sized;
+    fn get_hash(&self, offset: usize) -> Option<Hash>;
+    fn get(&mut self, offset: usize) -> Option<Self::T>;
+    fn put(&mut self, offset: usize, hash: Hash, obj: Self::T);
+    fn get_by_hash(&mut self, h: Hash) -> Option<Self::T>;
+}
+
+
 /// In ObjectCache ,we need the bounds like:
 /// - between offset and object data
 /// - between hash value and object data
@@ -52,11 +62,12 @@ impl<T> Default for ObjectCache<T> {
         }
     }
 }
-impl<T> ObjectCache<T>
+impl<T> _Cache for  ObjectCache<T>
 where
     T: Clone,
 {
-    pub fn new(size: Option<usize>) -> Self {
+    type T = T; 
+    fn new(size: Option<usize>) -> Self {
         let lru_size = if let Some(size) = size {
             NonZeroUsize::new(size).unwrap()
         } else {
@@ -68,34 +79,88 @@ where
             inner: LruCache::new(lru_size),
         }
     }
-    pub fn get_hash(&self, offset: usize) -> Option<Hash> {
+    fn get_hash(&self, offset: usize) -> Option<Hash> {
         self.ioffset.get(&offset).map(|oh| oh.h)
     }
-    pub fn put(&mut self, offset: usize, hash: Hash, obj: T) {
+    fn put(&mut self, offset: usize, hash: Hash, obj: T) {
         let oh: OffHash = OffHash { o: offset, h: hash };
         self.ioffset.insert(offset, oh.clone());
         self.ihash.put(hash, oh.clone());
         self.inner.put(oh, obj);
     }
 
-    pub fn get(&mut self, offset: usize) -> Option<T> {
+    fn get(&mut self, offset: usize) -> Option<T> {
         let oh = self.ioffset.get(&offset)?;
         self.ihash.get(&oh.h)?;
         self.inner.get(oh).cloned()
     }
 
-    pub fn get_by_hash(&mut self, h: Hash) -> Option<T> {
+    fn get_by_hash(&mut self, h: Hash) -> Option<T> {
         let oh = self.ihash.get(&h)?;
         self.inner.get(oh).cloned()
     }
+
+    
 }
+
+pub mod kvstore{
+    use std::collections::HashMap;
+    use crate::internal::pack::Hash;
+    //use kvcache::connector::fake::FakeKVstore;
+    use kvcache::connector::redis::RedisClient;
+    use kvcache::KVCache;
+    use super:: _Cache;
+
+    pub struct ObjectCache<T> {
+        ioffset:  HashMap<usize, Hash>,
+        inner : KVCache<RedisClient<Hash,T>>
+    }
+    impl<T> Default for ObjectCache<T> where T : redis::ToRedisArgs + redis::FromRedisValue + Clone {
+        fn default() -> Self {
+            Self {
+                ioffset: HashMap::new(),
+                inner: KVCache::new(),
+            }
+        }
+    }
+    impl<T> _Cache for  ObjectCache<T>
+    where
+        T: Clone + redis::ToRedisArgs + redis::FromRedisValue ,
+    {
+        type T = T; 
+        fn new(_size: Option<usize>) -> Self {
+           Self::default()
+        }
+        fn get_hash(&self, offset: usize) -> Option<Hash> {
+            self.ioffset.get(&offset).copied()
+        }
+        fn put(&mut self, offset: usize, hash: Hash, obj: T) {
+            self.ioffset.insert(offset, hash);
+            self.inner.set(hash, obj).unwrap();
+        }
+    
+        fn get(&mut self, offset: usize) -> Option<T> {
+            let h = self.ioffset.get(&offset)?;
+            self.inner.get(*h)    
+        }
+    
+        fn get_by_hash(&mut self, h: Hash) -> Option<T> {
+            self.inner.get(h)  
+        }
+    
+        
+    }
+    
+}
+
+
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
 
     use serde_json::to_vec;
 
-    use super::ObjectCache;
+    use super::{ObjectCache, _Cache};
     use crate::{hash::Hash, internal::object::blob};
     #[test] //TODO: to test
     fn test_cache() {

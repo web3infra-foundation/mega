@@ -1,6 +1,7 @@
 
 use crate::internal::pack::Hash;
-#[derive(Debug, Clone)]
+use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone,Serialize, Deserialize)]
 pub enum EntryHeader {
     Commit,
     Tree,

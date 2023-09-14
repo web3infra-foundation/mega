@@ -1,4 +1,4 @@
-use super::{cache::ObjectCache, counter::GitTypeCounter, delta::undelta, EntryHeader, Pack};
+use super::{counter::GitTypeCounter, delta::undelta, EntryHeader, Pack};
 use crate::{
     errors::GitError,
     internal::{
@@ -7,11 +7,22 @@ use crate::{
     },
     utils,
 };
+
+#[cfg(not(feature="redis_cache"))]
+#[cfg(feature="lru_cache")]
+use super::cache::{kvstore::ObjectCache, _Cache};
+
+#[cfg(not(feature="lru_cache"))]
+#[cfg(feature="redis_cache")]
+use super::cache::{ObjectCache, _Cache};
+
+use serde::{Deserialize, Serialize};
 use async_recursion::async_recursion;
 use database::{driver::ObjectStorage, utils::id_generator::generate_id};
 use entity::{git_obj, mr};
 use num_cpus;
 
+use redis::{ToRedisArgs, FromRedisValue, RedisError, ErrorKind};
 use sea_orm::Set;
 use sha1::{Digest, Sha1};
 use std::{
@@ -25,13 +36,14 @@ use tokio::sync::RwLock;
 ///
 /// One Pre loading Git object in memory
 ///
-#[derive(Clone)]
+#[derive(Clone,Serialize, Deserialize)]
 struct Entry {
     header: EntryHeader,
     offset: usize,
     data: Vec<u8>,
     hash: Option<Hash>,
 }
+
 impl Entry {
     fn convert_to_mr_model(self, mr_id: i64) -> mr::ActiveModel {
         mr::ActiveModel {
@@ -48,6 +60,41 @@ impl Entry {
             git_id: Set(self.hash.unwrap().to_plain_str()),
             object_type: Set(String::from_utf8_lossy(self.header.to_bytes()).to_string()),
             data: Set(self.data),
+        }
+    }
+}
+impl ToRedisArgs for Entry {
+    fn write_redis_args<W>(&self, out: &mut W)
+    where
+        W: ?Sized + redis::RedisWrite,
+    {
+        out.write_arg(&serde_json::to_vec(&self).unwrap())
+    }
+}
+impl FromRedisValue for Entry {
+    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+        match v {
+            redis::Value::Nil => Err(RedisError::from((ErrorKind::TypeError, "nil value "))),
+            redis::Value::Int(_) => {
+                Err(RedisError::from((ErrorKind::TypeError, "cat by int  ")))
+            }
+            redis::Value::Data(a) => {
+                if let Ok(message) = serde_json::from_slice::<Self>(a) {
+                    Ok(message)
+                } else {
+                    Err(RedisError::from((
+                        ErrorKind::TypeError,
+                        "cat conver by data cause json error  ",
+                    )))
+                }
+            }
+            redis::Value::Bulk(_) => {
+                Err(RedisError::from((ErrorKind::TypeError, "cat by Bulk ")))
+            }
+            redis::Value::Status(_) => {
+                Err(RedisError::from((ErrorKind::TypeError, "nil value ")))
+            }
+            redis::Value::Okay => Err(RedisError::from((ErrorKind::TypeError, "nil value "))),
         }
     }
 }
@@ -367,7 +414,7 @@ async fn delta_offset_obj(
         if let Some(b_obj) = cache.get(base_distance) {
             {
                 counter.lock().unwrap().count(CacheHit);
-            }
+            }   
             buff_obj = b_obj;
             base_obj = &buff_obj;
         } else {
@@ -436,18 +483,16 @@ mod tests {
 
     #[test]
     async fn preload_read_decode() {
+        
         let file = File::open(Path::new(
             "../tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack",
         ))
         .unwrap();
 
-        let p = PackPreload::new(BufReader::new(file));
-        println!("{}", p.len());
-        for it in p.entries {
-            println!("{:?},offset:{}", it.header, it.offset);
-        }
+        PackPreload::new(BufReader::new(file));
+       
     }
-
+    
     #[test]
     #[ignore]
     async fn test_demo_channel() {
@@ -455,15 +500,11 @@ mod tests {
             "MEGA_DATABASE_URL",
             "mysql://root:123456@localhost:3306/mega",
         );
+     
         let file = File::open(Path::new(
             "/home/99211/linux/.git/objects/pack/pack-a3f96bcba83583d37b77a528b82bd1d97ffac70c.pack",
         ))
         .unwrap();
-        let p = PackPreload::new(BufReader::new(file));
-        let mut total = 0;
-        for it in p.entries {
-            total += it.data.len();
-        }
-        println!("{}", total);
+        PackPreload::new(BufReader::new(file));
     }
 }

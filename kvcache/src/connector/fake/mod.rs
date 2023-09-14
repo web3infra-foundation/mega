@@ -31,7 +31,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::FakeKVstore;
-    use crate::connector::KVCache;
+    use crate::KVCache;
 
     #[test]
     fn test_face_connect() {
