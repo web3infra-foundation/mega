@@ -1,6 +1,7 @@
 use super::ClientParas;
 use crate::network::behaviour;
 use crate::network::behaviour::{GitInfoRefsReq, GitUploadPackReq};
+use crate::node::{get_utc_timestamp, MegaRepoInfo};
 use crate::{get_pack_protocol, get_repo_full_path};
 use common::utils;
 use libp2p::kad::record::Key;
@@ -134,10 +135,18 @@ pub async fn handle_mega_command(
                 eprintln!("Repository not found");
                 return;
             }
-            let address = format!("p2p://{}/{}", swarm.local_peer_id(), repo_name);
+            //Construct repoInfo
+            let mega_repo_info = MegaRepoInfo {
+                origin: swarm.local_peer_id().to_string(),
+                name: repo_name.clone(),
+                latest: object_id,
+                forks: vec![],
+                timestamp: get_utc_timestamp(),
+            };
+
             let record = Record {
                 key: Key::new(&repo_name),
-                value: address.into_bytes(),
+                value: serde_json::to_vec(&mega_repo_info).unwrap(),
                 publisher: None,
                 expires: None,
             };
@@ -226,31 +235,37 @@ pub async fn handle_mega_command(
                 .insert(request_id, repo_name.to_string());
         }
         Some("git_obj_download") => {
-            // mega git_obj_download p2p://12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X/mega_test.git
-            let mega_address = {
+            // mega git_obj_download mega_test.git
+            let repo_name = {
                 match args_iter.next() {
-                    Some(key) => key,
+                    Some(path) => path.to_string(),
                     None => {
-                        eprintln!("Expected mega_address");
+                        eprintln!("Expected repo_name");
                         return;
                     }
                 }
             };
-            let (peer_id, repo_name) = match parse_mega_address(mega_address) {
-                Ok((peer_id, repo_name)) => (peer_id, repo_name),
-                Err(e) => {
-                    eprintln!("{}", e);
-                    return;
-                }
-            };
-            let path = get_repo_full_path(repo_name);
-            let request_file_id = swarm
+            if !repo_name.ends_with(".git") {
+                eprintln!("repo_name should end with .git");
+                return;
+            }
+
+            let kad_query_id = swarm
                 .behaviour_mut()
-                .git_info_refs
-                .send_request(&peer_id, GitInfoRefsReq(path));
+                .kademlia
+                .get_record(Key::new(&repo_name));
             client_paras
-                .pending_git_obj_download
-                .insert(request_file_id, repo_name.to_string());
+                .pending_repo_info_search_to_download_obj
+                .insert(kad_query_id, repo_name);
+
+            // let path = get_repo_full_path(repo_name);
+            // let request_file_id = swarm
+            //     .behaviour_mut()
+            //     .git_info_refs
+            //     .send_request(&peer_id, GitInfoRefsReq(path));
+            // client_paras
+            //     .pending_git_obj_download
+            //     .insert(request_file_id, repo_name.to_string());
         }
         _ => {
             eprintln!("expected command: clone, pull, provide, git_obj_download");
