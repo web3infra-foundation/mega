@@ -11,14 +11,16 @@ name = "git"
 path = "src/lib.rs"
 
 [features]
-default = ["diff_mydrs"]
+default = ["diff_mydrs","lru_cache"]
 diff_mydrs = []
 diff_pa = []
-
+lru_cache=[]
+redis_cache=[]
 [dependencies]
 database = { path = "../database" }
 common = { path = "../common" }
 entity = { path = "../database/entity" }
+kvcache ={ path = "../kvcache"}
 anyhow = "1.0.75"
 bstr = "1.5.0"
 chrono = "0.4.24"
@@ -41,6 +43,7 @@ russh = "0.38.0"
 russh-keys = "0.38.0"
 async-trait = "0.1.71"
 rand = "0.8.5"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.105"
 lru = "0.11.0"
 async-recursion = "1.0.4"
@@ -52,3 +55,4 @@ sea-orm = { version = "0.12.2", features = [
     "macros",
     "mock",
 ] }
+redis = { version = "0.23.3", features = ["tokio-comp"] }

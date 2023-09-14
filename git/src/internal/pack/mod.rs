@@ -3,21 +3,24 @@
 //!
 //!
 //!
-use self::{cache::ObjectCache, header::EntryHeader};
+use self::{
+    cache::{ObjectCache, _Cache},
+    header::EntryHeader,
+};
 
 use super::object::ObjectT;
 use crate::hash::Hash;
 use std::{path::PathBuf, sync::Arc};
 
 mod cache;
+mod counter;
+mod cqueue;
 pub mod decode;
 pub mod delta;
 pub mod encode;
-pub mod iterator;
 mod header;
+pub mod iterator;
 pub mod preload;
-mod counter;
-mod cqueue;
 /// ### Represents a Git pack file.
 ///  `head`: The file header, typically "PACK"<br>
 /// `version`: The pack file version <br>
@@ -26,15 +29,27 @@ mod cqueue;
 /// `result`: decoded cache of pack objects <br>
 /// `path` : The path to the pack file on disk
 #[allow(unused)]
-#[derive(Default)]
 pub struct Pack {
     head: [u8; 4],
     version: u32,
     number_of_objects: usize,
     pub signature: Hash,
     path: PathBuf,
-    cache: ObjectCache<Arc<dyn ObjectT>>,
+    cache: Box<dyn _Cache<T = Arc<dyn ObjectT>>>,
     //iterator: Option<iterator::EntriesIter<BR>>,
+}
+
+impl Default for Pack {
+    fn default() -> Self {
+        Self {
+            head: Default::default(),
+            version: Default::default(),
+            number_of_objects: Default::default(),
+            signature: Default::default(),
+            path: Default::default(),
+            cache: Box::new(ObjectCache::new(None)),
+        }
+    }
 }
 
 impl Pack {
@@ -45,9 +60,9 @@ impl Pack {
     pub fn number_of_objects(&self) -> usize {
         self.number_of_objects
     }
-    pub fn get_cache(self) -> ObjectCache<Arc<dyn ObjectT>> {
-        self.cache
-    }
+    // pub fn get_cache(self) -> ObjectCache<Arc<dyn ObjectT>> {
+    //     //self.cache
+    // }
 }
 
 pub struct Entry {

@@ -68,7 +68,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::connector::{redis::RedisClient, Connector, KVCache};
+    use crate::connector::{redis::RedisClient, Connector};
+    use crate::KVCache;
     use anyhow::Result;
     use redis::{ErrorKind, FromRedisValue, RedisError, ToRedisArgs, cmd};
     use redis_test::{MockCmd, MockRedisConnection};

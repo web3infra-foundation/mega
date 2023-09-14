@@ -8,7 +8,7 @@ use std::fmt::Display;
 use bstr::ByteSlice;
 use colored::Colorize;
 use sha1::{Digest, Sha1};
-
+use serde::{Deserialize, Serialize};
 /// The Hash struct which only contain the u8 array :`[u8;20]` is used to represent Git hash IDs,
 /// which are 40-character hexadecimal strings computed using the SHA-1 algorithm. In Git, each object
 /// is assigned a unique hash ID based on its content, which is used to identify
@@ -16,7 +16,7 @@ use sha1::{Digest, Sha1};
 /// way to store and manipulate Git hash IDs by using a separate struct for hash IDs to make
 /// code more readable and maintainable.
 #[allow(unused)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default,Deserialize, Serialize)]
 pub struct Hash(pub [u8; 20]);
 pub trait CompHash {
     fn compute_hash(&self) -> Hash;
@@ -33,7 +33,13 @@ impl Display for Hash {
         write!(f, "{}", self.to_plain_str().red().bold())
     }
 }
-
+impl redis::ToRedisArgs for Hash{
+    fn write_redis_args<W>(&self, out: &mut W)
+    where
+        W: ?Sized + redis::RedisWrite {
+        out.write_arg(&self.0)
+    }
+}
 impl Hash {
     /// Calculate the SHA-1 hash of `Vec<u8>` data
     /// # Example

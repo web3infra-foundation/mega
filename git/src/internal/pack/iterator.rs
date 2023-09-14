@@ -13,7 +13,7 @@ use crate::{
 use crate::internal::object::ObjectT;
 use std::sync::Arc;
 
-use super::cache::ObjectCache;
+use super::cache::{ObjectCache, _Cache};
 type IteratorResult = Result<Arc<dyn ObjectT>, GitError>;
 type GitIteratorResult = Result<GitObjects, GitError>;
 
@@ -22,7 +22,7 @@ pub struct EntriesIter<BR> {
     inner: BR,
     offset: usize,
     objects_left: u32,
-    cache: ObjectCache<Arc<dyn ObjectT>>,
+    cache: Box<dyn _Cache<T = Arc<dyn ObjectT>>> ,
     storage: Option<Arc<dyn ObjectStorage>>,
 }
 
@@ -38,7 +38,7 @@ impl<BR: std::io::BufRead> EntriesIter<BR> {
             inner: r,
             offset: 12,
             objects_left: obj_num,
-            cache: ObjectCache::new(cache_size),
+            cache: Box::new(ObjectCache::new(cache_size)),
             storage: None,
         }
     }
