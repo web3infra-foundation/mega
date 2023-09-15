@@ -191,11 +191,11 @@ impl PackProtocol {
                 .await
                 .unwrap();
             let path = &self.path;
-            let pack_result = conversion::save_packfile(self.storage.clone(), mr_id, path).await;
-            if pack_result.is_ok() {
+            let parse_obj_result = conversion::save_node_from_mr(self.storage.clone(), mr_id, path).await;
+            if parse_obj_result.is_ok() {
                 conversion::handle_refs(self.storage.clone(), command, path).await;
             } else {
-                tracing::error!("{}", pack_result.err().unwrap());
+                tracing::error!("{}", parse_obj_result.err().unwrap());
                 command.failed(String::from("db operation failed"));
             }
             // After receiving the pack data from the sender, the receiver sends a report

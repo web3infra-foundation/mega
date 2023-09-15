@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::{collections::HashSet, sync::Arc};
 
+use super::nodes::NodeBuilder;
 use crate::errors::GitError;
 use crate::hash::Hash;
 use crate::internal::object::blob::Blob;
@@ -14,11 +15,10 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
 use database::driver::ObjectStorage;
-use entity::{commit, git_obj, refs};
+use entity::{git_obj, refs};
+use itertools::Itertools;
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
-
-use super::nodes::Repo;
 
 impl PackProtocol {
     /// Asynchronously retrieves the full pack data for the specified repository path.
@@ -203,7 +203,7 @@ pub async fn generate_child_commit_and_refs(
     }
 }
 
-pub async fn save_packfile(
+pub async fn save_node_from_mr(
     storage: Arc<dyn ObjectStorage>,
     mr_id: i64,
     repo_path: &Path,
@@ -212,23 +212,50 @@ pub async fn save_packfile(
     let blob_map: HashMap<Hash, Blob> = get_objects_from_mr(storage.clone(), mr_id, "blob").await;
     let commit_map: HashMap<Hash, Commit> =
         get_objects_from_mr(storage.clone(), mr_id, "commit").await;
-    let repo = Repo {
+    let commits: Vec<Commit> = commit_map.values().map(|x| x.to_owned()).collect();
+    let builder = NodeBuilder {
         storage: storage.clone(),
-        mr_id,
         tree_map,
         blob_map,
         repo_path: repo_path.to_path_buf(),
+        commits,
     };
-    let commits: Vec<&Commit> = commit_map.values().collect();
-    let nodes = repo.build_node_tree(&commits).await.unwrap();
-    storage.save_nodes(nodes).await.unwrap();
+    let nodes = builder.build_node_tree().await.unwrap();
+    builder.save_nodes(nodes).await.unwrap();
+    builder.save_commits().await.unwrap();
+    Ok(())
+}
 
-    let save_models: Vec<commit::ActiveModel> = commits
+pub async fn save_node_from_git_obj(
+    storage: Arc<dyn ObjectStorage>,
+    repo_path: &Path,
+    git_objs: Vec<git_obj::Model>,
+) -> Result<(), anyhow::Error> {
+    let mut model_vec_map: HashMap<String, Vec<git_obj::Model>> = HashMap::new();
+
+    for (key, group) in &git_objs
         .into_iter()
-        .map(|commit| commit.convert_to_model(repo_path))
-        .collect();
+        .group_by(|model| model.object_type.clone())
+    {
+        let model_vec: Vec<git_obj::Model> = group.collect();
+        model_vec_map.insert(key.to_owned(), model_vec);
+    }
+    let tree_map: HashMap<Hash, Tree> = convert_model_to_map(model_vec_map.get("tree").unwrap().to_vec());
+    let blob_map: HashMap<Hash, Blob> = convert_model_to_map(model_vec_map.get("blob").unwrap().to_vec());
+    let commit_map: HashMap<Hash, Commit> =
+        convert_model_to_map(model_vec_map.get("commit").unwrap().to_vec());
+    let commits: Vec<Commit> = commit_map.values().map(|x| x.to_owned()).collect();
 
-    storage.save_commits(save_models).await.unwrap();
+    let repo = NodeBuilder {
+        storage: storage.clone(),
+        tree_map,
+        blob_map,
+        repo_path: repo_path.to_path_buf(),
+        commits,
+    };
+    let nodes = repo.build_node_tree().await.unwrap();
+    repo.save_nodes(nodes).await.unwrap();
+    repo.save_commits().await.unwrap();
     Ok(())
 }
 
@@ -262,9 +289,12 @@ pub async fn get_objects_from_mr<T: ObjectT>(
         .map(|model| model.git_id.clone())
         .collect();
     let models = storage.get_obj_data_by_ids(git_ids).await.unwrap();
+    convert_model_to_map(models)
+}
 
+pub fn convert_model_to_map<T: ObjectT>(models: Vec<git_obj::Model>) -> HashMap<Hash, T> {
     models
-        .into_iter()
+        .iter()
         .map(|model| {
             let mut obj = T::new_from_data(model.data.clone());
             let hash = Hash::new_from_str(&model.git_id);
