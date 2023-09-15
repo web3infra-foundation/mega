@@ -5,12 +5,14 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Ok;
 use async_recursion::async_recursion;
+use common::errors::MegaError;
 use database::{
     driver::ObjectStorage,
     utils::id_generator::{self, generate_id},
 };
-use entity::node;
+use entity::{commit, node};
 use sea_orm::{ActiveValue::NotSet, Set};
 
 use crate::{
@@ -25,13 +27,13 @@ use crate::{
 
 use super::GitNodeObject;
 
-pub struct Repo {
+pub struct NodeBuilder {
     // pub repo_root: Box<dyn Node>,
     pub storage: Arc<dyn ObjectStorage>,
-    pub mr_id: i64,
     pub tree_map: HashMap<Hash, Tree>,
     pub blob_map: HashMap<Hash, Blob>,
     pub repo_path: PathBuf,
+    pub commits: Vec<Commit>,
 }
 
 pub struct TreeNode {
@@ -286,19 +288,16 @@ impl TreeNode {
     }
 }
 
-impl Repo {
+impl NodeBuilder {
     /// this method is used to build node tree and persist node data to database. Conversion order:
     /// 1. Git TreeItem => Struct Node => DB Model
     /// 2. Git Blob => DB Model
     /// current: protocol => storage => structure
     /// expected: protocol => structure => storage
-    pub async fn build_node_tree(
-        &self,
-        commits: &Vec<&Commit>,
-    ) -> Result<Vec<node::ActiveModel>, anyhow::Error> {
+    pub async fn build_node_tree(&self) -> Result<Vec<node::ActiveModel>, anyhow::Error> {
         let mut nodes = Vec::new();
         let mut tree_build_cache = HashSet::new();
-        for commit in commits {
+        for commit in &self.commits {
             let commit_tree_id = commit.tree_id;
 
             if !tree_build_cache.contains(&commit_tree_id) {
@@ -382,6 +381,19 @@ impl Repo {
 
             tree_build_cache.insert(item.id);
         }
+    }
+
+    pub async fn save_commits(&self) -> Result<bool, MegaError> {
+        let save_models: Vec<commit::ActiveModel> = self
+            .commits
+            .iter()
+            .map(|commit| commit.convert_to_model(&self.repo_path))
+            .collect();
+        self.storage.save_commits(save_models).await
+    }
+
+    pub async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
+        self.storage.save_nodes(nodes).await
     }
 }
 

@@ -1,19 +1,6 @@
 
 load("@crate_index//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test", "rust_doc_test")
-# load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
-
-# cargo_build_script(
-#     name = "build",
-#     srcs = [
-#         "build.rs",
-#     ],
-#     deps = all_crate_deps(
-#         normal = True,
-#         build = True,
-#     ),
-#     crate_root = "build.rs",
-# )
 
 
 rust_library(
