@@ -2,8 +2,6 @@
 # will have compiled files and executables
 /target/
 
-#craft keys
-key_files/*
 
 #filter config
 .gitattributes
