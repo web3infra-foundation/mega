@@ -23,20 +23,20 @@ use git::lfs::{self, LfsConfig};
 use git::protocol::{http, ServiceType};
 use git::protocol::{PackProtocol, Protocol};
 use hyper::{Body, Request, StatusCode, Uri};
+use jsonwebtoken::EncodingKey;
+use octocrab::{models::AppId, Octocrab};
 use regex::Regex;
 use serde::Deserialize;
+use std::env;
+use sync::service;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use std::env;
-use octocrab::{Octocrab, models::AppId};
-use jsonwebtoken::EncodingKey;
-use sync::service;
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
 pub struct WebhookOptions {
     /// Server start hostname
-    #[arg(long, default_value_t = String::from("127.0.0.1"))]
+    #[arg(long, default_value_t = String::from("0.0.0.0"))]
     pub host: String,
 
     #[arg(short, long, default_value_t = 3000)]
@@ -61,7 +61,6 @@ pub struct AppState {
     pub options: WebhookOptions,
 }
 
-
 pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
@@ -73,13 +72,13 @@ pub async fn webhook_server(options: &WebhookOptions) -> Result<(), Box<dyn std:
     let webhook_secret = env::var("GITHUB_WEBHOOK_SECRET").expect("Missing GITHUB_WEBHOOK_SECRET");
 
     // Create RSA private key from the provided environment variable
-    let rsa_key = EncodingKey::from_rsa_pem(github_private_key.as_bytes()).expect("Failed to load private key");
+    let rsa_key = EncodingKey::from_rsa_pem(github_private_key.as_bytes())
+        .expect("Failed to load private key");
     // Create Octocrab instance for GitHub App authentication
     let octocrab = Octocrab::builder()
         .app(AppId::from(github_app_id.parse::<u64>().unwrap()), rsa_key)
         .build()
         .expect("Failed to create Octocrab instance");
-
 
     let WebhookOptions {
         host,
@@ -93,15 +92,12 @@ pub async fn webhook_server(options: &WebhookOptions) -> Result<(), Box<dyn std:
 
     // let config =  LfsConfig::from(options.to_owned());
     let state = AppState {
-        storage:database::init(data_source).await,
+        storage: database::init(data_source).await,
         options: options.to_owned(),
     };
     let app = Router::new()
         //.nest("/", api_routers::routers(state.clone()))
-        .route(
-            "/",
-            post(post_method_router)
-        )
+        .route("/", post(post_method_router))
         .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
         .with_state(state);
 
@@ -111,22 +107,24 @@ pub async fn webhook_server(options: &WebhookOptions) -> Result<(), Box<dyn std:
     Ok(())
 }
 
-
 async fn post_method_router(
     state: State<AppState>,
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     service::issue_generate(req).await;
-    
-    Err((
-        StatusCode::FORBIDDEN,
-        String::from("Operation not supported"),
-    ))
-    
+
+    // Err((
+    //     StatusCode::FORBIDDEN,
+    //     String::from("Operation not supported"),
+    // ))
+    let response = Response::builder()
+        .status(200)
+        .header("X-Custom-Foo", "Bar")
+        .body(Body::empty())
+        .unwrap();
+    Ok(response)
 }
-
-
 
 mod api_routers {
     use std::collections::HashMap;

@@ -12,6 +12,7 @@ use database::driver::lfs::structs::*;
 use futures::StreamExt;
 use hyper::Request;
 use rand::prelude::*;
+use crate::dto::issue::IssueEventDto;
 
 pub async fn issue_generate(
     req: Request<Body>,
@@ -29,11 +30,9 @@ pub async fn issue_generate(
         let bytes = chunk.unwrap();
         request_body.extend_from_slice(&bytes);
     }
-
-    println!("{:?}", request_body);
     
-    //let verifiable_lock_request = serde_json::from_slice(request_body.freeze().as_ref()).unwrap();
-    
+    let issue_dto: IssueEventDto = serde_json::from_slice(request_body.freeze().as_ref()).unwrap();
+    println!("{:?}", issue_dto);
     
 
     //Ok(resp.body(body).unwrap())
