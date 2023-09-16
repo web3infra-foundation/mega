@@ -112,7 +112,7 @@ async fn post_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    service::issue_generate(req).await;
+    service::resolve_issue_event(req).await;
 
     // Err((
     //     StatusCode::FORBIDDEN,

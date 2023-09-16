@@ -14,7 +14,7 @@ use hyper::Request;
 use rand::prelude::*;
 use crate::dto::issue::IssueEventDto;
 
-pub async fn issue_generate(
+pub async fn resolve_issue_event(
     req: Request<Body>,
 ) {
     tracing::info!("req: {:?}", req);

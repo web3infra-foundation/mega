@@ -76,3 +76,16 @@ CREATE TABLE IF NOT EXISTS "obj_data" (
   PRIMARY KEY ("id")
 );
 CREATE INDEX "idx_data_git_id" ON "obj_data" ("git_id");
+
+
+CREATE TABLE IF NOT EXISTS "issue" (
+    "id" SERIAL PRIMARY KEY,
+    "num" INT NOT NULL,
+    "title" VARCHAR(255) NOT NULL,
+    "sender_id" VARCHAR(255) NOT NULL,
+    "state" VARCHAR(255) NOT NULL,
+    "created_at" TIMESTAMP NOT NULL,
+    "updated_at" TIMESTAMP NOT NULL,
+    "closed_at" TIMESTAMP DEFAULT NULL,
+    "repo_path" VARCHAR(255) NOT NULL
+);
