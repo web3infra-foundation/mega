@@ -19,6 +19,7 @@ use entity::mr;
 use entity::mr_info;
 use entity::node;
 use entity::refs;
+use entity::issue;
 
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
@@ -504,6 +505,31 @@ pub trait ObjectStorage: Send + Sync {
             None => Err(GitLFSError::GeneralError("".to_string())),
         }
     }
+
+    async fn save_issue(&self, issue: issue::ActiveModel) -> Result<bool, MegaError> {
+        issue::Entity::insert(issue)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn update_issue(&self, issue: issue::ActiveModel) -> Result<bool, MegaError> {
+        issue::Entity::update(issue)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn get_issue_by_id(&self, id: i64) -> Result<Option<issue::Model>, MegaError> {
+        Ok(issue::Entity::find()
+            .filter(issue::Column::Id.eq(id))
+            .one(self.get_connection())
+            .await
+            .unwrap())
+    }
+
 }
 
 /// Performs batch saving of models in the database.
