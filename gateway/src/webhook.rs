@@ -112,7 +112,7 @@ async fn post_method_router(
         "opened" => {
             state.storage.save_issue(issue_event.convert_to_model()).await.unwrap();
             let issue = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
-            println!("{:?}", issue_);
+            println!("{:?}", issue);
         },
         "reopened" | 
         "closed" => {
