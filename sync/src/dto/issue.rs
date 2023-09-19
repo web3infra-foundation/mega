@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use entity::issue;
-use sea_orm::{ActiveValue::NotSet, Set};
+use sea_orm::{Set};
 use chrono::NaiveDateTime;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -40,12 +40,9 @@ struct Repository{
 
 impl IssueEventDto{
     pub fn convert_to_model(&self) -> issue::ActiveModel {
-        let closed_at = if let Some(s) = &self.issue.closed_at{
-            Some(NaiveDateTime::parse_from_str(s.as_str(), "%Y-%m-%dT%H:%M:%SZ").unwrap())
-        }
-        else {
-            None
-        };
+        let closed_at = self.issue.closed_at.as_ref()
+        .map(|s| NaiveDateTime::parse_from_str(s.as_str(), "%Y-%m-%dT%H:%M:%SZ")
+        .unwrap());
         issue::ActiveModel{
             id: Set(self.issue.id),
             number: Set(self.issue.number),
@@ -71,12 +68,9 @@ impl IssueEventDto{
 }
 
 pub fn convert_model_to_dto(issue: &issue::ActiveModel) -> Issue{
-    let closed_at = if let Some(date_time) = issue.closed_at.clone().unwrap(){
-        Some(date_time.to_string())
-    }
-    else {
-        None
-    };
+    let closed_at = issue.closed_at.clone()
+        .unwrap()
+        .map(|date_time| date_time.to_string());
     Issue{
         id: issue.id.clone().unwrap(),
         number: issue.number.clone().unwrap(),
@@ -88,6 +82,6 @@ pub fn convert_model_to_dto(issue: &issue::ActiveModel) -> Issue{
         },
         created_at: issue.created_at.clone().unwrap().to_string(),
         updated_at: issue.updated_at.clone().unwrap().to_string(),
-        closed_at: closed_at,
+        closed_at,
     }
 }

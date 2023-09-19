@@ -1,17 +1,8 @@
-use std::collections::HashMap;
-use std::io::prelude::*;
 
-use anyhow::Result;
 use axum::body::Body;
-use axum::http::{Response, StatusCode};
-use bytes::{BufMut, BytesMut};
-use chrono::{prelude::*, Duration};
-use database::driver::lfs::storage::{ContentStore, MetaObject};
-use database::driver::lfs::structs::BatchResponse;
-use database::driver::lfs::structs::*;
+use bytes::{BytesMut};
 use futures::StreamExt;
 use hyper::Request;
-use rand::prelude::*;
 use crate::dto::issue::IssueEventDto;
 
 
@@ -20,9 +11,6 @@ pub async fn resolve_issue_event(
     req: Request<Body>,
 )-> IssueEventDto {
     tracing::info!("req: {:?}", req);
-    let mut resp = Response::builder();
-    resp = resp.header("Content-Type", "application/vnd.git-lfs+json");
-
     let (_parts, mut body) = req.into_parts();
 
     let mut request_body = BytesMut::new();
