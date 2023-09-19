@@ -10,3 +10,4 @@ pub mod mr;
 pub mod mr_info;
 pub mod node;
 pub mod refs;
+pub mod issue;
