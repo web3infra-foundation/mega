@@ -78,9 +78,7 @@ CREATE TABLE IF NOT EXISTS "obj_data" (
 CREATE INDEX "idx_data_git_id" ON "obj_data" ("git_id");
 
 
-DROP TABLE IF EXISTS "issue";
-
-CREATE TABLE "issue" (
+CREATE TABLE IF NOT EXISTS "issue" (
     "id" BIGINT PRIMARY KEY,
     "number" BIGINT NOT NULL,
     "title" VARCHAR(255) NOT NULL,
