@@ -4,14 +4,13 @@
 //!
 //!
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 
-use axum::extract::{Query, State};
+use axum::extract::{State};
 use axum::response::Response;
 use axum::routing::post;
 use axum::{Router, Server};
@@ -25,7 +24,6 @@ use std::env;
 use sync::service;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use sync::dto::issue;
 
 
 /// Parameters for starting the HTTP service
@@ -107,13 +105,13 @@ async fn post_method_router(
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
 
-
+    println!("{:?}", uri.path());
     // resolve the issue event
     let issue_event = service::resolve_issue_event(req).await;
     match issue_event.action().as_str(){
         "opened" => {
             state.storage.save_issue(issue_event.convert_to_model()).await.unwrap();
-            let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
+            let issue = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
             println!("{:?}", issue_);
         },
         "reopened" | 
@@ -124,9 +122,6 @@ async fn post_method_router(
         }
         _ => {},
     }
-
-
-
 
     
     let response = Response::builder()
