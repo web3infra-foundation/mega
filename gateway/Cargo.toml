@@ -15,6 +15,7 @@ git = {path = "../git"}
 common = {path = "../common"}
 database = {path = "../database"}
 entity = { path = "../database/entity" }
+sync = { path = "../sync"}
 anyhow = "1.0.75"
 axum = "0.6.20"
 hyper = "0.14.27"
@@ -29,3 +30,6 @@ tower = "0.4.13"
 clap = { version = "4.4.0", features = ["derive"] }
 tower-http = {version = "0.4.3", features = ["cors"]}
 tokio = {version = "1.32", features = ["full"]}
+chrono = "0.4.26"
+octocrab = "0.29.3"
+jsonwebtoken = "8.3.0"
