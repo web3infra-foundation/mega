@@ -522,6 +522,14 @@ pub trait ObjectStorage: Send + Sync {
         Ok(true)
     }
 
+    async fn get_issue_by_id(&self, id: i64) -> Result<Option<issue::Model>, MegaError> {
+        Ok(issue::Entity::find()
+            .filter(issue::Column::Id.eq(id))
+            .one(self.get_connection())
+            .await
+            .unwrap())
+    }
+
 }
 
 /// Performs batch saving of models in the database.

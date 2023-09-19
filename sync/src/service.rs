@@ -14,9 +14,11 @@ use hyper::Request;
 use rand::prelude::*;
 use crate::dto::issue::IssueEventDto;
 
+
+
 pub async fn resolve_issue_event(
     req: Request<Body>,
-) {
+)-> IssueEventDto {
     tracing::info!("req: {:?}", req);
     let mut resp = Response::builder();
     resp = resp.header("Content-Type", "application/vnd.git-lfs+json");
@@ -34,6 +36,6 @@ pub async fn resolve_issue_event(
     let issue_dto: IssueEventDto = serde_json::from_slice(request_body.freeze().as_ref()).unwrap();
     println!("{:?}", issue_dto);
     
-
+    issue_dto
     //Ok(resp.body(body).unwrap())
 }

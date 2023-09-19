@@ -31,6 +31,8 @@ use std::env;
 use sync::service;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
+use sync::dto::issue;
+
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -112,12 +114,29 @@ async fn post_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    service::resolve_issue_event(req).await;
 
-    // Err((
-    //     StatusCode::FORBIDDEN,
-    //     String::from("Operation not supported"),
-    // ))
+
+    // resolve the issue event
+    let issue_event = service::resolve_issue_event(req).await;
+    match issue_event.action().as_str(){
+        "opened" => {
+            state.storage.save_issue(issue_event.convert_to_model()).await.unwrap();
+            let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
+            // println!("{:?}", issue_);
+        },
+        "reopened" | 
+        "closed" => {
+            state.storage.update_issue(issue_event.convert_to_model()).await.unwrap();
+            let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
+            println!("{:?}", issue_);
+        }
+        _ => {},
+    }
+
+
+
+
+    
     let response = Response::builder()
         .status(200)
         .header("X-Custom-Foo", "Bar")

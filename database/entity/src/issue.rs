@@ -6,15 +6,17 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "issue")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id: u64,
-    pub num: u64,
+    pub id: i64,
+    pub number: i64,
     pub title: String,
-    pub sender_id: String,
+    pub sender_name: String,
+    pub sender_id: i64,
     pub state: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub closed_at: Option<DateTime>,
     pub repo_path: String,
+    pub repo_id: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
