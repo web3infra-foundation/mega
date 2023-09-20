@@ -35,6 +35,8 @@ crates_repository(
         "//:database/entity/Cargo.toml",
         "//:p2p/Cargo.toml",
         "//:mda/Cargo.toml",
+        "//:kvcache/Cargo.toml",
+        "//:sync/Cargo.toml"
     ],
 )
 
