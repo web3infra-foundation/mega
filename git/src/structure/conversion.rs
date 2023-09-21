@@ -16,7 +16,6 @@ use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
 use database::driver::ObjectStorage;
 use entity::{git_obj, refs};
-use itertools::Itertools;
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
 
@@ -231,31 +230,81 @@ pub async fn save_node_from_git_obj(
     repo_path: &Path,
     git_objs: Vec<git_obj::Model>,
 ) -> Result<(), anyhow::Error> {
-    let mut model_vec_map: HashMap<String, Vec<git_obj::Model>> = HashMap::new();
-
-    for (key, group) in &git_objs
-        .into_iter()
-        .group_by(|model| model.object_type.clone())
-    {
-        let model_vec: Vec<git_obj::Model> = group.collect();
-        model_vec_map.insert(key.to_owned(), model_vec);
+    // let mut model_vec_map: HashMap<String, Vec<git_obj::Model>> = HashMap::new();
+    // for (key, group) in &git_objs
+    //     .into_iter()
+    //     .group_by(|model| model.object_type.clone())
+    // {
+    //     let model_vec: Vec<git_obj::Model> = group.collect();
+    //     tracing::info!("key {:?}, model_vec {:?}", key, model_vec);
+    //     model_vec_map.insert(key.to_owned(), model_vec);
+    // }
+    let mut tree_vec: Vec<git_obj::Model> = Vec::new();
+    let mut blob_vec: Vec<git_obj::Model> = Vec::new();
+    let mut commit_vec: Vec<git_obj::Model> = Vec::new();
+    for obj in git_objs.clone() {
+        match obj.object_type.as_str() {
+            "tree" => tree_vec.push(obj.clone()),
+            "blob" => blob_vec.push(obj.clone()),
+            "commit" => commit_vec.push(obj.clone()),
+            _ => {}
+        }
     }
-    let tree_map: HashMap<Hash, Tree> = convert_model_to_map(model_vec_map.get("tree").unwrap().to_vec());
-    let blob_map: HashMap<Hash, Blob> = convert_model_to_map(model_vec_map.get("blob").unwrap().to_vec());
-    let commit_map: HashMap<Hash, Commit> =
-        convert_model_to_map(model_vec_map.get("commit").unwrap().to_vec());
+    let tree_map: HashMap<Hash, Tree> = convert_model_to_map(tree_vec);
+    let blob_map: HashMap<Hash, Blob> = convert_model_to_map(blob_vec);
+    let commit_map: HashMap<Hash, Commit> = convert_model_to_map(commit_vec);
     let commits: Vec<Commit> = commit_map.values().map(|x| x.to_owned()).collect();
+
+    //save git_obj
+    let git_obj_active_model = git_objs
+        .iter()
+        .map(|m| git_obj::ActiveModel {
+            id: Set(m.id),
+            git_id: Set(m.git_id.clone()),
+            object_type: Set(m.object_type.clone()),
+            data: Set(m.data.clone()),
+        })
+        .collect();
+    storage.save_obj_data(git_obj_active_model).await.unwrap();
 
     let repo = NodeBuilder {
         storage: storage.clone(),
         tree_map,
         blob_map,
         repo_path: repo_path.to_path_buf(),
-        commits,
+        commits: commits.clone(),
     };
     let nodes = repo.build_node_tree().await.unwrap();
     repo.save_nodes(nodes).await.unwrap();
     repo.save_commits().await.unwrap();
+
+    // save refs
+    // to do, if it is an incremental update, this code will not apply
+    let mut commit_id = String::new();
+    let mut parent_id_list: Vec<String> = Vec::new();
+    for commit in commits.clone() {
+        let mut p_list: Vec<String> = commit
+            .parent_tree_ids
+            .iter()
+            .map(|x| x.to_plain_str())
+            .collect();
+        parent_id_list.append(&mut p_list);
+    }
+    for commit in commits {
+        if !parent_id_list.contains(&commit.id.to_plain_str()) {
+            commit_id = commit.id.to_plain_str();
+        }
+    }
+    let child_refs = refs::ActiveModel {
+        id: NotSet,
+        repo_path: Set(repo_path.to_str().unwrap().to_string()),
+        ref_name: Set(String::from("refs/heads/master")),
+        ref_git_id: Set(commit_id.clone()),
+        created_at: Set(chrono::Utc::now().naive_utc()),
+        updated_at: Set(chrono::Utc::now().naive_utc()),
+    };
+    storage.save_refs(vec![child_refs]).await.unwrap();
+
     Ok(())
 }
 
