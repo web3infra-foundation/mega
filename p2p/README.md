@@ -37,3 +37,11 @@ kad get 123
 ```
 mega clone p2p://12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X/mega_test.git
 ```
+
+```
+mega pull p2p://12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X/mega_test.git
+```
+
+```
+mega clone-object mega_test.git
+```
