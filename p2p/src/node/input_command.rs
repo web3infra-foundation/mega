@@ -234,7 +234,7 @@ pub async fn handle_mega_command(
                 .pending_git_pull
                 .insert(request_id, repo_name.to_string());
         }
-        Some("git_obj_download") => {
+        Some("clone-object") => {
             // mega git_obj_download mega_test.git
             let repo_name = {
                 match args_iter.next() {
@@ -268,7 +268,7 @@ pub async fn handle_mega_command(
             //     .insert(request_file_id, repo_name.to_string());
         }
         _ => {
-            eprintln!("expected command: clone, pull, provide, git_obj_download");
+            eprintln!("expected command: clone, pull, provide, clone-object");
         }
     }
 }
