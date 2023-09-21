@@ -1,5 +1,5 @@
 pub mod connector;
-
+pub mod utils;
 use std::cell::RefCell;
 use connector::Connector;
 use anyhow::Result;
