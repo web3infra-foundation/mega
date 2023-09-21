@@ -1,8 +1,8 @@
+use crate::utils;
 use super::Connector;
 use anyhow::Result;
 use redis::{
-    Connection, ConnectionAddr, ConnectionInfo, FromRedisValue, RedisConnectionInfo,
-    ToRedisArgs,
+    Connection, ConnectionInfo, FromRedisValue,ToRedisArgs, IntoConnectionInfo,
 };
 use std::{cell::RefCell, marker::PhantomData};
 
@@ -40,11 +40,9 @@ where
         }
     }
     fn new() -> RedisClient<K, V> {
-        let config = ConnectionInfo {
-            // config this by env var or other way
-            addr: ConnectionAddr::Tcp("127.0.0.1".to_owned(), 6379),
-            redis: RedisConnectionInfo::default(),
-        };
+        let mut addr: String= String::new();
+        utils::get_env_number("REDIS_CONFIG", &mut addr);
+        let config :ConnectionInfo  = addr.into_connection_info().unwrap();
         let c = Self::new_client(config.clone()).unwrap();
         RedisClient {
             conn: RefCell::new(c),
@@ -59,6 +57,7 @@ where
     V: ToRedisArgs + FromRedisValue,
 {
     fn new_client(info: ConnectionInfo) -> Result<Connection> {
+        
         let client = redis::Client::open(info)?;
         let con = client.get_connection()?;
         // let ss:RefCell<C> = RefCell::new(con);
@@ -194,6 +193,7 @@ mod tests {
     #[test]
     #[ignore = "need_redis_environment"]
     fn test_face_connect() {
+        std::env::set_var("REDIS_CONFIG", "redis://127.0.0.1:6379");
         let cache = KVCache::<RedisClient<_, _>>::new();
         let a  = TestMessage {
             id: 12,
