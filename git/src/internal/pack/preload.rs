@@ -10,11 +10,11 @@ use crate::{
 
 #[cfg(not(feature="redis_cache"))]
 #[cfg(feature="lru_cache")]
-use super::cache::{kvstore::ObjectCache, _Cache};
+use super::cache::{ObjectCache, _Cache};
 
 #[cfg(not(feature="lru_cache"))]
 #[cfg(feature="redis_cache")]
-use super::cache::{ObjectCache, _Cache};
+use super::cache::{kvstore::ObjectCache, _Cache};
 
 use serde::{Deserialize, Serialize};
 use async_recursion::async_recursion;
