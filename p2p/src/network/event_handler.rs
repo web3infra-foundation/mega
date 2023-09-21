@@ -6,9 +6,9 @@ use crate::node::{get_utc_timestamp, ClientParas, Fork, MegaRepoInfo};
 use crate::{get_pack_protocol, get_repo_full_path};
 use bytes::Bytes;
 use common::utils;
-use entity::git_obj;
 use entity::git_obj::Model;
 use git::protocol::{CommandType, RefCommand};
+use git::structure::conversion;
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{
@@ -16,7 +16,6 @@ use libp2p::kad::{
     PeerRecord, PutRecordOk, QueryResult, Quorum, Record,
 };
 use libp2p::{identify, multiaddr, rendezvous, request_response, PeerId, Swarm};
-use sea_orm::Set;
 use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
@@ -575,24 +574,14 @@ pub async fn git_object_event_handler(
                             obj_model_list.append(&mut receive_git_obj_model.clone());
                             receive_git_obj_model_map.remove(repo_name);
                         }
-
                         tracing::info!("receive all git_object :{:?}", obj_model_list.len());
                         let path = get_repo_full_path(repo_name);
-                        let pack_protocol =
-                            get_pack_protocol(&path, client_paras.storage.clone()).await;
-                        let git_obj_active_model = obj_model_list
-                            .iter()
-                            .map(|m| git_obj::ActiveModel {
-                                id: Set(m.id),
-                                git_id: Set(m.git_id.clone()),
-                                object_type: Set(m.object_type.clone()),
-                                data: Set(m.data.clone()),
-                            })
-                            .collect();
-                        match pack_protocol
-                            .storage
-                            .save_obj_data(git_obj_active_model)
-                            .await
+                        match conversion::save_node_from_git_obj(
+                            client_paras.storage.clone(),
+                            Path::new(&path),
+                            obj_model_list.clone(),
+                        )
+                        .await
                         {
                             Ok(_) => {
                                 tracing::info!(
