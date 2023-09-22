@@ -7,7 +7,12 @@ pub mod http;
 pub mod pack;
 pub mod ssh;
 
-use std::{io::Cursor, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    io::Cursor,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
@@ -270,6 +275,24 @@ impl RefCommand {
             updated_at: Set(chrono::Utc::now().naive_utc()),
         }
     }
+
+    pub async fn save_to_db(&self, storage: Arc<dyn ObjectStorage>, path: &Path) {
+        match self.command_type {
+            CommandType::Create => {
+                storage
+                    .save_refs(vec![self.convert_to_model(path.to_str().unwrap())])
+                    .await
+                    .unwrap();
+            }
+            CommandType::Delete => storage.delete_refs(self.old_id.clone(), path).await,
+            CommandType::Update => {
+                storage
+                    .update_refs(self.old_id.clone(), self.new_id.clone(), path)
+                    .await;
+            }
+        }
+    }
+
 }
 impl PackProtocol {
     pub fn new(path: PathBuf, storage: Arc<dyn ObjectStorage>, protocol: Protocol) -> Self {

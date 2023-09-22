@@ -185,15 +185,18 @@ impl PackProtocol {
         }
 
         if body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) {
-            let command = self.command_list.last_mut().unwrap();
+            let mut command_list = self.command_list.clone();
+            let command = command_list.last_mut().unwrap();
             let mr_id = command
                 .unpack(self.storage.clone(), &mut body_bytes)
                 .await
                 .unwrap();
             let path = &self.path;
-            let parse_obj_result = conversion::save_node_from_mr(self.storage.clone(), mr_id, path).await;
+            let parse_obj_result =
+                conversion::save_node_from_mr(self.storage.clone(), mr_id, path).await;
             if parse_obj_result.is_ok() {
-                conversion::handle_refs(self.storage.clone(), command, path).await;
+                command.save_to_db(self.storage.clone(), path).await;
+                self.handle_directory().await.unwrap();
             } else {
                 tracing::error!("{}", parse_obj_result.err().unwrap());
                 command.failed(String::from("db operation failed"));
@@ -202,8 +205,8 @@ impl PackProtocol {
             let mut report_status = BytesMut::new();
             // TODO: replace this hard code "unpack ok\n"
             add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
-            for command in &self.command_list {
-                add_pkt_line_string(&mut report_status, command.get_status());
+            for c in command_list {
+                add_pkt_line_string(&mut report_status, c.get_status());
             }
             report_status.put(&PKT_LINE_END_MARKER[..]);
 

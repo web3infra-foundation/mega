@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use std::{collections::HashSet, sync::Arc};
 
 use super::nodes::NodeBuilder;
@@ -10,12 +10,12 @@ use crate::internal::object::commit::Commit;
 use crate::internal::object::tree::Tree;
 use crate::internal::object::ObjectT;
 use crate::internal::pack::encode::pack_encode;
-use crate::protocol::{CommandType, PackProtocol, RefCommand};
+use crate::protocol::PackProtocol;
 use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
 use database::driver::ObjectStorage;
-use entity::{git_obj, refs};
+use entity::{git_obj, refs, repo_directory};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
 
@@ -129,6 +129,52 @@ impl PackProtocol {
             ZERO_ID.to_string()
         }
     }
+
+    // TODO: Consider the scenario of deleting a repo
+    pub async fn handle_directory(&self) -> Result<(), GitError> {
+        let path = self.path.clone();
+        let repo_name = path.file_name().unwrap();
+        let mut current_path = PathBuf::new();
+        let mut pid = Option::default();
+
+        for component in path.components() {
+            current_path.push(component);
+            if let Component::Normal(dir) = component {
+                if let Some(dir_str) = dir.to_str() {
+                    let repo_dir = self
+                        .storage
+                        .get_directory_by_full_path(current_path.to_str().unwrap())
+                        .await
+                        .unwrap();
+                    match repo_dir {
+                        Some(dir) => {
+                            pid = Some(dir.id);
+                        }
+                        None => {
+                            let insert_id = self
+                                .storage
+                                .save_directory(repo_directory::ActiveModel {
+                                    id: NotSet,
+                                    pid: match pid {
+                                        Some(id) => Set(id),
+                                        None => NotSet,
+                                    },
+                                    name: Set(dir_str.to_owned()),
+                                    is_repo: Set(repo_name == dir_str),
+                                    full_path: Set(current_path.to_str().unwrap().to_owned()),
+                                    created_at: Set(chrono::Utc::now().naive_utc()),
+                                    updated_at: Set(chrono::Utc::now().naive_utc()),
+                                })
+                                .await
+                                .unwrap();
+                            pid = Some(insert_id);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 // retrieve all sub trees recursively
@@ -209,9 +255,7 @@ pub async fn save_node_from_mr(
 ) -> Result<(), anyhow::Error> {
     let tree_map: HashMap<Hash, Tree> = get_objects_from_mr(storage.clone(), mr_id, "tree").await;
     let blob_map: HashMap<Hash, Blob> = get_objects_from_mr(storage.clone(), mr_id, "blob").await;
-    let commit_map: HashMap<Hash, Commit> =
-        get_objects_from_mr(storage.clone(), mr_id, "commit").await;
-    let commits: Vec<Commit> = commit_map.values().map(|x| x.to_owned()).collect();
+    let commits: Vec<Commit> = get_objects_vec_from_mr(storage.clone(), mr_id, "commit").await;
     let builder = NodeBuilder {
         storage: storage.clone(),
         tree_map,
@@ -308,23 +352,6 @@ pub async fn save_node_from_git_obj(
     Ok(())
 }
 
-pub async fn handle_refs(storage: Arc<dyn ObjectStorage>, command: &RefCommand, path: &Path) {
-    match command.command_type {
-        CommandType::Create => {
-            storage
-                .save_refs(vec![command.convert_to_model(path.to_str().unwrap())])
-                .await
-                .unwrap();
-        }
-        CommandType::Delete => storage.delete_refs(command.old_id.clone(), path).await,
-        CommandType::Update => {
-            storage
-                .update_refs(command.old_id.clone(), command.new_id.clone(), path)
-                .await;
-        }
-    }
-}
-
 pub async fn get_objects_from_mr<T: ObjectT>(
     storage: Arc<dyn ObjectStorage>,
     mr_id: i64,
@@ -351,4 +378,29 @@ pub fn convert_model_to_map<T: ObjectT>(models: Vec<git_obj::Model>) -> HashMap<
             (hash, obj)
         })
         .collect()
+}
+
+pub async fn get_objects_vec_from_mr<T: ObjectT>(
+    storage: Arc<dyn ObjectStorage>,
+    mr_id: i64,
+    object_type: &str,
+) -> Vec<T> {
+    let git_ids = storage
+        .get_mr_objects_by_type(mr_id, object_type)
+        .await
+        .unwrap()
+        .iter()
+        .map(|model| model.git_id.clone())
+        .collect();
+    let models = storage.get_obj_data_by_ids(git_ids).await.unwrap();
+    let result = models
+        .iter()
+        .map(|model| {
+            let mut obj = T::new_from_data(model.data.clone());
+            let hash = Hash::new_from_str(&model.git_id);
+            obj.set_hash(hash);
+            obj
+        })
+        .collect();
+    result
 }

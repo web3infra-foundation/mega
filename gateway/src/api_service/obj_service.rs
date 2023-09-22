@@ -7,16 +7,19 @@ use axum::response::{IntoResponse, Json};
 use axum::{http::StatusCode, response::Response};
 
 use database::driver::ObjectStorage;
-use entity::mr_info;
+use git::internal::object::commit::Commit;
 use git::internal::object::tree::Tree;
 use git::internal::object::ObjectT;
 use hyper::body::Bytes;
 
-use crate::model::object_detail::{BlobObjects, Item, TreeObjects};
+use crate::model::object_detail::{BlobObjects, Directories, Item};
+use crate::model::query::DirectoryQuery;
 
 pub struct ObjectService {
     pub storage: Arc<dyn ObjectStorage>,
 }
+
+const SIGNATURE_END: &str = "-----END PGP SIGNATURE-----";
 
 impl ObjectService {
     pub async fn get_blob_objects(
@@ -49,30 +52,61 @@ impl ObjectService {
         Ok(Json(data))
     }
 
+    pub async fn get_directories(
+        &self,
+        query: DirectoryQuery,
+    ) -> Result<Json<Directories>, (StatusCode, String)> {
+        let DirectoryQuery {
+            object_id,
+            repo_path,
+        } = query;
+        if object_id.is_some() {
+            self.get_tree_objects(&object_id.unwrap()).await
+        } else {
+            let directory = self
+                .storage
+                .get_directory_by_full_path(&repo_path)
+                .await
+                .unwrap();
+            match directory {
+                Some(dir) => {
+                    if dir.is_repo {
+                        // find commit by path
+                        let commit_id = match self.storage.search_refs(&repo_path).await {
+                            Ok(refs) if !refs.is_empty() => refs[0].ref_git_id.clone(),
+                            _ => {
+                                return Err((
+                                    StatusCode::NOT_FOUND,
+                                    "repo_path might not valid".to_string(),
+                                ))
+                            }
+                        };
+                        // find tree by commit
+                        let tree_id = match self.storage.get_commit_by_hash(&commit_id).await {
+                            Ok(Some(commit)) => commit.tree,
+                            _ => return Err((StatusCode::NOT_FOUND, "Tree not found".to_string())),
+                        };
+                        self.get_tree_objects(&tree_id).await
+                    } else {
+                        let dirs = self.storage.get_directory_by_pid(dir.id).await.unwrap();
+                        let items = dirs.into_iter().map(|x| x.into()).collect();
+                        let data = Directories { items };
+                        Ok(Json(data))
+                    }
+                }
+                None => Err((
+                    StatusCode::NOT_FOUND,
+                    "repo_path might not valid".to_string(),
+                )),
+            }
+        }
+    }
+
     pub async fn get_tree_objects(
         &self,
-        object_id: Option<&String>,
-        repo_path: &str,
-    ) -> Result<Json<TreeObjects>, (StatusCode, String)> {
-        let tree_id = if let Some(object_id) = object_id {
-            object_id.to_owned()
-        } else {
-            let commit_id = match self.storage.search_refs(repo_path).await {
-                Ok(refs) if !refs.is_empty() => refs[0].ref_git_id.clone(),
-                _ => {
-                    return Err((
-                        StatusCode::NOT_FOUND,
-                        "repo_path might not valid".to_string(),
-                    ))
-                }
-            };
-            match self.storage.get_commit_by_hash(&commit_id).await {
-                Ok(Some(commit)) => commit.tree,
-                _ => return Err((StatusCode::NOT_FOUND, "Tree not found".to_string())),
-            }
-        };
-
-        let tree_data = match self.storage.get_obj_data_by_id(&tree_id).await {
+        object_id: &str,
+    ) -> Result<Json<Directories>, (StatusCode, String)> {
+        let tree_data = match self.storage.get_obj_data_by_id(object_id).await {
             Ok(Some(node)) => {
                 if node.object_type == "tree" {
                     node.data
@@ -89,40 +123,35 @@ impl ObjectService {
             .iter()
             .map(|tree_item| tree_item.id.to_plain_str())
             .collect();
+
         let child_nodes = self.storage.get_nodes_by_hashes(child_ids).await.unwrap();
 
         let mut items: Vec<Item> = child_nodes
             .iter()
             .map(|node| Item::from(node.clone()))
             .collect();
-
-        let obj_ids: Vec<String> = items.iter().map(|x| x.id.clone()).collect();
-        let obj_id_mr = self.storage.get_mr_id_by_hashes(obj_ids).await.unwrap();
-
-        let obj_to_mr: HashMap<String, i64> = obj_id_mr
-            .iter()
-            .map(|m| (m.git_id.clone(), m.mr_id))
-            .collect();
-
-        let mr_ids: Vec<i64> = obj_id_mr.iter().map(|m| m.mr_id).collect();
-        let mr_map: HashMap<i64, mr_info::Model> = self
+        let related_commit_ids = child_nodes.into_iter().map(|x| x.last_commit).collect();
+        let related_c = self
             .storage
-            .get_mr_infos(mr_ids)
+            .get_commit_by_hashes(related_commit_ids)
             .await
-            .unwrap()
-            .into_iter()
-            .map(|m| (m.mr_id, m))
-            .collect();
-
-        for item in &mut items {
-            let item_mr = obj_to_mr.get(&item.id).unwrap();
-            let mr_info = mr_map.get(item_mr).unwrap();
-            item.mr_id = Some(*item_mr);
-            item.mr_msg = Some(mr_info.mr_msg.clone());
-            item.mr_date = Some(mr_info.mr_date.to_string());
+            .unwrap();
+        let mut related_c_map: HashMap<String, Commit> = HashMap::new();
+        for c in related_c {
+            related_c_map.insert(c.git_id.clone(), c.into());
         }
 
-        let data = TreeObjects { items };
+        for item in &mut items {
+            let related_c_id = item.commit_id.clone().unwrap();
+            let commit = related_c_map.get(&related_c_id).unwrap();
+            item.commit_msg = Some(remove_useless_str(
+                commit.message.clone(),
+                SIGNATURE_END.to_owned(),
+            ));
+            item.commit_date = Some(commit.committer.timestamp.to_string());
+        }
+
+        let data = Directories { items };
         Ok(Json(data))
     }
 
@@ -148,5 +177,15 @@ impl ObjectService {
             .body(body)
             .unwrap();
         Ok(res)
+    }
+}
+
+fn remove_useless_str(content: String, remove_str: String) -> String {
+    if let Some(index) = content.find(&remove_str) {
+        let filtered_text = &content[index + remove_str.len()..].replace('\n', "");
+        let truncated_text = filtered_text.chars().take(50).collect::<String>();
+        truncated_text.to_owned()
+    } else {
+        "".to_owned()
     }
 }
