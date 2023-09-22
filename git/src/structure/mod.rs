@@ -29,14 +29,8 @@ pub trait GitNodeObject {
         item: Option<&TreeItem>,
         repo_path: PathBuf,
         full_path: PathBuf,
+        last_commit: &str,
     ) -> Box<dyn Node>;
-
-    // fn convert_from_model(model: &node::Model) -> Self
-    // where
-    //     Self: Sized,
-    // {
-    //     todo!()
-    // }
 
     fn generate_id(&self) -> i64 {
         id_generator::generate_id()
@@ -49,11 +43,13 @@ impl GitNodeObject for Blob {
         item: Option<&TreeItem>,
         repo_path: PathBuf,
         full_path: PathBuf,
+        last_commit: &str,
     ) -> Box<dyn Node> {
         Box::new(FileNode {
             nid: self.generate_id(),
             pid: "".to_owned(),
-            git_id: self.id,
+            git_id: self.id.to_plain_str(),
+            last_commit: last_commit.to_owned(),
             repo_path,
             mode: if let Some(item) = item {
                 item.mode.to_bytes().to_vec()
@@ -65,7 +61,7 @@ impl GitNodeObject for Blob {
             } else {
                 "".to_owned()
             },
-            data: self.data.clone(),
+            size: self.data.len().try_into().unwrap(),
             full_path,
         })
     }
@@ -110,8 +106,12 @@ impl Commit {
             tree: Set(self.tree_id.to_plain_str()),
             pid: Set(pid),
             repo_path: Set(repo_path.to_str().unwrap().to_owned()),
-            author: Set(Some(String::from_utf8(self.author.to_data().unwrap()).unwrap())),
-            committer: Set(Some(String::from_utf8(self.committer.to_data().unwrap()).unwrap())),
+            author: Set(Some(
+                String::from_utf8(self.author.to_data().unwrap()).unwrap(),
+            )),
+            committer: Set(Some(
+                String::from_utf8(self.committer.to_data().unwrap()).unwrap(),
+            )),
             content: Set(Some(self.message.clone())),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
@@ -133,11 +133,13 @@ impl GitNodeObject for Tree {
         item: Option<&TreeItem>,
         repo_path: PathBuf,
         full_path: PathBuf,
+        last_commit: &str,
     ) -> Box<dyn Node> {
         Box::new(TreeNode {
             nid: generate_id(),
             pid: "".to_owned(),
-            git_id: self.id,
+            git_id: self.id.to_plain_str(),
+            last_commit: last_commit.to_owned(),
             name: if let Some(item) = item {
                 item.name.clone()
             } else {
@@ -150,7 +152,7 @@ impl GitNodeObject for Tree {
                 Vec::new()
             },
             children: Vec::new(),
-            data: self.get_raw(),
+            size: self.get_raw().len().try_into().unwrap(),
             full_path,
         })
     }

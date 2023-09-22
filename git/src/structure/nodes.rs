@@ -39,12 +39,13 @@ pub struct NodeBuilder {
 pub struct TreeNode {
     pub nid: i64,
     pub pid: String,
-    pub git_id: Hash,
+    pub git_id: String,
+    pub last_commit: String,
     pub name: String,
     pub repo_path: PathBuf,
     pub mode: Vec<u8>,
     pub children: Vec<Box<dyn Node>>,
-    pub data: Vec<u8>,
+    pub size: i32,
     pub full_path: PathBuf,
 }
 
@@ -52,11 +53,12 @@ pub struct TreeNode {
 pub struct FileNode {
     pub nid: i64,
     pub pid: String,
-    pub git_id: Hash,
+    pub git_id: String,
+    pub last_commit: String,
     pub name: String,
     pub repo_path: PathBuf,
     pub mode: Vec<u8>,
-    pub data: Vec<u8>,
+    pub size: i32,
     pub full_path: PathBuf,
 }
 
@@ -66,7 +68,9 @@ pub trait Node: Send {
 
     fn get_pid(&self) -> &str;
 
-    fn get_git_id(&self) -> Hash;
+    fn get_git_id(&self) -> &str;
+
+    fn get_commit_id(&self) -> &str;
 
     fn get_name(&self) -> &str;
 
@@ -97,9 +101,8 @@ pub trait Node: Send {
 
     fn convert_to_model(&self) -> node::ActiveModel;
 
-    // fn convert_from_model(node: node::Model, children: Vec<Box<dyn Node>>) -> Box<dyn Node>
-    // where
-    //     Self: Sized;
+    fn set_commit_id(&mut self, commit_id: String);
+
 }
 
 impl Node for TreeNode {
@@ -110,9 +113,14 @@ impl Node for TreeNode {
         &self.pid
     }
 
-    fn get_git_id(&self) -> Hash {
-        self.git_id
+    fn get_git_id(&self) -> &str {
+        &self.git_id
     }
+
+    fn get_commit_id(&self) -> &str {
+        &self.last_commit
+    }
+
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -133,9 +141,10 @@ impl Node for TreeNode {
             repo_path: PathBuf::new(),
             full_path: PathBuf::new(),
             mode: Vec::new(),
-            git_id: Hash::default(),
+            git_id: String::new(),
+            last_commit: String::new(),
             children: Vec::new(),
-            data: Vec::new(),
+            size: 0,
         }
     }
 
@@ -146,7 +155,8 @@ impl Node for TreeNode {
         node::ActiveModel {
             id: NotSet,
             node_id: Set(self.nid),
-            git_id: Set(self.git_id.to_plain_str()),
+            git_id: Set(self.git_id.clone()),
+            last_commit: Set(self.last_commit.clone()),
             node_type: Set("tree".to_owned()),
             name: Set(Some(self.name.to_string())),
             mode: Set(self.mode.clone()),
@@ -155,7 +165,7 @@ impl Node for TreeNode {
             full_path: Set(self.full_path.to_string_lossy().into_owned()),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
-            size: Set(self.data.len().try_into().unwrap()),
+            size: Set(self.size),
         }
     }
 
@@ -175,18 +185,10 @@ impl Node for TreeNode {
         self
     }
 
-    // fn convert_from_model(node: node::Model, children: Vec<Box<dyn Node>>) -> Box<dyn Node> {
-    //     Box::new(TreeNode {
-    //         nid: node.node_id,
-    //         pid: node.pid,
-    //         git_id: Hash::from_bytes(node.git_id.as_bytes()).unwrap(),
-    //         name: node.name,
-    //         path: PathBuf::new(),
-    //         mode: node.mode,
-    //         children,
-    //         data: Vec::new(),
-    //     })
-    // }
+    fn set_commit_id(&mut self, commit_id: String) {
+        self.last_commit = commit_id
+    }
+
 }
 
 impl Node for FileNode {
@@ -198,9 +200,14 @@ impl Node for FileNode {
         &self.pid
     }
 
-    fn get_git_id(&self) -> Hash {
-        self.git_id
+    fn get_git_id(&self) -> &str {
+        &self.git_id
     }
+
+    fn get_commit_id(&self) -> &str {
+        &self.last_commit
+    }
+
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -217,12 +224,13 @@ impl Node for FileNode {
         FileNode {
             nid: generate_id(),
             pid,
+            last_commit: String::new(),
             repo_path: PathBuf::new(),
             full_path: PathBuf::new(),
             name,
-            git_id: Hash::default(),
+            git_id: String::new(),
             mode: Vec::new(),
-            data: Vec::new(),
+            size: 0,
         }
     }
 
@@ -230,14 +238,15 @@ impl Node for FileNode {
         node::ActiveModel {
             id: NotSet,
             node_id: Set(self.nid),
-            git_id: Set(self.git_id.to_plain_str()),
+            git_id: Set(self.git_id.clone()),
+            last_commit: Set(self.last_commit.clone()),
             node_type: Set("blob".to_owned()),
-            name: Set(Some(self.name.to_string())),
+            name: Set(Some(self.name.clone())),
             mode: Set(self.mode.clone()),
             content_sha: NotSet,
             repo_path: Set(self.repo_path.to_string_lossy().into_owned()),
             full_path: Set(self.full_path.to_string_lossy().into_owned()),
-            size: Set(self.data.len().try_into().unwrap()),
+            size: Set(self.size),
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
         }
@@ -259,16 +268,10 @@ impl Node for FileNode {
         self
     }
 
-    // fn convert_from_model(node: node::Model, _: Vec<Box<dyn Node>>) -> Box<dyn Node> {
-    //     Box::new(FileNode {
-    //         nid: node.node_id,
-    //         pid: node.pid,
-    //         git_id: Hash::from_bytes(node.git_id.as_bytes()).unwrap(),
-    //         name: node.name,
-    //         path: PathBuf::new(),
-    //         mode: node.mode,
-    //     })
-    // }
+    fn set_commit_id(&mut self, commit_id: String) {
+        self.last_commit = commit_id
+    }
+
 }
 
 impl TreeNode {
@@ -277,13 +280,14 @@ impl TreeNode {
         Box::new(TreeNode {
             nid,
             pid: "".to_owned(),
-            git_id: Hash::default(),
+            git_id: String::new(),
+            last_commit: String::new(),
             name: "".to_owned(),
             repo_path: PathBuf::from("/"),
             full_path: PathBuf::from("/"),
             mode: Vec::new(),
             children: Vec::new(),
-            data: Vec::new(),
+            size: 0,
         })
     }
 }
@@ -297,18 +301,21 @@ impl NodeBuilder {
     pub async fn build_node_tree(&self) -> Result<Vec<node::ActiveModel>, anyhow::Error> {
         let mut nodes = Vec::new();
         let mut tree_build_cache = HashSet::new();
-        for commit in &self.commits {
-            let commit_tree_id = commit.tree_id;
+        // let mut root_node_map = HashMap::new();
 
-            if !tree_build_cache.contains(&commit_tree_id) {
+        for commit in self.commits.iter().rev() {
+            let root_tree_id = commit.tree_id;
+            let mut root_node;
+
+            if !tree_build_cache.contains(&root_tree_id) {
                 //fetch the tree which commit points to
 
-                let tree = match self.tree_map.get(&commit_tree_id) {
+                let tree = match self.tree_map.get(&root_tree_id) {
                     Some(tree) => tree.to_owned(),
                     None => {
                         let model = self
                             .storage
-                            .get_obj_data_by_id(&commit_tree_id.to_plain_str())
+                            .get_obj_data_by_id(&root_tree_id.to_plain_str())
                             .await
                             .unwrap()
                             .unwrap();
@@ -319,8 +326,8 @@ impl NodeBuilder {
                     }
                 };
 
-                let mut root_node =
-                    tree.convert_to_node(None, self.repo_path.clone(), self.repo_path.clone());
+                root_node =
+                    tree.convert_to_node(None, self.repo_path.clone(), self.repo_path.clone(), &commit.id.to_plain_str());
                 self.convert_tree_to_node(
                     &tree,
                     &mut root_node,
@@ -328,10 +335,19 @@ impl NodeBuilder {
                     &mut tree_build_cache,
                 )
                 .await;
+
                 nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
-                tree_build_cache.insert(commit_tree_id);
+                // root_node_map.insert(root_tree_id, root_node);
+                tree_build_cache.insert(root_tree_id);
+            } else {
+                // update related last commit
+                // root_node_map.get_mut(&root_tree_id).unwrap().set_commit_id(commit.id.to_plain_str());
             }
         }
+
+        // for (_, root_node) in root_node_map {
+        //     nodes.extend(convert_node_to_model(root_node.as_ref(), 0));
+        // }
         Ok(nodes)
     }
 
@@ -359,6 +375,7 @@ impl NodeBuilder {
                     Some(item),
                     self.repo_path.clone(),
                     full_path.clone(),
+                    node.get_commit_id()
                 ));
                 let child_node = match node.find_child(&item.name) {
                     Some(child) => child,
@@ -375,6 +392,7 @@ impl NodeBuilder {
                     Some(item),
                     self.repo_path.to_path_buf(),
                     full_path.clone(),
+                    node.get_commit_id()
                 ));
             }
             full_path.pop();
