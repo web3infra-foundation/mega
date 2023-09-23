@@ -19,7 +19,8 @@ CREATE INDEX "idx_c_repo_path" ON "commit" ("repo_path");
 CREATE TABLE IF NOT EXISTS "node" (
   "id" BIGSERIAL PRIMARY KEY,
   "node_id" BIGINT NOT NULL,
-  "git_id" VARCHAR(64) NOT NULL,
+  "git_id" VARCHAR(40) NOT NULL,
+  "last_commit" VARCHAR(40) NOT NULL,
   "node_type" VARCHAR(16) NOT NULL,
   "name" VARCHAR(128),
   "mode" BYTEA NOT NULL,
@@ -107,3 +108,16 @@ CREATE TABLE IF NOT EXISTS "issue" (
     "repo_path" VARCHAR(255) NOT NULL,
     "repo_id" BIGINT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS "repo_directory"(
+    "id" SERIAL PRIMARY KEY,
+    "pid" integer NOT NULL DEFAULT 0,
+    "name" VARCHAR(255) NOT NULL,
+    "is_repo" boolean NOT NULL,
+    "full_path" TEXT NOT NULL,
+    "created_at" TIMESTAMP NOT NULL,
+    "updated_at" TIMESTAMP NOT NULL
+);
+
+CREATE INDEX "idx_dir_pid" ON "repo_directory" ("pid");
+CREATE INDEX "idx_dir_path" ON "repo_directory" ("full_path");

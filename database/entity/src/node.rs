@@ -9,6 +9,7 @@ pub struct Model {
     pub id: i64,
     pub node_id: i64,
     pub git_id: String,
+    pub last_commit: String,
     pub node_type: String,
     pub name: Option<String>,
     #[sea_orm(column_type = "Binary(BlobSize::Blob(None))")]

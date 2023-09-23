@@ -13,17 +13,19 @@ use chrono::Utc;
 
 use entity::commit;
 use entity::git_obj;
+use entity::issue;
 use entity::locks;
 use entity::meta;
 use entity::mr;
 use entity::mr_info;
 use entity::node;
 use entity::refs;
-use entity::issue;
 
+use entity::repo_directory;
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::DatabaseConnection;
+use sea_orm::DbErr;
 use sea_orm::EntityTrait;
 use sea_orm::QueryFilter;
 use sea_orm::Set;
@@ -118,6 +120,14 @@ pub trait ObjectStorage: Send + Sync {
         Ok(commit::Entity::find()
             .filter(commit::Column::GitId.eq(hash))
             .one(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    async fn get_commit_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<commit::Model>, MegaError> {
+        Ok(commit::Entity::find()
+            .filter(commit::Column::GitId.is_in(hashes))
+            .all(self.get_connection())
             .await
             .unwrap())
     }
@@ -530,6 +540,27 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
+    async fn save_directory(&self, model: repo_directory::ActiveModel) -> Result<i32, MegaError> {
+        Ok(repo_directory::Entity::insert(model)
+            .exec(self.get_connection())
+            .await
+            .unwrap().last_insert_id)
+    }
+
+    async fn get_directory_by_full_path(&self, path: &str) -> Result<Option<repo_directory::Model>, DbErr> { 
+        repo_directory::Entity::find()
+        .filter(repo_directory::Column::FullPath.eq(path))
+        .one(self.get_connection())
+        .await
+    }
+
+
+    async fn get_directory_by_pid(&self, pid: i32) -> Result<Vec<repo_directory::Model>, DbErr> { 
+        repo_directory::Entity::find()
+        .filter(repo_directory::Column::Pid.eq(pid))
+        .all(self.get_connection())
+        .await
+    }
 }
 
 /// Performs batch saving of models in the database.
