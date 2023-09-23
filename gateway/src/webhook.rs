@@ -105,23 +105,41 @@ async fn post_method_router(
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
 
-    println!("{:?}", uri.path());
-    // resolve the issue event
-    let issue_event = service::resolve_issue_event(req).await;
-    match issue_event.action().as_str(){
+
+
+    //resolve the pull request event
+    let pull_request_event = service::resolve_pull_request_event(req).await;
+    match pull_request_event.action().as_str(){
         "opened" => {
-            state.storage.save_issue(issue_event.convert_to_model()).await.unwrap();
-            let issue = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
-            println!("{:?}", issue);
+            state.storage.save_pull_request(pull_request_event.convert_to_model()).await.unwrap();
+            let pull_request_ = state.storage.get_pull_request_by_id(pull_request_event.id()).await.unwrap().unwrap();
+            println!("{:?}", pull_request_);
         },
         "reopened" | 
         "closed" => {
-            state.storage.update_issue(issue_event.convert_to_model()).await.unwrap();
-            let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
-            println!("{:?}", issue_);
+            state.storage.update_pull_request(pull_request_event.convert_to_model()).await.unwrap();
+            let pull_request_ = state.storage.get_pull_request_by_id(pull_request_event.id()).await.unwrap().unwrap();
+            println!("{:?}", pull_request_);
         }
         _ => {},
     }
+
+    // resolve the issue event
+    // let issue_event = service::resolve_issue_event(req).await;
+    // match issue_event.action().as_str(){
+    //     "opened" => {
+    //         state.storage.save_issue(issue_event.convert_to_model()).await.unwrap();
+    //         let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
+    //         println!("{:?}", issue_);
+    //     },
+    //     "reopened" | 
+    //     "closed" => {
+    //         state.storage.update_issue(issue_event.convert_to_model()).await.unwrap();
+    //         let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
+    //         println!("{:?}", issue_);
+    //     }
+    //     _ => {},
+    // }
 
 
     let response = Response::builder()
