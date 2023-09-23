@@ -1,8 +1,8 @@
-use entity::node;
+use entity::{node, repo_directory};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct TreeObjects {
+pub struct Directories {
     pub items: Vec<Item>,
 }
 
@@ -12,9 +12,9 @@ pub struct Item {
     pub name: String,
     pub path: String,
     pub content_type: String,
-    pub mr_msg: Option<String>,
-    pub mr_date: Option<String>,
-    pub mr_id: Option<i64>,
+    pub commit_msg: Option<String>,
+    pub commit_date: Option<String>,
+    pub commit_id: Option<String>,
 }
 
 impl From<node::Model> for Item {
@@ -29,9 +29,23 @@ impl From<node::Model> for Item {
             name: val.name.unwrap(),
             path: val.full_path,
             content_type,
-            mr_msg: None,
-            mr_date: None,
-            mr_id: None,
+            commit_msg: None,
+            commit_date: None,
+            commit_id: Some(val.last_commit),
+        }
+    }
+}
+
+impl From<repo_directory::Model> for Item {
+    fn from(value: repo_directory::Model) -> Self {
+        Item {
+            id: value.id.to_string(),
+            name: value.name,
+            path: value.full_path,
+            content_type: "directory".to_owned(),
+            commit_msg: None,
+            commit_date: None,
+            commit_id: None,
         }
     }
 }

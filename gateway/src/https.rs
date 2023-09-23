@@ -262,7 +262,7 @@ mod api_routers {
 
     use crate::{
         api_service::obj_service::ObjectService,
-        model::object_detail::{BlobObjects, TreeObjects},
+        model::{object_detail::{BlobObjects, Directories}, query::DirectoryQuery},
     };
 
     use super::AppState;
@@ -270,7 +270,7 @@ mod api_routers {
     pub fn routers<S>(state: AppState) -> Router<S> {
         Router::new()
             .route("/blob", get(get_blob_object))
-            .route("/tree", get(get_tree_objects))
+            .route("/tree", get(get_directories))
             .route("/object", get(get_origin_object))
             .with_state(state)
     }
@@ -287,16 +287,14 @@ mod api_routers {
         object_service.get_blob_objects(object_id, repo_path).await
     }
 
-    async fn get_tree_objects(
-        Query(query): Query<HashMap<String, String>>,
+    async fn get_directories(
+        Query(query): Query<DirectoryQuery>,
         state: State<AppState>,
-    ) -> Result<Json<TreeObjects>, (StatusCode, String)> {
-        let object_id = query.get("object_id");
-        let repo_path = query.get("repo_path").unwrap();
+    ) -> Result<Json<Directories>, (StatusCode, String)> {
         let object_service = ObjectService {
             storage: state.storage.clone(),
         };
-        object_service.get_tree_objects(object_id, repo_path).await
+        object_service.get_directories(query).await
     }
 
     async fn get_origin_object(
