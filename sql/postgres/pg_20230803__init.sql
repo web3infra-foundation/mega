@@ -108,9 +108,9 @@ CREATE TABLE IF NOT EXISTS "issue" (
     "repo_id" BIGINT NOT NULL
 );
 
+
 CREATE TABLE IF NOT EXISTS "pull_request" (
     "id" BIGINT PRIMARY KEY,
-    "url" VARCHAR(255) NOT NULL,
     "number" BIGINT NOT NULL,
     "title" VARCHAR(255) NOT NULL,
     "state" VARCHAR(255) NOT NULL,
@@ -125,10 +125,9 @@ CREATE TABLE IF NOT EXISTS "pull_request" (
     "sender_id" BIGINT NOT NULL,
     "user_name" VARCHAR(255) NOT NULL,
     "user_id" BIGINT NOT NULL,
-    "user_name" VARCHAR(255) NOT NULL,
     "commits_url" VARCHAR(255) NOT NULL,
     "head_label" VARCHAR(255) NOT NULL,
     "head_ref" VARCHAR(255) NOT NULL,
     "base_label" VARCHAR(255) NOT NULL,
-    "base_ref" VARCHAR(255) NOT NULL,
+    "base_ref" VARCHAR(255) NOT NULL
 );

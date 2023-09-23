@@ -8,3 +8,4 @@ pub use super::mr::Entity as Mr;
 pub use super::mr_info::Entity as MrInfo;
 pub use super::node::Entity as Node;
 pub use super::refs::Entity as Refs;
+pub use super::pull_request::Entity as PullRequest;
