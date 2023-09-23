@@ -28,6 +28,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::DbErr;
 use sea_orm::EntityTrait;
 use sea_orm::QueryFilter;
+use sea_orm::QuerySelect;
 use sea_orm::Set;
 
 use crate::driver::lfs::storage::MetaObject;
@@ -98,6 +99,15 @@ pub trait ObjectStorage: Send + Sync {
             .await
             .unwrap())
     }
+
+    async fn get_obj_data_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<git_obj::Model>, MegaError> {
+        Ok(git_obj::Entity::find()
+        .filter(git_obj::Column::GitId.is_in(hashes))
+        .all(self.get_connection())
+        .await
+        .unwrap())
+    }
+
 
     async fn get_mr_id_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<mr::Model>, MegaError> {
         Ok(mr::Entity::find()
@@ -206,6 +216,16 @@ pub trait ObjectStorage: Send + Sync {
             .all(self.get_connection())
             .await
             .unwrap())
+    }
+    async fn get_nodes(&self) ->Result<Vec<node::Model>, MegaError> {
+        Ok(
+            node::Entity::find()
+            .select_only()
+            .columns([node::Column::GitId,node::Column::Size,node::Column::FullPath])
+            .all(self.get_connection())
+            .await
+            .unwrap()
+        )
     }
 
     async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
