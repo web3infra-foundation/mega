@@ -20,7 +20,6 @@ use entity::mr;
 use entity::mr_info;
 use entity::node;
 use entity::refs;
-use entity::issue;
 use entity::pull_request;
 
 use entity::repo_directory;

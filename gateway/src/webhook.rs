@@ -105,7 +105,7 @@ async fn post_method_router(
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
 
-
+    println!("{:?}", uri.path());
 
     //resolve the pull request event
     let pull_request_event = service::resolve_pull_request_event(req).await;
