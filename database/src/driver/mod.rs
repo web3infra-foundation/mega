@@ -20,6 +20,8 @@ use entity::mr;
 use entity::mr_info;
 use entity::node;
 use entity::refs;
+use entity::issue;
+use entity::pull_request;
 
 use entity::repo_directory;
 use sea_orm::ActiveModelTrait;
@@ -581,6 +583,30 @@ pub trait ObjectStorage: Send + Sync {
         .all(self.get_connection())
         .await
     }
+    async fn save_pull_request(&self, pull_request: pull_request::ActiveModel) -> Result<bool, MegaError> {
+        pull_request::Entity::insert(pull_request)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn update_pull_request(&self, pull_request: pull_request::ActiveModel) -> Result<bool, MegaError> {
+        pull_request::Entity::update(pull_request)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn get_pull_request_by_id(&self, id: i64) -> Result<Option<pull_request::Model>, MegaError> {
+        Ok(pull_request::Entity::find()
+            .filter(pull_request::Column::Id.eq(id))
+            .one(self.get_connection())
+            .await
+            .unwrap())
+    }
+
 }
 
 /// Performs batch saving of models in the database.
