@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS "pull_request" (
     "user_name" VARCHAR(255) NOT NULL,
     "user_id" BIGINT NOT NULL,
     "commits_url" VARCHAR(255) NOT NULL,
+    "patch_url" VARCHAR(255) NOT NULL,
     "head_label" VARCHAR(255) NOT NULL,
     "head_ref" VARCHAR(255) NOT NULL,
     "base_label" VARCHAR(255) NOT NULL,

@@ -26,6 +26,7 @@ pub struct PullRequest{
     merged_at: Option<String>,
     merge_commit_sha: Option<String>,
     commits_url: String,
+    patch_url: String,
     head: Commit,
     base: Commit,
 }
@@ -75,6 +76,7 @@ impl PullRequestEventDto{
             user_name: Set(self.pull_request.user.login.clone()),
             user_id: Set(self.pull_request.user.id),
             commits_url: Set(self.pull_request.commits_url.clone()),
+            patch_url: Set(self.pull_request.patch_url.clone()),
             head_label: Set(self.pull_request.head.label.clone()),
             head_ref: Set(self.pull_request.head.r#ref.clone()),
             base_label: Set(self.pull_request.base.label.clone()),
@@ -113,6 +115,7 @@ pub fn convert_model_to_dto(pull_request: &pull_request::ActiveModel) -> PullReq
         merged_at,
         merge_commit_sha: pull_request.merge_commit_sha.clone().unwrap(),
         commits_url: pull_request.commits_url.clone().unwrap().to_string(),
+        patch_url: pull_request.patch_url.clone().unwrap().to_string(),
         head: Commit { 
             label: pull_request.head_label.clone().unwrap().to_string(),
             r#ref: pull_request.head_ref.clone().unwrap().to_string()
