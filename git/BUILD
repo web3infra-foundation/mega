@@ -12,6 +12,7 @@ rust_library(
         "//common",
         "//database",
         "//database/entity",
+        "//kvcache",
     ],
     proc_macro_deps = all_crate_deps(
         proc_macro = True,
