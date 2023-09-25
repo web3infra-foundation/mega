@@ -22,6 +22,7 @@ pub struct Model {
     pub user_name: String,
     pub user_id: i64,
     pub commits_url: String,
+    pub patch_url: String,
     pub head_label: String,
     pub head_ref: String,
     pub base_label: String,
