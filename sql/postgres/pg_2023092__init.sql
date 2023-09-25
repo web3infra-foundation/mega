@@ -121,3 +121,27 @@ CREATE TABLE IF NOT EXISTS "repo_directory"(
 
 CREATE INDEX "idx_dir_pid" ON "repo_directory" ("pid");
 CREATE INDEX "idx_dir_path" ON "repo_directory" ("full_path");
+
+CREATE TABLE IF NOT EXISTS "pull_request" (
+    "id" BIGINT PRIMARY KEY,
+    "number" BIGINT NOT NULL,
+    "title" VARCHAR(255) NOT NULL,
+    "state" VARCHAR(255) NOT NULL,
+    "created_at" TIMESTAMP NOT NULL,
+    "updated_at" TIMESTAMP NOT NULL,
+    "closed_at" TIMESTAMP DEFAULT NULL,
+    "merged_at" TIMESTAMP DEFAULT NULL,
+    "merge_commit_sha" VARCHAR(200) DEFAULT NULL,
+    "repo_path" VARCHAR(255) NOT NULL,
+    "repo_id" BIGINT NOT NULL,
+    "sender_name" VARCHAR(255) NOT NULL,
+    "sender_id" BIGINT NOT NULL,
+    "user_name" VARCHAR(255) NOT NULL,
+    "user_id" BIGINT NOT NULL,
+    "commits_url" VARCHAR(255) NOT NULL,
+    "patch_url" VARCHAR(255) NOT NULL,
+    "head_label" VARCHAR(255) NOT NULL,
+    "head_ref" VARCHAR(255) NOT NULL,
+    "base_label" VARCHAR(255) NOT NULL,
+    "base_ref" VARCHAR(255) NOT NULL
+);
