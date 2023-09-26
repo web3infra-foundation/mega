@@ -13,7 +13,6 @@ path = "src/lib.rs"
 [features]
 default = ["diff_mydrs","lru_cache"]
 diff_mydrs = []
-diff_pa = []
 lru_cache=[]
 
 
