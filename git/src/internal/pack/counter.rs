@@ -45,7 +45,6 @@ pub enum CounterType {
     Delta,
     CacheHit,
     DB,
-    Depth,
 }
 /// A Counter in The process of parsing and saving git objects
 #[derive(Default)]
@@ -65,8 +64,10 @@ impl DecodeCounter{
             CounterType::Delta => self.delta+=1,
             CounterType::CacheHit => self.cache_hit+=1,
             CounterType::DB => self.db_look+=1,
-            CounterType::Depth => self.delta_depth+=1,
         }
+    }
+    pub fn count_depth(&mut self, depth :usize){
+        self.delta_depth+=depth;
     }
     
 }
