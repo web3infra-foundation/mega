@@ -11,9 +11,8 @@ name = "git"
 path = "src/lib.rs"
 
 [features]
-default = ["diff_mydrs","lru_cache"]
+default = ["diff_mydrs"]
 diff_mydrs = []
-lru_cache=[]
 
 
 [dependencies]
