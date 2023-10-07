@@ -10,12 +10,12 @@ use database::driver::mysql::storage::MysqlStorage;
 use git::lfs::LfsConfig;
 use https::HttpOptions;
 use webhook::WebhookOptions;
+mod api_service;
 pub mod https;
+pub mod init;
+mod model;
 pub mod ssh;
 pub mod webhook;
-mod model;
-mod api_service;
-
 
 impl From<HttpOptions> for LfsConfig {
     fn from(value: HttpOptions) -> Self {

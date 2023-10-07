@@ -19,8 +19,8 @@ use entity::meta;
 use entity::mr;
 use entity::mr_info;
 use entity::node;
-use entity::refs;
 use entity::pull_request;
+use entity::refs;
 
 use entity::repo_directory;
 use sea_orm::ActiveModelTrait;
@@ -101,14 +101,16 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    async fn get_obj_data_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<git_obj::Model>, MegaError> {
+    async fn get_obj_data_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<git_obj::Model>, MegaError> {
         Ok(git_obj::Entity::find()
-        .filter(git_obj::Column::GitId.is_in(hashes))
-        .all(self.get_connection())
-        .await
-        .unwrap())
+            .filter(git_obj::Column::GitId.is_in(hashes))
+            .all(self.get_connection())
+            .await
+            .unwrap())
     }
-
 
     async fn get_mr_id_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<mr::Model>, MegaError> {
         Ok(mr::Entity::find()
@@ -135,7 +137,10 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    async fn get_commit_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<commit::Model>, MegaError> {
+    async fn get_commit_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<commit::Model>, MegaError> {
         Ok(commit::Entity::find()
             .filter(commit::Column::GitId.is_in(hashes))
             .all(self.get_connection())
@@ -218,15 +223,17 @@ pub trait ObjectStorage: Send + Sync {
             .await
             .unwrap())
     }
-    async fn get_nodes(&self) ->Result<Vec<node::Model>, MegaError> {
-        Ok(
-            node::Entity::find()
+    async fn get_nodes(&self) -> Result<Vec<node::Model>, MegaError> {
+        Ok(node::Entity::find()
             .select_only()
-            .columns([node::Column::GitId,node::Column::Size,node::Column::FullPath])
+            .columns([
+                node::Column::GitId,
+                node::Column::Size,
+                node::Column::FullPath,
+            ])
             .all(self.get_connection())
             .await
-            .unwrap()
-        )
+            .unwrap())
     }
 
     async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
@@ -561,28 +568,48 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
+    async fn init_repo_dir(&self) -> Result<(), MegaError> {
+        let root = repo_directory::new(0, "root", "/");
+        let pid = self.save_directory(root).await?;
+        let docs = repo_directory::new(pid, "dosc", "/docs");
+        let third_parts = repo_directory::new(pid, "third_parts", "/third_parts");
+        let projects = repo_directory::new(pid, "projects", "/projects");
+        let model_vec = vec![docs, third_parts, projects];
+        repo_directory::Entity::insert_many(model_vec)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
     async fn save_directory(&self, model: repo_directory::ActiveModel) -> Result<i32, MegaError> {
         Ok(repo_directory::Entity::insert(model)
             .exec(self.get_connection())
             .await
-            .unwrap().last_insert_id)
+            .unwrap()
+            .last_insert_id)
     }
 
-    async fn get_directory_by_full_path(&self, path: &str) -> Result<Option<repo_directory::Model>, DbErr> { 
+    async fn get_directory_by_full_path(
+        &self,
+        path: &str,
+    ) -> Result<Option<repo_directory::Model>, DbErr> {
         repo_directory::Entity::find()
-        .filter(repo_directory::Column::FullPath.eq(path))
-        .one(self.get_connection())
-        .await
+            .filter(repo_directory::Column::FullPath.eq(path))
+            .one(self.get_connection())
+            .await
     }
 
-
-    async fn get_directory_by_pid(&self, pid: i32) -> Result<Vec<repo_directory::Model>, DbErr> { 
+    async fn get_directory_by_pid(&self, pid: i32) -> Result<Vec<repo_directory::Model>, DbErr> {
         repo_directory::Entity::find()
-        .filter(repo_directory::Column::Pid.eq(pid))
-        .all(self.get_connection())
-        .await
+            .filter(repo_directory::Column::Pid.eq(pid))
+            .all(self.get_connection())
+            .await
     }
-    async fn save_pull_request(&self, pull_request: pull_request::ActiveModel) -> Result<bool, MegaError> {
+    async fn save_pull_request(
+        &self,
+        pull_request: pull_request::ActiveModel,
+    ) -> Result<bool, MegaError> {
         pull_request::Entity::insert(pull_request)
             .exec(self.get_connection())
             .await
@@ -590,7 +617,10 @@ pub trait ObjectStorage: Send + Sync {
         Ok(true)
     }
 
-    async fn update_pull_request(&self, pull_request: pull_request::ActiveModel) -> Result<bool, MegaError> {
+    async fn update_pull_request(
+        &self,
+        pull_request: pull_request::ActiveModel,
+    ) -> Result<bool, MegaError> {
         pull_request::Entity::update(pull_request)
             .exec(self.get_connection())
             .await
@@ -598,14 +628,16 @@ pub trait ObjectStorage: Send + Sync {
         Ok(true)
     }
 
-    async fn get_pull_request_by_id(&self, id: i64) -> Result<Option<pull_request::Model>, MegaError> {
+    async fn get_pull_request_by_id(
+        &self,
+        id: i64,
+    ) -> Result<Option<pull_request::Model>, MegaError> {
         Ok(pull_request::Entity::find()
             .filter(pull_request::Column::Id.eq(id))
             .one(self.get_connection())
             .await
             .unwrap())
     }
-
 }
 
 /// Performs batch saving of models in the database.

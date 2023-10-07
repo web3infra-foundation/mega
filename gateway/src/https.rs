@@ -82,9 +82,8 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
     } = options;
     let server_url = format!("{}:{}", host, port);
 
-    // let config =  LfsConfig::from(options.to_owned());
     let state = AppState {
-        storage:database::init(data_source).await,
+        storage: database::init(data_source).await,
         options: options.to_owned(),
     };
     let app = Router::new()
@@ -262,7 +261,10 @@ mod api_routers {
 
     use crate::{
         api_service::obj_service::ObjectService,
-        model::{object_detail::{BlobObjects, Directories}, query::DirectoryQuery},
+        model::{
+            object_detail::{BlobObjects, Directories},
+            query::DirectoryQuery,
+        },
     };
 
     use super::AppState;
