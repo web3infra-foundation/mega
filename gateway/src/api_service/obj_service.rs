@@ -60,8 +60,8 @@ impl ObjectService {
             object_id,
             repo_path,
         } = query;
-        if object_id.is_some() {
-            self.get_tree_objects(&object_id.unwrap()).await
+        if let Some(obj_id) = object_id {
+            self.get_tree_objects(&obj_id).await
         } else {
             let directory = self
                 .storage
