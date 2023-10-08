@@ -82,9 +82,8 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
     } = options;
     let server_url = format!("{}:{}", host, port);
 
-    // let config =  LfsConfig::from(options.to_owned());
     let state = AppState {
-        storage:database::init(data_source).await,
+        storage: database::init(data_source).await,
         options: options.to_owned(),
     };
     let app = Router::new()
@@ -262,7 +261,10 @@ mod api_routers {
 
     use crate::{
         api_service::obj_service::ObjectService,
-        model::{object_detail::{BlobObjects, Directories}, query::DirectoryQuery},
+        model::{
+            object_detail::{BlobObjects, Directories},
+            query::DirectoryQuery,
+        },
     };
 
     use super::AppState;
@@ -279,12 +281,11 @@ mod api_routers {
         Query(query): Query<HashMap<String, String>>,
         state: State<AppState>,
     ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
-        let repo_path = query.get("repo_path").unwrap();
         let object_id = query.get("object_id").unwrap();
         let object_service = ObjectService {
             storage: state.storage.clone(),
         };
-        object_service.get_blob_objects(object_id, repo_path).await
+        object_service.get_blob_objects(object_id).await
     }
 
     async fn get_directories(
@@ -301,12 +302,11 @@ mod api_routers {
         Query(query): Query<HashMap<String, String>>,
         state: State<AppState>,
     ) -> Result<impl IntoResponse, (StatusCode, String)> {
-        let repo_path = query.get("repo_path").unwrap();
         let object_id = query.get("object_id").unwrap();
         let object_service = ObjectService {
             storage: state.storage.clone(),
         };
-        object_service.get_objects_data(object_id, repo_path).await
+        object_service.get_objects_data(object_id).await
     }
 }
 

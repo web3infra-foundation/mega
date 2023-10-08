@@ -55,40 +55,42 @@ export default function HomePage() {
     const [readmeContent, setReadmeContent] = useState(null);
 
 
-    useEffect(() => {
-        async function get_file_dir() {
-            try {
-                const response = await axios.get('/api/v1/tree?repo_path=/root/mega');
+    const fetchData = (repo_path) => {
+        axios.get('/api/v1/tree?repo_path=' + repo_path)
+            .then(response => {
                 setdir_file_data(response.data);
-                console.log(dir_file_data);
-                // 检查是否有 README.md 文件
                 const readmeFile = response.data.items.find(item => item.name === 'README.md');
                 if (readmeFile && readmeFile.content_type === 'file') {
-                    async function getReadmeContent() {
-                        try {
-                            const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${readmeFile.id}`);
+                    axios.get(`/api/v1/blob?object_id=${readmeFile.id}`)
+                        .then(response => {
                             setReadmeContent(response.data.row_data);
-                        } catch (error) {
+                        })
+                        .catch(error => {
                             console.error(error);
-                        }
-                    }
-                    getReadmeContent();
+                        });
                 } else {
                     setReadmeContent(default_md_content);
                 }
-            } catch (error) {
+            })
+            .catch(error => {
                 console.error(error);
-            }
-        }
-        get_file_dir();
+            });
+    };
+
+    useEffect(() => {
+        fetchData("/");
     }, []);
     const router = useRouter();
 
     const handleItemClick = (item) => {
-        router.push({
-            pathname: '/codeViewComponent',
-            query: { itemId: item.id, itemType: item.content_type }
-        });
+        if (item.under_repo === true) {
+            router.push({
+                pathname: '/codeViewComponent',
+                query: { itemId: item.id, itemType: item.content_type, repo_path: item.path }
+            });
+        } else {
+            fetchData(item.path);
+        }
     };
     const get_icon_for_content_type = (content_type) => {
         if (content_type === 'directory') {
