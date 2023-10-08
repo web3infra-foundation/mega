@@ -31,6 +31,12 @@ use std::cmp::Ordering;
 
 impl PartialOrd for Model {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Model {
+    fn cmp(&self, other: &Self) -> Ordering {
         let node_type_order = match (self.node_type.as_str(), other.node_type.as_str()) {
             ("commit", "commit") | ("tree", "tree") | ("blob", "blob") | ("tag", "tag") => {
                 Ordering::Equal
@@ -46,21 +52,15 @@ impl PartialOrd for Model {
         };
 
         if node_type_order != Ordering::Equal {
-            Some(node_type_order)
+            node_type_order
         } else {
             let full_path_order = self.full_path.cmp(&other.full_path);
             if full_path_order != Ordering::Equal {
-                Some(full_path_order)
+                full_path_order
             } else {
-                Some(self.size.cmp(&other.size))
+                self.size.cmp(&other.size)
             }
         }
-    }
-}
-
-impl Ord for Model {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
     }
 }
 

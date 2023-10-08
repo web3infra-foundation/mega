@@ -535,7 +535,7 @@ pub async fn git_object_event_handler(
                             repo_receive_git_obj_model_list_arc.lock().unwrap();
                         receive_git_obj_model_map
                             .entry(repo_name.clone())
-                            .or_insert(Vec::new());
+                            .or_default();
                         let receive_obj_model_list =
                             receive_git_obj_model_map.get(repo_name).unwrap();
                         let mut clone = receive_obj_model_list.clone();
