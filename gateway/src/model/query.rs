@@ -9,5 +9,5 @@ pub struct DirectoryQuery {
 }
 
 fn default_path() -> String {
-    "/root".to_string()
+    "/".to_string()
 }
