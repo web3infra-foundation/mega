@@ -80,7 +80,7 @@ pub fn save_audio_to_file(audio_data: &[u8], file_path: &str) -> Result<(), Box<
 
 /// Extract metadata from training data(image)
 pub fn extract_image_metadata(image_path: &str) -> ImageMetaData {
-    let msg = "Failed to open file ".to_owned() + image_path.clone();
+    let msg = "Failed to open file ".to_owned() + image_path;
     let image = image::open(image_path).expect(&msg);
 
     let (width, height) = image.dimensions();

@@ -230,7 +230,7 @@ fn find_different_blocks(
 ) -> Vec<Block> {
     let blocks_list = get_data_blocks_up_to_id(last_rev, entries);
     let (current_data_blocks, _data_indices) =
-        split_data_into_blocks(current_data.clone().to_vec(), constants::BLOCK_SIZE);
+        split_data_into_blocks(current_data.to_vec(), constants::BLOCK_SIZE);
 
     // Find elements in block1 that are not in block2
     let elements_not_in_block1: Vec<Block> = current_data_blocks
