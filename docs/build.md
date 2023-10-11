@@ -2,14 +2,43 @@
 
 ## Build with Cargo
 
+### Build
+
+```bash
+cargo build
+```
+
+### Test all workspace
+
+```bash
+cargo test --workspace
+```
+
+### Clippy
+
+```bash
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+### Check
+
+```bash
+cargo check
+```
+
+### Doc
+
+```bash
+cargo doc
+```
 
 ## Build with Bazel
 This project uses Bazel to build the pipeline. Below is a simple usage guide:
 
-1. Use cargo install to download crates and generate Cargo.lock from the repository:
+1. Use cargo build to download crates and generate Cargo.lock from the repository:
 
 ```bash
-cargo install
+cargo build
 ```
 
 2. Now we can run bazel sync to pin cargo dependencies as Bazel targets:
