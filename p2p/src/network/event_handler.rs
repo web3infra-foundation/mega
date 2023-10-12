@@ -7,7 +7,7 @@ use crate::{get_pack_protocol, get_repo_full_path};
 use bytes::Bytes;
 use common::utils;
 use entity::git_obj::Model;
-use git::protocol::{CommandType, RefCommand};
+use git::protocol::RefCommand;
 use git::structure::conversion;
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
@@ -22,7 +22,7 @@ use std::str::FromStr;
 
 pub const NAMESPACE: &str = "rendezvous_mega";
 
-pub fn kad_event_handler(
+pub async fn kad_event_handler(
     swarm: &mut Swarm<behaviour::Behaviour>,
     client_paras: &mut ClientParas,
     event: KademliaEvent,
@@ -45,11 +45,13 @@ pub fn kad_event_handler(
                     // update repo info forks
                     if let Ok(p) = serde_json::from_slice(&record.value) {
                         let mut repo_info: MegaRepoInfo = p;
+                        let local_peer_id = swarm.local_peer_id().to_string();
                         let fork = Fork {
-                            peer: swarm.local_peer_id().to_string(),
+                            peer: local_peer_id.clone(),
                             latest: object_id.clone(),
                             timestamp: get_utc_timestamp(),
                         };
+                        repo_info.forks.retain(|r| r.peer != local_peer_id);
                         repo_info.forks.push(fork);
                         let record = Record {
                             key: Key::new(&repo_info.name),
@@ -68,6 +70,7 @@ pub fn kad_event_handler(
                     client_paras.pending_repo_info_update_fork.remove(&id);
                 } else if let Some(repo_name) = client_paras
                     .pending_repo_info_search_to_download_obj
+                    .clone()
                     .get(&id)
                 {
                     //try to search origin node
@@ -85,11 +88,12 @@ pub fn kad_event_handler(
                             .insert(repo_name.clone(), node_id_list);
                         let remote_peer_id = PeerId::from_str(&repo_info.origin).unwrap();
                         let path = get_repo_full_path(repo_name);
-                        //to get all git_obj id
+                        //to get local git_obj id
+                        let local_git_ids = get_all_git_obj_ids(&path, client_paras).await;
                         let request_file_id = swarm
                             .behaviour_mut()
                             .git_info_refs
-                            .send_request(&remote_peer_id, GitInfoRefsReq(path));
+                            .send_request(&remote_peer_id, GitInfoRefsReq(path, local_git_ids));
                         client_paras
                             .pending_git_obj_id_download
                             .insert(request_file_id, repo_name.to_string());
@@ -306,14 +310,17 @@ pub async fn git_upload_pack_event_handler(
                     let path = get_repo_full_path(repo_name);
                     let mut pack_protocol =
                         get_pack_protocol(&path, client_paras.storage.clone()).await;
-                    let command = RefCommand {
-                        ref_name: String::from("refs/heads/master"),
-                        old_id: String::from("0000000000000000000000000000000000000000"),
-                        new_id: object_id.clone(),
-                        status: String::from("ok"),
-                        error_msg: String::new(),
-                        command_type: CommandType::Create,
-                    };
+                    let old_object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+                    tracing::info!(
+                        "new_object_id:{}; old_object_id:{}",
+                        object_id.clone(),
+                        old_object_id
+                    );
+                    let command = RefCommand::new(
+                        old_object_id,
+                        object_id.clone(),
+                        String::from("refs/heads/master"),
+                    );
                     pack_protocol.command_list.push(command);
                     let result = pack_protocol
                         .git_receive_pack(Bytes::from(package_data))
@@ -361,29 +368,19 @@ pub async fn git_info_refs_event_handler(
                 tracing::debug!("Receive git info refs event, {:?}, {:?}", request, channel);
                 let path = request.0;
                 tracing::info!("path: {}", path);
+                let git_ids_they_have = request.1;
+                tracing::info!("git_ids_they_have: {:?}", git_ids_they_have);
                 let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
                 let ref_git_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
-                let mut git_ids: Vec<String> = Vec::new();
-                if let Ok(commit_models) =
-                    pack_protocol.storage.get_all_commits_by_path(&path).await
-                {
-                    commit_models.iter().for_each(|model| {
-                        git_ids.push(model.git_id.clone());
-                    });
+                let mut git_obj_ids = get_all_git_obj_ids(&path, client_paras).await;
+                if !git_ids_they_have.is_empty() {
+                    git_obj_ids.retain(|id| !git_ids_they_have.contains(id));
                 }
-                if let Ok(blob_and_tree) = pack_protocol
-                    .storage
-                    .get_node_by_path(Path::new(&path))
-                    .await
-                {
-                    blob_and_tree.iter().for_each(|model| {
-                        git_ids.push(model.git_id.clone());
-                    });
-                }
+                tracing::info!("git_ids_they_need: {:?}", git_obj_ids);
                 let _ = swarm
                     .behaviour_mut()
                     .git_info_refs
-                    .send_response(channel, GitInfoRefsRes(ref_git_id, git_ids));
+                    .send_response(channel, GitInfoRefsRes(ref_git_id, git_obj_ids));
             }
             request_response::Message::Response {
                 request_id,
@@ -393,6 +390,7 @@ pub async fn git_info_refs_event_handler(
                 tracing::info!("Response git info refs event, request_id: {:?}", request_id);
                 if let Some(repo_name) = client_paras.pending_git_pull.get(&request_id) {
                     //have git_ids and try to send pull request
+                    // mega pull and mega clone
                     let ref_git_id = response.0;
                     let _git_ids = response.1;
                     tracing::info!("repo_name: {}", repo_name);
@@ -433,22 +431,26 @@ pub async fn git_info_refs_event_handler(
                     .get(&request_id)
                 {
                     // have git_ids and try to download git obj
+                    // git clone-obj and git pull-obj
                     let _ref_git_id = response.0;
-                    let git_ids = response.1;
+                    let git_ids_need = response.1;
                     let path = get_repo_full_path(repo_name);
                     tracing::info!("path: {}", path);
-                    tracing::info!("git_ids: {:?}", git_ids);
+                    tracing::info!("git_ids_need: {:?}", git_ids_need);
                     //trying to download git_obj from peers
-                    if let Some(repo_list) = client_paras.repo_node_list.get(repo_name) {
+                    if let Some(r) = client_paras.repo_node_list.clone().get(repo_name) {
+                        let mut repo_list = r.clone();
                         if !repo_list.is_empty() {
+                            repo_list
+                                .retain(|r| r.to_string() != swarm.local_peer_id().to_string());
                             tracing::info!("try to download git object from: {:?}", repo_list);
                             tracing::info!("the origin is: {}", repo_list[0]);
                             // Try to download separately
-                            let split_git_ids = split_array(git_ids.clone(), repo_list.len());
+                            let split_git_ids = split_array(git_ids_need.clone(), repo_list.len());
                             let repo_id_need_list_arc = client_paras.repo_id_need_list.clone();
                             {
                                 let mut repo_id_need_list = repo_id_need_list_arc.lock().unwrap();
-                                repo_id_need_list.insert(repo_name.to_string(), git_ids);
+                                repo_id_need_list.insert(repo_name.to_string(), git_ids_need);
                             }
 
                             for i in 0..repo_list.len() {
@@ -588,6 +590,19 @@ pub async fn git_object_event_handler(
                                     "Save {:?} git_obj to database successfully",
                                     obj_model_list.len()
                                 );
+                                let path = get_repo_full_path(repo_name);
+                                let pack_protocol =
+                                    get_pack_protocol(&path, client_paras.storage.clone()).await;
+                                let object_id =
+                                    pack_protocol.get_head_object_id(Path::new(&path)).await;
+                                //update repoInfo
+                                let kad_query_id = swarm
+                                    .behaviour_mut()
+                                    .kademlia
+                                    .get_record(Key::new(&repo_name));
+                                client_paras
+                                    .pending_repo_info_update_fork
+                                    .insert(kad_query_id, object_id);
                             }
                             Err(e) => {
                                 tracing::error!("{:?}", e);
@@ -644,6 +659,26 @@ async fn git_upload_pack_handler(
         };
         Ok((send_pack_data, object_id))
     }
+}
+
+async fn get_all_git_obj_ids(path: &str, client_paras: &mut ClientParas) -> Vec<String> {
+    let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+    let mut git_ids: Vec<String> = Vec::new();
+    if let Ok(commit_models) = pack_protocol.storage.get_all_commits_by_path(&path).await {
+        commit_models.iter().for_each(|model| {
+            git_ids.push(model.git_id.clone());
+        });
+    }
+    if let Ok(blob_and_tree) = pack_protocol
+        .storage
+        .get_node_by_path(Path::new(&path))
+        .await
+    {
+        blob_and_tree.iter().for_each(|model| {
+            git_ids.push(model.git_id.clone());
+        });
+    }
+    git_ids
 }
 
 fn split_array(a: Vec<String>, count: usize) -> Vec<Vec<String>> {
