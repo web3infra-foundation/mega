@@ -32,41 +32,29 @@ impl PackProtocol {
     /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
     ///
     pub async fn get_full_pack_data(&self, repo_path: &Path) -> Result<Vec<u8>, GitError> {
-        let mut hash_object: HashMap<Hash, Arc<dyn ObjectT>> = HashMap::new();
-        let commit_models = self
+        // container for reserve all commit,blob and tree objs
+        let mut hash_meta: HashMap<Hash, Arc<dyn ObjectT>> = HashMap::new();
+        let all_commits = self
             .storage
             .get_all_commits_by_path(repo_path.to_str().unwrap())
             .await
             .unwrap();
-        commit_models.into_iter().for_each(|model| {
-            let commit: Commit = model.into();
-            hash_object.insert(commit.id, Arc::new(commit));
-        });
-        let blob_and_tree = self.storage.get_node_by_path(repo_path).await.unwrap();
-        let git_ids = blob_and_tree
-            .iter()
-            .map(|model| model.git_id.clone())
-            .collect();
-        // may take lots of time
-        let obj_datas = self.storage.get_obj_data_by_ids(git_ids).await.unwrap();
-        obj_datas.iter().for_each(|model| {
-            let hash = Hash::new_from_str(&model.git_id);
-            let obj: Arc<dyn ObjectT> = match model.object_type.as_str() {
-                "blob" => {
-                    let mut blob = Blob::new_from_data(model.data.clone());
-                    blob.set_hash(hash);
-                    Arc::new(blob)
-                }
-                "tree" => {
-                    let mut tree = Tree::new_from_data(model.data.clone());
-                    tree.set_hash(hash);
-                    Arc::new(tree)
-                }
-                _ => panic!("not supported node type: {}", model.object_type),
+        for model in all_commits {
+            let commit_id = model.git_id.clone();
+            let c: Commit = model.into();
+            if let Some(root) = self
+                .storage
+                .get_obj_data_by_id(&c.tree_id.to_plain_str())
+                .await
+                .unwrap()
+            {
+                get_child_trees(&root, &mut hash_meta, self.storage.clone()).await
+            } else {
+                return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
             };
-            hash_object.insert(hash, obj);
-        });
-        let meta_vec: Vec<Arc<dyn ObjectT>> = hash_object.into_values().collect();
+            hash_meta.insert(Hash::new_from_str(&commit_id), Arc::new(c));
+        }
+        let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
         let result: Vec<u8> = pack_encode(meta_vec).unwrap();
         Ok(result)
     }
@@ -77,7 +65,7 @@ impl PackProtocol {
         want: &HashSet<String>,
         _have: &HashSet<String>,
     ) -> Result<Vec<u8>, GitError> {
-        let mut hash_meta: HashMap<String, Arc<dyn ObjectT>> = HashMap::new();
+        let mut hash_meta: HashMap<Hash, Arc<dyn ObjectT>> = HashMap::new();
         let all_commits = self
             .storage
             .get_all_commits_by_path(repo_path.to_str().unwrap())
@@ -98,7 +86,7 @@ impl PackProtocol {
                 } else {
                     return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
                 };
-                hash_meta.insert(commit_id, Arc::new(c));
+                hash_meta.insert(Hash::new_from_str(&commit_id), Arc::new(c));
             }
         }
         let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
@@ -121,8 +109,7 @@ impl PackProtocol {
             for refs in &refs_list {
                 // if repo_path is subdirectory of some commit, we should generae a fake commit
                 if repo_path.starts_with(refs.repo_path.clone()) {
-                    return generate_child_commit_and_refs(self.storage.clone(), refs, repo_path)
-                        .await;
+                    return generate_subdir_commit(self.storage.clone(), refs, repo_path).await;
                 }
             }
             //situation: repo_path: root/repotest2/src, commit: root/repotest
@@ -181,13 +168,15 @@ impl PackProtocol {
 #[async_recursion]
 async fn get_child_trees(
     root: &git_obj::Model,
-    hash_object: &mut HashMap<String, Arc<dyn ObjectT>>,
+    hash_object: &mut HashMap<Hash, Arc<dyn ObjectT>>,
     storage: Arc<dyn ObjectStorage>,
 ) {
-    let t = Tree::new_from_data(root.data.clone());
+    let mut t = Tree::new_from_data(root.data.clone());
+    t.set_hash(Hash::new_from_str(&root.git_id));
+
     let mut search_child_ids = vec![];
     for item in &t.tree_items {
-        if !hash_object.contains_key(&item.id.to_plain_str()) {
+        if !hash_object.contains_key(&item.id) {
             search_child_ids.push(item.id.to_plain_str());
         }
     }
@@ -196,12 +185,13 @@ async fn get_child_trees(
         if obj.object_type == "tree" {
             get_child_trees(&obj, hash_object, storage.clone()).await;
         } else {
-            let blob = Blob::new_from_data(obj.data.clone());
-            hash_object.insert(obj.git_id.clone(), Arc::new(blob));
+            let mut blob = Blob::new_from_data(obj.data.clone());
+            let blob_id = Hash::new_from_str(&obj.git_id.clone());
+            blob.set_hash(blob_id);
+            hash_object.insert(blob_id, Arc::new(blob));
         }
     }
-    let tree = Tree::new_from_data(t.get_raw());
-    hash_object.insert(t.id.to_plain_str(), Arc::new(tree));
+    hash_object.insert(t.id, Arc::new(t));
 }
 
 /// Generates a new commit for a subdirectory of the original project directory.
@@ -214,7 +204,7 @@ async fn get_child_trees(
 ///    d. Construct a child reference with the repository path, reference name, commit ID, and other relevant information.
 ///    e. Save the child reference in the database.
 /// 3. Return the commit ID of the child commit if successful; otherwise, return a default ID.
-pub async fn generate_child_commit_and_refs(
+pub async fn generate_subdir_commit(
     storage: Arc<dyn ObjectStorage>,
     refs: &refs::Model,
     repo_path: &Path,
@@ -226,10 +216,11 @@ pub async fn generate_child_commit_and_refs(
             .unwrap()
             .unwrap();
 
-        let child_commit = Commit::build_from_model_and_root(root_commit_obj.data, root_tree);
-        let child_model = child_commit.convert_to_model(repo_path);
+        let child_commit =
+            Commit::subdir_commit(root_commit_obj.data, Hash::new_from_str(&root_tree.git_id));
+        let child_c_model = child_commit.convert_to_model(repo_path);
         storage
-            .save_commits(vec![child_model.clone()])
+            .save_commits(vec![child_c_model.clone()])
             .await
             .unwrap();
         let commit_id = child_commit.id.to_plain_str();
