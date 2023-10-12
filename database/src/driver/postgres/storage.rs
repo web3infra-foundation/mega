@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use common::errors::MegaError;
 use entity::{commit, git_obj, refs};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, DatabaseBackend, DatabaseConnection, EntityTrait, QueryFilter, Statement,
+};
 
 use crate::driver::{batch_save_model, ObjectStorage};
 
@@ -29,7 +31,11 @@ impl ObjectStorage for PgStorage {
 
     async fn search_refs(&self, path_str: &str) -> Result<Vec<refs::Model>, MegaError> {
         Ok(refs::Entity::find()
-            .filter(refs::Column::RepoPath.contains(path_str))
+            .from_raw_sql(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"SELECT * FROM refs where $1 LIKE CONCAT(repo_path, '%') "#,
+                [path_str.into()],
+            ))
             .all(&self.connection)
             .await?)
     }

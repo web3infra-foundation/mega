@@ -82,14 +82,15 @@ impl GitNodeObject for Blob {
 }
 
 impl Commit {
-    pub fn build_from_model_and_root(meta: Vec<u8>, root: node::Model) -> Commit {
+    pub fn subdir_commit(meta: Vec<u8>, tree_id: Hash) -> Commit {
         let mut c = Commit::new_from_meta(Meta::new_from_data_with_object_type(
             ObjectType::Commit,
             meta,
         ))
         .unwrap();
-        c.tree_id = Hash::new_from_str(&root.git_id);
+        c.tree_id = tree_id;
         c.parent_tree_ids.clear();
+        c.id = Meta::calculate_id(ObjectType::Commit, &c.to_data().unwrap());
         c
     }
 
