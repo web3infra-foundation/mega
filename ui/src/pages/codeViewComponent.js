@@ -129,7 +129,7 @@ const getFileLanguageMode = (fileName) => {
 
 export default function Code_view() {
   const router = useRouter();
-  const { itemId, itemType } = router.query;
+  const { itemId, itemType, repo_path } = router.query;
 
   const [is_node_clicked, setis_node_clicked] = useState(true);
   const [is_file_clicked, setis_file_clicked] = useState(false);
@@ -246,7 +246,7 @@ export default function Code_view() {
   useEffect(() => {
     async function get_file_dir() {
       try {
-        const root_response = await axios.get(`/api/v1/tree?repo_path=/root/mega`);
+        const root_response = await axios.get(`/api/v1/tree?repo_path=${repo_path}`);
         setdir_file_data(root_response.data);
         const index_clicked_node = root_response.data.items.find(item => item.id === itemId);
         let response;
@@ -254,7 +254,7 @@ export default function Code_view() {
           console.log(itemType);
           handle_file_click(index_clicked_node.id, index_clicked_node.name);
         } else {
-          response = await axios.get(`/api/v1/tree?repo_path=/root/mega&object_id=${itemId}`);
+          response = await axios.get(`/api/v1/tree?object_id=${itemId}`);
           setcurrent_sub_nodes(response.data);
         }
         console.log(index_clicked_node.name);
@@ -262,7 +262,7 @@ export default function Code_view() {
         if (readmeFile && readmeFile.content_type === 'file') {
           async function getReadmeContent() {
             try {
-              const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${readmeFile.id}`);
+              const response = await axios.get(`/api/v1/blob?object_id=${readmeFile.id}`);
               setReadmeContent(response.data.row_data);
             } catch (error) {
               console.error(error);
@@ -290,13 +290,13 @@ export default function Code_view() {
   //获取项目的子目录, 且扫描子目录下是否有readme文件
   const get_sub_directory_data = async (directory_name, directoryId, item) => {
     try {
-      const response = await axios.get(`/api/v1/tree?repo_path=/root/mega&object_id=${directoryId}`);
+      const response = await axios.get(`/api/v1/tree?object_id=${directoryId}`);
       setcurrent_sub_nodes(response.data);
       const readmeFile = response.data.items.find(item => item.name === 'README.md');
       if (readmeFile && readmeFile.content_type === 'file') {
         async function getReadmeContent() {
           try {
-            const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${readmeFile.id}`);
+            const response = await axios.get(`/api/v1/blob?object_id=${readmeFile.id}`);
             setReadmeContent(response.data.row_data);
           } catch (error) {
             console.error(error);
@@ -401,7 +401,7 @@ export default function Code_view() {
     // console.log(previous_item);
     setis_current_folder(false);
     if (previous_item.id === "root") {
-      const response = await axios.get('/api/v1/tree?repo_path=/root/mega');
+      const response = await axios.get(`/api/v1/tree?repo_path=${repo_path}`);
       setsub_file_dir(response.data);
     } else {
       const newChildren = await get_sub_directory_data(previous_item.name, previous_item.id, previous_item);
@@ -420,7 +420,7 @@ export default function Code_view() {
 
     if (index === 0) {
       // 处理根目录点击
-      const response = await axios.get('/api/v1/tree?repo_path=/root/mega');
+      const response = await axios.get(`/api/v1/tree?repo_path=${repo_path}`);
       setsub_file_dir(response.data);
     } else {
       const parent_item = clicked_history[index];
@@ -438,7 +438,7 @@ export default function Code_view() {
       setis_file_clicked(true);
       setis_node_clicked(false);
       setis_table_node_clicked(false);
-      const response = await axios.get(`/api/v1/blob?repo_path=/root/mega&object_id=${fileId}`);
+      const response = await axios.get(`/api/v1/blob?object_id=${fileId}`);
       setfile_content(response.data.row_data);
       // 获取文件扩展名
       const languageMode = getFileLanguageMode(fileName);

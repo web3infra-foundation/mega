@@ -21,7 +21,7 @@ axum = "0.6.20"
 hyper = "0.14.27"
 regex = "1.9.1"
 tracing = "0.1.37"
-russh = "0.38.0"
+russh = "0.39.0"
 russh-keys = "0.38.0"
 ed25519-dalek = "2.0"
 serde = "1.0.188"
@@ -31,5 +31,5 @@ clap = { version = "4.4.0", features = ["derive"] }
 tower-http = {version = "0.4.3", features = ["cors"]}
 tokio = {version = "1.32", features = ["full"]}
 chrono = "0.4.26"
-octocrab = "0.30.1"
+octocrab = "0.31.0"
 jsonwebtoken = "8.3.0"

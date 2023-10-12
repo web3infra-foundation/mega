@@ -43,7 +43,7 @@ where
         let mut addr: String= String::new();
         utils::get_env_number("REDIS_CONFIG", &mut addr);
         let config :ConnectionInfo  = addr.into_connection_info().unwrap();
-        let c = Self::new_client(config.clone()).unwrap();
+        let c = Self::new_client(config).unwrap();
         RedisClient {
             conn: RefCell::new(c),
             k: PhantomData,

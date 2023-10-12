@@ -47,7 +47,7 @@ impl <'a>DeltaDiff<'a> {
         )
         .unwrap();
 
-        #[cfg(feature="diff_pa")]
+        #[cfg(not(feature="diff_mydrs"))]
         diffs::patience::diff(
             &mut delta_diff,
             old_data,

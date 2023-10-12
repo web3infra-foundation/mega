@@ -18,7 +18,7 @@ module.exports = {
         return [
             {
                 source: '/api/:path*',
-                destination: 'http://api.gitmega.dev/api/:path*', // 修改为实际的后端地址
+                destination: 'http://localhost:8000/api/:path*', // 修改为实际的后端地址
             },
         ];
     },

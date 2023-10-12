@@ -376,7 +376,7 @@ pub fn config_mda_content(
     // MDAOptions MDAHeader Begin
     // MDAOptions MDAHeader -- config metadata
     let metadata = process_file(training_data)
-        .ok_or(training_data.clone().to_owned() + "Failed to extract metadata!")?;
+        .ok_or(training_data.to_owned() + "Failed to extract metadata!")?;
 
     let meta: String;
     if let Some(image_metadata) = metadata.downcast_ref::<ImageMetaData>() {
