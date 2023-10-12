@@ -25,7 +25,6 @@ impl ObjectService {
     pub async fn get_blob_objects(
         &self,
         object_id: &str,
-        _repo_path: &str,
     ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
         let blob_data = match self.storage.get_obj_data_by_id(object_id).await {
             Ok(Some(node)) => {
@@ -60,8 +59,8 @@ impl ObjectService {
             object_id,
             repo_path,
         } = query;
-        if object_id.is_some() {
-            self.get_tree_objects(&object_id.unwrap()).await
+        if let Some(obj_id) = object_id {
+            self.get_tree_objects(&obj_id).await
         } else {
             let directory = self
                 .storage
@@ -158,7 +157,6 @@ impl ObjectService {
     pub async fn get_objects_data(
         &self,
         object_id: &str,
-        _repo_path: &str,
     ) -> Result<impl IntoResponse, (StatusCode, String)> {
         let node = match self.storage.get_node_by_hash(object_id).await {
             Ok(Some(node)) => node,

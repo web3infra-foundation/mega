@@ -151,7 +151,7 @@ impl PackProtocol {
                             pid = Some(dir.id);
                         }
                         None => {
-                            let insert_id = self
+                            let inserted_pid = self
                                 .storage
                                 .save_directory(repo_directory::ActiveModel {
                                     id: NotSet,
@@ -167,7 +167,7 @@ impl PackProtocol {
                                 })
                                 .await
                                 .unwrap();
-                            pid = Some(insert_id);
+                            pid = Some(inserted_pid);
                         }
                     }
                 }

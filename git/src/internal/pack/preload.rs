@@ -7,17 +7,8 @@ use crate::{
     },
     utils,
 };
-
-#[cfg(not(feature="redis_cache"))]
-#[cfg(feature="lru_cache")]
-use super::cache::{ObjectCache, _Cache};
-
-#[cfg(not(feature="lru_cache"))]
-#[cfg(feature="redis_cache")]
-use super::cache::{kvstore::ObjectCache, _Cache};
-
+use super::cache::{ObjectCache,kvstore::ObjectCache as kvObjectCache, _Cache};
 use serde::{Deserialize, Serialize};
-use async_recursion::async_recursion;
 use database::{driver::ObjectStorage, utils::id_generator::generate_id};
 use entity::{git_obj, mr};
 use num_cpus;
@@ -29,9 +20,9 @@ use std::{
     collections::HashMap,
     io::{Cursor, Read},
     sync::{Arc, Mutex},
-    time::Instant,
+    time::Instant
 };
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, RwLockReadGuard};
 
 ///
 /// One Pre loading Git object in memory
@@ -220,8 +211,11 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
     let (cpu_number, chunk) = thread_chunk(all_len);
     tracing::info!("Deal with the object using {} threads. ", cpu_number);
     let share: Arc<RwLock<PackPreload>> = Arc::new(RwLock::new(p));
-
     let mr_id = generate_id();
+    
+    let mut cache_type: String= String::new();
+    utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_TYEP", &mut cache_type);
+    
 
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
@@ -234,9 +228,20 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
             } else {
                 (i + 1) * chunk
             };
-            tokio::spawn(async move {
-                produce_object(shard_clone, st_clone, begin, end, counter_clone, mr_id).await;
-            })
+            match &cache_type as &str {
+                "redis" => 
+                tokio::spawn(async move {
+                    produce_object::<kvObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                }),
+                "lru" =>
+                tokio::spawn(async move {
+                    produce_object::<ObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                }),
+                _ =>
+                tokio::spawn(async move {
+                    produce_object::<ObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                }),
+            }
         })
         .collect();
 
@@ -264,23 +269,24 @@ use super::counter::CounterType::*;
 /// - `counter`: A shared `Arc<Mutex<DecodeCounter>>` for counting decode operations.
 /// - `mr_id`: An identifier for the produced Git objects.
 ///
-async fn produce_object(
+async fn produce_object<TC>(
     data: Arc<RwLock<PackPreload>>,
     storage: Arc<dyn ObjectStorage>,
     range_begin: usize,
     range_end: usize,
     counter: Arc<Mutex<DecodeCounter>>,
     mr_id: i64,
-) {
+) where TC: _Cache<T = Entry>{
     let mut mr_to_obj_model = Vec::<mr::ActiveModel>::with_capacity(1001);
     let mut git_obj_model = Vec::<git_obj::ActiveModel>::with_capacity(1001);
 
     let mut object_cache_size = 1000;
     utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_SIZE", &mut object_cache_size);
 
-    let mut cache: ObjectCache<Entry> = ObjectCache::new(Some(object_cache_size));
+    let mut cache= TC::new(Some(object_cache_size));
+
     let start = Instant::now();
-    let mut batch_size = 10000;
+    let mut batch_size = 10000;  
     utils::get_env_number("GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE", &mut batch_size);
 
     let mut save_task_wait_number = 10; // the most await save thread amount
@@ -298,24 +304,29 @@ async fn produce_object(
         match e.header {
             EntryHeader::RefDelta { base_id } => {
                 let base_type;
-                let base_data = if let Some(b_obj) = cache.get_by_hash(base_id) {
-                    {
-                        counter.lock().unwrap().count(CacheHit);
-                    }
-                    base_type = b_obj.header;
-                    b_obj.data
-                } else {
+                let base_data;
+                {
+                    let b_obj = cache.get_by_hash(base_id);
+                    if let Some(b_obj)  = b_obj{
+                        {
+                            counter.lock().unwrap().count(CacheHit);
+                        }
+                        base_type = b_obj.header;
+                        base_data =  b_obj.data
+                    }else {
                     let db_obj = storage
-                        .get_obj_data_by_id(&base_id.to_plain_str())
-                        .await
-                        .unwrap()
-                        .unwrap();
-                    base_type = EntryHeader::from_string(&db_obj.object_type);
-                    {
-                        counter.lock().unwrap().count(DB);
-                    }
-                    db_obj.data
-                };
+                            .get_obj_data_by_id(&base_id.to_plain_str())
+                            .await
+                            .unwrap()
+                            .unwrap();
+                        base_type = EntryHeader::from_string(&db_obj.object_type);
+                        {
+                            counter.lock().unwrap().count(DB);
+                        }
+                        base_data = db_obj.data
+                    };
+                }
+                
 
                 let re = undelta(&mut Cursor::new(e.data.clone()), &base_data);
                 let undelta_obj = Entry {
@@ -330,7 +341,7 @@ async fn produce_object(
                 }
             }
             EntryHeader::OfsDelta { base_distance: _ } => {
-                let re_obj = delta_offset_obj(data.clone(), e, &mut cache, counter.clone()).await;
+                let re_obj = delta_offset_obj(data.clone().read().await, e, &mut cache, counter.clone());
                 result_entity = compute_hash(re_obj);
                 {
                     counter.lock().unwrap().count(Delta);
@@ -343,7 +354,10 @@ async fn produce_object(
                 result_entity = compute_hash(e.clone());
             }
         }
+        
         cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
+        
+        
         mr_to_obj_model.push(result_entity.clone().convert_to_mr_model(mr_id));
         git_obj_model.push(result_entity.convert_to_data_model());
 
@@ -399,52 +413,42 @@ async fn produce_object(
 ///
 /// The function returns an `Entry` representing the result of the delta offset operation.
 ///
-#[async_recursion] //TODO del recursion
-async fn delta_offset_obj(
-    data: Arc<RwLock<PackPreload>>,
+/// TODO: deal with `clone` 
+fn delta_offset_obj<T>(
+    share: RwLockReadGuard<'_, PackPreload>,
     delta_obj: &Entry,
-    cache: &mut ObjectCache<Entry>,
+    cache:&mut T ,
     counter: Arc<Mutex<DecodeCounter>>,
-) -> Entry {
-    let share = data.read().await;
-    if let EntryHeader::OfsDelta { base_distance } = delta_obj.header {
-        let basic_type;
-        let base_obj;
-        let buff_obj;
-        if let Some(b_obj) = cache.get(base_distance) {
+) -> Entry  where T: _Cache<T = Entry>{
+    let mut stack:Vec<Entry> = Vec::new();
+    stack.push(delta_obj.clone()); 
+    while let EntryHeader::OfsDelta { base_distance }= stack.last().unwrap().header {
+        let mut b_obj;
+        if let Some(_obj) = cache.get(base_distance) {
             {
                 counter.lock().unwrap().count(CacheHit);
             }   
-            buff_obj = b_obj;
-            base_obj = &buff_obj;
+            b_obj = _obj; 
         } else {
             let pos = share.map.get(&base_distance).unwrap();
-            base_obj = &share.entries[*pos];
+            b_obj = share.entries[*pos].clone();
         }
 
-        let re;
-        // check its weather need to deeper recursion
-        if !base_obj.header.is_base() {
+        if !b_obj.header.is_base(){
+            stack.push(b_obj);
+            continue;
+        }else{            
             {
-                counter.lock().unwrap().count(Depth);
+                counter.lock().unwrap().count_depth(stack.len());
             }
-            let d_obj = delta_offset_obj(data.clone(), base_obj, cache, counter).await;
-            re = undelta(&mut Cursor::new(&delta_obj.data), &d_obj.data);
-            basic_type = d_obj.header;
-        } else {
-            basic_type = base_obj.header.clone();
-            re = undelta(&mut Cursor::new(&delta_obj.data), &base_obj.data);
+            while let Some(e) = stack.pop() {
+                b_obj.data = undelta(&mut Cursor::new(&e.data), &b_obj.data);
+            }    
+            return b_obj;
         }
-
-        Entry {
-            header: basic_type,
-            offset: delta_obj.offset,
-            data: re,
-            hash: None,
-        }
-    } else {
-        panic!("cat't call by base obj ");
     }
+    panic!("wrong delta decode");
+
 }
 
 fn compute_hash(mut e: Entry) -> Entry {
