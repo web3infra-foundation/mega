@@ -442,7 +442,7 @@ pub async fn git_info_refs_event_handler(
                         let mut repo_list = r.clone();
                         if !repo_list.is_empty() {
                             repo_list
-                                .retain(|r| r.to_string() != swarm.local_peer_id().to_string());
+                                .retain(|r| *r != swarm.local_peer_id().to_string());
                             tracing::info!("try to download git object from: {:?}", repo_list);
                             tracing::info!("the origin is: {}", repo_list[0]);
                             // Try to download separately
@@ -662,9 +662,9 @@ async fn git_upload_pack_handler(
 }
 
 async fn get_all_git_obj_ids(path: &str, client_paras: &mut ClientParas) -> Vec<String> {
-    let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+    let pack_protocol = get_pack_protocol(path, client_paras.storage.clone()).await;
     let mut git_ids: Vec<String> = Vec::new();
-    if let Ok(commit_models) = pack_protocol.storage.get_all_commits_by_path(&path).await {
+    if let Ok(commit_models) = pack_protocol.storage.get_all_commits_by_path(path).await {
         commit_models.iter().for_each(|model| {
             git_ids.push(model.git_id.clone());
         });

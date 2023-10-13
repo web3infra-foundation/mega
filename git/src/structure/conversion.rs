@@ -387,7 +387,6 @@ pub async fn save_node_from_git_obj(
     repo.save_commits().await.unwrap();
 
     // save refs
-    // to do, if it is an incremental update, this code will not apply
     let mut commit_id = String::new();
     let mut parent_id_list: Vec<String> = Vec::new();
     for commit in commits.clone() {
