@@ -21,7 +21,7 @@ async fn get_pack_protocol(path: &str, storage: Arc<dyn ObjectStorage>) -> PackP
 
 pub fn get_repo_full_path(repo_name: &str) -> String {
     let repo_name = del_ends_str(repo_name, ".git");
-    "/root/".to_string() + repo_name
+    "/projects/".to_string() + repo_name
 }
 
 pub fn del_ends_str<'a>(mut s: &'a str, end: &str) -> &'a str {
