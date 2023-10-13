@@ -34,25 +34,34 @@ impl PackProtocol {
     pub async fn get_full_pack_data(&self, repo_path: &Path) -> Result<Vec<u8>, GitError> {
         // container for reserve all commit,blob and tree objs
         let mut hash_meta: HashMap<Hash, Arc<dyn ObjectT>> = HashMap::new();
-        let all_commits = self
+        let all_commits: Vec<Commit> = self
             .storage
             .get_all_commits_by_path(repo_path.to_str().unwrap())
             .await
-            .unwrap();
-        for model in all_commits {
-            let commit_id = model.git_id.clone();
-            let c: Commit = model.into();
-            if let Some(root) = self
-                .storage
-                .get_obj_data_by_id(&c.tree_id.to_plain_str())
-                .await
-                .unwrap()
-            {
-                get_child_trees(&root, &mut hash_meta, self.storage.clone()).await
-            } else {
-                return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
-            };
-            hash_meta.insert(Hash::new_from_str(&commit_id), Arc::new(c));
+            .unwrap()
+            .into_iter()
+            .map(|m| m.into())
+            .collect();
+        let all_tree_ids = all_commits
+            .iter()
+            .map(|c| c.tree_id.to_plain_str())
+            .collect();
+        let all_trees: HashMap<String, git_obj::Model> = self
+            .storage
+            .get_obj_data_by_hashes(all_tree_ids)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|m| (m.git_id.clone(), m))
+            .collect();
+        for c in all_commits {
+            self.traverse_want_trees(
+                all_trees.get(&c.tree_id.to_plain_str()).unwrap(),
+                &mut hash_meta,
+                &HashSet::new(),
+            )
+            .await;
+            hash_meta.insert(c.id, Arc::new(c));
         }
         let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
         let result: Vec<u8> = pack_encode(meta_vec).unwrap();
@@ -61,33 +70,64 @@ impl PackProtocol {
 
     pub async fn get_incremental_pack_data(
         &self,
-        repo_path: &Path,
+        _repo_path: &Path,
         want: &HashSet<String>,
-        _have: &HashSet<String>,
+        have: &HashSet<String>,
     ) -> Result<Vec<u8>, GitError> {
         let mut hash_meta: HashMap<Hash, Arc<dyn ObjectT>> = HashMap::new();
-        let all_commits = self
+        let mut have_objs = HashSet::new();
+        let want_commits: Vec<Commit> = self
             .storage
-            .get_all_commits_by_path(repo_path.to_str().unwrap())
+            .get_commit_by_hashes(want.iter().cloned().collect())
             .await
-            .unwrap();
+            .unwrap()
+            .into_iter()
+            .map(|m| m.into())
+            .collect();
+        let want_tree_ids = want_commits
+            .iter()
+            .map(|c| c.tree_id.to_plain_str())
+            .collect();
+        let want_trees: HashMap<String, git_obj::Model> = self
+            .storage
+            .get_obj_data_by_hashes(want_tree_ids)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|m| (m.git_id.clone(), m))
+            .collect();
 
-        for model in all_commits {
-            let commit_id = model.git_id.clone();
-            if want.contains(&commit_id) {
-                let c: Commit = model.into();
-                if let Some(root) = self
+        for c in want_commits {
+            let has_parent_c_id: Vec<String> = c
+                .parent_tree_ids
+                .clone()
+                .into_iter()
+                .filter(|p_id| have.contains(&p_id.to_plain_str()))
+                .map(|hash| hash.to_plain_str())
+                .collect();
+            let have_commits = self
+                .storage
+                .get_commit_by_hashes(has_parent_c_id)
+                .await
+                .unwrap();
+
+            for have_c in have_commits {
+                let have_tree = self
                     .storage
-                    .get_obj_data_by_id(&c.tree_id.to_plain_str())
+                    .get_obj_data_by_id(&have_c.tree)
                     .await
                     .unwrap()
-                {
-                    get_child_trees(&root, &mut hash_meta, self.storage.clone()).await
-                } else {
-                    return Err(GitError::InvalidTreeObject(c.tree_id.to_plain_str()));
-                };
-                hash_meta.insert(Hash::new_from_str(&commit_id), Arc::new(c));
+                    .unwrap();
+                self.update_have_objs(&have_tree, &mut have_objs).await;
             }
+
+            self.traverse_want_trees(
+                want_trees.get(&c.tree_id.to_plain_str()).unwrap(),
+                &mut hash_meta,
+                &have_objs,
+            )
+            .await;
+            hash_meta.insert(c.id, Arc::new(c));
         }
         let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
         let result: Vec<u8> = pack_encode(meta_vec).unwrap();
@@ -115,6 +155,69 @@ impl PackProtocol {
             //situation: repo_path: root/repotest2/src, commit: root/repotest
             ZERO_ID.to_string()
         }
+    }
+
+    // get all objects id from have tree
+    #[async_recursion]
+    async fn update_have_objs(&self, have_tree: &git_obj::Model, have_objects: &mut HashSet<Hash>) {
+        let mut t = Tree::new_from_data(have_tree.data.clone());
+        t.set_hash(Hash::new_from_str(&have_tree.git_id));
+
+        let mut search_child_ids = vec![];
+        for item in &t.tree_items {
+            if !have_objects.contains(&item.id) {
+                search_child_ids.push(item.id.to_plain_str());
+            }
+        }
+        let objs = self
+            .storage
+            .get_obj_data_by_ids(search_child_ids)
+            .await
+            .unwrap();
+        for obj in objs {
+            if obj.object_type == "tree" {
+                self.update_have_objs(&obj, have_objects).await;
+            } else {
+                let blob_id = Hash::new_from_str(&obj.git_id.clone());
+                have_objects.insert(blob_id);
+            }
+        }
+        have_objects.insert(t.id);
+    }
+
+    // retrieve all sub trees recursively
+    #[async_recursion]
+    async fn traverse_want_trees(
+        &self,
+        want_t: &git_obj::Model,
+        all_objects: &mut HashMap<Hash, Arc<dyn ObjectT>>,
+        have_objs: &HashSet<Hash>,
+    ) {
+        let mut t = Tree::new_from_data(want_t.data.clone());
+        t.set_hash(Hash::new_from_str(&want_t.git_id));
+
+        let mut search_child_ids = vec![];
+        for item in &t.tree_items {
+            if !all_objects.contains_key(&item.id) && !have_objs.contains(&item.id) {
+                search_child_ids.push(item.id.to_plain_str());
+            }
+        }
+        let objs = self
+            .storage
+            .get_obj_data_by_ids(search_child_ids)
+            .await
+            .unwrap();
+        for obj in objs {
+            if obj.object_type == "tree" {
+                self.traverse_want_trees(&obj, all_objects, have_objs).await;
+            } else {
+                let mut blob = Blob::new_from_data(obj.data.clone());
+                let blob_id = Hash::new_from_str(&obj.git_id.clone());
+                blob.set_hash(blob_id);
+                all_objects.insert(blob_id, Arc::new(blob));
+            }
+        }
+        all_objects.insert(t.id, Arc::new(t));
     }
 
     // TODO: Consider the scenario of deleting a repo
@@ -162,36 +265,6 @@ impl PackProtocol {
         }
         Ok(())
     }
-}
-
-// retrieve all sub trees recursively
-#[async_recursion]
-async fn get_child_trees(
-    root: &git_obj::Model,
-    hash_object: &mut HashMap<Hash, Arc<dyn ObjectT>>,
-    storage: Arc<dyn ObjectStorage>,
-) {
-    let mut t = Tree::new_from_data(root.data.clone());
-    t.set_hash(Hash::new_from_str(&root.git_id));
-
-    let mut search_child_ids = vec![];
-    for item in &t.tree_items {
-        if !hash_object.contains_key(&item.id) {
-            search_child_ids.push(item.id.to_plain_str());
-        }
-    }
-    let objs = storage.get_obj_data_by_ids(search_child_ids).await.unwrap();
-    for obj in objs {
-        if obj.object_type == "tree" {
-            get_child_trees(&obj, hash_object, storage.clone()).await;
-        } else {
-            let mut blob = Blob::new_from_data(obj.data.clone());
-            let blob_id = Hash::new_from_str(&obj.git_id.clone());
-            blob.set_hash(blob_id);
-            hash_object.insert(blob_id, Arc::new(blob));
-        }
-    }
-    hash_object.insert(t.id, Arc::new(t));
 }
 
 /// Generates a new commit for a subdirectory of the original project directory.
