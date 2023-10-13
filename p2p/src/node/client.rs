@@ -239,7 +239,7 @@ pub async fn run(
                         },
                         //kad events
                         SwarmEvent::Behaviour(Event::Kademlia(event)) => {
-                            event_handler::kad_event_handler(&mut swarm, &mut client_paras, event);
+                            event_handler::kad_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         //GitUploadPack events
                         SwarmEvent::Behaviour(Event::GitUploadPack(event)) => {

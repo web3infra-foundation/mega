@@ -387,7 +387,6 @@ pub async fn save_node_from_git_obj(
     repo.save_commits().await.unwrap();
 
     // save refs
-    // to do, if it is an incremental update, this code will not apply
     let mut commit_id = String::new();
     let mut parent_id_list: Vec<String> = Vec::new();
     for commit in commits.clone() {
@@ -403,15 +402,26 @@ pub async fn save_node_from_git_obj(
             commit_id = commit.id.to_plain_str();
         }
     }
-    let child_refs = refs::ActiveModel {
-        id: NotSet,
-        repo_path: Set(repo_path.to_str().unwrap().to_string()),
-        ref_name: Set(String::from("refs/heads/master")),
-        ref_git_id: Set(commit_id.clone()),
-        created_at: Set(chrono::Utc::now().naive_utc()),
-        updated_at: Set(chrono::Utc::now().naive_utc()),
-    };
-    storage.save_refs(vec![child_refs]).await.unwrap();
+
+    let mut refs = storage
+        .get_ref_object_id(repo_path.to_str().unwrap())
+        .await
+        .unwrap();
+    if refs.is_empty() {
+        let child_refs = refs::ActiveModel {
+            id: NotSet,
+            repo_path: Set(repo_path.to_str().unwrap().to_string()),
+            ref_name: Set(String::from("refs/heads/master")),
+            ref_git_id: Set(commit_id.clone()),
+            created_at: Set(chrono::Utc::now().naive_utc()),
+            updated_at: Set(chrono::Utc::now().naive_utc()),
+        };
+        storage.save_refs(vec![child_refs]).await.unwrap();
+    } else if let Some(r) = refs.pop() {
+        storage
+            .update_refs(r.ref_git_id, commit_id.clone(), repo_path)
+            .await;
+    }
 
     Ok(())
 }

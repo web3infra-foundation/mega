@@ -32,7 +32,7 @@ pub struct GitUploadPackReq(
 pub struct GitUploadPackRes(pub Vec<u8>, pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GitInfoRefsReq(pub String);
+pub struct GitInfoRefsReq(pub String, pub Vec<String>);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitInfoRefsRes(pub String, pub Vec<String>);
 

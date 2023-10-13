@@ -229,13 +229,13 @@ pub async fn handle_mega_command(
             let request_id = swarm
                 .behaviour_mut()
                 .git_info_refs
-                .send_request(&peer_id, GitInfoRefsReq(path));
+                .send_request(&peer_id, GitInfoRefsReq(path, Vec::new()));
             client_paras
                 .pending_git_pull
                 .insert(request_id, repo_name.to_string());
         }
         Some("clone-object") => {
-            // mega git_obj_download mega_test.git
+            // mega clone-object mega_test.git
             let repo_name = {
                 match args_iter.next() {
                     Some(path) => path.to_string(),
@@ -257,15 +257,30 @@ pub async fn handle_mega_command(
             client_paras
                 .pending_repo_info_search_to_download_obj
                 .insert(kad_query_id, repo_name);
+        }
+        Some("pull-object") => {
+            // mega pull-object mega_test.git
+            let repo_name = {
+                match args_iter.next() {
+                    Some(path) => path.to_string(),
+                    None => {
+                        eprintln!("Expected repo_name");
+                        return;
+                    }
+                }
+            };
+            if !repo_name.ends_with(".git") {
+                eprintln!("repo_name should end with .git");
+                return;
+            }
 
-            // let path = get_repo_full_path(repo_name);
-            // let request_file_id = swarm
-            //     .behaviour_mut()
-            //     .git_info_refs
-            //     .send_request(&peer_id, GitInfoRefsReq(path));
-            // client_paras
-            //     .pending_git_obj_download
-            //     .insert(request_file_id, repo_name.to_string());
+            let kad_query_id = swarm
+                .behaviour_mut()
+                .kademlia
+                .get_record(Key::new(&repo_name));
+            client_paras
+                .pending_repo_info_search_to_download_obj
+                .insert(kad_query_id, repo_name);
         }
         _ => {
             eprintln!("expected command: clone, pull, provide, clone-object");
