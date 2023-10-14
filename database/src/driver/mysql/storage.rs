@@ -39,7 +39,7 @@ impl ObjectStorage for MysqlStorage {
         &self.connection
     }
 
-    async fn save_obj_data(&self, obj_data: Vec<git_obj::ActiveModel>) -> Result<bool, MegaError> {
+    async fn save_obj_data_to_db(&self, obj_data: Vec<git_obj::ActiveModel>) -> Result<bool, MegaError> {
         let packet_size = obj_data
             .iter()
             .map(|model| model.clone().try_into_model().unwrap().data.len())

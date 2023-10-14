@@ -51,6 +51,7 @@ impl Entry {
             git_id: Set(self.hash.unwrap().to_plain_str()),
             object_type: Set(String::from_utf8_lossy(self.header.to_bytes()).to_string()),
             data: Set(self.data),
+            link: Set(None),
         }
     }
 }
