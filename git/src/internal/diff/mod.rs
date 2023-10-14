@@ -1,7 +1,16 @@
+//!
+//!
+//!
+//!
+//!
+//! 
+#[cfg(feature="diff_mydrs")]
 use diffs::myers;
 use diffs::Diff;
+
 const DATA_INS_LEN: usize = 0x7f;
 const VAR_INT_ENCODING_BITS: u8 = 7;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Optype {
     Data,
@@ -23,7 +32,6 @@ pub struct DeltaDiff<'a> {
     ssam_r: f64,
 }
 
-
 impl <'a>DeltaDiff<'a> {
     /// Diff the two u8 array slice , Type should be same.
     /// Return the DeltaDiff struct.
@@ -35,6 +43,7 @@ impl <'a>DeltaDiff<'a> {
             ssam: 0,
             ssam_r: 0.00,
         };
+
         #[cfg(feature="diff_mydrs")]
         myers::diff(
             &mut delta_diff,
