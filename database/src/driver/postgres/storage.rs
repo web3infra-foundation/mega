@@ -24,7 +24,7 @@ impl ObjectStorage for PgStorage {
         &self.connection
     }
 
-    async fn save_obj_data(&self, obj_data: Vec<git_obj::ActiveModel>) -> Result<bool, MegaError> {
+    async fn save_obj_data_to_db(&self, obj_data: Vec<git_obj::ActiveModel>) -> Result<bool, MegaError> {
         batch_save_model(self.get_connection(), obj_data).await?;
         Ok(true)
     }
