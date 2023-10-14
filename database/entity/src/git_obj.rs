@@ -11,6 +11,7 @@ pub struct Model {
     pub git_id: String,
     pub object_type: String,
     pub data: Vec<u8>,
+    pub link: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
