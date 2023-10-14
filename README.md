@@ -55,7 +55,8 @@ When it comes to managing large codebases in a centralized manner, trunk-based d
    
    3. Craeate user and grant privileges.
 
-   ```sql   
+   ```sql
+   postgres=# DROP USER IF EXISTS mega;
    postgres=# CREATE USER mega WITH ENCRYPTED PASSWORD 'rustgit';
    postgres=# GRANT ALL PRIVILEGES ON DATABASE mega TO mega;
    ```

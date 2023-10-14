@@ -81,56 +81,6 @@ impl From<commit::Model> for Commit {
 }
 
 impl Commit {
-    // #[allow(unused)]
-    // pub fn new_from_data(data: Vec<u8>) -> Result<Commit, GitError> {
-    //     let mut commit = data.clone();
-
-    //     // Find the tree id and remove it from the data
-    //     let tree_end = commit.find_byte(0x0a).unwrap();
-    //     let tree_id: Hash = Hash::new_from_str(
-    //         String::from_utf8(commit[5..tree_end].to_owned())
-    //             .unwrap()
-    //             .as_str(),
-    //     );
-    //     commit = commit[tree_end + 1..].to_vec();
-
-    //     // Find the parent tree ids and remove them from the data
-    //     let author_begin = commit.find("author").unwrap();
-    //     let parent_tree_ids: Vec<Hash> = commit[..author_begin]
-    //         .find_iter("parent")
-    //         .map(|parent| {
-    //             let parent_end = commit[parent..].find_byte(0x0a).unwrap();
-    //             Hash::new_from_str(
-    //                 String::from_utf8(commit[parent + 7..parent + parent_end].to_owned())
-    //                     .unwrap()
-    //                     .as_str(),
-    //             )
-    //         })
-    //         .collect();
-    //     commit = commit[author_begin..].to_vec();
-
-    //     // Find the author and committer and remove them from the data
-    //     let author = Signature::new_from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec())?;
-    //     commit = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
-    //     let committer =
-    //         Signature::new_from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec())?;
-
-    //     // The rest is the message
-    //     let message =
-    //         String::from_utf8(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec()).unwrap();
-
-    //     Ok(Commit {
-
-    //         id:Hash::new(&vec![0]),
-    //         tree_id,
-    //         parent_tree_ids,
-    //         author,
-    //         committer,
-    //         message,
-    //         row_data : data,
-    //     })
-    // }
-
     /// Create a new commit object from a meta object
     #[allow(unused)]
     pub fn new_from_meta(meta: Meta) -> Result<Commit, GitError> {
