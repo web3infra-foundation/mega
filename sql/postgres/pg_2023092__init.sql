@@ -61,9 +61,10 @@ CREATE INDEX "idx_mr_id" ON "mr" ("mr_id", "object_type");
 
 CREATE TABLE IF NOT EXISTS "git_obj" (
   "id" BIGINT NOT NULL,
-  "git_id" VARCHAR(40),
-  "object_type" VARCHAR(16),
+  "git_id" VARCHAR(40) NOT NULL,
+  "object_type" VARCHAR(16) NOT NULL,
   "data" BYTEA,
+  "link" VARCHAR(512),
   PRIMARY KEY ("id")
 );
 CREATE INDEX "idx_data_git_id" ON "git_obj" ("git_id");

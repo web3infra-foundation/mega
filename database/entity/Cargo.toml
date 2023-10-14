@@ -13,4 +13,4 @@ serde = { version = "1", features = ["derive"] }
 chrono = "0.4.23"
 
 [dependencies.sea-orm]
-version = "0.12.1"
+version = "0.12.3"

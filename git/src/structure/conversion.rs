@@ -48,7 +48,7 @@ impl PackProtocol {
             .collect();
         let all_trees: HashMap<String, git_obj::Model> = self
             .storage
-            .get_obj_data_by_hashes(all_tree_ids)
+            .get_obj_data_by_ids(all_tree_ids)
             .await
             .unwrap()
             .into_iter()
@@ -90,7 +90,7 @@ impl PackProtocol {
             .collect();
         let want_trees: HashMap<String, git_obj::Model> = self
             .storage
-            .get_obj_data_by_hashes(want_tree_ids)
+            .get_obj_data_by_ids(want_tree_ids)
             .await
             .unwrap()
             .into_iter()
@@ -371,6 +371,7 @@ pub async fn save_node_from_git_obj(
             git_id: Set(m.git_id.clone()),
             object_type: Set(m.object_type.clone()),
             data: Set(m.data.clone()),
+            link: Set(m.link.clone()),
         })
         .collect();
     storage.save_obj_data(git_obj_active_model).await.unwrap();
