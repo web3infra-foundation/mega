@@ -7,7 +7,7 @@ use crate::protocol::ZERO_ID;
 use crate::structure::conversion;
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::collections::HashSet;
+use std::{collections::HashSet, thread};
 
 use super::{Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
 
@@ -25,7 +25,7 @@ const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet
 
 // The ofs-delta and side-band-64k capabilities are sent and recognized by both upload-pack and receive-pack protocols.
 // The agent and session-id capabilities may optionally be sent in both protocols.
-const CAP_LIST: &str = "side-band-64k ofs-delta object-format=sha1";
+const CAP_LIST: &str = "side-band-64k ofs-delta";
 
 // All other capabilities are only recognized by the upload-pack (fetch from server) process.
 const UPLOAD_CAP_LIST: &str =
@@ -82,7 +82,7 @@ impl PackProtocol {
             ref_list.push(pkt_line);
         }
         let pkt_line_stream = self.build_smart_reply(&ref_list, service_type.to_string());
-        tracing::info!("git_info_refs response: {:?}", pkt_line_stream);
+        tracing::debug!("git_info_refs response: {:?}", pkt_line_stream);
         pkt_line_stream
     }
 
@@ -95,7 +95,7 @@ impl PackProtocol {
 
         let mut read_first_line = false;
         loop {
-            tracing::info!("loop start");
+            tracing::debug!("loop start");
             let (bytes_take, pkt_line) = read_pkt_line(upload_request);
             // read 0000 to continue and read empty str to break
             if bytes_take == 0 {
@@ -196,7 +196,10 @@ impl PackProtocol {
                 conversion::save_node_from_mr(self.storage.clone(), mr_id, path).await;
             if parse_obj_result.is_ok() {
                 command.save_to_db(self.storage.clone(), path).await;
+                // save project directory
                 self.handle_directory().await.unwrap();
+                // start building
+                thread::spawn(build_tool::bazel_build::build);
             } else {
                 tracing::error!("{}", parse_obj_result.err().unwrap());
                 command.failed(String::from("db operation failed"));

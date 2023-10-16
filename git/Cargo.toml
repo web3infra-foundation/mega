@@ -19,7 +19,8 @@ diff_mydrs = []
 database = { path = "../database" }
 common = { path = "../common" }
 entity = { path = "../database/entity" }
-kvcache ={ path = "../kvcache"}
+kvcache = { path = "../kvcache" }
+build-tool = { path = "../build-tool" }
 anyhow = "1.0.75"
 bstr = "1.5.0"
 chrono = "0.4.24"
