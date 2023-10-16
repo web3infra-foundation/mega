@@ -44,8 +44,10 @@ When it comes to managing large codebases in a centralized manner, trunk-based d
    ```
 
    ```sql
+   postgres=# \l
    postgres=# DROP DATABASE IF EXISTS mega;
    postgres=# CREATE DATABASE mega;
+   postgres=# \q
    ```
 
    ```bash
@@ -80,6 +82,9 @@ When it comes to managing large codebases in a centralized manner, trunk-based d
    MEGA_DB_POSTGRESQL_URL = "postgres://mega:rustgit@127.0.0.1/mega"
    MEGA_DB_MAX_CONNECTIONS = 32
    MEGA_DB_MIN_CONNECTIONS = 16
+   # If the object file size exceeds a threshold value, it will be stored in the specified location instead of the database.
+   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB
+   MEGA_BIG_OBJ_STORAGR_PATH = "/Volumes/Data/mega"
    GIT_INTERNAL_DECODE_CACHE_SIZE = 100 # Maximum number of git objects in LRU cache
    GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE = 1000 # The maximum number of git object in a "INSERT" SQL database operation
    GIT_INTERNAL_DECODE_STORAGE_TQUEUE_SIZE = 1 # The maximum number of parallel insertion threads in the database operation queue
