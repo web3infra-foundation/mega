@@ -199,7 +199,8 @@ impl PackProtocol {
                 // save project directory
                 self.handle_directory().await.unwrap();
                 // start building
-                thread::spawn(build_tool::bazel_build::build);
+                let repo_path = self.path.clone();
+                thread::spawn(|| build_tool::bazel_build::build(repo_path));
             } else {
                 tracing::error!("{}", parse_obj_result.err().unwrap());
                 command.failed(String::from("db operation failed"));
