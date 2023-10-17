@@ -7,13 +7,13 @@ use std::{
 };
 use url::Url;
 
-pub fn build() {
-    let repo_path = PathBuf::from("/projects/mega");
+pub fn build(repo_path: PathBuf) {
+    let mut temp = PathBuf::from(env::var("BAZEL_BUILDP_PATH").unwrap());
+
     let project_name = repo_path.file_name().unwrap();
 
-    let mut temp = PathBuf::from("/tmp/.mega/bazel_build_projects");
     temp.push(project_name);
-    let mut project_url = Url::parse("http://localhost:8000").unwrap();
+    let mut project_url = Url::parse(&env::var("BAZEL_GIT_CLONE_URL").unwrap()).unwrap();
     project_url.set_path(repo_path.to_str().unwrap());
     if temp.exists() {
         if let Err(err) = fs::remove_dir_all(&temp) {
@@ -22,7 +22,7 @@ pub fn build() {
             tracing::info!("repo removed successfully: {:?}", project_name);
         }
     }
-    Repository::clone(project_url.as_ref(), &temp).expect("failed to clone");
+    Repository::clone(project_url.as_ref(), &temp).expect("failed to clone project");
 
     if let Err(err) = env::set_current_dir(&temp) {
         tracing::error!("Failed to change the working directory: {}", err);
@@ -50,8 +50,12 @@ pub fn build() {
         }
 
         // Execute bazel build
+        let mut remote_executor = String::new();
+        if let Ok(remote_exec) = env::var("BAZEL_REMOTE_EXECUTOR") {
+            remote_executor = format!("--remote_executor={}", remote_exec);
+        }
         let mut bazel_build_child = Command::new("bazel")
-            .args(["build", "//:mega"])
+            .args(["build", &remote_executor, "//:mega"])
             .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to start the bazel build");
