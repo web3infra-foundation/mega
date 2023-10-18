@@ -43,7 +43,20 @@ where
         let mut addr: String= String::new();
         utils::get_env_number("REDIS_CONFIG", &mut addr);
         let config :ConnectionInfo  = addr.into_connection_info().unwrap();
-        let c = Self::new_client(config).unwrap();
+        let mut c = Self::new_client(config).unwrap();
+
+        let _ = redis::cmd("CONFIG")
+        .arg("SET")
+        .arg("maxmemory")
+        .arg("2G")
+        .query::<bool>(&mut c).unwrap();
+
+        let _ = redis::cmd("CONFIG")
+        .arg("SET")
+        .arg("maxmemory-policy")
+        .arg("allkeys-lru")
+        .query::<bool>(&mut c).unwrap();
+
         RedisClient {
             conn: RefCell::new(c),
             k: PhantomData,
