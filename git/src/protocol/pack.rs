@@ -7,7 +7,7 @@ use crate::protocol::ZERO_ID;
 use crate::structure::conversion;
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::{collections::HashSet, thread};
+use std::{collections::HashSet, env, thread};
 
 use super::{Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
 
@@ -200,7 +200,13 @@ impl PackProtocol {
                 self.handle_directory().await.unwrap();
                 // start building
                 let repo_path = self.path.clone();
-                thread::spawn(|| build_tool::bazel_build::build(repo_path));
+                let enable_build = env::var("BAZEL_BUILD_ENABLE")
+                    .unwrap()
+                    .parse::<bool>()
+                    .unwrap();
+                if enable_build {
+                    thread::spawn(|| build_tool::bazel_build::build(repo_path));
+                }
             } else {
                 tracing::error!("{}", parse_obj_result.err().unwrap());
                 command.failed(String::from("db operation failed"));
