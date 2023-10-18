@@ -102,7 +102,6 @@ pub trait Node: Send {
     fn convert_to_model(&self) -> node::ActiveModel;
 
     fn set_commit_id(&mut self, commit_id: String);
-
 }
 
 impl Node for TreeNode {
@@ -188,7 +187,6 @@ impl Node for TreeNode {
     fn set_commit_id(&mut self, commit_id: String) {
         self.last_commit = commit_id
     }
-
 }
 
 impl Node for FileNode {
@@ -271,7 +269,6 @@ impl Node for FileNode {
     fn set_commit_id(&mut self, commit_id: String) {
         self.last_commit = commit_id
     }
-
 }
 
 impl TreeNode {
@@ -318,7 +315,7 @@ impl NodeBuilder {
                             .get_obj_data_by_id(&root_tree_id.to_plain_str())
                             .await
                             .unwrap()
-                            .unwrap();
+                            .unwrap_or_else(|| panic!("can't get obj data {} from db", root_tree_id.to_plain_str()));
                         let mut obj = Tree::new_from_data(model.data.clone());
                         let hash = Hash::new_from_str(&model.git_id);
                         obj.set_hash(hash);
@@ -326,8 +323,12 @@ impl NodeBuilder {
                     }
                 };
 
-                root_node =
-                    tree.convert_to_node(None, self.repo_path.clone(), self.repo_path.clone(), &commit.id.to_plain_str());
+                root_node = tree.convert_to_node(
+                    None,
+                    self.repo_path.clone(),
+                    self.repo_path.clone(),
+                    &commit.id.to_plain_str(),
+                );
                 self.convert_tree_to_node(
                     &tree,
                     &mut root_node,
@@ -375,7 +376,7 @@ impl NodeBuilder {
                     Some(item),
                     self.repo_path.clone(),
                     full_path.clone(),
-                    node.get_commit_id()
+                    node.get_commit_id(),
                 ));
                 let child_node = match node.find_child(&item.name) {
                     Some(child) => child,
@@ -392,7 +393,7 @@ impl NodeBuilder {
                     Some(item),
                     self.repo_path.to_path_buf(),
                     full_path.clone(),
-                    node.get_commit_id()
+                    node.get_commit_id(),
                 ));
             }
             full_path.pop();
