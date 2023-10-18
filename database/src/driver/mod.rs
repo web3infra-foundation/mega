@@ -136,9 +136,12 @@ pub trait ObjectStorage: Send + Sync {
         &self,
         git_ids: Vec<String>,
     ) -> Result<Vec<git_obj::Model>, MegaError> {
-        let mut objs = git_obj::Entity::find()
-            .filter(git_obj::Column::GitId.is_in(git_ids))
-            .all(self.get_connection())
+        let mut objs: Vec<git_obj::Model> =
+            batch_query_by_columns::<git_obj::Entity, git_obj::Column>(
+                self.get_connection(),
+                git_obj::Column::GitId,
+                git_ids,
+            )
             .await
             .unwrap();
         for obj in objs.iter_mut() {
@@ -164,14 +167,6 @@ pub trait ObjectStorage: Send + Sync {
         Ok(None)
     }
 
-    async fn get_mr_id_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<mr::Model>, MegaError> {
-        Ok(mr::Entity::find()
-            .filter(mr::Column::GitId.is_in(hashes))
-            .all(self.get_connection())
-            .await
-            .unwrap())
-    }
-
     async fn get_ref_object_id(&self, repo_path: &str) -> Result<Vec<refs::Model>, MegaError> {
         // assuming HEAD points to branch master.
         Ok(refs::Entity::find()
@@ -193,11 +188,13 @@ pub trait ObjectStorage: Send + Sync {
         &self,
         hashes: Vec<String>,
     ) -> Result<Vec<commit::Model>, MegaError> {
-        Ok(commit::Entity::find()
-            .filter(commit::Column::GitId.is_in(hashes))
-            .all(self.get_connection())
-            .await
-            .unwrap())
+        Ok(batch_query_by_columns::<commit::Entity, commit::Column>(
+            self.get_connection(),
+            commit::Column::GitId,
+            hashes,
+        )
+        .await
+        .unwrap())
     }
 
     async fn get_all_commits_by_path(
@@ -253,11 +250,13 @@ pub trait ObjectStorage: Send + Sync {
         &self,
         hashes: Vec<String>,
     ) -> Result<Vec<node::Model>, MegaError> {
-        Ok(node::Entity::find()
-            .filter(node::Column::GitId.is_in(hashes))
-            .all(self.get_connection())
-            .await
-            .unwrap())
+        Ok(batch_query_by_columns::<node::Entity, node::Column>(
+            self.get_connection(),
+            node::Column::GitId,
+            hashes,
+        )
+        .await
+        .unwrap())
     }
 
     async fn get_node_by_hash(&self, hash: &str) -> Result<Option<node::Model>, MegaError> {
@@ -731,4 +730,26 @@ where
     }
     futures::future::join_all(results).await;
     Ok(())
+}
+
+async fn batch_query_by_columns<T, C>(
+    connection: &DatabaseConnection,
+    column: C,
+    ids: Vec<String>,
+) -> Result<Vec<T::Model>, MegaError>
+where
+    T: EntityTrait,
+    C: ColumnTrait,
+{
+    let mut result = Vec::<T::Model>::new();
+    for chunk in ids.chunks(1000) {
+        result.extend(
+            T::find()
+                .filter(column.is_in(chunk))
+                .all(connection)
+                .await
+                .unwrap(),
+        );
+    }
+    Ok(result)
 }
