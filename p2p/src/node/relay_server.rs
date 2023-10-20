@@ -5,15 +5,16 @@ use async_std::io::prelude::BufReadExt;
 use futures::executor::block_on;
 use futures::stream::StreamExt;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, Kademlia, KademliaEvent, PeerRecord, PutRecordOk, QueryResult};
+use libp2p::kad::{
+    AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
+    QueryResult,
+};
 use libp2p::{
-    core::upgrade,
-    core::Transport,
     identify, identity,
     identity::PeerId,
-    noise, relay, rendezvous,
-    swarm::{NetworkBehaviour, SwarmBuilder, SwarmEvent},
-    tcp,
+    kad, noise, relay, rendezvous,
+    swarm::{NetworkBehaviour, SwarmEvent},
+    tcp, yamux,
 };
 use std::error::Error;
 
@@ -21,28 +22,25 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
 
-    let tcp_transport = tcp::async_io::Transport::default();
-
-    let tcp_transport = tcp_transport
-        .upgrade(upgrade::Version::V1Lazy)
-        // .authenticate(tls::Config::new(&local_key).unwrap())
-        .authenticate(noise::Config::new(&local_key)?)
-        .multiplex(libp2p::yamux::Config::default())
-        .boxed();
-
     let store = MemoryStore::new(local_peer_id);
 
-    let behaviour = ServerBehaviour {
-        relay: relay::Behaviour::new(local_peer_id, Default::default()),
-        identify: identify::Behaviour::new(identify::Config::new(
-            "/mega/0.0.1".to_string(),
-            local_key.public(),
-        )),
-        kademlia: Kademlia::new(local_peer_id, store),
-        rendezvous: rendezvous::server::Behaviour::new(rendezvous::server::Config::default()),
-    };
-
-    let mut swarm = SwarmBuilder::without_executor(tcp_transport, behaviour, local_peer_id).build();
+    let mut swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
+        .with_async_std()
+        .with_tcp(
+            tcp::Config::default().port_reuse(true),
+            noise::Config::new,
+            yamux::Config::default,
+        )?
+        .with_behaviour(|key| ServerBehaviour {
+            relay: relay::Behaviour::new(key.public().to_peer_id(), Default::default()),
+            identify: identify::Behaviour::new(identify::Config::new(
+                "/mega/0.0.1".to_string(),
+                key.public(),
+            )),
+            kademlia: kad::Behaviour::new(key.public().to_peer_id(), store),
+            rendezvous: rendezvous::server::Behaviour::new(rendezvous::server::Config::default()),
+        })?
+        .build();
 
     // Listen on all interfaces
     swarm.listen_on(p2p_address.parse()?)?;
@@ -92,8 +90,8 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
     Ok(())
 }
 
-pub fn kad_event_handler(event: KademliaEvent) {
-    if let KademliaEvent::OutboundQueryProgressed {  result, .. } = event {
+pub fn kad_event_handler(event: kad::Event) {
+    if let kad::Event::OutboundQueryProgressed { result, .. } = event {
         match result {
             QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(PeerRecord { record, peer }))) => {
                 let peer_id = match peer {
@@ -145,6 +143,6 @@ pub fn kad_event_handler(event: KademliaEvent) {
 pub struct ServerBehaviour {
     pub relay: relay::Behaviour,
     pub identify: identify::Behaviour,
-    pub kademlia: Kademlia<MemoryStore>,
+    pub kademlia: kad::Behaviour<MemoryStore>,
     pub rendezvous: rendezvous::server::Behaviour,
 }

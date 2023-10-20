@@ -8,14 +8,12 @@ use database::DataSource;
 use entity::git_obj::Model;
 use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
-use libp2p::core::upgrade;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::Kademlia;
 use libp2p::request_response::ProtocolSupport;
-use libp2p::swarm::{SwarmBuilder, SwarmEvent};
+use libp2p::swarm::SwarmEvent;
 use libp2p::{
-    dcutr, identify, identity, multiaddr, noise, relay, rendezvous, request_response, tcp, yamux,
-    Multiaddr, PeerId, StreamProtocol, Transport,
+    dcutr, identify, identity, kad, multiaddr, noise, rendezvous, request_response, tcp, yamux,
+    Multiaddr, PeerId, StreamProtocol,
 };
 use std::collections::HashMap;
 use std::error::Error;
@@ -30,54 +28,50 @@ pub async fn run(
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
 
-    let (relay_transport, client) = relay::client::new(local_peer_id);
-
-    let tcp_transport = relay_transport
-        .or_transport(tcp::async_io::Transport::new(
-            tcp::Config::default().port_reuse(true),
-        ))
-        .upgrade(upgrade::Version::V1)
-        .authenticate(noise::Config::new(&local_key)?)
-        // .authenticate(tls::Config::new(&local_key).unwrap())
-        .multiplex(yamux::Config::default())
-        .boxed();
-
     let store = MemoryStore::new(local_peer_id);
 
-    let behaviour = Behaviour {
-        relay_client: client,
-        identify: identify::Behaviour::new(identify::Config::new(
-            "/mega/0.0.1".to_string(),
-            local_key.public(),
-        )),
-        dcutr: dcutr::Behaviour::new(local_peer_id),
-        //DHT
-        kademlia: Kademlia::new(local_peer_id, store),
-        //discover
-        rendezvous: rendezvous::client::Behaviour::new(local_key),
-        // git pull, git clone
-        git_upload_pack: request_response::cbor::Behaviour::new(
-            [(
-                StreamProtocol::new("/mega/git_upload_pack"),
-                ProtocolSupport::Full,
-            )],
-            request_response::Config::default(),
-        ),
-        // git info refs
-        git_info_refs: request_response::cbor::Behaviour::new(
-            [(
-                StreamProtocol::new("/mega/git_info_refs"),
-                ProtocolSupport::Full,
-            )],
-            request_response::Config::default(),
-        ),
-        // git download git_obj
-        git_object: request_response::cbor::Behaviour::new(
-            [(StreamProtocol::new("/mega/git_obj"), ProtocolSupport::Full)],
-            request_response::Config::default(),
-        ),
-    };
-    let mut swarm = SwarmBuilder::without_executor(tcp_transport, behaviour, local_peer_id).build();
+    let mut swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
+        .with_async_std()
+        .with_tcp(
+            tcp::Config::default().port_reuse(true),
+            noise::Config::new,
+            yamux::Config::default,
+        )?
+        .with_relay_client(noise::Config::new, yamux::Config::default)?
+        .with_behaviour(|keypair, relay_behaviour| Behaviour {
+            relay_client: relay_behaviour,
+            identify: identify::Behaviour::new(identify::Config::new(
+                "/mega/0.0.1".to_string(),
+                keypair.public(),
+            )),
+            dcutr: dcutr::Behaviour::new(keypair.public().to_peer_id()),
+            //DHT
+            kademlia: kad::Behaviour::new(keypair.public().to_peer_id(), store),
+            //discover
+            rendezvous: rendezvous::client::Behaviour::new(keypair.clone()),
+            // git pull, git clone
+            git_upload_pack: request_response::cbor::Behaviour::new(
+                [(
+                    StreamProtocol::new("/mega/git_upload_pack"),
+                    ProtocolSupport::Full,
+                )],
+                request_response::Config::default(),
+            ),
+            // git info refs
+            git_info_refs: request_response::cbor::Behaviour::new(
+                [(
+                    StreamProtocol::new("/mega/git_info_refs"),
+                    ProtocolSupport::Full,
+                )],
+                request_response::Config::default(),
+            ),
+            // git download git_obj
+            git_object: request_response::cbor::Behaviour::new(
+                [(StreamProtocol::new("/mega/git_obj"), ProtocolSupport::Full)],
+                request_response::Config::default(),
+            ),
+        })?
+        .build();
 
     // Listen on all interfaces
     swarm.listen_on(p2p_address.parse()?)?;
