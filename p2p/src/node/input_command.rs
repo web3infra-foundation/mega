@@ -6,8 +6,8 @@ use crate::{get_pack_protocol, get_repo_full_path};
 use common::utils;
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{Kademlia, Quorum, Record};
-use libp2p::{PeerId, Swarm};
+use libp2p::kad::{Quorum, Record};
+use libp2p::{kad, PeerId, Swarm};
 use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
@@ -35,7 +35,7 @@ pub async fn handle_input_command(
     }
 }
 
-pub fn handle_kad_command(kademlia: &mut Kademlia<MemoryStore>, args: Vec<&str>) {
+pub fn handle_kad_command(kademlia: &mut kad::Behaviour<MemoryStore>, args: Vec<&str>) {
     let mut args_iter = args.iter().copied();
     match args_iter.next() {
         Some("get") => {
