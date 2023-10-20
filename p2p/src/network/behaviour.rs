@@ -1,6 +1,6 @@
 use entity::git_obj;
+use libp2p::kad;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{Kademlia, KademliaEvent};
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{dcutr, identify, relay, rendezvous, request_response};
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ pub struct Behaviour {
     pub relay_client: relay::client::Behaviour,
     pub identify: identify::Behaviour,
     pub dcutr: dcutr::Behaviour,
-    pub kademlia: Kademlia<MemoryStore>,
+    pub kademlia: kad::Behaviour<MemoryStore>,
     pub rendezvous: rendezvous::client::Behaviour,
     pub git_upload_pack: request_response::cbor::Behaviour<GitUploadPackReq, GitUploadPackRes>,
     pub git_info_refs: request_response::cbor::Behaviour<GitInfoRefsReq, GitInfoRefsRes>,
@@ -47,7 +47,7 @@ pub enum Event {
     Identify(identify::Event),
     RelayClient(relay::client::Event),
     Dcutr(dcutr::Event),
-    Kademlia(KademliaEvent),
+    Kademlia(kad::Event),
     Rendezvous(rendezvous::client::Event),
     GitUploadPack(request_response::Event<GitUploadPackReq, GitUploadPackRes>),
     GitInfoRefs(request_response::Event<GitInfoRefsReq, GitInfoRefsRes>),
@@ -72,8 +72,8 @@ impl From<dcutr::Event> for Event {
     }
 }
 
-impl From<KademliaEvent> for Event {
-    fn from(e: KademliaEvent) -> Self {
+impl From<kad::Event> for Event {
+    fn from(e: kad::Event) -> Self {
         Event::Kademlia(e)
     }
 }
