@@ -12,10 +12,10 @@ use git::structure::conversion;
 use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{
-    AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, Kademlia, KademliaEvent,
-    PeerRecord, PutRecordOk, QueryResult, Quorum, Record,
+    AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
+    QueryResult, Quorum, Record,
 };
-use libp2p::{identify, multiaddr, rendezvous, request_response, PeerId, Swarm};
+use libp2p::{identify, kad, multiaddr, rendezvous, request_response, PeerId, Swarm};
 use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
@@ -25,9 +25,9 @@ pub const NAMESPACE: &str = "rendezvous_mega";
 pub async fn kad_event_handler(
     swarm: &mut Swarm<behaviour::Behaviour>,
     client_paras: &mut ClientParas,
-    event: KademliaEvent,
+    event: kad::Event,
 ) {
-    if let KademliaEvent::OutboundQueryProgressed { id, result, .. } = event {
+    if let kad::Event::OutboundQueryProgressed { id, result, .. } = event {
         match result {
             QueryResult::GetRecord(Ok(GetRecordOk::FoundRecord(PeerRecord { record, peer }))) => {
                 let peer_id = match peer {
@@ -237,7 +237,7 @@ pub fn rendezvous_server_event_handler(event: rendezvous::server::Event) {
     }
 }
 
-pub fn identify_event_handler(kademlia: &mut Kademlia<MemoryStore>, event: identify::Event) {
+pub fn identify_event_handler(kademlia: &mut kad::Behaviour<MemoryStore>, event: identify::Event) {
     match event {
         identify::Event::Received { peer_id, info } => {
             tracing::info!("IdentifyEvent Received peer_id:{:?}", peer_id);
@@ -441,8 +441,7 @@ pub async fn git_info_refs_event_handler(
                     if let Some(r) = client_paras.repo_node_list.clone().get(repo_name) {
                         let mut repo_list = r.clone();
                         if !repo_list.is_empty() {
-                            repo_list
-                                .retain(|r| *r != swarm.local_peer_id().to_string());
+                            repo_list.retain(|r| *r != swarm.local_peer_id().to_string());
                             tracing::info!("try to download git object from: {:?}", repo_list);
                             tracing::info!("the origin is: {}", repo_list[0]);
                             // Try to download separately
