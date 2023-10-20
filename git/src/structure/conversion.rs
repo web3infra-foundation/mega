@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Components, Path, PathBuf};
 use std::{collections::HashSet, sync::Arc};
 
 use super::nodes::NodeBuilder;
@@ -149,7 +149,7 @@ impl PackProtocol {
             for refs in &refs_list {
                 // if repo_path is subdirectory of some commit, we should generae a fake commit
                 if repo_path.starts_with(refs.repo_path.clone()) {
-                    return generate_subdir_commit(self.storage.clone(), refs, repo_path).await;
+                    return self.generate_subdir_commit(refs, repo_path).await;
                 }
             }
             //situation: repo_path: root/repotest2/src, commit: root/repotest
@@ -265,34 +265,42 @@ impl PackProtocol {
         }
         Ok(())
     }
-}
 
-/// Generates a new commit for a subdirectory of the original project directory.
-/// Steps:
-/// 1. Retrieve the root commit based on the provided reference's Git ID.
-/// 2. If a root tree is found by searching for the repository path:
-///    a. Construct a child commit using the retrieved root commit and the root tree.
-///    b. Save the child commit.
-///    c. Obtain the commit ID of the child commit.
-///    d. Construct a child reference with the repository path, reference name, commit ID, and other relevant information.
-///    e. Save the child reference in the database.
-/// 3. Return the commit ID of the child commit if successful; otherwise, return a default ID.
-pub async fn generate_subdir_commit(
-    storage: Arc<dyn ObjectStorage>,
-    refs: &refs::Model,
-    repo_path: &Path,
-) -> String {
-    if let Some(root_tree) = storage.search_root_node_by_path(repo_path).await {
-        let root_commit_obj = storage
-            .get_obj_data_by_id(&refs.ref_git_id.clone())
+    /// Generates a new commit for a subdirectory of the original project directory.
+    /// Steps:
+    /// 1. Retrieve the root commit based on the provided reference's Git ID.
+    /// 2. If a root tree is found by searching for the repository path:
+    ///    a. Construct a child commit using the retrieved root commit and the root tree.
+    ///    b. Save the child commit.
+    ///    c. Obtain the commit ID of the child commit.
+    ///    d. Construct a child reference with the repository path, reference name, commit ID, and other relevant information.
+    ///    e. Save the child reference in the database.
+    /// 3. Return the commit ID of the child commit if successful; otherwise, return a default ID.
+    pub async fn generate_subdir_commit(
+        &self,
+        refs: &refs::Model,
+        repo_path: &Path,
+    ) -> String {
+        let root_commit: Commit = self
+            .storage
+            .get_commit_by_hash(&refs.ref_git_id.clone())
             .await
             .unwrap()
-            .unwrap();
+            .unwrap()
+            .into();
+
+        let relative_path = PathBuf::from(&repo_path.to_str().unwrap()[refs.repo_path.len()..]);
+        let mut comp = relative_path.components();
+        // skip the first root dir
+        comp.next();
+        let t_id = self
+            .search_dir_from_tree(&root_commit.tree_id.to_plain_str(), comp)
+            .await;
 
         let child_commit =
-            Commit::subdir_commit(root_commit_obj.data, Hash::new_from_str(&root_tree.git_id));
+            Commit::subdir_commit(root_commit.to_data().unwrap(), Hash::new_from_str(&t_id));
         let child_c_model = child_commit.convert_to_model(repo_path);
-        storage
+        self.storage
             .save_commits(vec![child_c_model.clone()])
             .await
             .unwrap();
@@ -305,10 +313,36 @@ pub async fn generate_subdir_commit(
             created_at: Set(chrono::Utc::now().naive_utc()),
             updated_at: Set(chrono::Utc::now().naive_utc()),
         };
-        storage.save_refs(vec![child_refs]).await.unwrap();
+        self.storage.save_refs(vec![child_refs]).await.unwrap();
         commit_id
-    } else {
-        ZERO_ID.to_string()
+    }
+
+    // find search_dir's tree id from a provided tree
+    #[async_recursion]
+    pub async fn search_dir_from_tree<'a>(
+        &self,
+        tree_id: &str,
+        mut relative_path: Components<'async_recursion>,
+    ) -> String {
+        let root_tree: Tree = self
+            .storage
+            .get_obj_data_by_id(tree_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+        if let Some(Component::Normal(search_dir)) = relative_path.next() {
+            let t_id = root_tree
+                .tree_items
+                .iter()
+                .find(|item| item.name == search_dir.to_str().unwrap())
+                .unwrap()
+                .id
+                .to_plain_str();
+            self.search_dir_from_tree(&t_id, relative_path).await
+        } else {
+            root_tree.id.to_plain_str()
+        }
     }
 }
 

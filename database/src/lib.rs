@@ -44,7 +44,7 @@ pub async fn init(data_source: &DataSource) -> Arc<dyn ObjectStorage> {
         .connect_timeout(Duration::from_secs(20))
         .idle_timeout(Duration::from_secs(8))
         .max_lifetime(Duration::from_secs(8))
-        .sqlx_logging(true)
+        .sqlx_logging(env::var("MEGA_DB_SQLX_LOGGING").unwrap().parse::<bool>().unwrap())
         .sqlx_logging_level(log::LevelFilter::Debug);
     let connection = Database::connect(opt)
         .await
