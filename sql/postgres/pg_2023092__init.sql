@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS "commit" (
   "content" TEXT,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq UNIQUE (git_id)
+  CONSTRAINT uniq_c_git_id UNIQUE (git_id)
 );
 CREATE INDEX "idx_c_git_id" ON "commit" ("git_id");
 CREATE INDEX "idx_c_tree" ON "commit" ("tree");
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS "node" (
   "full_path" VARCHAR(512) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq UNIQUE (git_id)
+  CONSTRAINT uniq_n_git_id UNIQUE (git_id)
 );
 CREATE INDEX "idx_node_git_id" ON "node" ("git_id");
 CREATE INDEX "idx_node_name" ON "node" ("name");
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS "git_obj" (
   "data" BYTEA,
   "link" VARCHAR(512),
   PRIMARY KEY ("id"),
-  CONSTRAINT uniq UNIQUE (git_id)
+  CONSTRAINT uniq_o_git_id UNIQUE (git_id)
 );
 CREATE INDEX "idx_data_git_id" ON "git_obj" ("git_id");
 
