@@ -1,12 +1,13 @@
 /// A circular queue data structure that holds elements of generic type `T`.
 #[derive(Debug)]
+#[allow(unused)]
 pub struct CircularQueue<T> {
     data: Vec<Option<T>>, // Storage for the queue elements
     cap: usize, // Capacity of the queue
     write_index: usize, // Index for writing elements
     read_index: usize,  // Index for reading elements
 }
-
+#[allow(unused)]
 impl<T> CircularQueue<T> {
     /// Creates a new circular queue with the specified capacity.
     pub fn new(cap: usize) -> Self {
