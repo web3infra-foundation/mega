@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS "commit" (
   "committer" TEXT,
   "content" TEXT,
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL
+  "updated_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_c_git_id UNIQUE (git_id)
 );
 CREATE INDEX "idx_c_git_id" ON "commit" ("git_id");
 CREATE INDEX "idx_c_tree" ON "commit" ("tree");
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS "node" (
   "repo_path" VARCHAR(256) NOT NULL,
   "full_path" VARCHAR(512) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL
+  "updated_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_n_git_id UNIQUE (git_id)
 );
 CREATE INDEX "idx_node_git_id" ON "node" ("git_id");
 CREATE INDEX "idx_node_name" ON "node" ("name");
@@ -65,7 +67,8 @@ CREATE TABLE IF NOT EXISTS "git_obj" (
   "object_type" VARCHAR(16) NOT NULL,
   "data" BYTEA,
   "link" VARCHAR(512),
-  PRIMARY KEY ("id")
+  PRIMARY KEY ("id"),
+  CONSTRAINT uniq_o_git_id UNIQUE (git_id)
 );
 CREATE INDEX "idx_data_git_id" ON "git_obj" ("git_id");
 
@@ -117,7 +120,8 @@ CREATE TABLE IF NOT EXISTS "repo_directory"(
     "is_repo" boolean NOT NULL,
     "full_path" TEXT NOT NULL,
     "created_at" TIMESTAMP NOT NULL,
-    "updated_at" TIMESTAMP NOT NULL
+    "updated_at" TIMESTAMP NOT NULL,
+    CONSTRAINT uniq_d_full_path UNIQUE (full_path)
 );
 
 CREATE INDEX "idx_dir_pid" ON "repo_directory" ("pid");

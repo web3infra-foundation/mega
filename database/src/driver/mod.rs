@@ -28,8 +28,10 @@ use entity::pull_request;
 use entity::refs;
 
 use entity::repo_directory;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
+use sea_orm::ConnectionTrait;
 use sea_orm::DatabaseConnection;
 use sea_orm::DbErr;
 use sea_orm::EntityTrait;
@@ -620,13 +622,22 @@ pub trait ObjectStorage: Send + Sync {
     }
 
     async fn init_repo_dir(&self) -> Result<(), MegaError> {
-        let root = repo_directory::new(0, "root", "/");
-        let pid = self.save_directory(root).await?;
+        let pid = if let Some(root) = self.get_directory_by_full_path("/").await.unwrap() {
+            root.id
+        } else {
+            let root = repo_directory::new(0, "root", "/");
+            self.save_directory(root).await?
+        };
         let docs = repo_directory::new(pid, "docs", "/docs");
         let third_parts = repo_directory::new(pid, "third_parts", "/third_parts");
         let projects = repo_directory::new(pid, "projects", "/projects");
         let model_vec = vec![docs, third_parts, projects];
         repo_directory::Entity::insert_many(model_vec)
+            .on_conflict(
+                OnConflict::column(repo_directory::Column::FullPath)
+                    .do_nothing()
+                    .to_owned(),
+            )
             .exec(self.get_connection())
             .await
             .unwrap();
@@ -715,7 +726,7 @@ pub trait ObjectStorage: Send + Sync {
 ///
 /// Returns a `MegaError` if an error occurs during the batch save operation.
 async fn batch_save_model<E, A>(
-    connection: &DatabaseConnection,
+    connection: &impl ConnectionTrait,
     save_models: Vec<A>,
 ) -> Result<(), MegaError>
 where
@@ -725,7 +736,9 @@ where
     let mut results = Vec::new();
     for chunk in save_models.chunks(1000) {
         // notice that sqlx not support packets larger than 16MB now
-        let res = E::insert_many(chunk.iter().cloned()).exec(connection);
+        let res = E::insert_many(chunk.iter().cloned())
+            .on_conflict(OnConflict::new().do_nothing().to_owned())
+            .exec(connection);
         results.push(res);
     }
     futures::future::join_all(results).await;
