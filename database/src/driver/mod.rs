@@ -367,7 +367,7 @@ pub trait ObjectStorage: Send + Sync {
             .await;
         match res {
             Ok(_) => Ok(meta),
-            Err(_) => Err(GitLFSError::GeneralError("".to_string())),
+            Err(err) => Err(GitLFSError::GeneralError(err.to_string())),
         }
     }
 
