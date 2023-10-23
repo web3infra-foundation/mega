@@ -93,9 +93,9 @@ CREATE TABLE IF NOT EXISTS "locks" (
 );
 
 CREATE TABLE IF NOT EXISTS "meta" (
-  "oid" VARCHAR(100) NOT NULL,
-  "size" INT,
-  "exist" SMALLINT,
+  "oid" VARCHAR(64) NOT NULL,
+  "size" BIGINT,
+  "exist" BOOLEAN,
   PRIMARY KEY ("oid")
 );
 

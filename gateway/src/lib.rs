@@ -22,7 +22,7 @@ impl From<HttpOptions> for LfsConfig {
         Self {
             host: value.host,
             port: value.port,
-            lfs_content_path: value.lfs_content_path,
+            lfs_content_path: value.lfs_content_path.unwrap(),
             storage: Arc::new(MysqlStorage::default()),
         }
     }
