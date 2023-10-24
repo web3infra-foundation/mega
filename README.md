@@ -82,14 +82,26 @@ When it comes to managing large codebases in a centralized manner, trunk-based d
    MEGA_DB_POSTGRESQL_URL = "postgres://mega:rustgit@127.0.0.1/mega"
    MEGA_DB_MAX_CONNECTIONS = 32
    MEGA_DB_MIN_CONNECTIONS = 16
+
+   MEGA_DB_SQLX_LOGGING = false # Whether to disabling SQLx Log
    # If the object file size exceeds a threshold value, it will be stored in the specified location instead of the database.
    MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB
    MEGA_BIG_OBJ_STORAGR_PATH = "/Volumes/Data/mega"
+
+   MGEA_LFS_FILE_LOCAL_PATH = "/tmp/.mega/objects" # This configuration is used to set the local location of the lfs store
+
    GIT_INTERNAL_DECODE_CACHE_SIZE = 100 # Maximum number of git objects in LRU cache
    GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE = 1000 # The maximum number of git object in a "INSERT" SQL database operation
    GIT_INTERNAL_DECODE_STORAGE_TQUEUE_SIZE = 1 # The maximum number of parallel insertion threads in the database operation queue
    GIT_INTERNAL_DECODE_CACHE_TYEP = "redis" # {lru,redis}
    REDIS_CONFIG = "redis://127.0.0.1:6379"
+
+   ## Bazel build config, you can use service like buildfarm to enable RBE(remote build execution)
+   # you can refer to https://bazelbuild.github.io/bazel-buildfarm/docs/quick_start/ for more details about remote executor
+   BAZEL_BUILD_ENABLE = true # leave true if you want to trigger bazel build in each push process
+   BAZEL_BUILDP_PATH = "/tmp/.mega/bazel_build_projects" # Specify a temporary directory to build the project with bazel
+   BAZEL_REMOTE_EXECUTOR = "grpc://localhost:8980" # If enable the remote executor, please fillin the remote executor address, or else leave empty if you want to build by localhost. 
+   BAZEL_GIT_CLONE_URL = "http://localhost:8000" # Tell bazel to clone the project from the specified git url
    ```
 
 6. Init the Mega
