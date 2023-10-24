@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use common::errors::MegaError;
 use entity::{commit, git_obj, refs};
 use sea_orm::{
-    ColumnTrait, DatabaseBackend, DatabaseConnection, EntityTrait, QueryFilter, Statement,
+    ColumnTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction,
+    EntityTrait, QueryFilter, Statement,
 };
 
 use crate::driver::{batch_save_model, ObjectStorage};
@@ -24,8 +25,15 @@ impl ObjectStorage for PgStorage {
         &self.connection
     }
 
-    async fn save_obj_data_to_db(&self, obj_data: Vec<git_obj::ActiveModel>) -> Result<bool, MegaError> {
-        batch_save_model(self.get_connection(), obj_data).await?;
+    async fn save_obj_data_to_db(
+        &self,
+        txn: Option<&DatabaseTransaction>,
+        obj_data: Vec<git_obj::ActiveModel>,
+    ) -> Result<bool, MegaError> {
+        match txn {
+            Some(txn) => batch_save_model(txn, obj_data).await?,
+            None => batch_save_model(self.get_connection(), obj_data).await?,
+        }
         Ok(true)
     }
 

@@ -12,6 +12,7 @@ use entity::refs;
 
 use sea_orm::DatabaseBackend;
 use sea_orm::DatabaseConnection;
+use sea_orm::DatabaseTransaction;
 use sea_orm::EntityTrait;
 
 use sea_orm::Statement;
@@ -39,7 +40,25 @@ impl ObjectStorage for MysqlStorage {
         &self.connection
     }
 
-    async fn save_obj_data_to_db(&self, obj_data: Vec<git_obj::ActiveModel>) -> Result<bool, MegaError> {
+    /// Asynchronously saves object data to the database, splitting it into multiple batches if necessary.
+    ///
+    /// This function takes an optional transaction `txn`, a database connection `conn`, and a vector of `git_obj::ActiveModel` objects.
+    /// If the total size of objects exceeds a certain limit, the data is split into multiple batches for saving.
+    ///
+    /// # Arguments
+    ///
+    /// - `txn`: An optional database transaction.
+    /// - `conn`: A database connection.
+    /// - `obj_data`: A vector of `git_obj::ActiveModel` objects to be saved.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<bool, MegaError>`: `Ok(true)` if the save operation is successful; otherwise, an error is returned.
+    async fn save_obj_data_to_db(
+        &self,
+        txn: Option<&DatabaseTransaction>,
+        obj_data: Vec<git_obj::ActiveModel>,
+    ) -> Result<bool, MegaError> {
         let packet_size = obj_data
             .iter()
             .map(|model| model.clone().try_into_model().unwrap().data.len())
@@ -54,16 +73,16 @@ impl ObjectStorage for MysqlStorage {
                     sum += size;
                     batch_obj.push(model);
                 } else {
-                    batch_save_model(self.get_connection(), batch_obj).await?;
+                    conditional_batch_save_model(txn, self.get_connection(), batch_obj).await?;
                     sum = size;
                     batch_obj = vec![model];
                 }
             }
             if !batch_obj.is_empty() {
-                batch_save_model(self.get_connection(), batch_obj).await?;
+                conditional_batch_save_model(txn, self.get_connection(), batch_obj).await?;
             }
         } else {
-            batch_save_model(self.get_connection(), obj_data).await?;
+            conditional_batch_save_model(txn, self.get_connection(), obj_data).await?;
         }
         Ok(true)
     }
@@ -88,5 +107,29 @@ impl ObjectStorage for MysqlStorage {
             ))
             .all(&self.connection)
             .await?)
+    }
+}
+
+/// Conditionally saves a batch of object data to the database.
+///
+/// This function is used when an optional transaction `txn` and a database connection `conn` are provided.
+///
+/// # Arguments
+///
+/// - `txn`: An optional database transaction.
+/// - `conn`: A database connection.
+/// - `obj_data`: A vector of `git_obj::ActiveModel` objects to be saved as a batch.
+///
+/// # Returns
+///
+/// - `Result<(), MegaError>`: `Ok(())` if the save operation is successful; otherwise, an error is returned.
+async fn conditional_batch_save_model(
+    txn: Option<&DatabaseTransaction>,
+    conn: &DatabaseConnection,
+    obj_data: Vec<git_obj::ActiveModel>,
+) -> Result<(), MegaError> {
+    match txn {
+        Some(txn) => batch_save_model(txn, obj_data.to_vec()).await,
+        None => batch_save_model(conn, obj_data.to_vec()).await,
     }
 }
