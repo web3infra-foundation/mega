@@ -33,6 +33,7 @@ use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::ConnectionTrait;
 use sea_orm::DatabaseConnection;
+use sea_orm::DatabaseTransaction;
 use sea_orm::DbErr;
 use sea_orm::EntityTrait;
 use sea_orm::IntoActiveModel;
@@ -55,13 +56,21 @@ pub mod postgres;
 pub trait ObjectStorage: Send + Sync {
     fn get_connection(&self) -> &DatabaseConnection;
 
-    async fn save_mr_objects(&self, objects: Vec<mr::ActiveModel>) -> Result<bool, MegaError> {
-        batch_save_model(self.get_connection(), objects).await?;
+    async fn save_mr_objects(
+        &self,
+        txn: Option<&DatabaseTransaction>,
+        objects: Vec<mr::ActiveModel>,
+    ) -> Result<bool, MegaError> {
+        match txn {
+            Some(txn) => batch_save_model(txn, objects).await?,
+            None => batch_save_model(self.get_connection(), objects).await?,
+        }
         Ok(true)
     }
 
     async fn save_obj_data(
         &self,
+        txn: Option<&DatabaseTransaction>,
         mut obj_data: Vec<git_obj::ActiveModel>,
     ) -> Result<bool, MegaError> {
         let threshold = env::var("MEGA_BIG_OBJ_THRESHOLD_SIZE")
@@ -90,11 +99,12 @@ pub trait ObjectStorage: Send + Sync {
             }
             new_obj_data.push(obj.into_active_model())
         }
-        self.save_obj_data_to_db(new_obj_data).await
+        self.save_obj_data_to_db(txn, new_obj_data).await
     }
 
     async fn save_obj_data_to_db(
         &self,
+        txn: Option<&DatabaseTransaction>,
         obj_data: Vec<git_obj::ActiveModel>,
     ) -> Result<bool, MegaError>;
 
