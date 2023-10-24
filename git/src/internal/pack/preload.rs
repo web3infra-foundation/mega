@@ -15,7 +15,7 @@ use entity::{git_obj, mr};
 use num_cpus;
 
 use redis::{ToRedisArgs, FromRedisValue, RedisError, ErrorKind};
-use sea_orm::Set;
+use sea_orm::{Set, TransactionTrait, DatabaseTransaction};
 use sha1::{Digest, Sha1};
 use std::{
     collections::HashMap,
@@ -218,11 +218,13 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
     let mut cache_type: String= String::new();
     utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_TYEP", &mut cache_type);
     
+    let txn = Arc::new(storage.get_connection().begin().await.unwrap());    
 
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
             let shard_clone = Arc::clone(&share);
             let st_clone = storage.clone();
+            let txn_clone = Arc::clone(&txn);
             let counter_clone = decode_counter.clone();
             let begin = i * chunk;
             let end = if i == cpu_number - 1 {
@@ -233,24 +235,31 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
             match &cache_type as &str {
                 "redis" => 
                 tokio::spawn(async move {
-                    produce_object::<kvObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                    produce_object::<kvObjectCache<Entry>>(txn_clone, shard_clone, st_clone, begin, end, counter_clone, mr_id).await
                 }),
                 "lru" =>
                 tokio::spawn(async move {
-                    produce_object::<ObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                    produce_object::<ObjectCache<Entry>>(txn_clone, shard_clone, st_clone, begin, end, counter_clone, mr_id).await
                 }),
                 _ =>
                 tokio::spawn(async move {
-                    produce_object::<ObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                    produce_object::<ObjectCache<Entry>>(txn_clone, shard_clone, st_clone, begin, end, counter_clone, mr_id).await
                 }),
             }
         })
         .collect();
 
+    let mut batch_success = true;
     for handle in producer_handles {
-        let _ = handle.await;
+        let res = handle.await.unwrap();
+        if res.is_err() {
+            batch_success = false;
+        }
     }
-
+    if batch_success {
+        let txn = Arc::try_unwrap(txn).unwrap();
+        txn.commit().await.unwrap();
+    }
     let re = decode_counter.lock().unwrap();
     tracing::info!("Summary : {}", re);
 
@@ -260,10 +269,11 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
 use super::counter::CounterType::*;
 /// Asynchronous function to produce Git objects.
 ///
-/// The `produce_object` function asynchronously produces Git objects based on the provided parameters.
+/// The `produce_object` function asynchronously generates Git objects based on the provided parameters.
 ///
 /// # Arguments
 ///
+/// - `txn`: An `Arc` containing the database transaction for database operations.
 /// - `data`: A shared `Arc<RwLock<PackPreload>>` containing the preload data.
 /// - `storage`: A shared `Arc<dyn ObjectStorage>` trait object providing storage capabilities.
 /// - `range_begin`: The starting index of the range of entries to process.
@@ -271,14 +281,25 @@ use super::counter::CounterType::*;
 /// - `counter`: A shared `Arc<Mutex<DecodeCounter>>` for counting decode operations.
 /// - `mr_id`: An identifier for the produced Git objects.
 ///
+/// # Generic Type Parameter
+///
+/// - `TC`: A generic type parameter that should implement the `_Cache` trait with `T` associated as `Entry`.
+///
+/// # Returns
+///
+/// This function returns a `Result`:
+/// - `Ok(())` if the Git objects are produced successfully.
+/// - `Err(GitError)` in case of any errors during the operation.
+///
 async fn produce_object<TC>(
+    txn: Arc<DatabaseTransaction>,
     data: Arc<RwLock<PackPreload>>,
     storage: Arc<dyn ObjectStorage>,
     range_begin: usize,
     range_end: usize,
     counter: Arc<Mutex<DecodeCounter>>,
     mr_id: i64,
-) where TC: _Cache<T = Entry>{
+)  -> Result<(), GitError> where TC: _Cache<T = Entry> {
 
     let thread_id: u16 = rand::thread_rng().gen();
     tracing::info!("thread begin : {}", thread_id);
@@ -374,9 +395,10 @@ async fn produce_object<TC>(
 
         if mr_to_obj_model.len() >= batch_size {
             let stc = storage.clone();
+            let txn= txn.clone();
             let h = tokio::spawn(async move {
-                stc.save_mr_objects(mr_to_obj_model).await.unwrap();
-                stc.save_obj_data(git_obj_model).await.unwrap();
+                stc.save_mr_objects(Some(txn.as_ref()), mr_to_obj_model).await.unwrap();
+                stc.save_obj_data(Some(txn.as_ref()), git_obj_model).await.unwrap();
             });
             if let Some(wait_handler) = save_handler{
                 wait_handler.await.unwrap();
@@ -397,10 +419,10 @@ async fn produce_object<TC>(
         }
     }
     if !mr_to_obj_model.is_empty() {
-        storage.save_mr_objects(mr_to_obj_model).await.unwrap();
+        storage.save_mr_objects(Some(txn.as_ref()), mr_to_obj_model).await.unwrap();
     }
     if !git_obj_model.is_empty() {
-        storage.save_obj_data(git_obj_model).await.unwrap();
+        storage.save_obj_data(Some(txn.as_ref()), git_obj_model).await.unwrap();
     }
     // await the remaining threads
     println!("await last thread");
@@ -412,6 +434,7 @@ async fn produce_object<TC>(
     }
     let end = start.elapsed().as_millis();
     tracing::info!("Git Object Produce thread one  time cost:{} ms", end);
+    Ok(())
 }
 
 /// Asynchronous function to perform delta offset operation.

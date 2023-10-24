@@ -408,7 +408,7 @@ pub async fn save_node_from_git_obj(
             link: Set(m.link.clone()),
         })
         .collect();
-    storage.save_obj_data(git_obj_active_model).await.unwrap();
+    storage.save_obj_data(None, git_obj_active_model).await.unwrap();
 
     let repo = NodeBuilder {
         storage: storage.clone(),
