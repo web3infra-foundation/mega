@@ -28,7 +28,7 @@ use tokio::sync::{RwLock, RwLockReadGuard};
 ///
 /// One Pre loading Git object in memory
 ///
-#[derive(Clone,Serialize, Deserialize)]
+#[derive(Clone,Serialize, Deserialize,Default)]
 struct Entry {
     header: EntryHeader,
     offset: usize,
@@ -309,7 +309,7 @@ async fn produce_object<TC>(
     let mut object_cache_size = 1000;
     utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_SIZE", &mut object_cache_size);
 
-    let mut cache= TC::new(Some(object_cache_size));
+    let cache= TC::new(Some(object_cache_size));
 
     let start = Instant::now();
     let mut batch_size = 10000;  
@@ -330,64 +330,68 @@ async fn produce_object<TC>(
         let read_auth = data.read().await;
         let e = &read_auth.entries[i];
 
-        let result_entity;
+        let mut result_entity;
         match e.header {
             EntryHeader::RefDelta { base_id } => {
-                let base_type;
-                let base_data;
-                {
-                    let b_obj = cache.get_by_hash(base_id);
-                    if let Some(b_obj)  = b_obj{
-                        {
-                            counter.lock().unwrap().count(CacheHit);
-                        }
-                        base_type = b_obj.header;
-                        base_data =  b_obj.data
-                    }else {
-                    let db_obj = storage
-                            .get_obj_data_by_id(&base_id.to_plain_str())
-                            .await
-                            .unwrap()
-                            .unwrap();
-                        base_type = EntryHeader::from_string(&db_obj.object_type);
-                        {
-                            counter.lock().unwrap().count(DB);
-                        }
-                        base_data = db_obj.data
-                    };
+                if let Some(entry) = get_ref_object_fromdb(storage.clone(), base_id, counter.clone(), e).await {
+                    result_entity = entry;
+                } else {
+                    continue;
                 }
-                
-
-                let re = undelta(&mut Cursor::new(e.data.clone()), &base_data);
-                let undelta_obj = Entry {
-                    header: base_type,
-                    offset: e.offset,
-                    data: re,
-                    hash: None,
-                };
-                result_entity = compute_hash(undelta_obj);
-                {
-                    counter.lock().unwrap().count(Delta);
-                }
-            }
+            },
             EntryHeader::OfsDelta { base_distance: _ } => {
-                let re_obj = delta_offset_obj(data.clone().read().await, e, &mut cache, counter.clone());
-                result_entity = compute_hash(re_obj);
-                {
-                    counter.lock().unwrap().count(Delta);
+                let mut stack: Vec<Entry> = Vec::new();
+                stack.push(e.clone());
+                while !stack.is_empty() {
+                    let front_entry= stack.last().unwrap();
+                    match front_entry.header{
+
+                        EntryHeader::RefDelta { base_id } => {
+                            if let Some(entry) = get_ref_object_fromdb(storage.clone(), base_id, counter.clone(), e).await {
+                                stack.push(entry);
+                            } else {
+                                panic!("ofs delta error");
+                            }
+                        },
+                        EntryHeader::OfsDelta { base_distance } => {
+                            if let Some(t) = cache.get(base_distance){
+                                {
+                                    counter.lock().unwrap().count(CacheHit);
+                                }
+                                stack.push(t);
+                            }else{
+                                let pos = read_auth.map.get(&base_distance).unwrap();
+                                stack.push(read_auth.entries[*pos].clone());
+                            }
+                        },
+                        _ => {break;},
+                    }
                 }
-            }
+
+                // Remove objects from the stack in sequence and perform "delta diff"
+                {
+                    counter.lock().unwrap().count_depth(stack.len());
+                }
+                let mut base_obj = stack.pop().unwrap();
+                while let Some(e) = stack.pop() {
+                    base_obj.data = undelta(&mut Cursor::new(&e.data), &base_obj.data);
+                };
+
+                result_entity = base_obj;
+
+            },
             _ => {
                 {
                     counter.lock().unwrap().count(Base);
                 }
-                result_entity = compute_hash(e.clone());
+                result_entity = e.clone();
             }
         }
-        
+
+        // only compute the Hash value at last 
+        result_entity = compute_hash(result_entity);
+
         cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
-        
-        
         mr_to_obj_model.push(result_entity.clone().convert_to_mr_model(mr_id));
         git_obj_model.push(result_entity.convert_to_data_model());
 
@@ -453,6 +457,7 @@ async fn produce_object<TC>(
 /// The function returns an `Entry` representing the result of the delta offset operation.
 ///
 /// TODO: deal with `clone` 
+#[allow(unused)]
 fn delta_offset_obj<T>(
     share: RwLockReadGuard<'_, PackPreload>,
     delta_obj: &Entry,
@@ -489,7 +494,6 @@ fn delta_offset_obj<T>(
     panic!("wrong delta decode");
 
 }
-
 fn compute_hash(mut e: Entry) -> Entry {
     match e.header {
         EntryHeader::RefDelta { base_id: _ } => panic!("this methon can't call by delta"),
@@ -517,6 +521,49 @@ fn thread_chunk(len: usize) -> (usize, usize) {
     }
 }
 
+
+async fn get_ref_object_fromdb(
+    storage: Arc<dyn ObjectStorage>,
+    base_id: Hash,
+    counter: Arc<Mutex<DecodeCounter>>,
+    e: &Entry,
+) -> Option<Entry> {
+    // The ref object does not need to be queried from the cache because it must exist in different packages,
+    // So it is not allowed to be queried from the database
+    let base_type;
+    let base_data;
+    match storage.get_obj_data_by_id(&base_id.to_plain_str()).await {
+        Ok(model) => match model {
+            Some(db_obj) => {
+                base_type = EntryHeader::from_string(&db_obj.object_type);
+                {
+                    counter.lock().unwrap().count(DB);
+                }
+                base_data = db_obj.data;
+                let re = undelta(&mut Cursor::new(e.data.clone()), &base_data);
+                let undelta_obj = Entry {
+                    header: base_type,
+                    offset: e.offset,
+                    data: re,
+                    hash: None,
+                };
+                {
+                    counter.lock().unwrap().count(Delta);
+                }
+
+                Some(undelta_obj)
+            }
+            None => {
+                tracing::error!("REf Delta error from storage: not fount base object");
+                None
+            }
+        },
+        Err(err) => {
+            tracing::error!("REf Delta error from storage:{}", err);
+            None
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use std::{fs::File, io::BufReader, path::Path};
