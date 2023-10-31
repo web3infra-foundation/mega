@@ -159,14 +159,11 @@ pub async fn git_receive_pack(
         combined_body_bytes.extend(&body_bytes);
     }
 
-    let pack_data = pack_protocol
+    let parse_report = pack_protocol
         .git_receive_pack(Bytes::from(combined_body_bytes))
         .await
         .unwrap();
-
-    let buf = pack_protocol.git_receive_pack(pack_data).await.unwrap();
-
-    let body = Body::from(buf);
+    let body = Body::from(parse_report);
     tracing::info!("report status:{:?}", body);
     let resp = build_res_header("application/x-git-receive-pack-result".to_owned());
 

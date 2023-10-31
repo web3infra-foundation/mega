@@ -179,7 +179,7 @@ pub trait ObjectStorage: Send + Sync {
         Ok(None)
     }
 
-    async fn get_ref_object_id(&self, repo_path: &str) -> Result<Vec<refs::Model>, MegaError> {
+    async fn get_all_refs_by_path(&self, repo_path: &str) -> Result<Vec<refs::Model>, MegaError> {
         // assuming HEAD points to branch master.
         Ok(refs::Entity::find()
             .filter(refs::Column::RepoPath.eq(repo_path))

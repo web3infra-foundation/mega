@@ -7,6 +7,7 @@ use crate::errors::GitError;
 use crate::hash::Hash;
 use crate::internal::object::blob::Blob;
 use crate::internal::object::commit::Commit;
+use crate::internal::object::tag::Tag;
 use crate::internal::object::tree::Tree;
 use crate::internal::object::ObjectT;
 use crate::internal::pack::encode::pack_encode;
@@ -16,6 +17,7 @@ use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
 use database::driver::ObjectStorage;
 use entity::{git_obj, refs, repo_directory};
+use itertools::Itertools;
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
 
@@ -63,6 +65,17 @@ impl PackProtocol {
             .await;
             hash_meta.insert(c.id, Arc::new(c));
         }
+
+        let tag_ids = self
+            .storage
+            .get_all_refs_by_path(repo_path.to_str().unwrap())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.ref_git_id)
+            .collect_vec();
+        self.get_all_tags(tag_ids, &mut hash_meta).await;
+
         let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
         let result: Vec<u8> = pack_encode(meta_vec).unwrap();
         Ok(result)
@@ -129,9 +142,34 @@ impl PackProtocol {
             .await;
             hash_meta.insert(c.id, Arc::new(c));
         }
+        self.get_all_tags(
+            want.iter().map(|x| x.to_owned()).collect(),
+            &mut hash_meta,
+        )
+        .await;
+
         let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
         let result: Vec<u8> = pack_encode(meta_vec).unwrap();
         Ok(result)
+    }
+
+    pub async fn get_all_tags(
+        &self,
+        tag_ids: Vec<String>,
+        hash_meta: &mut HashMap<Hash, Arc<dyn ObjectT>>,
+    ) {
+        let tag_objs: Vec<Tag> = self
+            .storage
+            .get_obj_data_by_ids(tag_ids)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|o| o.object_type == "tag")
+            .map(|o| o.into())
+            .collect();
+        for tag in tag_objs {
+            hash_meta.insert(tag.id, Arc::new(tag));
+        }
     }
 
     pub async fn get_head_object_id(&self, repo_path: &Path) -> String {
@@ -276,11 +314,7 @@ impl PackProtocol {
     ///    d. Construct a child reference with the repository path, reference name, commit ID, and other relevant information.
     ///    e. Save the child reference in the database.
     /// 3. Return the commit ID of the child commit if successful; otherwise, return a default ID.
-    pub async fn generate_subdir_commit(
-        &self,
-        refs: &refs::Model,
-        repo_path: &Path,
-    ) -> String {
+    pub async fn generate_subdir_commit(&self, refs: &refs::Model, repo_path: &Path) -> String {
         let root_commit: Commit = self
             .storage
             .get_commit_by_hash(&refs.ref_git_id.clone())
@@ -408,7 +442,10 @@ pub async fn save_node_from_git_obj(
             link: Set(m.link.clone()),
         })
         .collect();
-    storage.save_obj_data(None, git_obj_active_model).await.unwrap();
+    storage
+        .save_obj_data(None, git_obj_active_model)
+        .await
+        .unwrap();
 
     let repo = NodeBuilder {
         storage: storage.clone(),
@@ -439,7 +476,7 @@ pub async fn save_node_from_git_obj(
     }
 
     let mut refs = storage
-        .get_ref_object_id(repo_path.to_str().unwrap())
+        .get_all_refs_by_path(repo_path.to_str().unwrap())
         .await
         .unwrap();
     if refs.is_empty() {

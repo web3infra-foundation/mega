@@ -3,13 +3,21 @@
 //!
 //!
 
-use crate::protocol::ZERO_ID;
+use crate::protocol::{RefsType, ZERO_ID};
 use crate::structure::conversion;
+use crate::{
+    errors::GitError,
+    internal::pack::{
+        decode::HashCounter,
+        preload::{decode_load, PackPreload},
+    },
+};
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use std::{collections::HashSet, env, thread};
+use database::driver::ObjectStorage;
+use std::{collections::HashSet, env, io::Cursor, path::PathBuf, sync::Arc, thread};
 
-use super::{Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
+use super::{new_mr_info, Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
 
 const LF: char = '\n';
 
@@ -29,7 +37,7 @@ const CAP_LIST: &str = "side-band-64k ofs-delta";
 
 // All other capabilities are only recognized by the upload-pack (fetch from server) process.
 const UPLOAD_CAP_LIST: &str =
-    "shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done ";
+    "shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done include-tag ";
 
 impl PackProtocol {
     /// # Retrieves the information about Git references (refs) for the specified service type.
@@ -74,7 +82,7 @@ impl PackProtocol {
 
         let git_refs = self
             .storage
-            .get_ref_object_id(self.path.to_str().unwrap())
+            .get_all_refs_by_path(self.path.to_str().unwrap())
             .await
             .unwrap();
         for git_ref in git_refs {
@@ -183,58 +191,57 @@ impl PackProtocol {
         if body_bytes.len() < 1000 {
             tracing::debug!("bytes from client: {:?}", body_bytes);
         }
-
-        if body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) {
-            let mut command_list = self.command_list.clone();
-            let command = command_list.last_mut().unwrap();
-            let mr_id = command
-                .unpack(self.storage.clone(), &mut body_bytes)
-                .await
-                .unwrap();
-            let path = &self.path;
-            let parse_obj_result =
-                conversion::save_node_from_mr(self.storage.clone(), mr_id, path).await;
-            if parse_obj_result.is_ok() {
-                command.save_to_db(self.storage.clone(), path).await;
-                // save project directory
-                self.handle_directory().await.unwrap();
-                // start building
-                let repo_path = self.path.clone();
-                let enable_build = env::var("BAZEL_BUILD_ENABLE")
-                    .unwrap()
-                    .parse::<bool>()
-                    .unwrap();
-                if enable_build {
-                    thread::spawn(|| build_tool::bazel_build::build(repo_path));
-                }
-            } else {
-                tracing::error!("{}", parse_obj_result.err().unwrap());
-                command.failed(String::from("db operation failed"));
-            }
-            // After receiving the pack data from the sender, the receiver sends a report
-            let mut report_status = BytesMut::new();
-            // TODO: replace this hard code "unpack ok\n"
-            add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
-            for c in command_list {
-                add_pkt_line_string(&mut report_status, c.get_status());
-            }
-            report_status.put(&PKT_LINE_END_MARKER[..]);
-
-            let length = report_status.len();
-            let mut buf = self.build_side_band_format(report_status, length);
-            buf.put(&PKT_LINE_END_MARKER[..]);
-            Ok(buf.into())
-        } else {
+        while !body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) && !body_bytes.is_empty() {
             let (bytes_take, mut pkt_line) = read_pkt_line(&mut body_bytes);
-            if bytes_take == 0 && pkt_line.is_empty() {
-                return Ok(body_bytes);
+            if bytes_take != 0 {
+                let command = self.parse_ref_command(&mut pkt_line);
+                self.parse_capabilities(&String::from_utf8(pkt_line.to_vec()).unwrap());
+                tracing::debug!("init command: {:?}, caps:{:?}", command, self.capabilities);
+                self.command_list.push(command);
             }
-            let command = self.parse_ref_update(&mut pkt_line);
-            self.parse_capabilities(&String::from_utf8(pkt_line.to_vec()).unwrap());
-            tracing::debug!("init comamnd: {:?}, caps:{:?}", command, self.capabilities);
-            self.command_list.push(command);
-            Ok(body_bytes.split_off(4))
         }
+        // handles situation when client send b"0000"
+        if body_bytes.is_empty() {
+            return Ok(body_bytes);
+        }
+        // After receiving the pack data from the sender, the receiver sends a report
+        let mut report_status = BytesMut::new();
+
+        //1. unpack progress
+        let mr_id = unpack(self.storage.clone(), &mut body_bytes).await?;
+        // write "unpack ok\n to report"
+        add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
+        //2. parse progress
+        let parse_obj_result =
+            conversion::save_node_from_mr(self.storage.clone(), mr_id, &self.path)
+                .await
+                .is_ok();
+
+        //3. update each refs and build report
+        for mut command in self.command_list.clone() {
+            if command.refs_type == RefsType::Tag {
+                // just update if refs type is tag
+                command.update_refs(self.storage.clone(), &self.path).await;
+            } else {
+                // TODO: Updates can be unsuccessful for a number of reasons.
+                // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
+                // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
+                // c.Also, some references can be updated while others can be rejected.
+                if parse_obj_result {
+                    command.update_refs(self.storage.clone(), &self.path).await;
+                    self.handle_directory().await.unwrap();
+                    trigger_build(self.path.clone())
+                } else {
+                    command.failed(String::from("parse commit tree from obj failed"));
+                }
+            }
+            add_pkt_line_string(&mut report_status, command.get_status());
+        }
+        report_status.put(&PKT_LINE_END_MARKER[..]);
+        let length = report_status.len();
+        let mut buf = self.build_side_band_format(report_status, length);
+        buf.put(&PKT_LINE_END_MARKER[..]);
+        Ok(buf.into())
     }
 
     /// # Builds the packet data in the sideband format if the SideBand/64k capability is enabled.
@@ -294,12 +301,34 @@ impl PackProtocol {
     }
 
     // the first line contains the capabilities
-    pub fn parse_ref_update(&self, pkt_line: &mut Bytes) -> RefCommand {
+    pub fn parse_ref_command(&self, pkt_line: &mut Bytes) -> RefCommand {
         RefCommand::new(
             read_until_white_space(pkt_line),
             read_until_white_space(pkt_line),
             read_until_white_space(pkt_line),
         )
+    }
+}
+
+pub async fn unpack(
+    storage: Arc<dyn ObjectStorage>,
+    pack_file: &mut Bytes,
+) -> Result<i64, GitError> {
+    let count_hash: bool = true;
+    let curosr_pack = Cursor::new(pack_file);
+    let reader = HashCounter::new(curosr_pack, count_hash);
+    let p = PackPreload::new(reader);
+    let mr_id = decode_load(p, storage.clone()).await?;
+    storage.save_mr_info(new_mr_info(mr_id)).await.unwrap();
+    Ok(mr_id)
+}
+pub fn trigger_build(repo_path: PathBuf) {
+    let enable_build = env::var("BAZEL_BUILD_ENABLE")
+        .unwrap()
+        .parse::<bool>()
+        .unwrap();
+    if enable_build {
+        thread::spawn(|| build_tool::bazel_build::build(repo_path));
     }
 }
 
@@ -373,7 +402,7 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 pub mod test {
     use bytes::{Bytes, BytesMut};
 
-    use crate::protocol::{Capability, CommandType, PackProtocol, RefCommand};
+    use crate::protocol::{Capability, CommandType, PackProtocol, RefCommand, RefsType};
 
     use super::{add_pkt_line_string, read_pkt_line, read_until_white_space};
 
@@ -429,7 +458,7 @@ pub mod test {
     pub fn test_parse_ref_update() {
         let mock = PackProtocol::mock();
         let mut bytes = Bytes::from("0000000000000000000000000000000000000000 27dd8d4cf39f3868c6eee38b601bc9e9939304f5 refs/heads/master\0".as_bytes());
-        let result = mock.parse_ref_update(&mut bytes);
+        let result = mock.parse_ref_command(&mut bytes);
 
         let command = RefCommand {
             ref_name: String::from("refs/heads/master"),
@@ -438,6 +467,7 @@ pub mod test {
             status: String::from("ok"),
             error_msg: String::new(),
             command_type: CommandType::Create,
+            refs_type: RefsType::default(),
         };
         assert_eq!(result, command);
     }
