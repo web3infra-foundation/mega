@@ -41,11 +41,12 @@ CREATE INDEX "idx_node_repo_path" ON "node" ("repo_path");
 CREATE TABLE IF NOT EXISTS "refs" (
   "id" SERIAL PRIMARY KEY,
   "repo_path" VARCHAR(64) NOT NULL,
-  "ref_name" VARCHAR(32) NOT NULL,
+  "ref_name" VARCHAR(64) NOT NULL,
   "ref_git_id" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
+CREATE INDEX "idx_refs_repo_path" ON "refs" ("repo_path");
 
 
 
