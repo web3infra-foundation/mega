@@ -8,7 +8,6 @@ pub mod pack;
 pub mod ssh;
 
 use std::{
-    io::Cursor,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
@@ -16,16 +15,8 @@ use std::{
 
 use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
 
-use crate::{
-    errors::GitError,
-    internal::pack::{
-        decode::HashCounter,
-        preload::{decode_load, PackPreload},
-    },
-    protocol::pack::SP,
-};
+use crate::protocol::pack::SP;
 
-use bytes::Bytes;
 use common::{errors::MegaError, utils::ZERO_ID};
 use entity::{mr_info, refs};
 use sea_orm::{ActiveValue::NotSet, Set};
@@ -146,6 +137,14 @@ pub struct RefCommand {
     pub status: String,
     pub error_msg: String,
     pub command_type: CommandType,
+    pub refs_type: RefsType,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum RefsType {
+    #[default]
+    Branch,
+    Tag,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -169,68 +168,17 @@ impl RefCommand {
             CommandType::Update
         };
         RefCommand {
-            ref_name,
+            ref_name: ref_name.clone(),
             old_id,
             new_id,
             status: RefCommand::OK_STATUS.to_owned(),
             error_msg: "".to_owned(),
             command_type,
-        }
-    }
-
-    pub async fn unpack(
-        &mut self,
-        storage: Arc<dyn ObjectStorage>,
-        pack_file: &mut Bytes,
-    ) -> Result<i64, anyhow::Error> {
-        let result: Result<i64, GitError> = {
-            let count_hash: bool = true;
-            let curosr_pack = Cursor::new(pack_file);
-            let reader = HashCounter::new(curosr_pack, count_hash);
-            // // Read the header of the pack file
-            // let mut pack = Pack::check_header(&mut reader)?;
-
-            // let mut iterator = EntriesIter::new(&mut reader, pack.number_of_objects() as u32);
-            // iterator.set_storage(Some(storage.clone()));
-            // let mut save_models: Vec<git::ActiveModel> = Vec::new();
-            // let mr_id = generate_id();
-            // let batch_size = 10000;
-            // for i in 0..pack.number_of_objects() {
-            //     let obj = iterator.next_obj().await?;
-            //     if i % 1000 == 0 {
-            //         tracing::info!("{}", i)
-            //     }
-            //     save_models.push(obj.convert_to_mr_model(mr_id));
-            //     if save_models.len() == batch_size {
-            //         storage.save_git_objects(save_models.clone()).await.unwrap();
-            //         save_models.clear();
-            //     }
-            // }
-            // if !save_models.is_empty() {
-            //     storage.save_git_objects(save_models).await.unwrap();
-            // }
-            // drop(iterator);
-            // let _hash = reader.final_hash();
-            // pack.signature = _hash;
-            // //pack.signature = Hash::new_from_bytes(&id[..]);
-
-            // // pack.signature = read_tail_hash(&mut reader);
-            // // assert_eq!(_hash, pack.signature);
-            let p = PackPreload::new(reader);
-            let mr_id = decode_load(p, storage.clone()).await?;
-            storage.save_mr_info(self.new_mr_info(mr_id)).await.unwrap();
-            Ok(mr_id)
-        };
-        match result {
-            Ok(mr_id) => {
-                self.status = RefCommand::OK_STATUS.to_owned();
-                Ok(mr_id)
-            }
-            Err(err) => {
-                self.status = RefCommand::FAILED_STATUS.to_owned();
-                self.error_msg = err.to_string();
-                Err(err.into())
-            }
+            refs_type: if ref_name.starts_with("refs/tags") {
+                RefsType::Tag
+            } else {
+                RefsType::Branch
+            },
         }
     }
 
@@ -265,18 +213,7 @@ impl RefCommand {
         }
     }
 
-    pub fn new_mr_info(&self, mr_id: i64) -> mr_info::ActiveModel {
-        mr_info::ActiveModel {
-            id: NotSet,
-            mr_id: Set(mr_id),
-            mr_msg: Set("repo initialize".to_owned()),
-            mr_date: Set(chrono::Utc::now().naive_utc()),
-            created_at: Set(chrono::Utc::now().naive_utc()),
-            updated_at: Set(chrono::Utc::now().naive_utc()),
-        }
-    }
-
-    pub async fn save_to_db(&self, storage: Arc<dyn ObjectStorage>, path: &Path) {
+    pub async fn update_refs(&self, storage: Arc<dyn ObjectStorage>, path: &Path) {
         match self.command_type {
             CommandType::Create => {
                 storage
@@ -292,8 +229,19 @@ impl RefCommand {
             }
         }
     }
-
 }
+
+pub fn new_mr_info(mr_id: i64) -> mr_info::ActiveModel {
+    mr_info::ActiveModel {
+        id: NotSet,
+        mr_id: Set(mr_id),
+        mr_msg: Set("repo initialize".to_owned()),
+        mr_date: Set(chrono::Utc::now().naive_utc()),
+        created_at: Set(chrono::Utc::now().naive_utc()),
+        updated_at: Set(chrono::Utc::now().naive_utc()),
+    }
+}
+
 impl PackProtocol {
     pub fn new(path: PathBuf, storage: Arc<dyn ObjectStorage>, protocol: Protocol) -> Self {
         PackProtocol {
