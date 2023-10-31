@@ -38,6 +38,7 @@
 //! for the lightweight tag.
 
 use bstr::ByteSlice;
+use entity::git_obj;
 use std::fmt::Display;
 
 use crate::errors::GitError;
@@ -115,6 +116,14 @@ impl Tag {
         data.extend_from_slice(self.message.as_bytes());
 
         Ok(data)
+    }
+}
+
+impl From<git_obj::Model> for Tag {
+    fn from(value: git_obj::Model) -> Self {
+        let mut tag = Tag::new_from_data(value.data);
+        tag.id = Hash::new_from_str(&value.git_id);
+        tag
     }
 }
 
