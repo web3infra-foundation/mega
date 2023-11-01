@@ -261,7 +261,7 @@ mod tests{
         
         let d = DeltaDiff::new(&old_data,&new_data);
         let delta_result = d.encode();
-        let tounpack = undelta(&mut Cursor::new(delta_result),&old_data );
+        let tounpack = undelta(&mut Cursor::new(delta_result),&old_data ).unwrap();
         assert_eq!(tounpack,new_data);
         let rate = d.get_ssam_rate();
         println!("P{}",rate);

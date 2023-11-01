@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::internal::pack::Hash;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone,Serialize, Deserialize,Default)]
@@ -62,5 +64,18 @@ impl EntryHeader {
             
             
         }
+    }
+}
+impl Display for EntryHeader{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self{
+            EntryHeader::Commit => write!(f, "COMMIT"),
+            EntryHeader::Tree => write!(f, "Tree"),
+            EntryHeader::Blob => write!(f, "Blob"),
+            EntryHeader::Tag => write!(f, "Tag"),
+            EntryHeader::RefDelta { base_id } =>write!(f, "Ref Delta :{}",base_id),
+            EntryHeader::OfsDelta { base_distance } => write!(f, "Ofs Delta :{}",base_distance),
+        }
+        
     }
 }
