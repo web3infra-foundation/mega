@@ -13,7 +13,7 @@ rust_library(
         "//database",
         "//database/entity",
         "//kvcache",
-        "//build-tool"
+        "//build-bazel-tool"
     ],
     proc_macro_deps = all_crate_deps(
         proc_macro = True,
