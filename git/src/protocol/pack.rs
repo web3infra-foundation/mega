@@ -328,7 +328,7 @@ pub fn trigger_build(repo_path: PathBuf) {
         .parse::<bool>()
         .unwrap();
     if enable_build {
-        thread::spawn(|| build_tool::bazel_build::build(repo_path));
+        thread::spawn(|| build_bazel_tool::bazel_build::build(repo_path));
     }
 }
 
