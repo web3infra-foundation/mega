@@ -154,10 +154,14 @@ async fn process_delta(
     }
 }
 
-pub fn undelta(mut stream: &mut impl Read, base_info: &Vec<u8>) -> Vec<u8> {
+pub fn undelta(mut stream: &mut impl Read, base_info: &Vec<u8>) -> Result<Vec<u8>,GitError> {
     // Read the bash object size & Result Size
     let base_size = utils::read_size_encoding(&mut stream).unwrap();
-    assert!(base_info.len() == base_size);
+    if base_info.len() != base_size{
+        return Err(GitError::DeltaObjectError("base object len is not equal".to_owned()));
+    }
+    
+
     let result_size = utils::read_size_encoding(&mut stream).unwrap();
     let mut buffer = Vec::with_capacity(result_size);
     loop {
@@ -212,7 +216,7 @@ pub fn undelta(mut stream: &mut impl Read, base_info: &Vec<u8>) -> Vec<u8> {
         }
     }
     assert!(buffer.len() == result_size);
-    buffer
+    Ok(buffer)
 }
 #[cfg(test)]
 mod tests {}

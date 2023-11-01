@@ -2,7 +2,7 @@ use super::{counter::GitTypeCounter, delta::undelta, EntryHeader, Pack};
 use crate::{
     errors::GitError,
     internal::{
-        pack::{counter::DecodeCounter, Hash},
+        pack::{counter::DecodeCounter, Hash, cqueue::CircularQueue},
         zlib::stream::inflate::ReadPlain,
     },
     utils,
@@ -218,8 +218,7 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
     let mut cache_type: String= String::new();
     utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_TYEP", &mut cache_type);
     
-    let txn = Arc::new(storage.get_connection().begin().await.unwrap());    
-
+    let txn = Arc::new(storage.get_connection().begin().await.unwrap());   
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
             let shard_clone = Arc::clone(&share);
@@ -321,10 +320,10 @@ async fn produce_object<TC>(
         &mut save_task_wait_number,
     );
 
-    //let mut save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
-    let mut save_handler: Option<tokio::task::JoinHandle<()>> = None;
+    let mut save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
+    //let mut save_handler: Option<tokio::task::JoinHandle<()>> = None;
     for i in range_begin..range_end {
-        if i % 100 ==0{
+        if i % 1000 ==0{
             tracing::info!("thread id  : {} run to obj :{}", thread_id,i );
         }
         let read_auth = data.read().await;
@@ -347,10 +346,12 @@ async fn produce_object<TC>(
                     match front_entry.header{
 
                         EntryHeader::RefDelta { base_id } => {
-                            if let Some(entry) = get_ref_object_fromdb(storage.clone(), base_id, counter.clone(), e).await {
-                                stack.push(entry);
-                            } else {
-                                panic!("ofs delta error");
+                            match storage.get_obj_data_by_id(&base_id.to_plain_str()).await{
+                                Ok(model) => {
+                                    let model = model.unwrap();
+                                    stack.push(Entry { header: EntryHeader::from_string(&model.object_type), offset: 0, data: model.data, hash: None });
+                                },
+                                Err(err) =>  tracing::error!("ID{}, ref delta ERROR:{}",thread_id,err),
                             }
                         },
                         EntryHeader::OfsDelta { base_distance } => {
@@ -374,7 +375,10 @@ async fn produce_object<TC>(
                 }
                 let mut base_obj = stack.pop().unwrap();
                 while let Some(e) = stack.pop() {
-                    base_obj.data = undelta(&mut Cursor::new(&e.data), &base_obj.data);
+                    base_obj.data = match undelta(&mut Cursor::new(&e.data), &base_obj.data){
+                        Ok(a) => a,
+                        Err(err) => {tracing::error!("thread id:{} err:{}",thread_id,err); panic!("err!");},
+                    }
                 };
 
                 result_entity = base_obj;
@@ -390,7 +394,9 @@ async fn produce_object<TC>(
 
         // only compute the Hash value at last 
         result_entity = compute_hash(result_entity);
-
+        //DEBUG , NEED TO DELETE
+        // tracing::info!("thread id:{},HEADER TYPE: {} offset :{}, HASH :{}",thread_id,result_entity.header,result_entity.offset,result_entity.hash.unwrap());
+        //
         cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
         mr_to_obj_model.push(result_entity.clone().convert_to_mr_model(mr_id));
         git_obj_model.push(result_entity.convert_to_data_model());
@@ -404,20 +410,20 @@ async fn produce_object<TC>(
                 stc.save_mr_objects(Some(txn.as_ref()), mr_to_obj_model).await.unwrap();
                 stc.save_obj_data(Some(txn.as_ref()), git_obj_model).await.unwrap();
             });
-            if let Some(wait_handler) = save_handler{
-                wait_handler.await.unwrap();
-            }
-            save_handler = Some(h);
-            // println!("put new batch ");
-            // // if the save queue if full , wait the fist queue finish
-            // if save_queue.is_full() {
-            //     let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
-            //     println!("to await from full queue ");
-            //     first_h.await.unwrap();
-            //     save_queue.enqueue(h).unwrap();
-            // } else {
-            //     save_queue.enqueue(h).unwrap();
+            // if let Some(wait_handler) = save_handler{
+            //     wait_handler.await.unwrap();
             // }
+            //save_handler = Some(h);
+            println!("put new batch ");
+            // if the save queue if full , wait the fist queue finish
+            if save_queue.is_full() {
+                let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
+                println!("to await from full queue ");
+                first_h.await.unwrap();
+                save_queue.enqueue(h).unwrap();
+            } else {
+                save_queue.enqueue(h).unwrap();
+            }
             mr_to_obj_model = Vec::with_capacity(batch_size);
             git_obj_model = Vec::with_capacity(batch_size);
         }
@@ -430,12 +436,12 @@ async fn produce_object<TC>(
     }
     // await the remaining threads
     println!("await last thread");
-    // while let Some(h) = save_queue.dequeue() {
-    //     h.await.unwrap();
-    // }
-    if let Some(wait_handler) = save_handler{
-        wait_handler.await.unwrap();
+    while let Some(h) = save_queue.dequeue() {
+        h.await.unwrap();
     }
+    // if let Some(wait_handler) = save_handler{
+    //     wait_handler.await.unwrap();
+    // }
     let end = start.elapsed().as_millis();
     tracing::info!("Git Object Produce thread one  time cost:{} ms", end);
     Ok(())
@@ -486,7 +492,7 @@ fn delta_offset_obj<T>(
                 counter.lock().unwrap().count_depth(stack.len());
             }
             while let Some(e) = stack.pop() {
-                b_obj.data = undelta(&mut Cursor::new(&e.data), &b_obj.data);
+                b_obj.data = undelta(&mut Cursor::new(&e.data), &b_obj.data).unwrap();
             }    
             return b_obj;
         }
@@ -541,10 +547,13 @@ async fn get_ref_object_fromdb(
                 }
                 base_data = db_obj.data;
                 let re = undelta(&mut Cursor::new(e.data.clone()), &base_data);
+                if re.is_err(){
+                    tracing::error!("REF_DELTA ERROR:{}",re.err().unwrap());
+                    return None}
                 let undelta_obj = Entry {
                     header: base_type,
                     offset: e.offset,
-                    data: re,
+                    data: re.unwrap(),
                     hash: None,
                 };
                 {
