@@ -39,6 +39,8 @@ ui/.env.production.local
 ui/npm-debug.log*
 ui/yarn-debug.log*
 ui/yarn-error.log*
+ui/yarn.lock
+ui/package-lock.json
 
 #p2p download
 download/*

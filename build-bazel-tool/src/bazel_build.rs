@@ -2,27 +2,46 @@ use git2::Repository;
 use std::{
     env, fs,
     io::{BufRead, BufReader},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 use url::Url;
 
-pub fn build(repo_path: PathBuf) {
+pub fn build(mut repo_path: PathBuf) {
     let mut temp = PathBuf::from(env::var("BAZEL_BUILDP_PATH").unwrap());
+    let mut project_name;
+    loop {
+        project_name = repo_path.file_name().unwrap();
 
-    let project_name = repo_path.file_name().unwrap();
-
-    temp.push(project_name);
-    let mut project_url = Url::parse(&env::var("BAZEL_GIT_CLONE_URL").unwrap()).unwrap();
-    project_url.set_path(repo_path.to_str().unwrap());
-    if temp.exists() {
-        if let Err(err) = fs::remove_dir_all(&temp) {
-            tracing::error!("Error: {}", err);
-        } else {
-            tracing::info!("repo removed successfully: {:?}", project_name);
+        temp.push(project_name);
+        let mut project_url = Url::parse(&env::var("BAZEL_GIT_CLONE_URL").unwrap()).unwrap();
+        project_url.set_path(repo_path.to_str().unwrap());
+        if temp.exists() {
+            if let Err(err) = fs::remove_dir_all(&temp) {
+                tracing::error!("Error: {}", err);
+            } else {
+                tracing::info!("repo removed successfully: {:?}", project_name);
+            }
         }
+        Repository::clone(project_url.as_ref(), &temp).expect("failed to clone project");
+
+        let mut workspace = temp.clone();
+        workspace.push("WORKSPACE");
+        // WORKSPACE file exist
+        if let Ok(metadata) = fs::metadata(workspace) {
+            if metadata.is_file() {
+                break;
+            }
+        }
+
+        if repo_path.parent().and_then(Path::parent).is_none() {
+            tracing::error!("Can't locate WORKSPACE file, skip build!");
+            return;
+        }
+        fs::remove_dir_all(&temp).unwrap();
+        repo_path.pop();
+        temp.pop();
     }
-    Repository::clone(project_url.as_ref(), &temp).expect("failed to clone project");
 
     if let Err(err) = env::set_current_dir(&temp) {
         tracing::error!("Failed to change the working directory: {}", err);
