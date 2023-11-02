@@ -6,7 +6,7 @@ use sea_orm::{
     EntityTrait, QueryFilter, Statement,
 };
 
-use crate::driver::{batch_save_model, ObjectStorage};
+use crate::driver::{database::storage::batch_save_model, database::storage::ObjectStorage};
 
 #[derive(Debug, Default)]
 pub struct PgStorage {

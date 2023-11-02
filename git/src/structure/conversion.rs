@@ -15,7 +15,7 @@ use crate::protocol::PackProtocol;
 use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
-use database::driver::ObjectStorage;
+use storage::driver::database::storage::ObjectStorage;
 use entity::{git_obj, refs, repo_directory};
 use itertools::Itertools;
 use sea_orm::ActiveValue::NotSet;

@@ -10,21 +10,20 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 
-use axum::extract::{State};
+use axum::extract::State;
 use axum::response::Response;
 use axum::routing::post;
 use axum::{Router, Server};
 use clap::Args;
-use database::driver::ObjectStorage;
-use database::DataSource;
 use hyper::{Body, Request, StatusCode, Uri};
 use jsonwebtoken::EncodingKey;
 use octocrab::{models::AppId, Octocrab};
 use std::env;
+use storage::driver::database::storage::ObjectStorage;
+use storage::driver::database::{self, DataSource};
 use sync::service;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -104,24 +103,40 @@ async fn post_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-
     println!("{:?}", uri.path());
 
     //resolve the pull request event
     let pull_request_event = service::resolve_pull_request_event(req).await;
-    match pull_request_event.action().as_str(){
+    match pull_request_event.action().as_str() {
         "opened" => {
-            state.storage.save_pull_request(pull_request_event.convert_to_model()).await.unwrap();
-            let pull_request_ = state.storage.get_pull_request_by_id(pull_request_event.id()).await.unwrap().unwrap();
-            println!("{:?}", pull_request_);
-        },
-        "reopened" | 
-        "closed" => {
-            state.storage.update_pull_request(pull_request_event.convert_to_model()).await.unwrap();
-            let pull_request_ = state.storage.get_pull_request_by_id(pull_request_event.id()).await.unwrap().unwrap();
+            state
+                .storage
+                .save_pull_request(pull_request_event.convert_to_model())
+                .await
+                .unwrap();
+            let pull_request_ = state
+                .storage
+                .get_pull_request_by_id(pull_request_event.id())
+                .await
+                .unwrap()
+                .unwrap();
             println!("{:?}", pull_request_);
         }
-        _ => {},
+        "reopened" | "closed" => {
+            state
+                .storage
+                .update_pull_request(pull_request_event.convert_to_model())
+                .await
+                .unwrap();
+            let pull_request_ = state
+                .storage
+                .get_pull_request_by_id(pull_request_event.id())
+                .await
+                .unwrap()
+                .unwrap();
+            println!("{:?}", pull_request_);
+        }
+        _ => {}
     }
 
     // resolve the issue event
@@ -132,7 +147,7 @@ async fn post_method_router(
     //         let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
     //         println!("{:?}", issue_);
     //     },
-    //     "reopened" | 
+    //     "reopened" |
     //     "closed" => {
     //         state.storage.update_issue(issue_event.convert_to_model()).await.unwrap();
     //         let issue_ = state.storage.get_issue_by_id(issue_event.id()).await.unwrap().unwrap();
@@ -141,7 +156,6 @@ async fn post_method_router(
     //     _ => {},
     // }
 
-
     let response = Response::builder()
         .status(200)
         .header("X-Custom-Foo", "Bar")
@@ -149,8 +163,6 @@ async fn post_method_router(
         .unwrap();
     Ok(response)
 }
-
-
 
 #[cfg(test)]
 mod tests {}

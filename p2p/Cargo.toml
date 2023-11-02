@@ -12,8 +12,8 @@ path = "src/lib.rs"
 
 [dependencies]
 git = { path = "../git" }
-database = { path = "../database" }
-entity = { path = "../database/entity" }
+storage = { path = "../storage" }
+entity = { path = "../storage/entity" }
 common = { path = "../common" }
 bytes = "1.4.0"
 tokio = "1.32.0"
