@@ -6,9 +6,9 @@
 
 use std::sync::Arc;
 
-use database::driver::mysql::storage::MysqlStorage;
 use git::lfs::LfsConfig;
 use https::HttpOptions;
+use storage::driver::database::mysql_storage::MysqlStorage;
 use webhook::WebhookOptions;
 mod api_service;
 pub mod https;

@@ -9,7 +9,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use russh::server::{self, Auth, Msg, Session};
 use russh::{Channel, ChannelId};
 
-use database::driver::ObjectStorage;
+use storage::driver::database::storage::ObjectStorage;
 use russh_keys::key;
 use std::collections::HashMap;
 

@@ -42,15 +42,11 @@ use sea_orm::QuerySelect;
 use sea_orm::Set;
 use sea_orm::TryIntoModel;
 
-use crate::driver::lfs::storage::MetaObject;
-use crate::driver::lfs::structs::Lock;
-use crate::driver::lfs::structs::RequestVars;
+use crate::driver::fs::local_storage::MetaObject;
+use crate::driver::fs::lfs_structs::Lock;
+use crate::driver::fs::lfs_structs::RequestVars;
 use common::errors::GitLFSError;
 use common::errors::MegaError;
-
-pub mod lfs;
-pub mod mysql;
-pub mod postgres;
 
 #[async_trait]
 pub trait ObjectStorage: Send + Sync {
@@ -735,7 +731,7 @@ pub trait ObjectStorage: Send + Sync {
 /// # Errors
 ///
 /// Returns a `MegaError` if an error occurs during the batch save operation.
-async fn batch_save_model<E, A>(
+pub async fn batch_save_model<E, A>(
     connection: &impl ConnectionTrait,
     save_models: Vec<A>,
 ) -> Result<(), MegaError>

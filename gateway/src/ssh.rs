@@ -11,9 +11,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 
 use clap::Args;
-use database::DataSource;
 use ed25519_dalek::{SigningKey, SIGNATURE_LENGTH};
 use russh_keys::key::KeyPair;
+use storage::driver::database::{DataSource, self};
 
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

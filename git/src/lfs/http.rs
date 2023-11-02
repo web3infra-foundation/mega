@@ -9,12 +9,11 @@ use axum::body::Body;
 use axum::http::{Response, StatusCode};
 use bytes::{BufMut, BytesMut};
 use chrono::{prelude::*, Duration};
-use database::driver::lfs::storage::{ContentStore, MetaObject};
-use database::driver::lfs::structs::BatchResponse;
-use database::driver::lfs::structs::*;
 use futures::StreamExt;
 use hyper::Request;
 use rand::prelude::*;
+use storage::driver::fs::local_storage::{LocalStorage, MetaObject};
+use storage::driver::fs::{lfs_structs::*, FileStorage};
 
 use super::LfsConfig;
 
@@ -349,14 +348,14 @@ pub async fn lfs_process_batch(
 
     let server_url = format!("http://{}:{}", config.host, config.port);
 
-    let content_store = ContentStore::new(config.lfs_content_path.to_owned());
+    let local_storage = LocalStorage::init(config.lfs_content_path.to_owned());
     for object in batch_vars.objects {
         let meta = config.storage.lfs_get_meta(&object).await;
 
         // Found
         let found = meta.is_ok();
         let mut meta = meta.unwrap_or_default();
-        if found && content_store.exist(&meta) {
+        if found && local_storage.exist(&meta.oid) {
             response_objects.push(represent(&object, &meta, true, false, false, &server_url).await);
             continue;
         }
@@ -413,7 +412,7 @@ pub async fn lfs_upload_object(
         ..Default::default()
     };
 
-    let content_store = ContentStore::new(config.lfs_content_path.to_owned());
+    let content_store = LocalStorage::init(config.lfs_content_path.to_owned());
 
     let meta = config.storage.lfs_get_meta(&request_vars).await.unwrap();
 
@@ -427,7 +426,7 @@ pub async fn lfs_upload_object(
         request_body.extend_from_slice(&bytes);
     }
 
-    let ok = content_store.put(&meta, request_body.freeze().as_ref());
+    let ok = content_store.put(&meta.oid, meta.size, request_body.freeze().as_ref());
     if !ok {
         config.storage.lfs_delete_meta(&request_vars).await.unwrap();
         return Err((
@@ -448,7 +447,7 @@ pub async fn lfs_download_object(
 ) -> Result<Response<Body>, (StatusCode, String)> {
     tracing::info!("start downloading LFS object");
 
-    let content_store = ContentStore::new(config.lfs_content_path.to_owned());
+    let local_storage = LocalStorage::init(config.lfs_content_path.to_owned());
 
     // Load request parameters into struct.
     let request_vars = RequestVars {
@@ -459,7 +458,7 @@ pub async fn lfs_download_object(
 
     let meta = config.storage.lfs_get_meta(&request_vars).await.unwrap();
 
-    let mut file = content_store.get(&meta, 0);
+    let mut file = local_storage.get(&meta.oid);
 
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).unwrap();

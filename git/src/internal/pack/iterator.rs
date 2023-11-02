@@ -1,4 +1,4 @@
-use database::driver::ObjectStorage;
+use storage::driver::database::storage::ObjectStorage;
 
 use crate::{
     internal::{
@@ -22,7 +22,7 @@ pub struct EntriesIter<BR> {
     inner: BR,
     offset: usize,
     objects_left: u32,
-    cache: Box<dyn _Cache<T = Arc<dyn ObjectT>>> ,
+    cache: Box<dyn _Cache<T = Arc<dyn ObjectT>>>,
     storage: Option<Arc<dyn ObjectStorage>>,
 }
 
