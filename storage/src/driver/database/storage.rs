@@ -42,9 +42,11 @@ use sea_orm::QuerySelect;
 use sea_orm::Set;
 use sea_orm::TryIntoModel;
 
-use crate::driver::fs::local_storage::MetaObject;
 use crate::driver::fs::lfs_structs::Lock;
 use crate::driver::fs::lfs_structs::RequestVars;
+use crate::driver::fs::local_storage::LocalStorage;
+use crate::driver::fs::local_storage::MetaObject;
+use crate::driver::fs::FileStorage;
 use common::errors::GitLFSError;
 use common::errors::MegaError;
 
@@ -74,23 +76,20 @@ pub trait ObjectStorage: Send + Sync {
             .parse::<usize>()
             .unwrap();
 
-        let storage_path = env::var("MEGA_BIG_OBJ_STORAGR_PATH")
-            .expect("MEGA_BIG_OBJ_STORAGR_PATH not configured")
+        let storage_path = env::var("MEGA_OBJ_LOCAL_PATH")
+            .expect("MEGA_OBJ_LOCAL_PATH not configured")
             .parse::<PathBuf>()
             .unwrap();
+        let storage = LocalStorage::init(storage_path);
+
         let mut new_obj_data: Vec<git_obj::ActiveModel> = Vec::new();
         for model in obj_data.iter_mut() {
             let mut obj = model.clone().try_into_model().unwrap();
             if obj.data.len() / 1024 > threshold {
-                let git_id = &obj.git_id;
-                let mut full_path = storage_path.clone();
-                full_path.push(&git_id[0..2]);
-                full_path.push(&git_id[2..4]);
-                fs::create_dir_all(&full_path).unwrap();
-                full_path.push(git_id);
-                let mut obj_file = File::create(&full_path).unwrap();
-                obj_file.write_all(&obj.data).unwrap();
-                obj.link = full_path.to_str().map(|s| s.to_string());
+                let path = storage
+                    .put(&obj.git_id, obj.data.len() as i64, &obj.data)
+                    .unwrap();
+                obj.link = Some(path);
                 obj.data.clear();
             }
             new_obj_data.push(obj.into_active_model())
@@ -634,14 +633,26 @@ pub trait ObjectStorage: Send + Sync {
             let root = repo_directory::new(0, "root", "/");
             self.save_directory(root).await?
         };
-        let docs = repo_directory::new(pid, "docs", "/docs");
-        let third_parts = repo_directory::new(pid, "third_parts", "/third_parts");
-        let projects = repo_directory::new(pid, "projects", "/projects");
-        let model_vec = vec![docs, third_parts, projects];
+
+        let init_dirs = env::var("MEGA_INIT_DIRS").unwrap();
+        let mut model_vec = Vec::new();
+        for str in init_dirs.split(',') {
+            let path = PathBuf::from(str);
+            model_vec.push(repo_directory::new(
+                pid,
+                path.file_name().unwrap().to_str().unwrap(),
+                str,
+            ));
+        }
         repo_directory::Entity::insert_many(model_vec)
             .on_conflict(
                 OnConflict::column(repo_directory::Column::FullPath)
-                    .do_nothing()
+                    .update_columns([
+                        repo_directory::Column::Pid,
+                        repo_directory::Column::Name,
+                        repo_directory::Column::IsRepo,
+                        repo_directory::Column::UpdatedAt,
+                    ])
                     .to_owned(),
             )
             .exec(self.get_connection())

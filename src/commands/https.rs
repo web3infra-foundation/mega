@@ -23,7 +23,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
         .unwrap();
     if server_matchers.lfs_content_path.is_none() {
         server_matchers.lfs_content_path =
-            Some(PathBuf::from(env::var("MGEA_LFS_FILE_LOCAL_PATH").unwrap()))
+            Some(PathBuf::from(env::var("MEGA_OBJ_LOCAL_PATH").unwrap()))
     }
     println!("{server_matchers:#?}");
     https::http_server(&server_matchers).await.unwrap();
