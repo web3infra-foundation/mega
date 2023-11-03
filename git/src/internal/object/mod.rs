@@ -16,7 +16,7 @@ pub mod tree;
 use self::{blob::Blob, commit::Commit, meta::Meta, tag::Tag, tree::Tree};
 use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectType};
 use crate::hash::Hash;
-use database::utils::id_generator::generate_id;
+use storage::utils::id_generator::generate_id;
 use entity::{
     mr::{self},
     git_obj,

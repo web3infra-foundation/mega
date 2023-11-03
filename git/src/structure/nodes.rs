@@ -8,8 +8,8 @@ use std::{
 use anyhow::Ok;
 use async_recursion::async_recursion;
 use common::errors::MegaError;
-use database::{
-    driver::ObjectStorage,
+use storage::{
+    driver::database::storage::ObjectStorage,
     utils::id_generator::{self, generate_id},
 };
 use entity::{commit, node};
@@ -469,7 +469,7 @@ mod test {
     // };
     use std::path::PathBuf;
 
-    use database::utils::id_generator;
+    use storage::utils::id_generator;
 
     use super::{FileNode, Node, TreeNode};
 

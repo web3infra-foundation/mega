@@ -16,9 +16,9 @@ diff_mydrs = []
 
 
 [dependencies]
-database = { path = "../database" }
 common = { path = "../common" }
-entity = { path = "../database/entity" }
+entity = { path = "../storage/entity" }
+storage = { path = "../storage" }
 kvcache = { path = "../kvcache" }
 build-bazel-tool = { path = "../build-bazel-tool" }
 anyhow = "1.0.75"

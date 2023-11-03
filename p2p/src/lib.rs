@@ -5,7 +5,7 @@
 //!
 //!
 
-use database::driver::ObjectStorage;
+use storage::driver::database::storage::ObjectStorage;
 use git::protocol::{PackProtocol, Protocol};
 use std::path::PathBuf;
 use std::sync::Arc;

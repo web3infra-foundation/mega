@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use database::utils::id_generator::{self, generate_id};
+use storage::utils::id_generator::{self, generate_id};
 use entity::{commit, node};
 use sea_orm::{ActiveValue::NotSet, Set};
 

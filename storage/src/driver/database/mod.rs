@@ -1,14 +1,19 @@
-use clap::ValueEnum;
-use driver::{mysql::storage::MysqlStorage, postgres::storage::PgStorage, ObjectStorage};
+pub mod mysql_storage;
+pub mod pg_storage;
+pub mod storage;
 
-pub mod driver;
-pub mod utils;
+use clap::ValueEnum;
+use driver::{
+    database::mysql_storage::MysqlStorage, database::pg_storage::PgStorage,
+    database::storage::ObjectStorage,
+};
+
 use std::{env, sync::Arc, time::Duration};
 
 use sea_orm::{ConnectOptions, Database};
 use tracing::log;
 
-use crate::utils::id_generator;
+use crate::{driver, utils::id_generator};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum DataSource {
@@ -44,7 +49,12 @@ pub async fn init(data_source: &DataSource) -> Arc<dyn ObjectStorage> {
         .connect_timeout(Duration::from_secs(20))
         .idle_timeout(Duration::from_secs(8))
         .max_lifetime(Duration::from_secs(8))
-        .sqlx_logging(env::var("MEGA_DB_SQLX_LOGGING").unwrap().parse::<bool>().unwrap())
+        .sqlx_logging(
+            env::var("MEGA_DB_SQLX_LOGGING")
+                .unwrap()
+                .parse::<bool>()
+                .unwrap(),
+        )
         .sqlx_logging_level(log::LevelFilter::Debug);
     let connection = Database::connect(opt)
         .await

@@ -14,7 +14,7 @@ use crate::{
 };
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use database::driver::ObjectStorage;
+use storage::driver::database::storage::ObjectStorage;
 use std::io::Write;
 use std::{collections::HashSet, env, io::Cursor, path::PathBuf, sync::Arc, thread};
 

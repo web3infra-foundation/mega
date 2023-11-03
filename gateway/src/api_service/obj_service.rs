@@ -6,7 +6,7 @@ use axum::body::Full;
 use axum::response::{IntoResponse, Json};
 use axum::{http::StatusCode, response::Response};
 
-use database::driver::ObjectStorage;
+use storage::driver::database::storage::ObjectStorage;
 use git::internal::object::commit::Commit;
 use git::internal::object::tree::Tree;
 use git::internal::object::ObjectT;

@@ -7,8 +7,8 @@
 use super::node::client;
 use super::node::relay_server;
 use clap::Args;
-use database::DataSource;
 use libp2p::identity;
+use storage::driver::database::DataSource;
 
 /// Parameters for starting the p2p service
 #[derive(Args, Clone, Debug)]
