@@ -18,10 +18,10 @@ use sea_orm::EntityTrait;
 use sea_orm::Statement;
 use sea_orm::TryIntoModel;
 
-use crate::driver::batch_save_model;
+use crate::driver::database::storage::ObjectStorage;
 
-use crate::driver::MegaError;
-use crate::driver::ObjectStorage;
+use crate::driver::database::storage::batch_save_model;
+use common::errors::MegaError;
 
 #[derive(Debug, Default)]
 pub struct MysqlStorage {
