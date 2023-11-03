@@ -643,6 +643,7 @@ async fn git_upload_pack_handler(
                 return Err(e.to_string());
             }
         };
+        tracing::info!("send_pack_data size: {:?} bytes", send_pack_data.len());
         Ok((send_pack_data, object_id))
     } else {
         //pull
@@ -656,6 +657,7 @@ async fn git_upload_pack_handler(
                 return Err(e.to_string());
             }
         };
+        tracing::info!("send_pack_data size: {:?} bytes", send_pack_data.len());
         Ok((send_pack_data, object_id))
     }
 }

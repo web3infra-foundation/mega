@@ -1,3 +1,4 @@
+use crate::cbor;
 use entity::git_obj;
 use libp2p::kad;
 use libp2p::kad::store::MemoryStore;
@@ -14,9 +15,9 @@ pub struct Behaviour {
     pub dcutr: dcutr::Behaviour,
     pub kademlia: kad::Behaviour<MemoryStore>,
     pub rendezvous: rendezvous::client::Behaviour,
-    pub git_upload_pack: request_response::cbor::Behaviour<GitUploadPackReq, GitUploadPackRes>,
-    pub git_info_refs: request_response::cbor::Behaviour<GitInfoRefsReq, GitInfoRefsRes>,
-    pub git_object: request_response::cbor::Behaviour<GitObjectReq, GitObjectRes>,
+    pub git_upload_pack: cbor::Behaviour<GitUploadPackReq, GitUploadPackRes>,
+    pub git_info_refs: cbor::Behaviour<GitInfoRefsReq, GitInfoRefsRes>,
+    pub git_object: cbor::Behaviour<GitObjectReq, GitObjectRes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

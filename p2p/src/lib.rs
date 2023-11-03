@@ -10,6 +10,7 @@ use git::protocol::{PackProtocol, Protocol};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+pub mod cbor;
 pub mod network;
 pub mod node;
 pub mod peer;
