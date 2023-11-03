@@ -15,6 +15,7 @@ use crate::{
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use database::driver::ObjectStorage;
+use std::io::Write;
 use std::{collections::HashSet, env, io::Cursor, path::PathBuf, sync::Arc, thread};
 
 use super::{new_mr_info, Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
@@ -315,6 +316,14 @@ pub async fn unpack(
     pack_file: &mut Bytes,
 ) -> Result<i64, GitError> {
     let count_hash: bool = true;
+    //ONLY FOR TEST .NEED TO DELETE
+    {
+        let path = "lines.pack";
+        let mut output = std::fs::File::create(path).unwrap();
+        output.write_all(pack_file).unwrap();
+    }
+   
+
     let curosr_pack = Cursor::new(pack_file);
     let reader = HashCounter::new(curosr_pack, count_hash);
     let p = PackPreload::new(reader);
@@ -328,7 +337,7 @@ pub fn trigger_build(repo_path: PathBuf) {
         .parse::<bool>()
         .unwrap();
     if enable_build {
-        thread::spawn(|| build_tool::bazel_build::build(repo_path));
+        thread::spawn(|| build_bazel_tool::bazel_build::build(repo_path));
     }
 }
 
