@@ -1,4 +1,9 @@
-use std::{fs::File, path};
+use std::{
+    fs::File,
+    path::{self},
+};
+
+use common::errors::MegaError;
 
 pub mod lfs_structs;
 pub mod local_storage;
@@ -7,7 +12,7 @@ pub mod remote_storage;
 pub trait FileStorage {
     fn get(&self, object_id: &str) -> File;
 
-    fn put(&self, object_id: &str, size: i64, body_content: &[u8]) -> bool;
+    fn put(&self, object_id: &str, size: i64, body_content: &[u8]) -> Result<String, MegaError>;
 
     fn exist(&self, object_id: &str) -> bool;
 

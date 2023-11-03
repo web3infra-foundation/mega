@@ -35,6 +35,13 @@ impl MegaError {
             code: 1,
         }
     }
+
+    pub fn with_message(msg: &str) -> MegaError {
+        MegaError {
+            error: anyhow::anyhow!("Error Message: {}", msg).into(),
+            code: 0,
+        }
+    }
 }
 
 impl std::fmt::Display for MegaError {

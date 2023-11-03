@@ -1,3 +1,4 @@
+use common::errors::MegaError;
 use sha256::digest;
 use std::fs;
 use std::io::prelude::*;
@@ -30,7 +31,7 @@ impl FileStorage for LocalStorage {
         fs::File::open(path).expect("Open file failed!")
     }
 
-    fn put(&self, object_id: &str, size: i64, body_content: &[u8]) -> bool {
+    fn put(&self, object_id: &str, size: i64, body_content: &[u8]) -> Result<String, MegaError> {
         let path = path::Path::new(&self.base_path).join(Self::transform_path(object_id));
         let dir = path.parent().unwrap();
         fs::create_dir_all(dir).expect("Create directory failed!");
@@ -38,14 +39,13 @@ impl FileStorage for LocalStorage {
         let mut file = fs::File::create(&path).expect("Open file failed");
         let lenght_written = file.write(body_content).expect("Write file failed");
         if lenght_written as i64 != size {
-            return false;
+            return Err(MegaError::with_message("size not correct"));
         }
-
         let hash = digest(body_content);
         if hash != object_id {
-            return false;
+            return Err(MegaError::with_message("hash not matched"));
         }
-        true
+        Ok(path.to_str().unwrap().to_string())
     }
 
     fn exist(&self, object_id: &str) -> bool {
@@ -74,8 +74,8 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/objects");
 
-        let local_storage = LocalStorage::init(source);
-        assert!(local_storage.put(&meta.oid, meta.size, content));
+        let local_storage = LocalStorage::init(source.clone());
+        assert!(local_storage.put(&meta.oid, meta.size, content).is_ok());
 
         assert!(local_storage.exist(&meta.oid));
     }
