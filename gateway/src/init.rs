@@ -1,6 +1,5 @@
 use clap::Args;
-use database::DataSource;
-
+use storage::driver::database::{self, DataSource};
 #[derive(Args, Clone, Debug)]
 pub struct InitOptions {
     #[arg(short, long, value_enum, default_value = "postgres")]

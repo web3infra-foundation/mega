@@ -13,8 +13,8 @@ path = "src/lib.rs"
 [dependencies]
 git = {path = "../git"}
 common = {path = "../common"}
-database = {path = "../database"}
-entity = { path = "../database/entity" }
+storage = {path = "../storage"}
+entity = { path = "../storage/entity" }
 sync = { path = "../sync"}
 anyhow = "1.0.75"
 axum = "0.6.20"

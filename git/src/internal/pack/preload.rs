@@ -10,7 +10,7 @@ use crate::{
 use super::cache::{ObjectCache,kvstore::ObjectCache as kvObjectCache, _Cache};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use database::{driver::ObjectStorage, utils::id_generator::generate_id};
+use storage::{driver::database::storage::ObjectStorage, utils::id_generator::generate_id};
 use entity::{git_obj, mr};
 use num_cpus;
 

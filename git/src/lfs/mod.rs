@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use database::driver::ObjectStorage;
+use storage::driver::database::storage::ObjectStorage;
 
 pub mod http;
 

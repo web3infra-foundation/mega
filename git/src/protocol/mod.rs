@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-use database::driver::{mysql::storage::MysqlStorage, ObjectStorage};
+use storage::driver::{database::mysql_storage::MysqlStorage, database::storage::ObjectStorage};
 
 use crate::protocol::pack::SP;
 
