@@ -13,6 +13,7 @@ use std::sync::Arc;
 pub mod network;
 pub mod node;
 pub mod peer;
+pub mod cbor;
 
 async fn get_pack_protocol(path: &str, storage: Arc<dyn ObjectStorage>) -> PackProtocol {
     let path = del_ends_str(path, ".git");

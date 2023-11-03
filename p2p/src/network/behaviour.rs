@@ -5,6 +5,7 @@ use libp2p::swarm::NetworkBehaviour;
 use libp2p::{dcutr, identify, relay, rendezvous, request_response};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use crate::cbor;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "Event")]
@@ -14,9 +15,9 @@ pub struct Behaviour {
     pub dcutr: dcutr::Behaviour,
     pub kademlia: kad::Behaviour<MemoryStore>,
     pub rendezvous: rendezvous::client::Behaviour,
-    pub git_upload_pack: request_response::cbor::Behaviour<GitUploadPackReq, GitUploadPackRes>,
-    pub git_info_refs: request_response::cbor::Behaviour<GitInfoRefsReq, GitInfoRefsRes>,
-    pub git_object: request_response::cbor::Behaviour<GitObjectReq, GitObjectRes>,
+    pub git_upload_pack: cbor::Behaviour<GitUploadPackReq, GitUploadPackRes>,
+    pub git_info_refs: cbor::Behaviour<GitInfoRefsReq, GitInfoRefsRes>,
+    pub git_object: cbor::Behaviour<GitObjectReq, GitObjectRes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,16 +29,19 @@ pub struct GitUploadPackReq(
     //path
     pub String,
 );
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitUploadPackRes(pub Vec<u8>, pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitInfoRefsReq(pub String, pub Vec<String>);
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitInfoRefsRes(pub String, pub Vec<String>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitObjectReq(pub String, pub Vec<String>);
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitObjectRes(pub Vec<git_obj::Model>);
 
