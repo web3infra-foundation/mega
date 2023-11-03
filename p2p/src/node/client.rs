@@ -19,6 +19,7 @@ use libp2p::{
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
+use crate::cbor;
 
 pub async fn run(
     local_key: identity::Keypair,
@@ -51,7 +52,7 @@ pub async fn run(
             //discover
             rendezvous: rendezvous::client::Behaviour::new(keypair.clone()),
             // git pull, git clone
-            git_upload_pack: request_response::cbor::Behaviour::new(
+            git_upload_pack: cbor::Behaviour::new(
                 [(
                     StreamProtocol::new("/mega/git_upload_pack"),
                     ProtocolSupport::Full,
@@ -59,7 +60,7 @@ pub async fn run(
                 request_response::Config::default(),
             ),
             // git info refs
-            git_info_refs: request_response::cbor::Behaviour::new(
+            git_info_refs: cbor::Behaviour::new(
                 [(
                     StreamProtocol::new("/mega/git_info_refs"),
                     ProtocolSupport::Full,
@@ -67,7 +68,7 @@ pub async fn run(
                 request_response::Config::default(),
             ),
             // git download git_obj
-            git_object: request_response::cbor::Behaviour::new(
+            git_object: cbor::Behaviour::new(
                 [(StreamProtocol::new("/mega/git_obj"), ProtocolSupport::Full)],
                 request_response::Config::default(),
             ),
