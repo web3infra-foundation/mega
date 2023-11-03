@@ -426,8 +426,8 @@ pub async fn lfs_upload_object(
         request_body.extend_from_slice(&bytes);
     }
 
-    let ok = content_store.put(&meta.oid, meta.size, request_body.freeze().as_ref());
-    if !ok {
+    let res = content_store.put(&meta.oid, meta.size, request_body.freeze().as_ref());
+    if !res.is_ok() {
         config.storage.lfs_delete_meta(&request_vars).await.unwrap();
         return Err((
             StatusCode::NOT_ACCEPTABLE,
