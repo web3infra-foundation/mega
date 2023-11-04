@@ -1,11 +1,17 @@
-
+//!
+//!
+//!
+//!
+//!
 use anyhow::{ Result, Ok};
-use git_craft::{pgp_key::{list_keys, delete_key}, crypt::{generate_key, encrypt_blob, decrypt_blob, generate_key_full}};
 use clap::Parser;
+
+use git_craft::{pgp_key::{list_keys, delete_key}, crypt::{generate_key, encrypt_blob, decrypt_blob, generate_key_full}};
 
 #[derive(Parser)]
 #[command(author = "Jiajun Li <frankanepc@gmail.com>", version = "0.1.0")]
 #[command(about = "Git crypt tool", long_about= "Usage: generate-key, generate-key-full [primary_id] [key_name], encrypt [public_key_path], decrypt [secret_key_path], list-keys , delete-key [key_name]")]
+
 struct CraftOptions {
     //accept mutiple values, it needs 1 value at least
     #[clap(num_args=1..,required=true)]

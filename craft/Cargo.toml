@@ -12,6 +12,5 @@ edition = "2021"
 anyhow = "1.0.75"
 pgp = "0.10.2"
 rand = "0.8.5"
-smallvec = "1.10.0"
-clap = { version = "4.4.0", features = ["derive"] }
-
+smallvec = "1.11.1"
+clap = { version = "4.4.7", features = ["derive"] }
