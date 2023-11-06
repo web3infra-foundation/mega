@@ -15,7 +15,7 @@ use chrono::DateTime;
 use chrono::Utc;
 
 use entity::commit;
-use entity::git_obj;
+use entity::objects;
 use entity::issue;
 use entity::locks;
 use entity::meta;
@@ -67,7 +67,7 @@ pub trait ObjectStorage: Send + Sync {
     async fn save_obj_data(
         &self,
         txn: Option<&DatabaseTransaction>,
-        mut obj_data: Vec<git_obj::ActiveModel>,
+        mut obj_data: Vec<objects::ActiveModel>,
     ) -> Result<bool, MegaError> {
         let threshold = env::var("MEGA_BIG_OBJ_THRESHOLD_SIZE")
             .expect("MEGA_BIG_OBJ_THRESHOLD_SIZE not configured")
@@ -80,7 +80,7 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap();
         let storage = LocalStorage::init(storage_path);
 
-        let mut new_obj_data: Vec<git_obj::ActiveModel> = Vec::new();
+        let mut new_obj_data: Vec<objects::ActiveModel> = Vec::new();
         for model in obj_data.iter_mut() {
             let mut obj = model.clone().try_into_model().unwrap();
             if obj.data.len() / 1024 > threshold {
@@ -98,7 +98,7 @@ pub trait ObjectStorage: Send + Sync {
     async fn save_obj_data_to_db(
         &self,
         txn: Option<&DatabaseTransaction>,
-        obj_data: Vec<git_obj::ActiveModel>,
+        obj_data: Vec<objects::ActiveModel>,
     ) -> Result<bool, MegaError>;
 
     async fn get_mr_objects_by_type(
@@ -130,7 +130,7 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    fn get_obj_data_from_disk(&self, obj: &mut git_obj::Model) {
+    fn get_obj_data_from_disk(&self, obj: &mut objects::Model) {
         if let Some(link) = &obj.link {
             let data = fs::read(link).unwrap();
             obj.data = data;
@@ -140,11 +140,11 @@ pub trait ObjectStorage: Send + Sync {
     async fn get_obj_data_by_ids(
         &self,
         git_ids: Vec<String>,
-    ) -> Result<Vec<git_obj::Model>, MegaError> {
-        let mut objs: Vec<git_obj::Model> =
-            batch_query_by_columns::<git_obj::Entity, git_obj::Column>(
+    ) -> Result<Vec<objects::Model>, MegaError> {
+        let mut objs: Vec<objects::Model> =
+            batch_query_by_columns::<objects::Entity, objects::Column>(
                 self.get_connection(),
-                git_obj::Column::GitId,
+                objects::Column::GitId,
                 git_ids,
             )
             .await
@@ -157,9 +157,9 @@ pub trait ObjectStorage: Send + Sync {
         Ok(objs)
     }
 
-    async fn get_obj_data_by_id(&self, git_id: &str) -> Result<Option<git_obj::Model>, MegaError> {
-        let obj = git_obj::Entity::find()
-            .filter(git_obj::Column::GitId.eq(git_id))
+    async fn get_obj_data_by_id(&self, git_id: &str) -> Result<Option<objects::Model>, MegaError> {
+        let obj = objects::Entity::find()
+            .filter(objects::Column::GitId.eq(git_id))
             .one(self.get_connection())
             .await
             .unwrap();

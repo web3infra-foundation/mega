@@ -1,4 +1,4 @@
-use entity::git_obj;
+use entity::objects;
 use sha1::{Digest, Sha1};
 use std::io::{Cursor, Write};
 use std::sync::Arc;
@@ -41,7 +41,7 @@ where
     }
     /// Added batch insertion support for offset delta compression.
     /// Note: The input array should meet the requirements of magic sorting, otherwise a good delta compression rate cannot be obtained
-    pub fn add_oject_model(&mut self, obj_vec: Vec<git_obj::Model>) -> Result<(), Error> {
+    pub fn add_oject_model(&mut self, obj_vec: Vec<objects::Model>) -> Result<(), Error> {
         let batch_size = obj_vec.len();
         for i in 0..batch_size {
             let mut best_j = SLID_WINDWOS + 1;
