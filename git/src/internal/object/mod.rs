@@ -19,7 +19,7 @@ use crate::hash::Hash;
 use storage::utils::id_generator::generate_id;
 use entity::{
     mr::{self},
-    git_obj,
+    objects,
 };
 use sea_orm::Set;
 use sha1::Digest;
@@ -46,7 +46,7 @@ impl Display for GitObjects {
     }
 }
 
-pub fn from_model(model: git_obj::Model) -> Arc<dyn ObjectT> {
+pub fn from_model(model: objects::Model) -> Arc<dyn ObjectT> {
     let obj: Arc<dyn ObjectT> = match &model.object_type as &str {
         "blob" => Arc::new(Blob::new_from_data(model.data)),
         "commit" => Arc::new(Commit::new_from_data(model.data)),

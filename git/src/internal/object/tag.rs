@@ -38,7 +38,7 @@
 //! for the lightweight tag.
 
 use bstr::ByteSlice;
-use entity::git_obj;
+use entity::objects;
 use std::fmt::Display;
 
 use crate::errors::GitError;
@@ -119,8 +119,8 @@ impl Tag {
     }
 }
 
-impl From<git_obj::Model> for Tag {
-    fn from(value: git_obj::Model) -> Self {
+impl From<objects::Model> for Tag {
+    fn from(value: objects::Model) -> Self {
         let mut tag = Tag::new_from_data(value.data);
         tag.id = Hash::new_from_str(&value.git_id);
         tag
