@@ -16,7 +16,7 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
 use storage::driver::database::storage::ObjectStorage;
-use entity::{git_obj, refs, repo_directory};
+use entity::{objects, refs, repo_directory};
 use itertools::Itertools;
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::Set;
@@ -48,7 +48,7 @@ impl PackProtocol {
             .iter()
             .map(|c| c.tree_id.to_plain_str())
             .collect();
-        let all_trees: HashMap<String, git_obj::Model> = self
+        let all_trees: HashMap<String, objects::Model> = self
             .storage
             .get_obj_data_by_ids(all_tree_ids)
             .await
@@ -101,7 +101,7 @@ impl PackProtocol {
             .iter()
             .map(|c| c.tree_id.to_plain_str())
             .collect();
-        let want_trees: HashMap<String, git_obj::Model> = self
+        let want_trees: HashMap<String, objects::Model> = self
             .storage
             .get_obj_data_by_ids(want_tree_ids)
             .await
@@ -197,7 +197,7 @@ impl PackProtocol {
 
     // get all objects id from have tree
     #[async_recursion]
-    async fn update_have_objs(&self, have_tree: &git_obj::Model, have_objects: &mut HashSet<Hash>) {
+    async fn update_have_objs(&self, have_tree: &objects::Model, have_objects: &mut HashSet<Hash>) {
         let mut t = Tree::new_from_data(have_tree.data.clone());
         t.set_hash(Hash::new_from_str(&have_tree.git_id));
 
@@ -227,7 +227,7 @@ impl PackProtocol {
     #[async_recursion]
     async fn traverse_want_trees(
         &self,
-        want_t: &git_obj::Model,
+        want_t: &objects::Model,
         all_objects: &mut HashMap<Hash, Arc<dyn ObjectT>>,
         have_objs: &HashSet<Hash>,
     ) {
@@ -404,7 +404,7 @@ pub async fn save_node_from_mr(
 pub async fn save_node_from_git_obj(
     storage: Arc<dyn ObjectStorage>,
     repo_path: &Path,
-    git_objs: Vec<git_obj::Model>,
+    git_objs: Vec<objects::Model>,
 ) -> Result<(), anyhow::Error> {
     // let mut model_vec_map: HashMap<String, Vec<git_obj::Model>> = HashMap::new();
     // for (key, group) in &git_objs
@@ -415,9 +415,9 @@ pub async fn save_node_from_git_obj(
     //     tracing::info!("key {:?}, model_vec {:?}", key, model_vec);
     //     model_vec_map.insert(key.to_owned(), model_vec);
     // }
-    let mut tree_vec: Vec<git_obj::Model> = Vec::new();
-    let mut blob_vec: Vec<git_obj::Model> = Vec::new();
-    let mut commit_vec: Vec<git_obj::Model> = Vec::new();
+    let mut tree_vec: Vec<objects::Model> = Vec::new();
+    let mut blob_vec: Vec<objects::Model> = Vec::new();
+    let mut commit_vec: Vec<objects::Model> = Vec::new();
     for obj in git_objs.clone() {
         match obj.object_type.as_str() {
             "tree" => tree_vec.push(obj.clone()),
@@ -434,7 +434,7 @@ pub async fn save_node_from_git_obj(
     //save git_obj
     let git_obj_active_model = git_objs
         .iter()
-        .map(|m| git_obj::ActiveModel {
+        .map(|m| objects::ActiveModel {
             id: Set(m.id),
             git_id: Set(m.git_id.clone()),
             object_type: Set(m.object_type.clone()),
@@ -514,7 +514,7 @@ pub async fn get_objects_from_mr<T: ObjectT>(
     convert_model_to_map(models)
 }
 
-pub fn convert_model_to_map<T: ObjectT>(models: Vec<git_obj::Model>) -> HashMap<Hash, T> {
+pub fn convert_model_to_map<T: ObjectT>(models: Vec<objects::Model>) -> HashMap<Hash, T> {
     models
         .iter()
         .map(|model| {

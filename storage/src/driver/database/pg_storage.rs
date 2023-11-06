@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use common::errors::MegaError;
-use entity::{commit, git_obj, refs};
+use entity::{commit, objects, refs};
 use sea_orm::{
     ColumnTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction,
     EntityTrait, QueryFilter, Statement,
@@ -28,7 +28,7 @@ impl ObjectStorage for PgStorage {
     async fn save_obj_data_to_db(
         &self,
         txn: Option<&DatabaseTransaction>,
-        obj_data: Vec<git_obj::ActiveModel>,
+        obj_data: Vec<objects::ActiveModel>,
     ) -> Result<bool, MegaError> {
         match txn {
             Some(txn) => batch_save_model(txn, obj_data).await?,
