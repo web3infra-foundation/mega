@@ -5,7 +5,6 @@ use std::{
 
 use common::errors::MegaError;
 
-pub mod lfs_structs;
 pub mod local_storage;
 pub mod remote_storage;
 
