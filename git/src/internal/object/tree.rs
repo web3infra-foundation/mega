@@ -16,7 +16,7 @@
 //!
 use bstr::ByteSlice;
 use colored::Colorize;
-use entity::git_obj;
+use entity::objects;
 use std::fmt::Display;
 
 use crate::errors::GitError;
@@ -245,8 +245,8 @@ impl Display for Tree {
     }
 }
 
-impl From<git_obj::Model> for Tree {
-    fn from(value: git_obj::Model) -> Self {
+impl From<objects::Model> for Tree {
+    fn from(value: objects::Model) -> Self {
         let mut tree = Tree::new_from_data(value.data);
         tree.id = Hash::new_from_str(&value.git_id);
         tree

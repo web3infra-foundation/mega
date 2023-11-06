@@ -62,7 +62,7 @@ CREATE INDEX "idx_mr_hash" ON "mr" ("git_id");
 CREATE INDEX "idx_mr_id" ON "mr" ("mr_id", "object_type");
 
 
-CREATE TABLE IF NOT EXISTS "git_obj" (
+CREATE TABLE IF NOT EXISTS "objects" (
   "id" BIGINT NOT NULL,
   "git_id" VARCHAR(40) NOT NULL,
   "object_type" VARCHAR(16) NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS "git_obj" (
   PRIMARY KEY ("id"),
   CONSTRAINT uniq_o_git_id UNIQUE (git_id)
 );
-CREATE INDEX "idx_data_git_id" ON "git_obj" ("git_id");
+CREATE INDEX "idx_obj_git_id" ON "objects" ("git_id");
 
 
 CREATE TABLE IF NOT EXISTS "mr_info" (
