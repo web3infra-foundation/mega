@@ -1,6 +1,10 @@
-# Mega - Monorepo Engine for Enterprise and Individual
+# Mega - Centralised Monorepo and Decentralised Open Source Collabration Engine
 
 Mega is an engine for managing a monorepo. It functions similarly to Google's Piper and helps to streamline Git and trunk-based development for large-scale projects.
+
+## Monorepo
+
+
 
 ## Git Compatible
 
@@ -10,7 +14,11 @@ Git is a version control system that distributes file versions across local mach
 
 When it comes to managing large codebases in a centralized manner, trunk-based development is the way to go. This workflow is particularly well-suited for monorepos. The idea behind trunk-based development is to work on a single codebase, making frequent commits and testing regularly. This approach helps identify issues early on, which ultimately leads to greater code stability. Additionally, trunk-based development enables consistency and integration, making it easier to manage monorepos and collaborate effectively on larger projects.
 
-## Quick Started for developing and testing Mega on MacOS
+## Decentralized Collaboration
+
+
+
+## Quick Started for developing and testing on MacOS
 
 1. Install Rust on your MacOS machine.
 
