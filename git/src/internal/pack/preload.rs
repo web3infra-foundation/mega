@@ -11,7 +11,7 @@ use super::cache::{ObjectCache,kvstore::ObjectCache as kvObjectCache, _Cache};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use storage::{driver::database::storage::ObjectStorage, utils::id_generator::generate_id};
-use entity::{git_obj, mr};
+use entity::{objects, mr};
 use num_cpus;
 
 use redis::{ToRedisArgs, FromRedisValue, RedisError, ErrorKind};
@@ -46,8 +46,8 @@ impl Entry {
             created_at: Set(chrono::Utc::now().naive_utc()),
         }
     }
-    fn convert_to_data_model(self) -> git_obj::ActiveModel {
-        git_obj::ActiveModel {
+    fn convert_to_data_model(self) -> objects::ActiveModel {
+        objects::ActiveModel {
             id: Set(generate_id()),
             git_id: Set(self.hash.unwrap().to_plain_str()),
             object_type: Set(String::from_utf8_lossy(self.header.to_bytes()).to_string()),
@@ -303,7 +303,7 @@ async fn produce_object<TC>(
     let thread_id: u16 = rand::thread_rng().gen();
     tracing::info!("thread begin : {}", thread_id);
     let mut mr_to_obj_model = Vec::<mr::ActiveModel>::with_capacity(1001);
-    let mut git_obj_model = Vec::<git_obj::ActiveModel>::with_capacity(1001);
+    let mut git_obj_model = Vec::<objects::ActiveModel>::with_capacity(1001);
 
     let mut object_cache_size = 1000;
     utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_SIZE", &mut object_cache_size);

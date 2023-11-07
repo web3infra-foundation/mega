@@ -16,6 +16,7 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::{Router, Server};
 use clap::Args;
+use git::lfs::lfs_structs::LockListQuery;
 use git::lfs::{self, LfsConfig};
 use git::protocol::{http, ServiceType};
 use git::protocol::{PackProtocol, Protocol};
@@ -24,7 +25,6 @@ use regex::Regex;
 use serde::Deserialize;
 use storage::driver::database::storage::ObjectStorage;
 use storage::driver::database::{self, DataSource};
-use storage::driver::fs::lfs_structs::LockListQuery;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 

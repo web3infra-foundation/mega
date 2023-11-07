@@ -6,7 +6,7 @@ use crate::node::{get_utc_timestamp, ClientParas, Fork, MegaRepoInfo};
 use crate::{get_pack_protocol, get_repo_full_path};
 use bytes::Bytes;
 use common::utils;
-use entity::git_obj::Model;
+use entity::objects::Model;
 use git::protocol::RefCommand;
 use git::structure::conversion;
 use libp2p::kad::record::Key;

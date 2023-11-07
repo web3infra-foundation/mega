@@ -6,7 +6,7 @@ use async_std::io;
 use async_std::io::prelude::BufReadExt;
 use storage::driver::database;
 use storage::driver::database::DataSource;
-use entity::git_obj::Model;
+use entity::objects::Model;
 use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::kad::store::MemoryStore;

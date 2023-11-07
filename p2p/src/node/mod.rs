@@ -6,7 +6,7 @@
 //!
 
 use storage::driver::database::storage::ObjectStorage;
-use entity::git_obj::Model;
+use entity::objects::Model;
 use libp2p::kad::QueryId;
 use libp2p::rendezvous::Cookie;
 use libp2p::request_response::RequestId;
