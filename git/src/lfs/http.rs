@@ -1,20 +1,32 @@
 //!
 //!
 //!
+use std::cmp::min;
 use std::collections::HashMap;
 use std::io::prelude::*;
+use std::sync::Arc;
 
 use anyhow::Result;
 use axum::body::Body;
 use axum::http::{Response, StatusCode};
 use bytes::{BufMut, BytesMut};
 use chrono::{prelude::*, Duration};
+use common::errors::GitLFSError;
+use entity::{locks, meta};
 use futures::StreamExt;
 use hyper::Request;
 use rand::prelude::*;
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use storage::driver::database::storage::ObjectStorage;
 use storage::driver::fs::local_storage::{LocalStorage, MetaObject};
-use storage::driver::fs::{lfs_structs::*, FileStorage};
+use storage::driver::fs::FileStorage;
 
+use crate::lfs::lfs_structs::{
+    BatchResponse, BatchVars, LockList, LockRequest, LockResponse, ObjectError, UnlockRequest,
+    UnlockResponse, VerifiableLockList, VerifiableLockRequest,
+};
+
+use super::lfs_structs::{Link, Lock, LockListQuery, Representation, RequestVars};
 use super::LfsConfig;
 
 pub async fn lfs_retrieve_lock(
@@ -42,14 +54,11 @@ pub async fn lfs_retrieve_lock(
     let mut resp = Response::builder();
     resp = resp.header("Content-Type", "application/vnd.git-lfs+json");
 
-    let (locks, next_cursor, ok) = match config
-        .storage
-        .lfs_get_filtered_locks(&repo, &path, &cursor, &limit)
-        .await
-    {
-        Ok((locks, next)) => (locks, next, true),
-        Err(_) => (vec![], "".to_string(), false),
-    };
+    let (locks, next_cursor, ok) =
+        match lfs_get_filtered_locks(config.storage.clone(), &repo, &path, &cursor, &limit).await {
+            Ok((locks, next)) => (locks, next, true),
+            Err(_) => (vec![], "".to_string(), false),
+        };
 
     let mut lock_list = LockList {
         locks: vec![],
@@ -98,18 +107,17 @@ pub async fn lfs_verify_lock(
         limit = 100;
     }
 
-    let res = config
-        .storage
-        .lfs_get_filtered_locks(
-            &verifiable_lock_request.refs.name,
-            "",
-            &verifiable_lock_request
-                .cursor
-                .unwrap_or("".to_string())
-                .to_string(),
-            &limit.to_string(),
-        )
-        .await;
+    let res = lfs_get_filtered_locks(
+        config.storage.clone(),
+        &verifiable_lock_request.refs.name,
+        "",
+        &verifiable_lock_request
+            .cursor
+            .unwrap_or("".to_string())
+            .to_string(),
+        &limit.to_string(),
+    )
+    .await;
 
     let (locks, next_cursor, ok) = match res {
         Ok((locks, next)) => (locks, next, true),
@@ -167,15 +175,14 @@ pub async fn lfs_create_lock(
     let lock_request: LockRequest = serde_json::from_slice(request_body.freeze().as_ref()).unwrap();
     println!("{:?}", lock_request);
     tracing::info!("acquired: {:?}", lock_request);
-    let res = config
-        .storage
-        .lfs_get_filtered_locks(
-            &lock_request.refs.name,
-            &lock_request.path.to_string(),
-            "",
-            "1",
-        )
-        .await;
+    let res = lfs_get_filtered_locks(
+        config.storage.clone(),
+        &lock_request.refs.name,
+        &lock_request.path.to_string(),
+        "",
+        "1",
+    )
+    .await;
 
     let (locks, _, ok) = match res {
         Ok((locks, next)) => (locks, next, true),
@@ -210,11 +217,13 @@ pub async fn lfs_create_lock(
         },
     };
 
-    let ok = config
-        .storage
-        .lfs_add_lock(&lock_request.refs.name, vec![lock.clone()])
-        .await
-        .is_ok();
+    let ok = lfs_add_lock(
+        config.storage.clone(),
+        &lock_request.refs.name,
+        vec![lock.clone()],
+    )
+    .await
+    .is_ok();
     if !ok {
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -267,15 +276,14 @@ pub async fn lfs_delete_lock(
     let unlock_request: UnlockRequest =
         serde_json::from_slice(request_body.freeze().as_ref()).unwrap();
 
-    let res = config
-        .storage
-        .lfs_delete_lock(
-            &unlock_request.refs.name,
-            None,
-            id,
-            unlock_request.force.unwrap_or(false),
-        )
-        .await;
+    let res = delete_lock(
+        config.storage.clone(),
+        &unlock_request.refs.name,
+        None,
+        id,
+        unlock_request.force.unwrap_or(false),
+    )
+    .await;
 
     let (deleted_lock, ok) = match res {
         Ok(lock) => (lock, true),
@@ -350,7 +358,7 @@ pub async fn lfs_process_batch(
 
     let local_storage = LocalStorage::init(config.lfs_content_path.to_owned());
     for object in batch_vars.objects {
-        let meta = config.storage.lfs_get_meta(&object).await;
+        let meta = lfs_get_meta(config.storage.clone(), &object).await;
 
         // Found
         let found = meta.is_ok();
@@ -362,7 +370,7 @@ pub async fn lfs_process_batch(
 
         // Not found
         if batch_vars.operation == "upload" {
-            meta = config.storage.lfs_put_meta(&object).await.unwrap();
+            meta = lfs_put_meta(config.storage.clone(), &object).await.unwrap();
             response_objects.push(represent(&object, &meta, false, true, false, &server_url).await);
         } else {
             let rep = Representation {
@@ -414,7 +422,9 @@ pub async fn lfs_upload_object(
 
     let content_store = LocalStorage::init(config.lfs_content_path.to_owned());
 
-    let meta = config.storage.lfs_get_meta(&request_vars).await.unwrap();
+    let meta = lfs_get_meta(config.storage.clone(), &request_vars)
+        .await
+        .unwrap();
 
     let (_parts, mut body) = req.into_parts();
 
@@ -428,7 +438,9 @@ pub async fn lfs_upload_object(
 
     let res = content_store.put(&meta.oid, meta.size, request_body.freeze().as_ref());
     if res.is_err() {
-        config.storage.lfs_delete_meta(&request_vars).await.unwrap();
+        lfs_delete_meta(config.storage.clone(), &request_vars)
+            .await
+            .unwrap();
         return Err((
             StatusCode::NOT_ACCEPTABLE,
             String::from("Header not acceptable!"),
@@ -456,7 +468,9 @@ pub async fn lfs_download_object(
         ..Default::default()
     };
 
-    let meta = config.storage.lfs_get_meta(&request_vars).await.unwrap();
+    let meta = lfs_get_meta(config.storage.clone(), &request_vars)
+        .await
+        .unwrap();
 
     let mut file = local_storage.get(&meta.oid);
 
@@ -544,4 +558,275 @@ pub async fn represent(
     }
 
     rep
+}
+
+async fn lfs_get_filtered_locks(
+    storage: Arc<dyn ObjectStorage>,
+    refspec: &str,
+    path: &str,
+    cursor: &str,
+    limit: &str,
+) -> Result<(Vec<Lock>, String), GitLFSError> {
+    let mut locks = match lfs_get_locks(storage, refspec).await {
+        Ok(locks) => locks,
+        Err(_) => vec![],
+    };
+
+    println!("Locks retrieved: {:?}", locks);
+
+    if !cursor.is_empty() {
+        let mut last_seen = -1;
+        for (i, v) in locks.iter().enumerate() {
+            if v.id == *cursor {
+                last_seen = i as i32;
+                break;
+            }
+        }
+
+        if last_seen > -1 {
+            locks = locks.split_off(last_seen as usize);
+        } else {
+            // Cursor not found.
+            return Err(GitLFSError::GeneralError("".to_string()));
+        }
+    }
+
+    if !path.is_empty() {
+        let mut filterd = Vec::<Lock>::new();
+        for lock in locks.iter() {
+            if lock.path == *path {
+                filterd.push(Lock {
+                    id: lock.id.to_owned(),
+                    path: lock.path.to_owned(),
+                    owner: lock.owner.clone(),
+                    locked_at: lock.locked_at.to_owned(),
+                });
+            }
+        }
+        locks = filterd;
+    }
+
+    let mut next = "".to_string();
+    if !limit.is_empty() {
+        let mut size = limit.parse::<i64>().unwrap();
+        size = min(size, locks.len() as i64);
+
+        if size + 1 < locks.len() as i64 {
+            next = locks[size as usize].id.to_owned();
+        }
+        let _ = locks.split_off(size as usize);
+    }
+
+    Ok((locks, next))
+}
+
+async fn lfs_get_locks(
+    storage: Arc<dyn ObjectStorage>,
+    refspec: &str,
+) -> Result<Vec<Lock>, GitLFSError> {
+    let result = storage.get_lock_by_id(refspec).await.unwrap();
+    match result {
+        Some(val) => {
+            let data = val.data;
+            let locks: Vec<Lock> = serde_json::from_str(&data).unwrap();
+            Ok(locks)
+        }
+        None => Err(GitLFSError::GeneralError("".to_string())),
+    }
+}
+
+async fn lfs_add_lock(
+    storage: Arc<dyn ObjectStorage>,
+    repo: &str,
+    locks: Vec<Lock>,
+) -> Result<(), GitLFSError> {
+    let result = storage.get_lock_by_id(repo).await.unwrap();
+
+    match result {
+        // Update
+        Some(val) => {
+            let d = val.data.to_owned();
+            let mut locks_from_data = if !d.is_empty() {
+                let locks_from_data: Vec<Lock> = serde_json::from_str(&d).unwrap();
+                locks_from_data
+            } else {
+                vec![]
+            };
+            let mut locks = locks;
+            locks_from_data.append(&mut locks);
+
+            locks_from_data.sort_by(|a, b| {
+                a.locked_at
+                    .partial_cmp(&b.locked_at)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let d = serde_json::to_string(&locks_from_data).unwrap();
+
+            let mut lock_to: locks::ActiveModel = val.into();
+            lock_to.data = Set(d.to_owned());
+            let res = lock_to.update(storage.get_connection()).await;
+            match res.is_ok() {
+                true => Ok(()),
+                false => Err(GitLFSError::GeneralError("".to_string())),
+            }
+        }
+        // Insert
+        None => {
+            let mut locks = locks;
+            locks.sort_by(|a, b| {
+                a.locked_at
+                    .partial_cmp(&b.locked_at)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let data = serde_json::to_string(&locks).unwrap();
+            let lock_to = locks::ActiveModel {
+                id: Set(repo.to_owned()),
+                data: Set(data.to_owned()),
+            };
+            let res = locks::Entity::insert(lock_to)
+                .exec(storage.get_connection())
+                .await;
+            match res.is_ok() {
+                true => Ok(()),
+                false => Err(GitLFSError::GeneralError("".to_string())),
+            }
+        }
+    }
+}
+
+async fn lfs_get_meta(
+    storage: Arc<dyn ObjectStorage>,
+    v: &RequestVars,
+) -> Result<MetaObject, GitLFSError> {
+    let result = storage.get_meta_by_id(v.oid.clone()).await.unwrap();
+
+    match result {
+        Some(val) => Ok(MetaObject {
+            oid: val.oid,
+            size: val.size,
+            exist: val.exist,
+        }),
+        None => Err(GitLFSError::GeneralError("".to_string())),
+    }
+}
+
+async fn lfs_put_meta(
+    storage: Arc<dyn ObjectStorage>,
+    v: &RequestVars,
+) -> Result<MetaObject, GitLFSError> {
+    // Check if already exist.
+    let result = storage.get_meta_by_id(v.oid.clone()).await.unwrap();
+    if let Some(result) = result {
+        return Ok(MetaObject {
+            oid: result.oid,
+            size: result.size,
+            exist: true,
+        });
+    }
+
+    // Put into database if not exist.
+    let meta = MetaObject {
+        oid: v.oid.to_string(),
+        size: v.size,
+        exist: true,
+    };
+
+    let meta_to = meta::ActiveModel {
+        oid: Set(meta.oid.to_owned()),
+        size: Set(meta.size.to_owned()),
+        exist: Set(true),
+    };
+
+    let res = meta::Entity::insert(meta_to)
+        .exec(storage.get_connection())
+        .await;
+    match res {
+        Ok(_) => Ok(meta),
+        Err(err) => Err(GitLFSError::GeneralError(err.to_string())),
+    }
+}
+
+async fn lfs_delete_meta(
+    storage: Arc<dyn ObjectStorage>,
+    v: &RequestVars,
+) -> Result<(), GitLFSError> {
+    let res = storage.delete_meta_by_id(v.oid.to_owned()).await;
+    match res {
+        Ok(_) => Ok(()),
+        Err(_) => Err(GitLFSError::GeneralError("".to_string())),
+    }
+}
+
+async fn delete_lock(
+    storage: Arc<dyn ObjectStorage>,
+    repo: &str,
+    _user: Option<String>,
+    id: &str,
+    force: bool,
+) -> Result<Lock, GitLFSError> {
+    let result = storage.get_lock_by_id(repo).await.unwrap();
+    match result {
+        // Exist, then delete.
+        Some(val) => {
+            let d = val.data.to_owned();
+            let locks_from_data = if !d.is_empty() {
+                let locks_from_data: Vec<Lock> = serde_json::from_str(&d).unwrap();
+                locks_from_data
+            } else {
+                vec![]
+            };
+
+            let mut new_locks = Vec::<Lock>::new();
+            let mut lock_to_delete = Lock {
+                id: "".to_owned(),
+                path: "".to_owned(),
+                owner: None,
+                locked_at: {
+                    let locked_at: DateTime<Utc> = DateTime::<Utc>::MIN_UTC;
+                    locked_at.to_rfc3339()
+                },
+            };
+
+            for lock in locks_from_data.iter() {
+                if lock.id == *id {
+                    if Option::is_some(&lock.owner) && !force {
+                        return Err(GitLFSError::GeneralError("".to_string()));
+                    }
+                    lock_to_delete.id = lock.id.to_owned();
+                    lock_to_delete.path = lock.path.to_owned();
+                    lock_to_delete.owner = lock.owner.clone();
+                    lock_to_delete.locked_at = lock.locked_at.to_owned();
+                } else if !lock.id.is_empty() {
+                    new_locks.push(Lock {
+                        id: lock.id.to_owned(),
+                        path: lock.path.to_owned(),
+                        owner: lock.owner.clone(),
+                        locked_at: lock.locked_at.to_owned(),
+                    });
+                }
+            }
+            if lock_to_delete.id.is_empty() {
+                return Err(GitLFSError::GeneralError("".to_string()));
+            }
+
+            // No locks remains, delete the repo from database.
+            if new_locks.is_empty() {
+                storage.delete_lock_by_id(repo.to_owned()).await;
+                return Ok(lock_to_delete);
+            }
+
+            // Update remaining locks.
+            let data = serde_json::to_string(&new_locks).unwrap();
+
+            let mut lock_to: locks::ActiveModel = val.into();
+            lock_to.data = Set(data.to_owned());
+            let res = lock_to.update(storage.get_connection()).await;
+            match res.is_ok() {
+                true => Ok(lock_to_delete),
+                false => Err(GitLFSError::GeneralError("".to_string())),
+            }
+        }
+        // Not exist, error.
+        None => Err(GitLFSError::GeneralError("".to_string())),
+    }
 }

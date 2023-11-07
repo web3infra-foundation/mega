@@ -1,4 +1,4 @@
-use entity::git_obj;
+use entity::objects;
 use libp2p::kad;
 use libp2p::kad::store::MemoryStore;
 use libp2p::swarm::NetworkBehaviour;
@@ -43,7 +43,7 @@ pub struct GitInfoRefsRes(pub String, pub Vec<String>);
 pub struct GitObjectReq(pub String, pub Vec<String>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GitObjectRes(pub Vec<git_obj::Model>);
+pub struct GitObjectRes(pub Vec<objects::Model>);
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
