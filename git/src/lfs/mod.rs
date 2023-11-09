@@ -1,6 +1,6 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
-use storage::driver::database::storage::ObjectStorage;
+use storage::driver::{database::storage::ObjectStorage, file_storage::FileStorage};
 
 pub mod http;
 pub mod lfs_structs;
@@ -11,7 +11,7 @@ pub struct LfsConfig {
 
     pub port: u16,
 
-    pub lfs_content_path: PathBuf,
-
     pub storage: Arc<dyn ObjectStorage>,
+
+    pub fs_storage: Arc<dyn FileStorage>,
 }
