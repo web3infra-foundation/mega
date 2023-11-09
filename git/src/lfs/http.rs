@@ -3,13 +3,12 @@
 //!
 use std::cmp::min;
 use std::collections::HashMap;
-use std::io::prelude::*;
 use std::sync::Arc;
 
 use anyhow::Result;
 use axum::body::Body;
 use axum::http::{Response, StatusCode};
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use chrono::{prelude::*, Duration};
 use common::errors::GitLFSError;
 use entity::{locks, meta};
@@ -18,8 +17,7 @@ use hyper::Request;
 use rand::prelude::*;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use storage::driver::database::storage::ObjectStorage;
-use storage::driver::fs::local_storage::{LocalStorage, MetaObject};
-use storage::driver::fs::FileStorage;
+use storage::driver::file_storage::local_storage::MetaObject;
 
 use crate::lfs::lfs_structs::{
     BatchResponse, BatchVars, LockList, LockRequest, LockResponse, ObjectError, UnlockRequest,
@@ -356,14 +354,13 @@ pub async fn lfs_process_batch(
 
     let server_url = format!("http://{}:{}", config.host, config.port);
 
-    let local_storage = LocalStorage::init(config.lfs_content_path.to_owned());
     for object in batch_vars.objects {
         let meta = lfs_get_meta(config.storage.clone(), &object).await;
 
         // Found
         let found = meta.is_ok();
         let mut meta = meta.unwrap_or_default();
-        if found && local_storage.exist(&meta.oid) {
+        if found && config.fs_storage.exist(&meta.oid) {
             response_objects.push(represent(&object, &meta, true, false, false, &server_url).await);
             continue;
         }
@@ -420,8 +417,6 @@ pub async fn lfs_upload_object(
         ..Default::default()
     };
 
-    let content_store = LocalStorage::init(config.lfs_content_path.to_owned());
-
     let meta = lfs_get_meta(config.storage.clone(), &request_vars)
         .await
         .unwrap();
@@ -436,7 +431,10 @@ pub async fn lfs_upload_object(
         request_body.extend_from_slice(&bytes);
     }
 
-    let res = content_store.put(&meta.oid, meta.size, request_body.freeze().as_ref());
+    let res = config
+        .fs_storage
+        .put(&meta.oid, meta.size, &request_body.freeze())
+        .await;
     if res.is_err() {
         lfs_delete_meta(config.storage.clone(), &request_vars)
             .await
@@ -459,8 +457,6 @@ pub async fn lfs_download_object(
 ) -> Result<Response<Body>, (StatusCode, String)> {
     tracing::info!("start downloading LFS object");
 
-    let local_storage = LocalStorage::init(config.lfs_content_path.to_owned());
-
     // Load request parameters into struct.
     let request_vars = RequestVars {
         oid: oid.to_owned(),
@@ -472,15 +468,10 @@ pub async fn lfs_download_object(
         .await
         .unwrap();
 
-    let mut file = local_storage.get(&meta.oid);
-
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
-    let mut bytes = BytesMut::new();
-    bytes.put(buffer.as_ref());
+    let bytes = config.fs_storage.get(&meta.oid).await.unwrap();
     let mut resp = Response::builder();
     resp = resp.status(200);
-    let body = Body::from(bytes.freeze());
+    let body = Body::from(bytes);
     Ok(resp.body(body).unwrap())
 }
 
