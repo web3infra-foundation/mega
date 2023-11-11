@@ -1,16 +1,30 @@
-# Mega - Monorepo Engine for Enterprise and Individual
+# Mega - Centralised Monorepo and Decentralised Open Source Collabration Engine
 
-Mega is an engine for managing a monorepo. It functions similarly to Google's Piper and helps to streamline Git and trunk-based development for large-scale projects.
+Mega, a code repository platform for enterprise and individual developers, integrates the Monorepo model with Git compatibility, streamlining team development and personal code management. It supports centralized trunk-based workflows alongside decentralized open-source collaboration.
 
-## Git Compatible
+## Motivation
+
+### Monorepo
+
+Monorepo, a unified code repository model, significantly streamlines team development by promoting code sharing and collaboration within a single repository. This approach not only enhances consistency and minimizes duplication but also seamlessly integrates large-scale refactoring and code reviews. By allowing changes across multiple projects to be managed in a single pull request, Monorepo not only bolsters code quality but also expedites the development process. It cultivates a more cohesive and integrated development culture, leading to improved communication and a deeper understanding among team members across various project components. Ultimately, Monorepo boosts efficiency, strengthens consistency, and fosters collaboration in team development.
+
+### Git Compatible
 
 Git is a version control system that distributes file versions across local machines, allowing for quick access and collaboration. While mid-sized companies can store repositories as large as 20TB, managing such extensive codebases can pose challenges. Mega offers the ability to utilize Git with a monorepo. This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, and seamless pushing of changes back. Despite Git's widespread use, it does not inherently support monorepo structures, but Mega fills this void.
 
-## Trunk-based Development
+### Trunk-based Development
 
 When it comes to managing large codebases in a centralized manner, trunk-based development is the way to go. This workflow is particularly well-suited for monorepos. The idea behind trunk-based development is to work on a single codebase, making frequent commits and testing regularly. This approach helps identify issues early on, which ultimately leads to greater code stability. Additionally, trunk-based development enables consistency and integration, making it easier to manage monorepos and collaborate effectively on larger projects.
 
-## Quick Started for developing and testing Mega on MacOS
+### Decentralized Collaboration
+
+The current open source collaboration landscape, dominated by centralized platforms like GitHub and GitLab, presents a paradox. While Git itself is a decentralized version control system, these platforms bind open-source projects to centralized models. This centralization poses a risk of monopolization in the open-source community, potentially stifling innovation and diversity.
+
+Centralized systems, despite their convenience and popularity, are not without their flaws. One significant concern is the risk of a single point of failure. If a centralized platform experiences downtime or security breaches, it can disrupt the workflow of countless projects and developers relying on it. This vulnerability highlights the need for a more resilient approach to open-source collaboration.
+
+To address these challenges, there's a growing need for a decentralized open-source collaboration model. Such a model would enhance the freedom of communication among developers and strengthen their ownership and control over their code. By moving away from centralized systems, developers can ensure that their contributions and the direction of their projects are not unduly influenced by the policies or stability of a single platform. This shift towards decentralization is not just a technical necessity but a step towards preserving the ethos of open-source: collaboration, freedom, and community-driven development.
+
+## Quick Started for developing and testing on MacOS
 
 1. Install Rust on your MacOS machine.
 
