@@ -5,6 +5,7 @@
 //!
 
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{net::SocketAddr, sync::Arc};
@@ -44,9 +45,6 @@ pub struct HttpOptions {
     #[arg(short, long, value_name = "FILE")]
     cert_path: Option<PathBuf>,
 
-    #[arg(short, long)]
-    pub lfs_content_path: Option<PathBuf>,
-
     #[arg(short, long, value_enum, default_value = "postgres")]
     pub data_source: DataSource,
 }
@@ -77,7 +75,6 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
         port,
         key_path: _,
         cert_path: _,
-        lfs_content_path: _,
         data_source,
     } = options;
     let server_url = format!("{}:{}", host, port);
@@ -108,9 +105,8 @@ async fn get_method_router(
     Query(params): Query<GetParams>,
     uri: Uri,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.options.clone().into();
-    lfs_config.storage = state.storage.clone();
-
+    let mut lfs_config: LfsConfig = state.deref().to_owned().into();
+    lfs_config.fs_storage = storage::driver::file_storage::init("lfs-files".to_owned()).await;
     // Routing LFS services.
     if Regex::new(r"/objects/[a-z0-9]+$")
         .unwrap()
@@ -178,9 +174,8 @@ async fn post_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.options.clone().into();
-    lfs_config.storage = state.storage.clone();
-
+    let mut lfs_config: LfsConfig = state.deref().to_owned().into();
+    lfs_config.fs_storage = storage::driver::file_storage::init("lfs-files".to_owned()).await;
     // Routing LFS services.
     if Regex::new(r"/locks/verify$").unwrap().is_match(uri.path()) {
         return lfs::http::lfs_verify_lock(&lfs_config, req).await;
@@ -229,8 +224,8 @@ async fn put_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.options.clone().into();
-    lfs_config.storage = state.storage.clone();
+    let mut lfs_config: LfsConfig = state.deref().to_owned().into();
+    lfs_config.fs_storage = storage::driver::file_storage::init("lfs-files".to_owned()).await;
     if Regex::new(r"/objects/[a-z0-9]+$")
         .unwrap()
         .is_match(uri.path())
