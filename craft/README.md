@@ -18,6 +18,34 @@ Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption an
    $ cargo build --release
    ```
 
+3. Copy `git-craft` to $PATH.
+
+   ```bash
+   $ cp target/release/git-craft /usr/local/bin
+   ```
+
+4. Edit `.git/config` to add `craft` filter in your repository.
+
+   ```bash
+   $ vim .git/config
+   ```
+
+   ```ini
+   [filter "craft"]
+       smudge = git-craft decrypt /User/eli/.mega/craft/key_files/sec.asc
+       clean = git-craft encrypt /User/eli/.mega/craft/key_files/pub.asc
+   ```
+
+5. Edit `.gitattributes` to add `craft` filter for files you want to encrypt.
+
+   ```bash
+   $ vim .gitattributes
+   ```
+
+   ```ini
+   *.rs filter=craft -text
+   ```
+
 ## Encryption and Decryption of Source Code
 
 
