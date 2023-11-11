@@ -5,7 +5,6 @@
 extern crate common;
 
 use std::env;
-use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -37,9 +36,9 @@ use sea_orm::QuerySelect;
 use sea_orm::Set;
 use sea_orm::TryIntoModel;
 
-use crate::driver::fs::local_storage::LocalStorage;
-use crate::driver::fs::FileStorage;
 use common::errors::MegaError;
+
+use crate::driver::file_storage;
 
 #[async_trait]
 pub trait ObjectStorage: Send + Sync {
@@ -67,18 +66,15 @@ pub trait ObjectStorage: Send + Sync {
             .parse::<usize>()
             .unwrap();
 
-        let storage_path = env::var("MEGA_OBJ_LOCAL_PATH")
-            .expect("MEGA_OBJ_LOCAL_PATH not configured")
-            .parse::<PathBuf>()
-            .unwrap();
-        let storage = LocalStorage::init(storage_path);
+        let fs_storage = file_storage::init("git-objects".to_owned()).await;
 
         let mut new_obj_data: Vec<objects::ActiveModel> = Vec::new();
         for model in obj_data.iter_mut() {
             let mut obj = model.clone().try_into_model().unwrap();
             if obj.data.len() / 1024 > threshold {
-                let path = storage
+                let path = fs_storage
                     .put(&obj.git_id, obj.data.len() as i64, &obj.data)
+                    .await
                     .unwrap();
                 obj.link = Some(path);
                 obj.data.clear();
@@ -123,13 +119,6 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    fn get_obj_data_from_disk(&self, obj: &mut objects::Model) {
-        if let Some(link) = &obj.link {
-            let data = fs::read(link).unwrap();
-            obj.data = data;
-        }
-    }
-
     async fn get_obj_data_by_ids(
         &self,
         git_ids: Vec<String>,
@@ -142,9 +131,12 @@ pub trait ObjectStorage: Send + Sync {
             )
             .await
             .unwrap();
+        let fs_storage = file_storage::init("git-objects".to_owned()).await;
+
         for obj in objs.iter_mut() {
-            if obj.data.is_empty() {
-                self.get_obj_data_from_disk(obj);
+            if obj.link.is_some() {
+                let data = fs_storage.get(&obj.git_id).await.unwrap();
+                obj.data = data.to_vec();
             }
         }
         Ok(objs)
@@ -156,9 +148,12 @@ pub trait ObjectStorage: Send + Sync {
             .one(self.get_connection())
             .await
             .unwrap();
+
         if let Some(mut model) = obj {
-            if model.data.is_empty() {
-                self.get_obj_data_from_disk(&mut model);
+            if model.link.is_some() {
+                let fs_storage = file_storage::init("git-objects".to_owned()).await;
+                let data = fs_storage.get(&model.git_id).await.unwrap();
+                model.data = data.to_vec();
             }
             return Ok(Some(model));
         }
@@ -326,7 +321,8 @@ pub trait ObjectStorage: Send + Sync {
     async fn delete_meta_by_id(&self, oid: String) -> Result<(), MegaError> {
         meta::Entity::delete_by_id(oid)
             .exec(self.get_connection())
-            .await.unwrap();
+            .await
+            .unwrap();
         Ok(())
     }
 
@@ -384,7 +380,7 @@ pub trait ObjectStorage: Send + Sync {
             model_vec.push(repo_directory::new(
                 pid,
                 path.file_name().unwrap().to_str().unwrap(),
-                str,
+                &format!("/{}", str),
             ));
         }
         repo_directory::Entity::insert_many(model_vec)

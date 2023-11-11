@@ -1,5 +1,6 @@
+use async_trait::async_trait;
+use bytes::Bytes;
 use common::errors::MegaError;
-use sha256::digest;
 use std::fs;
 use std::io::prelude::*;
 use std::path;
@@ -7,6 +8,7 @@ use std::path::PathBuf;
 
 use super::FileStorage;
 
+#[derive(Default)]
 pub struct LocalStorage {
     base_path: PathBuf,
 }
@@ -19,20 +21,29 @@ pub struct MetaObject {
 }
 
 impl LocalStorage {
-    pub fn init(base: PathBuf) -> LocalStorage {
-        fs::create_dir_all(&base).expect("Create directory failed!");
-        LocalStorage { base_path: base }
+    pub fn init(base_path: PathBuf) -> LocalStorage {
+        fs::create_dir_all(&base_path).expect("Create directory failed!");
+        LocalStorage { base_path }
     }
 }
 
+#[async_trait]
 impl FileStorage for LocalStorage {
-    fn get(&self, object_id: &str) -> fs::File {
-        let path = path::Path::new(&self.base_path).join(Self::transform_path(object_id));
-        fs::File::open(path).expect("Open file failed!")
+    async fn get(&self, object_id: &str) -> Result<Bytes, MegaError> {
+        let path = path::Path::new(&self.base_path).join(self.transform_path(object_id));
+        let mut file = fs::File::open(path).expect("Open file failed!");
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+        Ok(Bytes::from(buffer))
     }
 
-    fn put(&self, object_id: &str, size: i64, body_content: &[u8]) -> Result<String, MegaError> {
-        let path = path::Path::new(&self.base_path).join(Self::transform_path(object_id));
+    async fn put(
+        &self,
+        object_id: &str,
+        size: i64,
+        body_content: &[u8],
+    ) -> Result<String, MegaError> {
+        let path = path::Path::new(&self.base_path).join(self.transform_path(object_id));
         let dir = path.parent().unwrap();
         fs::create_dir_all(dir).expect("Create directory failed!");
 
@@ -41,15 +52,11 @@ impl FileStorage for LocalStorage {
         if lenght_written as i64 != size {
             return Err(MegaError::with_message("size not correct"));
         }
-        let hash = digest(body_content);
-        if hash != object_id {
-            return Err(MegaError::with_message("hash not matched"));
-        }
         Ok(path.to_str().unwrap().to_string())
     }
 
     fn exist(&self, object_id: &str) -> bool {
-        let path = path::Path::new(&self.base_path).join(Self::transform_path(object_id));
+        let path = path::Path::new(&self.base_path).join(self.transform_path(object_id));
 
         path::Path::exists(&path)
     }
@@ -61,21 +68,25 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_content_store() {
+    // #[test]
+    #[tokio::test]
+    async fn test_content_store() {
         let meta = MetaObject {
             oid: "6ae8a75555209fd6c44157c0aed8016e763ff435a19cf186f76863140143ff72".to_owned(),
             size: 12,
             exist: false,
         };
 
-        let content = "test content".as_bytes();
+        let content = "test content".as_bytes().to_vec();
 
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/objects");
 
         let local_storage = LocalStorage::init(source.clone());
-        assert!(local_storage.put(&meta.oid, meta.size, content).is_ok());
+        assert!(local_storage
+            .put(&meta.oid, meta.size, &content)
+            .await
+            .is_ok());
 
         assert!(local_storage.exist(&meta.oid));
     }
