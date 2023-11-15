@@ -56,4 +56,4 @@ sea-orm = { version = "0.12.3", features = [
     "mock",
 ] }
 redis = { version = "0.23.3", features = ["tokio-comp"] }
-itertools = "0.11.0"
+itertools = "0.12.0"
