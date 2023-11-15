@@ -8,7 +8,7 @@ mod init;
 mod mda;
 mod p2p;
 mod ssh;
-mod webhook;
+
 use clap::{ArgMatches, Command};
 
 use crate::cli::Config;
@@ -21,7 +21,6 @@ pub fn builtin() -> Vec<Command> {
         ssh::cli(),
         p2p::cli(),
         mda::cli(),
-        webhook::cli(),
     ]
 }
 
@@ -32,7 +31,6 @@ pub(crate) fn builtin_exec(cmd: &str) -> Option<fn(Config, &ArgMatches) -> MegaR
         "ssh" => ssh::exec,
         "p2p" => p2p::exec,
         "mda" => mda::exec,
-        "webhook" => webhook::exec,
         _ => return None,
     };
 
