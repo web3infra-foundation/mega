@@ -66,7 +66,7 @@ To address these challenges, there's a growing need for a decentralized open-sou
 
    ```bash
    $ cd mega/sql/postgres
-   $ psql mega < pg_2023092__init.sql
+   $ psql mega < pg_20231106__init.sql
    ```
    
    3. Craeate user and grant privileges.
@@ -98,11 +98,17 @@ To address these challenges, there's a growing need for a decentralized open-sou
    MEGA_DB_MIN_CONNECTIONS = 16
 
    MEGA_DB_SQLX_LOGGING = false # Whether to disabling SQLx Log
-   # If the object file size exceeds a threshold value, it will be stored in the specified location instead of the database.
-   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB
-   MEGA_BIG_OBJ_STORAGR_PATH = "/Volumes/Data/mega"
 
-   MGEA_LFS_FILE_LOCAL_PATH = "/tmp/.mega/objects" # This configuration is used to set the local location of the lfs store
+   ## file storage configuration
+   MEGA_OBJ_STORAGR_TYPE = "LOCAL" # LOCAL or REMOTE
+   MEGA_OBJ_LOCAL_PATH = "/tmp/.mega" # This configuration is used to set the local path of the project storage
+
+   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB. If the object file size exceeds the threshold value, it will be handled by file storage instead of the database.
+
+   ## Init directory configuration
+   MEGA_INIT_DIRS = "projects,docs,third_parts" # init these repo directories in mega init command
+   MEGA_IMPORT_DIRS = "third_parts" # Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+
 
    GIT_INTERNAL_DECODE_CACHE_SIZE = 100 # Maximum number of git objects in LRU cache
    GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE = 1000 # The maximum number of git object in a "INSERT" SQL database operation
@@ -112,7 +118,7 @@ To address these challenges, there's a growing need for a decentralized open-sou
 
    ## Bazel build config, you can use service like buildfarm to enable RBE(remote build execution)
    # you can refer to https://bazelbuild.github.io/bazel-buildfarm/docs/quick_start/ for more details about remote executor
-   BAZEL_BUILD_ENABLE = true # leave true if you want to trigger bazel build in each push process
+   BAZEL_BUILD_ENABLE = false # leave true if you want to trigger bazel build in each push process
    BAZEL_BUILDP_PATH = "/tmp/.mega/bazel_build_projects" # Specify a temporary directory to build the project with bazel
    BAZEL_REMOTE_EXECUTOR = "grpc://localhost:8980" # If enable the remote executor, please fillin the remote executor address, or else leave empty if you want to build by localhost. 
    BAZEL_GIT_CLONE_URL = "http://localhost:8000" # Tell bazel to clone the project from the specified git url
@@ -131,7 +137,7 @@ To address these challenges, there's a growing need for a decentralized open-sou
    $ cargo run https
    ```
 
-8. Test the push 
+8. Test the `git push` and `git clone`
 
    ```bash
    $ cd mega
@@ -139,14 +145,6 @@ To address these challenges, there's a growing need for a decentralized open-sou
    $ git push local main
    $ cd /tmp
    $ git clone http://localhost:8000/projects/mega.git
-   ```
-
-9. View from the browser
-
-   ```bash
-   $ cd mega/ui
-   $ npm install --force
-   $ npm run dev # Lanuch a chrome to open http://127.0.0.1:3000
    ```
 
 ## Contributing

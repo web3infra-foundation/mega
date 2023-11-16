@@ -9,8 +9,8 @@ This projects in archive folder has been officially archived. Please note the fo
 
 ## Background & Alternatives
 
-1. *UI* - The ui project will be replace by a new project named [moon](moon/REAdME.md).
-
+1. *ui* - The ui project will be replace by a new project named [moon](moon/REAdME.md).
+2. *sync* - The sync project will be replace by a new project named [moon-sync](moon-sync/REAdME.md).
 
 [Optional: Suggest any alternative tools, libraries, or projects that users can consider as a replacement for this project.]
 
