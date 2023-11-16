@@ -9,7 +9,6 @@ use common::utils;
 use entity::objects::Model;
 use git::protocol::RefCommand;
 use git::structure::conversion;
-use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{
     AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
@@ -54,7 +53,7 @@ pub async fn kad_event_handler(
                         repo_info.forks.retain(|r| r.peer != local_peer_id);
                         repo_info.forks.push(fork);
                         let record = Record {
-                            key: Key::new(&repo_info.name),
+                            key: kad::RecordKey::new(&repo_info.name),
                             value: serde_json::to_vec(&repo_info).unwrap(),
                             publisher: None,
                             expires: None,
@@ -332,7 +331,7 @@ pub async fn git_upload_pack_event_handler(
                             let kad_query_id = swarm
                                 .behaviour_mut()
                                 .kademlia
-                                .get_record(Key::new(&repo_name));
+                                .get_record(kad::RecordKey::new(&repo_name));
                             client_paras
                                 .pending_repo_info_update_fork
                                 .insert(kad_query_id, object_id);
@@ -582,7 +581,7 @@ pub async fn git_object_event_handler(
                             Path::new(&path),
                             obj_model_list.clone(),
                         )
-                        .await
+                            .await
                         {
                             Ok(_) => {
                                 tracing::info!(
@@ -598,7 +597,7 @@ pub async fn git_object_event_handler(
                                 let kad_query_id = swarm
                                     .behaviour_mut()
                                     .kademlia
-                                    .get_record(Key::new(&repo_name));
+                                    .get_record(kad::RecordKey::new(&repo_name));
                                 client_paras
                                     .pending_repo_info_update_fork
                                     .insert(kad_query_id, object_id);

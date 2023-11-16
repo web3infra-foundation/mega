@@ -17,6 +17,7 @@ use libp2p::{
     tcp, yamux,
 };
 use std::error::Error;
+use std::time::Duration;
 
 pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<dyn Error>> {
     let local_peer_id = PeerId::from(local_key.public());
@@ -40,6 +41,7 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
             kademlia: kad::Behaviour::new(key.public().to_peer_id(), store),
             rendezvous: rendezvous::server::Behaviour::new(rendezvous::server::Config::default()),
         })?
+        .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(5)))
         .build();
 
     // Listen on all interfaces

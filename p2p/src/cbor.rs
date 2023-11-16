@@ -12,9 +12,9 @@ mod codec {
     use std::{collections::TryReserveError, convert::Infallible, io, marker::PhantomData};
 
     /// Max request size in bytes
-    const REQUEST_SIZE_MAXIMUM: u64 = 100 * 1024 * 1024;
+    const REQUEST_SIZE_MAXIMUM: u64 = 1000 * 1024 * 1024;
     /// Max response size in bytes
-    const RESPONSE_SIZE_MAXIMUM: u64 = 100 * 1024 * 1024;
+    const RESPONSE_SIZE_MAXIMUM: u64 = 1000 * 1024 * 1024;
 
     pub struct Codec<Req, Resp> {
         phantom: PhantomData<(Req, Resp)>,
@@ -36,17 +36,17 @@ mod codec {
 
     #[async_trait]
     impl<Req, Resp> libp2p::request_response::Codec for Codec<Req, Resp>
-    where
-        Req: Send + Serialize + DeserializeOwned,
-        Resp: Send + Serialize + DeserializeOwned,
+        where
+            Req: Send + Serialize + DeserializeOwned,
+            Resp: Send + Serialize + DeserializeOwned,
     {
         type Protocol = StreamProtocol;
         type Request = Req;
         type Response = Resp;
 
         async fn read_request<T>(&mut self, _: &Self::Protocol, io: &mut T) -> io::Result<Req>
-        where
-            T: AsyncRead + Unpin + Send,
+            where
+                T: AsyncRead + Unpin + Send,
         {
             let mut vec = Vec::new();
 
@@ -56,8 +56,8 @@ mod codec {
         }
 
         async fn read_response<T>(&mut self, _: &Self::Protocol, io: &mut T) -> io::Result<Resp>
-        where
-            T: AsyncRead + Unpin + Send,
+            where
+                T: AsyncRead + Unpin + Send,
         {
             let mut vec = Vec::new();
 
@@ -72,8 +72,8 @@ mod codec {
             io: &mut T,
             req: Self::Request,
         ) -> io::Result<()>
-        where
-            T: AsyncWrite + Unpin + Send,
+            where
+                T: AsyncWrite + Unpin + Send,
         {
             let data: Vec<u8> =
                 cbor4ii::serde::to_vec(Vec::new(), &req).map_err(encode_into_io_error)?;
@@ -89,8 +89,8 @@ mod codec {
             io: &mut T,
             resp: Self::Response,
         ) -> io::Result<()>
-        where
-            T: AsyncWrite + Unpin + Send,
+            where
+                T: AsyncWrite + Unpin + Send,
         {
             let data: Vec<u8> =
                 cbor4ii::serde::to_vec(Vec::new(), &resp).map_err(encode_into_io_error)?;
