@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [".", "gateway", "git", "common", "storage", "p2p", "kvcache"]
-exclude = ["craft", "mda"]
+members = [".", "gateway", "git", "common", "storage", "p2p", "kvcache", "craft"]
+exclude = [ "mda"]
 
 [dependencies]
 gateway = { path = "gateway" }
