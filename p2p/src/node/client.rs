@@ -11,7 +11,7 @@ use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::kad::store::MemoryStore;
 use libp2p::request_response::ProtocolSupport;
-use libp2p::swarm::SwarmEvent;
+use libp2p::swarm::{SwarmEvent};
 use libp2p::{
     dcutr, identify, identity, kad, multiaddr, noise, rendezvous, request_response, tcp, yamux,
     Multiaddr, PeerId, StreamProtocol,
@@ -19,6 +19,7 @@ use libp2p::{
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use crate::cbor;
 
 pub async fn run(
@@ -57,7 +58,7 @@ pub async fn run(
                     StreamProtocol::new("/mega/git_upload_pack"),
                     ProtocolSupport::Full,
                 )],
-                request_response::Config::default(),
+                request_response::Config::default().with_request_timeout(Duration::from_secs(100)),
             ),
             // git info refs
             git_info_refs: cbor::Behaviour::new(
@@ -70,9 +71,10 @@ pub async fn run(
             // git download git_obj
             git_object: cbor::Behaviour::new(
                 [(StreamProtocol::new("/mega/git_obj"), ProtocolSupport::Full)],
-                request_response::Config::default(),
+                request_response::Config::default().with_request_timeout(Duration::from_secs(100)),
             ),
         })?
+        .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(100)))
         .build();
 
     // Listen on all interfaces
@@ -97,7 +99,7 @@ pub async fn run(
     };
     // Wait to listen on all interfaces.
     block_on(async {
-        let mut delay = futures_timer::Delay::new(std::time::Duration::from_secs(1)).fuse();
+        let mut delay = futures_timer::Delay::new(Duration::from_secs(1)).fuse();
         loop {
             futures::select! {
                 event = swarm.next() => {
@@ -125,7 +127,7 @@ pub async fn run(
             let mut learned_observed_addr = false;
             let mut told_relay_observed_addr = false;
             let mut relay_peer_id: Option<PeerId> = None;
-            let mut delay = futures_timer::Delay::new(std::time::Duration::from_secs(10)).fuse();
+            let mut delay = futures_timer::Delay::new(Duration::from_secs(10)).fuse();
             loop {
                 futures::select! {
                     event = swarm.next() => {
