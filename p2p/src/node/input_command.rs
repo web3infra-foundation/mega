@@ -4,7 +4,6 @@ use crate::network::behaviour::{GitInfoRefsReq, GitUploadPackReq};
 use crate::node::{get_utc_timestamp, MegaRepoInfo};
 use crate::{get_pack_protocol, get_repo_full_path};
 use common::utils;
-use libp2p::kad::record::Key;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Quorum, Record};
 use libp2p::{kad, PeerId, Swarm};
@@ -41,7 +40,7 @@ pub fn handle_kad_command(kademlia: &mut kad::Behaviour<MemoryStore>, args: Vec<
         Some("get") => {
             let key = {
                 match args_iter.next() {
-                    Some(key) => Key::new(&key),
+                    Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
                         return;
@@ -53,7 +52,7 @@ pub fn handle_kad_command(kademlia: &mut kad::Behaviour<MemoryStore>, args: Vec<
         Some("put") => {
             let key = {
                 match args_iter.next() {
-                    Some(key) => Key::new(&key),
+                    Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
                         return;
@@ -145,7 +144,7 @@ pub async fn handle_mega_command(
             };
 
             let record = Record {
-                key: Key::new(&repo_name),
+                key: kad::RecordKey::new(&repo_name),
                 value: serde_json::to_vec(&mega_repo_info).unwrap(),
                 publisher: None,
                 expires: None,
@@ -171,7 +170,7 @@ pub async fn handle_mega_command(
             swarm
                 .behaviour_mut()
                 .kademlia
-                .get_record(Key::new(&repo_name));
+                .get_record(kad::RecordKey::new(&repo_name));
         }
         Some("clone") => {
             // mega clone p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git
@@ -253,7 +252,7 @@ pub async fn handle_mega_command(
             let kad_query_id = swarm
                 .behaviour_mut()
                 .kademlia
-                .get_record(Key::new(&repo_name));
+                .get_record(kad::RecordKey::new(&repo_name));
             client_paras
                 .pending_repo_info_search_to_download_obj
                 .insert(kad_query_id, repo_name);
@@ -277,13 +276,13 @@ pub async fn handle_mega_command(
             let kad_query_id = swarm
                 .behaviour_mut()
                 .kademlia
-                .get_record(Key::new(&repo_name));
+                .get_record(kad::RecordKey::new(&repo_name));
             client_paras
                 .pending_repo_info_search_to_download_obj
                 .insert(kad_query_id, repo_name);
         }
         _ => {
-            eprintln!("expected command: clone, pull, provide, clone-object");
+            eprintln!("expected command: clone, pull, provide, clone-object, pull-object");
         }
     }
 }
