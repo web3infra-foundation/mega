@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS "commit" (
   "git_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
   "pid" TEXT[],
-  "repo_path" VARCHAR(128) NOT NULL,
+  "repo_path" TEXT NOT NULL,
   "author" TEXT,
   "committer" TEXT,
   "content" TEXT,
@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS "node" (
   "mode" BYTEA NOT NULL,
   "content_sha" VARCHAR(40),
   "size" INT NOT NULL,
-  "repo_path" VARCHAR(256) NOT NULL,
-  "full_path" VARCHAR(512) NOT NULL,
+  "repo_path" TEXT NOT NULL,
+  "full_path" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_n_git_id UNIQUE (git_id)
@@ -40,8 +40,8 @@ CREATE INDEX "idx_node_repo_path" ON "node" ("repo_path");
 
 CREATE TABLE IF NOT EXISTS "refs" (
   "id" SERIAL PRIMARY KEY,
-  "repo_path" VARCHAR(64) NOT NULL,
-  "ref_name" VARCHAR(64) NOT NULL,
+  "repo_path" TEXT NOT NULL,
+  "ref_name" TEXT NOT NULL,
   "ref_git_id" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS "issue" (
     "created_at" TIMESTAMP NOT NULL,
     "updated_at" TIMESTAMP NOT NULL,
     "closed_at" TIMESTAMP DEFAULT NULL,
-    "repo_path" VARCHAR(255) NOT NULL,
+    "repo_path" TEXT NOT NULL,
     "repo_id" BIGINT NOT NULL
 );
 
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS "pull_request" (
     "closed_at" TIMESTAMP DEFAULT NULL,
     "merged_at" TIMESTAMP DEFAULT NULL,
     "merge_commit_sha" VARCHAR(200) DEFAULT NULL,
-    "repo_path" VARCHAR(255) NOT NULL,
+    "repo_path" TEXT NOT NULL,
     "repo_id" BIGINT NOT NULL,
     "sender_name" VARCHAR(255) NOT NULL,
     "sender_id" BIGINT NOT NULL,
