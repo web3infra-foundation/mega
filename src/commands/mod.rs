@@ -5,7 +5,6 @@
 //!
 mod https;
 mod init;
-mod mda;
 mod p2p;
 mod ssh;
 
@@ -20,7 +19,6 @@ pub fn builtin() -> Vec<Command> {
         init::cli(),
         ssh::cli(),
         p2p::cli(),
-        mda::cli(),
     ]
 }
 
@@ -30,7 +28,6 @@ pub(crate) fn builtin_exec(cmd: &str) -> Option<fn(Config, &ArgMatches) -> MegaR
         "init" => init::exec,
         "ssh" => ssh::exec,
         "p2p" => p2p::exec,
-        "mda" => mda::exec,
         _ => return None,
     };
 
