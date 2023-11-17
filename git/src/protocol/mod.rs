@@ -155,9 +155,9 @@ pub enum CommandType {
 }
 
 impl RefCommand {
-    const OK_STATUS: &str = "ok";
+    const OK_STATUS: &'static str = "ok";
 
-    const FAILED_STATUS: &str = "ng";
+    const FAILED_STATUS: &'static str = "ng";
 
     pub fn new(old_id: String, new_id: String, ref_name: String) -> Self {
         let command_type = if ZERO_ID == old_id {
