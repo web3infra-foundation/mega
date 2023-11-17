@@ -17,7 +17,7 @@ storage = {path = "../storage"}
 entity = { path = "../storage/entity" }
 anyhow = "1.0.75"
 axum = "0.6.20"
-hyper = "0.14.27"
+hyper = "1.0.1"
 regex = "1.9.1"
 tracing = "0.1.37"
 russh = "0.39.0"
