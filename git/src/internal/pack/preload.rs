@@ -2,7 +2,7 @@ use super::{counter::GitTypeCounter, delta::undelta, EntryHeader, Pack};
 use crate::{
     errors::GitError,
     internal::{
-        pack::{counter::DecodeCounter, Hash, cqueue::CircularQueue},
+        pack::{counter::DecodeCounter, Hash},
         zlib::stream::inflate::ReadPlain,
     },
     utils,
@@ -37,7 +37,7 @@ struct Entry {
 }
 
 impl Entry {
-    fn convert_to_mr_model(self, mr_id: i64) -> mr::ActiveModel {
+    fn convert_to_mr_model(&self, mr_id: i64) -> mr::ActiveModel {
         mr::ActiveModel {
             id: Set(generate_id()),
             mr_id: Set(mr_id),
@@ -46,12 +46,12 @@ impl Entry {
             created_at: Set(chrono::Utc::now().naive_utc()),
         }
     }
-    fn convert_to_data_model(self) -> objects::ActiveModel {
+    fn convert_to_data_model(&self) -> objects::ActiveModel {
         objects::ActiveModel {
             id: Set(generate_id()),
             git_id: Set(self.hash.unwrap().to_plain_str()),
             object_type: Set(String::from_utf8_lossy(self.header.to_bytes()).to_string()),
-            data: Set(self.data),
+            data: Set(self.data.clone()),
             link: Set(None),
         }
     }
@@ -305,6 +305,7 @@ async fn produce_object<TC>(
     let cache= TC::new(Some(object_cache_size));
 
     let start = Instant::now();
+    let mut db_cost = 0;
     let mut batch_size = 10000;  
     utils::get_env_number("GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE", &mut batch_size);
 
@@ -314,12 +315,12 @@ async fn produce_object<TC>(
         &mut save_task_wait_number,
     );
 
-    let mut save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
+    // let mut save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
     //let mut save_handler: Option<tokio::task::JoinHandle<()>> = None;
     for i in range_begin..range_end {
-        if i % 1000 ==0{
-            tracing::info!("thread id  : {} run to obj :{}", thread_id,i );
-        }
+        // if i % 10000 ==0{
+        //     tracing::info!("thread id  : {} run to obj :{}", thread_id,i );
+        // }
         let read_auth = data.read().await;
         let e = &read_auth.entries[i];
 
@@ -391,52 +392,58 @@ async fn produce_object<TC>(
         //DEBUG , NEED TO DELETE
         // tracing::info!("thread id:{},HEADER TYPE: {} offset :{}, HASH :{}",thread_id,result_entity.header,result_entity.offset,result_entity.hash.unwrap());
         //
-        cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
-        mr_to_obj_model.push(result_entity.clone().convert_to_mr_model(mr_id));
+        mr_to_obj_model.push(result_entity.convert_to_mr_model(mr_id));
         git_obj_model.push(result_entity.convert_to_data_model());
+        cache.put(e.offset, result_entity.hash.unwrap(), result_entity);
 
         //save to storage
 
         if mr_to_obj_model.len() >= batch_size {
+            tracing::debug!("starting put new batch, thread:{}, current_db_cost:{}", thread_id, db_cost);
+            let db_start = Instant::now();
             let stc = storage.clone();
-            let h = tokio::spawn(async move {
+            // let h = tokio::spawn(async move {
                 stc.save_mr_objects(None, mr_to_obj_model).await.unwrap();
                 stc.save_obj_data(None, git_obj_model).await.unwrap();
-            });
+            // });
+            let cost = db_start.elapsed().as_millis();
+            db_cost += cost;
             // if let Some(wait_handler) = save_handler{
             //     wait_handler.await.unwrap();
             // }
             //save_handler = Some(h);
-            println!("put new batch ");
             // if the save queue if full , wait the fist queue finish
-            if save_queue.is_full() {
-                let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
-                println!("to await from full queue ");
-                first_h.await.unwrap();
-                save_queue.enqueue(h).unwrap();
-            } else {
-                save_queue.enqueue(h).unwrap();
-            }
+            // if save_queue.is_full() {
+            //     let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
+            //     println!("to await from full queue ");
+            //     first_h.await.unwrap();
+            //     save_queue.enqueue(h).unwrap();
+            // } else {
+            //     save_queue.enqueue(h).unwrap();
+            // }
             mr_to_obj_model = Vec::with_capacity(batch_size);
             git_obj_model = Vec::with_capacity(batch_size);
         }
     }
+    let db_start = Instant::now();
     if !mr_to_obj_model.is_empty() {
         storage.save_mr_objects(None, mr_to_obj_model).await.unwrap();
     }
     if !git_obj_model.is_empty() {
         storage.save_obj_data(None, git_obj_model).await.unwrap();
     }
+    let cost = db_start.elapsed().as_millis();
+    db_cost += cost;
     // await the remaining threads
     println!("await last thread");
-    while let Some(h) = save_queue.dequeue() {
-        h.await.unwrap();
-    }
+    // while let Some(h) = save_queue.dequeue() {
+    //     h.await.unwrap();
+    // }
     // if let Some(wait_handler) = save_handler{
     //     wait_handler.await.unwrap();
     // }
     let end = start.elapsed().as_millis();
-    tracing::info!("Git Object Produce thread one  time cost:{} ms", end);
+    tracing::info!("Git Object Produce thread one  time cost:{} ms, db_time_cost:{}", end, db_cost);
     Ok(())
 }
 
