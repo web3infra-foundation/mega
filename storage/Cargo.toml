@@ -31,7 +31,7 @@ sea-orm = {version = "0.12.6", features = [
     "macros",
 ]}
 aws-config = "0.57.1"
-aws-sdk-s3 = "0.36.0"
+aws-sdk-s3 = "0.38.0"
 aws-smithy-types = "0.57.1"
 thiserror = "1.0.50"
 tokio = { version = "1.33.0", features = ["macros"] }
