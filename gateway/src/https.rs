@@ -10,24 +10,27 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::Result;
-
 use axum::extract::{Query, State};
 use axum::response::Response;
 use axum::routing::get;
 use axum::{Router, Server};
+
+use tower::ServiceBuilder;
+use tower_http::cors::{Any, CorsLayer};
+
+use hyper::{Body, Request, StatusCode, Uri};
 use clap::Args;
+use anyhow::Result;
+use regex::Regex;
+use serde::Deserialize;
+
 use git::lfs::lfs_structs::LockListQuery;
 use git::lfs::{self, LfsConfig};
 use git::protocol::{http, ServiceType};
 use git::protocol::{PackProtocol, Protocol};
-use hyper::{Body, Request, StatusCode, Uri};
-use regex::Regex;
-use serde::Deserialize;
+
 use storage::driver::database::storage::ObjectStorage;
 use storage::driver::database::{self, DataSource};
-use tower::ServiceBuilder;
-use tower_http::cors::{Any, CorsLayer};
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
