@@ -15,11 +15,11 @@ use crate::protocol::PackProtocol;
 use anyhow::Result;
 use async_recursion::async_recursion;
 use common::utils::ZERO_ID;
-use storage::driver::database::storage::ObjectStorage;
 use entity::{objects, refs, repo_directory};
 use itertools::Itertools;
 use sea_orm::ActiveValue::NotSet;
-use sea_orm::Set;
+use sea_orm::{DbErr, Set, TransactionTrait};
+use storage::driver::database::storage::ObjectStorage;
 
 impl PackProtocol {
     /// Asynchronously retrieves the full pack data for the specified repository path.
@@ -142,11 +142,8 @@ impl PackProtocol {
             .await;
             hash_meta.insert(c.id, Arc::new(c));
         }
-        self.get_all_tags(
-            want.iter().map(|x| x.to_owned()).collect(),
-            &mut hash_meta,
-        )
-        .await;
+        self.get_all_tags(want.iter().map(|x| x.to_owned()).collect(), &mut hash_meta)
+            .await;
 
         let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
         let result: Vec<u8> = pack_encode(meta_vec).unwrap();
@@ -335,7 +332,7 @@ impl PackProtocol {
             Commit::subdir_commit(root_commit.to_data().unwrap(), Hash::new_from_str(&t_id));
         let child_c_model = child_commit.convert_to_model(repo_path);
         self.storage
-            .save_commits(vec![child_c_model.clone()])
+            .save_commits(None, vec![child_c_model.clone()])
             .await
             .unwrap();
         let commit_id = child_commit.id.to_plain_str();
@@ -396,8 +393,16 @@ pub async fn save_node_from_mr(
         commits,
     };
     let nodes = builder.build_node_tree().await.unwrap();
-    builder.save_nodes(nodes).await.unwrap();
-    builder.save_commits().await.unwrap();
+    storage
+        .get_connection()
+        .transaction::<_, (), DbErr>(|txn| {
+            Box::pin(async move {
+                builder.save_nodes(Some(txn), nodes).await.unwrap();
+                builder.save_commits(Some(txn)).await.unwrap();
+                Ok(())
+            })
+        })
+        .await?;
     Ok(())
 }
 
@@ -455,8 +460,16 @@ pub async fn save_node_from_git_obj(
         commits: commits.clone(),
     };
     let nodes = repo.build_node_tree().await.unwrap();
-    repo.save_nodes(nodes).await.unwrap();
-    repo.save_commits().await.unwrap();
+    storage
+        .get_connection()
+        .transaction::<_, (), DbErr>(|txn| {
+            Box::pin(async move {
+                repo.save_nodes(Some(txn), nodes).await.unwrap();
+                repo.save_commits(Some(txn)).await.unwrap();
+                Ok(())
+            })
+        })
+        .await?;
 
     // save refs
     let mut commit_id = String::new();

@@ -13,7 +13,7 @@ use storage::{
     utils::id_generator::{self, generate_id},
 };
 use entity::{commit, node};
-use sea_orm::{ActiveValue::NotSet, Set};
+use sea_orm::{ActiveValue::NotSet, Set, DatabaseTransaction};
 
 use crate::{
     hash::Hash,
@@ -402,17 +402,17 @@ impl NodeBuilder {
         }
     }
 
-    pub async fn save_commits(&self) -> Result<bool, MegaError> {
+    pub async fn save_commits(&self, txn: Option<&DatabaseTransaction>) -> Result<bool, MegaError> {
         let save_models: Vec<commit::ActiveModel> = self
             .commits
             .iter()
             .map(|commit| commit.convert_to_model(&self.repo_path))
             .collect();
-        self.storage.save_commits(save_models).await
+        self.storage.save_commits(txn, save_models).await
     }
 
-    pub async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
-        self.storage.save_nodes(nodes).await
+    pub async fn save_nodes(&self, txn: Option<&DatabaseTransaction>, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
+        self.storage.save_nodes(txn, nodes).await
     }
 }
 
