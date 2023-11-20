@@ -17,8 +17,6 @@ use git_craft::vault::{self, command::VaultArgs};
     long_about = "Usage: generate-key, generate-key-full [primary_id] [key_name], encrypt [public_key_path], decrypt [secret_key_path], list-keys , delete-key [key_name]"
 )]
 struct CraftOptions {
-    //accept mutiple values, it needs 1 value at least
-    // #[clap(num_args=1..,required=true)]
     #[command(subcommand)]
     command: Commands,
 }

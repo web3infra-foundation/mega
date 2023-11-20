@@ -280,16 +280,30 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    async fn save_nodes(&self, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
-        batch_save_model(self.get_connection(), nodes).await?;
-        Ok(true)
+    async fn save_nodes(
+        &self,
+        txn: Option<&DatabaseTransaction>,
+        nodes: Vec<node::ActiveModel>,
+    ) -> Result<bool, MegaError> {
+        match txn {
+            Some(txn) => batch_save_model(txn, nodes).await.map(|_| true),
+            None => batch_save_model(self.get_connection(), nodes)
+                .await
+                .map(|_| true),
+        }
     }
 
-    async fn save_commits(&self, commits: Vec<commit::ActiveModel>) -> Result<bool, MegaError> {
-        batch_save_model(self.get_connection(), commits)
-            .await
-            .unwrap();
-        Ok(true)
+    async fn save_commits(
+        &self,
+        txn: Option<&DatabaseTransaction>,
+        commits: Vec<commit::ActiveModel>,
+    ) -> Result<bool, MegaError> {
+        match txn {
+            Some(txn) => batch_save_model(txn, commits).await.map(|_| true),
+            None => batch_save_model(self.get_connection(), commits)
+                .await
+                .map(|_| true),
+        }
     }
     async fn search_root_node_by_path(&self, repo_path: &Path) -> Option<node::Model> {
         tracing::debug!("file_name: {:?}", repo_path.file_name());
