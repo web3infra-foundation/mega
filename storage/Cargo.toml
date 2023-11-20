@@ -32,7 +32,7 @@ sea-orm = {version = "0.12.6", features = [
 ]}
 aws-config = "0.57.1"
 aws-sdk-s3 = "0.36.0"
-aws-smithy-types = "0.57.1"
+aws-smithy-types = "1.0.0"
 thiserror = "1.0.50"
 tokio = { version = "1.33.0", features = ["macros"] }
 bytes = "1.5.0"
