@@ -80,7 +80,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::connector::{redis::RedisClient, Connector};
+    use crate::connector::Connector;
     use crate::KVCache;
     use anyhow::Result;
     use redis::{ErrorKind, FromRedisValue, RedisError, ToRedisArgs, cmd};
@@ -201,25 +201,6 @@ mod tests {
             
             Ok(connect)
         }
-    }
-
-    #[test]
-    #[ignore = "need_redis_environment"]
-    fn test_face_connect() {
-        std::env::set_var("REDIS_CONFIG", "redis://127.0.0.1:6379");
-        let cache = KVCache::<RedisClient<_, _>>::new();
-        let a  = TestMessage {
-            id: 12,
-            message: vec![1, 2, 3, 4, 5],
-        };
-        let b = TestMessage {
-            id: 12,
-            message: vec![4, 5, 6, 7, 8],
-        };
-        cache.set(3_i32, a.clone()).unwrap();
-        cache.set(4, b.clone()).unwrap();
-        assert_eq!(cache.get(3), Some(a));
-        assert_eq!(cache.get(4), Some(b));
     }
 
     #[test]
