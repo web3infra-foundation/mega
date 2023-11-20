@@ -591,19 +591,4 @@ mod tests {
         PackPreload::new(BufReader::new(file));
        
     }
-    
-    #[test]
-    #[ignore]
-    async fn test_demo_channel() {
-        std::env::set_var(
-            "MEGA_DATABASE_URL",
-            "mysql://root:123456@localhost:3306/mega",
-        );
-     
-        let file = File::open(Path::new(
-            "/home/99211/linux/.git/objects/pack/pack-a3f96bcba83583d37b77a528b82bd1d97ffac70c.pack",
-        ))
-        .unwrap();
-        PackPreload::new(BufReader::new(file));
-    }
 }
