@@ -26,6 +26,11 @@ where
         self.table.borrow_mut().insert(key, v);
         Ok(())
     }
+
+    fn del(&self, key: Self::K) -> Result<()> {
+        self.table.borrow_mut().remove(&key);
+        Ok(())
+    }
 }
 
 #[cfg(test)]

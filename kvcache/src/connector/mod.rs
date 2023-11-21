@@ -8,6 +8,7 @@ pub trait Connector {
     type V;
     fn get(&self, key: Self::K) -> Option<Self::V>;
     fn set(&self, key: Self::K, v: Self::V) -> Result<()>;
+    fn del(&self, key: Self::K) -> Result<()>;
     fn new() -> Self;
 }
 
