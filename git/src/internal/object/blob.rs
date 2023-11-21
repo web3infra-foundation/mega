@@ -200,40 +200,4 @@ shadow-rs = "0.23.0"
         // Check text content
         assert_eq!(blob.data[..], "Hello, World!\n".as_bytes().to_vec());
     }
-
-    // #[test]
-    // fn test_to_file() {
-    //     let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     let mut source_file = source.clone();
-    //     source_file.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
-    //     let blob = Blob::new_from_file(source_file.to_str().unwrap()).unwrap();
-
-    //     let mut dest_file = source.clone();
-    //     dest_file.push("tests/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
-    //     if dest_file.exists() {
-    //         remove_file(dest_file.as_path().to_str().unwrap()).unwrap();
-    //     }
-
-    //     let mut dest = source.clone();
-    //     dest.push("tests/objects");
-    //     let file = blob.to_file(dest.as_path().to_str().unwrap()).unwrap();
-
-    //     dest.push("8a");
-    //     dest.push("b686eafeb1f44702738c8b0f24f2567c36da6d");
-
-    //     assert_eq!(true, file.exists());
-    // }
-
-    // #[test]
-    // fn test_generate_tree_item() {
-    //     let blob = Blob::new_from_data("Hello, World!".as_bytes().to_vec());
-    //     let tree_item = blob.generate_tree_item("hello-world").unwrap();
-
-    //     assert_eq!(tree_item.mode, TreeItemMode::Blob);
-    //     assert_eq!(
-    //         tree_item.id.to_plain_str(),
-    //         "b45ef6fec89518d314f546fd6c3025367b721684"
-    //     );
-    //     assert_eq!(tree_item.name, "hello-world");
-    // }
 }
