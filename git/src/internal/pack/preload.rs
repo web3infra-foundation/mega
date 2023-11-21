@@ -1,4 +1,4 @@
-use super::{counter::GitTypeCounter, delta::undelta, EntryHeader, Pack};
+use super::{counter::GitTypeCounter, EntryHeader, Pack};
 use crate::{
     errors::GitError,
     internal::{
@@ -24,6 +24,7 @@ use std::{
     time::Instant
 };
 use tokio::sync::{RwLock, RwLockReadGuard};
+use delta;
 
 ///
 /// One Pre loading Git object in memory
@@ -370,7 +371,7 @@ async fn produce_object<TC>(
                 }
                 let mut base_obj = stack.pop().unwrap();
                 while let Some(e) = stack.pop() {
-                    base_obj.data = match undelta(&mut Cursor::new(&e.data), &base_obj.data){
+                    base_obj.data = match delta::decode(&mut Cursor::new(&e.data), &base_obj.data){
                         Ok(a) => a,
                         Err(err) => {tracing::error!("thread id:{} err:{}",thread_id,err); panic!("err!");},
                     }
@@ -492,7 +493,7 @@ fn delta_offset_obj<T>(
                 counter.lock().unwrap().count_depth(stack.len());
             }
             while let Some(e) = stack.pop() {
-                b_obj.data = undelta(&mut Cursor::new(&e.data), &b_obj.data).unwrap();
+                b_obj.data = delta::decode(&mut Cursor::new(&e.data), &b_obj.data).unwrap();
             }    
             return b_obj;
         }
@@ -546,7 +547,7 @@ async fn get_ref_object_fromdb(
                     counter.lock().unwrap().count(DB);
                 }
                 base_data = db_obj.data;
-                let re = undelta(&mut Cursor::new(e.data.clone()), &base_data);
+                let re = delta::decode(&mut Cursor::new(e.data.clone()), &base_data);
                 if re.is_err(){
                     tracing::error!("REF_DELTA ERROR:{}",re.err().unwrap());
                     return None}

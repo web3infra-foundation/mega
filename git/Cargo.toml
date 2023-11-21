@@ -20,6 +20,7 @@ common = { path = "../common" }
 entity = { path = "../storage/entity" }
 storage = { path = "../storage" }
 kvcache = { path = "../kvcache" }
+delta = { path = "../delta"}
 anyhow = "1.0.75"
 bstr = "1.7.0"
 chrono = "0.4.24"
