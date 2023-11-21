@@ -15,6 +15,7 @@ git = { path = "../git" }
 storage = { path = "../storage" }
 entity = { path = "../storage/entity" }
 common = { path = "../common" }
+kvcache = { path = "../kvcache" }
 bytes = "1.4.0"
 tokio = "1.32.0"
 tracing = "0.1.37"
@@ -28,3 +29,5 @@ clap = { version = "4.4.0", features = ["derive"] }
 serde_json = "1.0.105"
 async-trait = "0.1"
 cbor4ii = { version = "0.3.1", features = ["serde1", "use_std"] }
+redis = { version = "0.23.3", features = ["tokio-comp"] }
+

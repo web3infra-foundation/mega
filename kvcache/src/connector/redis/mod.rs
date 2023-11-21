@@ -39,6 +39,17 @@ where
             Err(err) => Err(err.into()),
         }
     }
+
+    fn del(&self, key: Self::K) -> Result<()> {
+        match redis::cmd("DEL")
+            .arg(key)
+            .query::<bool>(&mut self.conn.borrow_mut())
+        {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     fn new() -> RedisClient<K, V> {
         let mut addr: String= String::new();
         utils::get_env_number("REDIS_CONFIG", &mut addr);
@@ -161,6 +172,16 @@ mod tests {
                 .arg(key)
                 .arg(v)
                 .query::<()>(&mut self.conn.borrow_mut())
+            {
+                Ok(_) => Ok(()),
+                Err(err) => Err(err.into()),
+            }
+        }
+
+        fn del(&self, key: Self::K) -> Result<()> {
+            match redis::cmd("DEL")
+                .arg(key)
+                .query::<bool>(&mut self.conn.borrow_mut())
             {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err.into()),
