@@ -1,16 +1,13 @@
 use entity::objects;
 use sha1::{Digest, Sha1};
-use std::io::{Cursor, Write};
+use std::io::{Cursor, Write,Error};
 use std::sync::Arc;
 
-use crate::internal::diff::DeltaDiff;
 use crate::internal::object::ObjectT;
 use crate::internal::zlib::stream::deflate::Write as Writer;
-
-use std::io::Error;
-
 use super::header::EntryHeader;
 
+use delta;
 const SLID_WINDWOS: usize = 20;
 
 #[allow(unused)]
@@ -55,8 +52,7 @@ where
                 if !obj_vec[pos].object_type.eq(&obj_vec[i].object_type) {
                     break;
                 }
-                let differ = DeltaDiff::new(&obj_vec[i - j].data, &obj_vec[i].data);
-                let diff_rate = differ.get_ssam_rate();
+                let diff_rate = delta::encode_rate(&obj_vec[i - j].data, &obj_vec[i].data);
                 if (diff_rate > best_ssam_rate) && diff_rate > 0.5 {
                     best_ssam_rate = diff_rate;
                     best_j = j;
@@ -69,8 +65,7 @@ where
                     &obj_vec[i].data,
                 )
             } else {
-                let differ = DeltaDiff::new(&obj_vec[i - best_j].data, &obj_vec[i].data);
-                let after = differ.encode();
+                let after = delta::encode(&obj_vec[i - best_j].data, &obj_vec[i].data);
                 encode_one_ojbect(6, after.len(), &after)
             }
             .unwrap();
