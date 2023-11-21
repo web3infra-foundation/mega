@@ -32,6 +32,7 @@ pub struct P2pOptions {
 
     #[arg(short, long, value_enum, default_value = "postgres")]
     pub data_source: DataSource,
+
 }
 
 /// run as a p2p node
