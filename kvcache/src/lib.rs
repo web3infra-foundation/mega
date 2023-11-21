@@ -1,5 +1,6 @@
 pub mod connector;
 pub mod utils;
+
 use std::cell::RefCell;
 use connector::Connector;
 use anyhow::Result;
@@ -8,10 +9,11 @@ use anyhow::Result;
 pub struct KVCache<C> {
     con: RefCell<C>,
 }
+
 #[allow(dead_code)]
 impl<C> KVCache<C>
-where
-    C: Connector,
+    where
+        C: Connector,
 {
     pub fn new() -> Self {
         KVCache {
@@ -26,12 +28,17 @@ where
     pub fn set(&self, key: C::K, value: C::V) -> Result<()> {
         self.con.borrow_mut().set(key, value)
     }
+
+    pub fn del(&self, key: C::K) -> Result<()> {
+        self.con.borrow_mut().del(key)
+    }
 }
-impl<C> Default for KVCache<C> where C: Connector,{
+
+impl<C> Default for KVCache<C> where C: Connector, {
     fn default() -> Self {
         Self::new()
     }
 }
+
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

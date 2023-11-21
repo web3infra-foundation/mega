@@ -39,6 +39,17 @@ where
             Err(err) => Err(err.into()),
         }
     }
+
+    fn del(&self, key: Self::K) -> Result<()> {
+        match redis::cmd("DEL")
+            .arg(key)
+            .query::<bool>(&mut self.conn.borrow_mut())
+        {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     fn new() -> RedisClient<K, V> {
         let mut addr: String= String::new();
         utils::get_env_number("REDIS_CONFIG", &mut addr);
@@ -167,6 +178,16 @@ mod tests {
             }
         }
 
+        fn del(&self, key: Self::K) -> Result<()> {
+            match redis::cmd("DEL")
+                .arg(key)
+                .query::<bool>(&mut self.conn.borrow_mut())
+            {
+                Ok(_) => Ok(()),
+                Err(err) => Err(err.into()),
+            }
+        }
+
         fn new() -> Self {
             let c = Self::new_client().unwrap();
             RedisMockClient {
@@ -220,6 +241,8 @@ mod tests {
         cache.set(4, b.clone()).unwrap();
         assert_eq!(cache.get(3), Some(a));
         assert_eq!(cache.get(4), Some(b));
+        cache.del(4).unwrap();
+        assert_eq!(cache.get(4), None);
     }
 
     #[test]
