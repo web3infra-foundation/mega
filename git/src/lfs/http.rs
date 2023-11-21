@@ -426,7 +426,6 @@ pub async fn lfs_upload_object(
     let mut request_body = BytesMut::new();
 
     while let Some(chunk) = body.next().await {
-        tracing::info!("client sends :{:?}", chunk);
         let bytes = chunk.unwrap();
         request_body.extend_from_slice(&bytes);
     }

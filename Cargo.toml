@@ -4,14 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [".", "gateway", "git", "common", "storage", "p2p", "kvcache"]
-exclude = ["mda", "craft"]
+members = [".", "gateway", "git", "common", "storage", "p2p", "kvcache", "delta", "mercury"]
+exclude = ["mda", "craft", "fuse"]
 
 [dependencies]
 gateway = { path = "gateway" }
 common = { path = "common" }
 p2p = { path = "p2p" }
-mda = {path = "mda"}
 config = "0.13.3"
 serde_json = "1.0.108"
 anyhow = "1.0.75"

@@ -2,7 +2,7 @@ use super::{counter::GitTypeCounter, delta::undelta, EntryHeader, Pack};
 use crate::{
     errors::GitError,
     internal::{
-        pack::{counter::DecodeCounter, Hash, cqueue::CircularQueue},
+        pack::{counter::DecodeCounter, Hash},
         zlib::stream::inflate::ReadPlain,
     },
     utils,
@@ -15,7 +15,7 @@ use entity::{objects, mr};
 use num_cpus;
 
 use redis::{ToRedisArgs, FromRedisValue, RedisError, ErrorKind};
-use sea_orm::{Set, TransactionTrait, DatabaseTransaction};
+use sea_orm::Set;
 use sha1::{Digest, Sha1};
 use std::{
     collections::HashMap,
@@ -37,7 +37,7 @@ struct Entry {
 }
 
 impl Entry {
-    fn convert_to_mr_model(self, mr_id: i64) -> mr::ActiveModel {
+    fn convert_to_mr_model(&self, mr_id: i64) -> mr::ActiveModel {
         mr::ActiveModel {
             id: Set(generate_id()),
             mr_id: Set(mr_id),
@@ -46,12 +46,12 @@ impl Entry {
             created_at: Set(chrono::Utc::now().naive_utc()),
         }
     }
-    fn convert_to_data_model(self) -> objects::ActiveModel {
+    fn convert_to_data_model(&self) -> objects::ActiveModel {
         objects::ActiveModel {
             id: Set(generate_id()),
             git_id: Set(self.hash.unwrap().to_plain_str()),
             object_type: Set(String::from_utf8_lossy(self.header.to_bytes()).to_string()),
-            data: Set(self.data),
+            data: Set(self.data.clone()),
             link: Set(None),
         }
     }
@@ -218,12 +218,10 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
     let mut cache_type: String= String::new();
     utils::get_env_number("GIT_INTERNAL_DECODE_CACHE_TYEP", &mut cache_type);
     
-    let txn = Arc::new(storage.get_connection().begin().await.unwrap());   
     let producer_handles: Vec<_> = (0..cpu_number)
         .map(|i| {
             let shard_clone = Arc::clone(&share);
             let st_clone = storage.clone();
-            let txn_clone = Arc::clone(&txn);
             let counter_clone = decode_counter.clone();
             let begin = i * chunk;
             let end = if i == cpu_number - 1 {
@@ -234,15 +232,15 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
             match &cache_type as &str {
                 "redis" => 
                 tokio::spawn(async move {
-                    produce_object::<kvObjectCache<Entry>>(txn_clone, shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                    produce_object::<kvObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
                 }),
                 "lru" =>
                 tokio::spawn(async move {
-                    produce_object::<ObjectCache<Entry>>(txn_clone, shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                    produce_object::<ObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
                 }),
                 _ =>
                 tokio::spawn(async move {
-                    produce_object::<ObjectCache<Entry>>(txn_clone, shard_clone, st_clone, begin, end, counter_clone, mr_id).await
+                    produce_object::<ObjectCache<Entry>>(shard_clone, st_clone, begin, end, counter_clone, mr_id).await
                 }),
             }
         })
@@ -255,10 +253,7 @@ pub async fn decode_load(p: PackPreload, storage: Arc<dyn ObjectStorage>) -> Res
             batch_success = false;
         }
     }
-    if batch_success {
-        let txn = Arc::try_unwrap(txn).unwrap();
-        txn.commit().await.unwrap();
-    }
+    assert!(batch_success);
     let re = decode_counter.lock().unwrap();
     tracing::info!("Summary : {}", re);
 
@@ -291,7 +286,6 @@ use super::counter::CounterType::*;
 /// - `Err(GitError)` in case of any errors during the operation.
 ///
 async fn produce_object<TC>(
-    txn: Arc<DatabaseTransaction>,
     data: Arc<RwLock<PackPreload>>,
     storage: Arc<dyn ObjectStorage>,
     range_begin: usize,
@@ -311,6 +305,7 @@ async fn produce_object<TC>(
     let cache= TC::new(Some(object_cache_size));
 
     let start = Instant::now();
+    let mut db_cost = 0;
     let mut batch_size = 10000;  
     utils::get_env_number("GIT_INTERNAL_DECODE_STORAGE_BATCH_SIZE", &mut batch_size);
 
@@ -320,12 +315,12 @@ async fn produce_object<TC>(
         &mut save_task_wait_number,
     );
 
-    let mut save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
+    // let mut save_queue: CircularQueue<_> = CircularQueue::new(save_task_wait_number);
     //let mut save_handler: Option<tokio::task::JoinHandle<()>> = None;
     for i in range_begin..range_end {
-        if i % 1000 ==0{
-            tracing::info!("thread id  : {} run to obj :{}", thread_id,i );
-        }
+        // if i % 10000 ==0{
+        //     tracing::info!("thread id  : {} run to obj :{}", thread_id,i );
+        // }
         let read_auth = data.read().await;
         let e = &read_auth.entries[i];
 
@@ -397,53 +392,58 @@ async fn produce_object<TC>(
         //DEBUG , NEED TO DELETE
         // tracing::info!("thread id:{},HEADER TYPE: {} offset :{}, HASH :{}",thread_id,result_entity.header,result_entity.offset,result_entity.hash.unwrap());
         //
-        cache.put(e.offset, result_entity.hash.unwrap(), result_entity.clone());
-        mr_to_obj_model.push(result_entity.clone().convert_to_mr_model(mr_id));
+        mr_to_obj_model.push(result_entity.convert_to_mr_model(mr_id));
         git_obj_model.push(result_entity.convert_to_data_model());
+        cache.put(e.offset, result_entity.hash.unwrap(), result_entity);
 
         //save to storage
 
         if mr_to_obj_model.len() >= batch_size {
+            tracing::debug!("starting put new batch, thread:{}, current_db_cost:{}", thread_id, db_cost);
+            let db_start = Instant::now();
             let stc = storage.clone();
-            let txn= txn.clone();
-            let h = tokio::spawn(async move {
-                stc.save_mr_objects(Some(txn.as_ref()), mr_to_obj_model).await.unwrap();
-                stc.save_obj_data(Some(txn.as_ref()), git_obj_model).await.unwrap();
-            });
+            // let h = tokio::spawn(async move {
+                stc.save_mr_objects(None, mr_to_obj_model).await.unwrap();
+                stc.save_obj_data(None, git_obj_model).await.unwrap();
+            // });
+            let cost = db_start.elapsed().as_millis();
+            db_cost += cost;
             // if let Some(wait_handler) = save_handler{
             //     wait_handler.await.unwrap();
             // }
             //save_handler = Some(h);
-            println!("put new batch ");
             // if the save queue if full , wait the fist queue finish
-            if save_queue.is_full() {
-                let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
-                println!("to await from full queue ");
-                first_h.await.unwrap();
-                save_queue.enqueue(h).unwrap();
-            } else {
-                save_queue.enqueue(h).unwrap();
-            }
+            // if save_queue.is_full() {
+            //     let first_h: tokio::task::JoinHandle<()> = save_queue.dequeue().unwrap();
+            //     println!("to await from full queue ");
+            //     first_h.await.unwrap();
+            //     save_queue.enqueue(h).unwrap();
+            // } else {
+            //     save_queue.enqueue(h).unwrap();
+            // }
             mr_to_obj_model = Vec::with_capacity(batch_size);
             git_obj_model = Vec::with_capacity(batch_size);
         }
     }
+    let db_start = Instant::now();
     if !mr_to_obj_model.is_empty() {
-        storage.save_mr_objects(Some(txn.as_ref()), mr_to_obj_model).await.unwrap();
+        storage.save_mr_objects(None, mr_to_obj_model).await.unwrap();
     }
     if !git_obj_model.is_empty() {
-        storage.save_obj_data(Some(txn.as_ref()), git_obj_model).await.unwrap();
+        storage.save_obj_data(None, git_obj_model).await.unwrap();
     }
+    let cost = db_start.elapsed().as_millis();
+    db_cost += cost;
     // await the remaining threads
     println!("await last thread");
-    while let Some(h) = save_queue.dequeue() {
-        h.await.unwrap();
-    }
+    // while let Some(h) = save_queue.dequeue() {
+    //     h.await.unwrap();
+    // }
     // if let Some(wait_handler) = save_handler{
     //     wait_handler.await.unwrap();
     // }
     let end = start.elapsed().as_millis();
-    tracing::info!("Git Object Produce thread one  time cost:{} ms", end);
+    tracing::info!("Git Object Produce thread one  time cost:{} ms, db_time_cost:{}", end, db_cost);
     Ok(())
 }
 
@@ -590,20 +590,5 @@ mod tests {
 
         PackPreload::new(BufReader::new(file));
        
-    }
-    
-    #[test]
-    #[ignore]
-    async fn test_demo_channel() {
-        std::env::set_var(
-            "MEGA_DATABASE_URL",
-            "mysql://root:123456@localhost:3306/mega",
-        );
-     
-        let file = File::open(Path::new(
-            "/home/99211/linux/.git/objects/pack/pack-a3f96bcba83583d37b77a528b82bd1d97ffac70c.pack",
-        ))
-        .unwrap();
-        PackPreload::new(BufReader::new(file));
     }
 }
