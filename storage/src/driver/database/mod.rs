@@ -1,25 +1,15 @@
-pub mod mysql_storage;
-pub mod pg_storage;
-pub mod storage;
-
-use clap::ValueEnum;
-use driver::{
-    database::mysql_storage::MysqlStorage, database::pg_storage::PgStorage,
-    database::storage::ObjectStorage,
-};
-
 use std::{env, sync::Arc, time::Duration};
 
 use sea_orm::{ConnectOptions, Database};
 use tracing::log;
 
-use crate::{driver, utils::id_generator};
+use self::{mysql_storage::MysqlStorage, pg_storage::PgStorage, storage::ObjectStorage};
+use crate::utils::id_generator;
+use common::enums::DataSource;
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-pub enum DataSource {
-    Mysql,
-    Postgres,
-}
+pub mod mysql_storage;
+pub mod pg_storage;
+pub mod storage;
 
 pub async fn init(data_source: &DataSource) -> Arc<dyn ObjectStorage> {
     id_generator::set_up_options().unwrap();
