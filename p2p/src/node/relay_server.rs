@@ -1,14 +1,10 @@
-use super::input_command;
 use crate::network::event_handler;
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
 use futures::executor::block_on;
 use futures::stream::StreamExt;
-use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{
-    AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
-    QueryResult,
-};
+use libp2p::kad::store::{RecordStore};
+use libp2p::kad::{AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk, QueryResult, Quorum, Record};
 use libp2p::{
     identify, identity,
     identity::PeerId,
@@ -18,13 +14,21 @@ use libp2p::{
 };
 use std::error::Error;
 use std::time::Duration;
+use crate::internal::dht_redis_store::DHTRedisStore;
+
+#[derive(NetworkBehaviour)]
+pub struct ServerBehaviour<TStore: RecordStore> {
+    pub relay: relay::Behaviour,
+    pub identify: identify::Behaviour,
+    pub kademlia: kad::Behaviour<TStore>,
+    pub rendezvous: rendezvous::server::Behaviour,
+}
 
 pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<dyn Error>> {
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
 
-    let store = MemoryStore::new(local_peer_id);
-
+    let redis_store = DHTRedisStore::new();
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
         .with_async_std()
         .with_tcp(
@@ -38,7 +42,7 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
                 "/mega/0.0.1".to_string(),
                 key.public(),
             )),
-            kademlia: kad::Behaviour::new(key.public().to_peer_id(), store),
+            kademlia: kad::Behaviour::new(key.public().to_peer_id(), redis_store),
             rendezvous: rendezvous::server::Behaviour::new(rendezvous::server::Config::default()),
         })?
         .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(5)))
@@ -58,7 +62,7 @@ pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<
                         continue;
                     }
                     //kad input
-                     input_command::handle_kad_command(&mut swarm.behaviour_mut().kademlia,line.to_string().split_whitespace().collect());
+                    handle_kad_command(&mut swarm.behaviour_mut().kademlia,line.to_string().split_whitespace().collect());
                 },
                 event = swarm.select_next_some() => match event{
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Identify(identify::Event::Received {
@@ -141,10 +145,53 @@ pub fn kad_event_handler(event: kad::Event) {
     }
 }
 
-#[derive(NetworkBehaviour)]
-pub struct ServerBehaviour {
-    pub relay: relay::Behaviour,
-    pub identify: identify::Behaviour,
-    pub kademlia: kad::Behaviour<MemoryStore>,
-    pub rendezvous: rendezvous::server::Behaviour,
+
+pub fn handle_kad_command(kademlia: &mut kad::Behaviour<DHTRedisStore>, args: Vec<&str>) {
+    let mut args_iter = args.iter().copied();
+    match args_iter.next() {
+        Some("get") => {
+            let key = {
+                match args_iter.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            kademlia.get_record(key);
+        }
+        Some("put") => {
+            let key = {
+                match args_iter.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            let value = {
+                match args_iter.next() {
+                    Some(value) => value.as_bytes().to_vec(),
+                    None => {
+                        eprintln!("Expected value");
+                        return;
+                    }
+                }
+            };
+            let record = Record {
+                key,
+                value,
+                publisher: None,
+                expires: None,
+            };
+            if let Err(e) = kademlia.put_record(record, Quorum::One) {
+                eprintln!("Put record failed :{}", e);
+            }
+        }
+        _ => {
+            eprintln!("expected command: get, put");
+        }
+    }
 }
