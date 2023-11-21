@@ -6,6 +6,24 @@
 //!
 //!
 //!
+use std::{
+    fmt::Display,
+    io::{BufRead, Read},
+    sync::Arc,
+};
+
+use sea_orm::Set;
+use sha1::Digest;
+
+use storage::utils::id_generator::generate_id;
+use entity::{mr::{self}, objects};
+
+use crate::hash::Hash;
+use crate::internal::object::{blob::Blob, commit::Commit, meta::Meta, tag::Tag, tree::Tree};
+use crate::internal::pack::delta::DeltaReader;
+use crate::internal::ObjectType;
+use crate::internal::zlib::stream::inflate::ReadBoxed;
+
 pub mod blob;
 pub mod commit;
 pub mod meta;
@@ -13,21 +31,6 @@ pub mod signature;
 pub mod tag;
 pub mod tree;
 
-use self::{blob::Blob, commit::Commit, meta::Meta, tag::Tag, tree::Tree};
-use super::{pack::delta::DeltaReader, zlib::stream::inflate::ReadBoxed, ObjectType};
-use crate::hash::Hash;
-use storage::utils::id_generator::generate_id;
-use entity::{
-    mr::{self},
-    objects,
-};
-use sea_orm::Set;
-use sha1::Digest;
-use std::{
-    fmt::Display,
-    io::{BufRead, Read},
-    sync::Arc,
-};
 #[derive(Clone)]
 pub enum GitObjects {
     COMMIT(commit::Commit),
@@ -35,6 +38,7 @@ pub enum GitObjects {
     BLOB(blob::Blob),
     TAG(tag::Tag),
 }
+
 impl Display for GitObjects {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -52,18 +56,23 @@ pub fn from_model(model: objects::Model) -> Arc<dyn ObjectT> {
         "commit" => Arc::new(Commit::new_from_data(model.data)),
         "tag" => Arc::new(Tag::new_from_data(model.data)),
         "tree" => Arc::new(Tree::new_from_data(model.data)),
-        //TODO: error type
         &_ => todo!(),
     };
+    
     obj
 }
 
 /// The [`ObjectT`] Trait is for the Blob、Commit、Tree and Tag Structs , which are four common object
-/// of git object . In that case, the four kinds of object can be store in same `Arc<dyn ObjectT>`.
+/// of Git object . In that case, the four kinds of object can be store in same `Arc<dyn ObjectT>`.
 ///
 /// This trait  receive a "Reader" to generate the target object. We now have two kind of "Reader":
-/// 1. ReadBoxed. Input the zlib stream of four kinds of objects data stream. The Object should be the base objects ,that is ,"Blob、Commit、Tree and Tag". After read, Output Object will auto compute hash value while call the "read" method.
-/// 2. DeltaReader. To deal with the DELTA object store in the pack file,including the Ref Delta Object and the Offset Delta Object. Its' input "read" is always the `ReadBoxed`, cause the delta data is also the zlib stream, which should also be unzip.
+/// 
+/// 1. ReadBoxed. Input the zlib stream of four kinds of objects data stream. The Object should be the 
+/// base objects ,that is ,"Blob、Commit、Tree and Tag". After read, Output Object will auto compute hash 
+/// value while call the "read" method.
+/// 2. DeltaReader. To deal with the DELTA object store in the pack file,including the Ref Delta Object 
+/// and the Offset Delta Object. Its' input "read" is always the `ReadBoxed`, cause the delta data is also 
+/// the zlib stream, which should also be unzip.
 pub trait ObjectT: Send + Sync + Display {
     /// Get the hash value .
     fn get_hash(&self) -> Hash;
@@ -105,6 +114,7 @@ pub trait ObjectT: Send + Sync + Display {
 
     /// Get raw data from the Object.
     fn get_raw(&self) -> Vec<u8>;
+
     fn new_from_data(data: Vec<u8>) -> Self
     where
         Self: Sized;
@@ -128,5 +138,6 @@ pub trait ObjectT: Send + Sync + Display {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {}

@@ -20,7 +20,6 @@ common = { path = "../common" }
 entity = { path = "../storage/entity" }
 storage = { path = "../storage" }
 kvcache = { path = "../kvcache" }
-build-bazel-tool = { path = "../build-bazel-tool" }
 anyhow = "1.0.75"
 bstr = "1.7.0"
 chrono = "0.4.24"
@@ -50,7 +49,7 @@ async-recursion = "1.0.4"
 num_cpus = "1.16.0"
 dotenvy = "0.15.7"
 diffs = "0.5.1"
-sea-orm = { version = "0.12.3", features = [
+sea-orm = { version = "0.12.6", features = [
     "runtime-tokio-rustls",
     "macros",
     "mock",

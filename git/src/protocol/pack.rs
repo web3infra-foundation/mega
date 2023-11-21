@@ -16,7 +16,7 @@ use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use storage::driver::database::storage::ObjectStorage;
 use std::io::Write;
-use std::{collections::HashSet, env, io::Cursor, path::PathBuf, sync::Arc, thread};
+use std::{collections::HashSet, io::Cursor, sync::Arc};
 
 use super::{new_mr_info, Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
 
@@ -230,8 +230,7 @@ impl PackProtocol {
                 // c.Also, some references can be updated while others can be rejected.
                 if parse_obj_result {
                     command.update_refs(self.storage.clone(), &self.path).await;
-                    self.handle_directory().await.unwrap();
-                    trigger_build(self.path.clone())
+                    self.handle_directory().await.unwrap()
                 } else {
                     command.failed(String::from("parse commit tree from obj failed"));
                 }
@@ -330,15 +329,6 @@ pub async fn unpack(
     let mr_id = decode_load(p, storage.clone()).await?;
     storage.save_mr_info(new_mr_info(mr_id)).await.unwrap();
     Ok(mr_id)
-}
-pub fn trigger_build(repo_path: PathBuf) {
-    let enable_build = env::var("BAZEL_BUILD_ENABLE")
-        .unwrap()
-        .parse::<bool>()
-        .unwrap();
-    if enable_build {
-        thread::spawn(|| build_bazel_tool::bazel_build::build(repo_path));
-    }
 }
 
 fn read_until_white_space(bytes: &mut Bytes) -> String {
