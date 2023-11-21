@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [".", "gateway", "git", "common", "storage", "p2p", "kvcache", "delta"]
+members = [".", "gateway", "git", "common", "storage", "p2p", "kvcache", "delta", "mercury"]
 exclude = ["mda", "craft", "fuse"]
 
 [dependencies]
