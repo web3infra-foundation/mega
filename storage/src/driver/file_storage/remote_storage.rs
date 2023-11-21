@@ -1,16 +1,17 @@
 use std::env;
 
-use crate::driver::file_storage::s3_service;
 use async_trait::async_trait;
-use aws_config::meta::region::RegionProviderChain;
+use aws_config::{meta::region::RegionProviderChain, BehaviorVersion};
 use aws_sdk_s3::{
     config::{Credentials, Region},
     Client,
 };
 use bytes::Bytes;
+
 use common::errors::MegaError;
 
-use super::FileStorage;
+use crate::driver::file_storage::s3_service;
+use crate::driver::file_storage::FileStorage;
 
 pub struct RemoteStorage {
     pub region: Region,
@@ -26,15 +27,9 @@ impl RemoteStorage {
         let region_provider = RegionProviderChain::first_try(Region::new(region));
         let region = region_provider.region().await.unwrap();
 
-        let shared_config = aws_config::from_env()
+        let shared_config = aws_config::defaults(BehaviorVersion::latest())
             .region(region_provider)
-            .credentials_provider(Credentials::new(
-                "AK",
-                "SK",
-                None,
-                None,
-                "mega",
-            ))
+            .credentials_provider(Credentials::new("AK", "SK", None, None, "mega"))
             .endpoint_url(endpoint)
             .load()
             .await;
@@ -69,14 +64,9 @@ impl FileStorage for RemoteStorage {
         body_content: &[u8],
     ) -> Result<String, MegaError> {
         let key = self.transform_path(object_id);
-        s3_service::upload_object_from_content(
-            &self.client,
-            &self.bucket_name,
-            body_content,
-            &key,
-        )
-        .await
-        .unwrap();
+        s3_service::upload_object_from_content(&self.client, &self.bucket_name, body_content, &key)
+            .await
+            .unwrap();
         let url = format!(
             "https://{}.obs.{}.myhuaweicloud.com/{}",
             self.bucket_name,
