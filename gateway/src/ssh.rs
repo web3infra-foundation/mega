@@ -9,16 +9,15 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-
 use clap::Args;
 use ed25519_dalek::{SigningKey, SIGNATURE_LENGTH};
 use russh_keys::key::KeyPair;
-use storage::driver::database::{DataSource, self};
-
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use common::enums::DataSource;
 use git::protocol::ssh::SshServer;
+use storage::driver::database;
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {
