@@ -1,9 +1,9 @@
 //!
 //!
+//! # This sub module has been enabled and all its functions have been moved to the "delta" module
 //!
 //!
-//!
-//! 
+
 #[cfg(feature="diff_mydrs")]
 use diffs::myers;
 use diffs::Diff;
