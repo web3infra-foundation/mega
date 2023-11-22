@@ -1,11 +1,17 @@
-use anyhow::{Context, Result};
+//!
+//! 
+//! 
+//! 
+//! 
+use std::{
+    io::Cursor,
+    sync::{Arc, RwLock},
+};
 
+use anyhow::{Context, Result};
 use pgp::{
-    composed,
-    composed::signed_key::*,
-    crypto::{self, sym::SymmetricKeyAlgorithm},
-    types::SecretKeyTrait,
-    Deserializable, Message,
+    crypto::sym::SymmetricKeyAlgorithm, types::SecretKeyTrait, Deserializable, KeyType, Message,
+    SecretKeyParamsBuilder, SignedPublicKey, SignedSecretKey,
 };
 use rand::prelude::*;
 use rusty_vault::{
@@ -13,10 +19,6 @@ use rusty_vault::{
     logical::{Operation, Request},
 };
 use smallvec::*;
-use std::{
-    io::Cursor,
-    sync::{Arc, RwLock},
-};
 
 pub struct KeyPair {
     pub secret_key: pgp::SignedSecretKey,
@@ -28,13 +30,13 @@ pub struct KeyPair {
 // Return: KeyPair, it has a signed secret key and a signed public key
 pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error> {
     // Set key_params with primary user id, Rsa with 2048 bites, symmetric algorithms key prefer to use is AES with 256 bit
-    let mut key_params = composed::key::SecretKeyParamsBuilder::default();
+    let mut key_params = SecretKeyParamsBuilder::default();
     key_params
-        .key_type(composed::KeyType::Rsa(2048))
+        .key_type(KeyType::Rsa(2048))
         .can_create_certificates(false)
         .can_sign(true)
         .primary_user_id(primary_user_id.into())
-        .preferred_symmetric_algorithms(smallvec![crypto::sym::SymmetricKeyAlgorithm::AES256]);
+        .preferred_symmetric_algorithms(smallvec![SymmetricKeyAlgorithm::AES256]);
 
     // build a new SecretKeyParams
     let secret_key_params = key_params
@@ -73,15 +75,11 @@ pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error
 pub fn encrypt(msg: &str, pubkey_str: &str) -> Result<String, anyhow::Error> {
     let (pubkey, _) = SignedPublicKey::from_string(pubkey_str)?;
     // Requires a file name as the first arg, in this case I pass "none", as it's not used
-    let msg = composed::message::Message::new_literal("none", msg);
+    let msg = Message::new_literal("none", msg);
     // Encrypt
     let mut rng = StdRng::from_entropy();
 
-    let new_msg = msg.encrypt_to_keys(
-        &mut rng,
-        crypto::sym::SymmetricKeyAlgorithm::AES128,
-        &[&pubkey],
-    )?;
+    let new_msg = msg.encrypt_to_keys(&mut rng, SymmetricKeyAlgorithm::AES128, &[&pubkey])?;
     Ok(new_msg.to_armored_string(None)?)
 }
 
@@ -90,8 +88,8 @@ pub fn encrypt(msg: &str, pubkey_str: &str) -> Result<String, anyhow::Error> {
 pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow::Error> {
     // Get encrypted contents
     let buf = Cursor::new(armored);
-    let (msg, _) = composed::message::Message::from_armor_single(buf)
-        .context("Failed to convert &str to armored message")?;
+    let (msg, _) =
+        Message::from_armor_single(buf).context("Failed to convert &str to armored message")?;
     // Set a decryptor
     let (decryptor, _) = msg
         .decrypt(|| String::from(""), &[seckey])
@@ -110,7 +108,6 @@ pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow
 
 // Encrypt message from file, and write it to a MGS_FILE waiting for decrypt
 // Arguments: message, read from file; public key file path
-#[allow(unused)]
 pub fn encrypt_message(msg: &str, pubkey: &str) -> Result<String> {
     let (pubkey, _) = SignedPublicKey::from_string(pubkey)?;
     // Requires a file name as the first arg, in this case I pass "none", as it's not used typically, it's just meta data
@@ -124,7 +121,6 @@ pub fn encrypt_message(msg: &str, pubkey: &str) -> Result<String> {
 // Convert data from OpenPGP Message to String
 // Arguments: msg, OpenPGP Message; pk, a signed public key
 // Return: string
-#[allow(unused)]
 pub fn generate_armored_string(msg: Message, pk: SignedPublicKey) -> Result<String> {
     let mut rng = StdRng::from_entropy();
     // encrypt the message
@@ -135,7 +131,6 @@ pub fn generate_armored_string(msg: Message, pk: SignedPublicKey) -> Result<Stri
 
 // Decrypt message from file
 // Arguments: armored, encrypted message;v seckey_file, secret key file path
-#[allow(unused)]
 pub fn decrypt_message(armored: &str, seckey: &str) -> Result<String, anyhow::Error> {
     let (seckey, _) = SignedSecretKey::from_string(seckey)?;
     // get encrypted message
@@ -158,9 +153,8 @@ pub fn decrypt_message(armored: &str, seckey: &str) -> Result<String, anyhow::Er
 }
 
 // List keys and show their fingerprint, key id
-// Argument: key_path, key file path, I use a default file path in main.rs
+// Argument: key_path, key file path.
 // Return: public key and its name, secret key and its name
-#[allow(unused)]
 pub fn list_keys(key_path: &str, core: Arc<RwLock<Core>>, token: &str) -> Result<Vec<String>> {
     let core = core.read().unwrap();
     let mut req = Request::new(key_path);

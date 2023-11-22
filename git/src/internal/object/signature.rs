@@ -182,43 +182,43 @@ impl Signature {
 mod tests {
     use std::str::FromStr;
 
-    use crate::internal::object::signature::Signature;
+    use crate::internal::object::signature::{Signature, SignatureType};
 
     #[test]
     fn test_signature_type_from_str() {
         assert_eq!(
-            super::SignatureType::from_str("author").unwrap(),
-            super::SignatureType::Author
+            SignatureType::from_str("author").unwrap(),
+            SignatureType::Author
         );
 
         assert_eq!(
-            super::SignatureType::from_str("committer").unwrap(),
-            super::SignatureType::Committer
+            SignatureType::from_str("committer").unwrap(),
+            SignatureType::Committer
         );
     }
 
     #[test]
     fn test_signature_type_from_data() {
         assert_eq!(
-            super::SignatureType::from_data("author".to_string().into_bytes()).unwrap(),
-            super::SignatureType::Author
+            SignatureType::from_data("author".to_string().into_bytes()).unwrap(),
+            SignatureType::Author
         );
 
         assert_eq!(
-            super::SignatureType::from_data("committer".to_string().into_bytes()).unwrap(),
-            super::SignatureType::Committer
+            SignatureType::from_data("committer".to_string().into_bytes()).unwrap(),
+            SignatureType::Committer
         );
     }
 
     #[test]
     fn test_signature_type_to_bytes() {
         assert_eq!(
-            super::SignatureType::Author.to_bytes(),
+            SignatureType::Author.to_bytes(),
             "author".to_string().into_bytes()
         );
 
         assert_eq!(
-            super::SignatureType::Committer.to_bytes(),
+            SignatureType::Committer.to_bytes(),
             "committer".to_string().into_bytes()
         );
     }
@@ -232,7 +232,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(sign.signature_type, super::SignatureType::Author);
+        assert_eq!(sign.signature_type, SignatureType::Author);
         assert_eq!(sign.name, "Quanyi Ma");
         assert_eq!(sign.email, "eli@patch.sh");
         assert_eq!(sign.timestamp, 1678101573);
