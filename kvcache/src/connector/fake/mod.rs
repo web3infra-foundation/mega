@@ -1,6 +1,8 @@
-use super::Connector;
-use anyhow::Result;
 use std::{cell::RefCell, collections::HashMap, hash::Hash};
+
+use anyhow::Result;
+
+use crate::connector::Connector;
 
 pub struct FakeKVstore<K, V> {
     table: RefCell<HashMap<K, V>>,
@@ -35,7 +37,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::FakeKVstore;
+    use crate::connector::fake::FakeKVstore;
     use crate::KVCache;
 
     #[test]

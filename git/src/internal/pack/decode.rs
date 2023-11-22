@@ -5,8 +5,8 @@ use sha1::digest::core_api::CoreWrapper;
 use sha1::Digest;
 use sha1::Sha1;
 
-use super::{iterator::EntriesIter, Pack};
 use crate::hash::Hash;
+use crate::internal::pack::{iterator::EntriesIter, Pack};
 use crate::{errors::GitError, utils};
 #[allow(unused)]
 enum DecodeMod {
@@ -171,5 +171,4 @@ mod test {
         assert_eq!(p.version, 2);
         assert_eq!(p.number_of_objects, p.number_of_objects());
     }
-
 }

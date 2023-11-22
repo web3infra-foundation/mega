@@ -1,11 +1,10 @@
-use crate::utils;
-use super::Connector;
-use anyhow::Result;
-use redis::{
-    Connection, ConnectionInfo, FromRedisValue,ToRedisArgs, IntoConnectionInfo,
-};
 use std::{cell::RefCell, marker::PhantomData};
 
+use anyhow::Result;
+use redis::{Connection, ConnectionInfo, FromRedisValue, IntoConnectionInfo, ToRedisArgs};
+
+use crate::connector::Connector;
+use crate::utils;
 pub struct RedisClient<K, V> {
     conn: RefCell<Connection>,
     k: PhantomData<K>,

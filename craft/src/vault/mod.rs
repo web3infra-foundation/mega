@@ -1,7 +1,3 @@
-pub mod command;
-pub mod crypt;
-pub mod pgp_key;
-
 use std::{
     fs,
     path::Path,
@@ -15,8 +11,22 @@ use rusty_vault::{
     storage::{barrier_aes_gcm, physical},
 };
 
+pub mod command;
+pub mod crypt;
+pub mod pgp_key;
+
 pub const WORK_DIR_PATH_DEFAULT: &str = "/tmp/.mega/rusty_vault";
 
+/// Initializes the Rusty Vault Core.
+///
+/// This function prepares the necessary configuration and initializes the Rusty Vault Core
+/// based on the provided configuration or creates a default configuration if none exists.
+/// It sets up storage, backend, and initializes encryption barriers required by the core.
+/// If already initialized, it retrieves the root token and secret shares; otherwise, it initializes
+/// the core, generates secret shares, and saves them securely.
+///
+/// # Returns
+/// Returns a tuple containing an Arc of the RwLock guarding the initialized Core and the root token.
 pub fn init_rv_core() -> (Arc<RwLock<Core>>, String) {
     let path = Path::new(WORK_DIR_PATH_DEFAULT);
     let config_path = path.join("config.hcl");
@@ -100,4 +110,3 @@ pub fn init_rv_core() -> (Arc<RwLock<Core>>, String) {
     }
     (Arc::clone(&c), token)
 }
-

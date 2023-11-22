@@ -31,10 +31,10 @@
 use std::fmt::Display;
 use std::str;
 
-use super::ObjectT;
 use crate::errors::GitError;
 use crate::hash::Hash;
 use crate::internal::object::tree::{TreeItem, TreeItemMode};
+use crate::internal::object::ObjectT;
 use crate::internal::ObjectType;
 
 /// **The Blob Object**
