@@ -1,19 +1,21 @@
+use std::sync::Arc;
+
 use storage::driver::database::storage::ObjectStorage;
 
+use crate::internal::pack::cache::ObjectCache;
+use crate::internal::pack::cache::_Cache;
+use crate::internal::pack::delta::DeltaReader;
 use crate::{
     internal::{
-        object::{blob::Blob, commit::Commit, from_model, tag::Tag, tree::Tree, GitObjects},
-        pack::delta::DeltaReader,
+        object::{
+            blob::Blob, commit::Commit, from_model, tag::Tag, tree::Tree, GitObjects, ObjectT,
+        },
         zlib::stream::inflate::ReadBoxed,
         GitError, ObjectType,
     },
     utils,
 };
 
-use crate::internal::object::ObjectT;
-use std::sync::Arc;
-
-use super::cache::{ObjectCache, _Cache};
 type IteratorResult = Result<Arc<dyn ObjectT>, GitError>;
 type GitIteratorResult = Result<GitObjects, GitError>;
 

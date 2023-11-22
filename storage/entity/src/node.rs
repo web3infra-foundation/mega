@@ -67,7 +67,7 @@ impl Ord for Model {
 #[cfg(test)]
 mod tests{
    
-    use super::Model;
+    use crate::node::Model;
     #[test]
     fn test_nodes_sort(){
          // 示例使用

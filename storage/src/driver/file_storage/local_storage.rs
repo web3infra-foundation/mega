@@ -1,12 +1,14 @@
-use async_trait::async_trait;
-use bytes::Bytes;
-use common::errors::MegaError;
 use std::fs;
 use std::io::prelude::*;
 use std::path;
 use std::path::PathBuf;
 
-use super::FileStorage;
+use async_trait::async_trait;
+use bytes::Bytes;
+
+use common::errors::MegaError;
+
+use crate::driver::file_storage::FileStorage;
 
 #[derive(Default)]
 pub struct LocalStorage {
@@ -64,9 +66,9 @@ impl FileStorage for LocalStorage {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
+    use std::{env, path::PathBuf};
 
-    use super::*;
+    use crate::driver::file_storage::{local_storage::{MetaObject, LocalStorage}, FileStorage};
 
     // #[test]
     #[tokio::test]

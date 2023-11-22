@@ -9,16 +9,13 @@ use anyhow::Result;
 use axum::body::Body;
 use axum::http::response::Builder;
 use axum::http::{Response, StatusCode};
-
 use bytes::{BufMut, Bytes, BytesMut};
-
 use futures::StreamExt;
 use hyper::body::Sender;
 use hyper::Request;
-
 use tokio::io::{AsyncReadExt, BufReader};
 
-use super::{pack, PackProtocol};
+use crate::protocol::{pack, PackProtocol};
 
 /// # Build Response headers for Smart Server.
 /// Clients MUST NOT reuse or revalidate a cached response.

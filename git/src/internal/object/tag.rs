@@ -36,18 +36,18 @@
 //!
 //! So, we can use the `git cat-file -p <tag>` command to get the tag object, and the command not
 //! for the lightweight tag.
+use std::fmt::Display;
 
 use bstr::ByteSlice;
+
 use entity::objects;
-use std::fmt::Display;
 
 use crate::errors::GitError;
 use crate::hash::Hash;
 use crate::internal::object::meta::Meta;
 use crate::internal::object::signature::Signature;
+use crate::internal::object::ObjectT;
 use crate::internal::ObjectType;
-
-use super::ObjectT;
 
 /// The tag object is used to Annotated tag
 #[allow(unused)]
@@ -181,10 +181,12 @@ impl ObjectT for Tag {
         let tagger = Signature::new_from_data(tagger_data).unwrap();
         data = data[data.find_byte(0x0a).unwrap() + 1..].to_vec();
 
-        let message = unsafe { data[data.find_byte(0x0a).unwrap()..]
-            .to_vec()
-            .to_str_unchecked()
-            .to_string() };
+        let message = unsafe {
+            data[data.find_byte(0x0a).unwrap()..]
+                .to_vec()
+                .to_str_unchecked()
+                .to_string()
+        };
 
         Tag {
             id: Hash([0u8; 20]),
@@ -232,7 +234,7 @@ mod tests {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let mut source_file = source;
         source_file.push("tests/data/objects/85/4aac1e94777f3ffc8722b69f087d1244587ab7");
-        let _tag = super::Tag::new_from_file(source_file.to_str().unwrap()).unwrap();
+        let _tag = Tag::new_from_file(source_file.to_str().unwrap()).unwrap();
 
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let mut dest_file = source;

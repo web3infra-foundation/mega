@@ -10,12 +10,13 @@ use axum::body::Body;
 use axum::http::{Response, StatusCode};
 use bytes::BytesMut;
 use chrono::{prelude::*, Duration};
-use common::errors::GitLFSError;
-use entity::{locks, meta};
 use futures::StreamExt;
 use hyper::Request;
 use rand::prelude::*;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+use common::errors::GitLFSError;
+use entity::{locks, meta};
 use storage::driver::database::storage::ObjectStorage;
 use storage::driver::file_storage::local_storage::MetaObject;
 
@@ -23,9 +24,8 @@ use crate::lfs::lfs_structs::{
     BatchResponse, BatchVars, LockList, LockRequest, LockResponse, ObjectError, UnlockRequest,
     UnlockResponse, VerifiableLockList, VerifiableLockRequest,
 };
-
-use super::lfs_structs::{Link, Lock, LockListQuery, Representation, RequestVars};
-use super::LfsConfig;
+use crate::lfs::lfs_structs::{Link, Lock, LockListQuery, Representation, RequestVars};
+use crate::lfs::LfsConfig;
 
 pub async fn lfs_retrieve_lock(
     config: &LfsConfig,

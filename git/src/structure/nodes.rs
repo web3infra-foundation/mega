@@ -7,14 +7,16 @@ use std::{
 
 use anyhow::Ok;
 use async_recursion::async_recursion;
+use sea_orm::{ActiveValue::NotSet, DatabaseTransaction, Set};
+
 use common::errors::MegaError;
+use entity::{commit, node};
 use storage::{
     driver::database::storage::ObjectStorage,
     utils::id_generator::{self, generate_id},
 };
-use entity::{commit, node};
-use sea_orm::{ActiveValue::NotSet, Set, DatabaseTransaction};
 
+use crate::structure::GitNodeObject;
 use crate::{
     hash::Hash,
     internal::object::{
@@ -24,8 +26,6 @@ use crate::{
         ObjectT,
     },
 };
-
-use super::GitNodeObject;
 
 pub struct NodeBuilder {
     // pub repo_root: Box<dyn Node>,
@@ -315,7 +315,9 @@ impl NodeBuilder {
                             .get_obj_data_by_id(&root_tree_id.to_plain_str())
                             .await
                             .unwrap()
-                            .unwrap_or_else(|| panic!("can't get obj data {} from db", root_tree_id.to_plain_str()));
+                            .unwrap_or_else(|| {
+                                panic!("can't get obj data {} from db", root_tree_id.to_plain_str())
+                            });
                         let mut obj = Tree::new_from_data(model.data.clone());
                         let hash = Hash::new_from_str(&model.git_id);
                         obj.set_hash(hash);
@@ -411,7 +413,11 @@ impl NodeBuilder {
         self.storage.save_commits(txn, save_models).await
     }
 
-    pub async fn save_nodes(&self, txn: Option<&DatabaseTransaction>, nodes: Vec<node::ActiveModel>) -> Result<bool, MegaError> {
+    pub async fn save_nodes(
+        &self,
+        txn: Option<&DatabaseTransaction>,
+        nodes: Vec<node::ActiveModel>,
+    ) -> Result<bool, MegaError> {
         self.storage.save_nodes(txn, nodes).await
     }
 }
@@ -463,15 +469,11 @@ pub fn print_node(node: &dyn Node, depth: u32) {
 
 #[cfg(test)]
 mod test {
-    // use crate::mega::driver::{
-    //     structure::nodes::{Node, TreeNode},
-    //     utils::id_generator,
-    // };
     use std::path::PathBuf;
 
     use storage::utils::id_generator;
 
-    use super::{FileNode, Node, TreeNode};
+    use crate::structure::{FileNode, Node, TreeNode};
 
     #[test]
     pub fn main() {

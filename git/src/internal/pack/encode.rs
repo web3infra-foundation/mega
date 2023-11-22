@@ -1,13 +1,15 @@
-use entity::objects;
-use sha1::{Digest, Sha1};
-use std::io::{Cursor, Write,Error};
+use std::io::{Cursor, Error, Write};
 use std::sync::Arc;
 
-use crate::internal::object::ObjectT;
-use crate::internal::zlib::stream::deflate::Write as Writer;
-use super::header::EntryHeader;
+use sha1::{Digest, Sha1};
 
 use delta;
+use entity::objects;
+
+use crate::internal::object::ObjectT;
+use crate::internal::pack::header::EntryHeader;
+use crate::internal::zlib::stream::deflate::Write as Writer;
+
 const SLID_WINDWOS: usize = 20;
 
 #[allow(unused)]
@@ -186,20 +188,16 @@ fn u32_vec(value: u32) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-
-    use tokio_test::block_on;
-
-    use crate::{
-        hash::Hash,
-        internal::{
-            object::{blob::Blob, ObjectT},
-            pack::Pack,
-        },
-    };
     use std::io::Cursor;
     use std::sync::Arc;
 
-    use super::{pack_encode, Encoder};
+    use tokio_test::block_on;
+
+    use crate::hash::Hash;
+    use crate::internal::object::blob::Blob;
+    use crate::internal::object::ObjectT;
+    use crate::internal::pack::encode::{pack_encode, Encoder};
+    use crate::internal::pack::Pack;
 
     #[test]
     fn test_a_simple_encode() {

@@ -79,7 +79,7 @@ impl Display for DecodeCounter{
 
 #[cfg(test)]
 mod tests {
-    use super::GitTypeCounter;
+    use crate::internal::pack::counter::GitTypeCounter;
     #[test]
     fn test_git_type_counter(){
         let mut  counter = GitTypeCounter::default();

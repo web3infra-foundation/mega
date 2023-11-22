@@ -244,8 +244,7 @@ mod tests{
 
     use crate::internal::object::meta::Meta;
     use crate::internal::pack::delta::{undelta};
-
-    use super::DeltaDiff;
+    use crate::DeltaDiff;
     #[test]
     fn test_delta_fn(){
        

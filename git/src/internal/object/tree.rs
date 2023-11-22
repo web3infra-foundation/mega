@@ -14,17 +14,17 @@
 //! have been added, modified, or deleted between two points in time. This allows Git to perform
 //! operations like merging and rebasing more quickly and accurately.
 //!
+use std::fmt::Display;
+
 use bstr::ByteSlice;
 use colored::Colorize;
+
 use entity::objects;
-use std::fmt::Display;
 
 use crate::errors::GitError;
 use crate::hash::Hash;
-
+use crate::internal::object::ObjectT;
 use crate::internal::ObjectType;
-
-use super::ObjectT;
 
 /// In Git, the mode field in a tree object's entry specifies the type of the object represented by
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
@@ -335,19 +335,23 @@ impl ObjectT for Tree {
 #[cfg(test)]
 mod tests {
 
-    use crate::internal::object::{meta::Meta, tree::Tree, ObjectT};
+    use crate::internal::object::{
+        meta::Meta,
+        tree::{Tree, TreeItem, TreeItemMode},
+        ObjectT,
+    };
 
     #[test]
     fn test_tree_item_new() {
         use crate::hash::Hash;
 
-        let tree_item = super::TreeItem::new(
-            super::TreeItemMode::Blob,
+        let tree_item = TreeItem::new(
+            TreeItemMode::Blob,
             Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
             "hello-world".to_string(),
         );
 
-        assert_eq!(tree_item.mode, super::TreeItemMode::Blob);
+        assert_eq!(tree_item.mode, TreeItemMode::Blob);
         assert_eq!(
             tree_item.id.to_plain_str(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
@@ -358,8 +362,8 @@ mod tests {
     fn test_tree_item_to_bytes() {
         use crate::hash::Hash;
 
-        let tree_item = super::TreeItem::new(
-            super::TreeItemMode::Blob,
+        let tree_item = TreeItem::new(
+            TreeItemMode::Blob,
             Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
             "hello-world".to_string(),
         );
@@ -379,16 +383,16 @@ mod tests {
     fn test_tree_item_from_bytes() {
         use crate::hash::Hash;
 
-        let item = super::TreeItem::new(
-            super::TreeItemMode::Blob,
+        let item = TreeItem::new(
+            TreeItemMode::Blob,
             Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
             "hello-world".to_string(),
         );
 
         let bytes = item.to_data();
-        let tree_item = super::TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
+        let tree_item = TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
 
-        assert_eq!(tree_item.mode, super::TreeItemMode::Blob);
+        assert_eq!(tree_item.mode, TreeItemMode::Blob);
         assert_eq!(tree_item.id.to_plain_str(), item.id.to_plain_str());
     }
 
@@ -403,7 +407,7 @@ mod tests {
         let tree = Tree::from_meta(m.clone());
         println!("{}", tree);
         assert_eq!(tree.tree_items.len(), 1);
-        assert_eq!(tree.tree_items[0].mode, super::TreeItemMode::Blob);
+        assert_eq!(tree.tree_items[0].mode, TreeItemMode::Blob);
         assert_eq!(
             tree.tree_items[0].id.to_plain_str(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
@@ -428,7 +432,7 @@ mod tests {
 
         let tree = Tree::from_meta(m.clone());
         for item in tree.tree_items.iter() {
-            if item.mode == super::TreeItemMode::Blob {
+            if item.mode == TreeItemMode::Blob {
                 assert_eq!(
                     item.id.to_plain_str(),
                     "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
@@ -436,7 +440,7 @@ mod tests {
                 assert_eq!(item.name, "hello-world");
             }
 
-            if item.mode == super::TreeItemMode::Tree {
+            if item.mode == TreeItemMode::Tree {
                 assert_eq!(
                     item.id.to_plain_str(),
                     "c44c09a88097e5fb0c833d4178b2df78055ad2e9"

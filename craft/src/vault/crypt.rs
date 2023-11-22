@@ -3,15 +3,16 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use anyhow::Ok;
-use pgp_key::{decrypt_message, encrypt_message, generate_key_pair};
+use pgp_key::{
+    decrypt_message, delete_key, encrypt_message, generate_key_pair, list_keys, KeyPair,
+};
 use rusty_vault::{
     core::Core,
     logical::{Operation, Request},
 };
 use serde_json::json;
 
-use crate::vault::pgp_key::{self, delete_key, list_keys, KeyPair};
+use crate::vault::pgp_key;
 
 // the trait and impl for KeyPair is a preparation for crate Tongsuo.
 // a trait for key
@@ -57,7 +58,6 @@ impl Key for KeyPair {
         let _ = delete_key(key_name, core, token);
     }
 }
-
 
 // Generate full key with pubkey, seckey, primary id.
 // Arguments: primary_id, as &str, it should be written as "User <example@example.com>"; key_name, git-craft will keep ur key file as key_namepub.asc
