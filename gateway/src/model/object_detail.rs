@@ -1,5 +1,6 @@
-use entity::{node, repo_directory};
 use serde::{Deserialize, Serialize};
+
+use entity::{node, repo_directory};
 
 #[derive(Serialize, Deserialize)]
 pub struct Directories {

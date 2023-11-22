@@ -1,7 +1,8 @@
-use crate::hash::Hash;
-use lru::LruCache;
 use std::{collections::HashMap, num::NonZeroUsize, cell::RefCell};
 
+use lru::LruCache;
+
+use crate::hash::Hash;
 #[derive(Hash, Clone, PartialEq, Eq)]
 struct OffHash {
     o: usize,
@@ -109,11 +110,12 @@ where
 pub mod kvstore{
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use crate::internal::pack::Hash;
-    //use kvcache::connector::fake::FakeKVstore;
+
     use kvcache::connector::redis::RedisClient;
     use kvcache::KVCache;
-    use super:: _Cache;
+
+    use crate::internal::pack::Hash;
+    use crate::internal::pack::_Cache;
 
     pub struct ObjectCache<T> {
         ioffset: RefCell<HashMap<usize, Hash>>,
@@ -165,7 +167,7 @@ mod test {
 
     use serde_json::to_vec;
 
-    use super::{ObjectCache, _Cache};
+    use crate::internal::pack::{ObjectCache, _Cache};
     use crate::{hash::Hash, internal::object::blob};
     #[test] //TODO: to test
     fn test_cache() {

@@ -17,16 +17,15 @@
 use std::fmt::Display;
 
 use bstr::ByteSlice;
+
 use entity::commit;
 
 use crate::errors::GitError;
 use crate::hash::Hash;
-use crate::internal::ObjectType;
-
+use crate::internal::object::meta::Meta;
 use crate::internal::object::signature::Signature;
-
-use super::meta::Meta;
-use super::ObjectT;
+use crate::internal::object::ObjectT;
+use crate::internal::ObjectType;
 
 /// The `Commit` struct is used to represent a commit object.
 ///
@@ -72,7 +71,11 @@ impl From<commit::Model> for Commit {
         Commit {
             id: Hash::new_from_str(&value.git_id),
             tree_id: Hash::new_from_str(&value.tree),
-            parent_tree_ids: value.pid.into_iter().map(|id| Hash::new_from_str(&id)).collect(),
+            parent_tree_ids: value
+                .pid
+                .into_iter()
+                .map(|id| Hash::new_from_str(&id))
+                .collect(),
             author: Signature::new_from_data(value.author.unwrap().into()).unwrap(),
             committer: Signature::new_from_data(value.committer.unwrap().into()).unwrap(),
             message: value.content.unwrap(),
@@ -276,7 +279,7 @@ mod tests {
     // fn test_to_file() {
     //     let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
     //     let mut source_file = source.clone();
-    //     let commit = super::Commit::new_from_file(source_file.to_str().unwrap()).unwrap();
+    //     let commit = Commit::new_from_file(source_file.to_str().unwrap()).unwrap();
 
     //     let mut dest_file = source.clone();
     //     dest_file.push("tests/objects/c5/170dd0aae2dc2a9142add9bb24597d326714d7");

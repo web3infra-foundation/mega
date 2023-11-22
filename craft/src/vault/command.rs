@@ -6,7 +6,7 @@
 
 use clap::{arg, Args, Subcommand};
 
-use super::{
+use crate::vault::{
     crypt::{decrypt_blob, encrypt_blob, generate_key_full},
     init_rv_core,
     pgp_key::{delete_key, list_keys},
@@ -42,6 +42,13 @@ enum VaultMode {
     },
 }
 
+/// Handles different modes for interacting with the Rusty Vault.
+///
+/// It initializes the Rusty Vault Core and performs operations based on the specified mode.
+///
+/// # Arguments
+///
+/// * `args` - A VaultArgs enum representing different modes of operation.
 pub fn handle(args: VaultArgs) {
     let (core, token) = init_rv_core();
     // Match the mode with different functions
@@ -79,7 +86,7 @@ pub fn handle(args: VaultArgs) {
 #[cfg(test)]
 mod tests {
 
-    use std::sync::{RwLock, Arc};
+    use std::sync::{Arc, RwLock};
 
     use rusty_vault::core::Core;
 
@@ -91,14 +98,14 @@ mod tests {
 
     // Define a test function for generate-key-full mode
     // #[test]
-    fn test_generate_key_full(core: Arc<RwLock<Core>>, token : &str) {
+    fn test_generate_key_full(core: Arc<RwLock<Core>>, token: &str) {
         // generate a full key
         let _ = generate_key_full("Craft <craft@craft.com>", "secret/craft", core, token);
     }
 
     // Define a test function for encrypt mode
     // #[test]
-    fn test_encrypt(core: Arc<RwLock<Core>>, token : &str) {
+    fn test_encrypt(core: Arc<RwLock<Core>>, token: &str) {
         // generate key to crypt
         let _ = generate_key_full("User2 <sci@sci.com>", "secret/sci", core, token).unwrap();
         // Create and run a new process to execute the encrypt_blob function
@@ -131,7 +138,7 @@ mod tests {
 
     // Define a test function for decrypt mode
     // #[test]
-    fn test_decrypt(core: Arc<RwLock<Core>>, token : &str) {
+    fn test_decrypt(core: Arc<RwLock<Core>>, token: &str) {
         // Generate a key pair for testing
         let _ = generate_key_full(
             "User3 <basketball@basketball.com>",
@@ -205,7 +212,7 @@ mod tests {
 
     // Define a test function for list-keys mode
     // #[test]
-    fn test_list_keys(core: Arc<RwLock<Core>>, token : &str) {
+    fn test_list_keys(core: Arc<RwLock<Core>>, token: &str) {
         let actual = list_keys("secret/", core, token).unwrap();
         assert!(!actual.is_empty());
         // Check if the output contains the expected key information
@@ -213,8 +220,13 @@ mod tests {
 
     // Define a test function for delete-key mode
     // #[test]
-    fn test_delete_key(core: Arc<RwLock<Core>>, token : &str) {
-        let _ = generate_key_full("Delete <delete@delete.com>", "secret/delete", core.clone(), token);
+    fn test_delete_key(core: Arc<RwLock<Core>>, token: &str) {
+        let _ = generate_key_full(
+            "Delete <delete@delete.com>",
+            "secret/delete",
+            core.clone(),
+            token,
+        );
         let _ = delete_key("secret/delete", core.clone(), token);
     }
 

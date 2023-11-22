@@ -3,13 +3,13 @@
 //!
 //!
 //!
-pub mod object;
-pub mod pack;
-pub mod zlib;
 use std::fmt::Display;
 
 use crate::errors::GitError;
 
+pub mod object;
+pub mod pack;
+pub mod zlib;
 /// In Git, each object type is assigned a unique integer value, which is used to identify the
 /// type of the object in Git repositories.
 ///
@@ -152,22 +152,24 @@ impl ObjectType {
 
 #[cfg(test)]
 mod tests {
+    use crate::internal::ObjectType;
+
     #[test]
     fn test_object_type_to_data() {
-        let blob = super::ObjectType::Blob;
+        let blob = ObjectType::Blob;
         let blob_bytes = blob.to_data().unwrap();
         assert_eq!(blob_bytes, vec![0x62, 0x6c, 0x6f, 0x62]);
     }
 
     #[test]
     fn test_object_type_from_string() {
-        let tree = super::ObjectType::from_string("tree").unwrap();
-        assert_eq!(tree, super::ObjectType::Tree);
+        let tree = ObjectType::from_string("tree").unwrap();
+        assert_eq!(tree, ObjectType::Tree);
     }
 
     #[test]
     fn test_object_type_type2number() {
-        let commit = super::ObjectType::Commit;
+        let commit = ObjectType::Commit;
         let commit_number = commit.type2number();
         assert_eq!(commit_number, 1);
     }
@@ -175,7 +177,7 @@ mod tests {
     #[test]
     fn test_object_type_number2type() {
         let tag_number = 4;
-        let tag = super::ObjectType::number2type(tag_number).unwrap();
-        assert_eq!(tag, super::ObjectType::Tag);
+        let tag = ObjectType::number2type(tag_number).unwrap();
+        assert_eq!(tag, ObjectType::Tag);
     }
 }

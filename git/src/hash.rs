@@ -93,6 +93,8 @@ impl Hash {
 
 #[cfg(test)]
 mod tests {
+    use crate::hash::Hash;
+
     #[test]
     fn test_hash_new() {
         // [98, 108, 111, 98] = blob
@@ -100,11 +102,11 @@ mod tests {
         // [49, 52] = 14
         // [0] = \x00
         // [72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 10] = Hello, World! + LF
-        // let hash = super::Hash::new(&vec![
+        // let hash = Hash::new(&vec![
         //     98, 108, 111, 98, 32, 49, 52, 0, 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108,
         //     100, 33, 10,
         // ]);
-        let hash = super::Hash::new_from_bytes(&[
+        let hash = Hash::new_from_bytes(&[
             0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);
@@ -116,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_hash_new_from_str() {
-        let hash = super::Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        let hash = Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d");
         assert_eq!(
             hash.to_plain_str(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
@@ -125,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_hash_to_data() {
-        let hash = super::Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+        let hash = Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d");
         assert_eq!(
             hash.to_data(),
             vec![
@@ -137,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_hash_from_bytes() {
-        let hash = super::Hash::new_from_bytes(&[
+        let hash = Hash::new_from_bytes(&[
             0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);

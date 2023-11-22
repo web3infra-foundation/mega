@@ -80,7 +80,8 @@ impl<T> CircularQueue<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::internal::pack::cqueue::CircularQueue;
+
     #[test]
     fn test_en_queue() {
         let mut circular_queue = CircularQueue::new(100);

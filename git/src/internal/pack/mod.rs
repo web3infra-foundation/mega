@@ -3,14 +3,15 @@
 //!
 //!
 //!
+use std::{path::PathBuf, sync::Arc};
+
 use self::{
     cache::{ObjectCache, _Cache},
     header::EntryHeader,
 };
 
-use super::object::ObjectT;
 use crate::hash::Hash;
-use std::{path::PathBuf, sync::Arc};
+use crate::internal::object::ObjectT;
 
 mod cache;
 mod counter;
@@ -125,9 +126,9 @@ pub mod git_object_size {
 
     #[cfg(test)]
     mod tests {
-        use super::*;
         use std::io::Cursor;
 
+        use crate::internal::pack::git_object_size::{decode, encode};
         #[test]
         fn test_decode() {
             let data = [0x82, 0x01];

@@ -201,14 +201,16 @@ impl Meta {
 #[cfg(test)]
 mod tests {
 
-    use crate::internal::ObjectType;
     use std::env;
     use std::fs::remove_file;
     use std::path::PathBuf;
 
+    use crate::internal::object::meta::Meta;
+    use crate::internal::ObjectType;
+
     #[test]
     fn test_meta_default() {
-        let meta = super::Meta::default(ObjectType::Blob);
+        let meta = Meta::default(ObjectType::Blob);
 
         assert_eq!(meta.object_type, ObjectType::Blob);
         assert_eq!(meta.size, 0);
@@ -216,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_new_from_data_with_object_type() {
-        let meta = super::Meta::new_from_data_with_object_type(
+        let meta = Meta::new_from_data_with_object_type(
             ObjectType::Blob,
             "Hello, World!".as_bytes().to_vec(),
         );
@@ -231,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_to_folder_name() {
-        let meta = super::Meta::new_from_data_with_object_type(
+        let meta = Meta::new_from_data_with_object_type(
             ObjectType::Blob,
             "Hello, World!".as_bytes().to_vec(),
         );
@@ -241,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_to_file_name() {
-        let meta = super::Meta::new_from_data_with_object_type(
+        let meta = Meta::new_from_data_with_object_type(
             ObjectType::Blob,
             "Hello, World!".as_bytes().to_vec(),
         );
@@ -271,7 +273,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
 
-        let meta = super::Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
+        let meta = Meta::new_from_file(source.as_path().to_str().unwrap()).unwrap();
 
         assert_eq!(meta.object_type, ObjectType::Blob);
         assert_eq!(meta.size, 14);
@@ -287,7 +289,7 @@ mod tests {
 
         let mut source_file = source;
         source_file.push("tests/data/objects/8a/b686eafeb1f44702738c8b0f24f2567c36da6d");
-        let m = super::Meta::new_from_file(source_file.as_path().to_str().unwrap()).unwrap();
+        let m = Meta::new_from_file(source_file.as_path().to_str().unwrap()).unwrap();
 
         let mut dest = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         dest.push("tests/objects");
