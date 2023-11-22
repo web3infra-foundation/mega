@@ -4,41 +4,48 @@
 //!
 //!
 
+use std::path::PathBuf;
+
 use clap::{arg, Args, Subcommand};
 
 use crate::vault::{
     crypt::{decrypt_blob, encrypt_blob, generate_key_full},
     init_rv_core,
     pgp_key::{delete_key, list_keys},
+    unseal_rv_core,
 };
 
 #[derive(Args, Debug)]
 pub struct VaultArgs {
     #[command(subcommand)]
     mode: VaultMode,
+
+    #[arg(short, long)]
+    path: Option<PathBuf>,
 }
 
-#[derive(Clone, Subcommand, Debug)]
+#[derive(Clone, Subcommand, Debug, PartialEq)]
 enum VaultMode {
+    Init,
     Newkey {
         #[arg(short, long)]
         id: Option<String>,
 
         #[arg(short, long)]
-        path: String,
+        key_path: String,
     },
     Encrypt {
         #[arg(short, long)]
-        path: String,
+        key_path: String,
     },
     Decrypt {
         #[arg(short, long)]
-        path: String,
+        key_path: String,
     },
     List,
     Delete {
         #[arg(short, long)]
-        path: String,
+        key_path: String,
     },
 }
 
@@ -50,34 +57,42 @@ enum VaultMode {
 ///
 /// * `args` - A VaultArgs enum representing different modes of operation.
 pub fn handle(args: VaultArgs) {
-    let (core, token) = init_rv_core();
     // Match the mode with different functions
+    if args.mode == VaultMode::Init {
+        init_rv_core(args.path.as_deref());
+        let (core, token) = unseal_rv_core(args.path.as_deref());
+        // init a default ket with path secret/craft
+        let _ = generate_key_full("User <craft@craft.com>", "secret/craft", core, &token);
+    } else {
+        let (core, token) = unseal_rv_core(args.path.as_deref());
 
-    match args.mode {
-        // Generate key pair full to key_files and name it as your input
-        VaultMode::Newkey { id, path } => {
-            let primary_id = if let Some(id) = id {
-                id
-            } else {
-                "User <craft@craft.com>".to_owned()
-            };
-            let _ = generate_key_full(&primary_id, &path, core, &token);
-        }
-        VaultMode::Encrypt { path } => {
-            // Encrypt blob.data
-            let _ = encrypt_blob(&path, core, &token);
-        }
-        VaultMode::Decrypt { path } => {
-            // Decrypt blob.data
-            let _ = decrypt_blob(&path, core, &token);
-        }
-        VaultMode::List => {
-            // Show key lists and their fingerprint, key id.
-            let _ = list_keys("secret/", core, &token);
-        }
-        VaultMode::Delete { path } => {
-            // Delete key by key_name
-            let _ = delete_key(&path, core, &token);
+        match args.mode {
+            // Generate key pair full to key_files and name it as your input
+            VaultMode::Newkey { id, key_path } => {
+                let primary_id = if let Some(id) = id {
+                    id
+                } else {
+                    "User <craft@craft.com>".to_owned()
+                };
+                let _ = generate_key_full(&primary_id, &key_path, core, &token);
+            }
+            VaultMode::Encrypt { key_path } => {
+                // Encrypt blob.data
+                let _ = encrypt_blob(&key_path, core, &token);
+            }
+            VaultMode::Decrypt { key_path } => {
+                // Decrypt blob.data
+                let _ = decrypt_blob(&key_path, core, &token);
+            }
+            VaultMode::List => {
+                // Show key lists and their fingerprint, key id.
+                let _ = list_keys("secret/", core, &token);
+            }
+            VaultMode::Delete { key_path } => {
+                // Delete key by key_name
+                let _ = delete_key(&key_path, core, &token);
+            }
+            _ => panic!("Not Implement command"),
         }
     }
 }
@@ -86,14 +101,20 @@ pub fn handle(args: VaultArgs) {
 #[cfg(test)]
 mod tests {
 
-    use std::sync::{Arc, RwLock};
+    use std::{
+        env, fs,
+        path::PathBuf,
+        sync::{Arc, RwLock},
+    };
 
+    use go_defer::defer;
     use rusty_vault::core::Core;
 
     use crate::vault::{
         crypt::generate_key_full,
         init_rv_core,
         pgp_key::{delete_key, list_keys},
+        unseal_rv_core,
     };
 
     // Define a test function for generate-key-full mode
@@ -105,15 +126,17 @@ mod tests {
 
     // Define a test function for encrypt mode
     // #[test]
-    fn test_encrypt(core: Arc<RwLock<Core>>, token: &str) {
+    fn test_encrypt(core: Arc<RwLock<Core>>, token: &str, work_dir: &PathBuf) {
         // generate key to crypt
         let _ = generate_key_full("User2 <sci@sci.com>", "secret/sci", core, token).unwrap();
         // Create and run a new process to execute the encrypt_blob function
         let mut child = std::process::Command::new("cargo")
             .arg("run")
             .arg("vault")
-            .arg("encrypt")
             .arg("-p")
+            .arg(work_dir)
+            .arg("encrypt")
+            .arg("-k")
             .arg("secret/sci")
             .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
             .stdout(std::process::Stdio::piped())
@@ -138,7 +161,7 @@ mod tests {
 
     // Define a test function for decrypt mode
     // #[test]
-    fn test_decrypt(core: Arc<RwLock<Core>>, token: &str) {
+    fn test_decrypt(core: Arc<RwLock<Core>>, token: &str, work_dir: &PathBuf) {
         // Generate a key pair for testing
         let _ = generate_key_full(
             "User3 <basketball@basketball.com>",
@@ -154,8 +177,10 @@ mod tests {
         let mut child_encrypt = std::process::Command::new("cargo")
             .arg("run")
             .arg("vault")
-            .arg("encrypt")
             .arg("-p")
+            .arg(work_dir)
+            .arg("encrypt")
+            .arg("-k")
             .arg("secret/ball")
             .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
             .stdout(std::process::Stdio::piped())
@@ -181,8 +206,10 @@ mod tests {
         let mut child_decrypt = std::process::Command::new("cargo")
             .arg("run")
             .arg("vault")
-            .arg("decrypt")
             .arg("-p")
+            .arg(work_dir)
+            .arg("decrypt")
+            .arg("-k")
             .arg("secret/ball")
             .stdin(std::process::Stdio::piped()) // Pass the standard input stream as an argument
             .stdout(std::process::Stdio::piped())
@@ -232,10 +259,16 @@ mod tests {
 
     #[test]
     fn test_basic_logical() {
-        let (core, token) = init_rv_core();
+        // create a temporary directory for store config
+        let temp = env::temp_dir().join("rusty_vault_core_init");
+        defer! (
+            assert!(fs::remove_dir_all(&temp).is_ok());
+        );
+        init_rv_core(Some(&temp));
+        let (core, token) = unseal_rv_core(Some(&temp));
         test_generate_key_full(core.clone(), &token);
-        test_encrypt(core.clone(), &token);
-        test_decrypt(core.clone(), &token);
+        test_encrypt(core.clone(), &token, &temp);
+        test_decrypt(core.clone(), &token, &temp);
         test_list_keys(core.clone(), &token);
         test_delete_key(core.clone(), &token);
     }
