@@ -24,7 +24,12 @@ Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption an
    $ cp target/release/git-craft /usr/local/bin
    ```
 
-4. Edit `.git/config` to add `craft` filter in your repository.
+4. Init RustyVault Core and Generate a default key
+   ```bash
+   $ git-craft vault init
+   ```
+
+5. Edit `.git/config` to add `craft` filter in your repository.
 
    ```bash
    $ vim .git/config
@@ -32,11 +37,11 @@ Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption an
 
    ```ini
    [filter "craft"]
-       smudge = git-craft vault decrypt -p secret/craft
-       clean = git-craft vault encrypt -p secret/craft
+       smudge = git-craft vault decrypt -k secret/craft
+       clean = git-craft vault encrypt -k secret/craft
    ```
 
-5. Edit `.gitattributes` to add `craft` filter for files you want to encrypt.
+6. Edit `.gitattributes` to add `craft` filter for files you want to encrypt.
 
    ```bash
    $ vim .gitattributes
