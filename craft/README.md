@@ -54,12 +54,6 @@ Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption an
 ## Encryption and Decryption of Source Code
 
 
-
-### Prepare
-1. cd mega/craft
-2. modify all the key file path, KEY_FILE_PATH, MSG_FILE_NAME and filter to match your project
-3. cargo build --release
-
 ### Usage
 
 1. `git-craft vault new-key [primary_id] [key_path]`
@@ -71,12 +65,5 @@ Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption an
 4. `git-craft vault list`
   - git-craft will list keys name, key's fingerprint and id, it should be used without key path now, because I set a default key path
 5. `git-craft vault delete [key_path]`
-  - git-craft will show you what keys you have now, then remove keys by key name you entered, it should be used without key path now, because I set a default key path      
-
-### About Filter
-  
-1. must be used arguments
-  1. Two commands below are used when you dont need crypt. 
-   - git -c filter.crypt.smudge=noop <option>
-   - git -c filter.crypt.clean=noop <option>
+  - git-craft will show you what keys you have now, then remove keys by key name you entered, it should be used without key path now, because I set a default key path
 
