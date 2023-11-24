@@ -5,7 +5,18 @@
 ![Mega Architect](images/mega-architect.png)
 
 
-## Rust Dependency Import Order Guide
+## Comment Guideline
+
+This guide outlines the recommended order for importing dependencies in Rust projects.
+
+### File Header Comments (//!)
+
+### Struct Comments (///)
+
+### Function Comments (///)
+
+
+## Rust Dependency Import Order Guideline
 
 This guide outlines the recommended order for importing dependencies in Rust projects.
 
@@ -14,12 +25,15 @@ This guide outlines the recommended order for importing dependencies in Rust pro
 Import dependencies from the Rust standard library.
 
 #### 2. Third-Party Crates
+
 Import dependencies from third-party crates.
 
 #### 3. Other Modules in Workspace
+
 Import dependencies from other modules within the project workspace.
 
 #### 4. Within Modules
+
 Import functions and structs from within modules.
 
 
