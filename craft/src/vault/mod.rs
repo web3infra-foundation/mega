@@ -15,6 +15,11 @@ pub mod command;
 pub mod crypt;
 pub mod pgp_key;
 
+pub struct RustyVault {
+    pub core: Arc<RwLock<Core>>,
+    pub token: String,
+}
+
 pub const WORK_DIR_PATH_DEFAULT: &str = "/tmp/.mega/rusty_vault";
 
 /// Loads the Core instance and configuration.
