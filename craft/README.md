@@ -37,8 +37,8 @@ Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption an
 
    ```ini
    [filter "craft"]
-       smudge = git-craft vault decrypt -k secret/craft
-       clean = git-craft vault encrypt -k secret/craft
+       smudge = git-craft vault decrypt -n craft
+       clean = git-craft vault encrypt -n craft
    ```
 
 6. Edit `.gitattributes` to add `craft` filter for files you want to encrypt.
