@@ -1,12 +1,9 @@
 //!
-//! 
-//! 
-//! 
-//! 
-use std::{
-    io::Cursor,
-    sync::{Arc, RwLock},
-};
+//!
+//!
+//!
+//!
+use std::io::Cursor;
 
 use anyhow::{Context, Result};
 use pgp::{
@@ -14,10 +11,6 @@ use pgp::{
     SecretKeyParamsBuilder, SignedPublicKey, SignedSecretKey,
 };
 use rand::prelude::*;
-use rusty_vault::{
-    core::Core,
-    logical::{Operation, Request},
-};
 use smallvec::*;
 
 pub struct KeyPair {
@@ -150,41 +143,4 @@ pub fn decrypt_message(armored: &str, seckey: &str) -> Result<String, anyhow::Er
     }
 
     Err(anyhow::Error::msg("Failed to find message"))
-}
-
-// List keys and show their fingerprint, key id
-// Argument: key_path, key file path.
-// Return: public key and its name, secret key and its name
-pub fn list_keys(key_path: &str, core: Arc<RwLock<Core>>, token: &str) -> Result<Vec<String>> {
-    let core = core.read().unwrap();
-    let mut req = Request::new(key_path);
-    req.operation = Operation::List;
-    req.client_token = token.to_string();
-    let resp = core.handle_request(&mut req);
-    if let Ok(resp) = resp {
-        assert!(resp.is_some());
-        let body = resp.unwrap().data.unwrap();
-        let keys = body["keys"].as_array().unwrap();
-        let keys = keys.iter().map(|x| x.to_string()).collect::<Vec<String>>();
-        println!("{:?}", keys);
-        Ok(keys)
-    } else {
-        panic!("list key failed: {}", key_path)
-    }
-}
-
-// Delete key function, it list keys first, then delete keys you input,
-// Considering the public key and secret key should be used  together, it will be deleted together
-// Arguments: key_path, default one is "/mega/craft/key_files"; key_name, key's name you want delete
-pub fn delete_key(
-    key_path: &str,
-    core: Arc<RwLock<Core>>,
-    token: &str,
-) -> Result<(), anyhow::Error> {
-    let core = core.write().unwrap();
-    let mut req = Request::new(key_path);
-    req.operation = Operation::Delete;
-    req.client_token = token.to_string();
-    assert!(core.handle_request(&mut req).is_ok());
-    Ok(())
 }
