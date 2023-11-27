@@ -16,7 +16,7 @@ common = {path = "../common"}
 storage = {path = "../storage"}
 entity = { path = "../storage/entity" }
 anyhow = "1.0.75"
-axum = "0.6.20"
+axum = "0.7.1"
 hyper = "0.14.27"
 regex = "1.9.1"
 tracing = "0.1.37"
