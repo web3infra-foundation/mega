@@ -5,6 +5,9 @@
 
 
 pub mod cache;
+pub mod internal;
+pub mod hash;
+pub mod errors;
 
 #[cfg(test)]
 mod tests {
