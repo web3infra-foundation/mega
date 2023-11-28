@@ -1,6 +1,6 @@
 //! In Git, the SHA-1 hash algorithm is widely used to generate unique identifiers for Git objects.
 //! Each Git object corresponds to a unique SHA-1 hash value, which is used to identify the object's
-//! location in the Git database.
+//! location in the Git internal and mega database.
 //!
 
 use std::fmt::Display;
@@ -9,17 +9,26 @@ use colored::Colorize;
 use sha1_smol::Digest;
 use serde::{Deserialize, Serialize};
 
-/// The Hash struct which only contain the u8 array :`[u8;20]` is used to represent Git hash IDs,
-/// which are 40-character hexadecimal strings computed using the SHA-1 algorithm. In Git, each object
-/// is assigned a unique hash ID based on its content, which is used to identify
-/// the object's location in the Git database.The Hash struct provides a convenient
-/// way to store and manipulate Git hash IDs by using a separate struct for hash IDs to make
-/// code more readable and maintainable.
+/// The `SHA1` struct, encapsulating a `[u8; 20]` array, is specifically designed to represent Git hash IDs.
+/// In Git's context, these IDs are 40-character hexadecimal strings generated via the SHA-1 algorithm.
+/// Each Git object receives a unique hash ID based on its content, serving as an identifier for its location
+/// within the Git internal database. Utilizing a dedicated struct for these hash IDs enhances code readability and
+/// maintainability by providing a clear, structured format for their manipulation and storage.
+///
+/// ### Change Log
+/// 
+/// In previous versions of the 'mega' project, `Hash` was used to denote hash values. However, in newer versions,
+/// `SHA1` is employed for this purpose. Future updates plan to extend support to SHA256 and SHA512, or potentially
+/// other hash algorithms. By abstracting the hash model to `Hash`, and using specific imports like `use crate::hash::SHA1`
+/// or `use crate::hash::SHA256`, the codebase maintains a high level of clarity and maintainability. This design choice
+/// allows for easier adaptation to different hash algorithms while keeping the underlying implementation consistent and
+/// understandable. - Nov 26, 2023 (by @genedna)
+///
 #[allow(unused)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default,Deserialize, Serialize)]
 pub struct SHA1(pub [u8; 20]);
 
-/// Display trait for Hash type
+/// Display trait for SHA1, and colored output improve the readability in the terminal.
 impl Display for SHA1 {
     /// # Attention
     /// cause of the color chars for ,if you want to use the string without color ,
@@ -32,10 +41,17 @@ impl Display for SHA1 {
     }
 }
 
+/// Implementation of the `FromStr` trait for the `SHA1` type.
+///
+/// To effectively use the `from_str` method for converting a string to a `SHA1` object, consider the following:
+///   1. The input string `s` should be a pre-calculated hexadecimal string, exactly 40 characters in length. This string
+///      represents a SHA1 hash and should conform to the standard SHA1 hash format.
+///   2. It is necessary to explicitly import the `FromStr` trait to utilize the `from_str` method. Include the import
+///      statement `use std::str::FromStr;` in your code before invoking the `from_str` function. This import ensures
+///      that the `from_str` method is available for converting strings to `SHA1` objects.
 impl std::str::FromStr for SHA1 {
-    type Err = &'static str;
+    type Err = String;
 
-    /// Create Hash from a string, which is a 40-character hexadecimal string already calculated
     fn from_str(s: &str) ->  Result<Self, Self::Err> {
         let mut h = SHA1::default();
 
@@ -43,13 +59,34 @@ impl std::str::FromStr for SHA1 {
 
         match d {
             Ok(d) => h.0.copy_from_slice(d.bytes().as_slice()),  
-            Err(_e) => return Err("Hash from string encounter error"),
+            Err(e) => return Err(e.to_string()),
         }
 
         Ok(h)
     }
 }
 
+/// Implementation of the `SHA1` struct.
+///
+/// The naming conventions for the methods in this implementation are designed to be intuitive and self-explanatory:
+///
+/// 1. `new` Prefix: 
+///    Methods starting with `new` are used for computing a SHA-1 hash from given data, signifying the creation of 
+///    a new `SHA1` instance. For example, `pub fn new(data: &Vec<u8>) -> SHA1` takes a byte vector and calculates its SHA-1 hash.
+///
+/// 2. `from` Prefix:
+///    Methods beginning with `from` are intended for creating a `SHA1` instance from an existing, pre-calculated value. 
+///    This implies direct derivation of the `SHA1` object from the provided input. For instance, `pub fn from_bytes(bytes: &[u8]) -> SHA1`
+///    constructs a `SHA1` from a 20-byte array representing a SHA-1 hash.
+///
+/// 3. `to` Prefix:
+///    Methods with the `to` prefix are used for outputting the `SHA1` value in various formats. This prefix indicates a transformation or
+///    conversion of the `SHA1` instance into another representation. For example, `pub fn to_plain_str(self) -> String` converts the SHA1
+///    value to a plain hexadecimal string, and `pub fn to_data(self) -> Vec<u8>` converts it into a byte vector. The `to` prefix
+///    thus serves as a clear indicator that the method is exporting or transforming the SHA1 value into a different format.
+///
+/// These method naming conventions (`new`, `from`, `to`) provide clarity and predictability in the API, making it easier for users 
+/// to understand the intended use and functionality of each method within the `SHA1` struct.
 impl SHA1 {
     /// Calculate the SHA-1 hash of `Vec<u8>` data, then create a Hash value
     pub fn new(data: &Vec<u8>) -> SHA1 {
@@ -90,31 +127,31 @@ mod tests {
     use crate::hash::SHA1;
 
     #[test]
-    fn test_hash_new() {
-        let hash = SHA1::from_bytes(&[
+    fn test_sha1_new() {
+        let sha1 = SHA1::from_bytes(&[
             0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);
         assert_eq!(
-            hash.to_plain_str(),
+            sha1.to_plain_str(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
         );
     }
 
     #[test]
-    fn test_hash_from_bytes() {
-        let hash = SHA1::from_bytes(&[
+    fn test_sha1_from_bytes() {
+        let sha1 = SHA1::from_bytes(&[
             0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);
         assert_eq!(
-            hash.to_plain_str(),
+            sha1.to_plain_str(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
         );
     }
 
     #[test]
-    fn test_hash_from_str() {
+    fn test_sha1_from_str() {
         let hash_str = "8ab686eafeb1f44702738c8b0f24f2567c36da6d";
 
         match SHA1::from_str(hash_str) {
@@ -127,7 +164,20 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_to_data() {
+    fn test_sha1_to_plain_str() {
+        let hash_str = "8ab686eafeb1f44702738c8b0f24f2567c36da6d";
+
+        match SHA1::from_str(hash_str) {
+            Ok(hash) => {
+                assert_eq!(
+                    hash.to_plain_str(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+            },
+            Err(e) => println!("Error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_sha1_to_data() {
         let hash_str = "8ab686eafeb1f44702738c8b0f24f2567c36da6d";
 
         match SHA1::from_str(hash_str) {
@@ -144,6 +194,4 @@ mod tests {
             
         }
     }
-
-
 }
