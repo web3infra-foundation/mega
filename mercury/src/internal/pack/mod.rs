@@ -9,17 +9,17 @@ use std::io::Read;
 
 use common::utils;
 
-use git::hash::Hash;
-use git::internal::object::ObjectT;
-use git::errors::GitError;
+use crate::hash::SHA1;
+use crate::internal::object::ObjectTrait;
+use crate::errors::GitError;
 
 use crate::cache::Cache;
 
 #[allow(unused)]
 pub struct Pack {
     pub number: usize,
-    pub signature: Hash,
-    pub objects: Box<dyn Cache<T = Arc<dyn ObjectT>>>,
+    pub signature: SHA1,
+    pub objects: Box<dyn Cache<T = Arc<dyn ObjectTrait>>>,
 }
 
 impl Pack {
