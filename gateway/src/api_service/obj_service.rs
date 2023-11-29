@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::body::Full;
-use axum::response::{IntoResponse, Json};
+use axum::response::Json;
 use axum::{http::StatusCode, response::Response};
-use hyper::body::Bytes;
 
 use git::internal::object::commit::Commit;
 use git::internal::object::tree::Tree;
@@ -156,7 +154,7 @@ impl ObjectService {
     pub async fn get_objects_data(
         &self,
         object_id: &str,
-    ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    ) -> Result<Response, (StatusCode, String)> {
         let node = match self.storage.get_node_by_hash(object_id).await {
             Ok(Some(node)) => node,
             _ => return Err((StatusCode::NOT_FOUND, "Blob not found".to_string())),
@@ -165,13 +163,11 @@ impl ObjectService {
             Ok(Some(model)) => model,
             _ => return Err((StatusCode::NOT_FOUND, "Blob not found".to_string())),
         };
-        let body = Full::new(Bytes::from(raw_data.data));
-
         let file_name = format!("inline; filename=\"{}\"", node.name.unwrap());
         let res = Response::builder()
             .header("Content-Type", "application/octet-stream")
             .header("Content-Disposition", file_name)
-            .body(body)
+            .body(raw_data.data.into())
             .unwrap();
         Ok(res)
     }

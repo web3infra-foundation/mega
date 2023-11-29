@@ -65,7 +65,7 @@ pub struct User {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct BatchVars {
     pub transfers: Vec<String>,
     pub operation: String,
@@ -104,12 +104,12 @@ pub struct Representation {
     pub error: Option<ObjectError>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Ref {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct LockRequest {
     pub path: String,
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
@@ -122,7 +122,7 @@ pub struct LockResponse {
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct UnlockRequest {
     pub force: Option<bool>,
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
@@ -141,7 +141,7 @@ pub struct LockList {
     pub next_cursor: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct VerifiableLockRequest {
     #[serde(rename(serialize = "ref", deserialize = "ref"))]
     pub refs: Ref,
@@ -158,9 +158,9 @@ pub struct VerifiableLockList {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LockListQuery {
-    pub path: Option<String>,
-    pub id: Option<String>,
-    pub cursor: Option<String>,
-    pub limit: Option<String>,
-    pub refspec: Option<String>,
+    pub path: String,
+    pub id: String,
+    pub cursor: String,
+    pub limit: String,
+    pub refspec: String,
 }
