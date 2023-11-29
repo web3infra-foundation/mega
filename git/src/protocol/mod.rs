@@ -17,7 +17,6 @@ use storage::driver::{database::mysql_storage::MysqlStorage, database::storage::
 
 use crate::protocol::pack::SP;
 
-pub mod http;
 pub mod pack;
 pub mod ssh;
 #[derive(Clone)]

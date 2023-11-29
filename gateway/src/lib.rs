@@ -10,12 +10,13 @@ use git::lfs::LfsConfig;
 use https::AppState;
 use storage::driver::file_storage::local_storage::LocalStorage;
 
+mod api_service;
+mod git_http;
 pub mod https;
 pub mod init;
-pub mod ssh;
-
-mod api_service;
+mod lfs;
 mod model;
+pub mod ssh;
 
 impl From<AppState> for LfsConfig {
     fn from(value: AppState) -> Self {
