@@ -8,13 +8,6 @@
 //! Error handling is done to return appropriate responses in case of success or failure.
 //! These handlers are used in an Axum-based web application to handle Git LFS requests.
 //!
-//! # Example
-//!
-//! ```rust
-//! // Example usage of Git LFS handlers in an Axum application
-//! // ...
-//! ```
-//!
 //! # References
 //!
 //! - Git LFS Documentation: [https://git-lfs.github.com/](https://git-lfs.github.com/)
