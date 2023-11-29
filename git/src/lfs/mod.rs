@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use storage::driver::{database::storage::ObjectStorage, file_storage::FileStorage};
 
-pub mod http;
+pub mod handler;
 pub mod lfs_structs;
 
 #[derive(Clone)]

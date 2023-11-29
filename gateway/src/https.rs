@@ -10,24 +10,25 @@ use std::str::FromStr;
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
+use axum::body::Body;
 use axum::extract::{Query, State};
+use axum::http::{Request, StatusCode, Uri};
 use axum::response::Response;
 use axum::routing::get;
-use axum::{Router, Server};
+use axum::Router;
 use clap::Args;
-use hyper::{Body, Request, StatusCode, Uri};
+use git::lfs::LfsConfig;
 use regex::Regex;
 use serde::Deserialize;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 
 use common::enums::DataSource;
-use git::lfs::lfs_structs::LockListQuery;
-use git::lfs::{self, LfsConfig};
-use git::protocol::{http, ServiceType};
-use git::protocol::{PackProtocol, Protocol};
+use git::protocol::{PackProtocol, Protocol, ServiceType};
 use storage::driver::database;
 use storage::driver::database::storage::ObjectStorage;
+
+use crate::{lfs, git_http};
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -56,7 +57,7 @@ pub struct AppState {
 }
 
 #[derive(Deserialize, Debug)]
-struct GetParams {
+pub struct GetParams {
     pub service: Option<String>,
     pub refspec: Option<String>,
     pub id: Option<String>,
@@ -95,7 +96,8 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
         .with_state(state);
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
-    Server::bind(&addr).serve(app.into_make_service()).await?;
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
 }
@@ -112,21 +114,9 @@ async fn get_method_router(
         .unwrap()
         .is_match(uri.path())
     {
-        // Retrieve the `:oid` field from path.
-        let path = uri.path().to_owned();
-        let tokens: Vec<&str> = path.split('/').collect();
-        // The `:oid` field is the last field.
-        return lfs::http::lfs_download_object(&lfs_config, tokens[tokens.len() - 1]).await;
+        return lfs::lfs_download_object(&lfs_config, uri.path()).await;
     } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
-        // Load query parameters into struct.
-        let lock_list_query = LockListQuery {
-            path: params.path,
-            id: params.id,
-            cursor: params.cursor,
-            limit: params.limit,
-            refspec: params.refspec,
-        };
-        return lfs::http::lfs_retrieve_lock(&lfs_config, lock_list_query).await;
+        return lfs::lfs_retrieve_lock(&lfs_config, params).await;
     }
 
     let service_name = params.service.unwrap();
@@ -173,22 +163,18 @@ async fn post_method_router(
     state: State<AppState>,
     uri: Uri,
     req: Request<Body>,
-) -> Result<Response<Body>, (StatusCode, String)> {
+) -> Result<Response, (StatusCode, String)> {
     let mut lfs_config: LfsConfig = state.deref().to_owned().into();
     lfs_config.fs_storage = storage::driver::file_storage::init("lfs-files".to_owned()).await;
     // Routing LFS services.
     if Regex::new(r"/locks/verify$").unwrap().is_match(uri.path()) {
-        return lfs::http::lfs_verify_lock(&lfs_config, req).await;
+        return lfs::lfs_verify_lock(state, &lfs_config, req).await;
     } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
-        return lfs::http::lfs_create_lock(&lfs_config, req).await;
+        return lfs::lfs_create_lock(state, &lfs_config, req).await;
     } else if Regex::new(r"/unlock$").unwrap().is_match(uri.path()) {
-        // Retrieve the `:id` field from path.
-        let path = uri.path().to_owned();
-        let tokens: Vec<&str> = path.split('/').collect();
-        // The `:id` field is just ahead of the last field.
-        return lfs::http::lfs_delete_lock(&lfs_config, tokens[tokens.len() - 2], req).await;
+        return lfs::lfs_delete_lock(state, &lfs_config, uri.path(), req).await;
     } else if Regex::new(r"/objects/batch$").unwrap().is_match(uri.path()) {
-        return lfs::http::lfs_process_batch(&lfs_config, req).await;
+        return lfs::lfs_process_batch(state, &lfs_config, req).await;
     }
 
     if Regex::new(r"/git-upload-pack$")
@@ -200,7 +186,7 @@ async fn post_method_router(
             state.storage.clone(),
             Protocol::Http,
         );
-        http::git_upload_pack(req, pack_protocol).await
+        git_http::git_upload_pack(req, pack_protocol).await
     } else if Regex::new(r"/git-receive-pack$")
         .unwrap()
         .is_match(uri.path())
@@ -210,7 +196,7 @@ async fn post_method_router(
             state.storage.clone(),
             Protocol::Http,
         );
-        http::git_receive_pack(req, pack_protocol).await
+        git_http::git_receive_pack(req, pack_protocol).await
     } else {
         Err((
             StatusCode::FORBIDDEN,
@@ -230,11 +216,7 @@ async fn put_method_router(
         .unwrap()
         .is_match(uri.path())
     {
-        // Retrieve the `:oid` field from path.
-        let path = uri.path().to_owned();
-        let tokens: Vec<&str> = path.split('/').collect();
-        // The `:oid` field is the last field.
-        lfs::http::lfs_upload_object(&lfs_config, tokens[tokens.len() - 1], req).await
+        lfs::lfs_upload_object(&lfs_config, uri.path(), req).await
     } else {
         Err((
             StatusCode::FORBIDDEN,
@@ -248,11 +230,11 @@ mod api_routers {
 
     use axum::{
         extract::{Query, State},
+        http::StatusCode,
         response::IntoResponse,
         routing::get,
         Json, Router,
     };
-    use hyper::StatusCode;
 
     use crate::{
         api_service::obj_service::ObjectService,

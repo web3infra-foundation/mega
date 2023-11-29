@@ -8,14 +8,12 @@ use std::collections::HashMap;
 use anyhow::Result;
 use axum::body::Body;
 use axum::http::response::Builder;
-use axum::http::{Response, StatusCode};
-use bytes::{BufMut, Bytes, BytesMut};
-use futures::StreamExt;
-use hyper::body::Sender;
-use hyper::Request;
-use tokio::io::{AsyncReadExt, BufReader};
+use axum::http::{Request, Response, StatusCode};
+use bytes::{Bytes, BytesMut};
+use futures::TryStreamExt;
+use tokio::io::AsyncReadExt;
 
-use crate::protocol::{pack, PackProtocol};
+use git::protocol::{pack, PackProtocol};
 
 /// # Build Response headers for Smart Server.
 /// Clients MUST NOT reuse or revalidate a cached response.
@@ -35,47 +33,6 @@ pub fn build_res_header(content_type: String) -> Builder {
     resp
 }
 
-/// # Sends a Git pack to the remote server.
-///
-/// This function takes a `Sender` for sending data to the remote server, the `result` vector
-/// containing the pack data, and the `pack_protocol` describing the pack transfer protocol.
-/// It asynchronously reads the pack data from the `result` vector in chunks, formats it using the
-/// side-band format specified by the `pack_protocol`, and sends it to the remote server using
-/// the `Sender`.
-///
-/// # Arguments
-///
-/// * `sender` - The sender for sending data to the remote server.
-/// * `result` - The vector containing the pack data to be sent.
-/// * `pack_protocol` - The pack protocol describing the pack transfer.
-///
-/// # Returns
-///
-/// * `Ok(())` - If the pack data is successfully sent to the remote server.
-/// * `Err((StatusCode, &'static str))` - If there is an error during the sending process, with the
-///   error status code and a corresponding error message.
-pub async fn send_pack(
-    mut sender: Sender,
-    result: Vec<u8>,
-    pack_protocol: PackProtocol,
-) -> Result<(), (StatusCode, &'static str)> {
-    let mut reader = BufReader::new(result.as_slice());
-    loop {
-        let mut temp = BytesMut::new();
-        temp.reserve(65500);
-        let length = reader.read_buf(&mut temp).await.unwrap();
-        if temp.is_empty() {
-            let mut bytes_out = BytesMut::new();
-            bytes_out.put_slice(pack::PKT_LINE_END_MARKER);
-            tracing::info!("send: bytes_out: {:?}", bytes_out.clone().freeze());
-            sender.send_data(bytes_out.freeze()).await.unwrap();
-            return Ok(());
-        }
-        let bytes_out = pack_protocol.build_side_band_format(temp, length);
-        tracing::info!("send: packet length: {:?}", bytes_out.len());
-        sender.send_data(bytes_out.freeze()).await.unwrap();
-    }
-}
 /// # Handles a Git upload pack request and prepares the response.
 ///
 /// The function takes a `req` parameter representing the HTTP request received and a `pack_protocol`
@@ -100,29 +57,46 @@ pub async fn git_upload_pack(
     req: Request<Body>,
     mut pack_protocol: PackProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let (_parts, mut body) = req.into_parts();
-
-    let mut upload_request = BytesMut::new();
-
-    while let Some(chunk) = body.next().await {
-        tracing::info!("client sends :{:?}", chunk);
-        let bytes = chunk.unwrap();
-        upload_request.extend_from_slice(&bytes);
-    }
+    let upload_request: BytesMut = req
+        .into_body()
+        .into_data_stream()
+        .try_fold(BytesMut::new(), |mut acc, chunk| async move {
+            acc.extend_from_slice(&chunk);
+            Ok(acc)
+        })
+        .await
+        .unwrap();
 
     let (send_pack_data, buf) = pack_protocol
         .git_upload_pack(&mut upload_request.freeze())
         .await
         .unwrap();
+    tracing::info!("send ack/nak message buf: {:?}", buf);
+    let mut res_bytes = BytesMut::new();
+    res_bytes.extend(buf);
+
     let resp = build_res_header("application/x-git-upload-pack-result".to_owned());
 
-    tracing::info!("send buf: {:?}", buf);
+    tracing::info!("send response");
 
-    let (mut sender, body) = Body::channel();
-    sender.send_data(buf.freeze()).await.unwrap();
-
-    tokio::spawn(send_pack(sender, send_pack_data, pack_protocol));
-    Ok(resp.body(body).unwrap())
+    let mut reader = send_pack_data.as_slice();
+    loop {
+        let mut temp = BytesMut::new();
+        temp.reserve(65500);
+        let length = reader.read_buf(&mut temp).await.unwrap();
+        if length == 0 {
+            let bytes_out = Bytes::from_static(pack::PKT_LINE_END_MARKER);
+            tracing::info!("send 0000:{:?}", bytes_out);
+            res_bytes.extend(bytes_out);
+            break;
+        }
+        let bytes_out = pack_protocol.build_side_band_format(temp, length);
+        tracing::info!("send pack file: length: {:?}", bytes_out.len());
+        res_bytes.extend(bytes_out);
+    }
+    let body = Body::from(res_bytes.freeze());
+    let resp = resp.body(body).unwrap();
+    Ok(resp)
 }
 
 /// # Handles a Git receive pack request and prepares the response.
@@ -149,22 +123,23 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: PackProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let (_parts, mut body) = req.into_parts();
-    let mut combined_body_bytes = Vec::new();
-    while let Some(chunk) = body.next().await {
-        let body_bytes = chunk.unwrap();
-        combined_body_bytes.extend(&body_bytes);
-    }
-
-    let parse_report = pack_protocol
-        .git_receive_pack(Bytes::from(combined_body_bytes))
+    let combined_body_bytes: BytesMut = req
+        .into_body()
+        .into_data_stream()
+        .try_fold(BytesMut::new(), |mut acc, chunk| async move {
+            acc.extend_from_slice(&chunk);
+            Ok(acc)
+        })
         .await
         .unwrap();
-    let body = Body::from(parse_report);
-    tracing::info!("report status:{:?}", body);
-    let resp = build_res_header("application/x-git-receive-pack-result".to_owned());
 
-    let resp = resp.body(body).unwrap();
+    let parse_report = pack_protocol
+        .git_receive_pack(combined_body_bytes.freeze())
+        .await
+        .unwrap();
+    tracing::info!("report status:{:?}", parse_report);
+    let resp = build_res_header("application/x-git-receive-pack-result".to_owned());
+    let resp = resp.body(Body::from(parse_report)).unwrap();
     Ok(resp)
 }
 #[cfg(test)]
