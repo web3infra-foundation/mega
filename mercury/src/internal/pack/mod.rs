@@ -2,16 +2,12 @@
 //! ## Reference
 //! 1. Git Pack-Format [Introduce](https://git-scm.com/docs/pack-format)
 //!
-use std::sync::Arc;
-use std::io::{self, Read};
-
+// use std::sync::Arc;
+use std::io::{self, Read, Seek};
 
 use common::utils;
 
-use crate::hash::SHA1;
-use crate::internal::object::ObjectTrait;
 use crate::errors::GitError;
-use crate::cache::Cache;
 
 ///
 /// 
@@ -19,8 +15,6 @@ use crate::cache::Cache;
 #[allow(unused)]
 pub struct Pack {
     pub number: usize,
-    pub signature: SHA1,
-    pub objects: Box<dyn Cache<T = Arc<dyn ObjectTrait>>>,
 }
 
 
@@ -56,19 +50,34 @@ impl Pack {
         Ok(object_num)
     }
 
-    /// Object type and uncompressed pack data size are stored in a "size-encoding" variable-length integer.
-    /// Bits 4 through 6 store the type and the remaining bits store the size.
-    pub fn decode_object_type_and_size<R: Read>(_stream: &mut R) -> io::Result<(u8, usize)> {
-        Ok((0, 0))
+    /// (undeltified representation)
+    /// n-byte type and length (3-bit type, (n-1)*7+4-bit length)
+    /// compressed data
+    /// 
+    /// n-byte type and length (3-bit type, (n-1)*7+4-bit length)
+    /// base object name if OBJ_REF_DELTA or a negative relative
+    /// offset from the delta object's position in the pack if this
+    /// is an OBJ_OFS_DELTA object
+    /// compressed delta data
+    /// 
+    pub fn decode_pack_object(&mut self, _pack: &mut (impl Read + Seek), _offset: &mut usize) -> Result<usize, GitError> {
+        Ok(0)
     }
 
-    /// Decode the Pack File without the `.idx` File
-    pub fn decode(&mut self, pack: &mut impl Read) -> Result<(), GitError> {
+    ///
+    /// 
+    /// 
+    pub fn decode(&mut self, pack: &mut (impl Read + Seek)) -> Result<(), GitError> {
         let object_num = Pack::check_header(pack).unwrap();
         self.number = object_num as usize;
 
-        for _ in 0..object_num {
-            
+        let mut offset: usize = 12;
+        let mut i = 1;
+
+        while i < object_num {
+            let _ = self.decode_pack_object(pack, &mut offset).unwrap();
+
+            i += 1;
         }
 
         Ok(())
@@ -115,13 +124,17 @@ fn read_byte_and_check_continuation<R: Read>(stream: &mut R) -> io::Result<(u8, 
 ///
 /// # Parameters
 /// * `stream`: The stream from which the bytes are read.
+/// * `offset`: The offset of the stream.
 ///
 /// # Returns
 /// Returns an `io::Result` containing a tuple of the type and the computed size.
 ///
 #[allow(unused)]
-fn read_type_and_varint_size<R: Read>(stream: &mut R) -> io::Result<(u8, u64)> {
+fn read_type_and_varint_size<R: Read>(stream: &mut R, offset: &mut usize) -> io::Result<(u8, u64)> {
     let (first_byte, continuation) = read_byte_and_check_continuation(stream)?;
+
+    // Increment the offset by one byte
+    *offset += 1;
 
     // Extract the type (bits 2, 3, 4 of the first byte)
     let type_bits = (first_byte & 0b0111_0000) >> 4;
@@ -133,6 +146,9 @@ fn read_type_and_varint_size<R: Read>(stream: &mut R) -> io::Result<(u8, u64)> {
     let mut more_bytes = continuation;
     while more_bytes {
         let (next_byte, continuation) = read_byte_and_check_continuation(stream)?;
+        // Increment the offset by one byte
+        *offset += 1;
+
         size |= (next_byte as u64) << shift;
         shift += 7; // Each subsequent byte contributes 7 more bits
         more_bytes = continuation;
@@ -161,13 +177,15 @@ mod tests {
         assert_eq!(object_num, 358109);
     }
 
-    #[test]
-    fn test_pack_decode() {
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git.pack");
+    // #[test]
+    // fn test_pack_decode() {
+    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+    //     source.push("tests/data/packs/git.pack");
 
-        let _f = std::fs::File::open(source).unwrap();   
-    }
+    //     let mut f = std::fs::File::open(source).unwrap();
+    //     let mut p = Pack { number: 0};
+    //     p.decode(&mut f).unwrap();
+    // }
 
     // Test case for a byte without a continuation bit (most significant bit is 0)
     #[test]
@@ -215,9 +233,11 @@ mod tests {
     #[test]
     fn test_single_byte_no_continuation() {
         let data = [0b0101_0101]; // Type: 5 (101), Size: 5 (0101)
+        let mut offset: usize = 0;
         let mut cursor = Cursor::new(data);
-        let (type_bits, size) = read_type_and_varint_size(&mut cursor).unwrap();
+        let (type_bits, size) = read_type_and_varint_size(&mut cursor, &mut offset).unwrap();
 
+        assert_eq!(offset, 1); // Offset is 1
         assert_eq!(type_bits, 5); // Expected type is 2
         assert_eq!(size, 5); // Expected size is 5
     }
@@ -227,9 +247,11 @@ mod tests {
     fn test_multiple_bytes_with_continuation() {
         // Type: 5 (101), Sizes: 5 (0101), 3 (0000011) in little-endian order
         let data = [0b1101_0101, 0b0000_0011]; // Second byte's msb is 0
+        let mut offset: usize = 0;
         let mut cursor = Cursor::new(data);
-        let (type_bits, size) = read_type_and_varint_size(&mut cursor).unwrap();
+        let (type_bits, size) = read_type_and_varint_size(&mut cursor, &mut offset).unwrap();
 
+        assert_eq!(offset, 2); // Offset is 2
         assert_eq!(type_bits, 5); // Expected type is 5
         // Expected size 000000110101
         // 110101  = 1 * 2^5 + 1 * 2^4 + 0 * 2^3 + 1 * 2^2 + 0 * 2^1 + 1 * 2^0= 53
@@ -241,9 +263,11 @@ mod tests {
     fn test_edge_case_size_spread_across_bytes() {
         // Type: 1 (001), Sizes: 15 (1111) in little-endian order
         let data = [0b0001_1111, 0b0000_0010]; // Second byte's msb is 1 (continuation)
+        let mut offset: usize = 0;
         let mut cursor = Cursor::new(data);
-        let (type_bits, size) = read_type_and_varint_size(&mut cursor).unwrap();
+        let (type_bits, size) = read_type_and_varint_size(&mut cursor, &mut offset).unwrap();
 
+        assert_eq!(offset, 1); // Offset is 1
         assert_eq!(type_bits, 1); // Expected type is 1
         // Expected size is 15 
         assert_eq!(size, 15);
