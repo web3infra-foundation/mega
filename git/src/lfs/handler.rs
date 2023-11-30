@@ -17,7 +17,7 @@ use storage::driver::database::storage::ObjectStorage;
 use storage::driver::file_storage::local_storage::MetaObject;
 
 use crate::lfs::lfs_structs::{
-    BatchVars, LockList, LockRequest, ObjectError, UnlockRequest, VerifiableLockList,
+    BatchRequest, LockList, LockRequest, ObjectError, UnlockRequest, VerifiableLockList,
     VerifiableLockRequest,
 };
 use crate::lfs::lfs_structs::{Link, Lock, LockListQuery, Representation, RequestVars};
@@ -176,7 +176,7 @@ pub async fn lfs_delete_lock(
 
 pub async fn lfs_process_batch(
     config: &LfsConfig,
-    mut batch_vars: BatchVars,
+    mut batch_vars: BatchRequest,
 ) -> Result<Vec<Representation>, GitLFSError> {
     let bvo = &mut batch_vars.objects;
     for request in bvo {
