@@ -3,6 +3,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
+pub enum TransferMode {
+    #[default]
+    BASIC,
+    MULTIPART,
+    //not implement yet
+    STREAMING
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct RequestVars {
     pub oid: String,
     pub size: i64,
@@ -66,10 +75,11 @@ pub struct User {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct BatchVars {
-    pub transfers: Vec<String>,
+pub struct BatchRequest {
     pub operation: String,
+    pub transfers: Vec<String>,
     pub objects: Vec<RequestVars>,
+    pub hash_algo: String,
 }
 
 #[derive(Serialize, Deserialize)]

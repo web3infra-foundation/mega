@@ -301,7 +301,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack { number: 0};
-        let _ = p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered).unwrap();
     }
 
     #[test]
@@ -312,7 +312,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack { number: 0};
-        let _ = p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered).unwrap();
     }
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack { number: 0};
-        let _ = p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered).unwrap();
     }
 
     #[test]
@@ -334,7 +334,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack { number: 0};
-        let _ = p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered).unwrap();
     }
 
     // Test case for a byte without a continuation bit (most significant bit is 0)
