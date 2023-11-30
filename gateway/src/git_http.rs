@@ -13,24 +13,26 @@ use bytes::{Bytes, BytesMut};
 use futures::TryStreamExt;
 use tokio::io::AsyncReadExt;
 
-use git::protocol::{pack, PackProtocol};
+use git::protocol::{pack, PackProtocol, ServiceType};
 
-/// # Build Response headers for Smart Server.
-/// Clients MUST NOT reuse or revalidate a cached response.
-/// Servers MUST include sufficient Cache-Control headers to prevent caching of the response.
-pub fn build_res_header(content_type: String) -> Builder {
-    let mut headers = HashMap::new();
-    headers.insert("Content-Type".to_string(), content_type);
-    headers.insert(
-        "Cache-Control".to_string(),
-        "no-cache, max-age=0, must-revalidate".to_string(),
-    );
-    let mut resp = Response::builder();
+use crate::https::GetParams;
 
-    for (key, val) in headers {
-        resp = resp.header(&key, val);
-    }
-    resp
+// # Discovering Reference
+// HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
+// discover references by making a parameterized request for the info/refs file of the repository.
+// The request MUST contain exactly one query parameter, service=$servicename,
+// where $servicename MUST be the service name the client wishes to contact to complete the operation.
+// The request MUST NOT contain additional query parameters.
+pub async fn git_info_refs(
+    params: GetParams,
+    mut pack_protocol: PackProtocol,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    let service_name = params.service.unwrap();
+    let service_type = service_name.parse::<ServiceType>().unwrap();
+    let resp = build_res_header(format!("application/x-{}-advertisement", service_name));
+    let pkt_line_stream = pack_protocol.git_info_refs(service_type).await;
+    let body = Body::from(pkt_line_stream.freeze());
+    Ok(resp.body(body).unwrap())
 }
 
 /// # Handles a Git upload pack request and prepares the response.
@@ -133,6 +135,7 @@ pub async fn git_receive_pack(
         .await
         .unwrap();
 
+
     let parse_report = pack_protocol
         .git_receive_pack(combined_body_bytes.freeze())
         .await
@@ -141,6 +144,24 @@ pub async fn git_receive_pack(
     let resp = build_res_header("application/x-git-receive-pack-result".to_owned());
     let resp = resp.body(Body::from(parse_report)).unwrap();
     Ok(resp)
+}
+
+/// # Build Response headers for Smart Server.
+/// Clients MUST NOT reuse or revalidate a cached response.
+/// Servers MUST include sufficient Cache-Control headers to prevent caching of the response.
+pub fn build_res_header(content_type: String) -> Builder {
+    let mut headers = HashMap::new();
+    headers.insert("Content-Type".to_string(), content_type);
+    headers.insert(
+        "Cache-Control".to_string(),
+        "no-cache, max-age=0, must-revalidate".to_string(),
+    );
+    let mut resp = Response::builder();
+
+    for (key, val) in headers {
+        resp = resp.header(&key, val);
+    }
+    resp
 }
 #[cfg(test)]
 mod tests {}

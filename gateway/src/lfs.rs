@@ -53,7 +53,7 @@ use common::errors::GitLFSError;
 use futures::TryStreamExt;
 use git::lfs::{
     lfs_structs::{
-        BatchResponse, BatchVars, LockList, LockListQuery, LockRequest, LockResponse, RequestVars,
+        BatchResponse, LockList, LockListQuery, LockRequest, LockResponse, RequestVars,
         UnlockRequest, UnlockResponse, VerifiableLockRequest,
     },
     LfsConfig,
@@ -193,8 +193,7 @@ pub async fn lfs_process_batch(
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let request = Json::from_request(req, &state)
         .await
-        .unwrap_or_else(|_| Json(BatchVars::default()));
-
+        .unwrap();
     let result = git::lfs::handler::lfs_process_batch(config, request.0).await;
 
     match result {
