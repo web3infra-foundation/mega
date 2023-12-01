@@ -30,6 +30,6 @@ serde_json = "1.0.105"
 clap = { version = "4.4.0", features = ["derive"] }
 chrono = "0.4.26"
 octocrab = "0.31.0"
-jsonwebtoken = "8.3.0"
+jsonwebtoken = "9.2.0"
 futures = "0.3.28"
 bytes = "1.4.0"
