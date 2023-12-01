@@ -122,20 +122,45 @@ impl SHA1 {
 
 #[cfg(test)]
 mod tests {
+    use std::{path::PathBuf, env};
     use std::str::FromStr;
+    use std::io::SeekFrom;
+    use std::io::BufReader;
+    use std::io::Seek;
+    use std::io::Read;
 
     use crate::hash::SHA1;
 
     #[test]
     fn test_sha1_new() {
-        let sha1 = SHA1::from_bytes(&[
-            0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
-            0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
-        ]);
+        // Example input
+        let data = "Hello, world!".as_bytes();
+    
+        // Generate SHA1 hash from the input data
+        let sha1 = SHA1::new(&data.to_vec());
+    
+        // Known SHA1 hash for "Hello, world!"
+        let expected_sha1_hash = "943a702d06f34599aee1f8da8ef9f7296031d699";
+    
         assert_eq!(
             sha1.to_plain_str(),
-            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
+            expected_sha1_hash
         );
+    }
+
+    #[test]
+    fn test_signature_without_delta() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
+
+        let f = std::fs::File::open(source).unwrap();
+        let mut buffered = BufReader::new(f);
+
+        buffered.seek(SeekFrom::End(-20)).unwrap();
+        let mut buffer = vec![0; 20];
+        buffered.read_exact(&mut buffer).unwrap();
+        let signature = SHA1::from_bytes(buffer.as_ref());
+        assert_eq!(signature.to_plain_str(), "1d0e6c14760c956c173ede71cb28f33d921e232f");
     }
 
     #[test]
@@ -144,6 +169,7 @@ mod tests {
             0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);
+
         assert_eq!(
             sha1.to_plain_str(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
