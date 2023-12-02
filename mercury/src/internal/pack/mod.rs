@@ -2,16 +2,15 @@
 //! ## Reference
 //! 1. Git Pack-Format [Introduce](https://git-scm.com/docs/pack-format)
 //!
+pub mod wrapper;
 
 use std::io::{self, Read, BufRead, Seek};
 
-use sha1::{Sha1, Digest};
 use flate2::bufread::ZlibDecoder;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
-
-
+use crate::internal::pack::wrapper::Wrapper;
 
 ///
 /// 
@@ -19,88 +18,6 @@ use crate::hash::SHA1;
 #[allow(unused)]
 pub struct Pack {
     pub number: usize,
-}
-
-/// `HashCounter` is a wrapper around a reader that also computes the SHA1 hash of the data read.
-///
-/// It is designed to work with any reader that implements `BufRead`.
-///
-/// Fields:
-/// * `inner`: The inner reader.
-/// * `hash`: The SHA1 hash state.
-/// * `count_hash`: A flag to indicate whether to compute the hash while reading.
-pub struct HashCounter<R> {
-    inner: R,
-    hash: Sha1,
-    count_hash: bool,
-}
-
-impl<R> HashCounter<R>
-where
-    R: BufRead,
-{
-    /// Constructs a new `HashCounter` with the given reader and a flag to enable or disable hashing.
-    ///
-    /// # Parameters
-    /// * `inner`: The reader to wrap.
-    /// * `count_hash`: If `true`, the hash is computed while reading; otherwise, it is not.
-    pub fn new(inner: R, count_hash: bool) -> Self {
-        Self {
-            inner,
-            hash: Sha1::new(), // Initialize a new SHA1 hasher
-            count_hash,
-        }
-    }
-
-    /// Returns the final SHA1 hash of the data read so far.
-    ///
-    /// This is a clone of the internal hash state finalized into a SHA1 hash.
-    pub fn final_hash(&self) -> SHA1 {
-        let re: [u8; 20] = self.hash.clone().finalize().into(); // Clone, finalize, and convert the hash into bytes
-        SHA1(re)
-    }
-}
-
-impl<R> BufRead for HashCounter<R>
-where
-    R: BufRead,
-{
-    /// Provides access to the internal buffer of the wrapped reader without consuming it.
-    fn fill_buf(&mut self) -> io::Result<&[u8]> {
-        self.inner.fill_buf() // Delegate to the inner reader
-    }
-
-    /// Consumes data from the buffer and updates the hash if `count_hash` is true.
-    ///
-    /// # Parameters
-    /// * `amt`: The amount of data to consume from the buffer.
-    fn consume(&mut self, amt: usize) {
-        let buffer = self.inner.fill_buf().expect("Failed to fill buffer");
-        if self.count_hash {
-            self.hash.update(&buffer[..amt]); // Update hash with the data being consumed
-        }
-        self.inner.consume(amt); // Consume the data from the inner reader
-    }
-}
-
-impl<R> Read for HashCounter<R>
-where
-    R: BufRead,
-{
-    /// Reads data into the provided buffer and updates the hash if `count_hash` is true.
-    ///
-    /// # Parameters
-    /// * `buf`: The buffer to read data into.
-    ///
-    /// # Returns
-    /// Returns the number of bytes read.
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let o = self.inner.read(buf)?; // Read data into the buffer
-        if self.count_hash {
-            self.hash.update(&buf[..o]); // Update hash with the data being read
-        }
-        Ok(o) // Return the number of bytes read
-    }
 }
 
 /// 
@@ -319,9 +236,7 @@ impl Pack {
     /// 
     /// 
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
-        let count_hash: bool = true;
-        let mut render = HashCounter::new(io::BufReader::new(pack), count_hash);
-
+        let mut render = Wrapper::new(io::BufReader::new(pack));
 
         let result = Pack::check_header(&mut render);
         match result {
