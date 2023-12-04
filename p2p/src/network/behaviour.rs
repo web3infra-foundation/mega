@@ -6,6 +6,7 @@ use libp2p::{dcutr, identify, relay, rendezvous, request_response};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use crate::cbor;
+use crate::nostr::{NostrReq, NostrRes};
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "Event")]
@@ -18,6 +19,7 @@ pub struct Behaviour {
     pub git_upload_pack: cbor::Behaviour<GitUploadPackReq, GitUploadPackRes>,
     pub git_info_refs: cbor::Behaviour<GitInfoRefsReq, GitInfoRefsRes>,
     pub git_object: cbor::Behaviour<GitObjectReq, GitObjectRes>,
+    pub nostr: cbor::Behaviour<NostrReq, NostrRes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +47,7 @@ pub struct GitObjectReq(pub String, pub Vec<String>);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitObjectRes(pub Vec<objects::Model>);
 
+
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum Event {
@@ -56,6 +59,7 @@ pub enum Event {
     GitUploadPack(request_response::Event<GitUploadPackReq, GitUploadPackRes>),
     GitInfoRefs(request_response::Event<GitInfoRefsReq, GitInfoRefsRes>),
     GitObject(request_response::Event<GitObjectReq, GitObjectRes>),
+    Nostr(request_response::Event<NostrReq, NostrRes>),
 }
 
 impl From<identify::Event> for Event {
@@ -103,5 +107,11 @@ impl From<request_response::Event<GitInfoRefsReq, GitInfoRefsRes>> for Event {
 impl From<request_response::Event<GitObjectReq, GitObjectRes>> for Event {
     fn from(event: request_response::Event<GitObjectReq, GitObjectRes>) -> Self {
         Event::GitObject(event)
+    }
+}
+
+impl From<request_response::Event<NostrReq, NostrRes>> for Event {
+    fn from(event: request_response::Event<NostrReq, NostrRes>) -> Self {
+        Event::Nostr(event)
     }
 }

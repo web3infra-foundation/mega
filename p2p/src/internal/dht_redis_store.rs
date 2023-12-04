@@ -17,7 +17,6 @@ pub struct DHTRedisStore {
     records: HashMap<RecordKey, Record>,
 }
 
-/// Configuration for a `MemoryStore`.
 #[derive(Debug, Clone)]
 pub struct DHTRedisStoreConfig {
     pub max_records: usize,
