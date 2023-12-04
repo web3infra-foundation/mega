@@ -6,6 +6,7 @@
 
 use clap::Args;
 use libp2p::identity;
+use libp2p::identity::secp256k1::SecretKey;
 
 use common::enums::DataSource;
 
@@ -50,23 +51,27 @@ pub async fn run(options: &P2pOptions) -> Result<(), Box<dyn std::error::Error>>
     // Create a PeerId.
     let local_key = if let Some(secret_key_seed) = secret_key_seed {
         tracing::info!("Generate keys with fix seed={}", secret_key_seed);
-        generate_ed25519_fix(*secret_key_seed)
+        // generate_ed25519_fix(*secret_key_seed)
+        generate_secp256k1_fix(*secret_key_seed)
     } else {
         tracing::info!("Generate keys randomly");
-        identity::Keypair::generate_ed25519()
+        // identity::Keypair::generate_ed25519()
+        identity::Keypair::generate_secp256k1()
     };
-
+    let sk = SecretKey::generate();
     if *relay_server {
         relay_server::run(local_key, p2p_address)?;
     } else {
-        client::run(local_key, p2p_address, bootstrap_node.clone(), *data_source).await?;
+        client::run(sk, p2p_address, bootstrap_node.clone(), *data_source).await?;
     }
     Ok(())
 }
 
-fn generate_ed25519_fix(secret_key_seed: u8) -> identity::Keypair {
+
+fn generate_secp256k1_fix(secret_key_seed: u8) -> identity::Keypair {
     let mut bytes = [0u8; 32];
     bytes[0] = secret_key_seed;
 
-    identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length")
+    identity::Keypair::secp256k1_from_der(&mut bytes).unwrap()
 }
+

@@ -20,14 +20,23 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use libp2p::identity::secp256k1::SecretKey;
 use crate::cbor;
 
 pub async fn run(
-    local_key: identity::Keypair,
+    sk: SecretKey,
     p2p_address: String,
     bootstrap_node: String,
     data_source: DataSource,
 ) -> Result<(), Box<dyn Error>> {
+    //secp256k1 keypair
+    let secp = secp256k1::Secp256k1::new();
+    let secret_key = secp256k1::SecretKey::from_slice(&sk.to_bytes()).unwrap();
+    let key_pair = secp256k1::KeyPair::from_secret_key(&secp, &secret_key);
+
+    //libp2p keypair with same sk
+    let secp256k1_kp = identity::secp256k1::Keypair::from(sk.clone());
+    let local_key = identity::Keypair::from(secp256k1_kp);
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
 
@@ -73,6 +82,10 @@ pub async fn run(
                 [(StreamProtocol::new("/mega/git_obj"), ProtocolSupport::Full)],
                 request_response::Config::default().with_request_timeout(Duration::from_secs(100)),
             ),
+            nostr: cbor::Behaviour::new(
+                [(StreamProtocol::new("/mega/nostr"), ProtocolSupport::Full)],
+                request_response::Config::default(),
+            ),
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(100)))
         .build();
@@ -87,6 +100,7 @@ pub async fn run(
         rendezvous_point: None,
         bootstrap_node_addr: None,
         storage,
+        key_pair,
         pending_git_upload_package: HashMap::new(),
         pending_git_pull: HashMap::new(),
         pending_git_obj_download: HashMap::new(),
@@ -250,6 +264,10 @@ pub async fn run(
                          //GitObject events
                         SwarmEvent::Behaviour(Event::GitObject(event)) => {
                              event_handler::git_object_event_handler(&mut swarm, &mut client_paras, event).await;
+                        },
+                        //Nostr events
+                        SwarmEvent::Behaviour(Event::Nostr(event)) => {
+                             event_handler::nostr_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         _ => {
                             tracing::debug!("Event: {:?}", event);
