@@ -18,7 +18,6 @@ use storage::driver::{database::mysql_storage::MysqlStorage, database::storage::
 use crate::protocol::pack::SP;
 
 pub mod pack;
-pub mod ssh;
 #[derive(Clone)]
 pub struct PackProtocol {
     pub protocol: Protocol,

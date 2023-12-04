@@ -27,7 +27,7 @@ use git::protocol::{PackProtocol, Protocol};
 use storage::driver::database;
 use storage::driver::database::storage::ObjectStorage;
 
-use crate::{api_service, git_http, lfs};
+use crate::{api_service, git_protocol, lfs};
 
 /// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
@@ -122,7 +122,7 @@ async fn get_method_router(
             state.storage.clone(),
             Protocol::Http,
         );
-        return git_http::git_info_refs(params, pack_protocol).await;
+        return git_protocol::http::git_info_refs(params, pack_protocol).await;
     } else {
         return Err((
             StatusCode::NOT_FOUND,
@@ -156,7 +156,7 @@ async fn post_method_router(
             state.storage.clone(),
             Protocol::Http,
         );
-        git_http::git_upload_pack(req, pack_protocol).await
+        git_protocol::http::git_upload_pack(req, pack_protocol).await
     } else if Regex::new(r"/git-receive-pack$")
         .unwrap()
         .is_match(uri.path())
@@ -166,7 +166,7 @@ async fn post_method_router(
             state.storage.clone(),
             Protocol::Http,
         );
-        git_http::git_receive_pack(req, pack_protocol).await
+        git_protocol::http::git_receive_pack(req, pack_protocol).await
     } else {
         Err((
             StatusCode::NOT_FOUND,
