@@ -1,8 +1,8 @@
 use super::ClientParas;
 use crate::network::behaviour;
 use crate::network::behaviour::{GitInfoRefsReq, GitUploadPackReq};
-use crate::node::{get_utc_timestamp, MegaRepoInfo};
-use crate::{get_pack_protocol, get_repo_full_path};
+use crate::node::{MegaRepoInfo};
+use crate::{get_pack_protocol, get_repo_full_path, get_utc_timestamp};
 use common::utils;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Quorum, Record};
@@ -10,6 +10,10 @@ use libp2p::{kad, PeerId, Swarm};
 use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
+use secp256k1::{KeyPair, rand, Secp256k1};
+use crate::nostr::client_message::{ClientMessage, Filter, SubscriptionId};
+use crate::nostr::event::{GitEvent, NostrEvent};
+use crate::nostr::NostrReq;
 
 pub async fn handle_input_command(
     swarm: &mut Swarm<behaviour::Behaviour>,
@@ -28,8 +32,11 @@ pub async fn handle_input_command(
         Some("mega") => {
             handle_mega_command(swarm, client_paras, args.collect()).await;
         }
+        Some("nostr") => {
+            handle_nostr_command(swarm, client_paras, args.collect()).await;
+        }
         _ => {
-            eprintln!("expected command: kad, mega");
+            eprintln!("expected command: kad, mega, nostr");
         }
     }
 }
@@ -283,6 +290,158 @@ pub async fn handle_mega_command(
         }
         _ => {
             eprintln!("expected command: clone, pull, provide, clone-object, pull-object");
+        }
+    }
+}
+
+
+pub async fn handle_nostr_command(
+    swarm: &mut Swarm<behaviour::Behaviour>,
+    client_paras: &mut ClientParas,
+    args: Vec<&str>,
+) {
+    let mut args_iter = args.iter().copied();
+    match args_iter.next() {
+        Some("subscribe") => {
+            let repo_name = {
+                match args_iter.next() {
+                    Some(path) => path.to_string(),
+                    None => {
+                        eprintln!("Expected repo_name");
+                        return;
+                    }
+                }
+            };
+
+            let relay_peer_id = client_paras.rendezvous_point.unwrap();
+            let filters = vec![
+                Filter::new().repo_name(repo_name),
+            ];
+            let client_req = ClientMessage::new_req(SubscriptionId::generate(), filters);
+            swarm
+                .behaviour_mut()
+                .nostr
+                .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
+        }
+        Some("event-update") => {
+            let repo_name = {
+                match args_iter.next() {
+                    Some(path) => path.to_string(),
+                    None => {
+                        eprintln!("Expected repo_name");
+                        return;
+                    }
+                }
+            };
+
+            let secp = Secp256k1::new();
+            let (secret_key, _) = secp.generate_keypair(&mut rand::thread_rng());
+            let key_pair = KeyPair::from_secret_key(&secp, &secret_key);
+            let peer_id = swarm.local_peer_id().to_string();
+            let url = format!("p2p://{}/{}", peer_id, repo_name);
+
+            let path = get_repo_full_path(repo_name.as_str());
+            let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+            let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+
+            let git_event = GitEvent {
+                peer_id: swarm.local_peer_id().to_string(),
+                repo_name,
+                repo_target: "origin".to_string(),
+                repo_action: "update".to_string(),
+                repo_url: url,
+                repo_commit_id: object_id,
+                repo_issue_content: "".to_string(),
+            };
+            let event = NostrEvent::new_git_event(key_pair, git_event);
+
+            let client_req = ClientMessage::new_event(event);
+            let relay_peer_id = client_paras.rendezvous_point.unwrap();
+            swarm
+                .behaviour_mut()
+                .nostr
+                .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
+        }
+        Some("event-merge") => {
+            let repo_name = {
+                match args_iter.next() {
+                    Some(path) => path.to_string(),
+                    None => {
+                        eprintln!("Expected repo_name");
+                        return;
+                    }
+                }
+            };
+
+            let secp = Secp256k1::new();
+            let (secret_key, _) = secp.generate_keypair(&mut rand::thread_rng());
+            let key_pair = KeyPair::from_secret_key(&secp, &secret_key);
+            let peer_id = swarm.local_peer_id().to_string();
+            let url = format!("p2p://{}/{}", peer_id, repo_name);
+
+            let path = get_repo_full_path(repo_name.as_str());
+            let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+            let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+
+            let git_event = GitEvent {
+                peer_id: swarm.local_peer_id().to_string(),
+                repo_name,
+                repo_target: "fork".to_string(),
+                repo_action: "request".to_string(),
+                repo_url: url,
+                repo_commit_id: object_id,
+                repo_issue_content: "".to_string(),
+            };
+            let event = NostrEvent::new_git_event(key_pair, git_event);
+
+            let client_req = ClientMessage::new_event(event);
+            let relay_peer_id = client_paras.rendezvous_point.unwrap();
+            swarm
+                .behaviour_mut()
+                .nostr
+                .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
+        }
+        Some("event-issue") => {
+            let repo_name = {
+                match args_iter.next() {
+                    Some(path) => path.to_string(),
+                    None => {
+                        eprintln!("Expected repo_name");
+                        return;
+                    }
+                }
+            };
+
+            let secp = Secp256k1::new();
+            let (secret_key, _) = secp.generate_keypair(&mut rand::thread_rng());
+            let key_pair = KeyPair::from_secret_key(&secp, &secret_key);
+            let peer_id = swarm.local_peer_id().to_string();
+            let url = format!("p2p://{}/{}", peer_id, repo_name);
+
+            let path = get_repo_full_path(repo_name.as_str());
+            let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone()).await;
+            let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+
+            let git_event = GitEvent {
+                peer_id: swarm.local_peer_id().to_string(),
+                repo_name,
+                repo_target: "fork".to_string(),
+                repo_action: "issue".to_string(),
+                repo_url: url,
+                repo_commit_id: object_id,
+                repo_issue_content: "new issue".to_string(),
+            };
+            let event = NostrEvent::new_git_event(key_pair, git_event);
+
+            let client_req = ClientMessage::new_event(event);
+            let relay_peer_id = client_paras.rendezvous_point.unwrap();
+            swarm
+                .behaviour_mut()
+                .nostr
+                .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
+        }
+        _ => {
+            eprintln!("expected command: subscribe, event-update, event-issue");
         }
     }
 }

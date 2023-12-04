@@ -2,8 +2,8 @@ use super::behaviour;
 use crate::network::behaviour::{
     GitInfoRefsReq, GitInfoRefsRes, GitObjectReq, GitObjectRes, GitUploadPackReq, GitUploadPackRes,
 };
-use crate::node::{get_utc_timestamp, ClientParas, Fork, MegaRepoInfo};
-use crate::{get_pack_protocol, get_repo_full_path};
+use crate::node::{ClientParas, Fork, MegaRepoInfo};
+use crate::{get_pack_protocol, get_repo_full_path, get_utc_timestamp};
 use bytes::Bytes;
 use common::utils;
 use entity::objects::Model;
@@ -18,6 +18,8 @@ use libp2p::{identify, kad, multiaddr, rendezvous, request_response, PeerId, Swa
 use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
+use crate::nostr::{NostrReq, NostrRes};
+use crate::nostr::client_message::{ClientMessage, Filter, SubscriptionId};
 
 pub const NAMESPACE: &str = "rendezvous_mega";
 
@@ -335,6 +337,8 @@ pub async fn git_upload_pack_event_handler(
                             client_paras
                                 .pending_repo_info_update_fork
                                 .insert(kad_query_id, object_id);
+                            //subscribe
+                            subscribe_repo(swarm, client_paras, repo_name.clone());
                         }
                         Err(e) => {
                             tracing::error!("{}", e);
@@ -601,6 +605,8 @@ pub async fn git_object_event_handler(
                                 client_paras
                                     .pending_repo_info_update_fork
                                     .insert(kad_query_id, object_id);
+                                //subscribe
+                                subscribe_repo(swarm, client_paras, repo_name.clone());
                             }
                             Err(e) => {
                                 tracing::error!("{:?}", e);
@@ -613,6 +619,33 @@ pub async fn git_object_event_handler(
         },
         request_response::Event::OutboundFailure { peer, error, .. } => {
             tracing::error!("Git object  outbound failure: {:?},{:?}", peer, error);
+        }
+        event => {
+            tracing::debug!("Request_response event:{:?}", event);
+        }
+    }
+}
+
+pub async fn nostr_event_handler(
+    _swarm: &mut Swarm<behaviour::Behaviour>,
+    _client_paras: &mut ClientParas,
+    event: request_response::Event<NostrReq, NostrRes>,
+) {
+    match event {
+        request_response::Event::Message { peer, message, .. } => match message {
+            request_response::Message::Request {
+                request, channel: _channel, ..
+            } => {
+                tracing::info!("Nostr client receive request:\n {} \nfrom {}",  request.0, peer);
+            }
+            request_response::Message::Response {
+                response, ..
+            } => {
+                tracing::info!("Nostr client receive response, \n {} \nfrom {}", response.0, peer);
+            }
+        },
+        request_response::Event::OutboundFailure { peer, error, .. } => {
+            tracing::error!("nostr outbound failure: {:?},{:?}", peer, error);
         }
         event => {
             tracing::debug!("Request_response event:{:?}", event);
@@ -693,4 +726,20 @@ fn split_array(a: Vec<String>, count: usize) -> Vec<Vec<String>> {
         result.push(v);
     }
     result
+}
+
+fn subscribe_repo(
+    swarm: &mut Swarm<behaviour::Behaviour>,
+    client_paras: &mut ClientParas,
+    repo_name: String,
+) {
+    let relay_peer_id = client_paras.rendezvous_point.unwrap();
+    let filters = vec![
+        Filter::new().repo_name(repo_name.clone()),
+    ];
+    let client_req = ClientMessage::new_req(SubscriptionId::generate(), filters);
+    swarm
+        .behaviour_mut()
+        .nostr
+        .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
 }
