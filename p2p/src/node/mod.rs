@@ -9,12 +9,14 @@ use storage::driver::database::storage::ObjectStorage;
 use entity::objects::Model;
 use libp2p::kad::QueryId;
 use libp2p::rendezvous::Cookie;
-use libp2p::{Multiaddr, PeerId};
+use libp2p::{identity, Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use libp2p::identity::Keypair;
+use libp2p::identity::secp256k1::SecretKey;
 use libp2p::request_response::OutboundRequestId;
+use secp256k1::KeyPair;
 
 pub mod client;
 mod input_command;
@@ -44,6 +46,7 @@ pub struct ClientParas {
     pub rendezvous_point: Option<PeerId>,
     pub bootstrap_node_addr: Option<Multiaddr>,
     pub storage: Arc<dyn ObjectStorage>,
+    pub key_pair: KeyPair,
     pub pending_git_upload_package: HashMap<OutboundRequestId, String>,
     pub pending_git_pull: HashMap<OutboundRequestId, String>,
     pub pending_git_obj_download: HashMap<OutboundRequestId, String>,
@@ -56,9 +59,9 @@ pub struct ClientParas {
     pub repo_receive_git_obj_model_list: Arc<Mutex<HashMap<String, Vec<Model>>>>,
 }
 
-pub fn get_utc_timestamp() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as i64
+
+pub fn sk_to_local_key(secret_key: secp256k1::SecretKey) -> Keypair {
+    let sk = SecretKey::try_from_bytes(secret_key.secret_bytes()).unwrap();
+    let secp256k1_kp = identity::secp256k1::Keypair::from(sk);
+    identity::Keypair::from(secp256k1_kp)
 }
