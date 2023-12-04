@@ -18,9 +18,9 @@ use tokio::io::{AsyncReadExt, BufReader};
 
 use storage::driver::database::storage::ObjectStorage;
 
-use crate::protocol::pack::{self};
-use crate::protocol::ServiceType;
-use crate::protocol::{PackProtocol, Protocol};
+use git::protocol::pack::{self};
+use git::protocol::ServiceType;
+use git::protocol::{PackProtocol, Protocol};
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 
@@ -83,6 +83,8 @@ impl server::Handler for SshServer {
         Ok((self, session))
     }
 
+
+
     async fn auth_publickey(
         self,
         user: &str,
@@ -105,12 +107,13 @@ impl server::Handler for SshServer {
         mut session: Session,
     ) -> Result<(Self, Session), Self::Error> {
         let pack_protocol = self.pack_protocol.as_mut().unwrap();
-        let data_str = String::from_utf8_lossy(data).trim().to_owned();
-        tracing::info!(
-            "SSH: client sends data: {:?}, channel:{}",
-            data_str,
-            channel
-        );
+        // let data_str = String::from_utf8_lossy(data).trim().to_owned();
+        // tracing::info!(
+        //     "SSH: client sends data: {:?}, channel:{}",
+        //     data_str,
+        //     channel
+        // );
+
         match pack_protocol.service_type {
             Some(ServiceType::UploadPack) => {
                 self.handle_upload_pack(channel, data, &mut session).await;
@@ -120,27 +123,28 @@ impl server::Handler for SshServer {
             }
             _ => panic!(),
         };
+
         Ok((self, session))
     }
 
-    async fn channel_eof(
-        self,
-        channel: ChannelId,
-        mut session: Session,
-    ) -> Result<(Self, Session), Self::Error> {
-        // session.close(channel);
-        // match session.flush() {
-        //     Ok(_) => {},
-        //     Err(e) => println!("Error flushing session: {:?}", e),
-        // }
-        // session.disconnect(Disconnect::ByApplication, "channel close", "en");
-        // match session.disconnect(None, "Closing session") {
-        //     Ok(_) => {},
-        //     Err(e) => println!("Error disconnecting session: {:?}", e),
-        // }
-        session.close(channel);
-        Ok((self, session))
-    }
+    // async fn channel_eof(
+    //     self,
+    //     channel: ChannelId,
+    //     mut session: Session,
+    // ) -> Result<(Self, Session), Self::Error> {
+    //     // session.close(channel);
+    //     // match session.flush() {
+    //     //     Ok(_) => {},
+    //     //     Err(e) => println!("Error flushing session: {:?}", e),
+    //     // }
+    //     // session.disconnect(Disconnect::ByApplication, "channel close", "en");
+    //     // match session.disconnect(None, "Closing session") {
+    //     //     Ok(_) => {},
+    //     //     Err(e) => println!("Error disconnecting session: {:?}", e),
+    //     // }
+    //     session.close(channel);
+    //     Ok((self, session))
+    // }
 
     // async fn channel_close(
     //     self,
@@ -167,7 +171,7 @@ impl SshServer {
         );
         let service_type = ServiceType::from_str(command[0]).unwrap();
         pack_protocol.service_type = Some(service_type);
-        let res = pack_protocol.git_info_refs(service_type).await;
+        let res: BytesMut = pack_protocol.git_info_refs(service_type).await;
 
         self.pack_protocol = Some(pack_protocol);
         String::from_utf8(res.to_vec()).unwrap()
@@ -213,11 +217,12 @@ impl SshServer {
             .git_receive_pack(Bytes::from(data.to_vec()))
             .await
             .unwrap();
-        if !buf.is_empty() {
-            tracing::info!("report status: {:?}", buf);
-            session.data(channel, buf.to_vec().into());
-        } else {
-            session.close(channel);
-        }
+        tracing::info!("report status: {:?}", buf);
+        session.data(channel, buf.to_vec().into());
+        // if !buf.is_empty() {
+        //     // session.eof(channel);
+        // } else {
+        //     // session.close(channel);
+        // }
     }
 }

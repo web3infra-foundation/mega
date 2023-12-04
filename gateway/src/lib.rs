@@ -11,7 +11,7 @@ use https::AppState;
 use storage::driver::file_storage::local_storage::LocalStorage;
 
 mod api_service;
-mod git_http;
+mod git_protocol;
 pub mod https;
 pub mod init;
 mod lfs;
