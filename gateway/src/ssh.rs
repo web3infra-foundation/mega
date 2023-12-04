@@ -16,8 +16,9 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use common::enums::DataSource;
-use git::protocol::ssh::SshServer;
 use storage::driver::database;
+
+use crate::git_protocol::ssh::SshServer;
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {
@@ -47,8 +48,9 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
     let client_pubkey = Arc::new(client_key.clone_public_key().unwrap());
 
     let mut config = russh::server::Config {
-        inactivity_timeout: Some(std::time::Duration::from_secs(10)),
+        // inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
         auth_rejection_time: std::time::Duration::from_secs(3),
+        auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
         ..Default::default()
     };
     config.keys.push(client_key);
