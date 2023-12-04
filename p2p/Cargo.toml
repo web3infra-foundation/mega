@@ -30,5 +30,5 @@ serde_json = "1.0.105"
 async-trait = "0.1"
 cbor4ii = { version = "0.3.1", features = ["serde1", "use_std"] }
 redis = { version = "0.23.3", features = ["tokio-comp"] }
-secp256k1 = { version = "0.27.0", features = ["serde", "bitcoin-hashes", "bitcoin-hashes-std", "rand"] }
+secp256k1 = { version = "0.28.0", features = ["serde", "bitcoin-hashes", "bitcoin-hashes-std", "rand"] }
 
