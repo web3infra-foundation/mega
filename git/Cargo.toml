@@ -50,5 +50,5 @@ sea-orm = { version = "0.12.6", features = [
     "macros",
     "mock",
 ] }
-redis = { version = "0.23.3", features = ["tokio-comp"] }
+redis = { version = "0.24.0", features = ["tokio-comp"] }
 itertools = "0.12.0"
