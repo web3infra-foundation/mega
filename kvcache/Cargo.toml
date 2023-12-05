@@ -13,7 +13,7 @@ json=[]
 
 [dependencies]
 redis = { version = "0.23.3", features = ["tokio-comp"] }
-redis-test = "0.2.3"
+redis-test = "0.3.0"
 tokio = { version = "1.32.0", features = ["full"] }
 anyhow = "1.0.75"
 serde = { version = "1.0", features = ["derive"] }
