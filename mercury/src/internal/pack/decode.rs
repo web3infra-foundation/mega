@@ -11,6 +11,7 @@ use flate2::bufread::ZlibDecoder;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
+use crate::internal::object::types::ObjectType;
 use crate::internal::pack::Pack;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::utils::read_type_and_varint_size;
@@ -186,25 +187,22 @@ impl Pack {
             }
         };
 
-        match type_bits {
-            1..=4 => {
+        // Check if the object type is valid
+        let t = ObjectType::from_u8(type_bits)?;
+
+        match t {
+            ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                 let (_, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
             },
-            5 => {
-                return Err(GitError::InvalidPackFile(format!(
-                    "The object type number {} is reserved for future use",
-                    type_bits
-                )));
-            },
-            6 => {
+            ObjectType::OffsetDelta => {
                 let (_base_offset, step_offset) = read_varint_le(pack).unwrap();
                 *offset += step_offset;
                 
                 let (_, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
             },
-            7 => {
+            ObjectType::HashDelta => {
                 // Read 20 bytes to get the reference object SHA1 hash
                 let mut buf_ref = [0; 20];
                 pack.read_exact(&mut buf_ref).unwrap();
@@ -214,12 +212,6 @@ impl Pack {
 
                 let (_, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
-            },
-            _ => {
-                return Err(GitError::InvalidPackFile(format!(
-                    "Unknown object type number: {}",
-                    type_bits
-                )));
             }
         }
 
@@ -261,13 +253,13 @@ impl Pack {
         let render_hash = render.final_hash();
         let mut tailer_buf= [0; 20];
         render.read_exact(&mut tailer_buf).unwrap();
-        let tailer_signature = SHA1::from_bytes(tailer_buf.as_ref());
+        self.signature = SHA1::from_bytes(tailer_buf.as_ref());
 
-        if render_hash != tailer_signature {
+        if render_hash != self.signature {
             return Err(GitError::InvalidPackFile(format!(
                 "The pack file hash {} does not match the tailer hash {}",
                 render_hash.to_plain_str(),
-                tailer_signature.to_plain_str()
+                self.signature.to_plain_str()
             )));
         }
 
@@ -294,6 +286,7 @@ mod tests {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
     
+    use crate::hash::SHA1;
     use crate::internal::pack::Pack;
 
     #[test]
@@ -320,7 +313,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack { number: 0};
+        let mut p = Pack {number: 0, signature: SHA1::default() };
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, _)) => {
@@ -337,7 +330,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack { number: 0};
+        let mut p = Pack {number: 0, signature: SHA1::default()};
         p.decode(&mut buffered).unwrap();
     }
 
@@ -348,7 +341,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack { number: 0};
+        let mut p = Pack {number: 0, signature: SHA1::default()};
         p.decode(&mut buffered).unwrap();
     }
 
@@ -359,7 +352,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack { number: 0};
+        let mut p = Pack {number: 0, signature: SHA1::default()};
         p.decode(&mut buffered).unwrap();
     }
 
@@ -370,7 +363,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack { number: 0};
+        let mut p = Pack {number: 0, signature: SHA1::default()};
         p.decode(&mut buffered).unwrap();
     }
 }
