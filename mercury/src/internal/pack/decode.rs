@@ -192,7 +192,7 @@ impl Pack {
 
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                let (_, object_offset) = self.decompress_data(pack, size)?;
+                let (_data, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
             },
             ObjectType::OffsetDelta => {
