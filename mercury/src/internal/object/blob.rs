@@ -29,7 +29,12 @@
 //!
 use std::fmt::Display;
 
+use bstr::ByteSlice;
+
 use crate::hash::SHA1;
+use crate::internal::object::ObjectTrait;
+use crate::internal::object::types::ObjectType;
+
 
 /// **The Blob Object**
 ///
@@ -37,6 +42,7 @@ use crate::hash::SHA1;
 #[derive(Eq, Debug, Clone)]
 pub struct Blob {
     pub id: SHA1,
+    pub size: usize,
     pub data: Vec<u8>,
 }
 
@@ -52,5 +58,48 @@ impl Display for Blob {
         writeln!(f, "Hash: {}", self.id).unwrap();
         writeln!(f, "Type: Blob").unwrap();
         writeln!(f, "Size: {}", self.data.len())
+    }
+}
+
+impl ObjectTrait for Blob {
+    fn from_bytes(data: Vec<u8>) -> Self {
+        let id = SHA1::new(&data);
+
+        let header_offset = data.find_byte(0x20).unwrap();
+        let header = &data[0..header_offset];
+        assert_eq!(header, b"blob");
+
+        let size_offset = data.find_byte(0x00).unwrap();
+        let size = parse_size_from_bytes(&data[header_offset + 1..size_offset]).unwrap();
+
+        let data = &data[size_offset + 1..].to_vec();
+        assert_eq!(size, data.len());
+
+        Blob { id, size, data: data.to_vec() }
+    }
+
+    fn get_type(&self) -> ObjectType {
+        ObjectType::Blob
+    }
+}
+
+fn parse_size_from_bytes(bytes: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
+    let size_str = std::str::from_utf8(bytes)?;
+    Ok(size_str.parse::<usize>()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_size_from_bytes() -> Result<(), Box<dyn std::error::Error>> {
+        let size: usize = 12345;
+        let size_bytes = size.to_string().as_bytes().to_vec();
+        
+        let parsed_size = parse_size_from_bytes(&size_bytes)?;
+
+        assert_eq!(size, parsed_size);
+        Ok(())
     }
 }
