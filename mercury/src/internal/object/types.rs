@@ -93,7 +93,7 @@ impl ObjectType {
 
     /// Convert an object type to a number.
     #[allow(unused)]
-    pub fn type2number(&self) -> u8 {
+    pub fn to_u8(&self) -> u8 {
         match self {
             ObjectType::Commit => 1,
             ObjectType::Tree => 2,
@@ -106,7 +106,7 @@ impl ObjectType {
 
     /// Convert a number to an object type.
     #[allow(unused)]
-    pub fn number2type(number: u8) -> Result<ObjectType, GitError> {
+    pub fn from_u8(number: u8) -> Result<ObjectType, GitError> {
         match number {
             1 => Ok(ObjectType::Commit),
             2 => Ok(ObjectType::Tree),
@@ -140,16 +140,16 @@ mod tests {
     }
 
     #[test]
-    fn test_object_type_type2number() {
+    fn test_object_type_to_u8() {
         let commit = ObjectType::Commit;
-        let commit_number = commit.type2number();
+        let commit_number = commit.to_u8();
         assert_eq!(commit_number, 1);
     }
 
     #[test]
-    fn test_object_type_number2type() {
+    fn test_object_type_from_u8() {
         let tag_number = 4;
-        let tag = ObjectType::number2type(tag_number).unwrap();
+        let tag = ObjectType::from_u8(tag_number).unwrap();
         assert_eq!(tag, ObjectType::Tag);
     }
 }
