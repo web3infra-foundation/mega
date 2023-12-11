@@ -265,64 +265,53 @@ pub async fn represent(
         error: None,
     };
 
-    let mut header: HashMap<String, String> = HashMap::new();
-    let mut verify_header: HashMap<String, String> = HashMap::new();
+    let header = {
+        let mut header = HashMap::new();
+        header.insert("Accept".to_string(), "application/vnd.git-lfs".to_owned());
+        if !rv.authorization.is_empty() {
+            header.insert("Authorization".to_string(), rv.authorization.to_owned());
+        }
+        header
+    };
 
-    header.insert("Accept".to_string(), "application/vnd.git-lfs".to_owned());
-
-    if !rv.authorization.is_empty() {
-        header.insert("Authorization".to_string(), rv.authorization.to_owned());
-        verify_header.insert("Authorization".to_string(), rv.authorization.to_owned());
-    }
-
+    let mut actions = HashMap::new();
     if download {
-        let mut actions = HashMap::new();
         actions.insert(
             "download".to_string(),
-            Link {
-                href: { rv.download_link(server_url.to_string()).await },
-                header: header.clone(),
-                expires_at: {
-                    let expire_time: DateTime<Utc> = Utc::now() + Duration::seconds(86400);
-                    expire_time.to_rfc3339()
-                },
-            },
+            create_link(&rv.download_link(server_url.to_string()).await, &header),
         );
-        rep.actions = Some(actions);
     }
 
     if upload {
-        let mut actions = HashMap::new();
         actions.insert(
             "upload".to_string(),
-            Link {
-                href: { rv.upload_link(server_url.to_string()).await },
-                header: header.clone(),
-                expires_at: {
-                    let expire_time: DateTime<Utc> = Utc::now() + Duration::seconds(86400);
-                    expire_time.to_rfc3339()
-                },
-            },
+            create_link(&rv.upload_link(server_url.to_string()).await, &header),
         );
-        rep.actions = Some(actions);
+
         if use_tus {
-            let mut actions = HashMap::new();
             actions.insert(
                 "verify".to_string(),
-                Link {
-                    href: { rv.verify_link(server_url.to_string()).await },
-                    header: verify_header.clone(),
-                    expires_at: {
-                        let expire_time: DateTime<Utc> = Utc::now() + Duration::seconds(86400);
-                        expire_time.to_rfc3339()
-                    },
-                },
+                create_link(&rv.verify_link(server_url.to_string()).await, &header),
             );
-            rep.actions = Some(actions);
         }
     }
 
+    if !actions.is_empty() {
+        rep.actions = Some(actions);
+    }
+
     rep
+}
+
+fn create_link(href: &str, header: &HashMap<String, String>) -> Link {
+    Link {
+        href: href.to_string(),
+        header: header.clone(),
+        expires_at: {
+            let expire_time: DateTime<Utc> = Utc::now() + Duration::seconds(86400);
+            expire_time.to_rfc3339()
+        },
+    }
 }
 
 async fn lfs_get_filtered_locks(

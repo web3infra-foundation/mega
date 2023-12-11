@@ -33,7 +33,7 @@ impl LocalStorage {
 impl FileStorage for LocalStorage {
     async fn get(&self, object_id: &str) -> Result<Bytes, MegaError> {
         let path = path::Path::new(&self.base_path).join(self.transform_path(object_id));
-        let mut file = fs::File::open(path).expect("Open file failed!");
+        let mut file = fs::File::open(&path).unwrap_or_else(|_| panic!("Open file:{:?} failed!", path));
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
         Ok(Bytes::from(buffer))
