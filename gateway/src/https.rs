@@ -26,6 +26,7 @@ use common::enums::DataSource;
 use git::protocol::{PackProtocol, Protocol};
 use storage::driver::database;
 use storage::driver::database::storage::ObjectStorage;
+use tower_http::trace::TraceLayer;
 
 use crate::{api_service, git_protocol, lfs};
 
@@ -92,6 +93,7 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
                 .put(put_method_router),
         )
         .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
