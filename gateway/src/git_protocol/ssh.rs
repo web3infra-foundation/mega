@@ -4,17 +4,18 @@
 //!
 //!
 
+use async_trait::async_trait;
+use bytes::{Bytes, BytesMut};
+use chrono::{DateTime, Duration, Utc};
+use git::lfs::lfs_structs::Link;
+use russh::server::{self, Auth, Msg, Session};
+use russh::{Channel, ChannelId};
+use russh_keys::key;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-
-use async_trait::async_trait;
-use bytes::{BufMut, Bytes, BytesMut};
-use russh::server::{self, Auth, Msg, Session};
-use russh::{Channel, ChannelId};
-use russh_keys::key;
-use tokio::io::{AsyncReadExt, BufReader};
+use tokio::io::AsyncReadExt;
 
 use storage::driver::database::storage::ObjectStorage;
 
@@ -59,6 +60,7 @@ impl server::Handler for SshServer {
         }
         Ok((self, true, session))
     }
+
     /// # Executes a request on the SSH server.
     ///
     /// This function processes the received data from the specified channel and performs the
@@ -77,88 +79,10 @@ impl server::Handler for SshServer {
         mut session: Session,
     ) -> Result<(Self, Session), Self::Error> {
         let data = String::from_utf8_lossy(data).trim().to_owned();
-        tracing::info!("exec: {:?},{}", channel, data);
-        let res = self.handle_git_command(&data).await;
-        session.data(channel, res.into());
-        Ok((self, session))
-    }
+        tracing::info!("exec_request, channel:{:?}, command: {}", channel, data);
+        // let res = self.handle_git_command(&data).await;
 
-
-
-    async fn auth_publickey(
-        self,
-        user: &str,
-        public_key: &key::PublicKey,
-    ) -> Result<(Self, Auth), Self::Error> {
-        tracing::info!("auth_publickey: {} / {:?}", user, public_key);
-        Ok((self, server::Auth::Accept))
-    }
-
-    async fn auth_password(self, user: &str, password: &str) -> Result<(Self, Auth), Self::Error> {
-        tracing::info!("auth_password: {} / {}", user, password);
-        // in this example implementation, any username/password combination is accepted
-        Ok((self, server::Auth::Accept))
-    }
-
-    async fn data(
-        mut self,
-        channel: ChannelId,
-        data: &[u8],
-        mut session: Session,
-    ) -> Result<(Self, Session), Self::Error> {
-        let pack_protocol = self.pack_protocol.as_mut().unwrap();
-        // let data_str = String::from_utf8_lossy(data).trim().to_owned();
-        // tracing::info!(
-        //     "SSH: client sends data: {:?}, channel:{}",
-        //     data_str,
-        //     channel
-        // );
-
-        match pack_protocol.service_type {
-            Some(ServiceType::UploadPack) => {
-                self.handle_upload_pack(channel, data, &mut session).await;
-            }
-            Some(ServiceType::ReceivePack) => {
-                self.handle_receive_pack(channel, data, &mut session).await;
-            }
-            _ => panic!(),
-        };
-
-        Ok((self, session))
-    }
-
-    // async fn channel_eof(
-    //     self,
-    //     channel: ChannelId,
-    //     mut session: Session,
-    // ) -> Result<(Self, Session), Self::Error> {
-    //     // session.close(channel);
-    //     // match session.flush() {
-    //     //     Ok(_) => {},
-    //     //     Err(e) => println!("Error flushing session: {:?}", e),
-    //     // }
-    //     // session.disconnect(Disconnect::ByApplication, "channel close", "en");
-    //     // match session.disconnect(None, "Closing session") {
-    //     //     Ok(_) => {},
-    //     //     Err(e) => println!("Error disconnecting session: {:?}", e),
-    //     // }
-    //     session.close(channel);
-    //     Ok((self, session))
-    // }
-
-    // async fn channel_close(
-    //     self,
-    //     channel: ChannelId,
-    //     session: Session,
-    // ) -> Result<(Self, Session), Self::Error> {
-    //     tracing::info!("channel_close: {:?}", channel);
-    //     Ok((self, session))
-    // }
-}
-
-impl SshServer {
-    async fn handle_git_command(&mut self, command: &str) -> String {
-        let command: Vec<_> = command.split(' ').collect();
+        let command: Vec<_> = data.split(' ').collect();
         // command:
         // Push: git-receive-pack '/root/repotest/src.git'
         // Pull: git-upload-pack '/root/repotest/src.git'
@@ -169,14 +93,83 @@ impl SshServer {
             self.storage.clone(),
             Protocol::Ssh,
         );
-        let service_type = ServiceType::from_str(command[0]).unwrap();
-        pack_protocol.service_type = Some(service_type);
-        let res: BytesMut = pack_protocol.git_info_refs(service_type).await;
-
-        self.pack_protocol = Some(pack_protocol);
-        String::from_utf8(res.to_vec()).unwrap()
+        match command[0] {
+            "git-upload-pack" | "git-receive-pack" => {
+                pack_protocol.service_type = ServiceType::from_str(command[0]).unwrap();
+                let res = pack_protocol.git_info_refs().await;
+                self.pack_protocol = Some(pack_protocol);
+                session.data(channel, res.to_vec().into());
+            }
+            "git-lfs-authenticate" | "git-lfs-transfer" => {
+                let mut header = HashMap::new();
+                header.insert("Accept".to_string(), "application/vnd.git-lfs".to_string());
+                let link = Link {
+                    href: "http://localhost:8000".to_string(),
+                    header,
+                    expires_at: {
+                        let expire_time: DateTime<Utc> = Utc::now() + Duration::seconds(86400);
+                        expire_time.to_rfc3339()
+                    },
+                };
+                session.data(channel, serde_json::to_vec(&link).unwrap().into());
+            }
+            _ => println!("Not Supported command!"),
+        }
+        Ok((self, session))
     }
 
+    async fn auth_publickey(
+        self,
+        user: &str,
+        public_key: &key::PublicKey,
+    ) -> Result<(Self, Auth), Self::Error> {
+        tracing::info!("auth_publickey: {} / {:?}", user, public_key);
+        Ok((self, Auth::Accept))
+    }
+
+    async fn auth_password(self, user: &str, password: &str) -> Result<(Self, Auth), Self::Error> {
+        tracing::info!("auth_password: {} / {}", user, password);
+        // in this example implementation, any username/password combination is accepted
+        Ok((self, Auth::Accept))
+    }
+
+    async fn data(
+        mut self,
+        channel: ChannelId,
+        data: &[u8],
+        mut session: Session,
+    ) -> Result<(Self, Session), Self::Error> {
+        let pack_protocol = self.pack_protocol.as_mut().unwrap();
+
+        match pack_protocol.service_type {
+            ServiceType::UploadPack => {
+                self.handle_upload_pack(channel, data, &mut session).await;
+            }
+            ServiceType::ReceivePack => {
+                self.handle_receive_pack(channel, data, &mut session).await;
+            }
+        };
+
+        Ok((self, session))
+    }
+
+    async fn channel_eof(
+        self,
+        channel: ChannelId,
+        mut session: Session,
+    ) -> Result<(Self, Session), Self::Error> {
+        {
+            let mut clients = self.clients.lock().unwrap();
+            clients.remove(&(self.id, channel));
+        }
+        session.exit_status_request(channel, 0000);
+        session.close(channel);
+
+        Ok((self, session))
+    }
+}
+
+impl SshServer {
     async fn handle_upload_pack(&mut self, channel: ChannelId, data: &[u8], session: &mut Session) {
         let pack_protocol = self.pack_protocol.as_mut().unwrap();
 
@@ -188,19 +181,16 @@ impl SshServer {
         tracing::info!("buf is {:?}", buf);
         session.data(channel, String::from_utf8(buf.to_vec()).unwrap().into());
 
-        let mut reader = BufReader::new(send_pack_data.as_slice());
+        let mut reader = send_pack_data.as_slice();
         loop {
             let mut temp = BytesMut::new();
+            temp.reserve(65500);
             let length = reader.read_buf(&mut temp).await.unwrap();
             if temp.is_empty() {
-                let mut bytes_out = BytesMut::new();
-                bytes_out.put_slice(pack::PKT_LINE_END_MARKER);
-                tracing::info!("send: ends: {:?}", bytes_out.clone().freeze());
-                session.data(channel, bytes_out.to_vec().into());
+                session.data(channel, pack::PKT_LINE_END_MARKER.to_vec().into());
                 return;
             }
             let bytes_out = pack_protocol.build_side_band_format(temp, length);
-            tracing::info!("send: packet lentgh : {:?}", bytes_out.len());
             session.data(channel, bytes_out.to_vec().into());
         }
     }
@@ -219,10 +209,5 @@ impl SshServer {
             .unwrap();
         tracing::info!("report status: {:?}", buf);
         session.data(channel, buf.to_vec().into());
-        // if !buf.is_empty() {
-        //     // session.eof(channel);
-        // } else {
-        //     // session.close(channel);
-        // }
     }
 }

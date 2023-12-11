@@ -5,10 +5,10 @@
 //!
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
-use crate::{cli::Config, commands::https};
 use common::errors::MegaResult;
-
 use gateway::https::{http_server, HttpOptions};
+
+use crate::{cli::Config, commands::server::https};
 
 pub fn cli() -> Command {
     HttpOptions::augment_args_for_update(Command::new("https").about("Start Git HTTPS server"))

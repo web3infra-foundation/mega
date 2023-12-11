@@ -25,7 +25,7 @@ pub struct SshOptions {
     #[arg(long, default_value_t = String::from("127.0.0.1"))]
     host: String,
 
-    #[arg(short, long, default_value_t = 8000)]
+    #[arg(short, long, default_value_t = 8001)]
     port: u16,
 
     #[arg(short, long, value_name = "FILE")]
@@ -48,7 +48,6 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
     let client_pubkey = Arc::new(client_key.clone_public_key().unwrap());
 
     let mut config = russh::server::Config {
-        // inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
         auth_rejection_time: std::time::Duration::from_secs(3),
         auth_rejection_time_initial: Some(std::time::Duration::from_secs(0)),
         ..Default::default()
