@@ -80,12 +80,11 @@ impl server::Handler for SshServer {
     ) -> Result<(Self, Session), Self::Error> {
         let data = String::from_utf8_lossy(data).trim().to_owned();
         tracing::info!("exec_request, channel:{:?}, command: {}", channel, data);
-        // let res = self.handle_git_command(&data).await;
-
+        // command exmaple:
+        // Push: git-receive-pack '/path/to/repo.git'
+        // Pull: git-upload-pack '/path/to/repo.git'
+        // LFS HTTP Authenticate: git-lfs-authenticate '/path/to/repo.git' download/upload
         let command: Vec<_> = data.split(' ').collect();
-        // command:
-        // Push: git-receive-pack '/root/repotest/src.git'
-        // Pull: git-upload-pack '/root/repotest/src.git'
         let path = command[1];
         let end = path.len() - ".git'".len();
         let mut pack_protocol = PackProtocol::new(
@@ -100,7 +99,15 @@ impl server::Handler for SshServer {
                 self.pack_protocol = Some(pack_protocol);
                 session.data(channel, res.to_vec().into());
             }
-            "git-lfs-authenticate" | "git-lfs-transfer" => {
+            //Note that currently mega does not support pure ssh to transfer files, still relay on the https server.
+            //see https://github.com/git-lfs/git-lfs/blob/main/docs/proposals/ssh_adapter.md for more details about pure ssh file transfer.
+            "git-lfs-transfer" => {
+                session.data(channel, "not implemented yet".as_bytes().to_vec().into());
+            }
+            // When connecting over SSH, the first attempt will be made to use
+            // `git-lfs-transfer`, the pure SSH protocol, and if it fails, Git LFS will fall
+            // back to the hybrid protocol using `git-lfs-authenticate`.
+            "git-lfs-authenticate" => {
                 let mut header = HashMap::new();
                 header.insert("Accept".to_string(), "application/vnd.git-lfs".to_string());
                 let link = Link {

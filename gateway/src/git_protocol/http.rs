@@ -15,7 +15,7 @@ use tokio::io::AsyncReadExt;
 
 use git::protocol::{pack, PackProtocol, ServiceType};
 
-use crate::https::GetParams;
+use crate::https_server::GetParams;
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST

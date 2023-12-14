@@ -7,22 +7,22 @@
 use std::sync::Arc;
 
 use git::lfs::LfsConfig;
-use https::AppState;
+use https_server::AppState;
 use storage::driver::file_storage::local_storage::LocalStorage;
 
 mod api_service;
 mod git_protocol;
-pub mod https;
+pub mod https_server;
 pub mod init;
 mod lfs;
 mod model;
-pub mod ssh;
+pub mod ssh_server;
 
 impl From<AppState> for LfsConfig {
     fn from(value: AppState) -> Self {
         Self {
-            host: value.options.host,
-            port: value.options.port,
+            host: value.options.common.host,
+            port: value.options.custom.http_port,
             storage: value.storage,
             fs_storage: Arc::new(LocalStorage::default()),
         }

@@ -3,19 +3,19 @@
 ### start a relay-server
 
 ```
-cargo run p2p --host 0.0.0.0 --port 8001 --relay-server
+cargo run service p2p --host 0.0.0.0 --port 8001 --relay-server
 ```
 
 ### start a client
 
 ```
-cargo run p2p --host 0.0.0.0 --port 8002 --bootstrap-node /ip4/{relay-server-ip}/tcp/8001
+cargo run service p2p --host 0.0.0.0 --port 8002 --bootstrap-node /ip4/{relay-server-ip}/tcp/8001
 ```
 
 ### start another client
 
 ```
-cargo run p2p --host 0.0.0.0 --port 8003 --bootstrap-node /ip4/{relay-server-ip}/tcp/8001
+cargo run service p2p --host 0.0.0.0 --port 8003 --bootstrap-node /ip4/{relay-server-ip}/tcp/8001
 ```
 
 ### try to use DHT
