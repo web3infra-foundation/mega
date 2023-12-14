@@ -19,7 +19,7 @@ anyhow = "1.0.75"
 axum = "0.7.1"
 tower = "0.4.13"
 tower-http = { version = "0.5.0", features = ["cors", "trace"] }
-tokio = {version = "1.34", features = ["full"]}
+tokio = {version = "1.35", features = ["net"]}
 regex = "1.9.1"
 tracing = "0.1.37"
 russh = { version = "0.40.0"}
@@ -29,7 +29,7 @@ serde = "1.0.188"
 serde_json = "1.0.105"
 clap = { version = "4.4.0", features = ["derive"] }
 chrono = "0.4.26"
-octocrab = "0.31.0"
+
 jsonwebtoken = "9.2.0"
 futures = "0.3.28"
 bytes = "1.4.0"
