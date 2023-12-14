@@ -134,7 +134,10 @@ To address these challenges, there's a growing need for a decentralized open-sou
 7. Start the Mega server for testing.
 
    ```bash
-   $ cargo run https
+   # Starting a single https server
+   $ cargo run service https 
+   # Or Starting multiple server
+   $ cargo run service start http ssh p2p
    ```
 
 8. Test the `git push` and `git clone`

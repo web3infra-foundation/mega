@@ -11,6 +11,6 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.75"
-sea-orm = "0.12.6"
+sea-orm = "0.12.9"
 thiserror = "1.0.47"
 clap = { version = "4.4.0", features = ["derive"] }

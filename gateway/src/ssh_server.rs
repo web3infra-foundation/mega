@@ -3,6 +3,8 @@
 //!
 use std::collections::HashMap;
 use std::env;
+use std::fs::File;
+use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -10,39 +12,38 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use clap::Args;
+
 use ed25519_dalek::{SigningKey, SIGNATURE_LENGTH};
 use russh_keys::key::KeyPair;
-use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use common::enums::DataSource;
+use common::model::CommonOptions;
 use storage::driver::database;
 
 use crate::git_protocol::ssh::SshServer;
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {
-    #[arg(long, default_value_t = String::from("127.0.0.1"))]
-    host: String,
+    #[clap(flatten)]
+    pub common: CommonOptions,
 
-    #[arg(short, long, default_value_t = 8001)]
-    port: u16,
+    #[clap(flatten)]
+    pub custom: SshCustom,
+}
 
-    #[arg(short, long, value_name = "FILE")]
-    key_path: Option<PathBuf>,
+#[derive(Args, Clone, Debug)]
+pub struct SshCustom {
+    #[arg(long, default_value_t = 8100)]
+    ssh_port: u16,
 
-    #[arg(short, long, value_name = "FILE")]
-    cert_path: Option<PathBuf>,
+    #[arg(long, value_name = "FILE")]
+    ssh_key_path: Option<PathBuf>,
 
-    #[arg(short, long, default_value_os_t = PathBuf::from("lfs_content"))]
-    lfs_content_path: PathBuf,
-
-    #[arg(short, long, value_enum, default_value = "postgres")]
-    pub data_source: DataSource,
+    #[arg(long, value_name = "FILE")]
+    ssh_cert_path: Option<PathBuf>,
 }
 
 /// start a ssh server
-pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
+pub async fn start_server(command: &SshOptions) {
     // we need to persist the key to prevent key expired after server restart.
     let client_key = load_key().await.unwrap();
     let client_pubkey = Arc::new(client_key.clone_public_key().unwrap());
@@ -57,12 +58,13 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
     let config = Arc::new(config);
 
     let SshOptions {
-        host,
-        port,
-        key_path: _,
-        cert_path: _,
-        lfs_content_path: _,
-        data_source,
+        common: CommonOptions { host, data_source },
+        custom:
+            SshCustom {
+                ssh_port,
+                ssh_key_path: _,
+                ssh_cert_path: _,
+            },
     } = command;
     let sh = SshServer {
         client_pubkey,
@@ -71,9 +73,9 @@ pub async fn server(command: &SshOptions) -> Result<(), std::io::Error> {
         storage: database::init(data_source).await,
         pack_protocol: None,
     };
-    let server_url = format!("{}:{}", host, port);
+    let server_url = format!("{}:{}", host, ssh_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
-    russh::server::run(config, addr, sh).await
+    russh::server::run(config, addr, sh).await.unwrap()
 }
 
 /// # Loads an SSH keypair.
@@ -95,18 +97,18 @@ async fn load_key() -> Result<KeyPair> {
     if !key_path.exists() {
         // generate a keypair if not exists
         let keys = KeyPair::generate_ed25519().unwrap();
-        let mut key_file = tokio::fs::File::create(&key_path).await.unwrap();
+        let mut key_file = File::create(&key_path).unwrap();
 
         let KeyPair::Ed25519(inner_pair) = keys;
 
-        key_file.write_all(&inner_pair.to_keypair_bytes()).await?;
+        key_file.write_all(&inner_pair.to_keypair_bytes())?;
 
         Ok(KeyPair::Ed25519(inner_pair))
     } else {
         // load the keypair from the file
-        let mut file = File::open(&key_path).await?;
+        let mut file = File::open(&key_path)?;
         let mut secret_key_bytes: [u8; SIGNATURE_LENGTH] = [0; SIGNATURE_LENGTH];
-        file.read_exact(&mut secret_key_bytes).await?;
+        file.read_exact(&mut secret_key_bytes)?;
         let keypair = SigningKey::from_keypair_bytes(&secret_key_bytes)?;
         tracing::info!("{:?}", keypair);
         Ok(KeyPair::Ed25519(keypair))
