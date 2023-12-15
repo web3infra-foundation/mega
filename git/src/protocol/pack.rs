@@ -38,7 +38,7 @@ const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet
 
 // The ofs-delta and side-band-64k capabilities are sent and recognized by both upload-pack and receive-pack protocols.
 // The agent and session-id capabilities may optionally be sent in both protocols.
-const CAP_LIST: &str = "side-band-64k ofs-delta";
+const CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.0.1";
 
 // All other capabilities are only recognized by the upload-pack (fetch from server) process.
 const UPLOAD_CAP_LIST: &str =
@@ -69,7 +69,8 @@ impl PackProtocol {
     /// Tracing information is logged regarding the response packet line stream.
     ///
     /// Finally, the constructed packet line stream is returned.
-    pub async fn git_info_refs(&mut self, service_type: ServiceType) -> BytesMut {
+    pub async fn git_info_refs(&mut self) -> BytesMut {
+        let service_type = self.service_type;
         // The stream MUST include capability declarations behind a NUL on the first ref.
         let object_id = self.get_head_object_id(&self.path).await;
         let name = if object_id == ZERO_ID {
@@ -195,6 +196,8 @@ impl PackProtocol {
     pub async fn git_receive_pack(&mut self, mut body_bytes: Bytes) -> Result<Bytes> {
         if body_bytes.len() < 1000 {
             tracing::debug!("bytes from client: {:?}", body_bytes);
+        } else {
+            tracing::debug!("{} bytes from client", body_bytes.len())
         }
         while !body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) && !body_bytes.is_empty() {
             let (bytes_take, mut pkt_line) = read_pkt_line(&mut body_bytes);

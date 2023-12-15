@@ -15,7 +15,7 @@ use tokio::io::AsyncReadExt;
 
 use git::protocol::{pack, PackProtocol, ServiceType};
 
-use crate::https::GetParams;
+use crate::https_server::GetParams;
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
@@ -28,9 +28,9 @@ pub async fn git_info_refs(
     mut pack_protocol: PackProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let service_name = params.service.unwrap();
-    let service_type = service_name.parse::<ServiceType>().unwrap();
+    pack_protocol.service_type = service_name.parse::<ServiceType>().unwrap();
     let resp = build_res_header(format!("application/x-{}-advertisement", service_name));
-    let pkt_line_stream = pack_protocol.git_info_refs(service_type).await;
+    let pkt_line_stream = pack_protocol.git_info_refs().await;
     let body = Body::from(pkt_line_stream.freeze());
     Ok(resp.body(body).unwrap())
 }

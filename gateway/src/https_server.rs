@@ -16,37 +16,43 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use clap::Args;
-use git::lfs::LfsConfig;
+
 use regex::Regex;
 use serde::Deserialize;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 
-use common::enums::DataSource;
+use common::model::CommonOptions;
+use git::lfs::LfsConfig;
 use git::protocol::{PackProtocol, Protocol};
 use storage::driver::database;
 use storage::driver::database::storage::ObjectStorage;
+use tower_http::trace::TraceLayer;
 
 use crate::{api_service, git_protocol, lfs};
 
-/// Parameters for starting the HTTP service
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
-    /// Server start hostname
-    #[arg(long, default_value_t = String::from("127.0.0.1"))]
-    pub host: String,
+    #[clap(flatten)]
+    pub common: CommonOptions,
 
-    #[arg(short, long, default_value_t = 8000)]
-    pub port: u16,
+    #[clap(flatten)]
+    pub custom: HttpCustom,
+}
 
-    #[arg(short, long, value_name = "FILE")]
-    key_path: Option<PathBuf>,
+#[derive(Args, Clone, Debug)]
+pub struct HttpCustom {
+    #[arg(long, default_value_t = 8000)]
+    pub http_port: u16,
 
-    #[arg(short, long, value_name = "FILE")]
-    cert_path: Option<PathBuf>,
+    #[arg(long, default_value_t = 443)]
+    pub https_port: u16,
 
-    #[arg(short, long, value_enum, default_value = "postgres")]
-    pub data_source: DataSource,
+    #[arg(long, value_name = "FILE")]
+    https_key_path: Option<PathBuf>,
+
+    #[arg(long, value_name = "FILE")]
+    https_cert_path: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -69,15 +75,18 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start_server(options: &HttpOptions) {
     let HttpOptions {
-        host,
-        port,
-        key_path: _,
-        cert_path: _,
-        data_source,
+        common: CommonOptions { host, data_source },
+        custom:
+            HttpCustom {
+                https_key_path: _,
+                https_cert_path: _,
+                http_port,
+                https_port: _,
+            },
     } = options;
-    let server_url = format!("{}:{}", host, port);
+    let server_url = format!("{}:{}", host, http_port);
 
     let state = AppState {
         storage: database::init(data_source).await,
@@ -92,13 +101,14 @@ pub async fn http_server(options: &HttpOptions) -> Result<(), Box<dyn std::error
                 .put(put_method_router),
         )
         .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service()).await?;
-
-    Ok(())
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
 
 async fn get_method_router(
