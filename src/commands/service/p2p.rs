@@ -14,7 +14,6 @@ pub fn cli() -> Command {
     peer::P2pOptions::augment_args_for_update(Command::new("p2p").about("Start p2p node"))
 }
 
-#[tokio::main]
 pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
     let server_matchers = peer::P2pOptions::from_arg_matches(args)
         .map_err(|err| err.exit())

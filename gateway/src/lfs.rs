@@ -59,7 +59,7 @@ use git::lfs::{
     LfsConfig,
 };
 
-use crate::https::{AppState, GetParams};
+use crate::https_server::{AppState, GetParams};
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 

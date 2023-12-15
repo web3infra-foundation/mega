@@ -3,10 +3,8 @@
 //!
 //!
 //!
-mod https;
 mod init;
-mod p2p;
-mod ssh;
+mod service;
 
 use clap::{ArgMatches, Command};
 
@@ -15,19 +13,15 @@ use common::errors::MegaResult;
 
 pub fn builtin() -> Vec<Command> {
     vec![
-        https::cli(),
         init::cli(),
-        ssh::cli(),
-        p2p::cli(),
+        service::cli(),
     ]
 }
 
 pub(crate) fn builtin_exec(cmd: &str) -> Option<fn(Config, &ArgMatches) -> MegaResult> {
     let f = match cmd {
-        "https" => https::exec,
         "init" => init::exec,
-        "ssh" => ssh::exec,
-        "p2p" => p2p::exec,
+        "service" => service::exec,
         _ => return None,
     };
 

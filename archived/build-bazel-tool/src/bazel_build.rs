@@ -1,4 +1,3 @@
-use git2::Repository;
 use std::{
     env, fs,
     io::{BufRead, BufReader},
@@ -23,7 +22,7 @@ pub fn build(mut repo_path: PathBuf) {
                 tracing::info!("repo removed successfully: {:?}", project_name);
             }
         }
-        Repository::clone(project_url.as_ref(), &temp).expect("failed to clone project");
+        // Repository::clone(project_url.as_ref(), &temp).expect("failed to clone project");
 
         let mut workspace = temp.clone();
         workspace.push("WORKSPACE");

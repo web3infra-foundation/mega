@@ -26,7 +26,7 @@ pub struct PackProtocol {
     pub storage: Arc<dyn ObjectStorage>,
     pub command_list: Vec<RefCommand>,
     // only needed in ssh protocal
-    pub service_type: Option<ServiceType>,
+    pub service_type: ServiceType,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -247,7 +247,7 @@ impl PackProtocol {
             path,
             storage,
             command_list: Vec::new(),
-            service_type: None,
+            service_type: ServiceType::ReceivePack,
         }
     }
 
@@ -258,7 +258,7 @@ impl PackProtocol {
             path: PathBuf::new(),
             storage: Arc::new(MysqlStorage::default()),
             command_list: Vec::new(),
-            service_type: None,
+            service_type: ServiceType::ReceivePack,
         }
     }
 }

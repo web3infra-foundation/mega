@@ -16,7 +16,7 @@ common = { path = "../common" }
 entity = { path = "../storage/entity" }
 storage = { path = "../storage" }
 anyhow = "1.0.75"
-bstr = "1.5.0"
+bstr = "1.8.0"
 chrono = "0.4.24"
 colored = "2.0.0"
 deflate = "1.0.0"
@@ -27,14 +27,11 @@ thiserror = "1.0.47"
 futures = "0.3.28"
 bytes = "1.4.0"
 tracing = "0.1.37"
-tokio = "1.32.0"
-axum = "0.6.20"
-hyper = "0.14.27"
+tokio = "1.35.0"
+axum = "0.7.2"
+hyper = "1.0.1"
 byteorder = "1.4.3"
 crc = "3.0.1"
-tokio-test = "0.4.2"
-russh = "0.39.0"
-russh-keys = "0.38.0"
 async-trait = "0.1.71"
 rand = "0.8.5"
 serde = "1.0.188"
@@ -44,8 +41,12 @@ async-recursion = "1.0.4"
 num_cpus = "1.16.0"
 dotenvy = "0.15.7"
 diffs = "0.5.1"
-sea-orm = { version = "0.12.3", features = [
+sea-orm = { version = "0.12.9", features = [
     "runtime-tokio-rustls",
     "macros",
     "mock",
 ] }
+octocrab = "0.32.0"
+
+[dev-dependencies]
+tokio-test = "0.4.2"
