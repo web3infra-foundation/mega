@@ -62,6 +62,7 @@ impl Display for Blob {
 }
 
 impl ObjectTrait for Blob {
+    /// Creates a new object from a byte slice.
     fn from_bytes(data: Vec<u8>) -> Self {
         let id = SHA1::new(&data);
 
@@ -78,6 +79,22 @@ impl ObjectTrait for Blob {
         Blob { id, size, data: data.to_vec() }
     }
 
+    /// Creates a new object from a byte slice with a given ID.
+    fn from_bytes_with_id(data: Vec<u8>, id: SHA1) -> Self {
+        let header_offset = data.find_byte(0x20).unwrap();
+        let header = &data[0..header_offset];
+        assert_eq!(header, b"blob");
+
+        let size_offset = data.find_byte(0x00).unwrap();
+        let size = parse_size_from_bytes(&data[header_offset + 1..size_offset]).unwrap();
+
+        let data = &data[size_offset + 1..].to_vec();
+        assert_eq!(size, data.len());
+
+        Blob { id, size, data: data.to_vec() }
+    }
+
+    /// Returns the Blob type
     fn get_type(&self) -> ObjectType {
         ObjectType::Blob
     }
@@ -109,7 +126,7 @@ fn parse_size_from_bytes(bytes: &[u8]) -> Result<usize, Box<dyn std::error::Erro
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::internal::object::blob::parse_size_from_bytes;
 
     #[test]
     fn test_parse_size_from_bytes() -> Result<(), Box<dyn std::error::Error>> {
