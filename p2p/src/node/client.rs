@@ -1,27 +1,32 @@
-use super::input_command;
-use super::ClientParas;
-use crate::network::behaviour::{self, Behaviour, Event};
-use crate::network::event_handler;
-use async_std::io;
-use async_std::io::prelude::BufReadExt;
-use common::enums::DataSource;
-use storage::driver::database;
-use entity::objects::Model;
-use futures::executor::block_on;
-use futures::{future::FutureExt, stream::StreamExt};
-use libp2p::kad::store::MemoryStore;
-use libp2p::request_response::ProtocolSupport;
-use libp2p::swarm::{SwarmEvent};
-use libp2p::{
-    dcutr, identify, identity, kad, multiaddr, noise, rendezvous, request_response, tcp, yamux,
-    Multiaddr, PeerId, StreamProtocol,
-};
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+use async_std::io;
+use async_std::io::prelude::BufReadExt;
+use async_std::sync::RwLock;
+use futures::executor::block_on;
+use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::identity::secp256k1::SecretKey;
+use libp2p::kad::store::MemoryStore;
+use libp2p::request_response::ProtocolSupport;
+use libp2p::swarm::SwarmEvent;
+use libp2p::{
+    dcutr, identify, identity, kad, multiaddr, noise, rendezvous, request_response, tcp, yamux,
+    Multiaddr, PeerId, StreamProtocol,
+};
+
+use common::enums::DataSource;
+use entity::objects::Model;
+use storage::driver::database;
+
+use super::input_command;
+use super::ClientParas;
 use crate::cbor;
+use crate::network::behaviour::{self, Behaviour, Event};
+use crate::network::event_handler;
+use crate::node::client_http;
 
 pub async fn run(
     sk: SecretKey,
@@ -108,8 +113,8 @@ pub async fn run(
         pending_repo_info_search_to_download_obj: HashMap::new(),
         pending_git_obj_id_download: HashMap::new(),
         repo_node_list: HashMap::new(),
-        repo_id_need_list: Arc::new(Mutex::new(HashMap::<String, Vec<String>>::new())),
-        repo_receive_git_obj_model_list: Arc::new(Mutex::new(HashMap::<String, Vec<Model>>::new())),
+        repo_id_need_list: HashMap::<String, Vec<String>>::new(),
+        repo_receive_git_obj_model_list: HashMap::<String, Vec<Model>>::new(),
     };
     // Wait to listen on all interfaces.
     block_on(async {
@@ -208,8 +213,13 @@ pub async fn run(
         });
     }
 
+    let swarm = Arc::new(Mutex::new(swarm));
+    let client_paras = Arc::new(RwLock::new(client_paras));
+
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
     block_on(async {
+        client_http::server(p2p_address, swarm.clone(), client_paras.clone()).await;
+        let mut swarm_lock = swarm.lock().unwrap();
         loop {
             futures::select! {
                 line = stdin.select_next_some() => {
@@ -218,9 +228,10 @@ pub async fn run(
                             continue;
                     }
                     //kad input
-                     input_command::handle_input_command(&mut swarm,&mut client_paras,line.to_string()).await;
+                    input_command::handle_input_command(swarm.clone(), client_paras.clone(),line.to_string()).await;
                 },
-                event = swarm.select_next_some() => {
+                event = swarm_lock.select_next_some() => {
+                    let mut client_paras = client_paras.write().await;
                     match event{
                         SwarmEvent::NewListenAddr { address, .. } => {
                             tracing::info!("Listening on {:?}", address);
@@ -229,8 +240,8 @@ pub async fn run(
                             peer_id, endpoint, ..
                             } => {
                                 tracing::info!("Established connection to {:?} via {:?}", peer_id, endpoint);
-                                swarm.behaviour_mut().kademlia.add_address(&peer_id,endpoint.get_remote_address().clone());
-                                let peers = swarm.connected_peers();
+                                swarm_lock.behaviour_mut().kademlia.add_address(&peer_id,endpoint.get_remote_address().clone());
+                                let peers = swarm_lock.connected_peers();
                                 for p in peers {
                                     tracing::info!("Connected peer: {}",p);
                                 };
@@ -243,31 +254,31 @@ pub async fn run(
                         },
                         //Identify events
                         SwarmEvent::Behaviour(Event::Identify(event)) => {
-                            event_handler::identify_event_handler(&mut swarm.behaviour_mut().kademlia, event);
+                            event_handler::identify_event_handler(&mut swarm_lock.behaviour_mut().kademlia, event);
                         },
                         //RendezvousClient events
                         SwarmEvent::Behaviour(Event::Rendezvous(event)) => {
-                            event_handler::rendezvous_client_event_handler(&mut swarm, &mut client_paras, event);
+                            event_handler::rendezvous_client_event_handler(&mut swarm_lock, &mut client_paras, event);
                         },
                         //kad events
                         SwarmEvent::Behaviour(Event::Kademlia(event)) => {
-                            event_handler::kad_event_handler(&mut swarm, &mut client_paras, event).await;
+                            event_handler::kad_event_handler(&mut swarm_lock, &mut client_paras, event).await;
                         },
                         //GitUploadPack events
                         SwarmEvent::Behaviour(Event::GitUploadPack(event)) => {
-                             event_handler::git_upload_pack_event_handler(&mut swarm, &mut client_paras, event).await;
+                             event_handler::git_upload_pack_event_handler(&mut swarm_lock, &mut client_paras, event).await;
                         },
                         //GitInfoRefs events
                         SwarmEvent::Behaviour(Event::GitInfoRefs(event)) => {
-                             event_handler::git_info_refs_event_handler(&mut swarm, &mut client_paras, event).await;
+                             event_handler::git_info_refs_event_handler(&mut swarm_lock, &mut client_paras, event).await;
                         },
                          //GitObject events
                         SwarmEvent::Behaviour(Event::GitObject(event)) => {
-                             event_handler::git_object_event_handler(&mut swarm, &mut client_paras, event).await;
+                             event_handler::git_object_event_handler(&mut swarm_lock, &mut client_paras, event).await;
                         },
                         //Nostr events
                         SwarmEvent::Behaviour(Event::Nostr(event)) => {
-                             event_handler::nostr_event_handler(&mut swarm, &mut client_paras, event).await;
+                             event_handler::nostr_event_handler(&mut swarm_lock, &mut client_paras, event).await;
                         },
                         _ => {
                             tracing::debug!("Event: {:?}", event);

@@ -5,20 +5,24 @@
 //!
 //!
 
-use storage::driver::database::storage::ObjectStorage;
-use entity::objects::Model;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use libp2p::identity::secp256k1::SecretKey;
+use libp2p::identity::Keypair;
 use libp2p::kad::QueryId;
 use libp2p::rendezvous::Cookie;
-use libp2p::{identity, Multiaddr, PeerId};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use libp2p::identity::Keypair;
-use libp2p::identity::secp256k1::SecretKey;
 use libp2p::request_response::OutboundRequestId;
+use libp2p::{identity, Multiaddr, PeerId};
 use secp256k1::KeyPair;
+use serde::{Deserialize, Serialize};
+
+use entity::objects::Model;
+use storage::driver::database::storage::ObjectStorage;
 
 pub mod client;
+mod client_http;
+mod command_handler;
 mod input_command;
 pub mod relay_server;
 
@@ -54,11 +58,10 @@ pub struct ClientParas {
     pub pending_repo_info_search_to_download_obj: HashMap<QueryId, String>,
     pub pending_git_obj_id_download: HashMap<OutboundRequestId, String>,
     pub repo_node_list: HashMap<String, Vec<String>>,
-    pub repo_id_need_list: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    pub repo_id_need_list: HashMap<String, Vec<String>>,
     // pub repo_receive_git_obj_model_list: HashMap<String, Vec<Model>>,
-    pub repo_receive_git_obj_model_list: Arc<Mutex<HashMap<String, Vec<Model>>>>,
+    pub repo_receive_git_obj_model_list: HashMap<String, Vec<Model>>,
 }
-
 
 pub fn sk_to_local_key(secret_key: secp256k1::SecretKey) -> Keypair {
     let sk = SecretKey::try_from_bytes(secret_key.secret_bytes()).unwrap();
