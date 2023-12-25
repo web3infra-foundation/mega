@@ -1,4 +1,21 @@
-use super::behaviour;
+use std::collections::HashSet;
+use std::path::Path;
+use std::str::FromStr;
+
+use bytes::Bytes;
+use libp2p::kad::store::MemoryStore;
+use libp2p::kad::{
+    AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
+    QueryResult, Quorum, Record,
+};
+use libp2p::{identify, kad, multiaddr, rendezvous, request_response, PeerId, Swarm};
+
+use common::utils;
+use entity::objects::Model;
+use git::protocol::RefCommand;
+use git::structure::conversion;
+
+use crate::network::behaviour;
 use crate::network::behaviour::{
     GitInfoRefsReq, GitInfoRefsRes, GitObjectReq, GitObjectRes, GitUploadPackReq, GitUploadPackRes,
 };
@@ -6,20 +23,6 @@ use crate::node::{ClientParas, Fork, MegaRepoInfo};
 use crate::nostr::client_message::{ClientMessage, Filter, SubscriptionId};
 use crate::nostr::{NostrReq, NostrRes};
 use crate::{get_pack_protocol, get_repo_full_path, get_utc_timestamp};
-use bytes::Bytes;
-use common::utils;
-use entity::objects::Model;
-use git::protocol::RefCommand;
-use git::structure::conversion;
-use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{
-    AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
-    QueryResult, Quorum, Record,
-};
-use libp2p::{identify, kad, multiaddr, rendezvous, request_response, PeerId, Swarm};
-use std::collections::HashSet;
-use std::path::Path;
-use std::str::FromStr;
 
 pub const NAMESPACE: &str = "rendezvous_mega";
 
@@ -556,14 +559,14 @@ pub async fn git_object_event_handler(
                         let receive_git_obj_model_map =
                             &mut client_paras.repo_receive_git_obj_model_list;
                         let mut obj_model_list: Vec<Model> = Vec::new();
-                            if !receive_git_obj_model_map.contains_key(repo_name) {
-                                tracing::error!("git_object cache error");
-                                return;
-                            }
-                            let receive_git_obj_model =
-                                receive_git_obj_model_map.get(repo_name).unwrap();
-                            obj_model_list.append(&mut receive_git_obj_model.clone());
-                            receive_git_obj_model_map.remove(repo_name);
+                        if !receive_git_obj_model_map.contains_key(repo_name) {
+                            tracing::error!("git_object cache error");
+                            return;
+                        }
+                        let receive_git_obj_model =
+                            receive_git_obj_model_map.get(repo_name).unwrap();
+                        obj_model_list.append(&mut receive_git_obj_model.clone());
+                        receive_git_obj_model_map.remove(repo_name);
 
                         tracing::info!("receive all git_object :{:?}", obj_model_list.len());
                         let path = get_repo_full_path(repo_name);
