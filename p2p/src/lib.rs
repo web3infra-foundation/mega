@@ -19,7 +19,7 @@ pub mod internal;
 
 pub mod nostr;
 
-async fn get_pack_protocol(path: &str, storage: Arc<dyn ObjectStorage>) -> PackProtocol {
+fn get_pack_protocol(path: &str, storage: Arc<dyn ObjectStorage>) -> PackProtocol {
     let path = del_ends_str(path, ".git");
     PackProtocol::new(PathBuf::from(path), storage, Protocol::P2p)
 }
