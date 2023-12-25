@@ -1,10 +1,10 @@
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use async_std::sync::RwLock;
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::{Quorum, Record};
 use libp2p::{kad, PeerId, Swarm};
+use tokio::sync::Mutex;
 
 use crate::network::behaviour;
 use crate::node::command_handler::CmdHandler;
@@ -12,7 +12,7 @@ use crate::node::ClientParas;
 
 pub async fn handle_input_command(
     swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
-    client_paras: Arc<RwLock<ClientParas>>,
+    client_paras: Arc<Mutex<ClientParas>>,
     line: String,
 ) {
     let line = line.trim();
@@ -22,7 +22,7 @@ pub async fn handle_input_command(
     let mut args = line.split_whitespace();
     match args.next() {
         Some("kad") => {
-            let mut swarm = swarm.lock().unwrap();
+            let mut swarm = swarm.lock().await;
             handle_kad_command(&mut swarm.behaviour_mut().kademlia, args.collect());
         }
         Some("mega") => {
@@ -110,7 +110,7 @@ pub fn handle_kad_command(kademlia: &mut kad::Behaviour<MemoryStore>, args: Vec<
 
 pub async fn handle_mega_command(
     swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
-    client_paras: Arc<RwLock<ClientParas>>,
+    client_paras: Arc<Mutex<ClientParas>>,
     args: Vec<&str>,
 ) {
     let cmd_handler = CmdHandler {
@@ -204,7 +204,7 @@ pub async fn handle_mega_command(
 
 pub async fn handle_nostr_command(
     swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
-    client_paras: Arc<RwLock<ClientParas>>,
+    client_paras: Arc<Mutex<ClientParas>>,
     args: Vec<&str>,
 ) {
     let cmd_handler = CmdHandler {

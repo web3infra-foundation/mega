@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
-use async_std::sync::RwLock;
 use futures::executor::block_on;
 use futures::{future::FutureExt, stream::StreamExt};
 use libp2p::identity::secp256k1::SecretKey;
@@ -16,17 +15,18 @@ use libp2p::{
     dcutr, identify, identity, kad, multiaddr, noise, rendezvous, request_response, tcp, yamux,
     Multiaddr, PeerId, StreamProtocol,
 };
+use tokio::sync::Mutex;
 
 use common::enums::DataSource;
 use entity::objects::Model;
 use storage::driver::database;
 
-use super::input_command;
-use super::ClientParas;
 use crate::cbor;
 use crate::network::behaviour::{self, Behaviour, Event};
 use crate::network::event_handler;
 use crate::node::client_http;
+use crate::node::input_command;
+use crate::node::ClientParas;
 
 pub async fn run(
     sk: SecretKey,
@@ -214,13 +214,14 @@ pub async fn run(
     }
 
     let swarm = Arc::new(Mutex::new(swarm));
-    let client_paras = Arc::new(RwLock::new(client_paras));
+    let client_paras = Arc::new(Mutex::new(client_paras));
 
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
     block_on(async {
         client_http::server(p2p_address, swarm.clone(), client_paras.clone()).await;
-        let mut swarm_lock = swarm.lock().unwrap();
         loop {
+            let mut swarm_lock = swarm.lock().await;
+            let mut client_paras_lock = client_paras.lock().await;
             futures::select! {
                 line = stdin.select_next_some() => {
                     let line :String = line.expect("Stdin not to close");
@@ -231,8 +232,7 @@ pub async fn run(
                     input_command::handle_input_command(swarm.clone(), client_paras.clone(),line.to_string()).await;
                 },
                 event = swarm_lock.select_next_some() => {
-                    let mut client_paras = client_paras.write().await;
-                    match event{
+                    match event {
                         SwarmEvent::NewListenAddr { address, .. } => {
                             tracing::info!("Listening on {:?}", address);
                         }
@@ -258,27 +258,27 @@ pub async fn run(
                         },
                         //RendezvousClient events
                         SwarmEvent::Behaviour(Event::Rendezvous(event)) => {
-                            event_handler::rendezvous_client_event_handler(&mut swarm_lock, &mut client_paras, event);
+                            event_handler::rendezvous_client_event_handler(&mut swarm_lock, &mut client_paras_lock, event);
                         },
                         //kad events
                         SwarmEvent::Behaviour(Event::Kademlia(event)) => {
-                            event_handler::kad_event_handler(&mut swarm_lock, &mut client_paras, event).await;
+                            event_handler::kad_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
                         },
                         //GitUploadPack events
                         SwarmEvent::Behaviour(Event::GitUploadPack(event)) => {
-                             event_handler::git_upload_pack_event_handler(&mut swarm_lock, &mut client_paras, event).await;
+                             event_handler::git_upload_pack_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
                         },
                         //GitInfoRefs events
                         SwarmEvent::Behaviour(Event::GitInfoRefs(event)) => {
-                             event_handler::git_info_refs_event_handler(&mut swarm_lock, &mut client_paras, event).await;
+                             event_handler::git_info_refs_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
                         },
                          //GitObject events
                         SwarmEvent::Behaviour(Event::GitObject(event)) => {
-                             event_handler::git_object_event_handler(&mut swarm_lock, &mut client_paras, event).await;
+                             event_handler::git_object_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
                         },
                         //Nostr events
                         SwarmEvent::Behaviour(Event::Nostr(event)) => {
-                             event_handler::nostr_event_handler(&mut swarm_lock, &mut client_paras, event).await;
+                             event_handler::nostr_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
                         },
                         _ => {
                             tracing::debug!("Event: {:?}", event);

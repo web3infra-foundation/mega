@@ -1,31 +1,31 @@
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use async_std::sync::RwLock;
-use common::utils;
 use libp2p::kad::{self, Quorum, Record};
 use libp2p::Swarm;
-use secp256k1::{Secp256k1, rand, KeyPair};
+use secp256k1::{rand, KeyPair, Secp256k1};
+use tokio::sync::Mutex;
+
+use common::utils;
 
 use crate::get_utc_timestamp;
 use crate::network::behaviour::{GitInfoRefsReq, GitUploadPackReq};
+use crate::node::input_command::parse_mega_address;
 use crate::node::MegaRepoInfo;
-use crate::nostr::NostrReq;
-use crate::nostr::client_message::{ClientMessage, SubscriptionId, Filter};
+use crate::nostr::client_message::{ClientMessage, Filter, SubscriptionId};
 use crate::nostr::event::{GitEvent, NostrEvent};
+use crate::nostr::NostrReq;
 use crate::{get_pack_protocol, get_repo_full_path, network::behaviour, node::ClientParas};
-
-use super::input_command::parse_mega_address;
 
 pub struct CmdHandler {
     pub swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
-    pub client_paras: Arc<RwLock<ClientParas>>,
+    pub client_paras: Arc<Mutex<ClientParas>>,
 }
 
 impl CmdHandler {
     pub async fn provide(&self, repo_name: &str) {
-        let client_paras = self.client_paras.read().await;
+        let client_paras = self.client_paras.lock().await;
         if !repo_name.ends_with(".git") {
             eprintln!("repo_name should end with .git");
             return;
@@ -40,7 +40,7 @@ impl CmdHandler {
             return;
         }
 
-        let mut swarm = self.swarm.lock().unwrap();
+        let mut swarm = self.swarm.lock().await;
         // //Construct repoInfo
         let mega_repo_info = MegaRepoInfo {
             origin: swarm.local_peer_id().to_string(),
@@ -67,7 +67,7 @@ impl CmdHandler {
     }
 
     pub async fn search(&self, repo_name: &str) {
-        let mut swarm = self.swarm.lock().unwrap();
+        let mut swarm = self.swarm.lock().await;
         swarm
             .behaviour_mut()
             .kademlia
@@ -76,7 +76,6 @@ impl CmdHandler {
 
     pub async fn clone(&self, mega_address: &str) {
         // mega clone p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git
-        let mut swarm = self.swarm.lock().unwrap();
 
         let (peer_id, repo_name) = match parse_mega_address(mega_address) {
             Ok((peer_id, repo_name)) => (peer_id, repo_name),
@@ -86,12 +85,13 @@ impl CmdHandler {
             }
         };
         let path = get_repo_full_path(repo_name);
-        let request_file_id = swarm.behaviour_mut().git_upload_pack.send_request(
-            &peer_id,
-            GitUploadPackReq(HashSet::new(), HashSet::new(), path),
-        );
         {
-            let mut client_paras = self.client_paras.write().await;
+            let mut swarm = self.swarm.lock().await;
+            let request_file_id = swarm.behaviour_mut().git_upload_pack.send_request(
+                &peer_id,
+                GitUploadPackReq(HashSet::new(), HashSet::new(), path),
+            );
+            let mut client_paras = self.client_paras.lock().await;
             client_paras
                 .pending_git_upload_package
                 .insert(request_file_id, repo_name.to_string());
@@ -107,7 +107,7 @@ impl CmdHandler {
             }
         };
         let path = get_repo_full_path(repo_name);
-        let mut client_paras = self.client_paras.write().await;
+        let mut client_paras = self.client_paras.lock().await;
         let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone());
         let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
         if object_id == *utils::ZERO_ID {
@@ -116,7 +116,7 @@ impl CmdHandler {
         }
         {
             // Request to get git_info_refs
-            let mut swarm = self.swarm.lock().unwrap();
+            let mut swarm = self.swarm.lock().await;
             let request_id = swarm
                 .behaviour_mut()
                 .git_info_refs
@@ -132,15 +132,14 @@ impl CmdHandler {
             eprintln!("repo_name should end with .git");
             return;
         }
-
-        let mut swarm = self.swarm.lock().unwrap();
-        let kad_query_id = swarm
-            .behaviour_mut()
-            .kademlia
-            .get_record(kad::RecordKey::new(&repo_name));
-
         {
-            let mut client_paras = self.client_paras.write().await;
+            let mut swarm = self.swarm.lock().await;
+            let kad_query_id = swarm
+                .behaviour_mut()
+                .kademlia
+                .get_record(kad::RecordKey::new(&repo_name));
+
+            let mut client_paras = self.client_paras.lock().await;
             client_paras
                 .pending_repo_info_search_to_download_obj
                 .insert(kad_query_id, repo_name.to_owned());
@@ -152,13 +151,13 @@ impl CmdHandler {
             eprintln!("repo_name should end with .git");
             return;
         }
-        let mut swarm = self.swarm.lock().unwrap();
+        let mut swarm = self.swarm.lock().await;
         let kad_query_id = swarm
             .behaviour_mut()
             .kademlia
             .get_record(kad::RecordKey::new(&repo_name));
         {
-            let mut client_paras = self.client_paras.write().await;
+            let mut client_paras = self.client_paras.lock().await;
 
             client_paras
                 .pending_repo_info_search_to_download_obj
@@ -166,21 +165,19 @@ impl CmdHandler {
         }
     }
 
-
     pub async fn subscribe(&self, repo_name: &str) {
-        let client_paras = self.client_paras.read().await;
+        let client_paras = self.client_paras.lock().await;
         let relay_peer_id = client_paras.rendezvous_point.unwrap();
         let filters = vec![Filter::new().repo_name(repo_name.to_string())];
         let client_req = ClientMessage::new_req(SubscriptionId::generate(), filters);
 
         {
-            let mut swarm = self.swarm.lock().unwrap();
+            let mut swarm = self.swarm.lock().await;
             swarm
                 .behaviour_mut()
                 .nostr
                 .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
         }
-
     }
 
     pub async fn event_update(&self, repo_name: &str) {
@@ -188,13 +185,13 @@ impl CmdHandler {
         let (secret_key, _) = secp.generate_keypair(&mut rand::thread_rng());
         let key_pair = KeyPair::from_secret_key(&secp, &secret_key);
 
-        let mut swarm = self.swarm.lock().unwrap();
+        let mut swarm = self.swarm.lock().await;
 
         let peer_id = swarm.local_peer_id().to_string();
         let url = format!("p2p://{}/{}", peer_id, repo_name);
 
         let path = get_repo_full_path(repo_name);
-        let client_paras = self.client_paras.read().await;
+        let client_paras = self.client_paras.lock().await;
         let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone());
         let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
 
@@ -218,7 +215,7 @@ impl CmdHandler {
     }
 
     pub async fn event_merge(&self, repo_name: &str) {
-        let mut swarm = self.swarm.lock().unwrap();
+        let mut swarm = self.swarm.lock().await;
 
         let secp = Secp256k1::new();
         let (secret_key, _) = secp.generate_keypair(&mut rand::thread_rng());
@@ -227,7 +224,7 @@ impl CmdHandler {
         let url = format!("p2p://{}/{}", peer_id, repo_name);
 
         let path = get_repo_full_path(repo_name);
-        let client_paras = self.client_paras.read().await;
+        let client_paras = self.client_paras.lock().await;
         let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone());
         let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
 
@@ -254,12 +251,12 @@ impl CmdHandler {
         let secp = Secp256k1::new();
         let (secret_key, _) = secp.generate_keypair(&mut rand::thread_rng());
         let key_pair = KeyPair::from_secret_key(&secp, &secret_key);
-        let swarm = &mut self.swarm.lock().unwrap();
+        let swarm = &mut self.swarm.lock().await;
         let peer_id = swarm.local_peer_id().to_string();
         let url = format!("p2p://{}/{}", peer_id, repo_name);
 
         let path = get_repo_full_path(repo_name);
-        let client_paras = self.client_paras.read().await;
+        let client_paras = self.client_paras.lock().await;
         let pack_protocol = get_pack_protocol(&path, client_paras.storage.clone());
         let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
 
