@@ -1,23 +1,34 @@
-use crate::network::event_handler;
+use std::error::Error;
+use std::str::FromStr;
+use std::time::Duration;
+
 use async_std::io;
 use async_std::io::prelude::BufReadExt;
 use futures::executor::block_on;
 use futures::stream::StreamExt;
-use libp2p::kad::store::{RecordStore};
-use libp2p::kad::{AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk, QueryResult, Quorum, Record};
-use libp2p::{identify, identity, identity::PeerId, kad, noise, relay, rendezvous, request_response, StreamProtocol, swarm::{NetworkBehaviour, SwarmEvent}, Swarm, tcp, yamux};
-use std::error::Error;
-use std::str::FromStr;
-use std::time::Duration;
-use libp2p::request_response::{cbor, ProtocolSupport};
 use kvcache::connector::redis::RedisClient;
 use kvcache::KVCache;
+use libp2p::kad::store::RecordStore;
+use libp2p::kad::{
+    AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
+    QueryResult, Quorum, Record,
+};
+use libp2p::request_response::{cbor, ProtocolSupport};
+use libp2p::{
+    identify, identity,
+    identity::PeerId,
+    kad, noise, relay, rendezvous, request_response,
+    swarm::{NetworkBehaviour, SwarmEvent},
+    tcp, yamux, StreamProtocol, Swarm,
+};
+
 use crate::internal::dht_redis_store::DHTRedisStore;
-use crate::nostr::{NostrReq, NostrRes};
+use crate::network::event_handler;
 use crate::nostr::client_message::{ClientMessage, SubscriptionId};
 use crate::nostr::event::{GitEvent, NostrEvent};
 use crate::nostr::relay_message::RelayMessage;
 use crate::nostr::tag::TagKind;
+use crate::nostr::{NostrReq, NostrRes};
 
 #[derive(NetworkBehaviour)]
 pub struct ServerBehaviour<TStore: RecordStore> {
@@ -157,7 +168,6 @@ pub fn kad_event_handler(event: kad::Event) {
     }
 }
 
-
 pub fn handle_kad_command(kademlia: &mut kad::Behaviour<DHTRedisStore>, args: Vec<&str>) {
     let mut args_iter = args.iter().copied();
     match args_iter.next() {
@@ -217,7 +227,11 @@ pub fn nostr_relay_event_handler(
             request_response::Message::Request {
                 request, channel, ..
             } => {
-                tracing::info!("Nostr relay receive request:\n {} \nfrom {}",  request.0, peer);
+                tracing::info!(
+                    "Nostr relay receive request:\n {} \nfrom {}",
+                    request.0,
+                    peer
+                );
 
                 let message = match parsed_nostr_client_request(request.0) {
                     Ok(message) => message,
@@ -235,18 +249,18 @@ pub fn nostr_relay_event_handler(
                     //relay receive subscription
                     ClientMessage::Req { filters, .. } => {
                         let mut subscribe_repo_names: Vec<String> = Vec::new();
-                        filters.iter().for_each(
-                            |f| {
-                                let tag_name = TagKind::RepoName.to_string();
-                                if let Some(repo_names) = f.generic_tags.get(tag_name.as_str()) {
-                                    repo_names.iter().for_each(|n| subscribe_repo_names.push(n.to_string()));
-                                };
-                                subscribe_repo_names.iter().for_each(
-                                    |subscribe_repo_name| {
-                                        let key = add_subscribe_key_prefix(subscribe_repo_name.clone());
-                                        redis_update_vec(key, peer.to_string());
-                                    });
+                        filters.iter().for_each(|f| {
+                            let tag_name = TagKind::RepoName.to_string();
+                            if let Some(repo_names) = f.generic_tags.get(tag_name.as_str()) {
+                                repo_names
+                                    .iter()
+                                    .for_each(|n| subscribe_repo_names.push(n.to_string()));
+                            };
+                            subscribe_repo_names.iter().for_each(|subscribe_repo_name| {
+                                let key = add_subscribe_key_prefix(subscribe_repo_name.clone());
+                                redis_update_vec(key, peer.to_string());
                             });
+                        });
                         let msg = RelayMessage::new_notice(String::from("Subscribe successfully"));
                         let _ = swarm
                             .behaviour_mut()
@@ -270,7 +284,8 @@ pub fn nostr_relay_event_handler(
                         redis_update_vec(key, nostr_event.as_json());
 
                         //reply to client
-                        let relay_msg = RelayMessage::new_ok(nostr_event.id.clone(), true, "".to_string());
+                        let relay_msg =
+                            RelayMessage::new_ok(nostr_event.id.clone(), true, "".to_string());
                         let _ = swarm
                             .behaviour_mut()
                             .nostr
@@ -281,10 +296,12 @@ pub fn nostr_relay_event_handler(
                     }
                 }
             }
-            request_response::Message::Response {
-                response, ..
-            } => {
-                tracing::info!("Nostr relay receive response, \n {} \nfrom {}", response.0, peer);
+            request_response::Message::Response { response, .. } => {
+                tracing::info!(
+                    "Nostr relay receive response, \n {} \nfrom {}",
+                    response.0,
+                    peer
+                );
             }
         },
         request_response::Event::OutboundFailure { peer, error, .. } => {
@@ -322,9 +339,7 @@ fn redis_update_vec(key: String, value: String) {
     }
 }
 
-fn parsed_nostr_client_request(
-    request: String,
-) -> Result<ClientMessage, String> {
+fn parsed_nostr_client_request(request: String) -> Result<ClientMessage, String> {
     let parsed = if let Ok(parsed) = serde_json::from_str(request.as_str()) {
         parsed
     } else {
@@ -351,10 +366,10 @@ fn broadcast_event_to_subscribers(
         let vec: Vec<String> = serde_json::from_str(v.as_str()).unwrap();
         for peer_id in vec {
             let msg = RelayMessage::new_event(SubscriptionId::generate(), nostr_event.clone());
-            let _ = swarm
-                .behaviour_mut()
-                .nostr
-                .send_request(&PeerId::from_str(peer_id.as_str()).unwrap(), NostrReq(msg.as_json()));
+            let _ = swarm.behaviour_mut().nostr.send_request(
+                &PeerId::from_str(peer_id.as_str()).unwrap(),
+                NostrReq(msg.as_json()),
+            );
         }
     }
 }

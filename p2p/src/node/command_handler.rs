@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use libp2p::kad::{self, Quorum, Record};
-use libp2p::Swarm;
+use libp2p::{PeerId, Swarm};
 use secp256k1::{rand, KeyPair, Secp256k1};
 use tokio::sync::Mutex;
 
@@ -11,7 +12,6 @@ use common::utils;
 
 use crate::get_utc_timestamp;
 use crate::network::behaviour::{GitInfoRefsReq, GitUploadPackReq};
-use crate::node::input_command::parse_mega_address;
 use crate::node::MegaRepoInfo;
 use crate::nostr::client_message::{ClientMessage, Filter, SubscriptionId};
 use crate::nostr::event::{GitEvent, NostrEvent};
@@ -25,53 +25,54 @@ pub struct CmdHandler {
 
 impl CmdHandler {
     pub async fn provide(&self, repo_name: &str) {
-        let client_paras = self.client_paras.lock().await;
-        if !repo_name.ends_with(".git") {
-            eprintln!("repo_name should end with .git");
-            return;
-        }
-        let path = get_repo_full_path(repo_name);
-        let pack_protocol: git::protocol::PackProtocol =
-            get_pack_protocol(&path, client_paras.storage.clone());
-
-        let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
-        if object_id == *utils::ZERO_ID {
-            eprintln!("Repository not found");
-            return;
-        }
-
-        let mut swarm = self.swarm.lock().await;
-        // //Construct repoInfo
-        let mega_repo_info = MegaRepoInfo {
-            origin: swarm.local_peer_id().to_string(),
-            name: repo_name.to_string(),
-            latest: object_id,
-            forks: vec![],
-            timestamp: get_utc_timestamp(),
-        };
-
-        let record = Record {
-            key: kad::RecordKey::new(&repo_name),
-            value: serde_json::to_vec(&mega_repo_info).unwrap(),
-            publisher: None,
-            expires: None,
-        };
-
-        if let Err(e) = swarm
-            .behaviour_mut()
-            .kademlia
-            .put_record(record, Quorum::One)
         {
-            eprintln!("Failed to store record:{}", e);
+            let client_paras = self.client_paras.lock().await;
+            if !repo_name.ends_with(".git") {
+                eprintln!("repo_name should end with .git");
+                return;
+            }
+            let path = get_repo_full_path(repo_name);
+            let pack_protocol: git::protocol::PackProtocol =
+                get_pack_protocol(&path, client_paras.storage.clone());
+            let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+            if object_id == *utils::ZERO_ID {
+                eprintln!("Repository not found");
+                return;
+            }
+            let mut swarm = self.swarm.lock().await;
+            // //Construct repoInfo
+            let mega_repo_info = MegaRepoInfo {
+                origin: swarm.local_peer_id().to_string(),
+                name: repo_name.to_string(),
+                latest: object_id,
+                forks: vec![],
+                timestamp: get_utc_timestamp(),
+            };
+            let record = Record {
+                key: kad::RecordKey::new(&repo_name),
+                value: serde_json::to_vec(&mega_repo_info).unwrap(),
+                publisher: None,
+                expires: None,
+            };
+
+            if let Err(e) = swarm
+                .behaviour_mut()
+                .kademlia
+                .put_record(record, Quorum::One)
+            {
+                eprintln!("Failed to store record:{}", e);
+            }
         }
     }
 
     pub async fn search(&self, repo_name: &str) {
-        let mut swarm = self.swarm.lock().await;
-        swarm
-            .behaviour_mut()
-            .kademlia
-            .get_record(kad::RecordKey::new(&repo_name));
+        {
+            let mut swarm = self.swarm.lock().await;
+            swarm
+                .behaviour_mut()
+                .kademlia
+                .get_record(kad::RecordKey::new(&repo_name));
+        }
     }
 
     pub async fn clone(&self, mega_address: &str) {
@@ -278,4 +279,91 @@ impl CmdHandler {
             .nostr
             .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
     }
+
+    pub async fn kad_get(&self, key: &str) {
+        let key = kad::RecordKey::new(&key);
+        {
+            let mut swarm = self.swarm.lock().await;
+            swarm.behaviour_mut().kademlia.get_record(key);
+        }
+    }
+
+    pub async fn kad_put(&self, key: &str, value: &str) {
+        let key = kad::RecordKey::new(&key);
+        let value = value.as_bytes().to_vec();
+        let record = Record {
+            key,
+            value,
+            publisher: None,
+            expires: None,
+        };
+        {
+            let mut swarm = self.swarm.lock().await;
+            if let Err(e) = swarm
+                .behaviour_mut()
+                .kademlia
+                .put_record(record, Quorum::One)
+            {
+                eprintln!("Put record failed :{}", e);
+            }
+        }
+    }
+
+    pub async fn k_buckets(&self) {
+        {
+            let mut swarm = self.swarm.lock().await;
+            for (_, k_bucket_ref) in swarm.behaviour_mut().kademlia.kbuckets().enumerate() {
+                println!("k_bucket_ref.num_entries:{}", k_bucket_ref.num_entries());
+                for (_, x) in k_bucket_ref.iter().enumerate() {
+                    println!(
+                        "PEERS[{:?}]={:?}",
+                        x.node.key.preimage().to_string(),
+                        x.node.value
+                    );
+                }
+            }
+        }
+    }
+
+    pub async fn get_peer(&self, peer_id: Option<&str>) {
+        let peer_id = match parse_peer_id(peer_id) {
+            Some(peer_id) => peer_id,
+            None => {
+                return;
+            }
+        };
+        {
+            let mut swarm = self.swarm.lock().await;
+            swarm.behaviour_mut().kademlia.get_closest_peers(peer_id);
+        }
+    }
+}
+
+pub fn parse_peer_id(peer_id_str: Option<&str>) -> Option<PeerId> {
+    match peer_id_str {
+        Some(peer_id) => match PeerId::from_str(peer_id) {
+            Ok(id) => Some(id),
+            Err(err) => {
+                eprintln!("peer_id parse error:{}", err);
+                None
+            }
+        },
+        None => {
+            eprintln!("Expected peer_id");
+            None
+        }
+    }
+}
+
+pub fn parse_mega_address(mega_address: &str) -> Result<(PeerId, &str), String> {
+    // p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git
+    let v: Vec<&str> = mega_address.split('/').collect();
+    if v.len() < 4 {
+        return Err("mega_address invalid".to_string());
+    };
+    let peer_id = match PeerId::from_str(v[2]) {
+        Ok(peer_id) => peer_id,
+        Err(e) => return Err(e.to_string()),
+    };
+    Ok((peer_id, v[3]))
 }
