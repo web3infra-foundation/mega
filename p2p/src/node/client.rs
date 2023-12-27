@@ -219,7 +219,6 @@ pub async fn run(
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
 
     let server_task = tokio::spawn(client_http::server(
-        p2p_address,
         swarm.clone(),
         client_paras.clone(),
     ));

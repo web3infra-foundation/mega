@@ -17,7 +17,8 @@ FROM debian:bookworm-slim
 WORKDIR /usr/src/mega
 
 # Copy the built executable from the builder stage
-COPY --from=builder /usr/src/mega/target/release/mega .
+COPY --from=builder /usr/src/mega/target/release/mega /usr/local/bin/mega
 
 # Run the Rust executable command
-CMD ["./mega", "https", "--host", "0.0.0.0", "-d", "postgres"]
+# CMD ["./mega", "service", "https", "--host", "0.0.0.0"]
+ENTRYPOINT ["mega"]
