@@ -30,7 +30,6 @@ pub struct P2pNodeState {
 }
 
 pub async fn server(
-    _p2p_address: String,
     swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
     client_paras: Arc<Mutex<ClientParas>>,
 ) {
@@ -49,7 +48,7 @@ pub async fn server(
         // .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr = SocketAddr::from_str("0.0.0.0:8000").unwrap();
+    let addr = SocketAddr::from_str("0.0.0.0:8001").unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
         .await
