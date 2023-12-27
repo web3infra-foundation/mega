@@ -43,7 +43,8 @@ pub async fn server(
             "/api/v1",
             Router::new()
                 .nest("/mega/", mega_routers())
-                .nest("/nostr", nostr_routers()),
+                .nest("/nostr", nostr_routers())
+                .nest("/kad", kad_routers()),
         )
         // .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -177,6 +178,53 @@ async fn nostr_event_issue(
     let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
     cmd_handler.event_issue(repo_name).await;
+    Ok(Json("ok"))
+}
+
+pub fn kad_routers() -> Router<P2pNodeState> {
+    Router::new()
+        .route("/get", get(kad_get))
+        .route("/put", put(kad_put))
+        .route("/k_buckets", get(kbuckets))
+        .route("/get_peer", get(kad_peer))
+}
+
+async fn kad_get(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<P2pNodeState>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let cmd_handler = get_cmd_handler(state);
+    let key = query.get("key").unwrap();
+    cmd_handler.kad_get(key).await;
+    Ok(Json("ok"))
+}
+
+async fn kad_put(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<P2pNodeState>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let cmd_handler = get_cmd_handler(state);
+    let key = query.get("key").unwrap();
+    let vaule = query.get("vaule").unwrap();
+    cmd_handler.kad_put(key, vaule).await;
+    Ok(Json("ok"))
+}
+
+async fn kbuckets(
+    state: State<P2pNodeState>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let cmd_handler = get_cmd_handler(state);
+    cmd_handler.k_buckets().await;
+    Ok(Json("ok"))
+}
+
+async fn kad_peer(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<P2pNodeState>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let cmd_handler = get_cmd_handler(state);
+    let peer_id = query.get("peer_id");
+    cmd_handler.get_peer(peer_id.map(|x| x.as_str())).await;
     Ok(Json("ok"))
 }
 
