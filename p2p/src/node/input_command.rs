@@ -1,9 +1,6 @@
-use std::str::FromStr;
 use std::sync::Arc;
 
-use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{Quorum, Record};
-use libp2p::{kad, PeerId, Swarm};
+use libp2p::Swarm;
 use tokio::sync::Mutex;
 
 use crate::network::behaviour;
@@ -22,8 +19,7 @@ pub async fn handle_input_command(
     let mut args = line.split_whitespace();
     match args.next() {
         Some("kad") => {
-            let mut swarm = swarm.lock().await;
-            handle_kad_command(&mut swarm.behaviour_mut().kademlia, args.collect());
+            handle_kad_command(swarm, client_paras, args.collect()).await;
         }
         Some("mega") => {
             handle_mega_command(swarm, client_paras, args.collect()).await;
@@ -37,25 +33,33 @@ pub async fn handle_input_command(
     }
 }
 
-pub fn handle_kad_command(kademlia: &mut kad::Behaviour<MemoryStore>, args: Vec<&str>) {
+pub async fn handle_kad_command(
+    swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
+    client_paras: Arc<Mutex<ClientParas>>,
+    args: Vec<&str>,
+) {
+    let cmd_handler = CmdHandler {
+        swarm,
+        client_paras,
+    };
     let mut args_iter = args.iter().copied();
     match args_iter.next() {
         Some("get") => {
             let key = {
                 match args_iter.next() {
-                    Some(key) => kad::RecordKey::new(&key),
+                    Some(key) => key,
                     None => {
                         eprintln!("Expected key");
                         return;
                     }
                 }
             };
-            kademlia.get_record(key);
+            cmd_handler.kad_get(key).await;
         }
         Some("put") => {
             let key = {
                 match args_iter.next() {
-                    Some(key) => kad::RecordKey::new(&key),
+                    Some(key) => key,
                     None => {
                         eprintln!("Expected key");
                         return;
@@ -64,43 +68,18 @@ pub fn handle_kad_command(kademlia: &mut kad::Behaviour<MemoryStore>, args: Vec<
             };
             let value = {
                 match args_iter.next() {
-                    Some(value) => value.as_bytes().to_vec(),
+                    Some(vaule) => vaule,
                     None => {
                         eprintln!("Expected value");
                         return;
                     }
                 }
             };
-            let record = Record {
-                key,
-                value,
-                publisher: None,
-                expires: None,
-            };
-            if let Err(e) = kademlia.put_record(record, Quorum::One) {
-                eprintln!("Put record failed :{}", e);
-            }
+            cmd_handler.kad_put(key, value).await
         }
-        Some("k_buckets") => {
-            for (_, k_bucket_ref) in kademlia.kbuckets().enumerate() {
-                println!("k_bucket_ref.num_entries:{}", k_bucket_ref.num_entries());
-                for (_, x) in k_bucket_ref.iter().enumerate() {
-                    println!(
-                        "PEERS[{:?}]={:?}",
-                        x.node.key.preimage().to_string(),
-                        x.node.value
-                    );
-                }
-            }
-        }
+        Some("k_buckets") => cmd_handler.k_buckets().await,
         Some("get_peer") => {
-            let peer_id = match parse_peer_id(args_iter.next()) {
-                Some(peer_id) => peer_id,
-                None => {
-                    return;
-                }
-            };
-            kademlia.get_closest_peers(peer_id);
+            cmd_handler.get_peer(args_iter.next()).await;
         }
         _ => {
             eprintln!("expected command: get, put, k_buckets, get_peer");
@@ -265,33 +244,4 @@ pub async fn handle_nostr_command(
             eprintln!("expected command: subscribe, event-update, event-issue");
         }
     }
-}
-
-fn parse_peer_id(peer_id_str: Option<&str>) -> Option<PeerId> {
-    match peer_id_str {
-        Some(peer_id) => match PeerId::from_str(peer_id) {
-            Ok(id) => Some(id),
-            Err(err) => {
-                eprintln!("peer_id parse error:{}", err);
-                None
-            }
-        },
-        None => {
-            eprintln!("Expected peer_id");
-            None
-        }
-    }
-}
-
-pub fn parse_mega_address(mega_address: &str) -> Result<(PeerId, &str), String> {
-    // p2p://12D3KooWFgpUQa9WnTztcvs5LLMJmwsMoGZcrTHdt9LKYKpM4MiK/abc.git
-    let v: Vec<&str> = mega_address.split('/').collect();
-    if v.len() < 4 {
-        return Err("mega_address invalid".to_string());
-    };
-    let peer_id = match PeerId::from_str(v[2]) {
-        Ok(peer_id) => peer_id,
-        Err(e) => return Err(e.to_string()),
-    };
-    Ok((peer_id, v[3]))
 }
