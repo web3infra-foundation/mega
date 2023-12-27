@@ -25,53 +25,54 @@ pub struct CmdHandler {
 
 impl CmdHandler {
     pub async fn provide(&self, repo_name: &str) {
-        let client_paras = self.client_paras.lock().await;
-        if !repo_name.ends_with(".git") {
-            eprintln!("repo_name should end with .git");
-            return;
-        }
-        let path = get_repo_full_path(repo_name);
-        let pack_protocol: git::protocol::PackProtocol =
-            get_pack_protocol(&path, client_paras.storage.clone());
-
-        let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
-        if object_id == *utils::ZERO_ID {
-            eprintln!("Repository not found");
-            return;
-        }
-
-        let mut swarm = self.swarm.lock().await;
-        // //Construct repoInfo
-        let mega_repo_info = MegaRepoInfo {
-            origin: swarm.local_peer_id().to_string(),
-            name: repo_name.to_string(),
-            latest: object_id,
-            forks: vec![],
-            timestamp: get_utc_timestamp(),
-        };
-
-        let record = Record {
-            key: kad::RecordKey::new(&repo_name),
-            value: serde_json::to_vec(&mega_repo_info).unwrap(),
-            publisher: None,
-            expires: None,
-        };
-
-        if let Err(e) = swarm
-            .behaviour_mut()
-            .kademlia
-            .put_record(record, Quorum::One)
         {
-            eprintln!("Failed to store record:{}", e);
+            let client_paras = self.client_paras.lock().await;
+            if !repo_name.ends_with(".git") {
+                eprintln!("repo_name should end with .git");
+                return;
+            }
+            let path = get_repo_full_path(repo_name);
+            let pack_protocol: git::protocol::PackProtocol =
+                get_pack_protocol(&path, client_paras.storage.clone());
+            let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+            if object_id == *utils::ZERO_ID {
+                eprintln!("Repository not found");
+                return;
+            }
+            let mut swarm = self.swarm.lock().await;
+            // //Construct repoInfo
+            let mega_repo_info = MegaRepoInfo {
+                origin: swarm.local_peer_id().to_string(),
+                name: repo_name.to_string(),
+                latest: object_id,
+                forks: vec![],
+                timestamp: get_utc_timestamp(),
+            };
+            let record = Record {
+                key: kad::RecordKey::new(&repo_name),
+                value: serde_json::to_vec(&mega_repo_info).unwrap(),
+                publisher: None,
+                expires: None,
+            };
+
+            if let Err(e) = swarm
+                .behaviour_mut()
+                .kademlia
+                .put_record(record, Quorum::One)
+            {
+                eprintln!("Failed to store record:{}", e);
+            }
         }
     }
 
     pub async fn search(&self, repo_name: &str) {
-        let mut swarm = self.swarm.lock().await;
-        swarm
-            .behaviour_mut()
-            .kademlia
-            .get_record(kad::RecordKey::new(&repo_name));
+        {
+            let mut swarm = self.swarm.lock().await;
+            swarm
+                .behaviour_mut()
+                .kademlia
+                .get_record(kad::RecordKey::new(&repo_name));
+        }
     }
 
     pub async fn clone(&self, mega_address: &str) {

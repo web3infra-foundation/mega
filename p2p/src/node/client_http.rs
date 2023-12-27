@@ -49,7 +49,7 @@ pub async fn server(
         // .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr = SocketAddr::from_str("127.0.0.1:8000").unwrap();
+    let addr = SocketAddr::from_str("0.0.0.0:8000").unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
         .await

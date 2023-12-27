@@ -217,21 +217,29 @@ pub async fn run(
     let client_paras = Arc::new(Mutex::new(client_paras));
 
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
-    block_on(async {
-        client_http::server(p2p_address, swarm.clone(), client_paras.clone()).await;
+
+    let server_task = tokio::spawn(client_http::server(
+        p2p_address,
+        swarm.clone(),
+        client_paras.clone(),
+    ));
+
+    let loop_task = tokio::spawn(async move {
         loop {
+            let mut delay = futures_timer::Delay::new(Duration::from_secs(1)).fuse();
             let mut swarm_lock = swarm.lock().await;
-            let mut client_paras_lock = client_paras.lock().await;
             futures::select! {
                 line = stdin.select_next_some() => {
+                    drop(swarm_lock);
                     let line :String = line.expect("Stdin not to close");
                     if line.is_empty() {
                             continue;
                     }
                     //kad input
-                    input_command::handle_input_command(swarm.clone(), client_paras.clone(),line.to_string()).await;
+                    input_command::handle_input_command(swarm.clone(), client_paras.clone(), line.to_string()).await;
                 },
                 event = swarm_lock.select_next_some() => {
+                    let mut client_paras_lock = client_paras.lock().await;
                     match event {
                         SwarmEvent::NewListenAddr { address, .. } => {
                             tracing::info!("Listening on {:?}", address);
@@ -284,10 +292,16 @@ pub async fn run(
                             tracing::debug!("Event: {:?}", event);
                         }
                     };
+                    drop(swarm_lock);
+                    drop(client_paras_lock);
+                },
+                _ = delay => {
+                    drop(swarm_lock);
+                    continue;
                 }
             }
         }
     });
-
+    tokio::try_join!(server_task, loop_task).unwrap();
     Ok(())
 }
