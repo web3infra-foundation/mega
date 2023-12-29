@@ -3,19 +3,21 @@
 ### start a relay-server
 
 ```
-cargo run service p2p --host 0.0.0.0 --p2p-port 8001 --relay-server
+cargo run service p2p --host 0.0.0.0 --p2p-port 8200 --relay-server
+or
+cargo run service p2p --host 0.0.0.0 --p2p-port 8200 --relay-server
 ```
 
 ### start a client
 
 ```
-cargo run service p2p --host 0.0.0.0 --p2p-port 8002 --bootstrap-node /ip4/{relay-server-ip}/tcp/8001
+cargo run service p2p --host 0.0.0.0 --p2p-port 8201 --bootstrap-node /ip4/{relay-server-ip}/tcp/8200 --secret-key 6b911fd37cdf5c81d4c0adb1ab7fa822ed253ab0ad9aa18d77257c88b29b7181
 ```
 
 ### start another client
 
 ```
-cargo run service p2p --host 0.0.0.0 --p2p-port 8003 --bootstrap-node /ip4/{relay-server-ip}/tcp/8001
+cargo run service p2p --host 0.0.0.0 --p2p-port 8202 --bootstrap-node /ip4/{relay-server-ip}/tcp/8200
 ```
 
 ### try to use DHT
@@ -23,7 +25,7 @@ cargo run service p2p --host 0.0.0.0 --p2p-port 8003 --bootstrap-node /ip4/{rela
 #### put a key-value to p2p network in one terminal
 
 ```
-kad put 123 abc 
+kad put 123 abc
 ```
 
 #### get a key-value from p2p network in another terminal
