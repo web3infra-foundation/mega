@@ -21,6 +21,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, StreamProtocol, Swarm,
 };
+use libp2p::identity::secp256k1::SecretKey;
 
 use crate::internal::dht_redis_store::DHTRedisStore;
 use crate::network::event_handler;
@@ -39,7 +40,11 @@ pub struct ServerBehaviour<TStore: RecordStore> {
     pub nostr: cbor::Behaviour<NostrReq, NostrRes>,
 }
 
-pub fn run(local_key: identity::Keypair, p2p_address: String) -> Result<(), Box<dyn Error>> {
+pub fn run(secret_key: secp256k1::SecretKey, p2p_address: String) -> Result<(), Box<dyn Error>> {
+    //libp2p keypair with same sk
+    let libp2p_sk = SecretKey::try_from_bytes(secret_key.secret_bytes()).unwrap();
+    let secp256k1_kp = identity::secp256k1::Keypair::from(libp2p_sk.clone());
+    let local_key = identity::Keypair::from(secp256k1_kp);
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
 
