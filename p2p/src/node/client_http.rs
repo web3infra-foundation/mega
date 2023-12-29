@@ -4,9 +4,9 @@
 //! Therefore, in the node client, we've introduced additional HTTP services to
 //! interpret with user operations.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::{collections::HashMap, sync::Arc};
 
 use axum::routing::put;
 use axum::{
@@ -16,35 +16,22 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use libp2p::Swarm;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
-
-use crate::node::ClientParas;
-use crate::{network::behaviour, node::command_handler::CmdHandler};
+use tokio::sync::mpsc::Sender;
 
 #[derive(Clone)]
 pub struct P2pNodeState {
-    pub swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
-    pub client_paras: Arc<Mutex<ClientParas>>,
+    pub sender: Sender<String>,
 }
 
-pub async fn server(
-    swarm: Arc<Mutex<Swarm<behaviour::Behaviour>>>,
-    client_paras: Arc<Mutex<ClientParas>>,
-) {
-    let state = P2pNodeState {
-        swarm,
-        client_paras,
-    };
+pub async fn server(sender: Sender<String>) {
+    let state = P2pNodeState { sender };
 
     let app = Router::new()
         .nest(
             "/api/v1",
             Router::new()
                 .nest("/mega/", mega_routers())
-                .nest("/nostr", nostr_routers())
-                .nest("/kad", kad_routers()),
+                .nest("/nostr", nostr_routers()),
         )
         // .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -66,20 +53,13 @@ pub fn mega_routers() -> Router<P2pNodeState> {
         .route("/pull-object", get(mega_pull_obj))
 }
 
-pub fn get_cmd_handler(state: State<P2pNodeState>) -> CmdHandler {
-    CmdHandler {
-        swarm: state.swarm.clone(),
-        client_paras: state.client_paras.clone(),
-    }
-}
-
 async fn mega_provide(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.provide(repo_name).await;
+    let line = ["mega", "provide", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -87,9 +67,9 @@ async fn mega_search(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.search(repo_name).await;
+    let line = ["mega", "search", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -97,9 +77,9 @@ async fn mega_clone(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let mega_address = query.get("mega_address").unwrap();
-    cmd_handler.clone(mega_address).await;
+    let line = ["mega", "clone", mega_address].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -107,9 +87,9 @@ async fn mega_clone_obj(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.clone_obj(repo_name).await;
+    let line = ["mega", "clone-object", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -117,9 +97,9 @@ async fn mega_pull(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let mega_address = query.get("mega_address").unwrap();
-    cmd_handler.pull(mega_address).await;
+    let line = ["mega", "pull", mega_address].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -127,27 +107,27 @@ async fn mega_pull_obj(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.clone(repo_name).await;
+    let line = ["mega", "pull-object", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
 pub fn nostr_routers() -> Router<P2pNodeState> {
     Router::new()
         .route("/subscribe", get(nostr_subscribe))
-        .route("/event_update", put(nostr_event_update))
-        .route("/event_merge", put(nostr_event_merge))
-        .route("/event_issue", put(nostr_event_issue))
+        .route("/event-update", put(nostr_event_update))
+        .route("/event-merge", put(nostr_event_merge))
+        .route("/event-issue", put(nostr_event_issue))
 }
 
 async fn nostr_subscribe(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.subscribe(repo_name).await;
+    let line = ["nostr", "subscribe", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -155,9 +135,9 @@ async fn nostr_event_update(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.event_update(repo_name).await;
+    let line = ["nostr", "event-update", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -165,9 +145,9 @@ async fn nostr_event_merge(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.event_merge(repo_name).await;
+    let line = ["nostr", "event-merge", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
 
@@ -175,58 +155,8 @@ async fn nostr_event_issue(
     Query(query): Query<HashMap<String, String>>,
     state: State<P2pNodeState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
     let repo_name = query.get("repo_name").unwrap();
-    cmd_handler.event_issue(repo_name).await;
+    let line = ["nostr", "event-issue", repo_name].join(" ");
+    state.0.sender.send(line).await.unwrap();
     Ok(Json("ok"))
 }
-
-pub fn kad_routers() -> Router<P2pNodeState> {
-    Router::new()
-        .route("/get", get(kad_get))
-        .route("/put", put(kad_put))
-        .route("/k_buckets", get(kbuckets))
-        .route("/get_peer", get(kad_peer))
-}
-
-async fn kad_get(
-    Query(query): Query<HashMap<String, String>>,
-    state: State<P2pNodeState>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
-    let key = query.get("key").unwrap();
-    cmd_handler.kad_get(key).await;
-    Ok(Json("ok"))
-}
-
-async fn kad_put(
-    Query(query): Query<HashMap<String, String>>,
-    state: State<P2pNodeState>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
-    let key = query.get("key").unwrap();
-    let vaule = query.get("vaule").unwrap();
-    cmd_handler.kad_put(key, vaule).await;
-    Ok(Json("ok"))
-}
-
-async fn kbuckets(
-    state: State<P2pNodeState>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
-    cmd_handler.k_buckets().await;
-    Ok(Json("ok"))
-}
-
-async fn kad_peer(
-    Query(query): Query<HashMap<String, String>>,
-    state: State<P2pNodeState>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let cmd_handler = get_cmd_handler(state);
-    let peer_id = query.get("peer_id");
-    cmd_handler.get_peer(peer_id.map(|x| x.as_str())).await;
-    Ok(Json("ok"))
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Directories {}
