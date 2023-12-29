@@ -326,21 +326,6 @@ pub async fn kad_put(
     }
 }
 
-pub async fn k_buckets(swarm: &mut Swarm<behaviour::Behaviour>, _client_paras: &mut ClientParas) {
-    {
-        for (_, k_bucket_ref) in swarm.behaviour_mut().kademlia.kbuckets().enumerate() {
-            println!("k_bucket_ref.num_entries:{}", k_bucket_ref.num_entries());
-            for (_, x) in k_bucket_ref.iter().enumerate() {
-                println!(
-                    "PEERS[{:?}]={:?}",
-                    x.node.key.preimage().to_string(),
-                    x.node.value
-                );
-            }
-        }
-    }
-}
-
 pub async fn get_peer(
     swarm: &mut Swarm<behaviour::Behaviour>,
     _client_paras: &mut ClientParas,

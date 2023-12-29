@@ -71,7 +71,6 @@ pub async fn handle_kad_command(
             };
             command_handler::kad_put(swarm, client_paras, key, value).await
         }
-        Some("k_buckets") => command_handler::k_buckets(swarm, client_paras).await,
         Some("get_peer") => {
             command_handler::get_peer(swarm, client_paras, args_iter.next()).await;
         }
