@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_std::io;
@@ -15,7 +14,8 @@ use libp2p::{
     dcutr, identify, identity, kad, multiaddr, noise, rendezvous, request_response, tcp, yamux,
     Multiaddr, PeerId, StreamProtocol,
 };
-use tokio::sync::Mutex;
+use tokio::join;
+use tokio::sync::mpsc;
 
 use common::enums::DataSource;
 use entity::objects::Model;
@@ -24,23 +24,23 @@ use storage::driver::database;
 use crate::cbor;
 use crate::network::behaviour::{self, Behaviour, Event};
 use crate::network::event_handler;
-use crate::node::client_http;
+use crate::node::client_http::{self};
 use crate::node::input_command;
 use crate::node::ClientParas;
 
 pub async fn run(
-    sk: SecretKey,
+    secret_key: secp256k1::SecretKey,
     p2p_address: String,
     bootstrap_node: String,
     data_source: DataSource,
 ) -> Result<(), Box<dyn Error>> {
     //secp256k1 keypair
     let secp = secp256k1::Secp256k1::new();
-    let secret_key = secp256k1::SecretKey::from_slice(&sk.to_bytes()).unwrap();
     let key_pair = secp256k1::KeyPair::from_secret_key(&secp, &secret_key);
 
     //libp2p keypair with same sk
-    let secp256k1_kp = identity::secp256k1::Keypair::from(sk.clone());
+    let libp2p_sk = SecretKey::try_from_bytes(secret_key.secret_bytes()).unwrap();
+    let secp256k1_kp = identity::secp256k1::Keypair::from(libp2p_sk.clone());
     let local_key = identity::Keypair::from(secp256k1_kp);
     let local_peer_id = PeerId::from(local_key.public());
     tracing::info!("Local peer id: {local_peer_id:?}");
@@ -213,32 +213,32 @@ pub async fn run(
         });
     }
 
-    let swarm = Arc::new(Mutex::new(swarm));
-    let client_paras = Arc::new(Mutex::new(client_paras));
-
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
 
-    let server_task = tokio::spawn(client_http::server(
-        swarm.clone(),
-        client_paras.clone(),
-    ));
+    let (tx, mut rx) = mpsc::channel::<String>(64);
 
-    let loop_task = tokio::spawn(async move {
+    //http server
+    let p2p_http_task = tokio::spawn(async move {
+        client_http::server(tx.clone()).await;
+    });
+
+    let p2p_task = tokio::spawn(async move {
         loop {
-            let mut delay = futures_timer::Delay::new(Duration::from_secs(1)).fuse();
-            let mut swarm_lock = swarm.lock().await;
-            futures::select! {
+            tokio::select! {
+                Some(line) = rx.recv() => {
+                    if line.is_empty() {
+                            continue;
+                    }
+                    input_command::handle_input_command(&mut swarm,&mut client_paras, line.to_string()).await;
+                },
                 line = stdin.select_next_some() => {
-                    drop(swarm_lock);
                     let line :String = line.expect("Stdin not to close");
                     if line.is_empty() {
                             continue;
                     }
-                    //kad input
-                    input_command::handle_input_command(swarm.clone(), client_paras.clone(), line.to_string()).await;
+                    input_command::handle_input_command(&mut swarm,&mut client_paras, line.to_string()).await;
                 },
-                event = swarm_lock.select_next_some() => {
-                    let mut client_paras_lock = client_paras.lock().await;
+                event = swarm.select_next_some() => {
                     match event {
                         SwarmEvent::NewListenAddr { address, .. } => {
                             tracing::info!("Listening on {:?}", address);
@@ -247,8 +247,8 @@ pub async fn run(
                             peer_id, endpoint, ..
                             } => {
                                 tracing::info!("Established connection to {:?} via {:?}", peer_id, endpoint);
-                                swarm_lock.behaviour_mut().kademlia.add_address(&peer_id,endpoint.get_remote_address().clone());
-                                let peers = swarm_lock.connected_peers();
+                                swarm.behaviour_mut().kademlia.add_address(&peer_id,endpoint.get_remote_address().clone());
+                                let peers = swarm.connected_peers();
                                 for p in peers {
                                     tracing::info!("Connected peer: {}",p);
                                 };
@@ -261,46 +261,40 @@ pub async fn run(
                         },
                         //Identify events
                         SwarmEvent::Behaviour(Event::Identify(event)) => {
-                            event_handler::identify_event_handler(&mut swarm_lock.behaviour_mut().kademlia, event);
+                            event_handler::identify_event_handler(&mut swarm.behaviour_mut().kademlia, event);
                         },
                         //RendezvousClient events
                         SwarmEvent::Behaviour(Event::Rendezvous(event)) => {
-                            event_handler::rendezvous_client_event_handler(&mut swarm_lock, &mut client_paras_lock, event);
+                            event_handler::rendezvous_client_event_handler(&mut swarm, &mut client_paras, event);
                         },
                         //kad events
                         SwarmEvent::Behaviour(Event::Kademlia(event)) => {
-                            event_handler::kad_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
+                            event_handler::kad_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         //GitUploadPack events
                         SwarmEvent::Behaviour(Event::GitUploadPack(event)) => {
-                             event_handler::git_upload_pack_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
+                             event_handler::git_upload_pack_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         //GitInfoRefs events
                         SwarmEvent::Behaviour(Event::GitInfoRefs(event)) => {
-                             event_handler::git_info_refs_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
+                             event_handler::git_info_refs_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                          //GitObject events
                         SwarmEvent::Behaviour(Event::GitObject(event)) => {
-                             event_handler::git_object_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
+                             event_handler::git_object_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         //Nostr events
                         SwarmEvent::Behaviour(Event::Nostr(event)) => {
-                             event_handler::nostr_event_handler(&mut swarm_lock, &mut client_paras_lock, event).await;
+                             event_handler::nostr_event_handler(&mut swarm, &mut client_paras, event).await;
                         },
                         _ => {
                             tracing::debug!("Event: {:?}", event);
                         }
                     };
-                    drop(swarm_lock);
-                    drop(client_paras_lock);
                 },
-                _ = delay => {
-                    drop(swarm_lock);
-                    continue;
-                }
             }
         }
     });
-    tokio::try_join!(server_task, loop_task).unwrap();
+    join!(p2p_http_task, p2p_task).0.unwrap();
     Ok(())
 }
