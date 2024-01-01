@@ -6,6 +6,7 @@
 //! 
 //! 
 use std::io::{self, Read, BufRead, Seek};
+use std::collections::HashMap;
 
 use flate2::bufread::ZlibDecoder;
 
@@ -17,6 +18,8 @@ use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::utils::read_type_and_varint_size;
 use crate::internal::pack::utils::read_varint_le;
 use crate::internal::pack::utils::is_eof;
+use crate::internal::pack::cache::CacheObject;
+use crate::internal::pack::cache::Caches;
 
 impl Pack {
     /// Checks and reads the header of a Git pack file.
@@ -176,7 +179,7 @@ impl Pack {
     /// * A tuple of the next offset in the pack and the original compressed data as `Vec<u8>`,
     /// * Or a `GitError` in case of any reading or decompression error.
     ///
-    pub fn decode_pack_object(&mut self, pack: &mut (impl Read + BufRead + Send), offset: &mut usize) -> Result<usize, GitError> {
+    pub fn decode_pack_object(&mut self, pack: &mut (impl Read + BufRead + Send), offset: &mut usize) -> Result<CacheObject, GitError> {
         // Attempt to read the type and size, handle potential errors
         let (type_bits, size) = match read_type_and_varint_size(pack, offset) {
             Ok(result) => result,
@@ -192,37 +195,64 @@ impl Pack {
 
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                let (_data, object_offset) = self.decompress_data(pack, size)?;
+                let (data, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
+
+                Ok(CacheObject {
+                    delta_offset: 0,
+                    delta_ref: SHA1::default(),
+                    data_decompress: data,
+                    object_type: t,
+                    offset: *offset,
+                })
             },
             ObjectType::OffsetDelta => {
                 let (_base_offset, step_offset) = read_varint_le(pack).unwrap();
                 *offset += step_offset;
                 
-                let (_, object_offset) = self.decompress_data(pack, size)?;
+                let (data, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
+
+                Ok(CacheObject {
+                    delta_offset: object_offset,
+                    delta_ref: SHA1::default(),
+                    data_decompress: data,
+                    object_type: t,
+                    offset: *offset,
+                })
             },
             ObjectType::HashDelta => {
                 // Read 20 bytes to get the reference object SHA1 hash
                 let mut buf_ref = [0; 20];
                 pack.read_exact(&mut buf_ref).unwrap();
-                let _ref_sha1 = SHA1::from_bytes(buf_ref.as_ref());
+                let ref_sha1 = SHA1::from_bytes(buf_ref.as_ref());
                 // Offset is incremented by 20 bytes
                 *offset += 20;
 
-                let (_, object_offset) = self.decompress_data(pack, size)?;
+                let (data, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
+
+                Ok(CacheObject {
+                    delta_offset: 0,
+                    delta_ref: ref_sha1,
+                    data_decompress: data,
+                    object_type: t,
+                    offset: *offset,
+                })
             }
         }
-
-        Ok(*offset)
     }
 
 
-    ///
+    /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
     /// 
     /// 
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
+        let mut caches = Caches {
+            objects: Vec::new(),
+            map_offset: HashMap::new(),
+        };
+
         let mut render = Wrapper::new(io::BufReader::new(pack));
 
         let result = Pack::check_header(&mut render);
@@ -239,9 +269,11 @@ impl Pack {
         let mut i = 1;
 
         while i <= self.number {
-            let result: Result<usize, GitError> = self.decode_pack_object(&mut render, &mut offset);
-            match result {
-                Ok(_) => {},
+            let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
+            match r {
+                Ok(cache) => {
+                    caches.insert(cache.offset, cache);
+                },
                 Err(e) => {
                     return Err(e);
                 }
