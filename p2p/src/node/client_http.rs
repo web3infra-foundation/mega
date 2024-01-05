@@ -16,14 +16,14 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use tokio::sync::mpsc::Sender;
+use futures::channel::mpsc;
 
 #[derive(Clone)]
 pub struct P2pNodeState {
-    pub sender: Sender<String>,
+    pub sender: mpsc::Sender<String>,
 }
 
-pub async fn server(sender: Sender<String>) {
+pub async fn server(sender: mpsc::Sender<String>) {
     let state = P2pNodeState { sender };
 
     let app = Router::new()
@@ -59,7 +59,7 @@ async fn mega_provide(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["mega", "provide", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -69,7 +69,7 @@ async fn mega_search(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["mega", "search", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -79,7 +79,7 @@ async fn mega_clone(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mega_address = query.get("mega_address").unwrap();
     let line = ["mega", "clone", mega_address].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -89,7 +89,7 @@ async fn mega_clone_obj(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["mega", "clone-object", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -99,7 +99,7 @@ async fn mega_pull(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mega_address = query.get("mega_address").unwrap();
     let line = ["mega", "pull", mega_address].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -109,7 +109,7 @@ async fn mega_pull_obj(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["mega", "pull-object", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -127,7 +127,7 @@ async fn nostr_subscribe(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["nostr", "subscribe", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -137,7 +137,7 @@ async fn nostr_event_update(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["nostr", "event-update", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -147,7 +147,7 @@ async fn nostr_event_merge(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["nostr", "event-merge", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
 
@@ -157,6 +157,6 @@ async fn nostr_event_issue(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let repo_name = query.get("repo_name").unwrap();
     let line = ["nostr", "event-issue", repo_name].join(" ");
-    state.0.sender.send(line).await.unwrap();
+    state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
 }
