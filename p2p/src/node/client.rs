@@ -15,7 +15,6 @@ use libp2p::{
     Multiaddr, PeerId, StreamProtocol,
 };
 use tokio::join;
-use tokio::sync::mpsc;
 
 use common::enums::DataSource;
 use entity::objects::Model;
@@ -215,8 +214,9 @@ pub async fn run(
 
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
 
-    let (tx, mut rx) = mpsc::channel::<String>(64);
+    // let (tx, mut rx) = mpsc::channel::<String>(64);
 
+    let (tx, mut rx) = futures::channel::mpsc::channel::<String>(64);
     //http server
     let p2p_http_task = tokio::spawn(async move {
         client_http::server(tx.clone()).await;
@@ -224,12 +224,15 @@ pub async fn run(
 
     let p2p_task = tokio::spawn(async move {
         loop {
-            tokio::select! {
-                Some(line) = rx.recv() => {
-                    if line.is_empty() {
-                            continue;
-                    }
-                    input_command::handle_input_command(&mut swarm,&mut client_paras, line.to_string()).await;
+            futures::select! {
+                command = rx.next() => match command {
+                    Some(line) => {
+                        if line.is_empty() {
+                                continue;
+                        }
+                        input_command::handle_input_command(&mut swarm,&mut client_paras, line.to_string()).await;
+                    },
+                    None=>  return,
                 },
                 line = stdin.select_next_some() => {
                     let line :String = line.expect("Stdin not to close");
