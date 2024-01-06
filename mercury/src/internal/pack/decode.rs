@@ -7,6 +7,7 @@
 //! 
 use std::io::{self, Read, BufRead, Seek};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use flate2::bufread::ZlibDecoder;
 
@@ -247,10 +248,12 @@ impl Pack {
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
     /// 
     /// 
-    pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
+    pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
         let mut caches = Caches {
             objects: Vec::new(),
             map_offset: HashMap::new(),
+            mem_size,
+            tmp_path,
         };
 
         let mut render = Wrapper::new(io::BufReader::new(pack));
@@ -360,10 +363,12 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
 
+        let tmp = PathBuf::from("/tmp");
+
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack {number: 0, signature: SHA1::default()};
-        p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
     #[test]
@@ -371,10 +376,12 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/ref-delta-65d47638aa7cb7c39f1bd1d5011a415439b887a8.pack");
 
+        let tmp = PathBuf::from("/tmp");
+
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack {number: 0, signature: SHA1::default()};
-        p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
     #[test]
@@ -382,10 +389,12 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
+        let tmp = PathBuf::from("/tmp");
+
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack {number: 0, signature: SHA1::default()};
-        p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
     #[test]
@@ -393,9 +402,11 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack");
 
+        let tmp = PathBuf::from("/tmp");
+
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack {number: 0, signature: SHA1::default()};
-        p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered, 0, tmp).unwrap();
     }
 }
