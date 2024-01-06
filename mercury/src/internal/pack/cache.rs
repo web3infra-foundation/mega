@@ -6,6 +6,7 @@
 //! 
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
@@ -25,6 +26,8 @@ pub struct CacheObject {
 pub struct Caches {
     pub objects: Vec<Box<dyn ObjectTrait>>,
     pub map_offset: HashMap<usize, CacheObject>,
+    pub mem_size: usize,
+    pub tmp_path: PathBuf,
 }
 
 
@@ -41,5 +44,11 @@ impl Caches {
     /// 
     pub fn insert(&mut self, offset: usize, object: CacheObject) {
         self.map_offset.insert(offset, object);
+
+        self.mem_size += self.get(offset).unwrap().data_decompress.len();
+    }
+
+    pub fn get(&self, offset: usize) -> Option<&CacheObject> {
+        self.map_offset.get(&offset)
     }
 }
