@@ -11,7 +11,7 @@ x-environment: &commonEnvironment
   GIT_INTERNAL_DECODE_CACHE_TYEP: "lru"
   REDIS_CONFIG: "redis://172.17.0.1:6379"
 
-services:
+services: 
   p2prelay:
     build:
       context: ../../../
@@ -22,8 +22,7 @@ services:
     depends_on:
       - redis
   node_a:
-    build:
-      context: ../../../
+    image: mega_p2p-p2prelay
     ports:
       - "8300:8300" #p2p node port
       - "8301:8001" #p2p http api port
@@ -31,20 +30,19 @@ services:
     environment:
       <<: *commonEnvironment
       MEGA_DB_POSTGRESQL_URL: "postgres://postgres:postgres@172.17.0.1:5433/mega"
-    command: service start http p2p --host 0.0.0.0 --p2p-port 8300 --bootstrap-node /ip4/172.17.0.1/tcp/8200
+    command: service start http p2p --host 0.0.0.0 --p2p-port 8300 --bootstrap-node /ip4/172.17.0.1/tcp/8200 --secret-key 6b911fd37cdf5c81d4c0adb1ab7fa822ed253ab0ad9aa18d77257c88b29b7181
     depends_on:
       - postgres_a
       - p2prelay
   node_b:
-    build:
-      context: ../../../
+    image: mega_p2p-p2prelay
     ports:
       - "8400:8400"
       - "8401:8001"
-    environment:
+    environment: 
       <<: *commonEnvironment
       MEGA_DB_POSTGRESQL_URL: "postgres://postgres:postgres@172.17.0.1:5434/mega"
-    command: service p2p --host 0.0.0.0 --p2p-port 8400 --bootstrap-node /ip4/172.17.0.1/tcp/8200
+    command: service p2p --host 0.0.0.0 --p2p-port 8400 --bootstrap-node /ip4/172.17.0.1/tcp/8200 --secret-key 6b911fd37cdf5c81d4c0adb1ab7fa822ed253ab0ad9aa18d77257c88b29b718e
     depends_on:
       - postgres_b
       - p2prelay

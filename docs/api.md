@@ -28,7 +28,7 @@ HTTP implement for git transfer data between two repositories
 
 The Git LFS client uses an HTTPS server to coordinate fetching and storing large binary objects separately from a Git server.
 
-1. 通过object id下载lfs协议需要的git对象
+1. Downloading the Git objects required by the LFS protocol using an object ID.
 
     ```bash
     GET **/objetcs/:object_id

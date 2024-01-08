@@ -30,8 +30,9 @@ pub async fn server(sender: mpsc::Sender<String>) {
         .nest(
             "/api/v1",
             Router::new()
-                .nest("/mega/", mega_routers())
-                .nest("/nostr", nostr_routers()),
+                .nest("/mega", mega_routers())
+                .nest("/nostr", nostr_routers())
+                .route("/status", get(life_cycle_check)),
         )
         // .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -51,6 +52,10 @@ pub fn mega_routers() -> Router<P2pNodeState> {
         .route("/clone-object", get(mega_clone_obj))
         .route("/pull", get(mega_pull))
         .route("/pull-object", get(mega_pull_obj))
+}
+
+async fn life_cycle_check() -> Result<impl IntoResponse, (StatusCode, String)> {
+    Ok(Json("ok"))
 }
 
 async fn mega_provide(
@@ -159,4 +164,58 @@ async fn nostr_event_issue(
     let line = ["nostr", "event-issue", repo_name].join(" ");
     state.0.sender.clone().try_send(line).unwrap();
     Ok(Json("ok"))
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use async_std::stream::StreamExt;
+    use axum::{extract::Query, http::Uri};
+    use futures::channel::mpsc;
+
+    use crate::node::client_http::{
+        mega_clone, mega_clone_obj, mega_pull, mega_pull_obj, P2pNodeState,
+    };
+    use crate::node::client_http::{mega_provide, mega_search};
+
+    #[tokio::test]
+    async fn test_mega_routers() {
+        let query: Query<HashMap<String, String>> = Query::try_from_uri(
+            &"http://localhost:8001/api/v1/mega/provide?repo_name=reponame.git"
+                .parse::<Uri>()
+                .unwrap(),
+        )
+        .unwrap();
+
+        let addr_query: Query<HashMap<String, String>> = Query::try_from_uri(
+            &"http://localhost:8001/api/v1/mega/clone?mega_address=p2p://peer_id/reponame.git"
+                .parse::<Uri>()
+                .unwrap(),
+        )
+        .unwrap();
+
+        let (tx, mut rx) = mpsc::channel::<String>(64);
+        let s = P2pNodeState { sender: tx };
+        let state = axum::extract::State(s);
+        let _ = mega_provide(query.clone(), state.clone()).await;
+        let _ = mega_search(query.clone(), state.clone()).await;
+        let _ = mega_clone(addr_query.clone(), state.clone()).await;
+        let _ = mega_clone_obj(query.clone(), state.clone()).await;
+        let _ = mega_pull(addr_query.clone(), state.clone()).await;
+        let _ = mega_pull_obj(query.clone(), state.clone()).await;
+
+        assert_eq!(rx.next().await.unwrap(), "mega provide reponame.git");
+        assert_eq!(rx.next().await.unwrap(), "mega search reponame.git");
+        assert_eq!(
+            rx.next().await.unwrap(),
+            "mega clone p2p://peer_id/reponame.git"
+        );
+        assert_eq!(rx.next().await.unwrap(), "mega clone-object reponame.git");
+        assert_eq!(
+            rx.next().await.unwrap(),
+            "mega pull p2p://peer_id/reponame.git"
+        );
+        assert_eq!(rx.next().await.unwrap(), "mega pull-object reponame.git");
+    }
 }

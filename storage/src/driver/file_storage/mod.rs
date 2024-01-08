@@ -6,11 +6,11 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
+
 use common::errors::MegaError;
 
 use crate::driver::file_storage::local_storage::LocalStorage;
-
-use self::remote_storage::RemoteStorage;
+use crate::driver::file_storage::remote_storage::RemoteStorage;
 
 pub mod local_storage;
 pub mod remote_storage;
