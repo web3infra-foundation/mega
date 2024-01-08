@@ -13,16 +13,16 @@ path = "src/lib.rs"
 [dependencies]
 common = {path = "../common"}
 entity = {path = "./entity"}
-anyhow = "1.0"
-async-trait = "0.1"
+anyhow = "1.0.79"
+async-trait = "0.1.77"
 tracing = "0.1.40"
 idgenerator = "2.0.0"
-chrono = "0.4"
-sha256 = "1.4"
-serde = "1.0"
-serde_json = "1.0"
-futures = "0.3"
-sea-orm = {version = "0.12", features = [
+chrono = "0.4.31"
+sha256 = "1.5"
+serde = "1.0.195"
+serde_json = "1.0.111"
+futures = "0.3.30"
+sea-orm = {version = "0.12.10", features = [
     "sqlx-postgres",
     "sqlx-mysql",
     "runtime-tokio-rustls",
@@ -31,8 +31,8 @@ sea-orm = {version = "0.12", features = [
 aws-config = {version = "1.1.1", features = ["behavior-version-latest"]}
 aws-sdk-s3 = "1.11.0"
 aws-smithy-types = "1.1.1"
-thiserror = "1.0.52"
+thiserror = "1.0.56"
 bytes = "1.5.0"
 
 [dev-dependencies]
-tokio = { version = "1.35.0", features = ["macros"] }
+tokio = { version = "1.35.1", features = ["macros"] }

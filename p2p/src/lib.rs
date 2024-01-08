@@ -5,19 +5,19 @@
 //!
 //!
 
-use storage::driver::database::storage::ObjectStorage;
-use git::protocol::{PackProtocol, Protocol};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub mod network;
-pub mod node;
-pub mod peer;
+use git::protocol::{PackProtocol, Protocol};
+use storage::driver::database::storage::ObjectStorage;
+
 pub mod cbor;
 pub mod internal;
-
+pub mod network;
+pub mod node;
 pub mod nostr;
+pub mod peer;
 
 fn get_pack_protocol(path: &str, storage: Arc<dyn ObjectStorage>) -> PackProtocol {
     let path = del_ends_str(path, ".git");
