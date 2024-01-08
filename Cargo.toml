@@ -25,5 +25,9 @@ tokio = { version = "1.35.1", features = ["macros"] }
 clap = { version = "4.4.11", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 
+
+[dev-dependencies]
+reqwest = "0.11.23"
+
 [build-dependencies]
 shadow-rs = "0.26.0"

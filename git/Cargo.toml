@@ -44,7 +44,7 @@ async-recursion = "1.0"
 num_cpus = "1.16.0"
 dotenvy = "0.15.7"
 diffs = "0.5.1"
-sea-orm = { version = "0.12", features = [
+sea-orm = { version = "0.12.10", features = [
     "runtime-tokio-rustls",
     "macros",
     "mock",

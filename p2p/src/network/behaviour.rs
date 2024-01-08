@@ -5,9 +5,9 @@ use libp2p::swarm::NetworkBehaviour;
 use libp2p::{dcutr, identify, relay, rendezvous, request_response};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+
 use crate::cbor;
 use crate::nostr::{NostrReq, NostrRes};
-
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "Event")]
 pub struct Behaviour {
@@ -46,7 +46,6 @@ pub struct GitObjectReq(pub String, pub Vec<String>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitObjectRes(pub Vec<objects::Model>);
-
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
