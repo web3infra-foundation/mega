@@ -47,7 +47,6 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 // 2. Third-Party Crates
-use async_trait::async_trait;
 use bytes::{BufMut, Bytes, BytesMut};
 use russh::server::{self, Auth, Msg, Session};
 use russh::{Channel, ChannelId};

@@ -25,11 +25,10 @@ async-std = { version = "1.12.0", features = ["attributes"] }
 libp2p = { version = "0.53", features = ["dcutr", "kad", "yamux", "noise", "identify", "macros", "relay", "tcp", "async-std", "rendezvous", "request-response", "cbor", "secp256k1"] }
 serde = { version = "1.0", features = ["derive"] }
 clap = { version = "4.4.11", features = ["derive"] }
-serde_json = "1.0"
-async-trait = "0.1"
+serde_json = "1.0.111"
+async-trait = "0.1.77"
 cbor4ii = { version = "0.3.1", features = ["serde1", "use_std"] }
 redis = { version = "0.23", features = ["tokio-comp"] }
 secp256k1 = { version = "0.27.0", features = ["serde", "bitcoin-hashes", "bitcoin-hashes-std", "rand"] }
-axum = "0.7.2"
-
+axum = "0.7.3"
 
