@@ -14,7 +14,7 @@ use crate::hash::Hash;
 use crate::internal::object::ObjectT;
 
 mod cache;
-mod counter;
+pub mod counter;
 mod cqueue;
 pub mod decode;
 pub mod delta;
