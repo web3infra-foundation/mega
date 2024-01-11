@@ -13,3 +13,4 @@ pub mod refs;
 pub mod issue;
 pub mod repo_directory;
 pub mod pull_request;
+pub mod model;

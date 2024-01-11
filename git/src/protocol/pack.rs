@@ -391,14 +391,14 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
         return (0, Bytes::new());
     }
     let pkt_length = bytes.copy_to_bytes(4);
-    let pkt_length =
-        usize::from_str_radix(&String::from_utf8(pkt_length.to_vec()).unwrap(), 16).unwrap();
-
+    let pkt_length = usize::from_str_radix(&String::from_utf8(pkt_length.to_vec()).unwrap(), 16)
+        .unwrap_or_else(|_| panic!("{:?} is not a valid digit?", pkt_length));
     if pkt_length == 0 {
         return (0, Bytes::new());
     }
     // this operation will change the original bytes
     let pkt_line = bytes.copy_to_bytes(pkt_length - 4);
+    tracing::debug!("pkt line: {:?}", pkt_line);
 
     (pkt_length, pkt_line)
 }

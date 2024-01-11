@@ -1,13 +1,15 @@
 use std::fmt::Display;
+
+use serde::{Serialize, Deserialize};
 /// A Counter for counting git object types
-#[derive(Default,Clone, Copy)]
+#[derive(Default,Clone, Copy, Serialize, Deserialize)]
 pub struct GitTypeCounter{
-    commit:usize,
-    tree:usize,
-    blob:usize,
-    tag:usize,
-    ofs_delta:usize,
-    ref_delta:usize,
+    pub commit:usize,
+    pub tree:usize,
+    pub blob:usize,
+    pub tag:usize,
+    pub ofs_delta:usize,
+    pub ref_delta:usize,
    
 }
 impl GitTypeCounter {

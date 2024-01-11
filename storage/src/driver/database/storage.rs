@@ -9,19 +9,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-
-use entity::commit;
-use entity::issue;
-use entity::locks;
-use entity::meta;
-use entity::mr;
-use entity::mr_info;
-use entity::node;
-use entity::objects;
-use entity::pull_request;
-use entity::refs;
-
-use entity::repo_directory;
+use entity::model::query_result::SelectResult;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
@@ -37,6 +25,17 @@ use sea_orm::Set;
 use sea_orm::TryIntoModel;
 
 use common::errors::MegaError;
+use entity::commit;
+use entity::issue;
+use entity::locks;
+use entity::meta;
+use entity::mr;
+use entity::mr_info;
+use entity::node;
+use entity::objects;
+use entity::pull_request;
+use entity::refs;
+use entity::repo_directory;
 
 use crate::driver::file_storage;
 
@@ -469,6 +468,28 @@ pub trait ObjectStorage: Send + Sync {
             .one(self.get_connection())
             .await
             .unwrap())
+    }
+
+    async fn count_obj_from_commit_and_node(
+        &self,
+        repo_path: &str,
+    ) -> Result<Vec<SelectResult>, MegaError> {
+        let select = node::Entity::find()
+            .select_only()
+            .filter(node::Column::RepoPath.eq(repo_path))
+            .column(node::Column::NodeType)
+            .column_as(node::Column::NodeType.count(), "count")
+            .group_by(node::Column::NodeType);
+        // .into_json();
+        // .all(self.get_connection())
+        // .await
+        // .unwrap();
+        let results = select
+            .into_model::<SelectResult>()
+            .all(self.get_connection())
+            .await
+            .unwrap();
+        Ok(results)
     }
 }
 
