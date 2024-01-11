@@ -1,2 +1,2 @@
-pub mod object_detail;
+pub mod objects;
 pub mod query;
