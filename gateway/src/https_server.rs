@@ -29,6 +29,8 @@ use storage::driver::database;
 use storage::driver::database::storage::ObjectStorage;
 use tower_http::trace::TraceLayer;
 
+use crate::api_service::obj_service::ObjectService;
+use crate::api_service::router::ApiServiceState;
 use crate::{api_service, git_protocol, lfs};
 
 #[derive(Args, Clone, Debug)]
@@ -92,8 +94,15 @@ pub async fn start_server(options: &HttpOptions) {
         storage: database::init(data_source).await,
         options: options.to_owned(),
     };
+    
+    let api_state = ApiServiceState {
+        object_service: ObjectService {
+            storage: state.storage.clone(),
+        }
+    };
+    
     let app = Router::new()
-        .nest("/api/v1", api_service::router::routers(state.clone()))
+        .nest("/api/v1", api_service::router::routers(api_state))
         .route(
             "/*path",
             get(get_method_router)

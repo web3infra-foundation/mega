@@ -55,7 +55,7 @@ pub fn mega_routers() -> Router<P2pNodeState> {
 }
 
 async fn life_cycle_check() -> Result<impl IntoResponse, (StatusCode, String)> {
-    Ok(Json("ok"))
+    Ok(Json("p2p node http ready"))
 }
 
 async fn mega_provide(

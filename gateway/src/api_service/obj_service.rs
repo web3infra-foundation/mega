@@ -7,11 +7,13 @@ use axum::{http::StatusCode, response::Response};
 use git::internal::object::commit::Commit;
 use git::internal::object::tree::Tree;
 use git::internal::object::ObjectT;
+use git::internal::pack::counter::GitTypeCounter;
 use storage::driver::database::storage::ObjectStorage;
 
-use crate::model::object_detail::{BlobObjects, Directories, Item};
+use crate::model::objects::{BlobObjects, Directories, Item};
 use crate::model::query::DirectoryQuery;
 
+#[derive(Clone)]
 pub struct ObjectService {
     pub storage: Arc<dyn ObjectStorage>,
 }
@@ -140,7 +142,7 @@ impl ObjectService {
         for item in &mut items {
             let related_c_id = item.commit_id.clone().unwrap();
             let commit = related_c_map.get(&related_c_id).unwrap();
-            item.commit_msg = Some(remove_useless_str(
+            item.commit_msg = Some(utils::remove_useless_str(
                 commit.message.clone(),
                 SIGNATURE_END.to_owned(),
             ));
@@ -171,14 +173,50 @@ impl ObjectService {
             .unwrap();
         Ok(res)
     }
+
+    pub async fn count_object_num(
+        &self,
+        repo_path: &str,
+    ) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
+        let query_res = self
+            .storage
+            .count_obj_from_commit_and_node(repo_path)
+            .await
+            .unwrap();
+        let tree = query_res
+            .iter()
+            .find(|x| x.node_type == "tree")
+            .map(|x| x.count)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let blob = query_res
+            .iter()
+            .find(|x| x.node_type == "blob")
+            .map(|x| x.count)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let counter = GitTypeCounter {
+            commit: 0,
+            tree,
+            blob,
+            tag: 0,
+            ofs_delta: 0,
+            ref_delta: 0,
+        };
+        Ok(Json(counter))
+    }
 }
 
-fn remove_useless_str(content: String, remove_str: String) -> String {
-    if let Some(index) = content.find(&remove_str) {
-        let filtered_text = &content[index + remove_str.len()..].replace('\n', "");
-        let truncated_text = filtered_text.chars().take(50).collect::<String>();
-        truncated_text.to_owned()
-    } else {
-        "".to_owned()
+pub mod utils {
+    pub(crate) fn remove_useless_str(content: String, remove_str: String) -> String {
+        if let Some(index) = content.find(&remove_str) {
+            let filtered_text = &content[index + remove_str.len()..].replace('\n', "");
+            let truncated_text = filtered_text.chars().take(50).collect::<String>();
+            truncated_text.to_owned()
+        } else {
+            "".to_owned()
+        }
     }
 }

@@ -21,41 +21,39 @@ pub async fn provide(
     client_paras: &mut ClientParas,
     repo_name: &str,
 ) {
-    {
-        if !repo_name.ends_with(".git") {
-            eprintln!("repo_name should end with .git");
-            return;
-        }
-        let path = get_repo_full_path(repo_name);
-        let pack_protocol: git::protocol::PackProtocol =
-            get_pack_protocol(&path, client_paras.storage.clone());
-        let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
-        if object_id == *utils::ZERO_ID {
-            eprintln!("Repository not found");
-            return;
-        }
-        // //Construct repoInfo
-        let mega_repo_info = MegaRepoInfo {
-            origin: swarm.local_peer_id().to_string(),
-            name: repo_name.to_string(),
-            latest: object_id,
-            forks: vec![],
-            timestamp: get_utc_timestamp(),
-        };
-        let record = Record {
-            key: kad::RecordKey::new(&repo_name),
-            value: serde_json::to_vec(&mega_repo_info).unwrap(),
-            publisher: None,
-            expires: None,
-        };
+    if !repo_name.ends_with(".git") {
+        eprintln!("repo_name should end with .git");
+        return;
+    }
+    let path = get_repo_full_path(repo_name);
+    let pack_protocol: git::protocol::PackProtocol =
+        get_pack_protocol(&path, client_paras.storage.clone());
+    let object_id = pack_protocol.get_head_object_id(Path::new(&path)).await;
+    if object_id == *utils::ZERO_ID {
+        eprintln!("Repository not found");
+        return;
+    }
+    //Construct repoInfo
+    let mega_repo_info = MegaRepoInfo {
+        origin: swarm.local_peer_id().to_string(),
+        name: repo_name.to_string(),
+        latest: object_id,
+        forks: vec![],
+        timestamp: get_utc_timestamp(),
+    };
+    let record = Record {
+        key: kad::RecordKey::new(&repo_name),
+        value: serde_json::to_vec(&mega_repo_info).unwrap(),
+        publisher: None,
+        expires: None,
+    };
 
-        if let Err(e) = swarm
-            .behaviour_mut()
-            .kademlia
-            .put_record(record, Quorum::One)
-        {
-            eprintln!("Failed to store record:{}", e);
-        }
+    if let Err(e) = swarm
+        .behaviour_mut()
+        .kademlia
+        .put_record(record, Quorum::One)
+    {
+        eprintln!("Failed to store record:{}", e);
     }
 }
 
@@ -64,12 +62,10 @@ pub async fn search(
     _client_paras: &mut ClientParas,
     repo_name: &str,
 ) {
-    {
-        swarm
-            .behaviour_mut()
-            .kademlia
-            .get_record(kad::RecordKey::new(&repo_name));
-    }
+    swarm
+        .behaviour_mut()
+        .kademlia
+        .get_record(kad::RecordKey::new(&repo_name));
 }
 
 pub async fn clone(
@@ -87,15 +83,14 @@ pub async fn clone(
         }
     };
     let path = get_repo_full_path(repo_name);
-    {
-        let request_file_id = swarm.behaviour_mut().git_upload_pack.send_request(
-            &peer_id,
-            GitUploadPackReq(HashSet::new(), HashSet::new(), path),
-        );
-        client_paras
-            .pending_git_upload_package
-            .insert(request_file_id, repo_name.to_string());
-    }
+
+    let request_file_id = swarm.behaviour_mut().git_upload_pack.send_request(
+        &peer_id,
+        GitUploadPackReq(HashSet::new(), HashSet::new(), path),
+    );
+    client_paras
+        .pending_git_upload_package
+        .insert(request_file_id, repo_name.to_string());
 }
 
 pub async fn pull(
@@ -117,16 +112,15 @@ pub async fn pull(
         eprintln!("local repo not found");
         return;
     }
-    {
-        // Request to get git_info_refs
-        let request_id = swarm
-            .behaviour_mut()
-            .git_info_refs
-            .send_request(&peer_id, GitInfoRefsReq(path, Vec::new()));
-        client_paras
-            .pending_git_pull
-            .insert(request_id, repo_name.to_string());
-    }
+
+    // Request to get git_info_refs
+    let request_id = swarm
+        .behaviour_mut()
+        .git_info_refs
+        .send_request(&peer_id, GitInfoRefsReq(path, Vec::new()));
+    client_paras
+        .pending_git_pull
+        .insert(request_id, repo_name.to_string());
 }
 
 pub async fn clone_obj(
@@ -138,16 +132,15 @@ pub async fn clone_obj(
         eprintln!("repo_name should end with .git");
         return;
     }
-    {
-        let kad_query_id = swarm
-            .behaviour_mut()
-            .kademlia
-            .get_record(kad::RecordKey::new(&repo_name));
 
-        client_paras
-            .pending_repo_info_search_to_download_obj
-            .insert(kad_query_id, repo_name.to_owned());
-    }
+    let kad_query_id = swarm
+        .behaviour_mut()
+        .kademlia
+        .get_record(kad::RecordKey::new(&repo_name));
+
+    client_paras
+        .pending_repo_info_search_to_download_obj
+        .insert(kad_query_id, repo_name.to_owned());
 }
 
 pub async fn pull_obj(
@@ -163,11 +156,10 @@ pub async fn pull_obj(
         .behaviour_mut()
         .kademlia
         .get_record(kad::RecordKey::new(&repo_name));
-    {
-        client_paras
-            .pending_repo_info_search_to_download_obj
-            .insert(kad_query_id, repo_name.to_owned());
-    }
+
+    client_paras
+        .pending_repo_info_search_to_download_obj
+        .insert(kad_query_id, repo_name.to_owned());
 }
 
 pub async fn subscribe(
@@ -179,12 +171,10 @@ pub async fn subscribe(
     let filters = vec![Filter::new().repo_name(repo_name.to_string())];
     let client_req = ClientMessage::new_req(SubscriptionId::generate(), filters);
 
-    {
-        swarm
-            .behaviour_mut()
-            .nostr
-            .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
-    }
+    swarm
+        .behaviour_mut()
+        .nostr
+        .send_request(&relay_peer_id, NostrReq(client_req.as_json()));
 }
 
 pub async fn event_update(
@@ -296,9 +286,7 @@ pub async fn kad_get(
     key: &str,
 ) {
     let key = kad::RecordKey::new(&key);
-    {
-        swarm.behaviour_mut().kademlia.get_record(key);
-    }
+    swarm.behaviour_mut().kademlia.get_record(key);
 }
 
 pub async fn kad_put(
@@ -315,14 +303,13 @@ pub async fn kad_put(
         publisher: None,
         expires: None,
     };
+
+    if let Err(e) = swarm
+        .behaviour_mut()
+        .kademlia
+        .put_record(record, Quorum::One)
     {
-        if let Err(e) = swarm
-            .behaviour_mut()
-            .kademlia
-            .put_record(record, Quorum::One)
-        {
-            eprintln!("Put record failed :{}", e);
-        }
+        eprintln!("Put record failed :{}", e);
     }
 }
 
@@ -337,9 +324,7 @@ pub async fn get_peer(
             return;
         }
     };
-    {
-        swarm.behaviour_mut().kademlia.get_closest_peers(peer_id);
-    }
+    swarm.behaviour_mut().kademlia.get_closest_peers(peer_id);
 }
 
 pub fn parse_peer_id(peer_id_str: Option<&str>) -> Option<PeerId> {
