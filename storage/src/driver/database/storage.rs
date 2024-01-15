@@ -19,6 +19,7 @@ use sea_orm::DatabaseTransaction;
 use sea_orm::DbErr;
 use sea_orm::EntityTrait;
 use sea_orm::IntoActiveModel;
+use sea_orm::PaginatorTrait;
 use sea_orm::QueryFilter;
 use sea_orm::QuerySelect;
 use sea_orm::Set;
@@ -127,6 +128,8 @@ pub trait ObjectStorage: Send + Sync {
                 self.get_connection(),
                 objects::Column::GitId,
                 git_ids,
+                None,
+                None,
             )
             .await
             .unwrap();
@@ -168,9 +171,14 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    async fn get_commit_by_hash(&self, hash: &str) -> Result<Option<commit::Model>, MegaError> {
+    async fn get_commit_by_hash(
+        &self,
+        hash: &str,
+        repo_path: &str,
+    ) -> Result<Option<commit::Model>, MegaError> {
         Ok(commit::Entity::find()
             .filter(commit::Column::GitId.eq(hash))
+            .filter(commit::Column::RepoPath.eq(repo_path))
             .one(self.get_connection())
             .await
             .unwrap())
@@ -179,11 +187,14 @@ pub trait ObjectStorage: Send + Sync {
     async fn get_commit_by_hashes(
         &self,
         hashes: Vec<String>,
+        repo_path: &str,
     ) -> Result<Vec<commit::Model>, MegaError> {
-        Ok(batch_query_by_columns::<commit::Entity, commit::Column>(
+        Ok(batch_query_by_columns::<commit::Entity, _>(
             self.get_connection(),
             commit::Column::GitId,
             hashes,
+            Some(commit::Column::RepoPath),
+            Some(repo_path.to_string()),
         )
         .await
         .unwrap())
@@ -241,19 +252,27 @@ pub trait ObjectStorage: Send + Sync {
     async fn get_nodes_by_hashes(
         &self,
         hashes: Vec<String>,
+        repo_path: &str,
     ) -> Result<Vec<node::Model>, MegaError> {
-        Ok(batch_query_by_columns::<node::Entity, node::Column>(
+        Ok(batch_query_by_columns::<node::Entity, _>(
             self.get_connection(),
             node::Column::GitId,
             hashes,
+            Some(node::Column::RepoPath),
+            Some(repo_path.to_string()),
         )
         .await
         .unwrap())
     }
 
-    async fn get_node_by_hash(&self, hash: &str) -> Result<Option<node::Model>, MegaError> {
+    async fn get_node_by_hash(
+        &self,
+        hash: &str,
+        repo_path: &str,
+    ) -> Result<Option<node::Model>, MegaError> {
         Ok(node::Entity::find()
             .filter(node::Column::GitId.eq(hash))
+            .filter(node::Column::RepoPath.eq(repo_path))
             .one(self.get_connection())
             .await
             .unwrap())
@@ -266,18 +285,18 @@ pub trait ObjectStorage: Send + Sync {
             .await
             .unwrap())
     }
-    async fn get_nodes(&self) -> Result<Vec<node::Model>, MegaError> {
-        Ok(node::Entity::find()
-            .select_only()
-            .columns([
-                node::Column::GitId,
-                node::Column::Size,
-                node::Column::FullPath,
-            ])
-            .all(self.get_connection())
-            .await
-            .unwrap())
-    }
+    // async fn get_nodes(&self) -> Result<Vec<node::Model>, MegaError> {
+    //     Ok(node::Entity::find()
+    //         .select_only()
+    //         .columns([
+    //             node::Column::GitId,
+    //             node::Column::Size,
+    //             node::Column::FullPath,
+    //         ])
+    //         .all(self.get_connection())
+    //         .await
+    //         .unwrap())
+    // }
 
     async fn save_nodes(
         &self,
@@ -470,26 +489,27 @@ pub trait ObjectStorage: Send + Sync {
             .unwrap())
     }
 
-    async fn count_obj_from_commit_and_node(
-        &self,
-        repo_path: &str,
-    ) -> Result<Vec<SelectResult>, MegaError> {
+    async fn count_obj_from_node(&self, repo_path: &str) -> Result<Vec<SelectResult>, MegaError> {
         let select = node::Entity::find()
             .select_only()
             .filter(node::Column::RepoPath.eq(repo_path))
             .column(node::Column::NodeType)
             .column_as(node::Column::NodeType.count(), "count")
             .group_by(node::Column::NodeType);
-        // .into_json();
-        // .all(self.get_connection())
-        // .await
-        // .unwrap();
         let results = select
             .into_model::<SelectResult>()
             .all(self.get_connection())
             .await
             .unwrap();
         Ok(results)
+    }
+
+    async fn count_obj_from_commit(&self, repo_path: &str) -> Result<u64, MegaError> {
+        Ok(commit::Entity::find()
+            .filter(commit::Column::RepoPath.eq(repo_path))
+            .count(self.get_connection())
+            .await
+            .unwrap())
     }
 }
 
@@ -540,6 +560,8 @@ async fn batch_query_by_columns<T, C>(
     connection: &DatabaseConnection,
     column: C,
     ids: Vec<String>,
+    filter_column: Option<C>,
+    value: Option<String>,
 ) -> Result<Vec<T::Model>, MegaError>
 where
     T: EntityTrait,
@@ -547,13 +569,15 @@ where
 {
     let mut result = Vec::<T::Model>::new();
     for chunk in ids.chunks(1000) {
-        result.extend(
-            T::find()
-                .filter(column.is_in(chunk))
-                .all(connection)
-                .await
-                .unwrap(),
-        );
+        let query_builder = T::find().filter(column.is_in(chunk));
+
+        // Conditionally add the filter based on the value parameter
+        let query_builder = match value {
+            Some(ref v) => query_builder.filter(filter_column.unwrap().eq(v)),
+            None => query_builder,
+        };
+
+        result.extend(query_builder.all(connection).await?);
     }
     Ok(result)
 }
