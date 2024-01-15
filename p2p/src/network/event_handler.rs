@@ -676,10 +676,7 @@ async fn git_upload_pack_handler(
         Ok((send_pack_data, object_id))
     } else {
         //pull
-        let send_pack_data = match pack_protocol
-            .get_incremental_pack_data(Path::new(&path), &want, &have)
-            .await
-        {
+        let send_pack_data = match pack_protocol.get_incremental_pack_data(&want, &have).await {
             Ok(send_pack_data) => send_pack_data,
             Err(e) => {
                 tracing::error!("{}", e);
