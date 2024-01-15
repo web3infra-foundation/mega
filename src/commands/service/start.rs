@@ -10,7 +10,7 @@ use p2p::peer::{self, P2pCustom, P2pOptions};
 use crate::cli::Config;
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
-enum ServiceType {
+pub enum StartCommand {
     Http,
     Https,
     Ssh,
@@ -19,7 +19,7 @@ enum ServiceType {
 
 #[derive(Args, Clone, Debug)]
 pub struct StartOptions {
-    service: Vec<ServiceType>,
+    service: Vec<StartCommand>,
 
     #[clap(flatten)]
     pub common: CommonOptions,
@@ -49,8 +49,8 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
 
     let service_type = server_matchers.service;
 
-    let http_server = if service_type.contains(&ServiceType::Http)
-        || service_type.contains(&ServiceType::Https)
+    let http_server = if service_type.contains(&StartCommand::Http)
+        || service_type.contains(&StartCommand::Https)
     {
         let http = HttpOptions {
             common: server_matchers.common.clone(),
@@ -61,7 +61,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
         tokio::task::spawn(async {})
     };
 
-    let ssh_server = if service_type.contains(&ServiceType::Ssh) {
+    let ssh_server = if service_type.contains(&StartCommand::Ssh) {
         let ssh = SshOptions {
             common: server_matchers.common.clone(),
             custom: server_matchers.ssh,
@@ -71,7 +71,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
         tokio::task::spawn(async {})
     };
 
-    let p2p_server = if service_type.contains(&ServiceType::P2p) {
+    let p2p_server = if service_type.contains(&StartCommand::P2p) {
         let p2p = P2pOptions {
             common: server_matchers.common.clone(),
             custom: server_matchers.p2p,

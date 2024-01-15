@@ -59,7 +59,7 @@ impl ObjectService {
             repo_path,
         } = query;
         if let Some(obj_id) = object_id {
-            self.get_tree_objects(&obj_id).await
+            self.get_tree_objects(&obj_id, &repo_path).await
         } else {
             let directory = self
                 .storage
@@ -80,11 +80,11 @@ impl ObjectService {
                             }
                         };
                         // find tree by commit
-                        let tree_id = match self.storage.get_commit_by_hash(&commit_id).await {
+                        let tree_id = match self.storage.get_commit_by_hash(&commit_id, &repo_path).await {
                             Ok(Some(commit)) => commit.tree,
                             _ => return Err((StatusCode::NOT_FOUND, "Tree not found".to_string())),
                         };
-                        self.get_tree_objects(&tree_id).await
+                        self.get_tree_objects(&tree_id, &repo_path).await
                     } else {
                         let dirs = self.storage.get_directory_by_pid(dir.id).await.unwrap();
                         let items = dirs.into_iter().map(|x| x.into()).collect();
@@ -103,6 +103,7 @@ impl ObjectService {
     pub async fn get_tree_objects(
         &self,
         object_id: &str,
+        repo_path: &str,
     ) -> Result<Json<Directories>, (StatusCode, String)> {
         let tree_data = match self.storage.get_obj_data_by_id(object_id).await {
             Ok(Some(node)) => {
@@ -122,7 +123,7 @@ impl ObjectService {
             .map(|tree_item| tree_item.id.to_plain_str())
             .collect();
 
-        let child_nodes = self.storage.get_nodes_by_hashes(child_ids).await.unwrap();
+        let child_nodes = self.storage.get_nodes_by_hashes(child_ids, repo_path).await.unwrap();
 
         let mut items: Vec<Item> = child_nodes
             .iter()
@@ -131,7 +132,7 @@ impl ObjectService {
         let related_commit_ids = child_nodes.into_iter().map(|x| x.last_commit).collect();
         let related_c = self
             .storage
-            .get_commit_by_hashes(related_commit_ids)
+            .get_commit_by_hashes(related_commit_ids, repo_path)
             .await
             .unwrap();
         let mut related_c_map: HashMap<String, Commit> = HashMap::new();
@@ -156,8 +157,9 @@ impl ObjectService {
     pub async fn get_objects_data(
         &self,
         object_id: &str,
+        repo_path: &str,
     ) -> Result<Response, (StatusCode, String)> {
-        let node = match self.storage.get_node_by_hash(object_id).await {
+        let node = match self.storage.get_node_by_hash(object_id, repo_path).await {
             Ok(Some(node)) => node,
             _ => return Err((StatusCode::NOT_FOUND, "Blob not found".to_string())),
         };
@@ -178,27 +180,24 @@ impl ObjectService {
         &self,
         repo_path: &str,
     ) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
-        let query_res = self
-            .storage
-            .count_obj_from_commit_and_node(repo_path)
-            .await
-            .unwrap();
+        let query_res = self.storage.count_obj_from_node(repo_path).await.unwrap();
         let tree = query_res
             .iter()
             .find(|x| x.node_type == "tree")
             .map(|x| x.count)
-            .unwrap()
+            .unwrap_or_default()
             .try_into()
             .unwrap();
         let blob = query_res
             .iter()
             .find(|x| x.node_type == "blob")
             .map(|x| x.count)
-            .unwrap()
+            .unwrap_or_default()
             .try_into()
             .unwrap();
+        let commit = self.storage.count_obj_from_commit(repo_path).await.unwrap().try_into().unwrap();
         let counter = GitTypeCounter {
-            commit: 0,
+            commit,
             tree,
             blob,
             tag: 0,

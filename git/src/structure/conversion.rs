@@ -85,7 +85,6 @@ impl PackProtocol {
 
     pub async fn get_incremental_pack_data(
         &self,
-        _repo_path: &Path,
         want: &HashSet<String>,
         have: &HashSet<String>,
     ) -> Result<Vec<u8>, GitError> {
@@ -93,7 +92,7 @@ impl PackProtocol {
         let mut have_objs = HashSet::new();
         let want_commits: Vec<Commit> = self
             .storage
-            .get_commit_by_hashes(want.iter().cloned().collect())
+            .get_commit_by_hashes(want.iter().cloned().collect(), self.path.to_str().unwrap())
             .await
             .unwrap()
             .into_iter()
@@ -122,7 +121,7 @@ impl PackProtocol {
                 .collect();
             let have_commits = self
                 .storage
-                .get_commit_by_hashes(has_parent_c_id)
+                .get_commit_by_hashes(has_parent_c_id, self.path.to_str().unwrap())
                 .await
                 .unwrap();
 
@@ -316,7 +315,7 @@ impl PackProtocol {
     pub async fn generate_subdir_commit(&self, refs: &refs::Model, repo_path: &Path) -> String {
         let root_commit: Commit = self
             .storage
-            .get_commit_by_hash(&refs.ref_git_id.clone())
+            .get_commit_by_hash(&refs.ref_git_id.clone(), &refs.repo_path)
             .await
             .unwrap()
             .unwrap()

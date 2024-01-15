@@ -28,7 +28,7 @@ pub fn routers<S>(state: ApiServiceState) -> Router<S> {
         .route("/tree", get(get_directories))
         .route("/object", get(get_origin_object))
         .route("/status", get(life_cycle_check))
-        .route("/count-nums", get(get_count_nums))
+        .route("/count-objs", get(get_count_nums))
         .with_state(state)
 }
 
@@ -64,5 +64,6 @@ async fn get_origin_object(
     state: State<ApiServiceState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let object_id = query.get("object_id").unwrap();
-    state.object_service.get_objects_data(object_id).await
+    let repo_path = query.get("repo_path").expect("repo_path is required");
+    state.object_service.get_objects_data(object_id, repo_path).await
 }
