@@ -160,19 +160,19 @@ impl PackProtocol {
                 // it is ready to send data with ACK obj-id ready lines,
                 // and signals the identified common commits with ACK obj-id common lines
                 for hash in &have {
-                    if self.storage.get_commit_by_hash(hash).await.is_ok() {
+                    if self.storage.get_commit_by_hash(hash, self.path.to_str().unwrap()).await.is_ok() {
                         add_pkt_line_string(&mut buf, format!("ACK {} common\n", hash));
                     }
                     // no need to send NAK in this mode if missing commit?
                 }
 
                 send_pack_data = self
-                    .get_incremental_pack_data(&self.path, &want, &have)
+                    .get_incremental_pack_data(&want, &have)
                     .await
                     .unwrap();
 
                 for hash in &want {
-                    if self.storage.get_commit_by_hash(hash).await.is_ok() {
+                    if self.storage.get_commit_by_hash(hash, self.path.to_str().unwrap()).await.is_ok() {
                         add_pkt_line_string(&mut buf, format!("ACK {} common\n", hash));
                     }
                     if self.capabilities.contains(&Capability::NoDone) {
