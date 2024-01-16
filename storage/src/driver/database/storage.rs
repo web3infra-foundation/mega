@@ -218,6 +218,11 @@ pub trait ObjectStorage: Send + Sync {
 
     async fn save_refs(&self, save_models: Vec<refs::ActiveModel>) -> Result<bool, MegaError> {
         refs::Entity::insert_many(save_models)
+            .on_conflict(
+                OnConflict::columns(vec![refs::Column::RepoPath, refs::Column::RefName])
+                    .update_columns([refs::Column::RefGitId, refs::Column::UpdatedAt])
+                    .to_owned(),
+            )
             .exec(self.get_connection())
             .await
             .unwrap();
@@ -285,18 +290,6 @@ pub trait ObjectStorage: Send + Sync {
             .await
             .unwrap())
     }
-    // async fn get_nodes(&self) -> Result<Vec<node::Model>, MegaError> {
-    //     Ok(node::Entity::find()
-    //         .select_only()
-    //         .columns([
-    //             node::Column::GitId,
-    //             node::Column::Size,
-    //             node::Column::FullPath,
-    //         ])
-    //         .all(self.get_connection())
-    //         .await
-    //         .unwrap())
-    // }
 
     async fn save_nodes(
         &self,
