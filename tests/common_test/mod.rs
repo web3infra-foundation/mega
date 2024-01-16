@@ -3,12 +3,13 @@ use std::{
     io::Cursor,
     process::Command,
     thread::{self, sleep},
-    time::Duration,
+    time::Duration, path::PathBuf,
 };
 
 use bytes::Bytes;
 use futures_util::StreamExt;
 use git2::Repository;
+use serde::{Deserialize, Serialize};
 use tokio_util::io::ReaderStream;
 
 use git::internal::pack::counter::GitTypeCounter;
@@ -23,16 +24,24 @@ pub struct P2pTestConfig {
     pub commit_id: String,
     pub sub_commit_id: String,
     pub counter: GitTypeCounter,
+    pub clone_path: PathBuf,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct PackObjectIds {
+    pub commit_ids: Vec<String>,
+    pub tree_ids: Vec<String>,
+    pub blob_ids: Vec<String>,
+    pub tag_ids: Vec<String>,
+}
+
 // TODO: got some problem on copy content files
 // pub fn build_image(config: &P2pTestConfig) {
-//     // println!("current:{:?}", env::current_dir().unwrap());
 //     let mut child = Command::new("docker")
 //         .arg("compose")
 //         .arg("-f")
 //         .arg(&config.compose_path)
 //         .arg("build")
-//         .current_dir(env::current_dir().unwrap())
 //         .spawn()
 //         .expect("Failed to execute command");
 //     assert!(child.wait().is_ok());
@@ -72,23 +81,6 @@ pub async fn lifecycle_check(config: &P2pTestConfig) {
     }
 }
 
-// pub fn init_by_command() {
-//     let res = Command::new("git")
-//         .arg("remote")
-//         .arg("set-url")
-//         .arg("local")
-//         .arg("http://localhost:8000/projects/mega.git")
-//         .output()
-//         .expect("Failed to execute command");
-//     assert!(res.status.success());
-//     let res2 = Command::new("git")
-//         .arg("push")
-//         .arg("local")
-//         .arg("main")
-//         .output()
-//         .expect("Failed to execute command");
-//     assert!(res2.status.success());
-// }
 
 pub async fn init_by_pack(config: &P2pTestConfig) {
     let mut source = env::current_dir().unwrap();
