@@ -1,12 +1,12 @@
 use std::{
-    env,
+    fs,
     io::Write,
     path::{Path, PathBuf},
 };
 
-use crate::common_test::P2pTestConfig;
+use crate::common_test::{P2pTestConfig, PackObjectIds};
 use git::internal::pack::counter::GitTypeCounter;
-use git2::{Repository, Signature};
+use git2::{Oid, Repository, Signature};
 use go_defer::defer;
 
 mod common_test;
@@ -16,14 +16,15 @@ mod common_test;
 async fn test_p2p_basic() {
     let init_config = P2pTestConfig {
         compose_path: "tests/compose/mega_p2p/compose.yaml".to_string(),
-        pack_path: "tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack"
+        pack_path: "tests/data/packs/pack-f8bbb573cef7d851957caceb491c073ee8e8de41.pack"
             .to_string(),
         lifecycle_url: "http://localhost:8301/api/v1/status".to_string(),
         lifecycle_retrying: 5,
-        repo_path: "projects/test-pack".to_string(),
-        commit_id: "d50df695086eea6253a237cb5ac44af1629e7ced".to_string(),
-        sub_commit_id: "31fbd13995ef1acc920294f6a170ce8d05abd665".to_string(),
+        repo_path: "/projects/test-p2p".to_string(),
+        commit_id: "f8bbb573cef7d851957caceb491c073ee8e8de41".to_string(),
+        sub_commit_id: "3b7a920f971712ae657bc0ee194825f1327e1255".to_string(),
         counter: GitTypeCounter::default(),
+        clone_path: PathBuf::from("/tmp/.mega/integration_test"),
     };
     defer!(
         common_test::stop_server(&init_config);
@@ -61,22 +62,22 @@ async fn test_mega_clone() {
 async fn test_http() {
     let init_config = P2pTestConfig {
         compose_path: "tests/compose/http/compose.yaml".to_string(),
-        pack_path: "tests/data/packs/mega-b5d9805f1d67ad2d5e2f0cd183ca54f14d142874.pack"
+        pack_path: "tests/data/packs/pack-f8bbb573cef7d851957caceb491c073ee8e8de41.pack"
             .to_string(),
         lifecycle_url: "http://localhost:8000/api/v1/status".to_string(),
         lifecycle_retrying: 5,
-        repo_path: "/projects/testmega".to_string(),
-        commit_id: "b5d9805f1d67ad2d5e2f0cd183ca54f14d142874".to_string(),
-        sub_commit_id: "31fbd13995ef1acc920294f6a170ce8d05abd665".to_string(),
-        // counter: GitTypeCounter { commit: 37, tree: 154, blob: 133, tag: 0, ofs_delta: 0, ref_delta: 0 },
+        repo_path: "/projects/testhttp".to_string(),
+        commit_id: "f8bbb573cef7d851957caceb491c073ee8e8de41".to_string(),
+        sub_commit_id: "3b7a920f971712ae657bc0ee194825f1327e1255".to_string(),
         counter: GitTypeCounter {
-            commit: 610,
-            tree: 2117,
-            blob: 1860,
+            commit: 612,
+            tree: 2141,
+            blob: 1873,
             tag: 0,
             ofs_delta: 0,
             ref_delta: 0,
         },
+        clone_path: PathBuf::from("/tmp/.mega/integration_test"),
     };
     defer!(
         common_test::stop_server(&init_config);
@@ -86,7 +87,7 @@ async fn test_http() {
     common_test::lifecycle_check(&init_config).await;
     common_test::init_by_pack(&init_config).await;
     check_obj_nums(&init_config).await;
-    test_http_clone_all(&init_config).await;
+    test_clone_and_check_all_obj(&init_config).await;
     test_http_clone_sub_dir(&init_config).await;
     test_update_and_push(&init_config);
 }
@@ -108,36 +109,75 @@ async fn check_obj_nums(config: &P2pTestConfig) {
     assert_eq!(check_res, config.counter);
 }
 
-async fn test_http_clone_all(config: &P2pTestConfig) {
+async fn test_clone_and_check_all_obj(config: &P2pTestConfig) {
     let repo_name = Path::new(&config.repo_path).file_name().unwrap();
-    let into_path = PathBuf::from("/tmp/.mega").join(repo_name);
+    let into_path = config.clone_path.clone().join(repo_name);
     let url = format!("http://localhost:8000{}.git", config.repo_path);
-    common_test::git2_clone(&url, into_path.to_str().unwrap());
-    let last_id = common_test::get_last_commit_id(into_path.to_str().unwrap()).to_string();
-    assert_eq!(last_id, config.commit_id)
+
+    let repo = match Repository::clone(&url, &into_path) {
+        Ok(repo) => repo,
+        Err(e) => panic!("failed to clone: {}", e),
+    };
+    defer!(
+        std::fs::remove_dir_all(&into_path).unwrap();
+    );
+    let pack_ids: PackObjectIds = match fs::read_to_string(PathBuf::from(format!(
+        "tests/data/pack-{}.toml",
+        config.commit_id
+    ))) {
+        Ok(content) => toml::from_str(&content).unwrap(),
+        Err(_) => panic!("read objectid toml error"),
+    };
+    for obj_id in pack_ids.commit_ids {
+        let res = repo.find_commit(Oid::from_str(&obj_id).unwrap());
+        assert!(res.is_ok(), "commit {} not exists", obj_id);
+    }
+    for obj_id in pack_ids.tree_ids {
+        let res = repo.find_tree(Oid::from_str(&obj_id).unwrap());
+        assert!(res.is_ok(), "tree {} not exists", obj_id);
+    }
+    for obj_id in pack_ids.blob_ids {
+        let res = repo.find_blob(Oid::from_str(&obj_id).unwrap());
+        assert!(res.is_ok(), "blob {} not exists", obj_id);
+    }
+    for obj_id in pack_ids.tag_ids {
+        let res = repo.find_tag(Oid::from_str(&obj_id).unwrap());
+        assert!(res.is_ok(), "tag {} not exists", obj_id);
+    }
 }
 
 async fn test_http_clone_sub_dir(config: &P2pTestConfig) {
-    let into_path = PathBuf::from("/tmp/.mega").join("src");
+    let into_path = config.clone_path.clone().join("src");
     let url = format!("http://localhost:8000{}/src.git", config.repo_path);
     common_test::git2_clone(&url, into_path.to_str().unwrap());
+    defer!(
+        std::fs::remove_dir_all(&into_path).unwrap();
+    );
     let last_id = common_test::get_last_commit_id(into_path.to_str().unwrap()).to_string();
     assert_eq!(last_id, config.sub_commit_id)
 }
 
 fn test_update_and_push(config: &P2pTestConfig) {
     let repo_name = Path::new(&config.repo_path).file_name().unwrap();
-    let repo_path = PathBuf::from("/tmp/.mega").join(repo_name);
-    env::set_current_dir(&repo_path).unwrap();
-    let file_path = Path::new("newfile.txt");
+    let repo_path = config.clone_path.clone().join(repo_name);
+
+    let url = format!("http://localhost:8000{}.git", config.repo_path);
+    let repo = match Repository::clone(&url, &repo_path) {
+        Ok(repo) => repo,
+        Err(e) => panic!("failed to clone: {}", e),
+    };
+    defer!(
+        std::fs::remove_dir_all(&repo_path).unwrap();
+    );
+    let relative_path = PathBuf::from("newfile.txt");
+    let file_path = repo_path.clone().join(&relative_path);
     let mut file = std::fs::File::create(file_path).unwrap();
     file.write_all(b"This is a new file created by mega integration test")
         .unwrap();
 
     // add file to the index
-    let repo = Repository::open(&repo_path).expect("Failed to open repository");
     let mut index = repo.index().unwrap();
-    index.add_path(file_path).unwrap();
+    index.add_path(&relative_path).unwrap();
     index.write().unwrap();
 
     // Commit the changes
@@ -164,7 +204,11 @@ fn test_update_and_push(config: &P2pTestConfig) {
 
     // chcek cloned project's commit id
     let url = format!("http://localhost:8000{}.git", config.repo_path);
-    let repo_copy = Repository::clone(&url, PathBuf::from("/tmp/.mega/copy")).unwrap();
+    let copied_path = config.clone_path.clone().join("copy");
+    let repo_copy = Repository::clone(&url, &copied_path).unwrap();
+    defer!(
+        std::fs::remove_dir_all(&copied_path).unwrap();
+    );
     let head = repo_copy.head().unwrap().target().unwrap();
     assert_eq!(head, commit_id)
 }
