@@ -72,6 +72,7 @@ pub async fn start_server(command: &SshOptions) {
         id: 0,
         storage: database::init(data_source).await,
         pack_protocol: None,
+        data_combined: Vec::new(),
     };
     let server_url = format!("{}:{}", host, ssh_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
