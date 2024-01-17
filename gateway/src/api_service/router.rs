@@ -32,18 +32,6 @@ pub fn routers<S>(state: ApiServiceState) -> Router<S> {
         .with_state(state)
 }
 
-async fn life_cycle_check() -> Result<impl IntoResponse, (StatusCode, String)> {
-    Ok(Json("http ready"))
-}
-
-async fn get_count_nums(
-    Query(query): Query<HashMap<String, String>>,
-    state: State<ApiServiceState>,
-) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
-    let repo_path = query.get("repo_path").unwrap();
-    state.object_service.count_object_num(repo_path).await
-}
-
 async fn get_blob_object(
     Query(query): Query<HashMap<String, String>>,
     state: State<ApiServiceState>,
@@ -66,4 +54,16 @@ async fn get_origin_object(
     let object_id = query.get("object_id").unwrap();
     let repo_path = query.get("repo_path").expect("repo_path is required");
     state.object_service.get_objects_data(object_id, repo_path).await
+}
+
+async fn life_cycle_check() -> Result<impl IntoResponse, (StatusCode, String)> {
+    Ok(Json("http ready"))
+}
+
+async fn get_count_nums(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<ApiServiceState>,
+) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
+    let repo_path = query.get("repo_path").unwrap();
+    state.object_service.count_object_num(repo_path).await
 }

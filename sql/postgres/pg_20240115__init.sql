@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS "node" (
   "full_path" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_n_git_path UNIQUE (git_id, repo_path);
+  CONSTRAINT uniq_n_git_path UNIQUE (git_id, repo_path)
 );
 CREATE INDEX "idx_node_git_id" ON "node" ("git_id");
 CREATE INDEX "idx_node_name" ON "node" ("name");
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS "refs" (
   "ref_git_id" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_ref_path_name UNIQUE (repo_path, ref_name);
+  CONSTRAINT uniq_ref_path_name UNIQUE (repo_path, ref_name)
 );
 CREATE INDEX "idx_refs_repo_path" ON "refs" ("repo_path");
 
