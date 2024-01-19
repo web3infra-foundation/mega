@@ -20,7 +20,7 @@ use crate::protocol::pack::SP;
 pub mod pack;
 #[derive(Clone)]
 pub struct PackProtocol {
-    pub protocol: Protocol,
+    pub transfer_protocol: Protocol,
     pub capabilities: Vec<Capability>,
     pub path: PathBuf,
     pub storage: Arc<dyn ObjectStorage>,
@@ -240,9 +240,9 @@ pub fn new_mr_info(mr_id: i64) -> mr_info::ActiveModel {
 }
 
 impl PackProtocol {
-    pub fn new(path: PathBuf, storage: Arc<dyn ObjectStorage>, protocol: Protocol) -> Self {
+    pub fn new(path: PathBuf, storage: Arc<dyn ObjectStorage>, transfer_protocol: Protocol) -> Self {
         PackProtocol {
-            protocol,
+            transfer_protocol,
             capabilities: Vec::new(),
             path,
             storage,
@@ -253,7 +253,7 @@ impl PackProtocol {
 
     pub fn mock() -> Self {
         PackProtocol {
-            protocol: Protocol::default(),
+            transfer_protocol: Protocol::default(),
             capabilities: Vec::new(),
             path: PathBuf::new(),
             storage: Arc::new(MysqlStorage::default()),
