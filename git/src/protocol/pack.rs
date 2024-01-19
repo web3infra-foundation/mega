@@ -285,7 +285,7 @@ impl PackProtocol {
 
     pub fn build_smart_reply(&self, ref_list: &Vec<String>, service: String) -> BytesMut {
         let mut pkt_line_stream = BytesMut::new();
-        if self.protocol == Protocol::Http {
+        if self.transfer_protocol == Protocol::Http {
             add_pkt_line_string(&mut pkt_line_stream, format!("# service={}\n", service));
             pkt_line_stream.put(&PKT_LINE_END_MARKER[..]);
         }

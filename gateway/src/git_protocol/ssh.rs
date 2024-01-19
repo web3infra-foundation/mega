@@ -140,6 +140,7 @@ impl server::Handler for SshServer {
         _: &str,
         _: Option<Response<'async_trait>>,
     ) -> Result<(Self, Auth), Self::Error> {
+        tracing::info!("auth_keyboard_interactive");
         Ok((self, Auth::Accept))
     }
 
@@ -151,11 +152,19 @@ impl server::Handler for SshServer {
 
     async fn data(
         mut self,
-        _: ChannelId,
+        channel: ChannelId,
         data: &[u8],
-        session: Session,
+        mut session: Session,
     ) -> Result<(Self, Session), Self::Error> {
-        self.data_combined.extend(data);
+        let pack_protocol = self.pack_protocol.as_mut().unwrap();
+        match pack_protocol.service_type {
+            ServiceType::UploadPack => {
+                self.handle_upload_pack(channel, data, &mut session).await;
+            }
+            ServiceType::ReceivePack => {
+                self.data_combined.extend(data);
+            }
+        };
         Ok((self, session))
     }
 
@@ -165,13 +174,8 @@ impl server::Handler for SshServer {
         mut session: Session,
     ) -> Result<(Self, Session), Self::Error> {
         if let Some(pack_protocol) = self.pack_protocol.as_mut() {
-            match pack_protocol.service_type {
-                ServiceType::UploadPack => {
-                    self.handle_upload_pack(channel, &mut session).await;
-                }
-                ServiceType::ReceivePack => {
-                    self.handle_receive_pack(channel, &mut session).await;
-                }
+            if pack_protocol.service_type == ServiceType::ReceivePack {
+                self.handle_receive_pack(channel, &mut session).await;
             };
         }
 
@@ -186,11 +190,11 @@ impl server::Handler for SshServer {
 }
 
 impl SshServer {
-    async fn handle_upload_pack(&mut self, channel: ChannelId, session: &mut Session) {
+    async fn handle_upload_pack(&mut self, channel: ChannelId, data: &[u8], session: &mut Session) {
         let pack_protocol = self.pack_protocol.as_mut().unwrap();
 
         let (send_pack_data, buf) = pack_protocol
-            .git_upload_pack(&mut Bytes::copy_from_slice(&self.data_combined))
+            .git_upload_pack(&mut Bytes::copy_from_slice(data))
             .await
             .unwrap();
 
@@ -211,11 +215,7 @@ impl SshServer {
         }
     }
 
-    async fn handle_receive_pack(
-        &mut self,
-        channel: ChannelId,
-        session: &mut Session,
-    ) {
+    async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
         let pack_protocol = self.pack_protocol.as_mut().unwrap();
 
         let buf = pack_protocol
