@@ -1,4 +1,6 @@
 import { Inter } from 'next/font/google'
+import { GoogleAnalytics } from '@next/third-parties/google'
+
 import clsx from 'clsx'
 
 import '@/styles/tailwind.css'
@@ -27,6 +29,7 @@ export default function RootLayout({ children }) {
       <body className="flex h-full flex-col">
         <div className="flex min-h-full flex-col">{children}</div>
       </body>
+      <GoogleAnalytics gaId="G-WCSCZGFL72" />
     </html>
   )
 }
