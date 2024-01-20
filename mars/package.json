@@ -14,6 +14,7 @@
     "@headlessui/tailwindcss": "^0.2.0",
     "@next/third-parties": "^14.1.0",
     "@tailwindcss/forms": "^0.5.7",
+    "@vercel/analytics": "^1.1.2",
     "autoprefixer": "^10.4.17",
     "clsx": "^2.1.0",
     "framer-motion": "^10.18.0",
