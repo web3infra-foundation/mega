@@ -86,18 +86,16 @@ impl server::Handler for SshServer {
         // LFS HTTP Authenticate: git-lfs-authenticate '/path/to/repo.git' download/upload
         let command: Vec<_> = data.split(' ').collect();
         let path = command[1];
-        let end = path.len() - ".git'".len();
-        let mut pack_protocol = PackProtocol::new(
-            PathBuf::from(&path[1..end]),
-            self.storage.clone(),
-            Protocol::Ssh,
-        );
+        let path = path.replace(".git", "").replace('\'', "");
+        let mut pack_protocol =
+            PackProtocol::new(PathBuf::from(&path), self.storage.clone(), Protocol::Ssh);
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
                 pack_protocol.service_type = ServiceType::from_str(command[0]).unwrap();
                 let res = pack_protocol.git_info_refs().await;
                 self.pack_protocol = Some(pack_protocol);
                 session.data(channel, res.to_vec().into());
+                session.channel_success(channel);
             }
             //Note that currently mega does not support pure ssh to transfer files, still relay on the https server.
             //see https://github.com/git-lfs/git-lfs/blob/main/docs/proposals/ssh_adapter.md for more details about pure ssh file transfer.
@@ -157,6 +155,12 @@ impl server::Handler for SshServer {
         mut session: Session,
     ) -> Result<(Self, Session), Self::Error> {
         let pack_protocol = self.pack_protocol.as_mut().unwrap();
+        tracing::info!(
+            "receiving data length:{}",
+            // String::from_utf8_lossy(data),
+            data.len()
+        );
+
         match pack_protocol.service_type {
             ServiceType::UploadPack => {
                 self.handle_upload_pack(channel, data, &mut session).await;
@@ -165,6 +169,7 @@ impl server::Handler for SshServer {
                 self.data_combined.extend(data);
             }
         };
+        session.channel_success(channel);
         Ok((self, session))
     }
 

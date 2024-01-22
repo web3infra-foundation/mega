@@ -1,6 +1,7 @@
 use std::{
+    env,
     io::Cursor,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     sync::Arc,
     thread::{self, sleep},
@@ -11,10 +12,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::StreamExt;
+use git2::{build::RepoBuilder, Cred, FetchOptions, PushOptions, RemoteCallbacks, Repository};
 use russh::{client, ChannelMsg};
 use russh_keys::key;
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::ToSocketAddrs;
 use tokio_util::io::ReaderStream;
 
@@ -109,17 +111,79 @@ pub async fn init_by_pack(config: &P2pTestConfig) {
             println!("resp: {:?}", resp.bytes().await);
         }
         Protocol::Ssh => {
+            // Create an asynchronous stream from the pkt_line string
+            let pkt_line_stream = Cursor::new(pkt_line);
+            // Combine the pkt_line and file streams
+            let combined_stream = pkt_line_stream.chain(f);
             let mut ssh: Session = Session::connect("git".to_string(), ("localhost", 8100))
                 .await
                 .unwrap();
             let code = ssh
-                .call(&format!("git-receive-pack '{}'", config.repo_path), f)
+                .call(
+                    &format!("git-receive-pack '{}'", config.repo_path),
+                    combined_stream,
+                )
                 .await
                 .unwrap();
             println!("Exitcode: {:?}", code);
         }
         _ => todo!(),
     }
+}
+
+pub fn clone_by_type(config: &P2pTestConfig, url: &str, into_path: &Path) -> Repository {
+    match config.protocol {
+        Protocol::Http => match Repository::clone(url, into_path) {
+            Ok(repo) => repo,
+            Err(e) => panic!("failed to clone: {}", e),
+        },
+        Protocol::Ssh => {
+            // Create callbacks for SSH authentication
+            let mut callbacks = RemoteCallbacks::new();
+
+            callbacks.credentials(|_url, username_from_url, _allowed_types| {
+                Cred::ssh_key(
+                    username_from_url.unwrap(),
+                    None,
+                    Path::new(&format!("{}/.ssh/id_rsa", env::var("HOME").unwrap())),
+                    None,
+                )
+            });
+            // Create fetch options
+            let mut fetch_options = FetchOptions::new();
+            fetch_options.remote_callbacks(callbacks);
+
+            // Clone the repository
+            RepoBuilder::new()
+                .fetch_options(fetch_options)
+                .clone(url, into_path)
+                .expect("Failed to clone repository")
+        }
+        _ => todo!(),
+    }
+}
+
+pub fn push_by_type(config: &P2pTestConfig, repo: &Repository) {
+    let mut remote = repo.find_remote("origin").unwrap();
+    let refspecs = ["refs/heads/master:refs/heads/master"];
+
+    let mut op = if config.protocol == Protocol::Ssh {
+        let mut callbacks = RemoteCallbacks::new();
+        callbacks.credentials(|_url, username_from_url, _allowed_types| {
+            Cred::ssh_key(
+                username_from_url.unwrap(),
+                None,
+                Path::new(&format!("{}/.ssh/id_rsa", env::var("HOME").unwrap())),
+                None,
+            )
+        });
+        let mut push_options = PushOptions::new();
+        push_options.remote_callbacks(callbacks);
+        Some(push_options)
+    } else {
+        None
+    };
+    remote.push(&refspecs, op.as_mut()).unwrap();
 }
 
 pub fn stop_server(config: &P2pTestConfig) {
@@ -213,6 +277,10 @@ impl Session {
                 _ => {}
             }
         }
+
+        stdout
+            .write_all(format!("exit code:{}\n", code).as_bytes())
+            .await?;
         Ok(code)
     }
 }
