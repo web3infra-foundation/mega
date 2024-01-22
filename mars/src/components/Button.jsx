@@ -20,13 +20,17 @@ const variantStyles = {
   },
 }
 
-export function Button({ variant, color, className, ...props }) {
-  variant = variant ?? 'solid'
-  color = color ?? 'gray'
+export function Button({ className, ...props }) {
+  props.variant ??= 'solid'
+  props.color ??= 'gray'
 
   className = clsx(
-    baseStyles[variant],
-    variantStyles[variant][color],
+    baseStyles[props.variant],
+    props.variant === 'outline'
+      ? variantStyles.outline[props.color]
+      : props.variant === 'solid'
+        ? variantStyles.solid[props.color]
+        : undefined,
     className,
   )
 
