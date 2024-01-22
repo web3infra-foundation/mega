@@ -22,9 +22,9 @@ tower-http = { version = "0.5.0", features = ["cors", "trace"] }
 tokio = {version = "1.35", features = ["net"]}
 regex = "1.10.2"
 tracing = "0.1.40"
-russh = { version = "0.40.2"}
-russh-keys = "0.40.1"
-ed25519-dalek = "2.1"
+russh = { version = "0.40.2", features = ["openssl"]}
+russh-keys = {version = "0.40.1"}
+ed25519-dalek = {version = "2.1", features = ["pkcs8"]}
 serde = "1.0"
 serde_json = "1.0"
 clap = { version = "4.4.11", features = ["derive"] }

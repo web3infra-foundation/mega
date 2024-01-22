@@ -4,12 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::common_test::{P2pTestConfig, PackObjectIds};
-use git::internal::pack::counter::GitTypeCounter;
-use git2::{Oid, Repository, Signature};
+use crate::common::{P2pTestConfig, PackObjectIds};
+use git::{internal::pack::counter::GitTypeCounter, protocol::Protocol};
+use git2::{Oid, Signature};
 use go_defer::defer;
 
-mod common_test;
+mod common;
 
 #[tokio::test]
 #[ignore]
@@ -25,13 +25,14 @@ async fn test_p2p_basic() {
         sub_commit_id: "3b7a920f971712ae657bc0ee194825f1327e1255".to_string(),
         counter: GitTypeCounter::default(),
         clone_path: PathBuf::from("/tmp/.mega/integration_test"),
+        protocol: Protocol::P2p,
     };
     defer!(
-        common_test::stop_server(&init_config);
+        common::stop_server(&init_config);
     );
-    common_test::start_server(&init_config);
-    common_test::lifecycle_check(&init_config).await;
-    common_test::init_by_pack(&init_config).await;
+    common::start_server(&init_config);
+    common::lifecycle_check(&init_config).await;
+    common::init_by_pack(&init_config).await;
     test_mega_provide().await;
     test_mega_clone().await;
 }
@@ -78,17 +79,54 @@ async fn test_http() {
             ref_delta: 0,
         },
         clone_path: PathBuf::from("/tmp/.mega/integration_test"),
+        protocol: Protocol::Http,
     };
     defer!(
-        common_test::stop_server(&init_config);
+        common::stop_server(&init_config);
     );
     // common_test::build_image(&init_config);
-    common_test::start_server(&init_config);
-    common_test::lifecycle_check(&init_config).await;
-    common_test::init_by_pack(&init_config).await;
+    common::start_server(&init_config);
+    common::lifecycle_check(&init_config).await;
+    common::init_by_pack(&init_config).await;
     check_obj_nums(&init_config).await;
     test_clone_and_check_all_obj(&init_config).await;
-    test_http_clone_sub_dir(&init_config).await;
+    test_clone_sub_dir(&init_config).await;
+    test_update_and_push(&init_config);
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_ssh() {
+    dotenvy::dotenv().ok();
+    let init_config = P2pTestConfig {
+        compose_path: "tests/compose/ssh/compose.yaml".to_string(),
+        pack_path: "tests/data/packs/pack-f8bbb573cef7d851957caceb491c073ee8e8de41.pack"
+            .to_string(),
+        lifecycle_url: "http://localhost:8000/api/v1/status".to_string(),
+        lifecycle_retrying: 5,
+        repo_path: "/projects/testssh".to_string(),
+        commit_id: "f8bbb573cef7d851957caceb491c073ee8e8de41".to_string(),
+        sub_commit_id: "3b7a920f971712ae657bc0ee194825f1327e1255".to_string(),
+        counter: GitTypeCounter {
+            commit: 612,
+            tree: 2141,
+            blob: 1873,
+            tag: 0,
+            ofs_delta: 0,
+            ref_delta: 0,
+        },
+        clone_path: PathBuf::from("/tmp/.mega/integration_test"),
+        protocol: Protocol::Ssh,
+    };
+    defer!(
+        common::stop_server(&init_config);
+    );
+    common::start_server(&init_config);
+    common::lifecycle_check(&init_config).await;
+    common::init_by_pack(&init_config).await;
+    check_obj_nums(&init_config).await;
+    test_clone_and_check_all_obj(&init_config).await;
+    test_clone_sub_dir(&init_config).await;
     test_update_and_push(&init_config);
 }
 
@@ -112,12 +150,8 @@ async fn check_obj_nums(config: &P2pTestConfig) {
 async fn test_clone_and_check_all_obj(config: &P2pTestConfig) {
     let repo_name = Path::new(&config.repo_path).file_name().unwrap();
     let into_path = config.clone_path.clone().join(repo_name);
-    let url = format!("http://localhost:8000{}.git", config.repo_path);
-
-    let repo = match Repository::clone(&url, &into_path) {
-        Ok(repo) => repo,
-        Err(e) => panic!("failed to clone: {}", e),
-    };
+    let url = repo_default_url(config);
+    let repo = common::clone_by_type(config, &url, &into_path);
     defer!(
         std::fs::remove_dir_all(&into_path).unwrap();
     );
@@ -146,31 +180,28 @@ async fn test_clone_and_check_all_obj(config: &P2pTestConfig) {
     }
 }
 
-async fn test_http_clone_sub_dir(config: &P2pTestConfig) {
+async fn test_clone_sub_dir(config: &P2pTestConfig) {
+    let url = repo_sub_url(config);
     let into_path = config.clone_path.clone().join("src");
-    let url = format!("http://localhost:8000{}/src.git", config.repo_path);
-    common_test::git2_clone(&url, into_path.to_str().unwrap());
+    let repo = common::clone_by_type(config, &url, &into_path);
     defer!(
         std::fs::remove_dir_all(&into_path).unwrap();
     );
-    let last_id = common_test::get_last_commit_id(into_path.to_str().unwrap()).to_string();
+    let head = repo.head().expect("Failed to get HEAD reference");
+    let last_id = head.target().unwrap().to_string();
     assert_eq!(last_id, config.sub_commit_id)
 }
 
 fn test_update_and_push(config: &P2pTestConfig) {
     let repo_name = Path::new(&config.repo_path).file_name().unwrap();
-    let repo_path = config.clone_path.clone().join(repo_name);
-
-    let url = format!("http://localhost:8000{}.git", config.repo_path);
-    let repo = match Repository::clone(&url, &repo_path) {
-        Ok(repo) => repo,
-        Err(e) => panic!("failed to clone: {}", e),
-    };
+    let into_patn = config.clone_path.clone().join(repo_name);
+    let url = repo_default_url(config);
+    let repo = common::clone_by_type(config, &url, &into_patn);
     defer!(
-        std::fs::remove_dir_all(&repo_path).unwrap();
+        std::fs::remove_dir_all(&into_patn).unwrap();
     );
     let relative_path = PathBuf::from("newfile.txt");
-    let file_path = repo_path.clone().join(&relative_path);
+    let file_path = into_patn.clone().join(&relative_path);
     let mut file = std::fs::File::create(file_path).unwrap();
     file.write_all(b"This is a new file created by mega integration test")
         .unwrap();
@@ -198,17 +229,30 @@ fn test_update_and_push(config: &P2pTestConfig) {
         .unwrap();
 
     // Push the commit to a remote branch
-    let mut remote = repo.find_remote("origin").unwrap();
-    let refspecs = ["refs/heads/master:refs/heads/master"];
-    remote.push(&refspecs, None).unwrap();
+    common::push_by_type(config, &repo);
 
     // chcek cloned project's commit id
-    let url = format!("http://localhost:8000{}.git", config.repo_path);
     let copied_path = config.clone_path.clone().join("copy");
-    let repo_copy = Repository::clone(&url, &copied_path).unwrap();
+    let repo_copy = common::clone_by_type(config, &url, &copied_path);
     defer!(
         std::fs::remove_dir_all(&copied_path).unwrap();
     );
     let head = repo_copy.head().unwrap().target().unwrap();
     assert_eq!(head, commit_id)
+}
+
+fn repo_default_url(config: &P2pTestConfig) -> String {
+    match config.protocol {
+        Protocol::Http => format!("http://localhost:8000{}.git", config.repo_path),
+        Protocol::Ssh => format!("ssh://git@localhost:8100{}.git", config.repo_path),
+        _ => todo!(),
+    }
+}
+
+fn repo_sub_url(config: &P2pTestConfig) -> String {
+    match config.protocol {
+        Protocol::Http => format!("http://localhost:8000{}/src.git", config.repo_path),
+        Protocol::Ssh => format!("ssh://git@localhost:8100{}/src.git", config.repo_path),
+        _ => todo!(),
+    }
 }
