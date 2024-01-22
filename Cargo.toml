@@ -35,6 +35,10 @@ go-defer = "0.1.0"
 bytes = "1.5.0"
 git2 = "0.18.1"
 toml = "0.8.8"
+russh = "0.40.2"
+russh-keys = "0.40.1"
+async-trait = "0.1.77"
+
 
 [build-dependencies]
 shadow-rs = "0.26.0"
