@@ -19,6 +19,9 @@ pub struct P2pCustom {
     #[arg(short, long, default_value_t = 8200)]
     pub p2p_port: u16,
 
+    #[arg(long, default_value_t = 8001)]
+    pub p2p_http_port: u16,
+
     #[arg(short, long, default_value_t = String::from(""))]
     pub bootstrap_node: String,
 
@@ -45,6 +48,7 @@ pub async fn run(options: &P2pOptions) -> Result<(), Box<dyn std::error::Error>>
         custom:
             P2pCustom {
                 p2p_port,
+                p2p_http_port,
                 bootstrap_node,
                 secret_key,
                 relay_server,
@@ -68,6 +72,7 @@ pub async fn run(options: &P2pOptions) -> Result<(), Box<dyn std::error::Error>>
             p2p_address,
             bootstrap_node.clone(),
             *data_source,
+            *p2p_http_port,
         )
         .await?;
     }
