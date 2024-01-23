@@ -13,6 +13,7 @@ use git::protocol::{PackProtocol, Protocol};
 use storage::driver::database::storage::ObjectStorage;
 
 pub mod cbor;
+pub mod http;
 pub mod internal;
 pub mod network;
 pub mod node;
