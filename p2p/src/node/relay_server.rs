@@ -8,6 +8,7 @@ use futures::executor::block_on;
 use futures::stream::StreamExt;
 use kvcache::connector::redis::RedisClient;
 use kvcache::KVCache;
+use libp2p::identity::secp256k1::SecretKey;
 use libp2p::kad::store::RecordStore;
 use libp2p::kad::{
     AddProviderOk, GetClosestPeersOk, GetProvidersOk, GetRecordOk, PeerRecord, PutRecordOk,
@@ -21,10 +22,8 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, StreamProtocol, Swarm,
 };
-use libp2p::identity::secp256k1::SecretKey;
 
 use crate::internal::dht_redis_store::DHTRedisStore;
-use crate::network::event_handler;
 use crate::nostr::client_message::{ClientMessage, SubscriptionId};
 use crate::nostr::event::{GitEvent, NostrEvent};
 use crate::nostr::relay_message::RelayMessage;
@@ -103,11 +102,11 @@ pub fn run(secret_key: secp256k1::SecretKey, p2p_address: String) -> Result<(), 
                     }
                     //kad events
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Kademlia(event)) => {
-                         kad_event_handler(event);
+                        kad_event_handler(event);
                     }
                     //RendezvousServer events
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Rendezvous(event)) => {
-                        event_handler::rendezvous_server_event_handler(event);
+                        rendezvous_server_event_handler(event);
                     },
                      //Nostr events
                     SwarmEvent::Behaviour(ServerBehaviourEvent::Nostr(event)) => {
@@ -314,6 +313,33 @@ pub fn nostr_relay_event_handler(
         }
         event => {
             tracing::debug!("Request_response event:{:?}", event);
+        }
+    }
+}
+
+pub fn rendezvous_server_event_handler(event: rendezvous::server::Event) {
+    match event {
+        rendezvous::server::Event::PeerRegistered { peer, registration } => {
+            tracing::info!(
+                "Peer {} registered for namespace '{}'",
+                peer,
+                registration.namespace
+            );
+        }
+        rendezvous::server::Event::DiscoverServed {
+            enquirer,
+            registrations,
+            ..
+        } => {
+            tracing::info!(
+                "Served peer {} with {} registrations",
+                enquirer,
+                registrations.len()
+            );
+        }
+
+        event => {
+            tracing::info!("Rendezvous server event:{:?}", event);
         }
     }
 }
