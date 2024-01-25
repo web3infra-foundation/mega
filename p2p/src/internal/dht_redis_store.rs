@@ -1,14 +1,16 @@
+use kvcache::connector::redis::RedisClient;
+use kvcache::KVCache;
+use libp2p::kad::store::{Error, RecordStore, Result};
+use libp2p::kad::{ProviderRecord, Record, RecordKey, K_VALUE};
+use libp2p::PeerId;
+use redis::{
+    from_redis_value, ErrorKind, FromRedisValue, RedisResult, RedisWrite, ToRedisArgs, Value,
+};
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{hash_map, hash_set, HashMap, HashSet};
 use std::iter;
 use std::str::FromStr;
-use libp2p::{PeerId};
-use libp2p::kad::{K_VALUE, ProviderRecord, Record, RecordKey};
-use libp2p::kad::store::{Error, RecordStore, Result};
-use redis::{ErrorKind, from_redis_value, FromRedisValue, RedisResult, RedisWrite, ToRedisArgs, Value};
-use serde::{Serialize, Deserialize};
-use kvcache::connector::redis::RedisClient;
-use kvcache::KVCache;
 
 pub struct DHTRedisStore {
     config: DHTRedisStoreConfig,
@@ -57,14 +59,15 @@ impl DHTRedisStore {
     }
 
     pub fn retain<F>(&mut self, _: F)
-        where
-            F: FnMut(&RecordKey, &mut Record) -> bool,
-    {}
+    where
+        F: FnMut(&RecordKey, &mut Record) -> bool,
+    {
+    }
 }
 
 impl RecordStore for DHTRedisStore {
     type RecordsIter<'a> =
-    iter::Map<hash_map::Values<'a, RecordKey, Record>, fn(&'a Record) -> Cow<'a, Record>>;
+        iter::Map<hash_map::Values<'a, RecordKey, Record>, fn(&'a Record) -> Cow<'a, Record>>;
 
     type ProvidedIter<'a> = iter::Map<
         hash_set::Iter<'a, ProviderRecord>,
@@ -86,7 +89,9 @@ impl RecordStore for DHTRedisStore {
         }
         //check maxSize?
         let dht_redis_record = DHTRedisRecord::from_record(r);
-        let _ = self.redis_cache.set(dht_redis_record.clone().key, dht_redis_record.clone());
+        let _ = self
+            .redis_cache
+            .set(dht_redis_record.clone().key, dht_redis_record.clone());
         Ok(())
     }
 
@@ -125,8 +130,13 @@ impl FromRedisValue for DHTRedisRecord {
 }
 
 impl ToRedisArgs for DHTRedisRecord {
-    fn write_redis_args<W>(&self, out: &mut W) where W: ?Sized + RedisWrite {
-        out.write_arg_fmt(serde_json::to_string(self).expect("Can't serialize DHTRedisRecord as string"))
+    fn write_redis_args<W>(&self, out: &mut W)
+    where
+        W: ?Sized + RedisWrite,
+    {
+        out.write_arg_fmt(
+            serde_json::to_string(self).expect("Can't serialize DHTRedisRecord as string"),
+        )
     }
 }
 
@@ -142,7 +152,9 @@ impl DHTRedisRecord {
     fn to_record(&self, record_key: RecordKey) -> Record {
         let mut record = Record::new(record_key, self.value.clone().into_bytes());
         if let Some(peer_id_str) = self.publisher.clone() {
-            record.publisher.replace(PeerId::from_str(peer_id_str.as_str()).unwrap());
+            record
+                .publisher
+                .replace(PeerId::from_str(peer_id_str.as_str()).unwrap());
         }
         record
     }
@@ -161,7 +173,6 @@ impl DHTRedisRecord {
         }
     }
 }
-
 
 fn from_record_key(record_key: RecordKey) -> String {
     let prefix = "DHT_";

@@ -1,20 +1,19 @@
+use secp256k1::hashes::sha256::Hash as Sha256Hash;
+use secp256k1::hashes::Hash;
+use secp256k1::rand::rngs::OsRng;
+use secp256k1::rand::RngCore;
+use secp256k1::XOnlyPublicKey;
+use serde::de::{MapAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use secp256k1::hashes::Hash;
-use secp256k1::hashes::sha256::Hash as Sha256Hash;
-use secp256k1::rand::RngCore;
-use secp256k1::rand::rngs::OsRng;
-use secp256k1::XOnlyPublicKey;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::de::{MapAccess, Visitor};
 
-use serde::ser::SerializeMap;
-use serde_json::{json, Value};
 use crate::nostr::event::{EventId, NostrEvent};
 use crate::nostr::kind::NostrKind;
+use crate::nostr::tag::TagKind;
 use crate::nostr::MessageHandleError;
-use crate::nostr::tag::{TagKind};
-
+use serde::ser::SerializeMap;
+use serde_json::{json, Value};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClientMessage {
@@ -31,8 +30,8 @@ pub enum ClientMessage {
 
 impl Serialize for ClientMessage {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         let json_value: Value = self.as_value();
         json_value.serialize(serializer)
@@ -41,8 +40,8 @@ impl Serialize for ClientMessage {
 
 impl<'de> Deserialize<'de> for ClientMessage {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let json_value = Value::deserialize(deserializer)?;
         ClientMessage::from_value(json_value).map_err(serde::de::Error::custom)
@@ -62,7 +61,6 @@ impl ClientMessage {
             filters,
         }
     }
-
 
     /// Check if is an `EVENT` message
     pub fn is_event(&self) -> bool {
@@ -150,8 +148,8 @@ pub struct SubscriptionId(String);
 impl SubscriptionId {
     /// Create new [`SubscriptionId`]
     pub fn new<S>(id: S) -> Self
-        where
-            S: Into<String>,
+    where
+        S: Into<String>,
     {
         Self(id.into())
     }
@@ -163,8 +161,8 @@ impl SubscriptionId {
     }
     /// Generate new random [`SubscriptionId`]
     pub fn generate_with_rng<R>(rng: &mut R) -> Self
-        where
-            R: RngCore,
+    where
+        R: RngCore,
     {
         let mut os_random = [0u8; 32];
         rng.fill_bytes(&mut os_random);
@@ -181,8 +179,8 @@ impl fmt::Display for SubscriptionId {
 
 impl Serialize for SubscriptionId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -190,8 +188,8 @@ impl Serialize for SubscriptionId {
 
 impl<'de> Deserialize<'de> for SubscriptionId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
         let id: String = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
@@ -234,9 +232,9 @@ pub struct Filter {
     pub limit: Option<usize>,
     /// Generic tag queries (NIP12)
     #[serde(
-    flatten,
-    serialize_with = "serialize_generic_tags",
-    deserialize_with = "deserialize_generic_tags"
+        flatten,
+        serialize_with = "serialize_generic_tags",
+        deserialize_with = "deserialize_generic_tags"
     )]
     #[serde(default)]
     pub generic_tags: HashMap<String, HashSet<String>>,
@@ -276,8 +274,8 @@ impl Filter {
     }
 
     pub fn custom_tag<S>(mut self, tag: String, values: Vec<S>) -> Self
-        where
-            S: Into<String>,
+    where
+        S: Into<String>,
     {
         let values: HashSet<String> = values.into_iter().map(|value| value.into()).collect();
         self.generic_tags
@@ -296,8 +294,8 @@ fn serialize_generic_tags<S>(
     generic_tags: &HashMap<String, HashSet<String>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     let mut map = serializer.serialize_map(Some(generic_tags.len()))?;
     for (tag, values) in generic_tags.iter() {
@@ -309,8 +307,8 @@ fn serialize_generic_tags<S>(
 fn deserialize_generic_tags<'de, D>(
     deserializer: D,
 ) -> Result<HashMap<String, HashSet<String>>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     struct GenericTagsVisitor;
 
@@ -322,8 +320,8 @@ fn deserialize_generic_tags<'de, D>(
         }
 
         fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
-            where
-                M: MapAccess<'de>,
+        where
+            M: MapAccess<'de>,
         {
             let mut generic_tags = HashMap::new();
             while let Some(key) = map.next_key::<String>()? {
@@ -349,7 +347,6 @@ fn deserialize_generic_tags<'de, D>(
 mod tests {
     use core::str::FromStr;
 
-
     use super::*;
 
     #[test]
@@ -357,7 +354,7 @@ mod tests {
         let pk = XOnlyPublicKey::from_str(
             "379e863e8357163b5bce5d2688dc4f1dcc2d505222fb8d74db600f30535dfdfe",
         )
-            .unwrap();
+        .unwrap();
         let filters = vec![
             Filter::new().kind(NostrKind::Mega),
             Filter::new().pubkey(pk),
