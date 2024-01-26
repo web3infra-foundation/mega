@@ -8,7 +8,7 @@
 pub mod behaviour;
 pub mod event_handler;
 
-use std::{collections::HashSet, error::Error, path::Path, sync::Arc, time::Duration};
+use std::{error::Error, path::Path, sync::Arc, time::Duration};
 
 use common::utils;
 use futures::{
@@ -297,8 +297,8 @@ pub enum Command {
 async fn git_upload_pack_handler(
     path: &str,
     storage: Arc<dyn ObjectStorage>,
-    want: HashSet<String>,
-    have: HashSet<String>,
+    want: Vec<String>,
+    have: Vec<String>,
 ) -> Result<(Vec<u8>, String), String> {
     let pack_protocol = get_pack_protocol(path, storage.clone());
     let object_id = pack_protocol.get_head_object_id(Path::new(path)).await;
@@ -319,7 +319,7 @@ async fn git_upload_pack_handler(
         Ok((send_pack_data, object_id))
     } else {
         //pull
-        let send_pack_data = match pack_protocol.get_incremental_pack_data(&want, &have).await {
+        let send_pack_data = match pack_protocol.get_incremental_pack_data(want, have).await {
             Ok(send_pack_data) => send_pack_data,
             Err(e) => {
                 tracing::error!("{}", e);

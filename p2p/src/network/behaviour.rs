@@ -4,7 +4,6 @@ use libp2p::kad::store::MemoryStore;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{dcutr, identify, relay, rendezvous, request_response};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 use crate::cbor;
 use crate::nostr::{NostrReq, NostrRes};
@@ -25,9 +24,9 @@ pub struct Behaviour {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitUploadPackReq(
     //want
-    pub HashSet<String>,
+    pub Vec<String>,
     //have
-    pub HashSet<String>,
+    pub Vec<String>,
     //path
     pub String,
 );
