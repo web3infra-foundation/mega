@@ -42,7 +42,7 @@ use crate::internal::ObjectType;
 pub struct Commit {
     pub id: Hash,
     pub tree_id: Hash,
-    pub parent_tree_ids: Vec<Hash>,
+    pub parent_commit_ids: Vec<Hash>,
     pub author: Signature,
     pub committer: Signature,
     pub message: String,
@@ -57,7 +57,7 @@ impl PartialEq for Commit {
 impl Display for Commit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "tree: {}", self.tree_id)?;
-        for parent in self.parent_tree_ids.iter() {
+        for parent in self.parent_commit_ids.iter() {
             writeln!(f, "parent: {}", parent)?;
         }
         writeln!(f, "author {}", self.author)?;
@@ -71,7 +71,7 @@ impl From<commit::Model> for Commit {
         Commit {
             id: Hash::new_from_str(&value.git_id),
             tree_id: Hash::new_from_str(&value.tree),
-            parent_tree_ids: value
+            parent_commit_ids: value
                 .pid
                 .into_iter()
                 .map(|id| Hash::new_from_str(&id))
@@ -106,7 +106,7 @@ impl Commit {
         data.extend(self.tree_id.to_plain_str().as_bytes());
         data.extend(&[0x0a]);
 
-        for parent_tree_id in &self.parent_tree_ids {
+        for parent_tree_id in &self.parent_commit_ids {
             data.extend(b"parent ");
             data.extend(parent_tree_id.to_plain_str().as_bytes());
             data.extend(&[0x0a]);
@@ -156,9 +156,9 @@ impl ObjectT for Commit {
         );
         commit = commit[tree_end + 1..].to_vec();
 
-        // Find the parent tree ids and remove them from the data
+        // Find the parent commit ids and remove them from the data
         let author_begin = commit.find("author").unwrap();
-        let parent_tree_ids: Vec<Hash> = commit[..author_begin]
+        let parent_commit_ids: Vec<Hash> = commit[..author_begin]
             .find_iter("parent")
             .map(|parent| {
                 let parent_end = commit[parent..].find_byte(0x0a).unwrap();
@@ -186,7 +186,7 @@ impl ObjectT for Commit {
         Commit {
             id: Hash([0u8; 20]),
             tree_id,
-            parent_tree_ids,
+            parent_commit_ids,
             author,
             committer,
             message,
@@ -232,7 +232,7 @@ mod tests {
         source.push("tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa");
         let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
         let commit = Commit::from_meta(meta);
-        assert_eq!(commit.parent_tree_ids.len(), 1);
+        assert_eq!(commit.parent_commit_ids.len(), 1);
         assert_eq!(
             commit.tree_id.to_plain_str(),
             "e7002dbbc79a209462247302c7757a31ab16df1e"

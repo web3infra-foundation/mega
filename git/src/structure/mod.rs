@@ -65,20 +65,7 @@ impl GitNodeObject for Blob {
             full_path,
         })
     }
-    // pub fn convert_to_model(&self, node_id: i64) -> node::ActiveModel {
-    //     node::ActiveModel {
-    //         id: NotSet,
-    //         node_id: Set(node_id),
-    //         git_id: Set(self.meta.id.to_plain_str()),
-    //         data: Set(self.meta.data.clone()),
-    //         content_sha: NotSet,
-    //         mode: Set(Vec::new()),
-    //         name: Set(),
-    //         node_type: Set("blob".to_owned()),
-    //         created_at: Set(chrono::Utc::now().naive_utc()),
-    //         updated_at: Set(chrono::Utc::now().naive_utc()),
-    //     }
-    // }
+
 }
 
 impl Commit {
@@ -89,14 +76,14 @@ impl Commit {
         ))
         .unwrap();
         c.tree_id = tree_id;
-        c.parent_tree_ids.clear();
+        c.parent_commit_ids.clear();
         c.id = Meta::calculate_id(ObjectType::Commit, &c.to_data().unwrap());
         c
     }
 
     pub fn convert_to_model(&self, repo_path: &Path) -> commit::ActiveModel {
         let pid = self
-            .parent_tree_ids
+            .parent_commit_ids
             .iter()
             .map(|id| id.to_plain_str())
             .collect::<Vec<_>>();
@@ -121,13 +108,6 @@ impl Commit {
 }
 
 impl GitNodeObject for Tree {
-    // pub fn convert_from_model(model: &node::Model, tree_items: Vec<TreeItem>) -> Tree {
-    //     Tree {
-    //         meta: MetaData::new(ObjectType::Tree, &Vec::new()),
-    //         tree_items,
-    //         tree_name: model.name.clone(),
-    //     }
-    // }
 
     fn convert_to_node(
         &self,
@@ -174,27 +154,3 @@ impl TreeItem {
     }
 }
 
-// impl GitNodeObject for TreeItem {
-//     fn convert_to_node(&self) -> Box<dyn Node> {
-//         match self.item_type {
-//             TreeItemMode::Blob => Box::new(FileNode {
-//                 nid: self.generate_id(),
-//                 pid: "".to_owned(),
-//                 git_id: self.id,
-//                 path: PathBuf::new(),
-//                 mode: self.mode.clone(),
-//                 name: self.filename.clone(),
-//             }),
-//             TreeItemMode::Tree => Box::new(TreeNode {
-//                 nid: self.generate_id(),
-//                 pid: "".to_owned(),
-//                 git_id: self.id,
-//                 name: self.filename.clone(),
-//                 path: PathBuf::new(),
-//                 mode: self.mode.clone(),
-//                 children: Vec::new(),
-//             }),
-//             _ => panic!("not supported type"),
-//         }
-//     }
-// }

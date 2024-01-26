@@ -68,7 +68,7 @@ pub async fn git_upload_pack(
         })
         .await
         .unwrap();
-
+    tracing::debug!("bytes from client: {:?}", upload_request);
     let (send_pack_data, buf) = pack_protocol
         .git_upload_pack(&mut upload_request.freeze())
         .await
@@ -88,7 +88,7 @@ pub async fn git_upload_pack(
         let length = reader.read_buf(&mut temp).await.unwrap();
         if length == 0 {
             let bytes_out = Bytes::from_static(pack::PKT_LINE_END_MARKER);
-            tracing::info!("send 0000:{:?}", bytes_out);
+            tracing::info!("send back pkt-flush line '0000', actually: {:?}", bytes_out);
             res_bytes.extend(bytes_out);
             break;
         }

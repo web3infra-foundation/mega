@@ -4,7 +4,7 @@
 //!
 
 use std::io::Write;
-use std::{collections::HashSet, io::Cursor, sync::Arc};
+use std::{io::Cursor, sync::Arc};
 
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -104,12 +104,12 @@ impl PackProtocol {
         &mut self,
         upload_request: &mut Bytes,
     ) -> Result<(Vec<u8>, BytesMut)> {
-        let mut want: HashSet<String> = HashSet::new();
-        let mut have: HashSet<String> = HashSet::new();
+        let mut want: Vec<String> = Vec::new();
+        let mut have: Vec<String> = Vec::new();
+        let mut last_common_commit = String::new();
 
         let mut read_first_line = false;
         loop {
-            tracing::debug!("loop start");
             let (bytes_take, pkt_line) = read_pkt_line(upload_request);
             // read 0000 to continue and read empty str to break
             if bytes_take == 0 {
@@ -119,13 +119,16 @@ impl PackProtocol {
                     continue;
                 }
             }
-            tracing::debug!("read line: {:?}", pkt_line);
             let dst = pkt_line.to_vec();
             let commands = &dst[0..4];
 
             match commands {
-                b"want" => want.insert(String::from_utf8(dst[5..45].to_vec()).unwrap()),
-                b"have" => have.insert(String::from_utf8(dst[5..45].to_vec()).unwrap()),
+                b"want" => {
+                    want.push(String::from_utf8(dst[5..45].to_vec()).unwrap());
+                }
+                b"have" => {
+                    have.push(String::from_utf8(dst[5..45].to_vec()).unwrap());
+                }
                 b"done" => break,
                 other => {
                     tracing::error!(
@@ -148,11 +151,11 @@ impl PackProtocol {
             self.capabilities
         );
 
-        let mut send_pack_data = vec![];
+        let mut pack_data = vec![];
         let mut buf = BytesMut::new();
 
         if have.is_empty() {
-            send_pack_data = self.get_full_pack_data(&self.path).await.unwrap();
+            pack_data = self.get_full_pack_data(&self.path).await.unwrap();
             add_pkt_line_string(&mut buf, String::from("NAK\n"));
         } else {
             if self.capabilities.contains(&Capability::MultiAckDetailed) {
@@ -160,37 +163,39 @@ impl PackProtocol {
                 // it is ready to send data with ACK obj-id ready lines,
                 // and signals the identified common commits with ACK obj-id common lines
                 for hash in &have {
-                    if self.storage.get_commit_by_hash(hash, self.path.to_str().unwrap()).await.is_ok() {
+                    if self
+                        .storage
+                        .get_commit_by_hash(hash, self.path.to_str().unwrap())
+                        .await
+                        .unwrap()
+                        .is_some()
+                    {
                         add_pkt_line_string(&mut buf, format!("ACK {} common\n", hash));
+                        if last_common_commit.is_empty() {
+                            last_common_commit = hash.to_string();
+                        }
+                    } else {
+                        //send NAK if missing common commit
+                        add_pkt_line_string(&mut buf, String::from("NAK\n"));
+                        return Ok((pack_data, buf));
                     }
-                    // no need to send NAK in this mode if missing commit?
                 }
 
-                send_pack_data = self
-                    .get_incremental_pack_data(&want, &have)
-                    .await
-                    .unwrap();
-
                 for hash in &want {
-                    if self.storage.get_commit_by_hash(hash, self.path.to_str().unwrap()).await.is_ok() {
-                        add_pkt_line_string(&mut buf, format!("ACK {} common\n", hash));
-                    }
                     if self.capabilities.contains(&Capability::NoDone) {
                         // If multi_ack_detailed and no-done are both present, then the sender is free to immediately send a pack
                         // following its first "ACK obj-id ready" message.
                         add_pkt_line_string(&mut buf, format!("ACK {} ready\n", hash));
                     }
                 }
+
+                pack_data = self.get_incremental_pack_data(want, have).await.unwrap();
             } else {
                 tracing::error!("capability unsupported");
             }
-            // TODO: hard-code here
-            add_pkt_line_string(
-                &mut buf,
-                format!("ACK {} \n", "27dd8d4cf39f3868c6eee38b601bc9e9939304f5"),
-            );
+            add_pkt_line_string(&mut buf, format!("ACK {} \n", last_common_commit));
         }
-        Ok((send_pack_data, buf))
+        Ok((pack_data, buf))
     }
 
     pub async fn git_receive_pack(&mut self, mut body_bytes: Bytes) -> Result<Bytes> {
