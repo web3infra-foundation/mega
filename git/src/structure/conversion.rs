@@ -85,19 +85,64 @@ impl PackProtocol {
 
     pub async fn get_incremental_pack_data(
         &self,
-        want: &HashSet<String>,
-        have: &HashSet<String>,
+        want: Vec<String>,
+        have: Vec<String>,
     ) -> Result<Vec<u8>, GitError> {
         let mut hash_meta: HashMap<Hash, Arc<dyn ObjectT>> = HashMap::new();
-        let mut have_objs = HashSet::new();
-        let want_commits: Vec<Commit> = self
+        let mut commit_id = String::new();
+        let exist_want_objs = self.storage.get_obj_data_by_ids(want).await.unwrap();
+        for obj in exist_want_objs {
+            match obj.object_type.as_str() {
+                "commit" => {
+                    if commit_id.is_empty() {
+                        commit_id = obj.git_id;
+                    } else {
+                        panic!("only single commit id in want supported!")
+                    }
+                }
+                "tag" => {
+                    let tag: Tag = obj.into();
+                    hash_meta.insert(tag.id, Arc::new(tag));
+                }
+                other_type => panic!("want objetcs type invalid: {}!", other_type),
+            }
+        }
+
+        let mut exist_objs = HashSet::new();
+        let repo_path = self.path.to_str().unwrap();
+
+        let commit: Commit = self
             .storage
-            .get_commit_by_hashes(want.iter().cloned().collect(), self.path.to_str().unwrap())
+            .get_commit_by_hash(&commit_id, repo_path)
             .await
             .unwrap()
-            .into_iter()
-            .map(|m| m.into())
-            .collect();
+            .unwrap()
+            .into();
+        let mut traversal_list: Vec<Commit> = vec![commit.clone()];
+        let mut want_commits: Vec<Commit> = vec![commit];
+
+        // tarverse commit's all parents to find the commit that client does not have
+        while let Some(temp) = traversal_list.pop() {
+            for p_commit_id in temp.parent_commit_ids {
+                let p_commit_id = &p_commit_id.to_plain_str();
+
+                let want_commit_ids: Vec<String> =
+                    want_commits.iter().map(|x| x.id.to_plain_str()).collect();
+
+                if !have.contains(p_commit_id) && !want_commit_ids.contains(p_commit_id) {
+                    let parent: Commit = self
+                        .storage
+                        .get_commit_by_hash(p_commit_id, repo_path)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .into();
+                    want_commits.push(parent.clone());
+                    traversal_list.push(parent);
+                }
+            }
+        }
+
         let want_tree_ids = want_commits
             .iter()
             .map(|c| c.tree_id.to_plain_str())
@@ -112,8 +157,8 @@ impl PackProtocol {
             .collect();
 
         for c in want_commits {
-            let has_parent_c_id: Vec<String> = c
-                .parent_tree_ids
+            let have_commit_hashes: Vec<String> = c
+                .parent_commit_ids
                 .clone()
                 .into_iter()
                 .filter(|p_id| have.contains(&p_id.to_plain_str()))
@@ -121,7 +166,7 @@ impl PackProtocol {
                 .collect();
             let have_commits = self
                 .storage
-                .get_commit_by_hashes(has_parent_c_id, self.path.to_str().unwrap())
+                .get_commit_by_hashes(have_commit_hashes, self.path.to_str().unwrap())
                 .await
                 .unwrap();
 
@@ -132,19 +177,17 @@ impl PackProtocol {
                     .await
                     .unwrap()
                     .unwrap();
-                self.update_have_objs(&have_tree, &mut have_objs).await;
+                self.add_to_exist_objs(&have_tree, &mut exist_objs).await;
             }
 
             self.traverse_want_trees(
                 want_trees.get(&c.tree_id.to_plain_str()).unwrap(),
                 &mut hash_meta,
-                &have_objs,
+                &exist_objs,
             )
             .await;
             hash_meta.insert(c.id, Arc::new(c));
         }
-        self.get_all_tags(want.iter().map(|x| x.to_owned()).collect(), &mut hash_meta)
-            .await;
 
         let meta_vec: Vec<Arc<dyn ObjectT>> = hash_meta.into_values().collect();
         let result: Vec<u8> = pack_encode(meta_vec).unwrap();
@@ -195,13 +238,13 @@ impl PackProtocol {
 
     // get all objects id from have tree
     #[async_recursion]
-    async fn update_have_objs(&self, have_tree: &objects::Model, have_objects: &mut HashSet<Hash>) {
+    async fn add_to_exist_objs(&self, have_tree: &objects::Model, exist_objs: &mut HashSet<Hash>) {
         let mut t = Tree::new_from_data(have_tree.data.clone());
         t.set_hash(Hash::new_from_str(&have_tree.git_id));
 
         let mut search_child_ids = vec![];
         for item in &t.tree_items {
-            if !have_objects.contains(&item.id) {
+            if !exist_objs.contains(&item.id) {
                 search_child_ids.push(item.id.to_plain_str());
             }
         }
@@ -212,13 +255,13 @@ impl PackProtocol {
             .unwrap();
         for obj in objs {
             if obj.object_type == "tree" {
-                self.update_have_objs(&obj, have_objects).await;
+                self.add_to_exist_objs(&obj, exist_objs).await;
             } else {
                 let blob_id = Hash::new_from_str(&obj.git_id.clone());
-                have_objects.insert(blob_id);
+                exist_objs.insert(blob_id);
             }
         }
-        have_objects.insert(t.id);
+        exist_objs.insert(t.id);
     }
 
     // retrieve all sub trees recursively
@@ -227,14 +270,14 @@ impl PackProtocol {
         &self,
         want_t: &objects::Model,
         all_objects: &mut HashMap<Hash, Arc<dyn ObjectT>>,
-        have_objs: &HashSet<Hash>,
+        exist_objs: &HashSet<Hash>,
     ) {
         let mut t = Tree::new_from_data(want_t.data.clone());
         t.set_hash(Hash::new_from_str(&want_t.git_id));
 
         let mut search_child_ids = vec![];
         for item in &t.tree_items {
-            if !all_objects.contains_key(&item.id) && !have_objs.contains(&item.id) {
+            if !all_objects.contains_key(&item.id) && !exist_objs.contains(&item.id) {
                 search_child_ids.push(item.id.to_plain_str());
             }
         }
@@ -245,7 +288,8 @@ impl PackProtocol {
             .unwrap();
         for obj in objs {
             if obj.object_type == "tree" {
-                self.traverse_want_trees(&obj, all_objects, have_objs).await;
+                self.traverse_want_trees(&obj, all_objects, exist_objs)
+                    .await;
             } else {
                 let mut blob = Blob::new_from_data(obj.data.clone());
                 let blob_id = Hash::new_from_str(&obj.git_id.clone());
@@ -477,7 +521,7 @@ pub async fn save_node_from_git_obj(
     let mut parent_id_list: Vec<String> = Vec::new();
     for commit in commits.clone() {
         let mut p_list: Vec<String> = commit
-            .parent_tree_ids
+            .parent_commit_ids
             .iter()
             .map(|x| x.to_plain_str())
             .collect();
