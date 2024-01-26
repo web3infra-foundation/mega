@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -112,7 +111,7 @@ impl HttpHandler {
             .network_client
             .git_upload_pack(
                 peer_id,
-                GitUploadPackReq(HashSet::new(), HashSet::new(), path),
+                GitUploadPackReq(Vec::new(), Vec::new(), path),
             )
             .await;
         match git_upload_pack_res {
@@ -173,16 +172,16 @@ impl HttpHandler {
         let path = get_repo_full_path(repo_name);
         let pack_protocol = get_pack_protocol(&path, self.storage.clone());
         //generate want and have collection
-        let mut want: HashSet<String> = HashSet::new();
-        let mut have: HashSet<String> = HashSet::new();
-        want.insert(ref_git_id);
+        let mut want: Vec<String> = Vec::new();
+        let mut have: Vec<String> = Vec::new();
+        want.push(ref_git_id);
         let commit_models = pack_protocol
             .storage
             .get_all_commits_by_path(&path)
             .await
             .unwrap();
         commit_models.iter().for_each(|model| {
-            have.insert(model.git_id.clone());
+            have.push(model.git_id.clone());
         });
 
         //get git pack from peer_id
