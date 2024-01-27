@@ -9,6 +9,9 @@ use clap::{Parser, Subcommand};
 
 use git_craft::vault::{self, command::VaultArgs};
 
+mod lfs;
+use crate::lfs::command::LfsArgs;
+
 #[derive(Parser, Debug)]
 #[command(
     version = "0.1.0",
@@ -23,7 +26,7 @@ struct CraftOptions {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Vault(VaultArgs),
-    Lfs,
+    Lfs(LfsArgs),
     P2p,
 }
 
@@ -34,7 +37,7 @@ fn main() -> Result<(), anyhow::Error> {
     let args = CraftOptions::parse();
     match args.command {
         Commands::Vault(args) => vault::command::handle(args),
-        Commands::Lfs => todo!(),
+        Commands::Lfs(args) => lfs::command::handle(args),
         Commands::P2p => todo!(),
     }
     Ok(())
