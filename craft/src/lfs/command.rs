@@ -57,7 +57,7 @@ impl GitRepositoryChecker for DefaultGitRepositoryChecker {
 }
 fn track_lfs_files_pattern_empty<T: GitRepositoryChecker>(checker: &T)-> Result<(), TrackLfsError> {
     if !checker.is_git_repository() {
-        return Err(TrackLfsError::from(TrackLfsError::NotAGitRepository));
+        return Err(TrackLfsError::NotAGitRepository);
     }
     let git_attributes_path = StdPath::new(".gitattributes");
     let file = fs::OpenOptions::new()
@@ -89,7 +89,7 @@ fn track_lfs_files_pattern_empty<T: GitRepositoryChecker>(checker: &T)-> Result<
 }
 fn track_lfs_files<T: GitRepositoryChecker>(checker: &T, pattern: &str) -> Result<(), TrackLfsError> {
     if !checker.is_git_repository() {
-        return Err(TrackLfsError::from(TrackLfsError::NotAGitRepository));
+        return Err(TrackLfsError::NotAGitRepository);
     }
     let git_attributes_path = StdPath::new(".gitattributes");
 
@@ -128,7 +128,7 @@ fn track_lfs_files<T: GitRepositoryChecker>(checker: &T, pattern: &str) -> Resul
 }
 fn untrack_lfs_files<T: GitRepositoryChecker>(checker: &T, pattern: &str) -> Result<(), TrackLfsError> {
     if !checker.is_git_repository() {
-        return Err(TrackLfsError::from(TrackLfsError::NotAGitRepository));
+        return Err(TrackLfsError::NotAGitRepository);
     }
     let git_attributes_path = StdPath::new(".gitattributes");
     let space_replaced_pattern = pattern
@@ -172,8 +172,10 @@ fn untrack_lfs_files<T: GitRepositoryChecker>(checker: &T, pattern: &str) -> Res
 mod tests {
     use super::*;
     use std::{fs,env};
+    use std::sync::Mutex;
 
     use tempfile::tempdir;
+    use lazy_static::lazy_static;
 
     use crate::lfs::lfs_error::TestTrackLfsError;
 
@@ -191,8 +193,12 @@ mod tests {
             self.is_git_repo
         }
     }
+    lazy_static!{
+        static ref TEST_MUTEX: Mutex<()> = Mutex::new(());
+    }
     #[test]
     fn test_track_lfs_files_new_pattern() -> Result<(), TestTrackLfsError>{
+        let _lock = TEST_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let checker = MockGitRepositoryChecker::new(true);
         let git_attributes_path = dir.path().join(".gitattributes");
@@ -213,6 +219,7 @@ mod tests {
 
     #[test]
     fn test_track_lfs_files_existing_pattern() -> Result<(), TestTrackLfsError> {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let dir = tempdir().unwrap();
         let checker = MockGitRepositoryChecker::new(true);
         let git_attributes_path = dir.path().join(".gitattributes");
@@ -229,6 +236,7 @@ mod tests {
     }
     #[test]
     fn test_track_lfs_files_not_git_repo() -> Result<(), TestTrackLfsError> {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let checker = MockGitRepositoryChecker::new(false);
         let dir = tempdir()?;
         env::set_current_dir(&dir).map_err(|e| TestTrackLfsError::IoError(e))?;
@@ -240,6 +248,7 @@ mod tests {
     }
     #[test]
     fn test_untrack_lfs_files_not_git_repo() -> Result<(), TestTrackLfsError> {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let checker = MockGitRepositoryChecker::new(false);
         let dir = tempdir()?;
         env::set_current_dir(&dir).map_err(|e| TestTrackLfsError::IoError(e))?;
@@ -251,6 +260,7 @@ mod tests {
     }
     #[test]
     fn test_untrack_lfs_files_success() -> Result<(), TestTrackLfsError> {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let checker = MockGitRepositoryChecker::new(true);
         let pattern = "some_pattern";
         let dir = tempdir()?;
