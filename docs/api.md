@@ -1,9 +1,9 @@
 # API
 
-
 ## Mega HTTP API
 
 ### git protocol related API
+
 HTTP implement for git transfer data between two repositories
 
 1. When the client initially connects the server will immediately respond with a version number, and a listing of each reference it has (all branches and tags) along with the object name that each reference currently points to.
@@ -71,22 +71,37 @@ The Git LFS client uses an HTTPS server to coordinate fetching and storing large
     ```
 
 ### git objects retrieval API
+
 This part of the API, prefixed with /api/v1, is primarily for fetching Git raw objects and displaying web project hierarchies.
+
+> Suppose the mega server is running on `MEGA_URL`, while placeholders surrounded by `<>` is necessary and `[]` is optional, but both are needed to be replaced if chosen.
 
 1. Retrieve original information of a Git object by object ID and return as String.
 
     ```bash
-    GET /api/v1/blob    
+    curl -X GET ${MEGA_URL}/api/v1/blob?object_id=<id>
     ```
 
 2. Retrieve a Git object by object ID and return it as a file stream
    
     ```bash
-    GET /api/v1/objects    
+    curl -X GET ${MEGA_URL}/api/v1/object?object_id=<id>&repo_path=<path/to/repo>
     ```
 
-3. Retrieve directory hierarchy via path or object ID
+3. Retrieve directory hierarchy via path or object ID. The default value for `object_id` is `None` and `repo_path` is `/`
    
     ```bash
-    GET /api/v1/tree    
+    curl -X GET ${MEGA_URL}/api/v1/tree?[object_id=<id>][&][repo_path=<path/to/repo>]
+    ```
+
+4. Check `API service` status
+
+    ```bash
+    curl -X GET ${MEGA_URL}/api/v1/status
+    ```
+
+5. Count number of objects of a given repository
+
+    ```bash
+    curl -X GET ${MEGA_URL}/api/v1/count-objs?repo_path=<path/to/repo>
     ```
