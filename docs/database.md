@@ -1,100 +1,119 @@
 
 
-## 1.Basic Design of Mega 
+## 1.Basic Design of Mega Monorepo
 
 ![Mega Directory Design](images/mega-tree-directory.png)
 
-将Mega的存储结构拆分为两部分进行设计
-- Part1：树形目录结构（接下来称为Mega Directory），其为一个git仓库，维护Projects，Import等Mega 目录和其下的README文件，对于需要存储的git仓库，将其存储为一个blob文件（图中R1，R2文件，接下来称为b-link文件），具体的内容可以参考lfs的spec，如:
+本文档的目的是为了重构mega目前的存储设计，使得mega既能实现项目monorepo管理，又能兼容git协议
 
-    ```bash
-    version https://mega.com/directory/spec/v1
-    path /path/to/your/repo
-    ```
-- Part 2：Mega托管的git仓库本身，该部分则是通过将Packfile解析后的内容存储到数据库相应的表来进行维护
+Mega的存储结主要分为以下几部分:
 
-### Clone的大致流程
+### Mega Directory: 
+类似于git中的tree，维护了文件之间的关系和文件名称，mega在数据库中单独维护了当前版本的目录信息
 
-- 当进行clone时，首先会遍历最新提交的tree，并判断每个blob文件是否是b-link文件，如果是则获取指向的git仓库的大小，同时如果本次clone下所有b-link文件指向的仓库操作一个阈值，那么直接结束clone并返回错误.
-- 未超出大小的前提下，则将所有b-link指向git仓库的最新目录树替换b-link文件，并**递归重新计算**Mega Directory中涉及到的tree节点和commit的hash，这样才能把完整的目录发送给client.
-- 因为b-link只是记录了一个项目路径，并且一旦创建后文件本身不会变化，所以托管的git仓库的commit不会影响Mega Directory
-- 如果对Mega Directory下的目录和文件进行修改，则需要产生新的commit，用于进行历史版本的回溯
-- 值得注意的是Mega Directory 回溯，不会导致b-link对应的git仓库进行回溯，但是如果Mega Directory 在回溯中失去了b-link文件，则也会失去对应的git仓库
+<!-- ### b-link file*
+b-link 文件的作用是存储文件索引信息，用于替换git中的blob，该结构的设计参考了git-lfs的spec，如下:
 
+  ```bash
+  version https://mega.com/directory/spec/v1
+  blob 3a739f77180d81aa45d9bd11eb6be7098bf1991f
+  ```
+它包含以下记录：
+- version：代表结构的版本信息
+- blob：指向真实的blob的hash值 -->
 
-pack <==> raw obj <==> plain obj
-
+### Import directory
+- 导入目录的主要作用是将原始的git仓库同步到mega目录中，在导入目录中的项目维持**只读**的状态，并保持项目的原始commit信息
+- 往导入目录中推送的项目可以允许有多个commit
+- 导入目录的项目可以快速的转化到mega目录
+- 导入目录可以在配置文件中进行配置
+- 一旦某个目录被初始化为import目录，就不再能修改回普通目录
 
 ## 2. Database Design
 
 ### Table Overall
 
-| Table Name     | Description                                                                              |
-| -------------- | ---------------------------------------------------------------------------------------- |
-| refs           | Obtains the latest commit_id through repo_path and ref_name, while also storing the tag. |
-| mega_directory | Mainain the latest tree stucture, and point to tree objs in dir_tree table.              |
-| dir_commit     | Stored all commit objects related with mega directory.                                   |
-| dir_tree       | Stored all tree objects related with mega directory.                                     |
-| commit         | Stored all commit objects related with repo.                                             |
-| tree           | Stored all tree objects related with repo.                                               |
-| raw_objects    | Stored all raw objects both with repo and mega directory.                                |
-| merge_request  | Merge request related to some commit.                                                    |
-| pull_request   | Pull request synced from GitHub.                                                         |
-| issue          | Issues synced from GitHub.                                                               |
-| lfs_objects    | Stored objects related to LFS protocol.                                                  |
-| lfs_locks      | Stored locks for lfs files.                                                              |
+| Table Name     | Description                                                                                             | MR Push  | Pull     | Push Repo | Pull Repo |
+| -------------- | ------------------------------------------------------------------------------------------------------- | -------- | -------- | --------- | --------- |
+| mega_directory | Mainain the latest directory stucture in monorepo.                                                      | &#10003; | &#10003; |           |           |
+| mega_commit    | Store all commit objects related with mega directory, have mr status                                    | &#10003; |          |           |           |
+| mega_tree      | Store all tree objects related with mega directory, together with mega_commit to find history directory | &#10003; |          |           |           |
+| mega_blob      | Store all blob objects under mega directory.                                                            | &#10003; | &#10003; |           |           |
+| merge_request  | Merge request related to mega commits.                                                                  | &#10003; |          |           |           |
+| import_repo    | Maintain Relations between impoprt_repo and repo_path.                                                  |          |          | &#10003;  | &#10003;  |
+| import_refs    | Obtains the latest commit_id through repo_id and ref_name, while also storing the tag.                  |          |          | &#10003;  | &#10003;  |
+| impoprt_commit | Store all parsed commit objects related with repo.                                                      |          |          | &#10003;  | &#10003;  |
+| import_tree    | Store all parsed tree objects related with repo.                                                        |          |          | &#10003;  | &#10003;  |
+| import_blob    | Store all parsed blob objects related with repo.                                                        |          |          | &#10003;  | &#10003;  |
+| raw_objects    | Store all raw objects with both repo and mega directory.                                                | &#10003; | &#10003; | &#10003;  | &#10003;  |
+| pull_request   | Pull request sync from GitHub.                                                                          |          |          |           |           |
+| issue          | Issues sync from GitHub.                                                                                |          |          |           |           |
+| lfs_objects    | Store objects related to LFS protocol.                                                                  |          |          |           |           |
+| lfs_locks      | Store locks for lfs files.                                                                              |          |          |           |           |
 
 #### mega_directory
 
 | Column     | Type        | Constraints |
 | ---------- | ----------- | ----------- |
 | id         | BIGINT      | PRIMARY KEY |
-| full_path  | TEXT        | NOT NULL    |
+| path       | TEXT        | NOT NULL    |
+| import_dir | BOOLEAN     | NOT NULL    |
 | tree_id    | VARCHAR(40) | NOT NULL    |
+| sub_trees  | TEXT[]      |             |
+| commit_id  | VARCHAR(40) | NOT NULL    |
+| size       | INT         | NOT NULL    |
 | created_at | TIMESTAMP   | NOT NULL    |
-| updated_at | TIMESTAMP   | NOT NULL    |
 
-#### refs
+#### mega_commit
 
 | Column     | Type        | Constraints |
 | ---------- | ----------- | ----------- |
 | id         | BIGINT      | PRIMARY KEY |
-| repo_path  | TEXT        | NOT NULL    |
-| ref_name   | TEXT        | NOT NULL    |
-| ref_git_id | VARCHAR(40) | NOT NULL    |
+| git_id     | VARCHAR(40) | NOT NULL    |
+| tree       | VARCHAR(40) | NOT NULL    |
+| pid        | TEXT[]      |             |
+| author     | TEXT        |             |
+| committer  | TEXT        |             |
+| content    | TEXT        |             |
+| mr_id      | VARCHAR(20) |             |
+| status     | VARCHAR(20) | NOT NULL    |
+| size       | INT         | NOT NULL    |
+| full_path  | TEXT        | NOT NULL    |
 | created_at | TIMESTAMP   | NOT NULL    |
 | updated_at | TIMESTAMP   | NOT NULL    |
 
-#### dir_commit
 
-| Column    | Type        | Constraints |
-| --------- | ----------- | ----------- |
-| id        | BIGINT      | PRIMARY KEY |
-| git_id    | VARCHAR(40) | NOT NULL    |
-| tree      | VARCHAR(40) | NOT NULL    |
-| pid       | TEXT[]      |             |
-| repo_path | TEXT        | NOT NULL    |
-| author    | TEXT        |             |
-| committer | TEXT        |             |
-| content   | TEXT        |             |
+#### mega_tree
 
+| Column     | Type        | Constraints |
+| ---------- | ----------- | ----------- |
+| id         | BIGINT      | PRIMARY KEY |
+| git_id     | VARCHAR(40) | NOT NULL    |
+| sub_trees  | TEXT[]      |             |
+| import_dir | BOOLEAN     | NOT NULL    |
+| mr_id      | VARCHAR(20) |             |
+| status     | VARCHAR(20) | NOT NULL    |
+| size       | INT         | NOT NULL    |
+| full_path  | TEXT        | NOT NULL    |
+| created_at | TIMESTAMP   | NOT NULL    |
+| updated_at | TIMESTAMP   | NOT NULL    |
 
-#### dir_tree
+#### mega_blob
 
-| Column      | Type         | Constraints |
-| ----------- | ------------ | ----------- |
-| id          | BIGINT       | PRIMARY KEY |
-| git_id      | VARCHAR(40)  | NOT NULL    |
-| last_commit | VARCHAR(40)  | NOT NULL    |
-| name        | VARCHAR(128) |             |
-| sub_trees   | TEXT[]       |             |
-| size        | INT          | NOT NULL    |
-| repo_path   | TEXT         | NOT NULL    |
-| full_path   | TEXT         | NOT NULL    |
+| Column     | Type        | Constraints |
+| ---------- | ----------- | ----------- |
+| id         | BIGINT      | PRIMARY KEY |
+| git_id     | VARCHAR(40) | NOT NULL    |
+| commit_id  | VARCHAR(40) | NOT NULL    |
+| mr_id      | VARCHAR(20) |             |
+| status     | VARCHAR(20) | NOT NULL    |
+| size       | INT         | NOT NULL    |
+| full_path  | TEXT        | NOT NULL    |
+| created_at | TIMESTAMP   | NOT NULL    |
+| updated_at | TIMESTAMP   | NOT NULL    |
 
 
 #### merge_request
-
 
 | Column     | Type         | Constraints |
 | ---------- | ------------ | ----------- |
@@ -103,59 +122,85 @@ pack <==> raw obj <==> plain obj
 | mr_msg     | VARCHAR(255) | NOT NULL    |
 | commit_id  | VARCHAR(40)  | NOT NULL    |
 | mr_date    | TIMESTAMP    | NOT NULL    |
+| status     | VARCHAR(20)  | NOT NULL    |
 | created_at | TIMESTAMP    | NOT NULL    |
 | updated_at | TIMESTAMP    | NOT NULL    |
 
-
-#### raw_objects
-
-
-| Column        | Type        | Constraints     |
-| ------------- | ----------- | --------------- |
-| id            | BIGINT      | PRIMARY KEY     |
-| git_id        | VARCHAR(40) | NOT NULL        |
-| object_type   | VARCHAR(16) | NOT NULL        |
-| storage_type  | VARCHAR(20) | NOT NULL        |
-| data          | BYTEA       |                 |
-| path          | TEXT        |                 |
-| url           | TEXT        |                 |
-| uniq_o_git_id | CONSTRAINT  | UNIQUE (git_id) |
-
-
-#### commit
+#### import_refs
 
 | Column     | Type        | Constraints |
 | ---------- | ----------- | ----------- |
 | id         | BIGINT      | PRIMARY KEY |
-| git_id     | VARCHAR(40) | NOT NULL    |
-| tree       | VARCHAR(40) | NOT NULL    |
-| pid        | TEXT[]      |             |
-| repo_path  | TEXT        | NOT NULL    |
-| author     | TEXT        |             |
-| committer  | TEXT        |             |
-| content    | TEXT        |             |
-| mr_id      | VARCHAR(20) |             |
-| status     | VARCHAR(20) | NOT NULL    |
+| repo_id    | BIGINT      | NOT NULL    |
+| ref_name   | TEXT        | NOT NULL    |
+| ref_git_id | VARCHAR(40) | NOT NULL    |
 | created_at | TIMESTAMP   | NOT NULL    |
 | updated_at | TIMESTAMP   | NOT NULL    |
 
 
-#### tree
+#### import_repo
 
-| Column      | Type         | Constraints |
-| ----------- | ------------ | ----------- |
-| id          | BIGINT       | PRIMARY KEY |
-| git_id      | VARCHAR(40)  | NOT NULL    |
-| last_commit | VARCHAR(40)  | NOT NULL    |
-| name        | VARCHAR(128) |             |
-| sub_trees   | TEXT[]       |             |
-| size        | INT          | NOT NULL    |
-| repo_path   | TEXT         | NOT NULL    |
-| full_path   | TEXT         | NOT NULL    |
-| mr_id       | VARCHAR(20)  |             |
-| status      | VARCHAR(20)  | NOT NULL    |
-| created_at  | TIMESTAMP    | NOT NULL    |
-| updated_at  | TIMESTAMP    | NOT NULL    |
+| Column     | Type      | Constraints |
+| ---------- | --------- | ----------- |
+| id         | BIGINT    | PRIMARY KEY |
+| repo_path  | TEXT      | NOT NULL    |
+| created_at | TIMESTAMP | NOT NULL    |
+| updated_at | TIMESTAMP | NOT NULL    |
+
+#### import_commit
+
+| Column     | Type        | Constraints |
+| ---------- | ----------- | ----------- |
+| id         | BIGINT      | PRIMARY KEY |
+| repo_id    | BIGINT      | NOT NULL    |
+| git_id     | VARCHAR(40) | NOT NULL    |
+| tree       | VARCHAR(40) | NOT NULL    |
+| pid        | TEXT[]      |             |
+| author     | TEXT        |             |
+| committer  | TEXT        |             |
+| content    | TEXT        |             |
+| size       | INT         | NOT NULL    |
+| full_path  | TEXT        | NOT NULL    |
+| created_at | TIMESTAMP   | NOT NULL    |
+
+#### import_tree
+
+| Column     | Type         | Constraints |
+| ---------- | ------------ | ----------- |
+| id         | BIGINT       | PRIMARY KEY |
+| repo_id    | BIGINT       | NOT NULL    |
+| git_id     | VARCHAR(40)  | NOT NULL    |
+| sub_trees  | TEXT[]       |             |
+| name       | VARCHAR(128) |             |
+| size       | INT          | NOT NULL    |
+| full_path  | TEXT         | NOT NULL    |
+| commit_id  | VARCHAR(40)  | NOT NULL    |
+| created_at | TIMESTAMP    | NOT NULL    |
+
+#### import_blob
+
+| Column     | Type         | Constraints |
+| ---------- | ------------ | ----------- |
+| id         | BIGINT       | PRIMARY KEY |
+| repo_id    | BIGINT       | NOT NULL    |
+| git_id     | VARCHAR(40)  | NOT NULL    |
+| name       | VARCHAR(128) |             |
+| size       | INT          | NOT NULL    |
+| full_path  | TEXT         | NOT NULL    |
+| commit_id  | VARCHAR(40)  | NOT NULL    |
+| created_at | TIMESTAMP    | NOT NULL    |
+
+#### raw_objects
+
+| Column             | Type        | Constraints |
+| ------------------ | ----------- | ----------- |
+| id                 | BIGINT      | PRIMARY KEY |
+| git_id             | VARCHAR(40) | NOT NULL    |
+| object_type        | VARCHAR(20) | NOT NULL    |
+| storage_type       | VARCHAR(20) | NOT NULL    |
+| data               | BYTEA       |             |
+| local_storage_path | TEXT        |             |
+| remote_url         | TEXT        |             |
 
 
 #### pull_request
@@ -171,7 +216,6 @@ pack <==> raw obj <==> plain obj
 | closed_at        | TIMESTAMP    | DEFAULT NULL |
 | merged_at        | TIMESTAMP    | DEFAULT NULL |
 | merge_commit_sha | VARCHAR(200) | DEFAULT NULL |
-| repo_path        | TEXT         | NOT NULL     |
 | repo_id          | BIGINT       | NOT NULL     |
 | sender_name      | VARCHAR(255) | NOT NULL     |
 | sender_id        | BIGINT       | NOT NULL     |
@@ -198,7 +242,6 @@ pack <==> raw obj <==> plain obj
 | created_at  | TIMESTAMP    | NOT NULL     |
 | updated_at  | TIMESTAMP    | NOT NULL     |
 | closed_at   | TIMESTAMP    | DEFAULT NULL |
-| repo_path   | TEXT         | NOT NULL     |
 | repo_id     | BIGINT       | NOT NULL     |
 
 
@@ -212,113 +255,124 @@ pack <==> raw obj <==> plain obj
 
 #### lfs_objects
 
-| Column | Type        | Constraints |
-| ------ | ----------- | ----------- |
-| oid    | VARCHAR(64) | PRIMARY KEY |
-| size   | BIGINT      |             |
-| exist  | BOOLEAN     |             |
+| Column  | Type        | Constraints |
+| ------- | ----------- | ----------- |
+| oid     | VARCHAR(64) | PRIMARY KEY |
+| size    | BIGINT      |             |
+| repo_id | BIGINT      | NOT NULL    |
+| exist   | BOOLEAN     |             |
 
 
-## 3. 流程对应的sql语句
-
+## 3. Sql execution for each process.
 
 
 #### Use mega init command to initialize mega directory: 
 
-- Generate ReadMe.md file and insert to raw_objects:
+- Init commit points to tree:
     ```sql
-    insert into raw_objects values (...);
+    insert into mega_commit values (...);
     ```
 - Build directory and tree objs:
     ```sql
-    insert into mega_directory values ('/root', ...);
-    insert into mega_directory values ('/root/projects', ...);
-    insert into mega_directory values ('/root/import', ...);
-    insert into mega_directory values ('/root/projects/rust', ...);
-    insert into dir_tree values (...);
+    insert into mega_directory values ('/root', false, ...);
+    insert into mega_directory values ('/root/projects', false, ...);
+    insert into mega_directory values ('/root/import', true, ...);
+    insert into mega_directory values ('/root/projects/rust', false, ...);
+    insert into mega_tree values (...);
     ```
-- Init commit points to tree and update refs:
+- Generate ReadMe.md file and insert to raw_objects:
     ```sql
-    insert into dir_commit values (...);
-    insert into refs value ('/root', commit_id);
+    insert into mega_blob values (id, git_id, 1024, 0, 'Merged');
+    insert into raw_objects values (...);
     ```
 
 
 #### Clone mega directory
 
-- check path is a repo or a mega directory
+- Check path is import directory
     ```sql
-    select * from mega_directory where path = '/path/by/client';
+    select * from mega_directory where path = '/path/to/directory';
     ```
 - If it's a mega directory
 
-  - Check clone limit:
+  - Check clone object size exceed the threshold:
     ```sql
-    <!-- got related commit -->
-    select commit_id from refs where repo_path = "/root" ;
-    <!-- calculate objects size -->
-    select * from dir_tree where tree_id = '...';
+    <!-- get all files under path -->
+    select * from mega_directory where git_id in (...);
+    <!-- calculate objects size with all blob ids -->
+    select * from mega_blob where git_id in (...);
+    ```
+  - Construct new commit
+    ```sql
+    <!-- get related commit -->
+    select * from mega_commit where git_id = commit_id
+    ```
+  - Pack file with new commit and raw tree and objects;
+    ```sql
+    <!-- get related trees and objects -->
     select * from raw_objects where git_id in (...);
     ```
-  - Parse file and check if it's a b-link file
-  - Replace b-link with repo(same as clone a repo)
-  - construct new tree and commit
-  - pack file with new commit and tree
 
-
-- Or a repo(see clone a repo)
+- Or a import directory(see clone a repo)
 
 #### Push back mega directory
-- clone mega directory and then update readme or directory
-- TODO
-
-#### Init repo under mega directory(no need MR)
-
-TODO
+- Parse packfile get trees and objs
+  ```sql
+  select * from mega_directory where path = '/path/to/directory';
+  ```
+- Open new merge request
+  ```sql
+  insert into raw_objects values(...);
+  insert into merge_request values(...);
+  insert into mega_tree values(..., 'Open');
+  insert into mega_commit values(..., 'Open');
+  insert into mega_blob values(..., 'Open');
+  ```
+- Merge Request
+  ```sql
+  update merge_request set status = 'Merged';
+  update mega_tree set status = 'Merged';
+  update mega_commit set status = 'Merged';
+  update mega_blob set status = 'Merged';
+  update mega_directory set (commit_id, sub_trees) where path = ?;
+  ```
 
 #### Clone repo 
-  - find related objects
+  - Find related objects
     ```sql
-    select * from refs where repo_path = '/path/by/client';
-    select * from commit where commit_id = ...;
-    select * from tree where git_id = ...;
-    select * from raw_objects where git_id in (...);
+    select * from import_repo where repo_path = '/path/to/repo'
+    select git_id from import_commit where repo_id = ?;
+    select git_id from import_tree where repo_id = ?;
+    select git_id from import_blob where repo_id = ?;
     ```
-  - pack file with raw_objetcs
+  - Find raw objects by id
+  ```sql
+  select * from raw_objects where repo_id =? and git_id in (...);
+  ```  
+  - Pack file with raw_objetcs
 
 
-#### Push back repo and open merge request
-
-TODO
-
-
-
-## 4. clone时遵守的规则（TODO）
-
-### ✅ git clone root：
-- 1个commit，只包含一级目录Projects，Import 和ReadME
-- 用于改readme等文件，添加和修改其他文件会报错
-- 需要记录目录的历史版本
-- 判断contains repo
-
-### ✅ git clone projects：
-- 1个commit C-Project，包含底下的所有项目，根据目录计算出projetcs🌲
-- 需要给定阈值来限制clone的大小，超出则通过api来进行修改
-
-### ✅ git clone projects/repo：
-- 1个commit，将C3的parent改为空
-
-### ✅ git clone projects/repo/T3 ： 
-- 1个commit，将C3的parent改为空，并指向T3
-
-### ❌ git clone import：
-- 不允许，因为不能把多个项目合并成一个项目
-
-### ✅ git clone import/repo：
-- 包含所有历史提交的标准clone
-
-### ❌ git clone import/repo/T3：
-- 不允许子目录clone
+#### Push back repo
+- Check server refs by path
+  ```sql
+  select * from import_repo where repo_path = '/path/to/repo'
+  select * from import_refs where repo_id = ...;
+  ```
+- Parse pack file and save objects
+  ```sql
+  insert into raw_objectss values(...);
+  <!-- convert raw_obj to objects -->
+  ```
+- If under import directory
+  ```sql
+  insert into commit values (c1),(c2),(c3);
+  insert into tree values (T1)...(T4);
+  insert into blob values (B1)...(B5);
+  ```
+- Update refs
+  ```sql
+  update import_refs set ref_git_id = ? where repo_id =?;
+  ```
 
 ## 4. Prerequisites
 
@@ -337,4 +391,4 @@ TODO
 - Generating entities: 
 Entities can be generated from the database table structure with the following command
 
-`sea-orm-cli generate entity -u "mysql://${DB_USERNAME}:${DB_SECRET}@${DB_HOST}/mega"  -o database/entity/src` 
+`sea-orm-cli generate entity -u "postgres://${DB_USERNAME}:${DB_SECRET}@${DB_HOST}/mega"  -o database/entity/src` 
