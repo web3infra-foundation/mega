@@ -1,0 +1,28 @@
+.BottombarContainer {
+    margin-top: 20px;
+}
+
+.BottombarUl {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.BottombarContainer .BottombarItems:first-child {
+    display: flex;
+    align-items: center;
+}
+
+.BottombarContainer .BottombarItems:not(:first-child):hover {
+    color: blue;
+}
+
+.BottombarItems {
+    margin-right: 1.5%;
+    color: rgb(108, 108, 108);
+}
+
+.BottombarItemsLog {
+    width: 40px;
+    margin-right: 5px;
+}
