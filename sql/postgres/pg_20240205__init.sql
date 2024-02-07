@@ -10,15 +10,6 @@ CREATE TABLE IF NOT EXISTS "mega_snapshot"(
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_md_full_path UNIQUE (path)
 );
-CREATE TABLE IF NOT EXISTS "mega_refs" (
-  "id" BIGINT PRIMARY KEY,
-  "ref_name" TEXT NOT NULL,
-  "ref_git_id" VARCHAR(40) NOT NULL,
-  "is_commit" BOOLEAN NOT NULL,
-  "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_mref_ref_name UNIQUE (ref_name)
-);
 CREATE TABLE IF NOT EXISTS "mega_commit" (
   "id" BIGINT PRIMARY KEY,
   "commit_id" VARCHAR(40) NOT NULL,
@@ -58,6 +49,8 @@ CREATE TABLE IF NOT EXISTS "mega_blob" (
   "status" VARCHAR(20) NOT NULL,
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
+  "content" TEXT NOT NULL,
+  "content_type" VARCHAR(20),
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_mb_git_id UNIQUE (blob_id)
@@ -79,11 +72,21 @@ CREATE TABLE IF NOT EXISTS "mega_mr" (
   "id" BIGINT PRIMARY KEY,
   "mr_link" VARCHAR(40) NOT NULL,
   "mr_msg" VARCHAR(255) NOT NULL,
-  "commit_id" VARCHAR(40) NOT NULL,
   "merge_date" TIMESTAMP NOT NULL,
   "status" VARCHAR(20) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "mega_issue" (
+  "id" BIGINT PRIMARY KEY,
+  "number" BIGINT NOT NULL,
+  "title" VARCHAR(255) NOT NULL,
+  "sender_name" VARCHAR(255) NOT NULL,
+  "sender_id" BIGINT NOT NULL,
+  "state" VARCHAR(255) NOT NULL,
+  "created_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP NOT NULL,
+  "closed_at" TIMESTAMP DEFAULT NULL
 );
 CREATE INDEX "idx_info_mr_link" ON "mega_mr" ("mr_link");
 CREATE TABLE IF NOT EXISTS "git_refs" (
@@ -141,6 +144,8 @@ CREATE TABLE IF NOT EXISTS "git_blob" (
   "name" VARCHAR(128),
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
+  "content" TEXT NOT NULL,
+  "content_type" VARCHAR(20),
   "commit_id" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_b_git_repo UNIQUE (repo_id, blob_id)

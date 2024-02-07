@@ -34,12 +34,12 @@ It includes the following records:
 | Table Name    | Description                                                                                             | Mega Push | Mega Pull | Git Push | Git Repo |
 | ------------- | ------------------------------------------------------------------------------------------------------- | --------- | --------- | -------- | -------- |
 | mega_snapshot | Mainain the latest directory stucture in monorepo.                                                      | &#10003;  | &#10003;  |          |          |
-| mega_refs     | Obtains the latest mega commit_id with ref_name, also storing the mega lightweight tags.                | &#10003;  |           |          |          |
 | mega_commit   | Store all commit objects related with mega directory, have mr status                                    | &#10003;  |           |          |          |
 | mega_tree     | Store all tree objects related with mega directory, together with mega_commit to find history directory | &#10003;  |           |          |          |
 | mega_blob     | Store all blob objects under mega directory.                                                            | &#10003;  | &#10003;  |          |          |
 | mega_tag      | Store all annotated tag with mega directory.                                                            | &#10003;  | &#10003;  |          |          |
 | mega_mr       | Merge request related to mega commits.                                                                  | &#10003;  |           |          |          |
+| mega_issue    | Manage mega's issue.                                                                                    |           |           |          |          |
 | git_repo      | Maintain Relations between impoprt_repo and repo_path.                                                  |           |           | &#10003; | &#10003; |
 | git_refs      | Obtains the latest commit_id through repo_id and ref_name, also storing the repo lightweight tags.      |           |           | &#10003; | &#10003; |
 | git_commit    | Store all parsed commit objects related with repo.                                                      |           |           | &#10003; | &#10003; |
@@ -62,46 +62,42 @@ It includes the following records:
 %%{init: {"theme": "default", "themeCSS": ["[id*=m] .er.entityBox { fill: orange;}"]}}%%
 
 erDiagram
-    msnap["MEGA-SNAPSHOT"] mrf["MEGA-REFS"] mc["MEGA-COMMITS"] mt["MEGA-TREE"] mb["MEGA-BLOB"] mtag["MEGA-TAG"] mmr["MEGA-MR"]
+    msnap["MEGA-SNAPSHOT"] mc["MEGA-COMMITS"] mt["MEGA-TREE"] mb["MEGA-BLOB"] mtag["MEGA-TAG"] mmr["MEGA-MR"]
     grp["GIT-REPO"] grf["GIT-REFS"] gc["GIT-COMMIT"] gt["GIT-TREE"] gb["GIT-BLOB"] gtag["GIT-TAG"] gp["GIT-PR"] gi["GIT-ISSUE"]
     raw["RAW-OBJETCS"]
     lo["LFS-OBJECTS"] lk["LFS-LOCKS"]
 
-    msnap }|..|{ mc : points
-    msnap }|--|{ mb : contains
-    mrf ||--|| mc : points
-    mrf ||--|| mtag : points
+    msnap |o--|{ mc : "belong to"
+    msnap |o--|{ gt : contains
     mc ||--|| mt : points
-    mc }|--|{ mb : points
     mc ||--|| raw : points
-    mt }|--|{ mb : points
+    mc ||--|| mmr : "belong to"
+    mt }|--o{ mb : points
     mt ||--|| raw : points
+    mt }|--|| mmr : "belong to"
+    mt }o..o{ gt : points
     mb ||--|| raw : points
-    mtag ||--|| mc : points
-    mmr ||--|| mc : has
-    mmr }|--|{ mt : has
-    mmr }|--|{ mb : has
-    mmr }|--|{ raw : has
-    raw ||--|| lo : points
-    raw ||--|| lk : points
-
-    grp ||--|{ grf : has
-    grp ||--|{ gc : has
-    grp ||--|{ gt : has
-    grp ||--|{ gb : has
-    grp ||--|{ gtag : has
-    grp ||--o{ gp : has
-    grp ||--o{ gi : has
-    grp }|--|{ raw : has
+    mb }|--|| mmr : "belong to"
+    mtag |o--o| mc : points
+    mtag ||--|| raw : points
+    raw ||--o| lo : points
+    lo ||--o| lk : points
+    gp }o--|| grp : "belong to"
+    gi }o--|| grp : "belong to"
     grf ||--|| gc : points
-    grf ||--|| raw: points
+    grf ||--|| gtag : points
+    grf }|--|| grp : "belong to"
     gc ||--|| gt : has
-    gc ||--|| gb : has
     gc ||--|| raw : has
-    gt ||--|{ gb : has
+    gc }|--|| grp : "belong to"
+    gt ||--o{ gb : has
     gt ||--|| raw : points
+    gt }|--|| grp : "belong to"
     gb ||--|| raw : points
-    gtag ||--|| gc : points
+    gb }|--|| grp : "belong to"
+    gtag }o--|| grp : "belong to"
+    gtag |o--o| gc : points
+    gtag ||--|| raw : points
 
   ```
 
@@ -110,29 +106,17 @@ erDiagram
 
 #### mega_snapshot
 
-| Column     | Type        | Constraints | Description                                 |
-| ---------- | ----------- | ----------- | ------------------------------------------- |
-| id         | BIGINT      | PRIMARY KEY |                                             |
-| path       | TEXT        | NOT NULL    |                                             |
-| import_dir | BOOLEAN     | NOT NULL    | if this directory is a import directory     |
-| tree_id    | VARCHAR(40) | NOT NULL    |                                             |
-| sub_trees  | TEXT[]      |             |                                             |
-| commit_id  | VARCHAR(40) | NOT NULL    | the latest commit related to this directory |
-| size       | INT         | NOT NULL    | used for count file size under directory    |
-| created_at | TIMESTAMP   | NOT NULL    |                                             |
-| updated_at | TIMESTAMP   | NOT NULL    |                                             |
-
-
-#### mega_refs
-
-| Column     | Type        | Constraints | Description                           |
-| ---------- | ----------- | ----------- | ------------------------------------- |
-| id         | BIGINT      | PRIMARY KEY |                                       |
-| ref_name   | TEXT        | NOT NULL    | reference name, can be branch and tag |
-| ref_git_id | VARCHAR(40) | NOT NULL    | point to the commit or tag object     |
-| is_commit  | BOOLEAN     | NOT NULL    | set true if point to a commit         |
-| created_at | TIMESTAMP   | NOT NULL    |                                       |
-| updated_at | TIMESTAMP   | NOT NULL    |                                       |
+| Column     | Type        | Constraints | Description                                              |
+| ---------- | ----------- | ----------- | -------------------------------------------------------- |
+| id         | BIGINT      | PRIMARY KEY |                                                          |
+| path       | TEXT        | NOT NULL    |                                                          |
+| import_dir | BOOLEAN     | NOT NULL    | points to git_tree if is import_dir, else points to self |
+| tree_id    | VARCHAR(40) | NOT NULL    |                                                          |
+| sub_trees  | TEXT[]      |             | {name, sha1, mode, repo_id}                              |
+| commit_id  | VARCHAR(40) | NOT NULL    | the latest commit related to this directory              |
+| size       | INT         | NOT NULL    | used for count file size under directory                 |
+| created_at | TIMESTAMP   | NOT NULL    |                                                          |
+| updated_at | TIMESTAMP   | NOT NULL    |                                                          |
 
 
 #### mega_commit
@@ -156,32 +140,35 @@ erDiagram
 
 #### mega_tree
 
-| Column     | Type        | Constraints |
-| ---------- | ----------- | ----------- |
-| id         | BIGINT      | PRIMARY KEY |
-| tree_id    | VARCHAR(40) | NOT NULL    |
-| sub_trees  | TEXT[]      |             |
-| import_dir | BOOLEAN     | NOT NULL    |
-| mr_id      | VARCHAR(20) |             |
-| status     | VARCHAR(20) | NOT NULL    |
-| size       | INT         | NOT NULL    |
-| full_path  | TEXT        | NOT NULL    |
-| created_at | TIMESTAMP   | NOT NULL    |
-| updated_at | TIMESTAMP   | NOT NULL    |
+| Column     | Type        | Constraints | Description                          |
+| ---------- | ----------- | ----------- | ------------------------------------ |
+| id         | BIGINT      | PRIMARY KEY |                                      |
+| tree_id    | VARCHAR(40) | NOT NULL    |                                      |
+| sub_trees  | TEXT[]      |             | {name, sha1, mode, repo_id}          |
+| import_dir | BOOLEAN     | NOT NULL    | point to git_tree if it's import dir |
+| mr_id      | VARCHAR(20) |             |                                      |
+| status     | VARCHAR(20) | NOT NULL    |                                      |
+| size       | INT         | NOT NULL    |                                      |
+| full_path  | TEXT        | NOT NULL    |                                      |
+| created_at | TIMESTAMP   | NOT NULL    |                                      |
+| updated_at | TIMESTAMP   | NOT NULL    |                                      |
 
 #### mega_blob
 
-| Column     | Type        | Constraints |
-| ---------- | ----------- | ----------- |
-| id         | BIGINT      | PRIMARY KEY |
-| blob_id    | VARCHAR(40) | NOT NULL    |
-| commit_id  | VARCHAR(40) | NOT NULL    |
-| mr_id      | VARCHAR(20) |             |
-| status     | VARCHAR(20) | NOT NULL    |
-| size       | INT         | NOT NULL    |
-| full_path  | TEXT        | NOT NULL    |
-| created_at | TIMESTAMP   | NOT NULL    |
-| updated_at | TIMESTAMP   | NOT NULL    |
+| Column       | Type        | Constraints |
+| ------------ | ----------- | ----------- |
+| id           | BIGINT      | PRIMARY KEY |
+| blob_id      | VARCHAR(40) | NOT NULL    |
+| commit_id    | VARCHAR(40) | NOT NULL    |
+| mr_id        | VARCHAR(20) |             |
+| status       | VARCHAR(20) | NOT NULL    |
+| size         | INT         | NOT NULL    |
+| content      | TEXT        | NOT NULL    |
+| content_type | VARCHAR(20) |             |
+| full_path    | TEXT        | NOT NULL    |
+| created_at   | TIMESTAMP   | NOT NULL    |
+| updated_at   | TIMESTAMP   | NOT NULL    |
+
 
 #### mega_tag
 
@@ -203,11 +190,24 @@ erDiagram
 | id         | BIGINT       | PRIMARY KEY |                                                  |
 | mr_link    | VARCHAR(40)  | NOT NULL    | A MR identifier with a length of 6-8 characters. |
 | mr_msg     | VARCHAR(255) | NOT NULL    |                                                  |
-| commit_id  | VARCHAR(40)  | NOT NULL    | single commit related with mr                    |
 | merge_date | TIMESTAMP    | NOT NULL    |                                                  |
 | status     | VARCHAR(20)  | NOT NULL    |                                                  |
 | created_at | TIMESTAMP    | NOT NULL    |                                                  |
 | updated_at | TIMESTAMP    | NOT NULL    |                                                  |
+
+#### mega_issue
+
+| Column      | Type         | Constraints  |
+| ----------- | ------------ | ------------ |
+| id          | BIGINT       | PRIMARY KEY  |
+| number      | BIGINT       | NOT NULL     |
+| title       | VARCHAR(255) | NOT NULL     |
+| sender_name | VARCHAR(255) | NOT NULL     |
+| sender_id   | BIGINT       | NOT NULL     |
+| state       | VARCHAR(255) | NOT NULL     |
+| created_at  | TIMESTAMP    | NOT NULL     |
+| updated_at  | TIMESTAMP    | NOT NULL     |
+| closed_at   | TIMESTAMP    | DEFAULT NULL |
 
 #### git_refs
 
@@ -263,30 +263,32 @@ erDiagram
 
 #### git_blob
 
-| Column     | Type         | Constraints |
-| ---------- | ------------ | ----------- |
-| id         | BIGINT       | PRIMARY KEY |
-| repo_id    | BIGINT       | NOT NULL    |
-| blob_id    | VARCHAR(40)  | NOT NULL    |
-| name       | VARCHAR(128) |             |
-| size       | INT          | NOT NULL    |
-| full_path  | TEXT         | NOT NULL    |
-| commit_id  | VARCHAR(40)  | NOT NULL    |
-| created_at | TIMESTAMP    | NOT NULL    |
+| Column       | Type         | Constraints |
+| ------------ | ------------ | ----------- |
+| id           | BIGINT       | PRIMARY KEY |
+| repo_id      | BIGINT       | NOT NULL    |
+| blob_id      | VARCHAR(40)  | NOT NULL    |
+| name         | VARCHAR(128) |             |
+| size         | INT          | NOT NULL    |
+| content      | TEXT         | NOT NULL    |
+| content_type | VARCHAR(20)  |             |
+| full_path    | TEXT         | NOT NULL    |
+| commit_id    | VARCHAR(40)  | NOT NULL    |
+| created_at   | TIMESTAMP    | NOT NULL    |
 
 #### git_tag
 
 | Column      | Type        | Constraints |
 | ----------- | ----------- | ----------- |
-| id          | BIGINT      | PRIMARY KEY |     
-| repo_id     | BIGINT      | NOT NULL    |     
-| tag_id      | VARCHAR(40) | NOT NULL    |     
-| object_id   | VARCHAR(40) | NOT NULL    |     
-| object_type | VARCHAR(20) | NOT NULL    |     
-| tag_name    | TEXT        | NOT NULL    |     
-| tagger      | TEXT        | NOT NULL    |     
-| message     | TEXT        | NOT NULL    |     
-| created_at  | TIMESTAMP   | NOT NULL    |     
+| id          | BIGINT      | PRIMARY KEY |
+| repo_id     | BIGINT      | NOT NULL    |
+| tag_id      | VARCHAR(40) | NOT NULL    |
+| object_id   | VARCHAR(40) | NOT NULL    |
+| object_type | VARCHAR(20) | NOT NULL    |
+| tag_name    | TEXT        | NOT NULL    |
+| tagger      | TEXT        | NOT NULL    |
+| message     | TEXT        | NOT NULL    |
+| created_at  | TIMESTAMP   | NOT NULL    |
 
 #### raw_objects
 
@@ -353,11 +355,11 @@ erDiagram
 
 #### lfs_objects
 
-| Column  | Type        | Constraints |
-| ------- | ----------- | ----------- |
-| oid     | VARCHAR(64) | PRIMARY KEY |
-| size    | BIGINT      |             |
-| exist   | BOOLEAN     |             |
+| Column | Type        | Constraints |
+| ------ | ----------- | ----------- |
+| oid    | VARCHAR(64) | PRIMARY KEY |
+| size   | BIGINT      |             |
+| exist  | BOOLEAN     |             |
 
 
 ## 3. Sql execution for each process.
