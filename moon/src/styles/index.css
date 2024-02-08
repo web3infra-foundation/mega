@@ -1,0 +1,9 @@
+.projectName {
+    display: flex;
+}
+
+.fileTableIcon {
+    width: 23px;
+    height: 23px;
+    margin-right: 8px;
+}
