@@ -1,6 +1,6 @@
-# Mega - Centralised Monorepo and Decentralised Open Source Collabration Engine
+# Mega - is an unofficial open-source implementation of Google Piper.
 
-Mega, a code repository platform for enterprise and individual developers, integrates the Monorepo model with Git compatibility, streamlining team development and personal code management. It supports centralized trunk-based workflows alongside decentralized open-source collaboration.
+Mega is an unofficial open-source implementation of Google Piper. It is a monorepo and monolithic codebase management system that supports Git and Buck2. Mega is designed to manage large-scale codebases, streamline development, and foster collaboration. It is built on top of Rust and PostgreSQL, and is designed to be highly scalable and efficient.
 
 ## Motivation
 
@@ -28,7 +28,7 @@ To address these challenges, there's a growing need for a decentralized open-sou
 
 ### MacOS
 
-1. Install Rust on your MacOS machine.
+1. Install Rust on your macOS machine.
 
    ```bash
    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
