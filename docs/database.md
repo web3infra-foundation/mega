@@ -56,8 +56,6 @@ It includes the following records:
 
 
   ```mermaid
-%%{init: {"theme": "default", "themeCSS": ["[id*=m] .er.entityBox { fill: orange;}"]}}%%
-
 erDiagram
     msnap["MEGA-SNAPSHOT"] mc["MEGA-COMMITS"] mt["MEGA-TREE"] mb["MEGA-BLOB"] mtag["MEGA-TAG"] mmr["MEGA-MR"]
     grp["GIT-REPO"] grf["GIT-REFS"] gc["GIT-COMMIT"] gt["GIT-TREE"] gb["GIT-BLOB"] gtag["GIT-TAG"] gp["GIT-PR"] gi["GIT-ISSUE"]
