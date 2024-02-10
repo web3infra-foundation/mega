@@ -56,9 +56,6 @@ It includes the following records:
 
 
   ```mermaid
-  ---
-  title: Mgea ER Diagram
-  ---
 %%{init: {"theme": "default", "themeCSS": ["[id*=m] .er.entityBox { fill: orange;}"]}}%%
 
 erDiagram
