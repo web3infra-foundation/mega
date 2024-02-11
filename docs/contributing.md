@@ -2,7 +2,7 @@
 
 Mega is an open source monorepo engine for trunk-based development. The project relies on community contributions and aims to simplify getting started. To develop Mega, clone the repository, then install all dependencies and initialize the database schema, run the test suite and try it out locally. Pick an issue, make changes, and submit a pull request for community review.
 
-## What't the contribution
+## What's the contribution
 
 Here are some guidelines for contributing to this project:
 
