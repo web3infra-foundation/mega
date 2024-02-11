@@ -46,7 +46,7 @@ sea-orm = { version = "0.12.9", features = [
     "macros",
     "mock",
 ] }
-octocrab = "0.32.0"
+octocrab = "0.34.0"
 
 [dev-dependencies]
 tokio-test = "0.4.2"

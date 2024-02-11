@@ -2,7 +2,7 @@
 
 ## 1.Basic Design of Mega Monorepo
 
-The purpose of this document is to refactor the current storage design of Mega, enabling it to effectively manage project monorepos while remaining compatible with the Git protocol.
+The purpose of this document is to refactor the current storage design of Mega, enabling it to effectively manage project monorepo while remaining compatible with the Git protocol.
 
 Mega's storage structure is mainly divided into the following parts:
 
@@ -11,11 +11,14 @@ Mega's storage structure is mainly divided into the following parts:
 Similar to the 'tree' in Git, Mega maintains relationships between files and file names. In the database, Mega independently manages directory information for the current version.
 
 ### b-link file*
+
 The purpose of the B-link file is to store file index information, serving as a replacement for blobs in Git. The design of this structure is inspired by the specification of Git LFS, as follows:
-  ```bash
+
+```bash
   version https://mega.com/directory/spec/v1
   blob 3a739f77180d81aa45d9bd11eb6be7098bf1991f
-  ```
+ ```
+
 It includes the following records:
 - version: Represents the version information of the structure.
 - blob: Points to the hash value of the actual blob.
@@ -56,11 +59,6 @@ It includes the following records:
 
 
   ```mermaid
-  ---
-  title: Mgea ER Diagram
-  ---
-%%{init: {"theme": "default", "themeCSS": ["[id*=m] .er.entityBox { fill: orange;}"]}}%%
-
 erDiagram
     msnap["MEGA-SNAPSHOT"] mc["MEGA-COMMITS"] mt["MEGA-TREE"] mb["MEGA-BLOB"] mtag["MEGA-TAG"] mmr["MEGA-MR"]
     grp["GIT-REPO"] grf["GIT-REFS"] gc["GIT-COMMIT"] gt["GIT-TREE"] gb["GIT-BLOB"] gtag["GIT-TAG"] gp["GIT-PR"] gi["GIT-ISSUE"]

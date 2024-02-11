@@ -10,13 +10,13 @@ members = []
 anyhow = "1.0.79"
 pgp = "0.10.2"
 rand = "0.8.5"
-smallvec = "1.11.1"
-clap = { version = "4.4.8", features = ["derive"] }
+smallvec = "2.0.0-alpha.3"
+clap = { version = "4.5.0", features = ["derive"] }
 rusty_vault = { git = "https://github.com/Tongsuo-Project/RustyVault.git", version = "0.1.0" }
-serde_json = "1.0.110"
+serde_json = "1.0.113"
 go-defer = "0.1.0"
 hex = "0.4.3"
 tracing = "0.1.40"
 fs2 = "0.4.3"
-tempfile = "3.3.0"
+tempfile = "3.10.0"
 lazy_static = "1.4.0"

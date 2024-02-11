@@ -9,10 +9,11 @@ This projects in archive folder has been officially archived. Please note the fo
 
 ## Background & Alternatives
 
-1. *ui* - The ui project will be replace by a new project named [moon](moon/REAdME.md).
-2. *sync* - The sync project will be replace by a new project named [moon-sync](moon-sync/REAdME.md).
-3. *build-bazel-tool* - The build-bazel-tool project will be replace by a new project named [building](building/REAdME.md) in the feature.
-4. *website* - The website project will be replace by a new project named [moon-website](moon-website/REAdME.md) in the feature.
+1. *ui* - The ui project will be replaced by a new project named [moon](moon/REAdME.md).
+2. *sync* - The sync project will be replaced by a new project named [moon-sync](moon-sync/REAdME.md).
+3. *build-bazel-tool* - The build-bazel-tool project will be replaced by a new project named [building](building/REAdME.md) in the feature.
+4. *website* - The website project will be replaced by a new project named [moon-website](moon-website/REAdME.md) in the feature.
+5. *mda* - The mda project still not have a replacement project.
 
 [Optional: Suggest any alternative tools, libraries, or projects that users can consider as a replacement for this project.]
 
