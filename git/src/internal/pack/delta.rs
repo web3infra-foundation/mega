@@ -154,7 +154,7 @@ async fn process_delta(
     }
 }
 
-pub fn undelta(mut stream: &mut impl Read, base_info: &Vec<u8>) -> Result<Vec<u8>,GitError> {
+pub fn undelta(mut stream: &mut impl Read, base_info: &[u8]) -> Result<Vec<u8>,GitError> {
     // Read the bash object size & Result Size
     let base_size = utils::read_size_encoding(&mut stream).unwrap();
     if base_info.len() != base_size{
