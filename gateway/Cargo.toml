@@ -11,24 +11,25 @@ path = "src/lib.rs"
 
 
 [dependencies]
-git = {path = "../git"}
-common = {path = "../common"}
-storage = {path = "../storage"}
+git = { path = "../git" }
+common = { path = "../common" }
+storage = { path = "../storage" }
 entity = { path = "../storage/entity" }
-anyhow = "1.0.79"
-axum = "0.7.4"
 tower = "0.4.13"
 tower-http = { version = "0.5.1", features = ["cors", "trace"] }
-tokio = {version = "1.36.0", features = ["net"]}
 regex = "1.10.3"
-tracing = "0.1.40"
-russh = { version = "0.42.0", features = ["openssl"]}
-russh-keys = {version = "0.42.0" }
-ed25519-dalek = {version = "2.1.1", features = ["pkcs8"]}
-serde = "1.0"
-serde_json = "1.0"
-clap = { version = "4.5.0", features = ["derive"] }
-chrono = "0.4.34"
-futures = "0.3.30"
-bytes = "1.5.0"
-async-trait = "0.1.77"
+ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
+
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["net"] }
+axum = { workspace = true }
+tracing = { workspace = true }
+russh = { workspace = true, features = ["openssl"] }
+russh-keys = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+chrono = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+async-trait = { workspace = true }

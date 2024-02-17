@@ -10,7 +10,7 @@ name = "common"
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = "1.0.77"
-sea-orm = "0.12.10"
-thiserror = "1.0.52"
-clap = { version = "4.4.11", features = ["derive"] }
+anyhow = { workspace = true }
+sea-orm = { workspace = true }
+thiserror = { workspace = true }
+clap = { workspace = true, features = ["derive"] }

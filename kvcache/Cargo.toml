@@ -5,19 +5,20 @@ edition = "2021"
 
 
 [features]
-default=["json"]
-protobuf=[]
-json=[]
+default = ["json"]
+protobuf = []
+json = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-redis = { version = "0.24.0", features = ["tokio-comp"] }
-anyhow = "1.0.75"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 prost = "0.12"
 prost-types = "0.12"
+
+redis = { workspace = true, features = ["tokio-comp"] }
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 redis-test = "0.3.0"
