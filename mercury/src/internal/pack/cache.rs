@@ -25,7 +25,9 @@ pub struct CacheObject {
 }
 
 pub trait _Cache {
-    fn new(size: Option<usize>) -> Self where Self: Sized;
+    fn new(size: Option<usize>) -> Self
+    where
+        Self: Sized;
     fn get_hash(&self, offset: usize) -> Option<SHA1>;
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject);
@@ -42,18 +44,28 @@ pub struct Caches {
 
 impl CacheObject {}
 
-impl Caches {
-    ///
-    ///
-    ///
-    ///
-    pub fn insert(&mut self, offset: usize, object: CacheObject) {
-        // self.map_offset.insert(offset, object);
-
-        self.mem_size += self.get(offset).unwrap().data_decompress.len();
+impl _Cache for Caches {
+    fn new(size: Option<usize>) -> Self
+    where
+        Self: Sized,
+    {
+        Caches {
+            map_offset: HashMap::new(),
+            map_hash: HashMap::new(),
+            mem_size: size.unwrap_or(0),
+            tmp_path: PathBuf::new(),
+        }
     }
-
-    pub fn get(&self, offset: usize) -> Option<&CacheObject> {
-        self.map_offset.get(&offset)
+    fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>> {
+        unimplemented!()
+    }
+    fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
+        unimplemented!()
+    }
+    fn get_hash(&self, offset: usize) -> Option<SHA1> {
+        unimplemented!()
+    }
+    fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) {
+        unimplemented!()
     }
 }

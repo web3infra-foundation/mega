@@ -406,7 +406,7 @@ impl Pack {
 
         //Get the base object row data
         let base_info = &base_object.data_decompress;
-        assert_eq!(base_info.len(), base_size);
+        assert_eq!(base_info.len() as u64, base_size);
 
         let mut result = Vec::with_capacity(result_size as usize);
 
