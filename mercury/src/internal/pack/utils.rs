@@ -175,7 +175,7 @@ pub fn read_offset_encoding<R: Read>(stream: &mut R) -> io::Result<(u64, usize)>
     let mut offset = 0;
     loop {
         let (byte_value, more_bytes) = read_byte_and_check_continuation(stream)?;
-        *offset += 1;
+        offset += 1;
         value = (value << 7) | byte_value as u64;
         if !more_bytes {
             return Ok((value, offset));

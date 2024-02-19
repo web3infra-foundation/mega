@@ -11,7 +11,8 @@ use std::sync::Arc;
 
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
-use venus::internal::object::ObjectTrait;
+use dashmap::DashMap;
+
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -25,7 +26,9 @@ pub struct CacheObject {
 }
 
 pub trait _Cache {
-    fn new(size: Option<usize>) -> Self where Self: Sized;
+    fn new(size: Option<usize>) -> Self
+    where
+        Self: Sized;
     fn get_hash(&self, offset: usize) -> Option<SHA1>;
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject);
@@ -34,26 +37,50 @@ pub trait _Cache {
 
 #[allow(unused)]
 pub struct Caches {
-    pub map_offset: HashMap<usize, SHA1>,
-    pub map_hash: HashMap<SHA1, Arc<CacheObject>>,
-    pub mem_size: usize,
-    pub tmp_path: PathBuf,
+    map_offset: DashMap<usize, SHA1>,
+    map_hash: HashMap<SHA1, Arc<CacheObject>>,
+    mem_size: usize,
+    tmp_path: PathBuf,
 }
 
 impl CacheObject {}
-
-impl Caches {
-    ///
-    ///
-    ///
-    ///
-    pub fn insert(&mut self, offset: usize, object: CacheObject) {
-        // self.map_offset.insert(offset, object);
-
-        self.mem_size += self.get(offset).unwrap().data_decompress.len();
+impl Default for Caches {
+    fn default() -> Self {
+        Caches {
+            map_offset: DashMap::new(),
+            map_hash: HashMap::new(),
+            mem_size: 0,
+            tmp_path: PathBuf::new(),
+        }
     }
+}
 
-    pub fn get(&self, offset: usize) -> Option<&CacheObject> {
-        self.map_offset.get(&offset)
+impl _Cache for Caches {
+    fn new(size: Option<usize>) -> Self
+    where
+        Self: Sized,
+    {
+        Caches {
+            map_offset: DashMap::new(),
+            map_hash: HashMap::new(),
+            mem_size: size.unwrap_or(0),
+            tmp_path: PathBuf::new(),
+        }
+    }
+    fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>> {
+        unimplemented!()
+    }
+    fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
+        match self.map_offset.get(&offset) {
+            Some(x) => self.get_by_hash(x.clone()),
+            None => None,
+        }
+    }
+    fn get_hash(&self, offset: usize) -> Option<SHA1> {
+        self.map_offset.get(&offset).map(|x| x.clone())
+    }
+    fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) {
+        self.map_offset.insert(offset, hash);
+        unimplemented!()
     }
 }

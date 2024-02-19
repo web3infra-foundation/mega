@@ -27,6 +27,8 @@ use crate::internal::pack::utils::is_eof;
 use crate::internal::pack::cache::CacheObject;
 use crate::internal::pack::cache::Caches;
 
+use super::cache::_Cache;
+
 impl Pack {
     pub fn new() -> Self {
         Pack {
@@ -268,12 +270,7 @@ impl Pack {
     /// 
     /// 
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
-        let caches = Caches {
-            map_offset: HashMap::new(),
-            map_hash: HashMap::new(),
-            mem_size,
-            tmp_path,
-        };
+        let caches = Caches::default();
         let caches = Arc::new(RwLock::new(caches));
 
         let mut render = Wrapper::new(io::BufReader::new(pack));
@@ -300,25 +297,25 @@ impl Pack {
                     match obj.object_type {
                         ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                             let mut caches = caches.write().unwrap();
-                            caches.insert(obj.offset, obj); //insert()
+                            caches.insert(obj.offset,obj.hash, obj); //insert()
                         },
                         ObjectType::OffsetDelta | ObjectType::HashDelta => {
                             let mut base_obj: Option<Arc<CacheObject>> = None;
                             if matches!(obj.object_type, ObjectType::OffsetDelta) {
                                 let caches = caches.read().unwrap();
-                                match caches.map_offset.get(&obj.base_offset) {  // get_by_offset()
+                                match caches.get_by_offset(obj.offset) {  // get_by_offset()
                                     None => { //TODO 需要minus计算
-                                        self.waitlist_offset.entry(obj.base_offset).or_insert(Vec::new()).push(obj);
+                                        self.waitlist_offset.entry(obj.base_offset).or_insert(Vec::new()).push(obj.clone());
                                     }
                                     Some(hash) => {
-                                        base_obj = Some(caches.map_hash.get(hash).unwrap().clone()); //map_offset存在 map_hash一定存在
+                                        base_obj = Some(caches.get_by_hash(hash.hash).unwrap().clone()); //map_offset存在 map_hash一定存在
                                     }
                                 }
                             } else {
                                 let caches = caches.read().unwrap();
-                                match caches.map_hash.get(&obj.base_ref) { // get_by_hash()
+                                match caches.get_by_hash(obj.base_ref) { // get_by_hash()
                                     None => {
-                                        self.waitlist_ref.entry(obj.base_ref).or_insert(Vec::new()).push(obj);
+                                        self.waitlist_ref.entry(obj.base_ref).or_insert(Vec::new()).push(obj.clone());
                                     }
                                     Some(cache_obj) => {
                                         base_obj = Some(cache_obj.clone());
@@ -406,7 +403,7 @@ impl Pack {
 
         //Get the base object row data
         let base_info = &base_object.data_decompress;
-        assert_eq!(base_info.len(), base_size);
+        assert_eq!(base_info.len() as u64, base_size);
 
         let mut result = Vec::with_capacity(result_size as usize);
 
