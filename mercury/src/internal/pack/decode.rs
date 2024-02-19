@@ -5,25 +5,37 @@
 //! 
 //! 
 //! 
-use std::io::{self, Read, BufRead, Seek};
+use std::io::{self, Read, BufRead, Seek, ErrorKind, Cursor};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex, RwLock};
+use dashmap::DashMap;
 
 use flate2::bufread::ZlibDecoder;
+use threadpool::ThreadPool;
 
 use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
 use crate::internal::pack::Pack;
+use crate::internal::pack::{Pack, utils};
 use crate::internal::pack::wrapper::Wrapper;
-use crate::internal::pack::utils::read_type_and_varint_size;
+use crate::internal::pack::utils::{read_offset_encoding, read_type_and_varint_size};
 use crate::internal::pack::utils::read_varint_le;
 use crate::internal::pack::utils::is_eof;
 use crate::internal::pack::cache::CacheObject;
 use crate::internal::pack::cache::Caches;
 
 impl Pack {
+    pub fn new() -> Self {
+        Pack {
+            number: 0,
+            signature: SHA1::default(),
+            pool: ThreadPool::new(num_cpus::get()),
+        }
+    }
+
     /// Checks and reads the header of a Git pack file.
     ///
     /// This function reads the first 12 bytes of a pack file, which include the "PACK" magic identifier,
@@ -86,7 +98,7 @@ impl Pack {
                 // Store these bytes
                 header_data.extend_from_slice(&version_bytes);
 
-                // Convert the version bytes to a u32 integer
+                // Convert the version bytes to an u32 integer
                 let version = u32::from_be_bytes(version_bytes);
                 if version != 2 {
                     // Git currently supports version 2, so error if not version 2
@@ -114,7 +126,7 @@ impl Pack {
             Ok(_) => {
                 // Store these bytes
                 header_data.extend_from_slice(&object_num_bytes);
-                // Convert the object number bytes to a u32 integer
+                // Convert the object number bytes to an u32 integer
                 let object_num = u32::from_be_bytes(object_num_bytes);
                 // Return the number of objects and the header data for further processing
                 Ok((object_num, header_data))
@@ -201,26 +213,28 @@ impl Pack {
                 *offset += object_offset;
 
                 Ok(CacheObject {
-                    delta_offset: 0,
-                    delta_ref: SHA1::default(),
+                    base_offset: 0,
+                    base_ref: SHA1::default(),
                     data_decompress: data,
                     object_type: t,
                     offset: *offset,
+                    hash: SHA1::default(),
                 })
             },
             ObjectType::OffsetDelta => {
-                let (_base_offset, step_offset) = read_varint_le(pack).unwrap();
+                let (_base_offset, step_offset) = read_offset_encoding(pack).unwrap();
                 *offset += step_offset;
                 
                 let (data, object_offset) = self.decompress_data(pack, size)?;
                 *offset += object_offset;
 
                 Ok(CacheObject {
-                    delta_offset: object_offset,
-                    delta_ref: SHA1::default(),
+                    base_offset: object_offset,
+                    base_ref: SHA1::default(),
                     data_decompress: data,
                     object_type: t,
                     offset: *offset,
+                    hash: SHA1::default(),
                 })
             },
             ObjectType::HashDelta => {
@@ -235,11 +249,12 @@ impl Pack {
                 *offset += object_offset;
 
                 Ok(CacheObject {
-                    delta_offset: 0,
-                    delta_ref: ref_sha1,
+                    base_offset: 0,
+                    base_ref: ref_sha1,
                     data_decompress: data,
                     object_type: t,
                     offset: *offset,
+                    hash: SHA1::default(),
                 })
             }
         }
@@ -250,12 +265,16 @@ impl Pack {
     /// 
     /// 
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
-        let mut caches = Caches {
+        let caches = Caches {
             objects: Vec::new(),
             map_offset: HashMap::new(),
+            map_hash: HashMap::new(),
+            wait_list_offset: HashMap::new(),
+            wait_list_ref: HashMap::new(),
             mem_size,
             tmp_path,
         };
+        let caches = Arc::new(RwLock::new(caches));
 
         let mut render = Wrapper::new(io::BufReader::new(pack));
 
@@ -275,8 +294,43 @@ impl Pack {
         while i <= self.number {
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
             match r {
-                Ok(cache) => {
-                    caches.insert(cache.offset, cache);
+                Ok(obj) => {
+                    // caches.insert(cache.offset, cache); //TODO 根据类型 分类处理
+
+                    match obj.object_type {
+                        ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
+                            let mut caches = caches.write().unwrap();
+                            caches.insert(obj.offset, obj);
+                        },
+                        ObjectType::OffsetDelta | ObjectType::HashDelta => {
+                            let mut base_obj: Option<Arc<CacheObject>> = None;
+                            if matches!(obj.object_type, ObjectType::OffsetDelta) {
+                                let caches = caches.read().unwrap();
+                                match caches.map_offset.get(&obj.base_offset) { //TODO 需要minus计算
+                                    None => {
+                                        caches.wait_list_offset.entry(obj.base_offset).or_insert(Vec::new()).push(obj);
+                                    }
+                                    Some(hash) => {
+                                        base_obj = Some(caches.map_hash.get(hash).unwrap().clone()); //map_offset存在 map_hash一定存在
+                                    }
+                                }
+                            } else {
+                                let caches = caches.read().unwrap();
+                                match caches.map_hash.get(&obj.base_ref) {
+                                    None => {
+                                        caches.wait_list_ref.entry(obj.base_ref).or_insert(Vec::new()).push(obj);
+                                    }
+                                    Some(cache_obj) => {
+                                        base_obj = Some(cache_obj.clone());
+                                    }
+                                }
+                            }
+                            if let Some(base_obj) = base_obj {
+                                self.process_delta(caches.clone(), obj.clone(), base_obj); //TODO 理论上不需要clone
+                            }
+                        }
+                    }
+
                 },
                 Err(e) => {
                     return Err(e);
@@ -306,7 +360,117 @@ impl Pack {
             ));
         }
 
+        self.pool.join(); // wait for all threads to finish
         Ok(())
+    }
+
+    fn process_delta(&self, caches: Arc<RwLock<Caches>>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
+        self.pool.execute(move || {
+            let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
+            let new_hash = new_obj.hash;
+
+            let mut caches_gd = caches.write().unwrap();
+            caches_gd.insert(new_obj.offset, new_obj);
+
+            let new_obj = caches_gd.map_hash.get(&new_hash).unwrap().clone();
+            let wait_list = Vec::new();
+            if let Some(wait_list) = caches_gd.wait_list_offset.get_mut(&new_obj.offset) {
+                for obj in wait_list.drain(..) {
+                    wait_list.push(obj);
+                }
+            }
+            if let Some(wait_list) = caches_gd.wait_list_ref.get_mut(&new_obj.hash) {
+                for obj in wait_list.drain(..) {
+                    wait_list.push(obj);
+                }
+            }
+            drop(caches_gd);
+
+            for obj in wait_list {
+                Pack::process_delta(caches.clone(), obj, new_obj.clone());
+            }
+        });
+    }
+
+    /// Reconstruct the Delta Object based on the "base object"
+    ///
+    fn rebuild_delta(mut delta_object: CacheObject, base_object: Arc<CacheObject>) -> CacheObject {
+        const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
+        const COPY_OFFSET_BYTES: u8 = 4;
+        const COPY_SIZE_BYTES: u8 = 3;
+        const COPY_ZERO_SIZE: usize = 0x10000;
+
+        let mut stream = Cursor::new(delta_object.data_decompress);
+
+        // Read the base object size & Result Size
+        // (Size Encoding)
+        let (base_size, _) = read_varint_le(&mut stream).unwrap();
+        let (result_size, _) = read_varint_le(&mut stream).unwrap();
+
+        //Get the base object row data
+        let base_info = &base_object.data_decompress;
+        assert_eq!(base_info.len(), base_size);
+
+        let mut result = Vec::with_capacity(result_size as usize);
+
+        loop {
+            // Check if the stream has ended, meaning the new object is done
+            let instruction = match utils::read_bytes(&mut stream) {
+                Ok([instruction]) => instruction,
+                Err(err) if err.kind() == ErrorKind::UnexpectedEof => break,
+                Err(err) => {
+                    panic!(
+                        "{}",
+                        GitError::DeltaObjectError(format!("Wrong instruction in delta :{}", err))
+                    );
+                }
+            };
+
+            if instruction & COPY_INSTRUCTION_FLAG == 0 {
+                // Data instruction; the instruction byte specifies the number of data bytes
+                if instruction == 0 {
+                    // Appending 0 bytes doesn't make sense, so git disallows it
+                    panic!(
+                        "{}",
+                        GitError::DeltaObjectError(String::from("Invalid data instruction"))
+                    );
+                }
+
+                // Append the provided bytes
+                let mut data = vec![0; instruction as usize];
+                stream.read_exact(&mut data).unwrap();
+                result.extend_from_slice(&data);
+            } else {
+                // Copy instruction
+                // +----------+---------+---------+---------+---------+-------+-------+-------+
+                // | 1xxxxxxx | offset1 | offset2 | offset3 | offset4 | size1 | size2 | size3 |
+                // +----------+---------+---------+---------+---------+-------+-------+-------+
+                let mut nonzero_bytes = instruction;
+                let offset =
+                    utils::read_partial_int(&mut stream, COPY_OFFSET_BYTES, &mut nonzero_bytes).unwrap();
+                let mut size =
+                    utils::read_partial_int(&mut stream, COPY_SIZE_BYTES, &mut nonzero_bytes).unwrap();
+                if size == 0 {
+                    // Copying 0 bytes doesn't make sense, so git assumes a different size
+                    size = COPY_ZERO_SIZE;
+                }
+                // Copy bytes from the base object
+                let base_data = base_info
+                    .get(offset..(offset + size))
+                    .ok_or_else(|| GitError::DeltaObjectError("Invalid copy instruction".to_string()));
+
+                match base_data {
+                    Ok(data) => result.extend_from_slice(data),
+                    Err(e) => panic!("{}", e),
+                }
+            }
+        }
+
+        delta_object.data_decompress = result;
+        delta_object.object_type = base_object.object_type; // Same as the Type of base object
+        delta_object.hash = SHA1::default(); //TODO 计算hash
+
+        return delta_object; //Canonical form
     }
 
 }
@@ -349,7 +513,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack {number: 0, signature: SHA1::default() };
+        let mut p = Pack::new();
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, _)) => {
@@ -368,7 +532,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack {number: 0, signature: SHA1::default()};
+        let mut p = Pack::new();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
@@ -381,7 +545,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack {number: 0, signature: SHA1::default()};
+        let mut p = Pack::new();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
@@ -394,7 +558,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack {number: 0, signature: SHA1::default()};
+        let mut p = Pack::new();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
@@ -407,7 +571,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack {number: 0, signature: SHA1::default()};
+        let mut p = Pack::new();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 }

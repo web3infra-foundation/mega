@@ -10,6 +10,7 @@ pub mod cache;
 
 
 use venus::hash::SHA1;
+use threadpool::ThreadPool;
 
 ///
 /// 
@@ -18,6 +19,7 @@ use venus::hash::SHA1;
 pub struct Pack {
     pub number: usize,
     pub signature: SHA1,
+    pub pool: ThreadPool
 }
 
 #[cfg(test)]

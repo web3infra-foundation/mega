@@ -155,6 +155,85 @@ pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
     Ok((value, offset))
 }
 
+
+
+/// The offset for an OffsetDelta object(big-endian order)
+/// # Arguments
+///
+/// * `stream`: Input Data Stream to read
+/// * `consume`: This variable records the number of bytes consumed.
+///
+pub fn read_offset_encoding<R: Read>(stream: &mut R) -> io::Result<(u64, usize)> {
+    // Like the object length, the offset for an OffsetDelta object
+    // is stored in a variable number of bytes,
+    // with the most significant bit of each byte indicating whether more bytes follow.
+    // However, the object length encoding allows redundant values,
+    // e.g. the 7-bit value [n] is the same as the 14- or 21-bit values [n, 0] or [n, 0, 0].
+    // Instead, the offset encoding adds 1 to the value of each byte except the least significant one.
+    // And just for kicks, the bytes are ordered from *most* to *least* significant.
+    let mut value = 0;
+    let mut offset = 0;
+    loop {
+        let (byte_value, more_bytes) = read_byte_and_check_continuation(stream)?;
+        *offset += 1;
+        value = (value << 7) | byte_value as u64;
+        if !more_bytes {
+            return Ok((value, offset));
+        }
+
+        value += 1; //important!: for n >= 2 adding 2^7 + 2^14 + ... + 2^(7*(n-1)) to the result
+    }
+}
+
+/// Read the next N bytes from the reader
+///
+#[inline]
+pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> io::Result<[u8; N]> {
+    let mut bytes = [0; N];
+    stream.read_exact(&mut bytes)?;
+
+    Ok(bytes)
+}
+
+
+/// Reads a partial integer from a stream. (little-endian order)
+///
+/// # Arguments
+///
+/// * `stream` - A mutable reference to a readable stream.
+/// * `bytes` - The number of bytes to read from the stream.
+/// * `present_bytes` - A mutable reference to a byte indicating which bits are present in the integer value.
+///
+/// # Returns
+///
+/// This function returns a result of type `io::Result<usize>`. If the operation is successful, the integer value
+/// read from the stream is returned as `Ok(value)`. Otherwise, an `Err` variant is returned, wrapping an `io::Error`
+/// that describes the specific error that occurred.
+pub fn read_partial_int<R: Read>(
+    stream: &mut R,
+    bytes: u8,
+    present_bytes: &mut u8,
+) -> io::Result<usize> {
+    let mut value: usize = 0;
+
+    // Iterate over the byte indices
+    for byte_index in 0..bytes {
+        // Check if the current bit is present
+        if *present_bytes & 1 != 0 {
+            // Read a byte from the stream
+            let [byte] = read_bytes(stream)?;
+
+            // Add the byte value to the integer value
+            value |= (byte as usize) << (byte_index * 8);
+        }
+
+        // Shift the present bytes to the right
+        *present_bytes >>= 1;
+    }
+
+    Ok(value)
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
