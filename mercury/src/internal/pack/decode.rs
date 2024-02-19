@@ -32,7 +32,10 @@ impl Pack {
         Pack {
             number: 0,
             signature: SHA1::default(),
+            objects: Vec::new(),
             pool: ThreadPool::new(num_cpus::get()),
+            waitlist_offset: Arc::new(DashMap::new()),
+            waitlist_ref: Arc::new(DashMap::new()),
         }
     }
 
@@ -266,11 +269,8 @@ impl Pack {
     /// 
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
         let caches = Caches {
-            objects: Vec::new(),
             map_offset: HashMap::new(),
             map_hash: HashMap::new(),
-            wait_list_offset: HashMap::new(),
-            wait_list_ref: HashMap::new(),
             mem_size,
             tmp_path,
         };
@@ -300,15 +300,15 @@ impl Pack {
                     match obj.object_type {
                         ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                             let mut caches = caches.write().unwrap();
-                            caches.insert(obj.offset, obj);
+                            caches.insert(obj.offset, obj); //insert()
                         },
                         ObjectType::OffsetDelta | ObjectType::HashDelta => {
                             let mut base_obj: Option<Arc<CacheObject>> = None;
                             if matches!(obj.object_type, ObjectType::OffsetDelta) {
                                 let caches = caches.read().unwrap();
-                                match caches.map_offset.get(&obj.base_offset) { //TODO 需要minus计算
-                                    None => {
-                                        caches.wait_list_offset.entry(obj.base_offset).or_insert(Vec::new()).push(obj);
+                                match caches.map_offset.get(&obj.base_offset) {  // get_by_offset()
+                                    None => { //TODO 需要minus计算
+                                        self.waitlist_offset.entry(obj.base_offset).or_insert(Vec::new()).push(obj);
                                     }
                                     Some(hash) => {
                                         base_obj = Some(caches.map_hash.get(hash).unwrap().clone()); //map_offset存在 map_hash一定存在
@@ -316,9 +316,9 @@ impl Pack {
                                 }
                             } else {
                                 let caches = caches.read().unwrap();
-                                match caches.map_hash.get(&obj.base_ref) {
+                                match caches.map_hash.get(&obj.base_ref) { // get_by_hash()
                                     None => {
-                                        caches.wait_list_ref.entry(obj.base_ref).or_insert(Vec::new()).push(obj);
+                                        self.waitlist_ref.entry(obj.base_ref).or_insert(Vec::new()).push(obj);
                                     }
                                     Some(cache_obj) => {
                                         base_obj = Some(cache_obj.clone());
@@ -365,30 +365,27 @@ impl Pack {
     }
 
     fn process_delta(&self, caches: Arc<RwLock<Caches>>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
+        let waitlist_offset = Arc::clone(&self.waitlist_offset);
+        let waitlist_ref = Arc::clone(&self.waitlist_ref);
         self.pool.execute(move || {
             let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
             let new_hash = new_obj.hash;
 
-            let mut caches_gd = caches.write().unwrap();
-            caches_gd.insert(new_obj.offset, new_obj);
+            caches.write().unwrap().insert(new_obj.offset, new_obj);
+            let new_obj = caches.read().unwrap().map_hash.get(&new_hash).unwrap().clone();
 
-            let new_obj = caches_gd.map_hash.get(&new_hash).unwrap().clone();
-            let wait_list = Vec::new();
-            if let Some(wait_list) = caches_gd.wait_list_offset.get_mut(&new_obj.offset) {
-                for obj in wait_list.drain(..) {
-                    wait_list.push(obj);
-                }
+            let mut waitlist = Vec::new();
+            if let Some((_, vec)) = waitlist_offset.remove(&new_obj.offset) {
+                waitlist.extend(vec);
             }
-            if let Some(wait_list) = caches_gd.wait_list_ref.get_mut(&new_obj.hash) {
-                for obj in wait_list.drain(..) {
-                    wait_list.push(obj);
-                }
+            if let Some((_, vec)) = waitlist_ref.remove(&new_obj.hash) {
+                waitlist.extend(vec);
             }
-            drop(caches_gd);
 
-            for obj in wait_list {
-                Pack::process_delta(caches.clone(), obj, new_obj.clone());
+            for obj in waitlist {
+                self.process_delta(caches.clone(), obj, new_obj.clone()); // TODO
             }
+
         });
     }
 
