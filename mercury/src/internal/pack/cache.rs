@@ -24,13 +24,18 @@ pub struct CacheObject {
     pub hash: SHA1,
 }
 
+pub trait _Cache {
+    fn new(size: Option<usize>) -> Self where Self: Sized;
+    fn get_hash(&self, offset: usize) -> Option<SHA1>;
+    fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
+    fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject);
+    fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
+}
+
 #[allow(unused)]
 pub struct Caches {
-    pub objects: Vec<Box<dyn ObjectTrait>>,
     pub map_offset: HashMap<usize, SHA1>,
     pub map_hash: HashMap<SHA1, Arc<CacheObject>>,
-    pub wait_list_offset: HashMap<usize, Vec<CacheObject>>,
-    pub wait_list_ref: HashMap<SHA1, Vec<CacheObject>>,
     pub mem_size: usize,
     pub tmp_path: PathBuf,
 }
