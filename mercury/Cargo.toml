@@ -20,3 +20,6 @@ tracing = { workspace = true }
 sha1 = { workspace = true }
 colored = { workspace = true }
 chrono = { workspace = true }
+threadpool = "1.8.1"
+num_cpus = "1.16.0"
+dashmap = "5.5.3"
