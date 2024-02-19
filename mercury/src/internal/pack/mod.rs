@@ -11,6 +11,10 @@ pub mod cache;
 
 use venus::hash::SHA1;
 use threadpool::ThreadPool;
+use std::sync::Arc;
+use dashmap::DashMap;
+use venus::internal::object::ObjectTrait;
+use crate::internal::pack::cache::CacheObject;
 
 ///
 /// 
@@ -19,7 +23,10 @@ use threadpool::ThreadPool;
 pub struct Pack {
     pub number: usize,
     pub signature: SHA1,
-    pub pool: ThreadPool
+    pub objects: Vec<Box<dyn ObjectTrait>>,
+    pub pool: ThreadPool,
+    pub waitlist_offset: Arc<DashMap<usize, Vec<CacheObject>>>,
+    pub waitlist_ref: Arc<DashMap<SHA1, Vec<CacheObject>>>,
 }
 
 #[cfg(test)]
