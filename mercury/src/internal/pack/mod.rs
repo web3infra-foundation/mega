@@ -8,7 +8,8 @@ pub mod wrapper;
 pub mod utils;
 pub mod cache;
 
-use crate::hash::SHA1;
+
+use venus::hash::SHA1;
 
 ///
 /// 

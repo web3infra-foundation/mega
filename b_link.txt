@@ -1,0 +1,4 @@
+version https://gitmega.dev/spec/v1
+{{objectType}} {{sha1}}
+storage_type {{type}}
+storage_locaton {{location}}

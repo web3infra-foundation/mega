@@ -14,6 +14,9 @@ members = [
     "kvcache",
     "delta",
     "mercury",
+    "jupiter",
+    "jupiter/entity", 
+    "venus",
 ]
 exclude = ["mda", "craft", "fuse"]
 
@@ -74,16 +77,12 @@ russh = "0.42.0"
 russh-keys = "0.42.0"
 axum = "0.7.4"
 hex = "0.4.3"
-sea-orm = { version = "0.12.14", features = [
-    "sqlx-postgres",
-    "sqlx-mysql",
-    "runtime-tokio-rustls",
-    "macros",
-] }
+sea-orm = "0.12.14"
 redis = "0.24.0"
 flate2 = "1.0.28"
 bstr = "1.9.0"
 colored = "2.1.0"
+idgenerator = "2.0.0"
 
 [build-dependencies]
 shadow-rs = "0.26.0"

@@ -14,3 +14,4 @@ anyhow = { workspace = true }
 sea-orm = { workspace = true }
 thiserror = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
+idgenerator = { workspace = true }

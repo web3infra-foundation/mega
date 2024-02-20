@@ -1,5 +1,5 @@
 [package]
-name = "mercury"
+name = "venus"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,9 +8,7 @@ edition = "2021"
 [dependencies]
 common = { path = "../common" }
 db_entity = { path = "../jupiter/entity" }
-venus ={ path = "../venus"}
-
-# sha1_smol = "1.0.0"
+sha1_smol = "1.0.0"
 
 serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
