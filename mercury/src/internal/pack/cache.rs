@@ -26,7 +26,7 @@ pub struct CacheObject {
 }
 
 pub trait _Cache {
-    fn new(size: Option<usize>) -> Self
+    fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
     where
         Self: Sized;
     fn get_hash(&self, offset: usize) -> Option<SHA1>;
@@ -56,7 +56,7 @@ impl Default for Caches {
 }
 
 impl _Cache for Caches {
-    fn new(size: Option<usize>) -> Self
+    fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
     where
         Self: Sized,
     {
@@ -64,11 +64,11 @@ impl _Cache for Caches {
             map_offset: DashMap::new(),
             map_hash: HashMap::new(),
             mem_size: size.unwrap_or(0),
-            tmp_path: PathBuf::new(),
+            tmp_path: tmp_path.unwrap_or_default(),
         }
     }
-    fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>> {
-        unimplemented!()
+    fn get_hash(&self, offset: usize) -> Option<SHA1> {
+        self.map_offset.get(&offset).map(|x| x.clone())
     }
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
         match self.map_offset.get(&offset) {
@@ -76,11 +76,11 @@ impl _Cache for Caches {
             None => None,
         }
     }
-    fn get_hash(&self, offset: usize) -> Option<SHA1> {
-        self.map_offset.get(&offset).map(|x| x.clone())
-    }
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) {
         self.map_offset.insert(offset, hash);
+        unimplemented!()
+    }
+    fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>> {
         unimplemented!()
     }
 }

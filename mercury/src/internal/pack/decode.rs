@@ -6,10 +6,8 @@
 //! 
 //! 
 use std::io::{self, Read, BufRead, Seek, ErrorKind, Cursor};
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
-use dashmap::DashMap;
+use std::sync::Arc;
 
 use flate2::bufread::ZlibDecoder;
 use threadpool::ThreadPool;
@@ -18,16 +16,16 @@ use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
-use crate::internal::pack::Pack;
 use crate::internal::pack::{Pack, utils};
 use crate::internal::pack::wrapper::Wrapper;
-use crate::internal::pack::utils::{read_offset_encoding, read_type_and_varint_size};
 use crate::internal::pack::utils::read_varint_le;
 use crate::internal::pack::utils::is_eof;
 use crate::internal::pack::cache::CacheObject;
 use crate::internal::pack::cache::Caches;
+use crate::internal::pack::waitlist::Waitlist;
 
 use super::cache::_Cache;
+use super::utils::{read_offset_encoding, read_type_and_varint_size};
 
 impl Pack {
     pub fn new() -> Self {
@@ -35,9 +33,8 @@ impl Pack {
             number: 0,
             signature: SHA1::default(),
             objects: Vec::new(),
-            pool: ThreadPool::new(num_cpus::get()),
-            waitlist_offset: Arc::new(DashMap::new()),
-            waitlist_ref: Arc::new(DashMap::new()),
+            pool: Arc::new(ThreadPool::new(num_cpus::get())),
+            waitlist: Arc::new(Waitlist::new()),
         }
     }
 
@@ -234,7 +231,7 @@ impl Pack {
                 *offset += object_offset;
 
                 Ok(CacheObject {
-                    base_offset: object_offset,
+                    base_offset: object_offset,  //TODO 需要minus计算
                     base_ref: SHA1::default(),
                     data_decompress: data,
                     object_type: t,
@@ -270,8 +267,7 @@ impl Pack {
     /// 
     /// 
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
-        let caches = Caches::default();
-        let caches = Arc::new(RwLock::new(caches));
+        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path)));
 
         let mut render = Wrapper::new(io::BufReader::new(pack));
 
@@ -296,38 +292,23 @@ impl Pack {
 
                     match obj.object_type {
                         ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                            let mut caches = caches.write().unwrap();
-                            caches.insert(obj.offset,obj.hash, obj); //insert()
+                            caches.insert(obj.offset, obj.hash, obj);
                         },
-                        ObjectType::OffsetDelta | ObjectType::HashDelta => {
-                            let mut base_obj: Option<Arc<CacheObject>> = None;
-                            if matches!(obj.object_type, ObjectType::OffsetDelta) {
-                                let caches = caches.read().unwrap();
-                                match caches.get_by_offset(obj.offset) {  // get_by_offset()
-                                    None => { //TODO 需要minus计算
-                                        self.waitlist_offset.entry(obj.base_offset).or_insert(Vec::new()).push(obj.clone());
-                                    }
-                                    Some(hash) => {
-                                        base_obj = Some(caches.get_by_hash(hash.hash).unwrap().clone()); //map_offset存在 map_hash一定存在
-                                    }
-                                }
+                        ObjectType::OffsetDelta => {
+                            if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
+                                self.process_delta(caches.clone(), obj, base_obj);
                             } else {
-                                let caches = caches.read().unwrap();
-                                match caches.get_by_hash(obj.base_ref) { // get_by_hash()
-                                    None => {
-                                        self.waitlist_ref.entry(obj.base_ref).or_insert(Vec::new()).push(obj.clone());
-                                    }
-                                    Some(cache_obj) => {
-                                        base_obj = Some(cache_obj.clone());
-                                    }
-                                }
+                                self.waitlist.insert_offset(obj.base_offset, obj);
                             }
-                            if let Some(base_obj) = base_obj {
-                                self.process_delta(caches.clone(), obj.clone(), base_obj); //TODO 理论上不需要clone
+                        },
+                        ObjectType::HashDelta => {
+                            if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
+                                self.process_delta(caches.clone(), obj, base_obj);
+                            } else {
+                                self.waitlist.insert_ref(obj.base_ref, obj);
                             }
-                        }
+                        },
                     }
-
                 },
                 Err(e) => {
                     return Err(e);
@@ -361,24 +342,16 @@ impl Pack {
         Ok(())
     }
 
-    fn process_delta(&self, caches: Arc<RwLock<Caches>>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
-        let waitlist_offset = Arc::clone(&self.waitlist_offset);
-        let waitlist_ref = Arc::clone(&self.waitlist_ref);
+    fn process_delta(&self, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
+        let waitlist = Arc::clone(&self.waitlist);
         self.pool.execute(move || {
             let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
             let new_hash = new_obj.hash;
 
-            caches.write().unwrap().insert(new_obj.offset, new_obj);
-            let new_obj = caches.read().unwrap().map_hash.get(&new_hash).unwrap().clone();
+            caches.insert(new_obj.offset, new_obj.hash, new_obj);
+            let new_obj = caches.get_by_hash(new_hash).unwrap();
 
-            let mut waitlist = Vec::new();
-            if let Some((_, vec)) = waitlist_offset.remove(&new_obj.offset) {
-                waitlist.extend(vec);
-            }
-            if let Some((_, vec)) = waitlist_ref.remove(&new_obj.hash) {
-                waitlist.extend(vec);
-            }
-
+            let mut waitlist = waitlist.take(new_obj.offset, new_obj.hash);
             for obj in waitlist {
                 self.process_delta(caches.clone(), obj, new_obj.clone()); // TODO
             }
@@ -480,7 +453,6 @@ mod tests {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
     
-    use venus::hash::SHA1;
     use crate::internal::pack::Pack;
 
     #[test]
