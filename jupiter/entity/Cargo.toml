@@ -1,0 +1,14 @@
+[package]
+name = "db_entity"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "db_entity"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+chrono = { workspace = true }
+sea-orm = { workspace = true, features = ["sqlx-postgres", "sqlx-mysql"] }

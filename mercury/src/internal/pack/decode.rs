@@ -11,9 +11,10 @@ use std::path::PathBuf;
 
 use flate2::bufread::ZlibDecoder;
 
-use crate::errors::GitError;
-use crate::hash::SHA1;
-use crate::internal::object::types::ObjectType;
+use venus::errors::GitError;
+use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
+
 use crate::internal::pack::Pack;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::utils::read_type_and_varint_size;
@@ -321,7 +322,7 @@ mod tests {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
     
-    use crate::hash::SHA1;
+    use venus::hash::SHA1;
     use crate::internal::pack::Pack;
 
     #[test]

@@ -8,9 +8,9 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::hash::SHA1;
-use crate::internal::object::types::ObjectType;
-use crate::internal::object::ObjectTrait;
+use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
+use venus::internal::object::ObjectTrait;
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
