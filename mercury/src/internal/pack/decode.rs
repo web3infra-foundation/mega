@@ -296,14 +296,14 @@ impl Pack {
                         },
                         ObjectType::OffsetDelta => {
                             if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
-                                self.process_delta(caches.clone(), obj, base_obj);
+                                Self::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj);
                             } else {
                                 self.waitlist.insert_offset(obj.base_offset, obj);
                             }
                         },
                         ObjectType::HashDelta => {
                             if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
-                                self.process_delta(caches.clone(), obj, base_obj);
+                                Self::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj);
                             } else {
                                 self.waitlist.insert_ref(obj.base_ref, obj);
                             }
@@ -342,18 +342,21 @@ impl Pack {
         Ok(())
     }
 
-    fn process_delta(&self, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
-        let waitlist = Arc::clone(&self.waitlist);
-        self.pool.execute(move || {
+    /// Rebuild the Delta Object in a new thread & process the objects waiting for it recursively.
+    /// <br> This function must be *static*, because [&self] can't be moved into a new thread.
+    fn process_delta(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
+        let waitlist = Arc::clone(&waitlist);
+        let pool_c = Arc::clone(&pool);
+        pool.execute(move || {
             let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
             let new_hash = new_obj.hash;
 
             caches.insert(new_obj.offset, new_obj.hash, new_obj);
             let new_obj = caches.get_by_hash(new_hash).unwrap();
-
-            let mut waitlist = waitlist.take(new_obj.offset, new_obj.hash);
-            for obj in waitlist {
-                self.process_delta(caches.clone(), obj, new_obj.clone()); // TODO
+            let mut wait_objs = waitlist.take(new_obj.offset, new_obj.hash);
+            for obj in wait_objs {
+                // Process the objects waiting for the new object(base_obj = new_obj)
+                Pack::process_delta(pool_c.clone(), waitlist.clone(), caches.clone(), obj, new_obj.clone());
             }
 
         });
