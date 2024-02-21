@@ -173,6 +173,7 @@ impl Pack {
                 } else {
                     // If everything is as expected, return the buffer, the original data, and the total number of input bytes processed
                     Ok((buf, deflate.total_in() as usize))
+                    // TODO this will likely be smaller than what the decompressor actually read from the underlying stream due to buffering.
                 }
             },
             Err(e) => {
@@ -194,6 +195,8 @@ impl Pack {
     /// * Or a `GitError` in case of any reading or decompression error.
     ///
     pub fn decode_pack_object(&mut self, pack: &mut (impl Read + BufRead + Send), offset: &mut usize) -> Result<CacheObject, GitError> {
+        let init_offset = *offset;
+
         // Attempt to read the type and size, handle potential errors
         let (type_bits, size) = match utils::read_type_and_varint_size(pack, offset) {
             Ok(result) => result,
@@ -209,31 +212,31 @@ impl Pack {
 
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                let (data, object_offset) = self.decompress_data(pack, size)?;
-                *offset += object_offset;
-
-                Ok(CacheObject {
-                    base_offset: 0,
-                    base_ref: SHA1::default(),
-                    data_decompress: data,
-                    object_type: t,
-                    offset: *offset,
-                    hash: SHA1::default(),
-                })
+                let (data, raw_size) = self.decompress_data(pack, size)?;
+                *offset += raw_size;
+                Ok(CacheObject::new_for_undeltified(t, data, init_offset))
             },
             ObjectType::OffsetDelta => {
-                let (_base_offset, step_offset) = utils::read_offset_encoding(pack).unwrap();
-                *offset += step_offset;
+                let (delta_offset, bytes) = utils::read_offset_encoding(pack).unwrap();
+                *offset += bytes;
                 
-                let (data, object_offset) = self.decompress_data(pack, size)?;
-                *offset += object_offset;
+                let (data, raw_size) = self.decompress_data(pack, size)?;
+                *offset += raw_size;
+
+                // Count the base object offset: the current offset - delta offset
+                let base_offset = init_offset
+                    .checked_sub(delta_offset as usize)
+                    .ok_or_else(|| {
+                        GitError::InvalidObjectInfo("Invalid OffsetDelta offset".to_string())
+                    })
+                    .unwrap();
 
                 Ok(CacheObject {
-                    base_offset: object_offset,  //TODO 需要minus计算
+                    base_offset,
                     base_ref: SHA1::default(),
                     data_decompress: data,
-                    object_type: t,
-                    offset: *offset,
+                    obj_type: t,
+                    offset: init_offset,
                     hash: SHA1::default(),
                 })
             },
@@ -241,19 +244,19 @@ impl Pack {
                 // Read 20 bytes to get the reference object SHA1 hash
                 let mut buf_ref = [0; 20];
                 pack.read_exact(&mut buf_ref).unwrap();
-                let ref_sha1 = SHA1::from_bytes(buf_ref.as_ref());
+                let ref_sha1 = SHA1::from_bytes(buf_ref.as_ref()); //TODO SHA1::from_stream()
                 // Offset is incremented by 20 bytes
-                *offset += 20;
+                *offset += 20; //TODO 改为常量
 
-                let (data, object_offset) = self.decompress_data(pack, size)?;
-                *offset += object_offset;
+                let (data, raw_size) = self.decompress_data(pack, size)?;
+                *offset += raw_size;
 
                 Ok(CacheObject {
                     base_offset: 0,
                     base_ref: ref_sha1,
                     data_decompress: data,
-                    object_type: t,
-                    offset: *offset,
+                    obj_type: t,
+                    offset: init_offset,
                     hash: SHA1::default(),
                 })
             }
@@ -286,7 +289,7 @@ impl Pack {
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
             match r {
                 Ok(obj) => {
-                    match obj.object_type {
+                    match obj.obj_type {
                         ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                             caches.insert(obj.offset, obj.hash, obj);
                         },
@@ -360,13 +363,13 @@ impl Pack {
 
     /// Reconstruct the Delta Object based on the "base object"
     ///
-    fn rebuild_delta(mut delta_object: CacheObject, base_object: Arc<CacheObject>) -> CacheObject {
+    fn rebuild_delta(mut delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
         const COPY_OFFSET_BYTES: u8 = 4;
         const COPY_SIZE_BYTES: u8 = 3;
         const COPY_ZERO_SIZE: usize = 0x10000;
 
-        let mut stream = Cursor::new(delta_object.data_decompress);
+        let mut stream = Cursor::new(delta_obj.data_decompress);
 
         // Read the base object size & Result Size
         // (Size Encoding)
@@ -374,7 +377,7 @@ impl Pack {
         let (result_size, _) = utils::read_varint_le(&mut stream).unwrap();
 
         //Get the base object row data
-        let base_info = &base_object.data_decompress;
+        let base_info = &base_obj.data_decompress;
         assert_eq!(base_info.len() as u64, base_size);
 
         let mut result = Vec::with_capacity(result_size as usize);
@@ -432,11 +435,11 @@ impl Pack {
             }
         }
 
-        delta_object.data_decompress = result;
-        delta_object.object_type = base_object.object_type; // Same as the Type of base object
-        delta_object.hash = utils::calculate_object_hash(&delta_object);
+        delta_obj.data_decompress = result;
+        delta_obj.obj_type = base_obj.obj_type; // Same as the Type of base object
+        delta_obj.hash = utils::calculate_object_hash(delta_obj.obj_type, &delta_obj.data_decompress);
 
-        return delta_object; //Canonical form
+        return delta_obj; //Canonical form
     }
 
 }
@@ -472,6 +475,7 @@ mod tests {
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(data).unwrap();
         let compressed_data = encoder.finish().unwrap();
+        let compressed_size = compressed_data.len();
 
         // Create a cursor for the compressed data to simulate a Read + BufRead source
         let mut cursor: Cursor<Vec<u8>> = Cursor::new(compressed_data);
@@ -481,7 +485,8 @@ mod tests {
         let mut p = Pack::new();
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
-            Ok((decompressed_data, _)) => {
+            Ok((decompressed_data, bytes_read)) => {
+                assert_eq!(bytes_read, compressed_size);
                 assert_eq!(decompressed_data, data);
             },
             Err(e) => panic!("Decompression failed: {:?}", e),

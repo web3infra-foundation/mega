@@ -5,7 +5,7 @@
 use std::io::{self, Read};
 use sha1::{Digest, Sha1};
 use crate::hash::SHA1;
-use crate::internal::pack::cache::CacheObject;
+use crate::internal::object::types::ObjectType;
 
 /// Checks if the reader has reached EOF (end of file).
 /// 
@@ -164,8 +164,8 @@ pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
 /// # Arguments
 ///
 /// * `stream`: Input Data Stream to read
-/// * `consume`: This variable records the number of bytes consumed.
-///
+/// # Returns
+/// * (`delta_offset`(unsigned), `consume`)
 pub fn read_offset_encoding<R: Read>(stream: &mut R) -> io::Result<(u64, usize)> {
     // Like the object length, the offset for an OffsetDelta object
     // is stored in a variable number of bytes,
@@ -239,16 +239,17 @@ pub fn read_partial_int<R: Read>(
 
 /// Calculate the SHA1 hash of the given object.
 /// <br> "`<type> <size>\0<content>`"
-pub fn calculate_object_hash(obj: &CacheObject) -> SHA1 {
+/// <br> data: The decompressed content of the object
+pub fn calculate_object_hash(obj_type: ObjectType, data: &Vec<u8>) -> SHA1 {
     let mut hash = Sha1::new();
     // Header: "<type> <size>\0"
-    hash.update(obj.object_type.to_bytes());
+    hash.update(obj_type.to_bytes());
     hash.update(b" ");
-    hash.update(obj.data_decompress.len().to_string());
+    hash.update(data.len().to_string());
     hash.update(b"\0");
 
     // Decompressed data(raw content)
-    hash.update(&obj.data_decompress);
+    hash.update(data);
 
     let re: [u8; 20] = hash.finalize().into();
     SHA1(re)
@@ -260,19 +261,12 @@ mod tests {
     use std::io::Cursor;
     use std::io::Read;
     use crate::internal::object::types::ObjectType;
-    use crate::internal::pack::cache::CacheObject;
 
     use crate::internal::pack::utils::*;
 
     #[test]
     fn test_calc_obj_hash() {
-        let obj = CacheObject {
-            object_type: ObjectType::Blob,
-            data_decompress: Vec::from("a".as_bytes()),
-            ..Default::default()
-        };
-        let hash = calculate_object_hash(&obj);
-        println!("{}", hash);
+        let hash = calculate_object_hash(ObjectType::Blob, &b"a".to_vec());
         assert_eq!(hash.to_string(), "2e65efe2a145dda7ee51d1741299f848e5bf752e");
     }
 
