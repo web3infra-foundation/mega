@@ -3,6 +3,9 @@
 //! 
 //!
 use std::io::{self, Read};
+use sha1::{Digest, Sha1};
+use crate::hash::SHA1;
+use crate::internal::pack::cache::CacheObject;
 
 /// Checks if the reader has reached EOF (end of file).
 /// 
@@ -234,16 +237,44 @@ pub fn read_partial_int<R: Read>(
     Ok(value)
 }
 
+/// Calculate the SHA1 hash of the given object.
+/// <br> "`<type> <size>\0<content>`"
+pub fn calculate_object_hash(obj: &CacheObject) -> SHA1 {
+    let mut hash = Sha1::new();
+    // Header: "<type> <size>\0"
+    hash.update(obj.object_type.to_bytes());
+    hash.update(b" ");
+    hash.update(obj.data_decompress.len().to_string());
+    hash.update(b"\0");
+
+    // Decompressed data(raw content)
+    hash.update(&obj.data_decompress);
+
+    let re: [u8; 20] = hash.finalize().into();
+    SHA1(re)
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
     use std::io::Cursor;
     use std::io::Read;
+    use crate::internal::object::types::ObjectType;
+    use crate::internal::pack::cache::CacheObject;
 
-    use crate::internal::pack::utils::is_eof;
-    use crate::internal::pack::utils::read_varint_le;
-    use crate::internal::pack::utils::read_type_and_varint_size;
-    use crate::internal::pack::utils::read_byte_and_check_continuation;
+    use crate::internal::pack::utils::*;
+
+    #[test]
+    fn test_calc_obj_hash() {
+        let obj = CacheObject {
+            object_type: ObjectType::Blob,
+            data_decompress: Vec::from("a".as_bytes()),
+            ..Default::default()
+        };
+        let hash = calculate_object_hash(&obj);
+        println!("{}", hash);
+        assert_eq!(hash.to_string(), "2e65efe2a145dda7ee51d1741299f848e5bf752e");
+    }
 
     #[test]
     fn eof() {
