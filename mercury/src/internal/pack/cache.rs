@@ -24,6 +24,19 @@ pub struct CacheObject {
     pub offset: usize,
     pub hash: SHA1,
 }
+// For Convenience
+impl Default for CacheObject {
+    fn default() -> Self {
+        CacheObject {
+            base_offset: 0,
+            base_ref: SHA1::default(),
+            data_decompress: Vec::new(),
+            object_type: ObjectType::Blob,
+            offset: 0,
+            hash: SHA1::default(),
+        }
+    }
+}
 
 pub trait _Cache {
     fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
