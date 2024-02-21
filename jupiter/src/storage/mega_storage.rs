@@ -1,14 +1,17 @@
 use std::{env, sync::Arc};
 
 use async_trait::async_trait;
-use db_entity::{git_commit, mega_commit, raw_objects};
 use sea_orm::{
     sea_query::OnConflict, ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection,
     EntityTrait, IntoActiveModel, QueryFilter,
 };
-use venus::internal::{object::commit::Commit, pack::entry::Entry};
 
 use common::errors::MegaError;
+use db_entity::{db_enums::StorageType, git_commit, git_refs, mega_commit, raw_objects};
+use venus::internal::{
+    object::commit::Commit,
+    pack::{entry::Entry, reference::RefCommand},
+};
 
 use crate::{
     raw_storage::{self, RawStorage},
@@ -24,7 +27,32 @@ pub struct MegaStorage {
 
 #[async_trait]
 impl StorageProvider for MegaStorage {
-    async fn save_entry(&self, result_entity: &Vec<Entry>) -> Result<(), MegaError> {
+    async fn save_ref(&self, refs: RefCommand) -> Result<(), MegaError> {
+        let mut model: git_refs::Model = refs.clone().into();
+        model.ref_git_id = refs.new_id;
+        model.repo_id = 0;
+        //todo added repo info?
+        let a_model = model.into_active_model();
+        git_refs::Entity::insert(a_model)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    async fn remove_ref(&self, _: RefCommand) -> Result<(), MegaError> {
+        todo!()
+    }
+
+    async fn get_ref(&self, _: RefCommand) -> Result<String, MegaError> {
+        todo!()
+    }
+
+    async fn update_ref(&self, _: RefCommand) -> Result<(), MegaError> {
+        todo!()
+    }
+
+    async fn save_entry(&self, result_entity: Vec<Entry>) -> Result<(), MegaError> {
         let threshold = env::var("MEGA_BIG_OBJ_THRESHOLD_SIZE")
             .expect("MEGA_BIG_OBJ_THRESHOLD_SIZE not configured")
             .parse::<usize>()
@@ -48,21 +76,22 @@ impl StorageProvider for MegaStorage {
     }
 
     async fn get_entry_by_sha1(&self, sha1_vec: Vec<&str>) -> Result<Vec<Entry>, MegaError> {
-        let obj = raw_objects::Entity::find()
+        let models = raw_objects::Entity::find()
             .filter(raw_objects::Column::Sha1.is_in(sha1_vec))
-            .one(self.get_connection())
+            .all(self.get_connection())
             .await
             .unwrap();
-
-        // if let Some(model) = obj {
-        //     if model.local_storage_path.is_some() {
-        //         let data = self.raw_storage.get(&model.sha1).await.unwrap();
-        //         return Ok(data);
-        //     }
-        //     return Ok(Bytes::from(model.data.unwrap()));
-        // }
-        // Ok(Bytes::new())
-        todo!()
+        let mut result: Vec<Entry> = Vec::new();
+        for mut model in models {
+            if model.storage_type == StorageType::Database {
+                result.push(model.into());
+            } else {
+                let data = self.raw_storage.get_object(&model.sha1).await.unwrap();
+                model.data = Some(data.to_vec());
+                result.push(model.into());
+            }
+        }
+        Ok(result)
     }
 }
 
@@ -114,9 +143,9 @@ impl MegaStorage {
         &self.connection
     }
 
-    pub async fn new() -> Self {
+    pub async fn new(connection: DatabaseConnection) -> Self {
         MegaStorage {
-            connection: DatabaseConnection::default(),
+            connection,
             raw_storage: raw_storage::init("git-objects".to_owned()).await,
         }
     }
@@ -165,6 +194,7 @@ where
     Ok(())
 }
 
+#[allow(unused)]
 async fn batch_query_by_columns<T, C>(
     connection: &DatabaseConnection,
     column: C,
