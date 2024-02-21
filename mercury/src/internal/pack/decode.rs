@@ -18,8 +18,6 @@ use venus::internal::object::types::ObjectType;
 
 use crate::internal::pack::{Pack, utils};
 use crate::internal::pack::wrapper::Wrapper;
-use crate::internal::pack::utils::read_varint_le;
-use crate::internal::pack::utils::is_eof;
 use crate::internal::pack::cache::CacheObject;
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
@@ -197,7 +195,7 @@ impl Pack {
     ///
     pub fn decode_pack_object(&mut self, pack: &mut (impl Read + BufRead + Send), offset: &mut usize) -> Result<CacheObject, GitError> {
         // Attempt to read the type and size, handle potential errors
-        let (type_bits, size) = match read_type_and_varint_size(pack, offset) {
+        let (type_bits, size) = match utils::read_type_and_varint_size(pack, offset) {
             Ok(result) => result,
             Err(e) => {
                 // Handle the error e.g., by logging it or converting it to GitError
@@ -224,7 +222,7 @@ impl Pack {
                 })
             },
             ObjectType::OffsetDelta => {
-                let (_base_offset, step_offset) = read_offset_encoding(pack).unwrap();
+                let (_base_offset, step_offset) = utils::read_offset_encoding(pack).unwrap();
                 *offset += step_offset;
                 
                 let (data, object_offset) = self.decompress_data(pack, size)?;
@@ -288,8 +286,6 @@ impl Pack {
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
             match r {
                 Ok(obj) => {
-                    // caches.insert(cache.offset, cache); //TODO 根据类型 分类处理
-
                     match obj.object_type {
                         ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                             caches.insert(obj.offset, obj.hash, obj);
@@ -319,19 +315,19 @@ impl Pack {
         }
 
         let render_hash = render.final_hash();
-        let mut tailer_buf= [0; 20];
-        render.read_exact(&mut tailer_buf).unwrap();
-        self.signature = SHA1::from_bytes(tailer_buf.as_ref());
+        let mut trailer_buf = [0; 20];
+        render.read_exact(&mut trailer_buf).unwrap();
+        self.signature = SHA1::from_bytes(trailer_buf.as_ref());
 
         if render_hash != self.signature {
             return Err(GitError::InvalidPackFile(format!(
-                "The pack file hash {} does not match the tailer hash {}",
+                "The pack file hash {} does not match the trailer hash {}",
                 render_hash.to_plain_str(),
                 self.signature.to_plain_str()
             )));
         }
 
-        let end = is_eof(&mut render);
+        let end = utils::is_eof(&mut render);
         if !end {
             return Err(GitError::InvalidPackFile(
                 "The pack file is not at the end".to_string()
@@ -353,7 +349,7 @@ impl Pack {
 
             caches.insert(new_obj.offset, new_obj.hash, new_obj);
             let new_obj = caches.get_by_hash(new_hash).unwrap();
-            let mut wait_objs = waitlist.take(new_obj.offset, new_obj.hash);
+            let wait_objs = waitlist.take(new_obj.offset, new_obj.hash);
             for obj in wait_objs {
                 // Process the objects waiting for the new object(base_obj = new_obj)
                 Pack::process_delta(pool_c.clone(), waitlist.clone(), caches.clone(), obj, new_obj.clone());
@@ -374,8 +370,8 @@ impl Pack {
 
         // Read the base object size & Result Size
         // (Size Encoding)
-        let (base_size, _) = read_varint_le(&mut stream).unwrap();
-        let (result_size, _) = read_varint_le(&mut stream).unwrap();
+        let (base_size, _) = utils::read_varint_le(&mut stream).unwrap();
+        let (result_size, _) = utils::read_varint_le(&mut stream).unwrap();
 
         //Get the base object row data
         let base_info = &base_object.data_decompress;
@@ -438,7 +434,7 @@ impl Pack {
 
         delta_object.data_decompress = result;
         delta_object.object_type = base_object.object_type; // Same as the Type of base object
-        delta_object.hash = SHA1::default(); //TODO 计算hash
+        delta_object.hash = utils::calculate_object_hash(&delta_object);
 
         return delta_object; //Canonical form
     }
