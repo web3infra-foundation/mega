@@ -2,6 +2,8 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::db_enums::RefType;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "git_refs")]
 pub struct Model {
@@ -11,6 +13,7 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub ref_name: String,
     pub ref_git_id: String,
+    pub ref_type: RefType,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }

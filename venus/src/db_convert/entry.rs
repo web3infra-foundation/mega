@@ -1,7 +1,9 @@
+use std::str::FromStr;
+
 use common::utils::generate_id;
 use db_entity::{db_enums::StorageType, raw_objects};
 
-use crate::internal::pack::entry::Entry;
+use crate::{hash::SHA1, internal::pack::{entry::Entry, header::EntryHeader}};
 
 impl From<Entry> for raw_objects::Model {
     fn from(value: Entry) -> Self {
@@ -13,6 +15,17 @@ impl From<Entry> for raw_objects::Model {
             data: Some(value.data),
             local_storage_path: None,
             remote_url: None,
+        }
+    }
+}
+ 
+impl From<raw_objects::Model> for Entry {
+    fn from(value: raw_objects::Model) -> Self {
+        Entry {
+            header: EntryHeader::from_string(&value.object_type),
+            offset: 0,
+            data: value.data.unwrap(),
+            hash: Some(SHA1::from_str(&value.sha1).unwrap()),
         }
     }
 }
