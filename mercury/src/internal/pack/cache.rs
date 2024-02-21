@@ -13,6 +13,7 @@ use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 use dashmap::DashMap;
 
+use crate::internal::pack::utils;
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -20,7 +21,7 @@ pub struct CacheObject {
     pub base_offset: usize,
     pub base_ref: SHA1,
     pub data_decompress: Vec<u8>,
-    pub object_type: ObjectType,
+    pub obj_type: ObjectType,
     pub offset: usize,
     pub hash: SHA1,
 }
@@ -31,7 +32,7 @@ impl Default for CacheObject {
             base_offset: 0,
             base_ref: SHA1::default(),
             data_decompress: Vec::new(),
-            object_type: ObjectType::Blob,
+            obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::default(),
         }
@@ -56,7 +57,19 @@ pub struct Caches {
     tmp_path: PathBuf,
 }
 
-impl CacheObject {}
+impl CacheObject {
+    pub fn new_for_undeltified(obj_type: ObjectType, data: Vec<u8>, offset: usize) -> Self {
+        let hash = utils::calculate_object_hash(obj_type, &data);
+        CacheObject {
+            data_decompress: data,
+            obj_type,
+            offset,
+            hash,
+            ..Default::default()
+        }
+
+    }
+}
 
 impl Caches {
     
