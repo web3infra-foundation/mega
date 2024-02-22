@@ -5,7 +5,6 @@
 //!
 //!
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -14,7 +13,7 @@ use venus::internal::object::types::ObjectType;
 use dashmap::DashMap;
 
 use crate::internal::pack::utils;
-use lru_mem::HeapSize;
+use lru_mem::{HeapSize, LruCache};
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -40,6 +39,13 @@ impl Default for CacheObject {
     }
 }
 
+/// used by lru_mem to caculate the size of the object, limit the memory usage
+impl HeapSize for CacheObject {
+    fn heap_size(&self) -> usize {
+        self.data_decompress.heap_size()
+    }
+}
+
 pub trait _Cache {
     fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
     where
@@ -50,17 +56,11 @@ pub trait _Cache {
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
 }
 
-/// used by lru_mem to caculate the size of the object, limit the memory usage
-impl HeapSize for CacheObject {
-    fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size()
-    }
-}
 
 #[allow(unused)]
 pub struct Caches {
     map_offset: DashMap<usize, SHA1>,
-    map_hash: HashMap<SHA1, Arc<CacheObject>>,
+    map_hash: LruCache<String, Arc<CacheObject>>, // !TODO: use SHA1 as key !TODO: interior mutability
     mem_size: usize,
     tmp_path: PathBuf,
 }
@@ -88,7 +88,7 @@ impl _Cache for Caches {
     {
         Caches {
             map_offset: DashMap::new(),
-            map_hash: HashMap::new(),
+            map_hash: LruCache::new(size.unwrap_or(0)),
             mem_size: size.unwrap_or(0),
             tmp_path: tmp_path.unwrap_or_default(),
         }
@@ -127,7 +127,7 @@ mod test {
             base_offset: 0,
             base_ref: SHA1::new(&vec![0; 20]),
             data_decompress: vec![0; 1024],
-            object_type: ObjectType::Blob,
+            obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
         };
@@ -144,7 +144,7 @@ mod test {
             base_offset: 0,
             base_ref: SHA1::new(&vec![0; 20]),
             data_decompress: vec![0; 1024],
-            object_type: ObjectType::Blob,
+            obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
         };
@@ -155,7 +155,7 @@ mod test {
             base_offset: 0,
             base_ref: SHA1::new(&vec![0; 20]),
             data_decompress: vec![0; (1024.0 * 1.5) as usize],
-            object_type: ObjectType::Blob,
+            obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![1; 20]),
         };
