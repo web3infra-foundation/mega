@@ -15,8 +15,10 @@ Similar to the 'tree' in Git, Mega maintains relationships between files and fil
 The purpose of the B-link file is to store file index information, serving as a replacement for blobs in Git. The design of this structure is inspired by the specification of Git LFS, as follows:
 
 ```bash
-  version https://mega.com/directory/spec/v1
+  version https://gitmega.dev/spec/v1
   blob 3a739f77180d81aa45d9bd11eb6be7098bf1991f
+  storage_type local_fs
+  storage_location /tmp/.mega/{{reponame}}/.objects/3a/73/9f77180d81aa45d9bd11eb6be7098bf1991f
  ```
 
 It includes the following records:
@@ -58,46 +60,42 @@ It includes the following records:
 ### ER Diagram
 
 
-  ```mermaid
+```mermaid
 erDiagram
-    msnap["MEGA-SNAPSHOT"] mc["MEGA-COMMITS"] mt["MEGA-TREE"] mb["MEGA-BLOB"] mtag["MEGA-TAG"] mmr["MEGA-MR"]
-    grp["GIT-REPO"] grf["GIT-REFS"] gc["GIT-COMMIT"] gt["GIT-TREE"] gb["GIT-BLOB"] gtag["GIT-TAG"] gp["GIT-PR"] gi["GIT-ISSUE"]
-    raw["RAW-OBJETCS"]
-    lo["LFS-OBJECTS"] lk["LFS-LOCKS"]
+    
+    MEGA-SNAPSHOT |o--|{ MEGA-COMMITS : "belong to"
+    MEGA-SNAPSHOT |o--|{ GIT-TREE : contains
+    MEGA-COMMITS ||--|| MEGA-TREE : points
+    MEGA-COMMITS ||--|| RAW-OBJETCS : points
+    MEGA-COMMITS ||--|| MEGA-MR : "belong to"
+    MEGA-TREE }|--o{ MEGA-BLOB : points
+    MEGA-TREE ||--|| RAW-OBJETCS : points
+    MEGA-TREE }|--|| MEGA-MR : "belong to"
+    MEGA-TREE }o..o{ GIT-TREE : points
+    MEGA-BLOB ||--|| RAW-OBJETCS : points
+    MEGA-BLOB }|--|| MEGA-MR : "belong to"
+    MEGA-TAG |o--o| MEGA-COMMITS : points
+    MEGA-TAG ||--|| RAW-OBJETCS : points
+    RAW-OBJETCS ||--o| LFS-OBJECTS : points
+    LFS-OBJECTS ||--o| LFS-LOCKS : points
+    GIT-PR }o--|| GIT-REPO : "belong to"
+    GIT-ISSUE }o--|| GIT-REPO : "belong to"
+    GIT-REFS ||--|| GIT-COMMIT : points
+    GIT-REFS ||--|| GIT-TAG : points
+    GIT-REFS }|--|| GIT-REPO : "belong to"
+    GIT-COMMIT ||--|| GIT-TREE : has
+    GIT-COMMIT ||--|| RAW-OBJETCS : has
+    GIT-COMMIT }|--|| GIT-REPO : "belong to"
+    GIT-TREE ||--o{ GIT-BLOB : has
+    GIT-TREE ||--|| RAW-OBJETCS : points
+    GIT-TREE }|--|| GIT-REPO : "belong to"
+    GIT-BLOB ||--|| RAW-OBJETCS : points
+    GIT-BLOB }|--|| GIT-REPO : "belong to"
+    GIT-TAG }o--|| GIT-REPO : "belong to"
+    GIT-TAG |o--o| GIT-COMMIT : points
+    GIT-TAG ||--|| RAW-OBJETCS : points
 
-    msnap |o--|{ mc : "belong to"
-    msnap |o--|{ gt : contains
-    mc ||--|| mt : points
-    mc ||--|| raw : points
-    mc ||--|| mmr : "belong to"
-    mt }|--o{ mb : points
-    mt ||--|| raw : points
-    mt }|--|| mmr : "belong to"
-    mt }o..o{ gt : points
-    mb ||--|| raw : points
-    mb }|--|| mmr : "belong to"
-    mtag |o--o| mc : points
-    mtag ||--|| raw : points
-    raw ||--o| lo : points
-    lo ||--o| lk : points
-    gp }o--|| grp : "belong to"
-    gi }o--|| grp : "belong to"
-    grf ||--|| gc : points
-    grf ||--|| gtag : points
-    grf }|--|| grp : "belong to"
-    gc ||--|| gt : has
-    gc ||--|| raw : has
-    gc }|--|| grp : "belong to"
-    gt ||--o{ gb : has
-    gt ||--|| raw : points
-    gt }|--|| grp : "belong to"
-    gb ||--|| raw : points
-    gb }|--|| grp : "belong to"
-    gtag }o--|| grp : "belong to"
-    gtag |o--o| gc : points
-    gtag ||--|| raw : points
-
-  ```
+```
 
 ### Table Details
 
@@ -119,21 +117,21 @@ erDiagram
 
 #### mega_commit
 
-| Column     | Type        | Constraints | Description                                     |
-| ---------- | ----------- | ----------- | ----------------------------------------------- |
-| id         | BIGINT      | PRIMARY KEY |                                                 |
-| commit_id  | VARCHAR(40) | NOT NULL    |                                                 |
-| tree       | VARCHAR(40) | NOT NULL    |                                                 |
-| parents_id | TEXT[]      |             |                                                 |
-| author     | TEXT        |             |                                                 |
-| committer  | TEXT        |             |                                                 |
-| content    | TEXT        |             |                                                 |
-| mr_id      | VARCHAR(20) |             |                                                 |
-| status     | VARCHAR(20) | NOT NULL    | mr satus, might be 'Open','Merged' and 'Closed' |
-| size       | INT         | NOT NULL    | used for magic sort in pack process             |
-| full_path  | TEXT        | NOT NULL    | used for magic sort in pack process             |
-| created_at | TIMESTAMP   | NOT NULL    |                                                 |
-| updated_at | TIMESTAMP   | NOT NULL    |                                                 |
+| Column     | Type        | Constraints | Description                                    |
+| ---------- | ----------- | ----------- | ---------------------------------------------- |
+| id         | BIGINT      | PRIMARY KEY |                                                |
+| commit_id  | VARCHAR(40) | NOT NULL    |                                                |
+| tree       | VARCHAR(40) | NOT NULL    |                                                |
+| parents_id | TEXT[]      | NOT NULL    |                                                |
+| author     | TEXT        |             |                                                |
+| committer  | TEXT        |             |                                                |
+| content    | TEXT        |             |                                                |
+| mr_id      | VARCHAR(20) |             |                                                |
+| status     | VARCHAR(20) | NOT NULL    | mr satus, can be 'Open', 'Merged' and 'Closed' |
+| size       | INT         | NOT NULL    | used for magic sort in pack process            |
+| full_path  | TEXT        | NOT NULL    | used for magic sort in pack process            |
+| created_at | TIMESTAMP   | NOT NULL    |                                                |
+| updated_at | TIMESTAMP   | NOT NULL    |                                                |
 
 
 #### mega_tree
@@ -188,7 +186,7 @@ erDiagram
 | id         | BIGINT       | PRIMARY KEY |                                                  |
 | mr_link    | VARCHAR(40)  | NOT NULL    | A MR identifier with a length of 6-8 characters. |
 | mr_msg     | VARCHAR(255) | NOT NULL    |                                                  |
-| merge_date | TIMESTAMP    | NOT NULL    |                                                  |
+| merge_date | TIMESTAMP    |             |                                                  |
 | status     | VARCHAR(20)  | NOT NULL    |                                                  |
 | created_at | TIMESTAMP    | NOT NULL    |                                                  |
 | updated_at | TIMESTAMP    | NOT NULL    |                                                  |
@@ -215,7 +213,7 @@ erDiagram
 | repo_id    | BIGINT      | NOT NULL    |                                       |
 | ref_name   | TEXT        | NOT NULL    | reference name, can be branch and tag |
 | ref_git_id | VARCHAR(40) | NOT NULL    | point to the commit or tag object     |
-| is_commit  | BOOLEAN     | NOT NULL    | set true if point to a commit         |
+| ref_type   | VARCHAR(20) | NOT NULL    | ref_type: can be 'tag' or 'branch'    |
 | created_at | TIMESTAMP   | NOT NULL    |                                       |
 | updated_at | TIMESTAMP   | NOT NULL    |                                       |
 
@@ -237,7 +235,7 @@ erDiagram
 | repo_id    | BIGINT      | NOT NULL    |
 | commit_id  | VARCHAR(40) | NOT NULL    |
 | tree       | VARCHAR(40) | NOT NULL    |
-| pid        | TEXT[]      |             |
+| parents_id | TEXT[]      | NOT NULL    |
 | author     | TEXT        |             |
 | committer  | TEXT        |             |
 | content    | TEXT        |             |
@@ -290,15 +288,15 @@ erDiagram
 
 #### raw_objects
 
-| Column             | Type        | Constraints | Description                                                             |
-| ------------------ | ----------- | ----------- | ----------------------------------------------------------------------- |
-| id                 | BIGINT      | PRIMARY KEY |                                                                         |
-| sha1               | VARCHAR(40) | NOT NULL    | git object's sha1 hash                                                  |
-| object_type        | VARCHAR(20) | NOT NULL    |                                                                         |
-| storage_type       | INT         | NOT NULL    | data storage type, can be 0-database; 1-local file system; 2-remote url |
-| data               | BYTEA       |             |                                                                         |
-| local_storage_path | TEXT        |             |                                                                         |
-| remote_url         | TEXT        |             |                                                                         |
+| Column             | Type        | Constraints | Description                                                       |
+| ------------------ | ----------- | ----------- | ----------------------------------------------------------------- |
+| id                 | BIGINT      | PRIMARY KEY |                                                                   |
+| sha1               | VARCHAR(40) | NOT NULL    | git object's sha1 hash                                            |
+| object_type        | VARCHAR(20) | NOT NULL    |                                                                   |
+| storage_type       | INT         | NOT NULL    | data storage type, can be 'database', 'local-fs' and 'remote_url' |
+| data               | BYTEA       |             |                                                                   |
+| local_storage_path | TEXT        |             |                                                                   |
+| remote_url         | TEXT        |             |                                                                   |
 
 
 #### git_pr
@@ -488,4 +486,4 @@ erDiagram
 - Generating entities: 
 Entities can be generated from the database table structure with the following command
 
-`sea-orm-cli generate entity -u "postgres://${DB_USERNAME}:${DB_SECRET}@${DB_HOST}/mega"  -o database/entity/src` 
+`sea-orm-cli generate entity -u "postgres://postgres:$postgres@localhost/mega_re"  -o jupiter/entity/src` 

@@ -7,7 +7,7 @@ use std::io::{self, Read, BufRead};
 
 use sha1::{Sha1, Digest};
 
-use crate::hash::SHA1;
+use venus::hash::SHA1;
 
 /// `Wrapper` is a wrapper around a reader that also computes the SHA1 hash of the data read.
 ///
