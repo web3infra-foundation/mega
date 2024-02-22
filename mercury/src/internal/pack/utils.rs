@@ -4,8 +4,8 @@
 //!
 use std::io::{self, Read};
 use sha1::{Digest, Sha1};
-use crate::hash::SHA1;
-use crate::internal::object::types::ObjectType;
+use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
 
 /// Checks if the reader has reached EOF (end of file).
 /// 
@@ -260,7 +260,7 @@ mod tests {
     use std::io;
     use std::io::Cursor;
     use std::io::Read;
-    use crate::internal::object::types::ObjectType;
+    use venus::internal::object::types::ObjectType;
 
     use crate::internal::pack::utils::*;
 
