@@ -3,8 +3,6 @@ use db_entity::git_refs;
 
 use crate::internal::pack::reference::RefCommand;
 
-
-
 impl From<RefCommand> for git_refs::Model {
     fn from(value: RefCommand) -> Self {
         git_refs::Model {

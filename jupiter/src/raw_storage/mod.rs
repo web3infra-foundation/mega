@@ -30,15 +30,15 @@ pub struct BlobLink {
 pub trait RawStorage: Sync + Send {
     fn get_storage_type(&self) -> StorageType;
 
-    async fn get_ref(&self, ref_name: &str) -> Result<String, MegaError>;
+    async fn get_ref(&self, repo_name: &str, ref_name: &str) -> Result<String, MegaError>;
 
-    async fn put_ref(&self, ref_name: &str, ref_hash: &str) -> Result<(), MegaError>;
+    async fn put_ref(&self, repo_name: &str, ref_name: &str, ref_hash: &str) -> Result<(), MegaError>;
 
-    async fn delete_ref(&self, ref_name: &str) -> Result<(), MegaError>;
+    async fn delete_ref(&self, repo_name: &str, ref_name: &str) -> Result<(), MegaError>;
 
-    async fn update_ref(&self, ref_name: &str, ref_hash: &str) -> Result<(), MegaError>;
+    async fn update_ref(&self, repo_name: &str, ref_name: &str, ref_hash: &str) -> Result<(), MegaError>;
 
-    async fn get_object(&self, object_id: &str) -> Result<Bytes, MegaError>;
+    async fn get_object(&self, repo_name: &str, object_id: &str) -> Result<Bytes, MegaError>;
 
     // async fn parse_blob_link(&self, data: Vec<u8>) -> Result<BlobLink, MegaError> {
     //     let mut reader = BufReader::new(data.as_slice());
@@ -55,17 +55,17 @@ pub trait RawStorage: Sync + Send {
 
     async fn put_object(
         &self,
+        repo_name: &str,
         object_id: &str,
-        size: i64,
         body_content: &[u8],
     ) -> Result<String, MegaError>;
 
     // save a entry and return the b_link file
-    async fn put_entry(&self, entry: &Entry) -> Result<Vec<u8>, MegaError> {
+    async fn put_entry(&self, repo_name: &str, entry: &Entry) -> Result<Vec<u8>, MegaError> {
         let location = self
             .put_object(
+                repo_name,
                 &entry.hash.unwrap().to_plain_str(),
-                entry.data.len() as i64,
                 &entry.data,
             )
             .await
@@ -97,23 +97,15 @@ pub trait RawStorage: Sync + Send {
         Ok(rendered.into_bytes())
     }
 
-    fn exist_object(&self, object_id: &str) -> bool;
+    fn exist_object(&self, repo_name: &str, object_id: &str) -> bool;
 
-    async fn list(&self) {
-        unreachable!("not implement")
-    }
-
-    async fn delete(&self) {
-        unreachable!("not implement")
-    }
-
-    fn transform_path(&self, path: &str) -> String {
-        if path.len() < 5 {
-            path.to_string()
+    fn transform_path(&self, sha1: &str) -> String {
+        if sha1.len() < 5 {
+            sha1.to_string()
         } else {
-            path::Path::new(&path[0..2])
-                .join(&path[2..4])
-                .join(&path[4..path.len()])
+            path::Path::new(&sha1[0..2])
+                .join(&sha1[2..4])
+                .join(&sha1[4..sha1.len()])
                 .into_os_string()
                 .into_string()
                 .unwrap()
@@ -121,12 +113,11 @@ pub trait RawStorage: Sync + Send {
     }
 }
 
-pub async fn init(path: String) -> Arc<dyn RawStorage> {
+pub async fn init() -> Arc<dyn RawStorage> {
     let storage_type = env::var("MEGA_RAW_STORAGR").unwrap();
     match storage_type.as_str() {
         "LOCAL" => {
-            let mut base_path = PathBuf::from(env::var("MEGA_OBJ_LOCAL_PATH").unwrap());
-            base_path.push(path);
+            let base_path = PathBuf::from(env::var("MEGA_OBJ_LOCAL_PATH").unwrap());
             Arc::new(LocalStorage::init(base_path))
         }
         // "REMOTE" => Arc::new(RemoteStorage::init(path).await),

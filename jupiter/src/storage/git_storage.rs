@@ -8,6 +8,7 @@ use venus::{
     internal::{
         object::{types::ObjectType, utils},
         pack::{entry::Entry, header::EntryHeader, reference::RefCommand},
+        repo::Repo,
     },
 };
 
@@ -22,32 +23,36 @@ pub struct GitStorage {
 
 #[async_trait]
 impl StorageProvider for GitStorage {
-    async fn save_ref(&self, refs: RefCommand) -> Result<(), MegaError> {
+    async fn save_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
         self.rawobj_storage
-            .put_ref(&refs.ref_name, &refs.new_id)
+            .put_ref(&repo.repo_name, &refs.ref_name, &refs.new_id)
             .await
     }
 
-    async fn remove_ref(&self, refs: RefCommand) -> Result<(), MegaError> {
-        self.rawobj_storage.delete_ref(&refs.ref_name).await
-    }
-
-    async fn get_ref(&self, refs: RefCommand) -> Result<String, MegaError> {
-        self.rawobj_storage.get_ref(&refs.ref_name).await
-    }
-
-    async fn update_ref(&self, refs: RefCommand) -> Result<(), MegaError> {
+    async fn remove_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
         self.rawobj_storage
-            .update_ref(&refs.ref_name, &refs.new_id)
+            .delete_ref(&repo.repo_name, &refs.ref_name)
             .await
     }
 
-    async fn save_entry(&self, result_entity: Vec<Entry>) -> Result<(), MegaError> {
+    async fn get_ref(&self, repo: Repo, refs: RefCommand) -> Result<String, MegaError> {
+        self.rawobj_storage
+            .get_ref(&repo.repo_name, &refs.ref_name)
+            .await
+    }
+
+    async fn update_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
+        self.rawobj_storage
+            .update_ref(&repo.repo_name, &refs.ref_name, &refs.new_id)
+            .await
+    }
+
+    async fn save_entry(&self, repo: Repo, result_entity: Vec<Entry>) -> Result<(), MegaError> {
         for entry in result_entity {
             self.rawobj_storage
                 .put_object(
+                    &repo.repo_name,
                     &entry.hash.unwrap().to_plain_str(),
-                    entry.data.len() as i64,
                     &entry.data,
                 )
                 .await
@@ -56,10 +61,10 @@ impl StorageProvider for GitStorage {
         Ok(())
     }
 
-    async fn get_entry_by_sha1(&self, sha1_vec: Vec<&str>) -> Result<Vec<Entry>, MegaError> {
+    async fn get_entry_by_sha1(&self, repo: Repo, sha1_vec: Vec<&str>) -> Result<Vec<Entry>, MegaError> {
         let mut res: Vec<Entry> = Vec::new();
         for sha1 in sha1_vec {
-            let data = self.rawobj_storage.get_object(sha1).await.unwrap();
+            let data = self.rawobj_storage.get_object(&repo.repo_name, sha1).await.unwrap();
             let (type_num, _) = utils::read_type_and_size(&mut Cursor::new(&data)).unwrap();
             let o_type = ObjectType::from_u8(type_num).unwrap();
             let header = EntryHeader::from_string(&o_type.to_string());
@@ -76,9 +81,9 @@ impl StorageProvider for GitStorage {
 }
 
 impl GitStorage {
-    pub async fn new(repo_path: &str) -> Self {
+    pub async fn new() -> Self {
         GitStorage {
-            rawobj_storage: raw_storage::init(format!("{}/{}", repo_path, "objects")).await,
+            rawobj_storage: raw_storage::init().await,
         }
     }
 }
