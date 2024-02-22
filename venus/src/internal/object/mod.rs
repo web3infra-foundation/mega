@@ -1,6 +1,7 @@
 pub mod blob;
 pub mod commit;
 pub mod signature;
+pub mod tree;
 pub mod types;
 pub mod utils;
 

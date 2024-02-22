@@ -3,7 +3,10 @@ use std::str::FromStr;
 use common::utils::generate_id;
 use db_entity::{db_enums::StorageType, raw_objects};
 
-use crate::{hash::SHA1, internal::pack::{entry::Entry, header::EntryHeader}};
+use crate::{
+    hash::SHA1,
+    internal::pack::{entry::Entry, header::EntryHeader},
+};
 
 impl From<Entry> for raw_objects::Model {
     fn from(value: Entry) -> Self {
@@ -18,7 +21,7 @@ impl From<Entry> for raw_objects::Model {
         }
     }
 }
- 
+
 impl From<raw_objects::Model> for Entry {
     fn from(value: raw_objects::Model) -> Self {
         Entry {
