@@ -24,3 +24,5 @@ threadpool = "1.8.1"
 num_cpus = "1.16.0"
 dashmap = "5.5.3"
 tokio.workspace = true
+lru-mem = "0.3.0"
+bincode = "1.3.3"
