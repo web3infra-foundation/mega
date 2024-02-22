@@ -5,8 +5,8 @@
 //!
 //!
 
-use std::path::PathBuf;
 use std::sync::Arc;
+use std::{ops::Deref, path::PathBuf};
 
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
@@ -39,7 +39,8 @@ impl Default for CacheObject {
     }
 }
 
-/// used by lru_mem to caculate the size of the object, limit the memory usage
+/// ! used by lru_mem to caculate the size of the object, limit the memory usage.
+/// ! the implementation of HeapSize is not accurate, only caculate the size of the data_decompress
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
         self.data_decompress.heap_size()
@@ -55,7 +56,6 @@ pub trait _Cache {
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
 }
-
 
 #[allow(unused)]
 pub struct Caches {
@@ -75,7 +75,27 @@ impl CacheObject {
             hash,
             ..Default::default()
         }
+    }
+}
 
+/// !Implementing encapsulation of Arc<T> to enable third-party Trait HeapSize implementation for the Arc type
+/// !Because of use Arc<T> in LruCache, the LruCache is not clear whether a pointer will drop the referenced
+/// ! content when it is ejected from the cache, the actual memory usage is not accurate
+struct ArcWrapper<T: HeapSize>(Arc<T>);
+impl<T: HeapSize> HeapSize for ArcWrapper<T> {
+    fn heap_size(&self) -> usize {
+        self.0.heap_size()
+    }
+}
+impl<T: HeapSize> Clone for ArcWrapper<T> {
+    fn clone(&self) -> Self {
+        ArcWrapper(self.0.clone())
+    }
+}
+impl<T: HeapSize> Deref for ArcWrapper<T> {
+    type Target = Arc<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -115,7 +135,7 @@ impl _Cache for Caches {
 mod test {
     use std::sync::Mutex;
 
-    use lru_mem::{LruCache, ValueSize};
+    use lru_mem::LruCache;
 
     use crate::{hash::SHA1, internal::object::types::ObjectType};
 
@@ -133,12 +153,11 @@ mod test {
         };
         assert!(a.heap_size() == 1024);
 
-        let b = Arc::new(a);
+        let b = ArcWrapper(Arc::new(a.clone()));
         assert!(b.heap_size() == 1024);
     }
     #[test]
     fn test_chache_object_with_lru() {
-        // let mut cach: LruCache<SHA1, Arc<CacheObject>> = LruCache::new(2048);
         let mut cach = LruCache::new(2048);
         let a = CacheObject {
             base_offset: 0,
@@ -148,7 +167,6 @@ mod test {
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
         };
-        println!("a.value_size() = {}", a.value_size());
         println!("a.heap_size() = {}", a.heap_size());
 
         let b = CacheObject {
@@ -160,18 +178,18 @@ mod test {
             hash: SHA1::new(&vec![1; 20]),
         };
         {
-            let r = cach.insert(a.hash.to_string(), Arc::new(a.clone()));
+            let r = cach.insert(a.hash.to_string(), ArcWrapper(Arc::new(a.clone())));
             assert!(r.is_ok())
         }
         {
-            let r = cach.try_insert(b.clone().hash.to_string(), Arc::new(b.clone()));
+            let r = cach.try_insert(b.clone().hash.to_string(), ArcWrapper(Arc::new(b.clone())));
             assert!(r.is_err());
             if let Err(lru_mem::TryInsertError::WouldEjectLru { .. }) = r {
                 // 匹配到指定错误，不需要额外操作
             } else {
                 panic!("Expected WouldEjectLru error");
             }
-            let r = cach.insert(b.hash.to_string(), Arc::new(b.clone()));
+            let r = cach.insert(b.hash.to_string(), ArcWrapper(Arc::new(b.clone())));
             assert!(r.is_ok());
         }
         {
@@ -201,12 +219,12 @@ mod test {
         let cach = Arc::new(Mutex::new(cach));
         {
             let mut c = cach.as_ref().lock().unwrap();
-            let _ = c.insert("a", Arc::new(Test { a: 1200 }));
+            let _ = c.insert("a", ArcWrapper(Arc::new(Test { a: 1024 })));
         }
         println!("insert b, a should be ejected");
         {
             let mut c = cach.as_ref().lock().unwrap();
-            let _ = c.insert("b", Arc::new(Test { a: 1200 }));
+            let _ = c.insert("b", ArcWrapper(Arc::new(Test { a: 1200 })));
         }
         let b = {
             let mut c = cach.as_ref().lock().unwrap();
@@ -215,9 +233,9 @@ mod test {
         println!("insert c, b should not be ejected");
         {
             let mut c = cach.as_ref().lock().unwrap();
-            let _ = c.insert("c", Arc::new(Test { a: 1200 }));
+            let _ = c.insert("c", ArcWrapper(Arc::new(Test { a: 1200 })));
         }
-        print!("user b: {}", b.as_ref().unwrap().a);
+        println!("user b: {}", b.as_ref().unwrap().a);
         println!("test over, enject all");
     }
 }
