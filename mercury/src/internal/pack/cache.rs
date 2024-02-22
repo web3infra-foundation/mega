@@ -5,18 +5,19 @@
 //!
 //!
 
-use std::sync::Arc;
+use std::fs;
+use std::sync::{Arc, Mutex};
 use std::{ops::Deref, path::PathBuf};
 
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
-use dashmap::DashMap;
-
+use dashmap::{DashMap, DashSet};
+use serde::{Deserialize, Serialize};
 use crate::internal::pack::utils;
 use lru_mem::{HeapSize, LruCache};
 
 #[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheObject {
     pub base_offset: usize,
     pub base_ref: SHA1,
@@ -59,8 +60,9 @@ pub trait _Cache {
 
 #[allow(unused)]
 pub struct Caches {
-    map_offset: DashMap<usize, SHA1>,
-    map_hash: LruCache<String, Arc<CacheObject>>, // !TODO: use SHA1 as key !TODO: interior mutability
+    map_offset: DashMap<usize, SHA1>, // offset to hash
+    hash_set: DashSet<SHA1>,          // item in the cache
+    map_hash: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // !TODO: use SHA1 as key !TODO: interior mutability
     mem_size: usize,
     tmp_path: PathBuf,
 }
@@ -99,7 +101,52 @@ impl<T: HeapSize> Deref for ArcWrapper<T> {
     }
 }
 
-impl Caches {}
+impl Caches {
+    fn get_without_check(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
+        let rt = {
+            let mut map = self.map_hash.lock().unwrap();
+            match map.get(&hash.to_string()) {
+                Some(x) => Ok(x.clone().0.clone()),
+                None => Err("not found".to_string()),
+            }
+        };
+
+        if rt.is_ok() {
+            let obj = rt.unwrap();
+            self.hash_set.insert(hash);
+            return Some(obj);
+        }
+
+        // read from tmp file
+        match self.read_from_tmp(hash) {
+            Some(x) => {
+                let mut map = self.map_hash.lock().unwrap();
+                let x = ArcWrapper(Arc::new(x.clone()));
+                let _ = map.insert(hash.to_string(), x.clone()); // handle the error
+                Some(x.clone().0)
+            }
+            None => None, // not found, maybe trow some error
+        }
+    }
+    fn generate_tmp_path(&self, hash: SHA1) -> PathBuf {
+        let mut path = self.tmp_path.clone();
+        path.push(hash.to_string());
+        path
+    }
+    fn read_from_tmp(&self, hash: SHA1) -> Option<CacheObject> {
+        let path = self.generate_tmp_path(hash);
+        let b = fs::read(path).unwrap();
+        let obj: CacheObject = bincode::deserialize(&b).unwrap();
+        Some(obj)
+    }
+
+    /// ! write the object to tmp file, use another thread to do this latter
+    fn write_to_tmp(&self, hash: SHA1, obj: &CacheObject) {
+        let path = self.generate_tmp_path(hash);
+        let b = bincode::serialize(&obj).unwrap();
+        fs::write(path, b).unwrap();
+    }
+}
 
 impl _Cache for Caches {
     fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
@@ -108,17 +155,25 @@ impl _Cache for Caches {
     {
         Caches {
             map_offset: DashMap::new(),
-            map_hash: LruCache::new(size.unwrap_or(0)),
+            hash_set: DashSet::new(),
+            map_hash: Mutex::new(LruCache::new(size.unwrap_or(0))),
             mem_size: size.unwrap_or(0),
-            tmp_path: tmp_path.unwrap_or_default(),
+            tmp_path: tmp_path.unwrap_or(PathBuf::from("tmp/")),
         }
     }
     fn get_hash(&self, offset: usize) -> Option<SHA1> {
         self.map_offset.get(&offset).map(|x| *x)
     }
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) {
+        {
+            // ? whether insert to cache directly or write to tmp file
+            let mut map = self.map_hash.lock().unwrap();
+            let _ = map.insert(hash.to_string(), ArcWrapper(Arc::new(obj.clone())));
+            // handle the error
+        }
         self.map_offset.insert(offset, hash);
-        unimplemented!()
+        self.hash_set.insert(hash);
+        self.write_to_tmp(hash, &obj);
     }
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
         match self.map_offset.get(&offset) {
@@ -127,7 +182,11 @@ impl _Cache for Caches {
         }
     }
     fn get_by_hash(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
-        unimplemented!()
+        // check if the hash is in the cache( lru or tmp file)
+        match self.get_without_check(hash) {
+            Some(_) => self.get_without_check(hash),
+            None => None,
+        }
     }
 }
 
@@ -137,7 +196,7 @@ mod test {
 
     use lru_mem::LruCache;
 
-    use crate::{hash::SHA1, internal::object::types::ObjectType};
+    use venus::{hash::SHA1, internal::object::types::ObjectType};
 
     use super::*;
 
@@ -238,4 +297,21 @@ mod test {
         println!("user b: {}", b.as_ref().unwrap().a);
         println!("test over, enject all");
     }
+
+    #[test]
+    fn test_cache_object_serialize() {
+        let a = CacheObject {
+            base_offset: 0,
+            base_ref: SHA1::new(&vec![0; 20]),
+            data_decompress: vec![0; 1024],
+            obj_type: ObjectType::Blob,
+            offset: 0,
+            hash: SHA1::new(&vec![0; 20]),
+        };
+        let s = bincode::serialize(&a).unwrap();
+        let b: CacheObject = bincode::deserialize(&s).unwrap();
+        assert!(a.base_offset == b.base_offset);
+    }
+
+    // fn test
 }
