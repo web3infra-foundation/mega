@@ -128,11 +128,13 @@ impl Caches {
             None => None, // not found, maybe trow some error
         }
     }
+
     fn generate_tmp_path(&self, hash: SHA1) -> PathBuf {
         let mut path = self.tmp_path.clone();
         path.push(hash.to_string());
         path
     }
+
     fn read_from_tmp(&self, hash: SHA1) -> Option<CacheObject> {
         let path = self.generate_tmp_path(hash);
         let b = fs::read(path).unwrap();
@@ -144,7 +146,11 @@ impl Caches {
     fn write_to_tmp(&self, hash: SHA1, obj: &CacheObject) {
         let path = self.generate_tmp_path(hash);
         let b = bincode::serialize(&obj).unwrap();
-        fs::write(path, b).unwrap();
+        // add temp extension to the file, to obtain the atomicity of the file write
+        let path = path.with_extension("temp");
+        fs::write(path.clone(), b).unwrap();
+        let final_path = path.with_extension("");
+        fs::rename(path, final_path).unwrap();
     }
 }
 
