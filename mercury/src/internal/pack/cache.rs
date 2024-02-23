@@ -9,12 +9,12 @@ use std::fs;
 use std::sync::{Arc, Mutex};
 use std::{ops::Deref, path::PathBuf};
 
+use crate::internal::pack::utils;
+use dashmap::{DashMap, DashSet};
+use lru_mem::{HeapSize, LruCache};
+use serde::{Deserialize, Serialize};
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
-use dashmap::{DashMap, DashSet};
-use serde::{Deserialize, Serialize};
-use crate::internal::pack::utils;
-use lru_mem::{HeapSize, LruCache};
 
 #[allow(unused)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,15 +102,17 @@ impl<T: HeapSize> Deref for ArcWrapper<T> {
 }
 
 impl Caches {
-    fn get_without_check(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
-        let rt = {
-            let mut map = self.map_hash.lock().unwrap();
-            match map.get(&hash.to_string()) {
-                Some(x) => Ok(x.clone().0.clone()),
-                None => Err("not found".to_string()),
-            }
-        };
+    /// only get object from memory, not from tmp file
+    fn try_get(&self, hash: SHA1) -> Result<Arc<CacheObject>, String> {
+        let mut map = self.map_hash.lock().unwrap();
+        match map.get(&hash.to_string()) {
+            Some(x) => Ok(x.clone().0.clone()),
+            None => Err("not found".to_string()),
+        }
+    }
 
+    fn get_without_check(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
+        let rt = self.try_get(hash);
         if rt.is_ok() {
             let obj = rt.unwrap();
             self.hash_set.insert(hash);
@@ -129,9 +131,10 @@ impl Caches {
         }
     }
 
+    /// ! generate the tmp file path, hex string of the hash
     fn generate_tmp_path(&self, hash: SHA1) -> PathBuf {
         let mut path = self.tmp_path.clone();
-        path.push(hash.to_string());
+        path.push(hex::encode(hash.to_string()));
         path
     }
 
@@ -142,11 +145,13 @@ impl Caches {
         Some(obj)
     }
 
-    /// ! write the object to tmp file, use another thread to do this latter
+    /// ! write the object to tmp file,
+    /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
+    // todo use another thread to do this latter
     fn write_to_tmp(&self, hash: SHA1, obj: &CacheObject) {
         let path = self.generate_tmp_path(hash);
         let b = bincode::serialize(&obj).unwrap();
-        // add temp extension to the file, to obtain the atomicity of the file write
+
         let path = path.with_extension("temp");
         fs::write(path.clone(), b).unwrap();
         let final_path = path.with_extension("");
@@ -159,12 +164,14 @@ impl _Cache for Caches {
     where
         Self: Sized,
     {
+        let tmp_path = tmp_path.unwrap_or(PathBuf::from("tmp/"));
+        fs::create_dir_all(&tmp_path).unwrap();
         Caches {
             map_offset: DashMap::new(),
             hash_set: DashSet::new(),
             map_hash: Mutex::new(LruCache::new(size.unwrap_or(0))),
             mem_size: size.unwrap_or(0),
-            tmp_path: tmp_path.unwrap_or(PathBuf::from("tmp/")),
+            tmp_path,
         }
     }
     fn get_hash(&self, offset: usize) -> Option<SHA1> {
@@ -198,7 +205,7 @@ impl _Cache for Caches {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Mutex;
+    use std::{env, sync::Mutex};
 
     use lru_mem::LruCache;
 
@@ -319,5 +326,46 @@ mod test {
         assert!(a.base_offset == b.base_offset);
     }
 
-    // fn test
+    #[test]
+    fn test_cach_single_thread() {
+        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let cache = Caches::new(Some(2048), Some(source.clone().join("tests/.cache_tmp")));
+        let a = CacheObject {
+            data_decompress: vec![0; 1024],
+            hash: SHA1::new(&String::from("a").into_bytes()),
+            ..Default::default()
+        };
+        let b = CacheObject {
+            data_decompress: vec![0; 1636],
+            hash: SHA1::new(&String::from("b").into_bytes()),
+            ..Default::default()
+        };
+        // insert a
+        cache.insert(a.offset, a.hash, a.clone());
+        assert!(cache.hash_set.contains(&a.hash));
+        assert!(cache.try_get(a.hash).is_ok());
+
+        // insert b and make a invalidate
+        cache.insert(b.offset, b.hash, b.clone());
+        assert!(cache.hash_set.contains(&b.hash));
+        assert!(cache.try_get(b.hash).is_ok());
+        assert!(cache.try_get(a.hash).is_err());
+
+        // get a and make b invalidate
+        let _ = cache.get_by_hash(a.hash);
+        assert!(cache.try_get(a.hash).is_ok());
+        assert!(cache.try_get(b.hash).is_err());
+
+        // insert too large c, a will still be in the cache
+        let c = CacheObject {
+            data_decompress: vec![0; 2049],
+            hash: SHA1::new(&String::from("c").into_bytes()),
+            ..Default::default()
+        };
+        cache.insert(c.offset, c.hash, c.clone());
+        assert!(cache.try_get(a.hash).is_ok());
+        assert!(cache.try_get(b.hash).is_err());
+        assert!(cache.try_get(c.hash).is_err());
+        assert!(cache.get_by_hash(c.hash).is_some());
+    }
 }
