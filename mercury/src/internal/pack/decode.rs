@@ -23,7 +23,6 @@ use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
 
 use super::cache::_Cache;
-use super::utils::{read_offset_encoding, read_type_and_varint_size};
 
 impl Pack {
     pub fn new() -> Self {
@@ -281,7 +280,8 @@ impl Pack {
                 return Err(e);
             }
         }
-        
+        println!("The pack file has {} objects", self.number);
+
         let mut offset: usize = 12;
         let mut i = 1;
 
@@ -338,6 +338,7 @@ impl Pack {
         }
 
         self.pool.join(); // wait for all threads to finish
+        println!("The pack file has been decoded successfully");
         Ok(())
     }
 
@@ -450,7 +451,8 @@ mod tests {
     use std::io::Cursor;
     use std::io::BufReader;
     use std::io::prelude::*;
-    
+    use std::time::Instant;
+
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
@@ -516,7 +518,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
-        p.decode(&mut buffered, 0, tmp).unwrap();
+        p.decode(&mut buffered, 1024*1024, tmp).unwrap();
     }
 
     #[test]
@@ -529,7 +531,9 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
-        p.decode(&mut buffered, 0, tmp).unwrap();
+        let start = Instant::now();
+        p.decode(&mut buffered, 1024*1024*20, tmp).unwrap();
+        println!("Test took {:?}s", start.elapsed().as_secs());
     }
 
     #[test]
@@ -542,6 +546,6 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
-        p.decode(&mut buffered, 0, tmp).unwrap();
+        p.decode(&mut buffered, 1024, tmp).unwrap();
     }
 }
