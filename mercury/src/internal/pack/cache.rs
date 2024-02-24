@@ -105,10 +105,7 @@ impl Caches {
     /// only get object from memory, not from tmp file
     fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         let mut map = self.map_hash.lock().unwrap();
-        match map.get(&hash.to_string()) { //TODO to_plain_str which is shorter
-            Some(x) => Some(x.clone().0),
-            None => None
-        }
+        map.get(&hash.to_string()).map(|x| x.clone().0)
     }
 
     fn get_without_check(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
@@ -142,7 +139,7 @@ impl Caches {
         Ok(obj)
     }
 
-    /// ! write the object to tmp file,
+    /// write the object to tmp file,
     /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
     // todo use another thread to do this latter
     fn write_to_tmp(&self, hash: SHA1, obj: &CacheObject) {

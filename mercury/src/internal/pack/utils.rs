@@ -261,10 +261,10 @@ pub fn create_empty_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let dir = path.as_ref();
     // 删除整个文件夹
     if dir.exists() {
-        fs::remove_dir_all(&dir)?;
+        fs::remove_dir_all(dir)?;
     }
     // 重新创建文件夹
-    fs::create_dir_all(&dir)?;
+    fs::create_dir_all(dir)?;
     Ok(())
 }
 

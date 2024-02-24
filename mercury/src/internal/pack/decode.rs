@@ -1,11 +1,10 @@
-
 //!
-//! 
-//! 
-//! 
-//! 
-//! 
-use std::io::{self, Read, BufRead, Seek, ErrorKind, Cursor};
+//!
+//!
+//!
+//!
+//!
+use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -16,14 +15,19 @@ use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
-use crate::internal::pack::{Pack, utils};
-use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::cache::CacheObject;
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
+use crate::internal::pack::wrapper::Wrapper;
+use crate::internal::pack::{utils, Pack};
 
 use super::cache::_Cache;
 
+impl Default for Pack {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Pack {
     pub fn new() -> Self {
         Pack {
@@ -61,11 +65,11 @@ impl Pack {
     pub fn check_header(pack: &mut (impl Read + BufRead)) -> Result<(u32, Vec<u8>), GitError> {
         // A vector to store the header data for hashing later
         let mut header_data = Vec::new();
-    
+
         // Read the first 4 bytes which should be "PACK"
         let mut magic = [0; 4];
         // Read the magic "PACK" identifier
-        let result = pack.read_exact(&mut magic); 
+        let result = pack.read_exact(&mut magic);
         match result {
             Ok(_) => {
                 // Store these bytes for later
@@ -79,7 +83,7 @@ impl Pack {
                         magic[0], magic[1], magic[2], magic[3]
                     )));
                 }
-            },
+            }
             Err(_e) => {
                 // If there is an error in reading, return a GitError
                 return Err(GitError::InvalidPackHeader(format!(
@@ -88,7 +92,7 @@ impl Pack {
                 )));
             }
         }
-        
+
         // Read the next 4 bytes for the version number
         let mut version_bytes = [0; 4];
         let result = pack.read_exact(&mut version_bytes); // Read the version number
@@ -107,7 +111,7 @@ impl Pack {
                     )));
                 }
                 // If read is successful, proceed
-            }, 
+            }
             Err(_e) => {
                 // If there is an error in reading, return a GitError
                 return Err(GitError::InvalidPackHeader(format!(
@@ -116,7 +120,7 @@ impl Pack {
                 )));
             }
         }
-    
+
         // Read the next 4 bytes for the number of objects in the pack
         let mut object_num_bytes = [0; 4];
         // Read the number of objects
@@ -129,15 +133,17 @@ impl Pack {
                 let object_num = u32::from_be_bytes(object_num_bytes);
                 // Return the number of objects and the header data for further processing
                 Ok((object_num, header_data))
-            }, 
+            }
             Err(_e) => {
                 // If there is an error in reading, return a GitError
                 Err(GitError::InvalidPackHeader(format!(
                     "{},{},{},{}",
-                    object_num_bytes[0], object_num_bytes[1], object_num_bytes[2], object_num_bytes[3]
+                    object_num_bytes[0],
+                    object_num_bytes[1],
+                    object_num_bytes[2],
+                    object_num_bytes[3]
                 )))
             }
-            
         }
     }
 
@@ -153,7 +159,11 @@ impl Pack {
     ///   and the total number of input bytes processed,
     /// * Or a `GitError` in case of a mismatch in expected size or any other reading error.
     ///
-    pub fn decompress_data(&mut self, pack: &mut (impl Read + BufRead + Send), expected_size: usize) -> Result<(Vec<u8>, usize), GitError> {        
+    pub fn decompress_data(
+        &mut self,
+        pack: &mut (impl Read + BufRead + Send),
+        expected_size: usize,
+    ) -> Result<(Vec<u8>, usize), GitError> {
         // Create a buffer with the expected size for the decompressed data
         let mut buf = Vec::with_capacity(expected_size);
         // Create a new Zlib decoder with the original data
@@ -174,10 +184,13 @@ impl Pack {
                     Ok((buf, deflate.total_in() as usize))
                     // TODO this will likely be smaller than what the decompressor actually read from the underlying stream due to buffering.
                 }
-            },
+            }
             Err(e) => {
                 // If there is an error in reading, return a GitError
-                Err(GitError::InvalidPackFile(format!("Decompression error: {}", e)))
+                Err(GitError::InvalidPackFile(format!(
+                    "Decompression error: {}",
+                    e
+                )))
             }
         }
     }
@@ -193,7 +206,11 @@ impl Pack {
     /// * A tuple of the next offset in the pack and the original compressed data as `Vec<u8>`,
     /// * Or a `GitError` in case of any reading or decompression error.
     ///
-    pub fn decode_pack_object(&mut self, pack: &mut (impl Read + BufRead + Send), offset: &mut usize) -> Result<CacheObject, GitError> {
+    pub fn decode_pack_object(
+        &mut self,
+        pack: &mut (impl Read + BufRead + Send),
+        offset: &mut usize,
+    ) -> Result<CacheObject, GitError> {
         let init_offset = *offset;
 
         // Attempt to read the type and size, handle potential errors
@@ -214,11 +231,11 @@ impl Pack {
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
                 Ok(CacheObject::new_for_undeltified(t, data, init_offset))
-            },
+            }
             ObjectType::OffsetDelta => {
                 let (delta_offset, bytes) = utils::read_offset_encoding(pack).unwrap();
                 *offset += bytes;
-                
+
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
 
@@ -238,13 +255,13 @@ impl Pack {
                     offset: init_offset,
                     hash: SHA1::default(),
                 })
-            },
+            }
             ObjectType::HashDelta => {
                 // Read 20 bytes to get the reference object SHA1 hash
                 let mut buf_ref = [0; 20];
                 pack.read_exact(&mut buf_ref).unwrap();
                 let ref_sha1 = SHA1::from_bytes(buf_ref.as_ref()); //TODO SHA1::from_stream()
-                // Offset is incremented by 20 bytes
+                                                                   // Offset is incremented by 20 bytes
                 *offset += 20; //TODO 改为常量
 
                 let (data, raw_size) = self.decompress_data(pack, size)?;
@@ -262,11 +279,15 @@ impl Pack {
         }
     }
 
-
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
-    /// 
-    /// 
-    pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
+    ///
+    ///
+    pub fn decode(
+        &mut self,
+        pack: &mut (impl Read + BufRead + Seek + Send),
+        mem_size: usize,
+        tmp_path: PathBuf,
+    ) -> Result<(), GitError> {
         let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path)));
 
         let mut render = Wrapper::new(io::BufReader::new(pack));
@@ -275,7 +296,7 @@ impl Pack {
         match result {
             Ok((object_num, _)) => {
                 self.number = object_num as usize;
-            },
+            }
             Err(e) => {
                 return Err(e);
             }
@@ -286,27 +307,38 @@ impl Pack {
         let mut i = 1;
 
         while i <= self.number {
-            let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
+            let r: Result<CacheObject, GitError> =
+                self.decode_pack_object(&mut render, &mut offset);
             match r {
-                Ok(obj) => {
-                    match obj.obj_type {
-                        ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                            caches.insert(obj.offset, obj.hash, obj);
-                        },
-                        ObjectType::OffsetDelta => {
-                            if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
-                                Self::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj);
-                            } else {
-                                self.waitlist.insert_offset(obj.base_offset, obj);
-                            }
-                        },
-                        ObjectType::HashDelta => {
-                            if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
-                                Self::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj);
-                            } else {
-                                self.waitlist.insert_ref(obj.base_ref, obj);
-                            }
-                        },
+                Ok(obj) => match obj.obj_type {
+                    ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
+                        caches.insert(obj.offset, obj.hash, obj);
+                    }
+                    ObjectType::OffsetDelta => {
+                        if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
+                            Self::process_delta(
+                                self.pool.clone(),
+                                self.waitlist.clone(),
+                                caches.clone(),
+                                obj,
+                                base_obj,
+                            );
+                        } else {
+                            self.waitlist.insert_offset(obj.base_offset, obj);
+                        }
+                    }
+                    ObjectType::HashDelta => {
+                        if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
+                            Self::process_delta(
+                                self.pool.clone(),
+                                self.waitlist.clone(),
+                                caches.clone(),
+                                obj,
+                                base_obj,
+                            );
+                        } else {
+                            self.waitlist.insert_ref(obj.base_ref, obj);
+                        }
                     }
                 },
                 Err(e) => {
@@ -333,7 +365,7 @@ impl Pack {
         let end = utils::is_eof(&mut render);
         if !end {
             return Err(GitError::InvalidPackFile(
-                "The pack file is not at the end".to_string()
+                "The pack file is not at the end".to_string(),
             ));
         }
 
@@ -344,7 +376,13 @@ impl Pack {
 
     /// Rebuild the Delta Object in a new thread & process the objects waiting for it recursively.
     /// <br> This function must be *static*, because [&self] can't be moved into a new thread.
-    fn process_delta(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
+    fn process_delta(
+        pool: Arc<ThreadPool>,
+        waitlist: Arc<Waitlist>,
+        caches: Arc<Caches>,
+        delta_obj: CacheObject,
+        base_obj: Arc<CacheObject>,
+    ) {
         let waitlist = Arc::clone(&waitlist);
         let pool_c = Arc::clone(&pool);
         pool.execute(move || {
@@ -356,9 +394,14 @@ impl Pack {
             let wait_objs = waitlist.take(new_obj.offset, new_obj.hash);
             for obj in wait_objs {
                 // Process the objects waiting for the new object(base_obj = new_obj)
-                Pack::process_delta(pool_c.clone(), waitlist.clone(), caches.clone(), obj, new_obj.clone());
+                Pack::process_delta(
+                    pool_c.clone(),
+                    waitlist.clone(),
+                    caches.clone(),
+                    obj,
+                    new_obj.clone(),
+                );
             }
-
         });
     }
 
@@ -417,17 +460,19 @@ impl Pack {
                 // +----------+---------+---------+---------+---------+-------+-------+-------+
                 let mut nonzero_bytes = instruction;
                 let offset =
-                    utils::read_partial_int(&mut stream, COPY_OFFSET_BYTES, &mut nonzero_bytes).unwrap();
+                    utils::read_partial_int(&mut stream, COPY_OFFSET_BYTES, &mut nonzero_bytes)
+                        .unwrap();
                 let mut size =
-                    utils::read_partial_int(&mut stream, COPY_SIZE_BYTES, &mut nonzero_bytes).unwrap();
+                    utils::read_partial_int(&mut stream, COPY_SIZE_BYTES, &mut nonzero_bytes)
+                        .unwrap();
                 if size == 0 {
                     // Copying 0 bytes doesn't make sense, so git assumes a different size
                     size = COPY_ZERO_SIZE;
                 }
                 // Copy bytes from the base object
-                let base_data = base_info
-                    .get(offset..(offset + size))
-                    .ok_or_else(|| GitError::DeltaObjectError("Invalid copy instruction".to_string()));
+                let base_data = base_info.get(offset..(offset + size)).ok_or_else(|| {
+                    GitError::DeltaObjectError("Invalid copy instruction".to_string())
+                });
 
                 match base_data {
                     Ok(data) => result.extend_from_slice(data),
@@ -438,25 +483,24 @@ impl Pack {
 
         delta_obj.data_decompress = result;
         delta_obj.obj_type = base_obj.obj_type; // Same as the Type of base object
-        delta_obj.hash = utils::calculate_object_hash(delta_obj.obj_type, &delta_obj.data_decompress);
+        delta_obj.hash =
+            utils::calculate_object_hash(delta_obj.obj_type, &delta_obj.data_decompress);
 
-        return delta_obj; //Canonical form
+        delta_obj//Canonical form
     }
-
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, env};
-    use std::io::Cursor;
-    use std::io::BufReader;
     use std::io::prelude::*;
+    use std::io::BufReader;
+    use std::io::Cursor;
     use std::time::Instant;
-
+    use std::{env, path::PathBuf};
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
-    
+
     use crate::internal::pack::Pack;
 
     #[test]
@@ -490,7 +534,7 @@ mod tests {
             Ok((decompressed_data, bytes_read)) => {
                 assert_eq!(bytes_read, compressed_size);
                 assert_eq!(decompressed_data, data);
-            },
+            }
             Err(e) => panic!("Decompression failed: {:?}", e),
         }
     }
@@ -518,7 +562,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
-        p.decode(&mut buffered, 1024*1024, tmp).unwrap();
+        p.decode(&mut buffered, 1024 * 1024, tmp).unwrap();
     }
 
     #[test]
@@ -532,7 +576,7 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
         let start = Instant::now();
-        p.decode(&mut buffered, 1024*1024*20, tmp).unwrap();
+        p.decode(&mut buffered, 1024 * 1024 * 20, tmp).unwrap();
         println!("Test took {:?}s", start.elapsed().as_secs());
     }
 
