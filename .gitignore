@@ -24,7 +24,7 @@ ui/.pnp.js
 
 # testing
 ui/coverage
-
+tests/.cache_tmp
 # production
 ui/build
 ui/.next

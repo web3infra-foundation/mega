@@ -16,11 +16,11 @@ impl Waitlist {
     }
 
     pub fn insert_offset(&self, offset: usize, obj: CacheObject) {
-        self.map_offset.entry(offset).or_insert(Vec::new()).push(obj);
+        self.map_offset.entry(offset).or_default().push(obj);
     }
 
     pub fn insert_ref(&self, hash: SHA1, obj: CacheObject) {
-        self.map_ref.entry(hash).or_insert(Vec::new()).push(obj);
+        self.map_ref.entry(hash).or_default().push(obj);
     }
 
     /// Take objects out (get & remove)
