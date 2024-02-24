@@ -495,7 +495,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
 
-        let tmp = PathBuf::from("/tmp");
+        let tmp = PathBuf::from("/tmp/.cache_temp");
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
@@ -508,7 +508,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/ref-delta-65d47638aa7cb7c39f1bd1d5011a415439b887a8.pack");
 
-        let tmp = PathBuf::from("/tmp");
+        let tmp = PathBuf::from("/tmp/.cache_temp");
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
@@ -521,7 +521,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
-        let tmp = PathBuf::from("/tmp");
+        let tmp = PathBuf::from("/tmp/.cache_temp");
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
@@ -536,7 +536,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack");
 
-        let tmp = PathBuf::from("/tmp");
+        let tmp = PathBuf::from("/tmp/.cache_temp");
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
