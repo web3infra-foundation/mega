@@ -105,10 +105,7 @@ impl Caches {
     /// only get object from memory, not from tmp file
     fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         let mut map = self.map_hash.lock().unwrap();
-        match map.get(&hash.to_string()) { //TODO to_plain_str which is shorter
-            Some(x) => Some(x.clone().0),
-            None => None
-        }
+        map.get(&hash.to_plain_str()).map(|x| x.clone().0)
     }
 
     fn get_without_check(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
@@ -121,7 +118,7 @@ impl Caches {
             Ok(x) => {
                 let mut map = self.map_hash.lock().unwrap();
                 let x = ArcWrapper(Arc::new(x));
-                let _ = map.insert(hash.to_string(), x.clone()); // handle the error
+                let _ = map.insert(hash.to_plain_str(), x.clone()); // handle the error
                 Ok(x.0)
             }
             Err(e) => Err(e), // not found, maybe trow some error
@@ -142,7 +139,7 @@ impl Caches {
         Ok(obj)
     }
 
-    /// ! write the object to tmp file,
+    /// write the object to tmp file,
     /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
     // todo use another thread to do this latter
     fn write_to_tmp(&self, hash: SHA1, obj: &CacheObject) {
@@ -161,7 +158,7 @@ impl _Cache for Caches {
     where
         Self: Sized,
     {
-        let tmp_path = tmp_path.unwrap_or(PathBuf::from("tmp/"));
+        let tmp_path = tmp_path.unwrap_or(PathBuf::from(".cache_tmp/"));
         fs::create_dir_all(&tmp_path).unwrap();
         println!("tmp_path = {:?}", tmp_path.canonicalize().unwrap());
         Caches {
@@ -179,7 +176,7 @@ impl _Cache for Caches {
         {
             // ? whether insert to cache directly or write to tmp file
             let mut map = self.map_hash.lock().unwrap();
-            let _ = map.insert(hash.to_string(), ArcWrapper(Arc::new(obj.clone())));
+            let _ = map.insert(hash.to_plain_str(), ArcWrapper(Arc::new(obj.clone())));
             // handle the error
         }
         self.map_offset.insert(offset, hash);
@@ -232,7 +229,7 @@ mod test {
     }
     #[test]
     fn test_chache_object_with_lru() {
-        let mut cach = LruCache::new(2048);
+        let mut cache = LruCache::new(2048);
         let a = CacheObject {
             base_offset: 0,
             base_ref: SHA1::new(&vec![0; 20]),
@@ -252,23 +249,23 @@ mod test {
             hash: SHA1::new(&vec![1; 20]),
         };
         {
-            let r = cach.insert(a.hash.to_string(), ArcWrapper(Arc::new(a.clone())));
+            let r = cache.insert(a.hash.to_plain_str(), ArcWrapper(Arc::new(a.clone())));
             assert!(r.is_ok())
         }
         {
-            let r = cach.try_insert(b.clone().hash.to_string(), ArcWrapper(Arc::new(b.clone())));
+            let r = cache.try_insert(b.clone().hash.to_plain_str(), ArcWrapper(Arc::new(b.clone())));
             assert!(r.is_err());
             if let Err(lru_mem::TryInsertError::WouldEjectLru { .. }) = r {
                 // 匹配到指定错误，不需要额外操作
             } else {
                 panic!("Expected WouldEjectLru error");
             }
-            let r = cach.insert(b.hash.to_string(), ArcWrapper(Arc::new(b.clone())));
+            let r = cache.insert(b.hash.to_plain_str(), ArcWrapper(Arc::new(b.clone())));
             assert!(r.is_ok());
         }
         {
             // a should be ejected
-            let r = cach.get(&a.hash.to_string());
+            let r = cache.get(&a.hash.to_plain_str());
             assert!(r.is_none());
         }
     }
@@ -289,24 +286,24 @@ mod test {
             }
         }
         println!("insert a");
-        let cach = LruCache::new(2048);
-        let cach = Arc::new(Mutex::new(cach));
+        let cache = LruCache::new(2048);
+        let cache = Arc::new(Mutex::new(cache));
         {
-            let mut c = cach.as_ref().lock().unwrap();
+            let mut c = cache.as_ref().lock().unwrap();
             let _ = c.insert("a", ArcWrapper(Arc::new(Test { a: 1024 })));
         }
         println!("insert b, a should be ejected");
         {
-            let mut c = cach.as_ref().lock().unwrap();
+            let mut c = cache.as_ref().lock().unwrap();
             let _ = c.insert("b", ArcWrapper(Arc::new(Test { a: 1200 })));
         }
         let b = {
-            let mut c = cach.as_ref().lock().unwrap();
+            let mut c = cache.as_ref().lock().unwrap();
             c.get("b").cloned()
         };
         println!("insert c, b should not be ejected");
         {
-            let mut c = cach.as_ref().lock().unwrap();
+            let mut c = cache.as_ref().lock().unwrap();
             let _ = c.insert("c", ArcWrapper(Arc::new(Test { a: 1200 })));
         }
         println!("user b: {}", b.as_ref().unwrap().a);
