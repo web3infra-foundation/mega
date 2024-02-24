@@ -2,7 +2,9 @@
 //! 
 //! 
 //!
+use std::fs;
 use std::io::{self, Read};
+use std::path::Path;
 use sha1::{Digest, Sha1};
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
@@ -253,6 +255,17 @@ pub fn calculate_object_hash(obj_type: ObjectType, data: &Vec<u8>) -> SHA1 {
 
     let re: [u8; 20] = hash.finalize().into();
     SHA1(re)
+}
+/// Create an empty directory or clear the existing directory.
+pub fn create_empty_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let dir = path.as_ref();
+    // 删除整个文件夹
+    if dir.exists() {
+        fs::remove_dir_all(&dir)?;
+    }
+    // 重新创建文件夹
+    fs::create_dir_all(&dir)?;
+    Ok(())
 }
 
 #[cfg(test)]

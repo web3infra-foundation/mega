@@ -5,7 +5,7 @@
 //!
 //!
 
-use std::fs;
+use std::{fs, io};
 use std::sync::{Arc, Mutex};
 use std::{ops::Deref, path::PathBuf};
 
@@ -40,8 +40,8 @@ impl Default for CacheObject {
     }
 }
 
-/// ! used by lru_mem to caculate the size of the object, limit the memory usage.
-/// ! the implementation of HeapSize is not accurate, only caculate the size of the data_decompress
+// ! used by lru_mem to calculate the size of the object, limit the memory usage.
+// ! the implementation of HeapSize is not accurate, only calculate the size of the data_decompress
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
         self.data_decompress.heap_size()
@@ -103,46 +103,43 @@ impl<T: HeapSize> Deref for ArcWrapper<T> {
 
 impl Caches {
     /// only get object from memory, not from tmp file
-    fn try_get(&self, hash: SHA1) -> Result<Arc<CacheObject>, String> {
+    fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         let mut map = self.map_hash.lock().unwrap();
-        match map.get(&hash.to_string()) {
-            Some(x) => Ok(x.clone().0.clone()),
-            None => Err("not found".to_string()),
+        match map.get(&hash.to_string()) { //TODO to_plain_str which is shorter
+            Some(x) => Some(x.clone().0),
+            None => None
         }
     }
 
-    fn get_without_check(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
-        let rt = self.try_get(hash);
-        if rt.is_ok() {
-            let obj = rt.unwrap();
-            self.hash_set.insert(hash);
-            return Some(obj);
+    fn get_without_check(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
+        if let Some(obj) = self.try_get(hash) {
+            return Ok(obj);
         }
 
         // read from tmp file
         match self.read_from_tmp(hash) {
-            Some(x) => {
+            Ok(x) => {
                 let mut map = self.map_hash.lock().unwrap();
-                let x = ArcWrapper(Arc::new(x.clone()));
+                let x = ArcWrapper(Arc::new(x));
                 let _ = map.insert(hash.to_string(), x.clone()); // handle the error
-                Some(x.clone().0)
+                Ok(x.0)
             }
-            None => None, // not found, maybe trow some error
+            Err(e) => Err(e), // not found, maybe trow some error
         }
     }
 
-    /// ! generate the tmp file path, hex string of the hash
+    /// generate the tmp file path, hex string of the hash
     fn generate_tmp_path(&self, hash: SHA1) -> PathBuf {
         let mut path = self.tmp_path.clone();
-        path.push(hex::encode(hash.to_string()));
+        path.push(hash.to_plain_str());
         path
     }
 
-    fn read_from_tmp(&self, hash: SHA1) -> Option<CacheObject> {
+    fn read_from_tmp(&self, hash: SHA1) -> io::Result<CacheObject> {
         let path = self.generate_tmp_path(hash);
-        let b = fs::read(path).unwrap();
-        let obj: CacheObject = bincode::deserialize(&b).unwrap();
-        Some(obj)
+        let b = fs::read(path)?;
+        let obj: CacheObject = bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        Ok(obj)
     }
 
     /// ! write the object to tmp file,
@@ -166,6 +163,7 @@ impl _Cache for Caches {
     {
         let tmp_path = tmp_path.unwrap_or(PathBuf::from("tmp/"));
         fs::create_dir_all(&tmp_path).unwrap();
+        println!("tmp_path = {:?}", tmp_path.canonicalize().unwrap());
         Caches {
             map_offset: DashMap::new(),
             hash_set: DashSet::new(),
@@ -196,9 +194,13 @@ impl _Cache for Caches {
     }
     fn get_by_hash(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         // check if the hash is in the cache( lru or tmp file)
-        match self.get_without_check(hash) {
-            Some(_) => self.get_without_check(hash),
-            None => None,
+        if self.hash_set.contains(&hash) {
+            match self.get_without_check(hash) {
+                Ok(obj) => Some(obj),
+                Err(_) => None,
+            }
+        } else {
+            None
         }
     }
 }
@@ -343,18 +345,18 @@ mod test {
         // insert a
         cache.insert(a.offset, a.hash, a.clone());
         assert!(cache.hash_set.contains(&a.hash));
-        assert!(cache.try_get(a.hash).is_ok());
+        assert!(cache.try_get(a.hash).is_some());
 
         // insert b and make a invalidate
         cache.insert(b.offset, b.hash, b.clone());
         assert!(cache.hash_set.contains(&b.hash));
-        assert!(cache.try_get(b.hash).is_ok());
-        assert!(cache.try_get(a.hash).is_err());
+        assert!(cache.try_get(b.hash).is_some());
+        assert!(cache.try_get(a.hash).is_none());
 
         // get a and make b invalidate
         let _ = cache.get_by_hash(a.hash);
-        assert!(cache.try_get(a.hash).is_ok());
-        assert!(cache.try_get(b.hash).is_err());
+        assert!(cache.try_get(a.hash).is_some());
+        assert!(cache.try_get(b.hash).is_none());
 
         // insert too large c, a will still be in the cache
         let c = CacheObject {
@@ -363,9 +365,9 @@ mod test {
             ..Default::default()
         };
         cache.insert(c.offset, c.hash, c.clone());
-        assert!(cache.try_get(a.hash).is_ok());
-        assert!(cache.try_get(b.hash).is_err());
-        assert!(cache.try_get(c.hash).is_err());
+        assert!(cache.try_get(a.hash).is_some());
+        assert!(cache.try_get(b.hash).is_none());
+        assert!(cache.try_get(c.hash).is_none());
         assert!(cache.get_by_hash(c.hash).is_some());
     }
 }
