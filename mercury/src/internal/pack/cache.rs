@@ -158,7 +158,7 @@ impl _Cache for Caches {
     where
         Self: Sized,
     {
-        let tmp_path = tmp_path.unwrap_or(PathBuf::from("tmp/"));
+        let tmp_path = tmp_path.unwrap_or(PathBuf::from(".cache_tmp/"));
         fs::create_dir_all(&tmp_path).unwrap();
         println!("tmp_path = {:?}", tmp_path.canonicalize().unwrap());
         Caches {
