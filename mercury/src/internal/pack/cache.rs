@@ -5,8 +5,9 @@
 //!
 //!
 
-use std::{fs, io};
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::{fs, io};
 use std::{ops::Deref, path::PathBuf};
 
 use crate::internal::pack::utils;
@@ -60,9 +61,10 @@ pub trait _Cache {
 
 #[allow(unused)]
 pub struct Caches {
+    dash_lock: Mutex<()>,
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache
-    map_hash: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // !TODO: use SHA1 as key !TODO: interior mutability
+    lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // !TODO: use SHA1 as key !TODO: interior mutability
     mem_size: usize,
     tmp_path: PathBuf,
 }
@@ -104,25 +106,35 @@ impl<T: HeapSize> Deref for ArcWrapper<T> {
 impl Caches {
     /// only get object from memory, not from tmp file
     fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
-        let mut map = self.map_hash.lock().unwrap();
+        let mut map = self.lru_cache.lock().unwrap();
         map.get(&hash.to_plain_str()).map(|x| x.clone().0)
     }
 
+    /// !IMPORTANT: because of the process of pack, the file must be written / be writting before, so it won't be dead lock
+    /// block to get cache item. **invoker should ensure the hash is in the cache, or it will block forever**
     fn get_without_check(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
         if let Some(obj) = self.try_get(hash) {
             return Ok(obj);
         }
 
         // read from tmp file
-        match self.read_from_tmp(hash) {
-            Ok(x) => {
-                let mut map = self.map_hash.lock().unwrap();
-                let x = ArcWrapper(Arc::new(x));
-                let _ = map.insert(hash.to_plain_str(), x.clone()); // handle the error
-                Ok(x.0)
+        let obj = {
+            loop {
+                match self.read_from_tmp(hash) {
+                    Ok(x) => break x,
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                        sleep(std::time::Duration::from_millis(100));
+                        continue;
+                    }
+                    Err(e) => return Err(e), // other error
+                }
             }
-            Err(e) => Err(e), // not found, maybe trow some error
-        }
+        };
+
+        let mut map = self.lru_cache.lock().unwrap();
+        let x = ArcWrapper(Arc::new(obj));
+        let _ = map.insert(hash.to_plain_str(), x.clone()); // handle the error
+        Ok(x.0)
     }
 
     /// generate the tmp file path, hex string of the hash
@@ -135,7 +147,8 @@ impl Caches {
     fn read_from_tmp(&self, hash: SHA1) -> io::Result<CacheObject> {
         let path = self.generate_tmp_path(hash);
         let b = fs::read(path)?;
-        let obj: CacheObject = bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let obj: CacheObject =
+            bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         Ok(obj)
     }
 
@@ -154,6 +167,8 @@ impl Caches {
 }
 
 impl _Cache for Caches {
+    /// @param size: the size of the memory lru cache,
+    /// @param tmp_path: the path to store the cache object in the tmp file
     fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
     where
         Self: Sized,
@@ -162,9 +177,10 @@ impl _Cache for Caches {
         fs::create_dir_all(&tmp_path).unwrap();
         println!("tmp_path = {:?}", tmp_path.canonicalize().unwrap());
         Caches {
+            dash_lock: Mutex::new(()),
             map_offset: DashMap::new(),
             hash_set: DashSet::new(),
-            map_hash: Mutex::new(LruCache::new(size.unwrap_or(0))),
+            lru_cache: Mutex::new(LruCache::new(size.unwrap_or(0))),
             mem_size: size.unwrap_or(0),
             tmp_path,
         }
@@ -174,13 +190,16 @@ impl _Cache for Caches {
     }
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) {
         {
-            // ? whether insert to cache directly or write to tmp file
-            let mut map = self.map_hash.lock().unwrap();
+            // ? whether insert to cache directly or only write to tmp file
+            let mut map = self.lru_cache.lock().unwrap();
             let _ = map.insert(hash.to_plain_str(), ArcWrapper(Arc::new(obj.clone())));
-            // handle the error
         }
-        self.map_offset.insert(offset, hash);
-        self.hash_set.insert(hash);
+        {
+            let lock = self.dash_lock.lock().unwrap();
+            self.map_offset.insert(offset, hash);
+            self.hash_set.insert(hash);
+            drop(lock);
+        }
         self.write_to_tmp(hash, &obj);
     }
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
@@ -253,7 +272,10 @@ mod test {
             assert!(r.is_ok())
         }
         {
-            let r = cache.try_insert(b.clone().hash.to_plain_str(), ArcWrapper(Arc::new(b.clone())));
+            let r = cache.try_insert(
+                b.clone().hash.to_plain_str(),
+                ArcWrapper(Arc::new(b.clone())),
+            );
             assert!(r.is_err());
             if let Err(lru_mem::TryInsertError::WouldEjectLru { .. }) = r {
                 // 匹配到指定错误，不需要额外操作
