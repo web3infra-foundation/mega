@@ -269,7 +269,7 @@ impl Pack {
     ///
     ///
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
-        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path)));
+        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone())));
 
         let mut render = Wrapper::new(io::BufReader::new(pack));
 
@@ -290,24 +290,45 @@ impl Pack {
         while i <= self.number {
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
             match r {
-                Ok(obj) => match obj.obj_type {
-                    ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                        caches.insert(obj.offset, obj.hash, obj);
-                    },
-                    ObjectType::OffsetDelta => {
-                        if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
-                            Self::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj);
-                        } else {
-                            self.waitlist.insert_offset(obj.base_offset, obj);
+                Ok(obj) => {
+                    let caches = caches.clone();
+                    let pool = self.pool.clone();
+                    let waitlist = self.waitlist.clone();
+                    self.pool.execute(move || {
+                        match obj.obj_type {
+                            ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
+                                Pack::cache_obj_and_check_waitlist(pool, waitlist, caches, obj);
+                            },
+                            ObjectType::OffsetDelta => {
+                                if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
+                                    Self::process_delta(pool, waitlist, caches, obj, base_obj);
+                                } else {
+                                    // let base_offset = obj.base_offset;
+                                    waitlist.insert_offset(obj.base_offset, obj); //TODO 线程安全问题
+                                    // if let Some(base_obj) = caches.get_by_offset(base_offset) {
+                                    //     let wait_objs = self.waitlist.take(base_obj.offset, base_obj.hash);
+                                    //     for obj in wait_objs {
+                                    //         Pack::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj.clone());
+                                    //     }
+                                    // }
+                                }
+                            },
+                            ObjectType::HashDelta => {
+                                if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
+                                    Self::process_delta(pool, waitlist, caches, obj, base_obj);
+                                } else {
+                                    // let base_ref = obj.base_ref;
+                                    waitlist.insert_ref(obj.base_ref, obj);
+                                    // if let Some(base_obj) = caches.get_by_hash(base_ref) {
+                                    //     let wait_objs = self.waitlist.take(base_obj.offset, base_obj.hash);
+                                    //     for obj in wait_objs {
+                                    //         Pack::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj.clone());
+                                    //     }
+                                    // }
+                                }
+                            }
                         }
-                    },
-                    ObjectType::HashDelta => {
-                        if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
-                            Self::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj);
-                        } else {
-                            self.waitlist.insert_ref(obj.base_ref, obj);
-                        }
-                    }
+                    });
                 },
                 Err(e) => {
                     return Err(e);
@@ -339,26 +360,33 @@ impl Pack {
 
         self.pool.join(); // wait for all threads to finish
         println!("The pack file has been decoded successfully");
+        assert_eq!(self.waitlist.map_offset.len(), 0);
+        assert_eq!(self.waitlist.map_ref.len(), 0);
+        let files = utils::count_dir_files(&tmp_path).unwrap();
+        assert_eq!(files, self.number);
+        println!("file nums: {}", files);
         Ok(())
     }
 
     /// Rebuild the Delta Object in a new thread & process the objects waiting for it recursively.
     /// <br> This function must be *static*, because [&self] can't be moved into a new thread.
     fn process_delta(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
-        let waitlist = Arc::clone(&waitlist);
-        let pool_c = Arc::clone(&pool);
-        pool.execute(move || {
+        pool.clone().execute(move || {
             let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
-            let new_hash = new_obj.hash;
-
-            caches.insert(new_obj.offset, new_obj.hash, new_obj);
-            let new_obj = caches.get_by_hash(new_hash).unwrap();
-            let wait_objs = waitlist.take(new_obj.offset, new_obj.hash);
-            for obj in wait_objs {
-                // Process the objects waiting for the new object(base_obj = new_obj)
-                Pack::process_delta(pool_c.clone(), waitlist.clone(), caches.clone(), obj, new_obj.clone());
-            }
+            Pack::cache_obj_and_check_waitlist(pool, waitlist, caches, new_obj); //Indirect Recursion
         });
+    }
+
+    /// Cache the new object & process the objects waiting for it (in multi-threading).
+    fn cache_obj_and_check_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, new_obj: CacheObject) {
+        let new_hash = new_obj.hash;
+        caches.insert(new_obj.offset, new_obj.hash, new_obj);
+        let new_obj = caches.get_by_hash(new_hash).unwrap();
+        let wait_objs = waitlist.take(new_obj.offset, new_obj.hash);
+        for obj in wait_objs {
+            // Process the objects waiting for the new object(base_obj = new_obj)
+            Pack::process_delta(pool.clone(), waitlist.clone(), caches.clone(), obj, new_obj.clone());
+        }
     }
 
     /// Reconstruct the Delta Object based on the "base object"
@@ -452,7 +480,7 @@ mod tests {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
 
-    use crate::internal::pack::Pack;
+    use crate::internal::pack::{Pack, utils};
 
     #[test]
     fn test_pack_check_header() {
@@ -513,7 +541,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
-        p.decode(&mut buffered, 1024 * 1024, tmp).unwrap();
+        p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
     #[test]
@@ -527,7 +555,7 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
         let start = Instant::now();
-        p.decode(&mut buffered, 1024 * 1024 * 20, tmp).unwrap();
+        p.decode(&mut buffered, 1024 * 1024 * 0, tmp.clone()).unwrap();
         println!("Test took {:?}s", start.elapsed().as_secs());
     }
 
@@ -537,10 +565,11 @@ mod tests {
         source.push("tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack");
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
+        utils::create_empty_dir(&tmp).unwrap(); //must in single thread test
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
-        p.decode(&mut buffered, 1024, tmp).unwrap();
+        p.decode(&mut buffered, 0, tmp).unwrap();
     }
 }
