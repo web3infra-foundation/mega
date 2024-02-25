@@ -268,6 +268,21 @@ pub fn create_empty_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
     Ok(())
 }
 
+/// Count the number of files in a directory and its subdirectories.
+pub fn count_dir_files(path: &Path) -> io::Result<usize> {
+    let mut count = 0;
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            count += count_dir_files(&path)?;
+        } else {
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
