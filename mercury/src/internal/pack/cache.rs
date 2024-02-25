@@ -14,6 +14,7 @@ use crate::internal::pack::utils;
 use dashmap::{DashMap, DashSet};
 use lru_mem::{HeapSize, LruCache};
 use serde::{Deserialize, Serialize};
+use threadpool::ThreadPool;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
@@ -54,7 +55,7 @@ pub trait _Cache {
     where
         Self: Sized;
     fn get_hash(&self, offset: usize) -> Option<SHA1>;
-    fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject);
+    fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) -> Arc<CacheObject>;
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
 }
@@ -66,6 +67,7 @@ pub struct Caches {
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // !TODO: use SHA1 as key !TODO: interior mutability
     mem_size: usize,
     tmp_path: PathBuf,
+    pool: ThreadPool
 }
 
 impl CacheObject {
@@ -137,14 +139,14 @@ impl Caches {
     }
 
     /// generate the tmp file path, hex string of the hash
-    fn generate_tmp_path(&self, hash: SHA1) -> PathBuf {
-        let mut path = self.tmp_path.clone();
+    fn generate_tmp_path(tmp_path: &PathBuf, hash: SHA1) -> PathBuf {
+        let mut path = tmp_path.clone();
         path.push(hash.to_plain_str());
         path
     }
 
     fn read_from_tmp(&self, hash: SHA1) -> io::Result<CacheObject> {
-        let path = self.generate_tmp_path(hash);
+        let path = Self::generate_tmp_path(&self.tmp_path, hash);
         let b = fs::read(path)?;
         let obj: CacheObject =
             bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
@@ -154,8 +156,8 @@ impl Caches {
     /// write the object to tmp file,
     /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
     // todo use another thread to do this latter
-    fn write_to_tmp(&self, hash: SHA1, obj: &CacheObject) {
-        let path = self.generate_tmp_path(hash);
+    fn write_to_tmp(tmp_path: &PathBuf, hash: SHA1, obj: &CacheObject) {
+        let path = Self::generate_tmp_path(tmp_path, hash);
         let b = bincode::serialize(&obj).unwrap();
 
         let path = path.with_extension("temp");
@@ -181,22 +183,30 @@ impl _Cache for Caches {
             lru_cache: Mutex::new(LruCache::new(size.unwrap_or(0))),
             mem_size: size.unwrap_or(0),
             tmp_path,
+            pool: ThreadPool::new(num_cpus::get() * 2),
         }
     }
     fn get_hash(&self, offset: usize) -> Option<SHA1> {
         self.map_offset.get(&offset).map(|x| *x)
     }
-    fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) {
+    fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) -> Arc<CacheObject> {
+        let obj_arc = Arc::new(obj);
         {
             // ? whether insert to cache directly or only write to tmp file
             let mut map = self.lru_cache.lock().unwrap();
-            let _ = map.insert(hash.to_plain_str(), ArcWrapper(Arc::new(obj.clone())));
+            let _ = map.insert(hash.to_plain_str(), ArcWrapper(obj_arc.clone()));
         }
         //order maters as for reading in 'get_by_offset()'
         self.hash_set.insert(hash);
         self.map_offset.insert(offset, hash);
 
-        self.write_to_tmp(hash, &obj); //TODO 多线程异步
+        let tmp_path = self.tmp_path.clone();
+        let obj_clone = obj_arc.clone();
+        self.pool.execute(move || {
+            Self::write_to_tmp(&tmp_path, hash, &obj_clone);
+        });
+
+        obj_arc
     }
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
         match self.map_offset.get(&offset) {

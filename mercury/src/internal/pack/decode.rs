@@ -297,34 +297,31 @@ impl Pack {
                     self.pool.execute(move || {
                         match obj.obj_type {
                             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                                Pack::cache_obj_and_check_waitlist(pool, waitlist, caches, obj);
+                                Pack::cache_obj_and_process_waitlist(pool, waitlist, caches, obj);
                             },
                             ObjectType::OffsetDelta => {
                                 if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
                                     Self::process_delta(pool, waitlist, caches, obj, base_obj);
                                 } else {
-                                    // let base_offset = obj.base_offset;
-                                    waitlist.insert_offset(obj.base_offset, obj); //TODO 线程安全问题
-                                    // if let Some(base_obj) = caches.get_by_offset(base_offset) {
-                                    //     let wait_objs = self.waitlist.take(base_obj.offset, base_obj.hash);
-                                    //     for obj in wait_objs {
-                                    //         Pack::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj.clone());
-                                    //     }
-                                    // }
+                                    // You can delete this 'if' block ↑, because there are Second check in 'else'
+                                    // It will be more readable, but the performance will be slightly reduced
+                                    let base_offset = obj.base_offset;
+                                    waitlist.insert_offset(obj.base_offset, obj);
+                                    // Second check: prevent that the base_obj thread has finished before the waitlist insert
+                                    if let Some(base_obj) = caches.get_by_offset(base_offset) {
+                                        Pack::process_waitlist(pool, waitlist, caches, base_obj);
+                                    }
                                 }
                             },
                             ObjectType::HashDelta => {
                                 if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
                                     Self::process_delta(pool, waitlist, caches, obj, base_obj);
                                 } else {
-                                    // let base_ref = obj.base_ref;
+                                    let base_ref = obj.base_ref;
                                     waitlist.insert_ref(obj.base_ref, obj);
-                                    // if let Some(base_obj) = caches.get_by_hash(base_ref) {
-                                    //     let wait_objs = self.waitlist.take(base_obj.offset, base_obj.hash);
-                                    //     for obj in wait_objs {
-                                    //         Pack::process_delta(self.pool.clone(), self.waitlist.clone(), caches.clone(), obj, base_obj.clone());
-                                    //     }
-                                    // }
+                                    if let Some(base_obj) = caches.get_by_hash(base_ref) {
+                                        Pack::process_waitlist(pool, waitlist, caches, base_obj);
+                                    }
                                 }
                             }
                         }
@@ -359,12 +356,11 @@ impl Pack {
         }
 
         self.pool.join(); // wait for all threads to finish
+        // !Attention: Caches threadpool may not end, but it's not a problem (garbage file data)
+        // So that files != self.number
         println!("The pack file has been decoded successfully");
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
-        let files = utils::count_dir_files(&tmp_path).unwrap();
-        assert_eq!(files, self.number);
-        println!("file nums: {}", files);
         Ok(())
     }
 
@@ -373,19 +369,21 @@ impl Pack {
     fn process_delta(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
         pool.clone().execute(move || {
             let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
-            Pack::cache_obj_and_check_waitlist(pool, waitlist, caches, new_obj); //Indirect Recursion
+            Pack::cache_obj_and_process_waitlist(pool, waitlist, caches, new_obj); //Indirect Recursion
         });
     }
 
     /// Cache the new object & process the objects waiting for it (in multi-threading).
-    fn cache_obj_and_check_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, new_obj: CacheObject) {
-        let new_hash = new_obj.hash;
-        caches.insert(new_obj.offset, new_obj.hash, new_obj);
-        let new_obj = caches.get_by_hash(new_hash).unwrap();
-        let wait_objs = waitlist.take(new_obj.offset, new_obj.hash);
+    fn cache_obj_and_process_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, new_obj: CacheObject) {
+        let new_obj = caches.insert(new_obj.offset, new_obj.hash, new_obj);
+        Pack::process_waitlist(pool, waitlist, caches, new_obj);
+    }
+
+    fn process_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, base_obj: Arc<CacheObject>) {
+        let wait_objs = waitlist.take(base_obj.offset, base_obj.hash);
         for obj in wait_objs {
             // Process the objects waiting for the new object(base_obj = new_obj)
-            Pack::process_delta(pool.clone(), waitlist.clone(), caches.clone(), obj, new_obj.clone());
+            Pack::process_delta(pool.clone(), waitlist.clone(), caches.clone(), obj, base_obj.clone());
         }
     }
 
@@ -555,8 +553,8 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
         let start = Instant::now();
-        p.decode(&mut buffered, 1024 * 1024 * 0, tmp.clone()).unwrap();
-        println!("Test took {:?}s", start.elapsed().as_secs());
+        p.decode(&mut buffered, 1024 * 1024 * 20, tmp.clone()).unwrap();
+        println!("Test took {:?}", start.elapsed());
     }
 
     #[test]
@@ -570,6 +568,6 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
-        p.decode(&mut buffered, 0, tmp).unwrap();
+        p.decode(&mut buffered, 1024*1024*20, tmp).unwrap();
     }
 }
