@@ -61,7 +61,6 @@ pub trait _Cache {
 
 #[allow(unused)]
 pub struct Caches {
-    dash_lock: Mutex<()>, //TODO 可以删除
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // !TODO: use SHA1 as key !TODO: interior mutability
@@ -177,7 +176,6 @@ impl _Cache for Caches {
         fs::create_dir_all(&tmp_path).unwrap();
         println!("tmp_path = {:?}", tmp_path.canonicalize().unwrap());
         Caches {
-            dash_lock: Mutex::new(()),
             map_offset: DashMap::new(),
             hash_set: DashSet::new(),
             lru_cache: Mutex::new(LruCache::new(size.unwrap_or(0))),
@@ -194,12 +192,10 @@ impl _Cache for Caches {
             let mut map = self.lru_cache.lock().unwrap();
             let _ = map.insert(hash.to_plain_str(), ArcWrapper(Arc::new(obj.clone())));
         }
-        {
-            let lock = self.dash_lock.lock().unwrap();
-            self.map_offset.insert(offset, hash);
-            self.hash_set.insert(hash);
-            drop(lock);
-        }
+        //order maters as for reading in 'get_by_offset()'
+        self.hash_set.insert(hash);
+        self.map_offset.insert(offset, hash);
+
         self.write_to_tmp(hash, &obj); //TODO 多线程异步
     }
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
