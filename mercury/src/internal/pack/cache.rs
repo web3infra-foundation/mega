@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
 use std::{ops::Deref, path::PathBuf};
+use std::path::Path;
 
 use crate::internal::pack::utils;
 use dashmap::{DashMap, DashSet};
@@ -58,6 +59,7 @@ pub trait _Cache {
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) -> Arc<CacheObject>;
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
+    fn total_inserted(&self) -> usize;
 }
 
 #[allow(unused)]
@@ -139,8 +141,8 @@ impl Caches {
     }
 
     /// generate the tmp file path, hex string of the hash
-    fn generate_tmp_path(tmp_path: &PathBuf, hash: SHA1) -> PathBuf {
-        let mut path = tmp_path.clone();
+    fn generate_tmp_path(tmp_path: &Path, hash: SHA1) -> PathBuf {
+        let mut path = tmp_path.to_path_buf();
         path.push(hash.to_plain_str());
         path
     }
@@ -156,7 +158,7 @@ impl Caches {
     /// write the object to tmp file,
     /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
     // todo use another thread to do this latter
-    fn write_to_tmp(tmp_path: &PathBuf, hash: SHA1, obj: &CacheObject) {
+    fn write_to_tmp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) {
         let path = Self::generate_tmp_path(tmp_path, hash);
         let b = bincode::serialize(&obj).unwrap();
 
@@ -186,9 +188,11 @@ impl _Cache for Caches {
             pool: ThreadPool::new(num_cpus::get() * 2),
         }
     }
+
     fn get_hash(&self, offset: usize) -> Option<SHA1> {
         self.map_offset.get(&offset).map(|x| *x)
     }
+
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) -> Arc<CacheObject> {
         let obj_arc = Arc::new(obj);
         {
@@ -208,12 +212,14 @@ impl _Cache for Caches {
 
         obj_arc
     }
+
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
         match self.map_offset.get(&offset) {
             Some(x) => self.get_by_hash(*x),
             None => None,
         }
     }
+
     fn get_by_hash(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         // check if the hash is in the cache( lru or tmp file)
         if self.hash_set.contains(&hash) {
@@ -226,6 +232,10 @@ impl _Cache for Caches {
         } else {
             None
         }
+    }
+
+    fn total_inserted(&self) -> usize {
+        self.hash_set.len()
     }
 }
 

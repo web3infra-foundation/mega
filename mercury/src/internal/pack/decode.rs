@@ -361,6 +361,7 @@ impl Pack {
         println!("The pack file has been decoded successfully");
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
+        assert_eq!(self.number, caches.total_inserted());
         Ok(())
     }
 
@@ -553,7 +554,7 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
         let start = Instant::now();
-        p.decode(&mut buffered, 1024 * 1024 * 20, tmp.clone()).unwrap();
+        p.decode(&mut buffered, 1024 * 1024 * 0, tmp.clone()).unwrap();
         println!("Test took {:?}", start.elapsed());
     }
 
