@@ -58,6 +58,7 @@ pub trait _Cache {
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) -> Arc<CacheObject>;
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
+    fn total_inserted(&self) -> usize;
 }
 
 #[allow(unused)]
@@ -186,9 +187,11 @@ impl _Cache for Caches {
             pool: ThreadPool::new(num_cpus::get() * 2),
         }
     }
+
     fn get_hash(&self, offset: usize) -> Option<SHA1> {
         self.map_offset.get(&offset).map(|x| *x)
     }
+
     fn insert(&self, offset: usize, hash: SHA1, obj: CacheObject) -> Arc<CacheObject> {
         let obj_arc = Arc::new(obj);
         {
@@ -208,12 +211,14 @@ impl _Cache for Caches {
 
         obj_arc
     }
+
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
         match self.map_offset.get(&offset) {
             Some(x) => self.get_by_hash(*x),
             None => None,
         }
     }
+
     fn get_by_hash(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         // check if the hash is in the cache( lru or tmp file)
         if self.hash_set.contains(&hash) {
@@ -226,6 +231,10 @@ impl _Cache for Caches {
         } else {
             None
         }
+    }
+
+    fn total_inserted(&self) -> usize {
+        self.hash_set.len()
     }
 }
 
