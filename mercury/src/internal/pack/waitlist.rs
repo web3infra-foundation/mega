@@ -4,10 +4,10 @@ use crate::internal::pack::cache::CacheObject;
 
 /// Waitlist for Delta objects while the Base object is not ready.
 /// Easier and faster than Channels.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Waitlist {
-    map_offset: DashMap<usize, Vec<CacheObject>>,
-    map_ref: DashMap<SHA1, Vec<CacheObject>>,
+    pub map_offset: DashMap<usize, Vec<CacheObject>>,
+    pub map_ref: DashMap<SHA1, Vec<CacheObject>>,
 }
 
 impl Waitlist {

@@ -61,7 +61,7 @@ pub trait _Cache {
 
 #[allow(unused)]
 pub struct Caches {
-    dash_lock: Mutex<()>,
+    dash_lock: Mutex<()>, //TODO 可以删除
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // !TODO: use SHA1 as key !TODO: interior mutability
@@ -110,7 +110,7 @@ impl Caches {
         map.get(&hash.to_plain_str()).map(|x| x.clone().0)
     }
 
-    /// !IMPORTANT: because of the process of pack, the file must be written / be writting before, so it won't be dead lock
+    /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
     /// block to get cache item. **invoker should ensure the hash is in the cache, or it will block forever**
     fn get_without_check(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
         if let Some(obj) = self.try_get(hash) {
@@ -123,7 +123,7 @@ impl Caches {
                 match self.read_from_tmp(hash) {
                     Ok(x) => break x,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                        sleep(std::time::Duration::from_millis(100));
+                        sleep(std::time::Duration::from_millis(10)); //TODO 有没有更好办法
                         continue;
                     }
                     Err(e) => return Err(e), // other error
@@ -132,7 +132,7 @@ impl Caches {
         };
 
         let mut map = self.lru_cache.lock().unwrap();
-        let x = ArcWrapper(Arc::new(obj));
+        let x = ArcWrapper(Arc::new(obj)); //TODO 挪出锁外
         let _ = map.insert(hash.to_plain_str(), x.clone()); // handle the error
         Ok(x.0)
     }
@@ -162,7 +162,7 @@ impl Caches {
         let path = path.with_extension("temp");
         fs::write(path.clone(), b).unwrap();
         let final_path = path.with_extension("");
-        fs::rename(path, final_path).unwrap();
+        fs::rename(path, final_path).unwrap(); //TODO handle the error
     }
 }
 
@@ -200,7 +200,7 @@ impl _Cache for Caches {
             self.hash_set.insert(hash);
             drop(lock);
         }
-        self.write_to_tmp(hash, &obj);
+        self.write_to_tmp(hash, &obj); //TODO 多线程异步
     }
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>> {
         match self.map_offset.get(&offset) {
@@ -213,7 +213,9 @@ impl _Cache for Caches {
         if self.hash_set.contains(&hash) {
             match self.get_without_check(hash) {
                 Ok(obj) => Some(obj),
-                Err(_) => None,
+                Err(_) => {
+                    panic!("cache error!");
+                }
             }
         } else {
             None
