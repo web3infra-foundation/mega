@@ -151,21 +151,22 @@ impl Caches {
         let path = Self::generate_tmp_path(&self.tmp_path, hash);
         let b = fs::read(path)?;
         let obj: CacheObject =
-            bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         Ok(obj)
     }
 
     /// write the object to tmp file,
     /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
     // todo use another thread to do this latter
-    fn write_to_tmp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) {
+    fn write_to_tmp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) -> io::Result<()> {
         let path = Self::generate_tmp_path(tmp_path, hash);
-        let b = bincode::serialize(&obj).unwrap();
+        let b = bincode::serialize(&obj).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
         let path = path.with_extension("temp");
-        fs::write(path.clone(), b).unwrap();
+        fs::write(path.clone(), b)?;
         let final_path = path.with_extension("");
-        fs::rename(path, final_path).unwrap(); //TODO handle the error
+        fs::rename(path, final_path)?;
+        Ok(())
     }
 }
 
@@ -207,7 +208,7 @@ impl _Cache for Caches {
         let tmp_path = self.tmp_path.clone();
         let obj_clone = obj_arc.clone();
         self.pool.execute(move || {
-            Self::write_to_tmp(&tmp_path, hash, &obj_clone);
+            Self::write_to_tmp(&tmp_path, hash, &obj_clone).unwrap();
         });
 
         obj_arc

@@ -4,7 +4,6 @@
 //!
 //!
 //!
-use std::fs;
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -273,7 +272,7 @@ impl Pack {
     ///
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
         // use random subdirectory to avoid conflicts with other files
-        let tmp_path = tmp_path.join(Uuid::new_v4().to_string());
+        let tmp_path = tmp_path.join(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
         let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
         
         let mut reader = Wrapper::new(io::BufReader::new(pack));
@@ -361,14 +360,14 @@ impl Pack {
         }
 
         self.pool.join(); // wait for all threads to finish
-        // !Attention: Caches threadpool may not end, but it's not a problem (garbage file data)
+        // !Attention: Caches threadpool may not stop, but it's not a problem (garbage file data)
         // So that files != self.number
         println!("The pack file has been decoded successfully");
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
 
-        // todo: difficult to stop thread in cache, so we didn't remove the temp file temporarily
+        // todo: difficult to stop threads in cache, so we didn't remove the temp file temporarily
         // drop(caches);
         // fs::remove_dir_all(tmp_path).unwrap();
 
@@ -399,7 +398,6 @@ impl Pack {
     }
 
     /// Reconstruct the Delta Object based on the "base object"
-    ///
     fn rebuild_delta(mut delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
         const COPY_OFFSET_BYTES: u8 = 4;
@@ -474,7 +472,7 @@ impl Pack {
         delta_obj.obj_type = base_obj.obj_type; // Same as the Type of base object
         delta_obj.hash = utils::calculate_object_hash(delta_obj.obj_type, &delta_obj.data_decompress);
 
-        delta_obj//Canonical form
+        delta_obj //Canonical form (Complete Object)
     }
 }
 
@@ -489,7 +487,7 @@ mod tests {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
 
-    use crate::internal::pack::{Pack, utils};
+    use crate::internal::pack::Pack;
 
     #[test]
     fn test_pack_check_header() {
@@ -562,9 +560,9 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(2);
+        let mut p = Pack::default(); //Pack::new(2);
         let start = Instant::now();
-        p.decode(&mut buffered, 0, tmp.clone()).unwrap();
+        p.decode(&mut buffered, 0, tmp).unwrap();
         println!("Test took {:?}", start.elapsed());
     }
 
@@ -574,7 +572,6 @@ mod tests {
         source.push("tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack");
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
-        utils::create_empty_dir(&tmp).unwrap(); //must in single thread test
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
