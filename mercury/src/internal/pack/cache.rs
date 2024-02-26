@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
 use std::{ops::Deref, path::PathBuf};
+use std::path::Path;
 
 use crate::internal::pack::utils;
 use dashmap::{DashMap, DashSet};
@@ -140,8 +141,8 @@ impl Caches {
     }
 
     /// generate the tmp file path, hex string of the hash
-    fn generate_tmp_path(tmp_path: &PathBuf, hash: SHA1) -> PathBuf {
-        let mut path = tmp_path.clone();
+    fn generate_tmp_path(tmp_path: &Path, hash: SHA1) -> PathBuf {
+        let mut path = tmp_path.to_path_buf();
         path.push(hash.to_plain_str());
         path
     }
@@ -157,7 +158,7 @@ impl Caches {
     /// write the object to tmp file,
     /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
     // todo use another thread to do this latter
-    fn write_to_tmp(tmp_path: &PathBuf, hash: SHA1, obj: &CacheObject) {
+    fn write_to_tmp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) {
         let path = Self::generate_tmp_path(tmp_path, hash);
         let b = bincode::serialize(&obj).unwrap();
 
