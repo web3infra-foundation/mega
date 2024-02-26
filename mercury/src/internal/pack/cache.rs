@@ -52,7 +52,7 @@ impl HeapSize for CacheObject {
 }
 
 pub trait _Cache {
-    fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
+    fn new(mem_size: Option<usize>, tmp_path: Option<PathBuf>, thread_num:usize) -> Self
     where
         Self: Sized;
     fn get_hash(&self, offset: usize) -> Option<SHA1>;
@@ -172,7 +172,7 @@ impl Caches {
 impl _Cache for Caches {
     /// @param size: the size of the memory lru cache,
     /// @param tmp_path: the path to store the cache object in the tmp file
-    fn new(size: Option<usize>, tmp_path: Option<PathBuf>) -> Self
+    fn new(mem_size: Option<usize>, tmp_path: Option<PathBuf>, thread_num: usize) -> Self
     where
         Self: Sized,
     {
@@ -182,10 +182,10 @@ impl _Cache for Caches {
         Caches {
             map_offset: DashMap::new(),
             hash_set: DashSet::new(),
-            lru_cache: Mutex::new(LruCache::new(size.unwrap_or(0))),
-            mem_size: size.unwrap_or(0),
+            lru_cache: Mutex::new(LruCache::new(mem_size.unwrap_or(0))),
+            mem_size: mem_size.unwrap_or(0),
             tmp_path,
-            pool: ThreadPool::new(num_cpus::get() * 2),
+            pool: ThreadPool::new(thread_num),
         }
     }
 
@@ -368,7 +368,7 @@ mod test {
     #[test]
     fn test_cach_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        let cache = Caches::new(Some(2048), Some(source.clone().join("tests/.cache_tmp")));
+        let cache = Caches::new(Some(2048), Some(source.clone().join("tests/.cache_tmp")), 1);
         let a = CacheObject {
             data_decompress: vec![0; 1024],
             hash: SHA1::new(&String::from("a").into_bytes()),
