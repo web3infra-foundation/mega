@@ -26,16 +26,18 @@ use super::cache::_Cache;
 
 impl Default for Pack {
     fn default() -> Self {
-        Self::new()
+        Self::new(num_cpus::get())
     }
 }
 impl Pack {
-    pub fn new() -> Self {
+    /// @param thread_num: The number of threads to use for decoding and cache
+    /// for example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache)
+    pub fn new(thread_num: usize) -> Self {
         Pack {
             number: 0,
             signature: SHA1::default(),
             objects: Vec::new(),
-            pool: Arc::new(ThreadPool::new(num_cpus::get())),
+            pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
         }
     }
@@ -272,7 +274,7 @@ impl Pack {
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
         // use random subdirectory to avoid conflicts with other files
         let tmp_path = tmp_path.join(Uuid::new_v4().to_string());
-        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone())));
+        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
         
         let mut reader = Wrapper::new(io::BufReader::new(pack));
 
@@ -514,7 +516,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, bytes_read)) => {
@@ -534,7 +536,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
@@ -547,7 +549,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
@@ -576,7 +578,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         p.decode(&mut buffered, 1024*1024*20, tmp).unwrap();
     }
 }
