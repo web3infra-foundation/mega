@@ -8,7 +8,7 @@ pub mod wrapper;
 pub mod utils;
 pub mod cache;
 pub mod waitlist;
-
+pub mod cache_object;
 
 use venus::hash::SHA1;
 use threadpool::ThreadPool;
