@@ -15,7 +15,7 @@ use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
-use crate::internal::pack::cache::CacheObject;
+use crate::internal::pack::cache_object::CacheObject;
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
