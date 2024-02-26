@@ -4,6 +4,7 @@
 //!
 //!
 //!
+use std::fs;
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,21 +21,23 @@ use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack};
-
+use uuid::Uuid;
 use super::cache::_Cache;
 
 impl Default for Pack {
     fn default() -> Self {
-        Self::new()
+        Self::new(num_cpus::get())
     }
 }
 impl Pack {
-    pub fn new() -> Self {
+    /// @param thread_num: The number of threads to use for decoding and cache
+    /// for example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache)
+    pub fn new(thread_num: usize) -> Self {
         Pack {
             number: 0,
             signature: SHA1::default(),
             objects: Vec::new(),
-            pool: Arc::new(ThreadPool::new(num_cpus::get())),
+            pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
         }
     }
@@ -269,11 +272,13 @@ impl Pack {
     ///
     ///
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
-        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone())));
+        // use random subdirectory to avoid conflicts with other files
+        let tmp_path = tmp_path.join(Uuid::new_v4().to_string());
+        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
+        
+        let mut reader = Wrapper::new(io::BufReader::new(pack));
 
-        let mut render = Wrapper::new(io::BufReader::new(pack));
-
-        let result = Pack::check_header(&mut render);
+        let result = Pack::check_header(&mut reader);
         match result {
             Ok((object_num, _)) => {
                 self.number = object_num as usize;
@@ -288,7 +293,7 @@ impl Pack {
         let mut i = 1;
 
         while i <= self.number {
-            let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
+            let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
                     let caches = caches.clone();
@@ -335,9 +340,9 @@ impl Pack {
             i += 1;
         }
 
-        let render_hash = render.final_hash();
+        let render_hash = reader.final_hash();
         let mut trailer_buf = [0; 20];
-        render.read_exact(&mut trailer_buf).unwrap();
+        reader.read_exact(&mut trailer_buf).unwrap();
         self.signature = SHA1::from_bytes(trailer_buf.as_ref());
 
         if render_hash != self.signature {
@@ -348,7 +353,7 @@ impl Pack {
             )));
         }
 
-        let end = utils::is_eof(&mut render);
+        let end = utils::is_eof(&mut reader);
         if !end {
             return Err(GitError::InvalidPackFile(
                 "The pack file is not at the end".to_string()
@@ -362,6 +367,11 @@ impl Pack {
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
+
+        // todo: difficult to stop thread in cache, so we didn't remove the temp file temporarily
+        // drop(caches);
+        // fs::remove_dir_all(tmp_path).unwrap();
+
         Ok(())
     }
 
@@ -506,7 +516,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, bytes_read)) => {
@@ -526,7 +536,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
@@ -539,7 +549,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         p.decode(&mut buffered, 0, tmp).unwrap();
     }
 
@@ -552,9 +562,9 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::new(2);
         let start = Instant::now();
-        p.decode(&mut buffered, 1024 * 1024 * 0, tmp.clone()).unwrap();
+        p.decode(&mut buffered, 0, tmp.clone()).unwrap();
         println!("Test took {:?}", start.elapsed());
     }
 
@@ -568,7 +578,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::default();
         p.decode(&mut buffered, 1024*1024*20, tmp).unwrap();
     }
 }
