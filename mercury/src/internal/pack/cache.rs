@@ -32,7 +32,7 @@ pub trait _Cache {
 pub struct Caches {
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache
-    lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // !TODO: use SHA1 as key
+    lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache reqiure the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
     mem_size: usize,
     tmp_path: PathBuf,
     pool: ThreadPool,

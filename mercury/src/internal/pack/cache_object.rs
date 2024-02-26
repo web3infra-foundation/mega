@@ -38,6 +38,7 @@ impl HeapSize for CacheObject {
 }
 
 impl CacheObject {
+    /// Create a new CacheObject witch is not offset_delta or hash_delta
     pub fn new_for_undeltified(obj_type: ObjectType, data: Vec<u8>, offset: usize) -> Self {
         let hash = utils::calculate_object_hash(obj_type, &data);
         CacheObject {
@@ -49,6 +50,7 @@ impl CacheObject {
         }
     }
 
+    /// transform the CacheObject to venus::internal::pack::entry::Entry
     pub fn to_entry(&self) -> venus::internal::pack::entry::Entry {
         match self.obj_type {
             ObjectType::Blob | ObjectType::Tree | ObjectType::Commit | ObjectType::Tag => {
