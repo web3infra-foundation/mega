@@ -368,9 +368,9 @@ impl Pack {
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
 
-        // drop cache and delete temp directory
-        drop(caches);
-        fs::remove_dir_all(&tmp_path).unwrap();
+        // todo: difficult to stop thread in cache, so we didn't remove the temp file temporarily
+        // drop(caches);
+        // fs::remove_dir_all(tmp_path).unwrap();
 
         Ok(())
     }
@@ -562,9 +562,9 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new();
+        let mut p = Pack::new(2);
         let start = Instant::now();
-        p.decode(&mut buffered, 1024 * 1024 * 20, tmp.clone()).unwrap();
+        p.decode(&mut buffered, 0, tmp.clone()).unwrap();
         println!("Test took {:?}", start.elapsed());
     }
 
