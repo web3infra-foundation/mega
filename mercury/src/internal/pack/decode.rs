@@ -4,6 +4,7 @@
 //!
 //!
 //!
+use std::fs;
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,7 +21,7 @@ use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack};
-
+use uuid::Uuid;
 use super::cache::_Cache;
 
 impl Default for Pack {
@@ -269,11 +270,13 @@ impl Pack {
     ///
     ///
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
+        // use random subdirectory to avoid conflicts with other files
+        let tmp_path = tmp_path.join(Uuid::new_v4().to_string());
         let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone())));
+        
+        let mut reader = Wrapper::new(io::BufReader::new(pack));
 
-        let mut render = Wrapper::new(io::BufReader::new(pack));
-
-        let result = Pack::check_header(&mut render);
+        let result = Pack::check_header(&mut reader);
         match result {
             Ok((object_num, _)) => {
                 self.number = object_num as usize;
@@ -288,7 +291,7 @@ impl Pack {
         let mut i = 1;
 
         while i <= self.number {
-            let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut render, &mut offset);
+            let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
                     let caches = caches.clone();
@@ -335,9 +338,9 @@ impl Pack {
             i += 1;
         }
 
-        let render_hash = render.final_hash();
+        let render_hash = reader.final_hash();
         let mut trailer_buf = [0; 20];
-        render.read_exact(&mut trailer_buf).unwrap();
+        reader.read_exact(&mut trailer_buf).unwrap();
         self.signature = SHA1::from_bytes(trailer_buf.as_ref());
 
         if render_hash != self.signature {
@@ -348,7 +351,7 @@ impl Pack {
             )));
         }
 
-        let end = utils::is_eof(&mut render);
+        let end = utils::is_eof(&mut reader);
         if !end {
             return Err(GitError::InvalidPackFile(
                 "The pack file is not at the end".to_string()
@@ -362,6 +365,11 @@ impl Pack {
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
+
+        // drop cache and delete temp directory
+        drop(caches);
+        fs::remove_dir_all(&tmp_path).unwrap();
+
         Ok(())
     }
 
@@ -554,7 +562,7 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new();
         let start = Instant::now();
-        p.decode(&mut buffered, 1024 * 1024 * 0, tmp.clone()).unwrap();
+        p.decode(&mut buffered, 1024 * 1024 * 20, tmp.clone()).unwrap();
         println!("Test took {:?}", start.elapsed());
     }
 
