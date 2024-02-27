@@ -2,6 +2,7 @@
 
 pub mod prelude;
 
+pub mod db_enums;
 pub mod git_blob;
 pub mod git_commit;
 pub mod git_issue;
@@ -20,4 +21,3 @@ pub mod mega_snapshot;
 pub mod mega_tag;
 pub mod mega_tree;
 pub mod raw_objects;
-pub mod db_enums;

@@ -1,4 +1,4 @@
-//! The Commit object is  is a data structure used to represent a specific version of a project's
+//! The Commit object is a data structure used to represent a specific version of a project's
 //! files at a particular point in time. In Git, the commit object is a fundamental data structure
 //! that is used to track changes to a repository's files over time. Whenever a developer makes
 //! changes to the files in a repository, they create a new commit object that records those changes.
@@ -90,14 +90,6 @@ impl Commit {
 }
 
 impl ObjectTrait for Commit {
-    fn get_type(&self) -> ObjectType {
-        ObjectType::Commit
-    }
-
-    fn get_size(&self) -> usize {
-        todo!()
-    }
-
     fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
     where
         Self: Sized,
@@ -109,7 +101,8 @@ impl ObjectTrait for Commit {
             String::from_utf8(commit[5..tree_end].to_owned())
                 .unwrap()
                 .as_str(),
-        ).unwrap();
+        )
+        .unwrap();
         commit = commit[tree_end + 1..].to_vec();
 
         // Find the parent commit ids and remove them from the data
@@ -122,7 +115,8 @@ impl ObjectTrait for Commit {
                     String::from_utf8(commit[parent + 7..parent + parent_end].to_owned())
                         .unwrap()
                         .as_str(),
-                ).unwrap()
+                )
+                .unwrap()
             })
             .collect();
         commit = commit[author_begin..].to_vec();
@@ -147,5 +141,13 @@ impl ObjectTrait for Commit {
             committer,
             message,
         })
+    }
+
+    fn get_type(&self) -> ObjectType {
+        ObjectType::Commit
+    }
+
+    fn get_size(&self) -> usize {
+        todo!()
     }
 }

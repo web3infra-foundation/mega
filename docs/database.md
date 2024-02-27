@@ -140,9 +140,9 @@ erDiagram
 | ---------- | ----------- | ----------- | ------------------------------------ |
 | id         | BIGINT      | PRIMARY KEY |                                      |
 | tree_id    | VARCHAR(40) | NOT NULL    |                                      |
-| sub_trees  | TEXT[]      |             | {name, sha1, mode, repo_id}          |
+| sub_trees  | TEXT[]      | NOT NULL    | {name, sha1, mode, repo_id}          |
 | import_dir | BOOLEAN     | NOT NULL    | point to git_tree if it's import dir |
-| mr_id      | VARCHAR(20) |             |                                      |
+| mr_id      | VARCHAR(20) | NOT NULL    |                                      |
 | status     | VARCHAR(20) | NOT NULL    |                                      |
 | size       | INT         | NOT NULL    |                                      |
 | full_path  | TEXT        | NOT NULL    |                                      |
