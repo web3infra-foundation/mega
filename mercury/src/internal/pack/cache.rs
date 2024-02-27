@@ -100,7 +100,12 @@ impl Caches {
         fs::rename(path, final_path)?;
         Ok(())
     }
+
+    pub fn queued_tasks(&self) -> usize {
+        self.pool.queued_count()
+    }
 }
+
 
 impl _Cache for Caches {
     /// @param size: the size of the memory lru cache,
@@ -139,10 +144,10 @@ impl _Cache for Caches {
 
         let tmp_path = self.tmp_path.clone();
         let obj_clone = obj_arc.clone();
+        // TODO limit queue size, achieve balance between with wait list
         self.pool.execute(move || {
             Self::write_to_tmp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
         });
-
         obj_arc
     }
 
