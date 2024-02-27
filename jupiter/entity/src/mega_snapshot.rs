@@ -9,7 +9,9 @@ pub struct Model {
     pub id: i64,
     #[sea_orm(column_type = "Text", unique)]
     pub path: String,
-    pub import_dir: Option<bool>,
+    #[sea_orm(column_type = "Text")]
+    pub name: String,
+    pub import_dir: bool,
     pub tree_id: Option<String>,
     pub sub_trees: Option<Vec<String>>,
     pub commit_id: Option<String>,

@@ -2,6 +2,8 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::db_enums::MergeStatus;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "mega_tree")]
 pub struct Model {
@@ -9,10 +11,10 @@ pub struct Model {
     pub id: i64,
     #[sea_orm(unique)]
     pub tree_id: String,
-    pub sub_trees: Option<Vec<String>>,
-    pub import_dir: Option<bool>,
-    pub mr_id: Option<String>,
-    pub status: String,
+    pub sub_trees: Vec<String>,
+    pub import_dir: bool,
+    pub mr_id: String,
+    pub status: MergeStatus,
     pub size: i32,
     #[sea_orm(column_type = "Text")]
     pub full_path: String,

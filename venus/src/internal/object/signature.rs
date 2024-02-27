@@ -129,10 +129,12 @@ impl Signature {
 
         // Parse the timestamp integer from the bytes up to the second space byte.
         // If the parsing fails, unwrap will panic.
-        let timestamp = unsafe { sign[0..timestamp_split]
-            .to_str_unchecked()
-            .parse::<usize>()
-            .unwrap() };
+        let timestamp = unsafe {
+            sign[0..timestamp_split]
+                .to_str_unchecked()
+                .parse::<usize>()
+                .unwrap()
+        };
 
         // Parse the timezone string from the bytes after the second space byte.
         // If the parsing fails, unwrap will panic.

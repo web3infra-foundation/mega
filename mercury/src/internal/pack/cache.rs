@@ -1,9 +1,9 @@
 //!
-//! 
-//! 
-//! 
-//! 
-//! 
+//!
+//!
+//!
+//!
+//!
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -30,18 +30,13 @@ pub struct Caches {
     pub tmp_path: PathBuf,
 }
 
-
-impl CacheObject {
-    
-}
-
+impl CacheObject {}
 
 impl Caches {
-
     ///
-    /// 
-    /// 
-    /// 
+    ///
+    ///
+    ///
     pub fn insert(&mut self, offset: usize, object: CacheObject) {
         self.map_offset.insert(offset, object);
 
