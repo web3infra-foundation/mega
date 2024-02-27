@@ -140,7 +140,7 @@ impl _Cache for Caches {
         let tmp_path = self.tmp_path.clone();
         let obj_clone = obj_arc.clone();
         self.pool.execute(move || {
-            Self::write_to_tmp(&tmp_path, hash, &obj_clone).unwrap();
+            Self::write_to_tmp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
         });
 
         obj_arc
