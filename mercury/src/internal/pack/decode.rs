@@ -7,6 +7,7 @@
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use flate2::bufread::ZlibDecoder;
 use threadpool::ThreadPool;
@@ -37,7 +38,7 @@ impl Pack {
             signature: SHA1::default(),
             objects: Vec::new(),
             pool: Arc::new(ThreadPool::new(thread_num)),
-            waitlist: Arc::new(Waitlist::new()),
+            waitlist: Arc::new(Waitlist::new(0)),
         }
     }
 
@@ -271,6 +272,10 @@ impl Pack {
     ///
     ///
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
+
+        #[cfg(debug_assertions)]
+        let time = Instant::now();
+        
         // use random subdirectory to avoid conflicts with other files
         let tmp_path = tmp_path.join(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
         let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
@@ -292,7 +297,13 @@ impl Pack {
         let mut i = 1;
 
         while i <= self.number {
-            while self.pool.queued_count() > 1000 { // TODO: replace with memory related condition
+            #[cfg(debug_assertions)]
+            {
+                if i % 10000 == 0 {
+                    println!("excute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {}",time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks());
+                }
+            }
+            while self.pool.queued_count() > 10000 { // TODO: replace with memory related condition
                 std::thread::sleep(std::time::Duration::from_millis(100));  
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
@@ -371,7 +382,7 @@ impl Pack {
         assert_eq!(self.number, caches.total_inserted());
 
         // todo: difficult to stop threads in cache, so we didn't remove the temp file temporarily
-        // drop(caches);
+        drop(caches);
         // fs::remove_dir_all(tmp_path).unwrap();
 
         Ok(())
