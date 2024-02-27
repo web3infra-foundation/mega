@@ -15,7 +15,7 @@ serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
-flate2 = { workspace = true }
+flate2 = { workspace = true , features = ["zlib"] }
 tracing = { workspace = true }
 sha1 = { workspace = true }
 colored = { workspace = true }
