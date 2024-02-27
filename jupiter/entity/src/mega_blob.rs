@@ -2,6 +2,8 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::db_enums::MergeStatus;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "mega_blob")]
 pub struct Model {
@@ -11,7 +13,7 @@ pub struct Model {
     pub blob_id: String,
     pub commit_id: String,
     pub mr_id: Option<String>,
-    pub status: String,
+    pub status: MergeStatus,
     pub size: i32,
     #[sea_orm(column_type = "Text")]
     pub full_path: String,

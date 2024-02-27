@@ -17,7 +17,7 @@
 //! $ echo "Hello, world!" | git hash-object -w --stdin
 //! ```
 //!
-//! This will output a SHA-1 hash, which is the ID of the newly created blob object.
+//! This will output an SHA-1 hash, which is the ID of the newly created blob object.
 //! The contents of the blob object would look something like this:
 //!
 //! ```bash
@@ -30,9 +30,8 @@
 use std::fmt::Display;
 
 use crate::errors::GitError;
-use crate::internal::object::ObjectTrait;
 use crate::internal::object::types::ObjectType;
-
+use crate::internal::object::ObjectTrait;
 
 /// **The Blob Object**
 ///
@@ -58,8 +57,13 @@ impl Display for Blob {
 
 impl ObjectTrait for Blob {
     /// Creates a new object from a byte slice.
-    fn from_bytes(data: Vec<u8>) -> Result<Self, GitError> where Self: Sized {
-        Ok(Blob{data: data.to_vec()})
+    fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
+    where
+        Self: Sized,
+    {
+        Ok(Blob {
+            data: data.to_vec(),
+        })
     }
 
     /// Returns the Blob type
@@ -71,4 +75,3 @@ impl ObjectTrait for Blob {
         self.data.len()
     }
 }
-
