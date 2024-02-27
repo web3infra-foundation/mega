@@ -292,6 +292,9 @@ impl Pack {
         let mut i = 1;
 
         while i <= self.number {
+            while self.pool.queued_count() > 1000 { // TODO: replace with memory related condition
+                std::thread::sleep(std::time::Duration::from_millis(100));  
+            }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
