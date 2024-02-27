@@ -157,17 +157,17 @@ impl TreeItem {
     ///
     /// # Example
     /// ```rust
-    /// use git::internal::object::tree::{TreeItem, TreeItemMode};
-    /// use git::hash::Hash;
+    /// use venus::internal::object::tree::{TreeItem, TreeItemMode};
+    /// use venus::hash::SHA1;
     ///
     /// // Create a empty TreeItem with the default Hash
-    /// let default_item = TreeItem::new(TreeItemMode::Blob, Hash::default(), String::new());
+    /// let default_item = TreeItem::new(TreeItemMode::Blob, SHA1::default(), String::new());
     ///
     /// // Create a blob TreeItem with a custom Hash, and file name
-    /// let file_item = TreeItem::new(TreeItemMode::Blob, Hash::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("hello.txt"));
+    /// let file_item = TreeItem::new(TreeItemMode::Blob, SHA1::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("hello.txt"));
     ///
     /// // Create a tree TreeItem with a custom Hash, and directory name
-    /// let dir_item = TreeItem::new(TreeItemMode::Tree, Hash::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("data"));
+    /// let dir_item = TreeItem::new(TreeItemMode::Tree, SHA1::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("data"));
     /// ```
     #[allow(unused)]
     pub fn new(mode: TreeItemMode, id: SHA1, name: String) -> Self {
@@ -198,12 +198,12 @@ impl TreeItem {
 
     /// Convert a TreeItem to a byte vector
     /// ```rust
-    /// use git::internal::object::tree::{TreeItem, TreeItemMode};
-    /// use git::hash::Hash;
+    /// use venus::internal::object::tree::{TreeItem, TreeItemMode};
+    /// use venus::hash::SHA1;
     ///
     /// let tree_item = TreeItem::new(
     ///     TreeItemMode::Blob,
-    ///     Hash::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
+    ///     SHA1::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
     ///     "hello-world".to_string(),
     /// );
     ///
@@ -225,7 +225,6 @@ impl TreeItem {
 
 /// A tree object is a Git object that represents a directory. It contains a list of entries, one
 /// for each file or directory in the tree.
-#[allow(unused)]
 #[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone)]
 pub struct Tree {
     pub id: SHA1,
@@ -280,10 +279,6 @@ impl Tree {
 }
 
 impl ObjectTrait for Tree {
-    fn get_type(&self) -> ObjectType {
-        ObjectType::Tree
-    }
-
     fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
     where
         Self: Sized,
@@ -302,6 +297,10 @@ impl ObjectTrait for Tree {
             id: SHA1([0u8; 20]),
             tree_items,
         })
+    }
+
+    fn get_type(&self) -> ObjectType {
+        ObjectType::Tree
     }
 
     fn get_size(&self) -> usize {

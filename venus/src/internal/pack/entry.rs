@@ -13,4 +13,3 @@ pub struct Entry {
     pub data: Vec<u8>,
     pub hash: Option<SHA1>,
 }
-
