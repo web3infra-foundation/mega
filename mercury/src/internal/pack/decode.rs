@@ -560,7 +560,8 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::default(); //Pack::new(2);
+        // let mut p = Pack::default(); //Pack::new(2);
+        let mut p = Pack::new(20);
         let start = Instant::now();
         p.decode(&mut buffered, 0, tmp).unwrap();
         println!("Test took {:?}", start.elapsed());
