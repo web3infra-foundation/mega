@@ -38,7 +38,7 @@ impl Pack {
             signature: SHA1::default(),
             objects: Vec::new(),
             pool: Arc::new(ThreadPool::new(thread_num)),
-            waitlist: Arc::new(Waitlist::new(0)),
+            waitlist: Arc::new(Waitlist::new()),
         }
     }
 
@@ -300,12 +300,12 @@ impl Pack {
             #[cfg(debug_assertions)]
             {
                 if i % 10000 == 0 {
-                    println!("excute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {}",time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks());
+                    println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {}",time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks());
                 }
             }
-            while self.pool.queued_count() > 10000 { // TODO: replace with memory related condition
-                std::thread::sleep(std::time::Duration::from_millis(100));  
-            }
+            // while self.pool.queued_count() > 10000 { // TODO: replace with memory related condition
+            //     std::thread::sleep(std::time::Duration::from_millis(100));
+            // }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
@@ -382,7 +382,7 @@ impl Pack {
         assert_eq!(self.number, caches.total_inserted());
 
         // todo: difficult to stop threads in cache, so we didn't remove the temp file temporarily
-        drop(caches);
+        // drop(caches);
         // fs::remove_dir_all(tmp_path).unwrap();
 
         Ok(())
