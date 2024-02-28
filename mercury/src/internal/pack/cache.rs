@@ -18,7 +18,7 @@ use threadpool::ThreadPool;
 use venus::hash::SHA1;
 
 pub trait _Cache {
-    fn new(mem_size: Option<usize>, tmp_path: Option<PathBuf>, thread_num: usize) -> Self
+    fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
     where
         Self: Sized;
     fn get_hash(&self, offset: usize) -> Option<SHA1>;
@@ -105,12 +105,10 @@ impl Caches {
 impl _Cache for Caches {
     /// @param size: the size of the memory lru cache. **None means no limit**
     /// @param tmp_path: the path to store the cache object in the tmp file
-    fn new(mem_size: Option<usize>, tmp_path: Option<PathBuf>, thread_num: usize) -> Self
+    fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
     where
         Self: Sized,
     {
-        // default tmp_path is .cache_tmp
-        let tmp_path = tmp_path.unwrap_or(PathBuf::from(".cache_tmp/"));
         fs::create_dir_all(&tmp_path).unwrap();
 
         Caches {
@@ -192,7 +190,7 @@ mod test {
     #[test]
     fn test_cach_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        let cache = Caches::new(Some(2048), Some(source.clone().join("tests/.cache_tmp")), 1);
+        let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
         let a = CacheObject {
             data_decompress: vec![0; 1024],
             hash: SHA1::new(&String::from("a").into_bytes()),
