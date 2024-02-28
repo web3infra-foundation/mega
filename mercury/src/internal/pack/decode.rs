@@ -24,21 +24,24 @@ use crate::internal::pack::{utils, Pack};
 use uuid::Uuid;
 use super::cache::_Cache;
 
-impl Default for Pack {
-    fn default() -> Self {
-        Self::new(num_cpus::get())
-    }
-}
+
 impl Pack {
-    /// @param thread_num: The number of threads to use for decoding and cache
+    /// @param thread_num: The number of threads to use for decoding and cache, None mean use the number of logical CPUs
+    ///     the thread_num can't be zero, panic if it is zero
+    /// @param mem_size: The maximum size of the memory cache in bytes, or None for unlimited
+    /// @param temp_path: The path to a directory for temporary files, default is ./.cache_temp
     /// for example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache)
-    pub fn new(thread_num: usize) -> Self {
+    pub fn new(thread_num: Option<usize>, mem_size: Option<usize>, temp_path: Option<PathBuf>) -> Self {
+        let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
+        temp_path.push(Uuid::new_v4().to_string());
+        let thread_num = thread_num.unwrap_or_else(num_cpus::get);
         Pack {
             number: 0,
             signature: SHA1::default(),
             objects: Vec::new(),
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
+            caches:  Arc::new(Caches::new(mem_size, temp_path, thread_num)),
         }
     }
 
@@ -271,15 +274,15 @@ impl Pack {
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
     ///
     ///
-    pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), mem_size: usize, tmp_path: PathBuf) -> Result<(), GitError> {
+    pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
 
         #[cfg(debug_assertions)]
         let time = Instant::now();
         
-        // use random subdirectory to avoid conflicts with other files
-        let tmp_path = tmp_path.join(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
-        let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
-        
+        // // use random subdirectory to avoid conflicts with other files
+        // let tmp_path = tmp_path.join(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
+        // let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
+        let caches = self.caches.clone();
         let mut reader = Wrapper::new(io::BufReader::new(pack));
 
         let result = Pack::check_header(&mut reader);
@@ -303,9 +306,9 @@ impl Pack {
                     println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {}",time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks());
                 }
             }
-            // while self.pool.queued_count() > 10000 { // TODO: replace with memory related condition
-            //     std::thread::sleep(std::time::Duration::from_millis(100));
-            // }
+            while self.pool.queued_count() > 2000 { // TODO: replace with memory related condition
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
@@ -528,7 +531,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack::default();
+        let mut p = Pack::new(None, None, None);
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, bytes_read)) => {
@@ -548,8 +551,8 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::default();
-        p.decode(&mut buffered, 0, tmp).unwrap();
+        let mut p = Pack::new(None, Some(0), Some(tmp));
+        p.decode(&mut buffered).unwrap();
     }
 
     #[test]
@@ -561,8 +564,8 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::default();
-        p.decode(&mut buffered, 0, tmp).unwrap();
+        let mut p = Pack::new(None, Some(0), Some(tmp));
+        p.decode(&mut buffered).unwrap();
     }
 
     #[test]
@@ -575,9 +578,9 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(20);
+        let mut p = Pack::new(Some(20), None, Some(tmp));
         let start = Instant::now();
-        p.decode(&mut buffered, 0, tmp).unwrap();
+        p.decode(&mut buffered).unwrap();
         println!("Test took {:?}", start.elapsed());
     }
 
@@ -590,7 +593,7 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::default();
-        p.decode(&mut buffered, 1024*1024*20, tmp).unwrap();
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        p.decode(&mut buffered).unwrap();
     }
 }
