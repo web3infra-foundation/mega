@@ -18,7 +18,7 @@ use threadpool::ThreadPool;
 use venus::hash::SHA1;
 
 pub trait _Cache {
-    fn new(mem_size: Option<usize>, tmp_path: Option<PathBuf>, thread_num: usize) -> Self
+    fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
     where
         Self: Sized;
     fn get_hash(&self, offset: usize) -> Option<SHA1>;
@@ -33,7 +33,7 @@ pub struct Caches {
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache reqiure the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
-    mem_size: usize,
+    mem_size: Option<usize>,
     tmp_path: PathBuf,
     pool: ThreadPool,
 }
@@ -46,16 +46,12 @@ impl Caches {
     }
 
     /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
-    /// block to get cache item. **invoker should ensure the hash is in the cache, or it will block forever**
-    fn get_without_check(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
-        if let Some(obj) = self.try_get(hash) {
-            return Ok(obj);
-        }
-
+    /// fall back to temp to get item. **invoker should ensure the hash is in the cache, or it will block forever**
+    fn get_fallback(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
         // read from tmp file
         let obj = {
             loop {
-                match self.read_from_tmp(hash) {
+                match self.read_from_temp(hash) {
                     Ok(x) => break x,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
                         sleep(std::time::Duration::from_millis(10)); //TODO 有没有更好办法
@@ -72,15 +68,15 @@ impl Caches {
         Ok(x.0)
     }
 
-    /// generate the tmp file path, hex string of the hash
-    fn generate_tmp_path(tmp_path: &Path, hash: SHA1) -> PathBuf {
+    /// generate the temp file path, hex string of the hash
+    fn generate_temp_path(tmp_path: &Path, hash: SHA1) -> PathBuf {
         let mut path = tmp_path.to_path_buf();
         path.push(hash.to_plain_str());
         path
     }
 
-    fn read_from_tmp(&self, hash: SHA1) -> io::Result<CacheObject> {
-        let path = Self::generate_tmp_path(&self.tmp_path, hash);
+    fn read_from_temp(&self, hash: SHA1) -> io::Result<CacheObject> {
+        let path = Self::generate_temp_path(&self.tmp_path, hash);
         let b = fs::read(path)?;
         let obj: CacheObject =
             bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
@@ -90,8 +86,8 @@ impl Caches {
     /// write the object to tmp file,
     /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
     // todo use another thread to do this latter
-    fn write_to_tmp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) -> io::Result<()> {
-        let path = Self::generate_tmp_path(tmp_path, hash);
+    fn write_to_temp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) -> io::Result<()> {
+        let path = Self::generate_temp_path(tmp_path, hash);
         let b = bincode::serialize(&obj).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
         let path = path.with_extension("temp");
@@ -106,22 +102,20 @@ impl Caches {
     }
 }
 
-
 impl _Cache for Caches {
-    /// @param size: the size of the memory lru cache,
+    /// @param size: the size of the memory lru cache. **None means no limit**
     /// @param tmp_path: the path to store the cache object in the tmp file
-    fn new(mem_size: Option<usize>, tmp_path: Option<PathBuf>, thread_num: usize) -> Self
+    fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
     where
         Self: Sized,
     {
-        let tmp_path = tmp_path.unwrap_or(PathBuf::from(".cache_tmp/"));
         fs::create_dir_all(&tmp_path).unwrap();
-        println!("tmp_path = {:?}", tmp_path.canonicalize().unwrap());
+
         Caches {
             map_offset: DashMap::new(),
             hash_set: DashSet::new(),
-            lru_cache: Mutex::new(LruCache::new(mem_size.unwrap_or(0))),
-            mem_size: mem_size.unwrap_or(0),
+            lru_cache: Mutex::new(LruCache::new(mem_size.unwrap_or(usize::MAX))),
+            mem_size,
             tmp_path,
             pool: ThreadPool::new(thread_num),
         }
@@ -142,12 +136,15 @@ impl _Cache for Caches {
         self.hash_set.insert(hash);
         self.map_offset.insert(offset, hash);
 
-        let tmp_path = self.tmp_path.clone();
-        let obj_clone = obj_arc.clone();
-        // TODO limit queue size, achieve balance between with wait list
-        self.pool.execute(move || {
-            Self::write_to_tmp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
-        });
+        if self.mem_size.is_some() {
+            let tmp_path = self.tmp_path.clone();
+            let obj_clone = obj_arc.clone();
+
+            // TODO limit queue size, achieve balance between with wait list
+            self.pool.execute(move || {
+                Self::write_to_temp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
+            });
+        }
         obj_arc
     }
 
@@ -161,10 +158,16 @@ impl _Cache for Caches {
     fn get_by_hash(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         // check if the hash is in the cache( lru or tmp file)
         if self.hash_set.contains(&hash) {
-            match self.get_without_check(hash) {
-                Ok(obj) => Some(obj),
-                Err(_) => {
-                    panic!("cache error!");
+            match self.try_get(hash) {
+                Some(x) => Some(x),
+                None => {
+                    if self.mem_size.is_none() {
+                        panic!("should not be here when mem_size is not set")
+                    }
+                    match self.get_fallback(hash) {
+                        Ok(x) => Some(x),
+                        Err(_) => None,
+                    }
                 }
             }
         } else {
@@ -187,7 +190,7 @@ mod test {
     #[test]
     fn test_cach_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        let cache = Caches::new(Some(2048), Some(source.clone().join("tests/.cache_tmp")), 1);
+        let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
         let a = CacheObject {
             data_decompress: vec![0; 1024],
             hash: SHA1::new(&String::from("a").into_bytes()),

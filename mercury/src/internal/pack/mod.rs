@@ -16,6 +16,8 @@ use std::sync::Arc;
 use venus::internal::object::ObjectTrait;
 use crate::internal::pack::waitlist::Waitlist;
 
+use self::cache::Caches;
+
 ///
 /// 
 /// 
@@ -25,7 +27,8 @@ pub struct Pack {
     pub signature: SHA1,
     pub objects: Vec<Box<dyn ObjectTrait>>,
     pub pool: Arc<ThreadPool>,
-    pub waitlist: Arc<Waitlist>
+    pub waitlist: Arc<Waitlist>,
+    pub caches: Arc<Caches>,
 }
 
 #[cfg(test)]
