@@ -145,6 +145,9 @@ impl _Cache for Caches {
             let obj_clone = obj_arc.clone();
 
             // TODO limit queue size, achieve balance between with wait list
+            while self.pool.queued_count() > 1000{
+                sleep(std::time::Duration::from_millis(10));
+            }
             self.pool.execute(move || {
                 Self::write_to_temp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
             });

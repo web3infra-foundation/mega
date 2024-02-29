@@ -306,9 +306,9 @@ impl Pack {
                     println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {}",time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks());
                 }
             }
-            // while self.pool.queued_count() > 2000 { // TODO: replace with memory related condition
-            //     std::thread::sleep(std::time::Duration::from_millis(100));
-            // }
+            while self.pool.queued_count() > 200 { // TODO: replace with memory related condition
+                std::thread::yield_now();
+            }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
