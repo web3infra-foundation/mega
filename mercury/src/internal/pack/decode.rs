@@ -306,9 +306,9 @@ impl Pack {
                     println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {}",time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks());
                 }
             }
-            while self.pool.queued_count() > 2000 { // TODO: replace with memory related condition
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
+            // while self.pool.queued_count() > 2000 { // TODO: replace with memory related condition
+            //     std::thread::sleep(std::time::Duration::from_millis(100));
+            // }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
@@ -582,7 +582,7 @@ mod tests {
         let start = Instant::now();
         p.decode(&mut buffered).unwrap();
         println!("Test took {:?}", start.elapsed());
-    }
+    } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 
     #[test]
     fn test_pack_decode_with_delta_without_ref() {

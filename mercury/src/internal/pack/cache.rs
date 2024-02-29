@@ -32,6 +32,10 @@ pub trait _Cache {
 pub struct Caches {
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache
+    // dropping large lru cache will take a long time on Windows without multi-thread IO
+    // because "multi-thread IO" clone Arc<CacheObject>, so it won't be dropped in the main thread,
+    // and `CacheObjects` will be killed by OS after Process ends abnormally
+    // Solution: use `mimalloc`
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache reqiure the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
     mem_size: Option<usize>,
     tmp_path: PathBuf,
