@@ -73,6 +73,7 @@ impl From<IoError> for BuildError {
 fn vcpkg_init() {
     let library = vcpkg::Config::new()
         .emit_includes(true)
+        .target_triplet("x64-windows-static")
         .find_package("libiconv");
 
     match library {
