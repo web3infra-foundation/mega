@@ -10,6 +10,7 @@ use rusty_vault::{
     http::sys::InitResponse,
     storage::{barrier_aes_gcm, physical},
 };
+use zeroize::Zeroizing;
 
 pub mod command;
 pub mod crypt;
@@ -66,10 +67,7 @@ pub fn load_core(work_dir: &Path) -> (Arc<RwLock<Core>>, Config) {
 /// and writes the generated keys to a secrets file.
 pub fn init_rv_core(work_dir: Option<&Path>) {
     // Define paths for configuration and secrets
-    let path = match work_dir {
-        Some(path) => path,
-        None => Path::new(WORK_DIR_PATH_DEFAULT),
-    };
+    let path = work_dir.unwrap_or_else(|| Path::new(WORK_DIR_PATH_DEFAULT));
     // let path = ;
     let config_path = path.join("config.hcl");
     let secrets_path = path.join("secrets");
@@ -133,10 +131,7 @@ pub fn init_rv_core(work_dir: Option<&Path>) {
 /// after successful unsealing.
 pub fn unseal_rv_core(work_dir: Option<&Path>) -> (Arc<RwLock<Core>>, String) {
     // Define paths for secrets
-    let path = match work_dir {
-        Some(path) => path,
-        None => Path::new(WORK_DIR_PATH_DEFAULT),
-    };
+    let path = work_dir.unwrap_or_else(|| Path::new(WORK_DIR_PATH_DEFAULT));
     // let path = Path::new(WORK_DIR_PATH_DEFAULT);
     let secrets_path = path.join("secrets");
 
@@ -152,11 +147,13 @@ pub fn unseal_rv_core(work_dir: Option<&Path>) -> (Arc<RwLock<Core>>, String) {
     let init_response: InitResponse =
         serde_json::from_str(&fs::read_to_string(secrets_path).unwrap()).unwrap();
     let init_result = InitResult {
-        secret_shares: init_response
-            .keys
-            .iter()
-            .map(|key| hex::decode(key).unwrap())
-            .collect(),
+        secret_shares: Zeroizing::new(
+            init_response
+                .keys
+                .iter()
+                .map(|key| hex::decode(key).unwrap())
+                .collect(),
+        ),
         root_token: init_response.root_token,
     };
 
