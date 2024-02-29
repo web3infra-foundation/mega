@@ -14,7 +14,7 @@ use venus::{
 
 use crate::{
     raw_storage::{self, RawStorage},
-    storage::StorageProvider,
+    storage::GitStorageProvider,
 };
 
 pub struct GitStorage {
@@ -22,7 +22,7 @@ pub struct GitStorage {
 }
 
 #[async_trait]
-impl StorageProvider for GitStorage {
+impl GitStorageProvider for GitStorage {
     async fn save_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
         self.raw_storage
             .put_ref(&repo.repo_name, &refs.ref_name, &refs.new_id)

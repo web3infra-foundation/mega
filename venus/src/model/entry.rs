@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use common::utils::generate_id;
-use db_entity::{db_enums::StorageType, raw_objects};
+use callisto::{db_enums::StorageType, raw_objects};
 
 use crate::{
     hash::SHA1,

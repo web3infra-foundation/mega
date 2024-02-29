@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use common::errors::MegaError;
-use db_entity::db_enums::StorageType;
+use callisto::db_enums::StorageType;
 
 use crate::raw_storage::RawStorage;
 

@@ -1,4 +1,4 @@
-use db_entity::git_repo;
+use callisto::git_repo;
 
 use crate::internal::repo::Repo;
 

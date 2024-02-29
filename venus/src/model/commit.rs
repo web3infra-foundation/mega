@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use common::utils::generate_id;
-use db_entity::{db_enums::MergeStatus, git_commit, mega_commit};
+use callisto::{db_enums::MergeStatus, git_commit, mega_commit};
 
 use crate::{
     hash::SHA1,

@@ -3,7 +3,9 @@
 //! 
 //! 
 
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
+
+use flate2::{write::ZlibEncoder, Compression};
 
 
 const TYPE_BITS: u8 = 3;
@@ -92,6 +94,14 @@ pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> io::Result<[u8; N]
     stream.read_exact(&mut bytes)?;
 
     Ok(bytes)
+}
+
+
+pub fn compress_zlib(data: &[u8]) -> io::Result<Vec<u8>> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(data)?;
+    let compressed_data = encoder.finish()?;
+    Ok(compressed_data)
 }
 
 

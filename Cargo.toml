@@ -15,10 +15,11 @@ members = [
     "delta",
     "mercury",
     "jupiter",
-    "jupiter/entity", 
+    "jupiter/callisto",
     "venus",
+    "ganymede",
 ]
-exclude = ["mda", "craft", "fuse"]
+exclude = ["craft", "fuse"]
 
 [dependencies]
 gateway = { path = "gateway" }

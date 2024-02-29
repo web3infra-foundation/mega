@@ -12,7 +12,6 @@ pub struct Model {
     #[sea_orm(unique)]
     pub tree_id: String,
     pub sub_trees: Vec<String>,
-    pub import_dir: bool,
     pub mr_id: String,
     pub status: MergeStatus,
     pub size: i32,

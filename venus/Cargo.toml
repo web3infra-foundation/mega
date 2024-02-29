@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../common" }
-db_entity = { path = "../jupiter/entity" }
+callisto = { path = "../jupiter/callisto" }
 sha1_smol = "1.0.0"
 
 serde = { workspace = true, features = ["derive"] }
