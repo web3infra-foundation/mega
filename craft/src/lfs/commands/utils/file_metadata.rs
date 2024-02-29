@@ -66,10 +66,34 @@ pub mod metadata_same{
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub mod metadata_same{
+    use std::{fs, io};
+    use std::path::Path;
+    use std::os::unix::fs::MetadataExt;
+    fn get_metadata_or_parent(path: &Path) -> io::Result<fs::Metadata> {
+        let mut current_path = path.to_path_buf();
+        loop {
+            match current_path.metadata() {
+                Ok(metadata) => return Ok(metadata),
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::NotFound {
+                        if let Some(parent) = current_path.parent() {
+                            if parent.as_os_str().is_empty() {
+                                return parent.metadata();
+                            }
+                            current_path = parent.to_path_buf();
+                        } else {
+                            return Err(e);
+                        }
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+    }
     pub fn is_metadata_same(src: &Path, dst: &Path) -> Result<bool,std::io::Error>{
-        use std::os::unix::fs::MetadataExt;
-        let src_meta = src.metadata()?;
-        let dst_meta = dst.metadata()?;
+        let src_meta = get_metadata_or_parent(src)?;
+        let dst_meta =get_metadata_or_parent(dst)?;
         Ok(src_meta.dev() == dst_meta.dev())
     }
 }

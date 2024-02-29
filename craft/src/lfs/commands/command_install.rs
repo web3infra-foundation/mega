@@ -1,11 +1,10 @@
-use std::fs::{create_dir_all, File, read_dir};
+use std::fs::{ File};
 use std::{fs, io};
-use std::io::{BufReader, Read};
+use std::io::{ Read};
 use std::path::{Path, PathBuf};
 use gettextrs::gettext;
 use rayon::prelude::*;
 use crate::lfs::commands::utils::disk_judgment::disk_judgment::is_ssd;
-use crate::lfs::errors::install_error::ENVINSTALLError;
 use crate::lfs::tools::constant_table::env_prompt_message;
 use crate::lfs::commands::utils::file_metadata::metadata_same::is_metadata_same;
 
@@ -462,10 +461,10 @@ pub mod command_install{
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use gettextrs::gettext;
-    use crate::lfs::commands::command_install::{copy_file, is_metadata_same, is_parallel, parallel_copy_dir};
+    use crate::lfs::commands::command_install::{copy_file};
 
     use crate::lfs::tools::gettext_format::remove_trailing_newlines;
-    use crate::lfs::commands::command_install::disk_judgment::is_ssd;
+    use crate::lfs::commands::utils::disk_judgment::disk_judgment::is_ssd;
     use crate::lfs::errors::install_error::ENVINSTALLError;
     use crate::lfs::tools::constant_table::{env_utils_table,env_prompt_message,git_repo_table,vault_config };
 
