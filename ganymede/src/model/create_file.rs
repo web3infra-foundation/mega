@@ -1,6 +1,6 @@
-use crate::model::mega_node::MegaNode;
+use crate::mega_node::MegaNode;
 use common::utils::generate_id;
-use db_entity::mega_snapshot;
+use callisto::mega_snapshot;
 use std::cell::RefCell;
 
 #[derive(PartialEq, Eq, Debug, Clone, Default)]

@@ -1,5 +1,5 @@
 use common::utils::generate_id;
-use db_entity::git_refs;
+use callisto::git_refs;
 
 use crate::internal::pack::reference::RefCommand;
 

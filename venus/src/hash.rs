@@ -9,6 +9,8 @@ use colored::Colorize;
 use sha1_smol::Digest;
 use serde::{Deserialize, Serialize};
 
+use crate::internal::object::types::ObjectType;
+
 /// The `SHA1` struct, encapsulating a `[u8; 20]` array, is specifically designed to represent Git hash IDs.
 /// In Git's context, these IDs are 40-character hexadecimal strings generated via the SHA-1 algorithm.
 /// Each Git object receives a unique hash ID based on its content, serving as an identifier for its location
@@ -71,13 +73,13 @@ impl std::str::FromStr for SHA1 {
 /// The naming conventions for the methods in this implementation are designed to be intuitive and self-explanatory:
 ///
 /// 1. `new` Prefix: 
-///    Methods starting with `new` are used for computing a SHA-1 hash from given data, signifying the creation of 
+///    Methods starting with `new` are used for computing an SHA-1 hash from given data, signifying the creation of 
 ///    a new `SHA1` instance. For example, `pub fn new(data: &Vec<u8>) -> SHA1` takes a byte vector and calculates its SHA-1 hash.
 ///
 /// 2. `from` Prefix:
 ///    Methods beginning with `from` are intended for creating a `SHA1` instance from an existing, pre-calculated value. 
 ///    This implies direct derivation of the `SHA1` object from the provided input. For instance, `pub fn from_bytes(bytes: &[u8]) -> SHA1`
-///    constructs a `SHA1` from a 20-byte array representing a SHA-1 hash.
+///    constructs a `SHA1` from a 20-byte array representing an SHA-1 hash.
 ///
 /// 3. `to` Prefix:
 ///    Methods with the `to` prefix are used for outputting the `SHA1` value in various formats. This prefix indicates a transformation or
@@ -98,6 +100,16 @@ impl SHA1 {
         let result = sha1.bytes();
 
         SHA1(result)
+    }
+
+    pub fn from_type_and_data(object_type: ObjectType, data: &Vec<u8>) -> SHA1 {
+        let mut d: Vec<u8> = Vec::new();
+        d.extend(object_type.to_data().unwrap());
+        d.push(b' ');
+        d.extend(data.len().to_string().as_bytes());
+        d.push(b'\x00');
+        d.extend(data);
+        SHA1::new(&d)
     }
 
     /// Create Hash from a byte array, which is a 20-byte array already calculated

@@ -11,7 +11,7 @@ use bytes::Bytes;
 use handlebars::Handlebars;
 
 use common::errors::MegaError;
-use db_entity::db_enums::StorageType;
+use callisto::db_enums::StorageType;
 use venus::internal::pack::entry::Entry;
 
 use crate::raw_storage::local_storage::LocalStorage;

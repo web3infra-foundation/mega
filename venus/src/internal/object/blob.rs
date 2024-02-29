@@ -30,6 +30,7 @@
 use std::fmt::Display;
 
 use crate::errors::GitError;
+use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
 use crate::internal::object::ObjectTrait;
 
@@ -38,6 +39,7 @@ use crate::internal::object::ObjectTrait;
 #[allow(unused)]
 #[derive(Eq, Debug, Clone)]
 pub struct Blob {
+    pub id: SHA1,
     pub data: Vec<u8>,
 }
 
@@ -57,11 +59,12 @@ impl Display for Blob {
 
 impl ObjectTrait for Blob {
     /// Creates a new object from a byte slice.
-    fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
+    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
         Ok(Blob {
+            id: hash,
             data: data.to_vec(),
         })
     }

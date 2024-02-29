@@ -90,7 +90,7 @@ impl Commit {
 }
 
 impl ObjectTrait for Commit {
-    fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
+    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
@@ -134,7 +134,7 @@ impl ObjectTrait for Commit {
         };
 
         Ok(Commit {
-            id: SHA1([0u8; 20]),
+            id: hash,
             tree_id,
             parent_commit_ids,
             author,

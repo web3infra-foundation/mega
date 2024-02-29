@@ -123,7 +123,7 @@ impl ObjectTrait for Tag {
     /// tagger <tagger> 0x0a # The name, email address, and date of the person who created the annotated tag
     /// <message>
     /// ```
-    fn from_bytes(row_data: Vec<u8>) -> Result<Self, GitError>
+    fn from_bytes(row_data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
@@ -159,7 +159,7 @@ impl ObjectTrait for Tag {
         };
 
         Ok(Tag {
-            id: SHA1([0u8; 20]),
+            id: hash,
             object_hash,
             object_type,
             tag_name,

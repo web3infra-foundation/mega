@@ -160,7 +160,7 @@ impl TreeItem {
     /// use venus::internal::object::tree::{TreeItem, TreeItemMode};
     /// use venus::hash::SHA1;
     ///
-    /// // Create a empty TreeItem with the default Hash
+    /// // Create an empty TreeItem with the default Hash
     /// let default_item = TreeItem::new(TreeItemMode::Blob, SHA1::default(), String::new());
     ///
     /// // Create a blob TreeItem with a custom Hash, and file name
@@ -180,8 +180,7 @@ impl TreeItem {
     /// <mode> <name>\0<binary object ID>
     /// ```
     ///
-    #[allow(unused)]
-    pub fn new_from_bytes(bytes: &[u8]) -> Result<Self, GitError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, GitError> {
         let mut parts = bytes.splitn(2, |b| *b == b' ');
         let mode = parts.next().unwrap();
         let rest = parts.next().unwrap();
@@ -198,12 +197,13 @@ impl TreeItem {
 
     /// Convert a TreeItem to a byte vector
     /// ```rust
+    /// use std::str::FromStr;
     /// use venus::internal::object::tree::{TreeItem, TreeItemMode};
     /// use venus::hash::SHA1;
     ///
     /// let tree_item = TreeItem::new(
     ///     TreeItemMode::Blob,
-    ///     SHA1::new_from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d"),
+    ///     SHA1::from_str("8ab686eafeb1f44702738c8b0f24f2567c36da6d").unwrap(),
     ///     "hello-world".to_string(),
     /// );
     ///
@@ -243,8 +243,7 @@ impl Display for Tree {
 }
 
 impl Tree {
-    #[allow(unused)]
-    pub fn new_from_tree_items(tree_items: Vec<TreeItem>) -> Result<Self, GitError> {
+    pub fn from_tree_items(tree_items: Vec<TreeItem>) -> Result<Self, GitError> {
         if tree_items.is_empty() {
             return Err(GitError::EmptyTreeItems(
                 "When export tree object to meta, the items is empty"
@@ -252,18 +251,18 @@ impl Tree {
                     .unwrap(),
             ));
         }
-
         let mut data = Vec::new();
-
         for item in &tree_items {
             data.extend_from_slice(item.to_data().as_slice());
         }
-        //TODO : Fixme : deal with the hash value
+
         Ok(Tree {
-            id: SHA1::new(&data),
+            id: SHA1::from_type_and_data(ObjectType::Tree, &data),
             tree_items,
         })
     }
+
+
 
     #[allow(unused)]
     pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
@@ -279,7 +278,7 @@ impl Tree {
 }
 
 impl ObjectTrait for Tree {
-    fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
+    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
@@ -289,12 +288,12 @@ impl ObjectTrait for Tree {
             let index = data[i..].find_byte(0x00).unwrap();
             let next = i + index + 21;
 
-            tree_items.push(TreeItem::new_from_bytes(&data[i..next]).unwrap());
+            tree_items.push(TreeItem::from_bytes(&data[i..next]).unwrap());
             i = next
         }
 
         Ok(Tree {
-            id: SHA1([0u8; 20]),
+            id: hash,
             tree_items,
         })
     }
@@ -314,7 +313,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::hash::SHA1;
-    use crate::internal::object::tree::{TreeItem, TreeItemMode};
+    use crate::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
     #[test]
     fn test_tree_item_new() {
@@ -359,9 +358,21 @@ mod tests {
         );
 
         let bytes = item.to_data();
-        let tree_item = TreeItem::new_from_bytes(bytes.as_slice()).unwrap();
+        let tree_item = TreeItem::from_bytes(bytes.as_slice()).unwrap();
 
         assert_eq!(tree_item.mode, TreeItemMode::Blob);
         assert_eq!(tree_item.id.to_plain_str(), item.id.to_plain_str());
+    }
+
+    #[test]
+    fn test_from_tree_items() {
+        let item = TreeItem::new(
+            TreeItemMode::Blob,
+            SHA1::from_str("17288789afffb273c8c394bc65e87d899b92897b").unwrap(),
+            "hello-world".to_string(),
+        );
+        let tree = Tree::from_tree_items(vec![item]).unwrap();
+        println!("{}", tree.id);
+        assert_eq!("cf99336fa61439a2f074c7e6de1c1a05579550e2", tree.id.to_plain_str());
     }
 }

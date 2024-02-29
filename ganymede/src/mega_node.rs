@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use common::utils::generate_id;
-use db_entity::db_enums::MergeStatus;
-use db_entity::{mega_snapshot, mega_tree};
+use callisto::db_enums::MergeStatus;
+use callisto::{mega_snapshot, mega_tree};
 
-use crate::internal::object::tree::Tree;
+use venus::internal::object::tree::Tree;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MegaNode {
@@ -53,7 +53,6 @@ impl From<MegaNode> for mega_tree::Model {
         mega_tree::Model {
             id: generate_id(),
             full_path: value.path.to_str().unwrap().to_owned(),
-            import_dir: value.import_dir,
             tree_id: String::new(),
             sub_trees: Vec::new(),
             size: 0,

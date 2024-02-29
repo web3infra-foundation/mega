@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::io::Cursor;
 use std::rc::Rc;
 use std::{env, sync::Arc};
 
@@ -8,20 +9,28 @@ use sea_orm::{
     EntityTrait, IntoActiveModel, QueryFilter, Set,
 };
 
+use callisto::{
+    db_enums::StorageType, git_commit, git_refs, git_repo, mega_commit, mega_tree, raw_objects,
+};
 use common::errors::MegaError;
-use db_entity::{db_enums::StorageType, git_commit, git_refs, git_repo, mega_commit, raw_objects};
+use ganymede::mega_node::MegaNode;
+use ganymede::model::create_file::CreateFileInfo;
+use ganymede::util::generate_git_keep;
+use venus::internal::object::blob::Blob;
+use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use venus::internal::object::types::ObjectType;
+use venus::internal::object::{utils, ObjectTrait};
+use venus::internal::zlib::stream::inflate::ReadBoxed;
 use venus::internal::{
     object::commit::Commit,
     pack::{entry::Entry, reference::RefCommand},
     repo::Repo,
 };
-use venus::model::create_file::CreateFileInfo;
-use venus::model::mega_node::MegaNode;
 
-use crate::storage::MegaStorageProvider;
+use crate::storage::MonorepoStorageProvider;
 use crate::{
     raw_storage::{self, RawStorage},
-    storage::StorageProvider,
+    storage::GitStorageProvider,
 };
 
 pub struct MegaStorage {
@@ -31,7 +40,7 @@ pub struct MegaStorage {
 }
 
 #[async_trait]
-impl StorageProvider for MegaStorage {
+impl GitStorageProvider for MegaStorage {
     async fn save_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
         let mut model: git_refs::Model = refs.clone().into();
         model.ref_git_id = refs.new_id;
@@ -131,7 +140,64 @@ impl StorageProvider for MegaStorage {
 }
 
 #[async_trait]
-impl MegaStorageProvider for MegaStorage {
+impl MonorepoStorageProvider for MegaStorage {
+    async fn init(&self) {
+        let git_keep = generate_git_keep();
+        let rust_item = TreeItem {
+            mode: TreeItemMode::Blob,
+            id: git_keep.id,
+            name: String::from(".gitkeep"),
+        };
+        let rust = Tree::from_tree_items(vec![rust_item]).unwrap();
+        let imports = rust.clone();
+        let projects_items = vec![
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: git_keep.id,
+                name: String::from(".gitkeep"),
+            },
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: rust.id,
+                name: String::from("rust"),
+            },
+        ];
+        let projects = Tree::from_tree_items(projects_items).unwrap();
+        let root_items = vec![
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: git_keep.id,
+                name: String::from(".gitkeep"),
+            },
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: imports.id,
+                name: String::from("imports"),
+            },
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: projects.id,
+                name: String::from("projects"),
+            },
+        ];
+
+        let root = Tree::from_tree_items(root_items).unwrap();
+        let trees = vec![root, imports, projects, rust];
+
+        // let mut save_models = Vec::new();
+        // let mut rust_model: mega_tree::Model = rust.clone().into();
+        // rust_model.full_path = String::from("/root/projects/rust");
+        // let mut projects_model: mega_tree::Model = projects.into();
+        // projects_model.full_path = String::from("/root/projects");
+        // let mut import_model: mega_tree::Model = imports.into();
+        // import_model.full_path = String::from("/root/imports");
+        // let mut root_model: mega_tree::Model = root.into();
+        // root_model.full_path = String::from("/root");
+        // batch_save_model(self.get_connection(), vec![root_model, import_model, projects_model, rust_model])
+        //     .await
+        //     .unwrap();
+    }
+
     fn mega_node_tree(&self, file_infos: Vec<CreateFileInfo>) -> Result<Rc<MegaNode>, MegaError> {
         let mut stack: VecDeque<CreateFileInfo> = VecDeque::new();
         let mut root: Option<Rc<MegaNode>> = None;
@@ -172,6 +238,23 @@ impl MegaStorageProvider for MegaStorage {
         Ok(root)
     }
 
+    async fn create_mega_file(&self, file_info: CreateFileInfo) -> Result<(), MegaError> {
+        let git_keep_content = String::from("This file was used to maintain the git tree");
+        let blob_content = Cursor::new(utils::compress_zlib(git_keep_content.as_bytes()).unwrap());
+        let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, git_keep_content.len());
+        let blob = Blob::from_buf_read(&mut buf, git_keep_content.len());
+        let tree_item = TreeItem {
+            mode: TreeItemMode::Blob,
+            id: blob.id,
+            name: String::from(".gitkeep"),
+        };
+        let _ = Tree::from_tree_items(vec![tree_item]).unwrap();
+
+        if let Some(_) = self.get_mega_tree_by_path(&file_info.path).await.unwrap() {}
+
+        Ok(())
+    }
+
     async fn find_git_repo(&self, repo_path: &str) -> Result<Option<git_repo::Model>, MegaError> {
         let result = git_repo::Entity::find()
             .filter(git_repo::Column::RepoPath.eq(repo_path))
@@ -198,10 +281,6 @@ impl MegaStorageProvider for MegaStorage {
         let git_repo: git_repo::ActiveModel = git_repo.unwrap().into();
         git_repo.update(self.get_connection()).await.unwrap();
         Ok(())
-    }
-
-    async fn save_git_trees(&self) {
-        todo!()
     }
 
     async fn save_git_commits(
@@ -242,6 +321,17 @@ impl MegaStorageProvider for MegaStorage {
             .await
             .unwrap();
         Ok(())
+    }
+
+    async fn get_mega_tree_by_path(
+        &self,
+        full_path: &str,
+    ) -> Result<Option<mega_tree::Model>, MegaError> {
+        return Ok(mega_tree::Entity::find()
+            .filter(mega_tree::Column::FullPath.eq(full_path))
+            .one(self.get_connection())
+            .await
+            .unwrap());
     }
 }
 
@@ -347,11 +437,11 @@ where
 mod test {
     use std::rc::Rc;
 
-    use venus::model::create_file::CreateFileInfo;
-    use venus::model::mega_node::MegaNode;
+    use ganymede::mega_node::MegaNode;
+    use ganymede::model::create_file::CreateFileInfo;
 
     use crate::storage::mega_storage::MegaStorage;
-    use crate::storage::MegaStorageProvider;
+    use crate::storage::MonorepoStorageProvider;
 
     #[tokio::test]
     pub async fn test_node_tree() {
