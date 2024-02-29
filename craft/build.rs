@@ -71,11 +71,16 @@ impl From<IoError> for BuildError {
 }
 #[cfg(target_os = "windows")]
 fn vcpkg_init() {
+    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    let target_triplet = match target_arch.as_str() {
+        "x86_64" => "x64-windows-static",
+        "x86" => "x86-windows-static",
+        _ => panic!("Unsupported target architecture: {}", target_arch),
+    };
     let library = vcpkg::Config::new()
         .emit_includes(true)
-        .target_triplet("x64-windows-static")
+        .target_triplet(target_triplet)
         .find_package("libiconv");
-
     match library {
         Ok(lib) => {
             for path in lib.include_paths {
@@ -91,7 +96,6 @@ fn vcpkg_init() {
         }
     }
 }
-
 fn main() -> Result<(),BuildError>{
     let target = env::var("TARGET").unwrap_or_else(|_|{
         if cfg!(target_os = "windows") {
