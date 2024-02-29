@@ -1,104 +1,21 @@
 use std::fs::{create_dir_all, File, read_dir};
 use std::{fs, io};
 use std::io::{BufReader, Read};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use gettextrs::gettext;
 use rayon::prelude::*;
-use crate::lfs::commands::command_install::disk_judgment::is_ssd;
+use crate::lfs::commands::utils::disk_judgment::disk_judgment::is_ssd;
 use crate::lfs::errors::install_error::ENVINSTALLError;
 use crate::lfs::tools::constant_table::env_prompt_message;
-#[cfg( target_os = "macos")]
-mod disk_judgment {
-    use std::error::Error;
-    use std::fs;
-    use std::process::Command;
-    use crate::lfs::tools::constant_table::disk_judgment_table;
-    pub fn is_ssd(path: &str) -> Result<bool, Box<dyn Error>> {
-        let device_path = if fs::metadata(path).is_ok() {
-            let output_df = Command::new(
-                disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::DF
-                )
-            )
-                .arg(path)
-                .output()?;
+use crate::lfs::commands::utils::file_metadata::metadata_same::is_metadata_same;
 
-            if !output_df.status.success() {
-                eprintln!("{}", disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::DF_ERROR
-                ));
-                return  Ok(false)
-            }
-            let output_str_df = std::str::from_utf8(&output_df.stdout)?;
-            let lines: Vec<&str> = output_str_df.lines().collect();
-            if lines.len() < 2 {
-                eprintln!("{}",disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::DF_ERROR_RUNNING_ERROR
-                ));
-                return  Ok(false)
-            }
-            let maybe_path = lines.get(1).and_then(|line| line.split_whitespace().next());
 
-            let path_str = match maybe_path {
-                Some(path) => path.to_string(),
-                None => {
-                    eprintln!("{}", disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                        disk_judgment_table::DiskJudgmentEnum::DF_PARSE_ERROR
-                    ));
-                    String::new()
-                }
-            };
-            path_str
-        } else {
-            path.to_string()
-        };
 
-        if device_path.is_empty() {
-            return Ok(false);
-        }
-
-        let output_diskutil = Command::new(
-            disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                disk_judgment_table::DiskJudgmentEnum::DISKUTIL
-            )
-        )
-            .arg(
-                disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::INFO
-                )
-            )
-            .arg(&device_path)
-            .output()?;
-
-        if !output_diskutil.status.success() {
-            eprintln!("{}",disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                disk_judgment_table::DiskJudgmentEnum::DISKUTIL_ERROE
-            ));
-            return Ok(false)
-        }
-        let output_str_diskutil = std::str::from_utf8(&output_diskutil.stdout)?;
-        let is_ssd = output_str_diskutil.lines()
-            .filter(|line| line.contains(
-                disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::SSD
-                )
-            ))
-            .any(|line| line.contains(
-                disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::YES
-                )
-            ));
-
-        Ok(is_ssd)
-    }
-}
 #[cfg(target_os = "windows")]
 pub mod command_install{
-    use std::{env, fs, io, ptr};
+    use std::{env,io, ptr};
     use std::os::windows::ffi::OsStrExt;
     use std::ffi::OsStr;
-    use std::fs::{create_dir_all, read_dir};
     use std::iter::once;
     use std::path::{Path, PathBuf};
 
@@ -112,11 +29,18 @@ pub mod command_install{
     use winapi::um::securitybaseapi::GetTokenInformation;
     use winapi::um::handleapi::CloseHandle;
     use winapi::ctypes::c_void;
+    use winapi::um::shlobj::{CSIDL_PROFILE, SHGetFolderPathW};
+    use std::ptr::null_mut;
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use std::process::Command;
 
-    use crate::lfs::commands::command_install::{copy_file,path_buf_to_str,copy_dir};
+    use crate::lfs::commands::command_install::{copy_file,path_buf_to_str};
     use crate::lfs::errors::install_error::ENVINSTALLError;
-    use crate::lfs::tools::constant_table::{env_utils_table,env_prompt_message};
+    use crate::lfs::tools::constant_table::{env_utils_table, env_prompt_message, vault_config,git_repo_table};
     use crate::lfs::tools::env_utils::env_utils;
+    use crate::lfs::tools::gettext_format::remove_trailing_newlines;
+
     fn notify_environment_change() {
         unsafe {
             SendMessageTimeoutW(
@@ -131,7 +55,6 @@ pub mod command_install{
         }
 
     }
-
 
     fn elevate_privileges() ->Result<*mut c_void, ENVINSTALLError> {
         let operation = to_wide_chars("runas");
@@ -216,7 +139,97 @@ pub mod command_install{
     fn to_wide_chars(s: &str) -> Vec<u16> {
         OsStr::new(s).encode_wide().chain(once(0)).collect()
     }
+    fn gitconfig_exists_in_path(directory: &Path) -> bool {
+        let gitconfig_path = directory.join(git_repo_table::GitRepoCharacters::get(
+            git_repo_table::GitRepo::GITCONFIG
+        ));
+        gitconfig_path.exists() && gitconfig_path.is_file()
+    }
+    fn get_user_home() -> PathBuf{
+        let mut path_buf = vec![0u16; winapi::shared::minwindef::MAX_PATH];
+        unsafe {
+            SHGetFolderPathW(
+                null_mut(),
+                CSIDL_PROFILE,
+                null_mut(),
+                0,
+                path_buf.as_mut_ptr(),
+            );
+        }
+        let pos = path_buf.iter().position(|&c| c == 0).unwrap();
+        let path_buf = &path_buf[..pos];
+        let path = OsString::from_wide(path_buf);
+        match path.to_str() {
+            Some(path_str) => {
+                let path = PathBuf::from(path_str);
+                if gitconfig_exists_in_path(&path){
+                    return path
+                } else {
+                    panic!("{}",env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::GITCONFIG_NOT_EXIST_ERROR
+                    ))
+                }
+            },
+            None => {
+                panic!("{}",env_prompt_message::ENVPromptMsgCharacters::get(
+                    env_prompt_message::ENVPromptMsg::HOME_DIR_ERROR
+                ))
+            }
+        }
+    }
 
+    fn set_git_vault_filter(user_git_config_path: PathBuf) -> Result<(), ENVINSTALLError> {
+        if !user_git_config_path.exists() {
+            let error_msg = remove_trailing_newlines(
+                gettext(
+                    env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::GITCONFIG_NOT_EXIST_ERROR
+                    )
+                )
+            );
+            return Err(ENVINSTALLError::new(format!("{} {:?}",error_msg,user_git_config_path)));
+        }
+        let commands = vec![
+            (vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::SMUDGE_KEY
+            ), vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::SMUDGE_VALUE
+            )),
+            (vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::CLEAN_KEY
+            ), vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::CLEAN_VALUE
+            )),
+        ];
+        for (key, value) in commands {
+            let output = Command::new("git")
+                .args(&["config", "--global", key, value])
+                .output();
+            match output {
+                Ok(output) if output.status.success() => continue,
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(ENVINSTALLError::new(
+                        format!("{} {}", env_prompt_message::ENVPromptMsgCharacters::get(
+                            env_prompt_message::ENVPromptMsg::GITCONFIG_ERROR
+                        ),stderr
+                        )
+                    ));
+                }
+                Err(e) => {
+                    let error_msg = remove_trailing_newlines(
+                        gettext(env_prompt_message::ENVPromptMsgCharacters::get(
+                            env_prompt_message::ENVPromptMsg::FAILED_GIT_CONFIG
+                        ))
+                    );
+                    return Err(ENVINSTALLError::new(
+                        format!("{}{}",error_msg,e)
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
     pub fn install_command() -> Result<(),ENVINSTALLError> {
 
         if is_admin(){
@@ -308,6 +321,17 @@ pub mod command_install{
 
             notify_environment_change();
 
+            match set_git_vault_filter(get_user_home()) {
+                Ok(()) =>{
+                    print!("{}", env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::VAULT_CONFIG_SUCCESS
+                    ));
+                },
+                Err(e) => {
+                    panic!("{}",e);
+                }
+            }
+
             Ok(())
         } else {
             elevate_privileges();
@@ -330,7 +354,6 @@ fn path_buf_to_str<'a>(path_buf:&'a PathBuf) -> Result<&'a str,&'static str> {
     }
 }
 const BUFFER_SIZE: usize = 8 * 1024; // 8 KiB
-
 fn calculate_md5(path: &Path) -> io::Result<[u8; 16]> {
     let mut file = File::open(path)?;
     let mut context = md5::Context::new();
@@ -363,7 +386,6 @@ fn parallel_copy_dir(src: &Path, dst: &Path, is_same_disk: bool) -> io::Result<(
 
     let entries = fs::read_dir(src)?
         .collect::<Result<Vec<_>, io::Error>>()?;
-
     if is_same_disk {
         for entry in entries {
             let file_type = entry.file_type()?;
@@ -403,7 +425,9 @@ fn parallel_copy_dir(src: &Path, dst: &Path, is_same_disk: bool) -> io::Result<(
 
 fn copy_file(src: &Path, dst: &Path) -> io::Result<()> {
     if src.is_dir() {
-        parallel_copy_dir(src,dst,is_parallel(is_ssd(dst.to_str().unwrap()), is_metadata_same(src, dst)?))
+        let b = is_metadata_same(src, dst)?;
+        let a=is_parallel(is_ssd(dst.to_str().unwrap()), b);
+        parallel_copy_dir(src,dst,a)
     } else {
         if let Some(parent) = dst.parent() {
             fs::create_dir_all(parent)?;
@@ -415,11 +439,7 @@ fn copy_file(src: &Path, dst: &Path) -> io::Result<()> {
     }
 }
 
-fn is_metadata_same(src: &Path, dst: &Path) -> Result<bool,std::io::Error>{
-    let src_meta = src.metadata()?;
-    let dst_meta = dst.metadata()?;
-    Ok(src_meta.dev() == dst_meta.dev())
-}
+
 
 fn is_parallel(is_ssd:Result<bool,Box<dyn std::error::Error>>,is_same_disk:bool) -> bool {
     match is_ssd {

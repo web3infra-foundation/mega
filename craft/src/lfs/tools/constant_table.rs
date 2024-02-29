@@ -79,7 +79,8 @@ pub mod env_prompt_message{
             GITCONFIG_NOT_EXIST_ERROR:"Git config file does not exist at:\n",
             GITCONFIG_ERROR:"git config error:",
             FAILED_GIT_CONFIG:"Failed to execute git config:\n",
-            VAULT_CONFIG_SUCCESS:"Successfully updated git config with vault filter.\n"
+            VAULT_CONFIG_SUCCESS:"Successfully updated git config with vault filter.\n",
+            PATH_ERROR:"This path is abnormal"
         }
     }
 }
@@ -175,6 +176,18 @@ pub mod disk_judgment_table {
             DISKUTIL_ERROE:"diskutil command failed",
             SSD:"Solid State",
             YES:"Yes"
+        }
+    }
+}
+#[cfg(target_os = "windows")]
+pub mod disk_judgment_error {
+    use crate::create_characters;
+    create_characters! {
+        DiskJudgmentEnum,
+        DiskJudgmentEnumCharacters{
+            HANDLE_ERROR:"Windows handle error",
+            DEVICE_IO_CONTROL_ERROR:"DeviceIoControl execution failed",
+            DRIVE_LETTER_ERROR:"Exception in getting drive letter"
         }
     }
 }
