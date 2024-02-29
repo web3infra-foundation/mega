@@ -26,7 +26,7 @@ pub fn generate_key_pair(primary_user_id: &str) -> Result<KeyPair, anyhow::Error
     let mut key_params = SecretKeyParamsBuilder::default();
     key_params
         .key_type(KeyType::Rsa(2048))
-        .can_create_certificates(false)
+        .can_certify(false)
         .can_sign(true)
         .primary_user_id(primary_user_id.into())
         .preferred_symmetric_algorithms(smallvec![SymmetricKeyAlgorithm::AES256]);
@@ -101,12 +101,12 @@ pub fn decrypt(armored: &str, seckey: &SignedSecretKey) -> Result<String, anyhow
 
 // Encrypt message from file, and write it to a MGS_FILE waiting for decrypt
 // Arguments: message, read from file; public key file path
-pub fn encrypt_message(msg: &str, pubkey: &str) -> Result<String> {
-    let (pubkey, _) = SignedPublicKey::from_string(pubkey)?;
+pub fn encrypt_message(msg: &str, pub_key: &str) -> Result<String> {
+    let (pub_key, _) = SignedPublicKey::from_string(pub_key)?;
     // Requires a file name as the first arg, in this case I pass "none", as it's not used typically, it's just meta data
     let msg = pgp::Message::new_literal("none", msg);
     // convert data from OpenPGP Message to string
-    let armored = generate_armored_string(msg, pubkey)?;
+    let armored = generate_armored_string(msg, pub_key)?;
 
     Ok(armored)
 }
