@@ -8,6 +8,7 @@ use axum::{
     Json, Router,
 };
 use git::internal::pack::counter::GitTypeCounter;
+use jupiter::storage::{mega_storage::MegaStorage, MonorepoStorageProvider};
 
 use crate::{
     api_service::obj_service::ObjectService,
@@ -20,6 +21,7 @@ use crate::{
 #[derive(Clone)]
 pub struct ApiServiceState {
     pub object_service: ObjectService,
+    pub mega_storage: MegaStorage,
 }
 
 pub fn routers<S>(state: ApiServiceState) -> Router<S> {
@@ -29,6 +31,7 @@ pub fn routers<S>(state: ApiServiceState) -> Router<S> {
         .route("/object", get(get_origin_object))
         .route("/status", get(life_cycle_check))
         .route("/count-objs", get(get_count_nums))
+        .route("/init", get(init))
         .with_state(state)
 }
 
@@ -53,7 +56,10 @@ async fn get_origin_object(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let object_id = query.get("object_id").unwrap();
     let repo_path = query.get("repo_path").expect("repo_path is required");
-    state.object_service.get_objects_data(object_id, repo_path).await
+    state
+        .object_service
+        .get_objects_data(object_id, repo_path)
+        .await
 }
 
 async fn life_cycle_check() -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -66,4 +72,8 @@ async fn get_count_nums(
 ) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
     let repo_path = query.get("repo_path").unwrap();
     state.object_service.count_object_num(repo_path).await
+}
+
+async fn init(state: State<ApiServiceState>) {
+    state.mega_storage.init_mega_directory().await;
 }

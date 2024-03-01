@@ -1,5 +1,6 @@
 pub mod git_storage;
 pub mod mega_storage;
+pub mod init;
 
 use async_trait::async_trait;
 use std::rc::Rc;
@@ -43,7 +44,8 @@ pub trait GitStorageProvider: Send + Sync {
 ///
 #[async_trait]
 pub trait MonorepoStorageProvider: GitStorageProvider + Send {
-    async fn init(&self);
+    async fn init_mega_directory(&self);
+    
     fn mega_node_tree(&self, file_infos: Vec<CreateFileInfo>) -> Result<Rc<MegaNode>, MegaError>;
 
     async fn create_mega_file(&self, file_info: CreateFileInfo) -> Result<(), MegaError>;

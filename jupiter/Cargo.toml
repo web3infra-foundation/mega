@@ -29,6 +29,7 @@ chrono = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
+idgenerator = { workspace = true }
 
 handlebars = "5.1.0"
 

@@ -148,7 +148,7 @@ impl ObjectTrait for Tag {
         let tagger_begin = data.find("tagger").unwrap();
         let tagger_end = data.find_byte(0x0a).unwrap();
         let tagger_data = data[tagger_begin..tagger_end].to_vec();
-        let tagger = Signature::new_from_data(tagger_data).unwrap();
+        let tagger = Signature::from_data(tagger_data).unwrap();
         data = data[data.find_byte(0x0a).unwrap() + 1..].to_vec();
 
         let message = unsafe {

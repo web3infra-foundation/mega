@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::io::Cursor;
 use std::rc::Rc;
 use std::{env, sync::Arc};
 
@@ -15,12 +14,8 @@ use callisto::{
 use common::errors::MegaError;
 use ganymede::mega_node::MegaNode;
 use ganymede::model::create_file::CreateFileInfo;
-use ganymede::util::generate_git_keep;
-use venus::internal::object::blob::Blob;
+use ganymede::util::{generate_git_keep, MegaModelConverter};
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use venus::internal::object::types::ObjectType;
-use venus::internal::object::{utils, ObjectTrait};
-use venus::internal::zlib::stream::inflate::ReadBoxed;
 use venus::internal::{
     object::commit::Commit,
     pack::{entry::Entry, reference::RefCommand},
@@ -33,9 +28,10 @@ use crate::{
     storage::GitStorageProvider,
 };
 
+#[derive(Clone)]
 pub struct MegaStorage {
     pub raw_storage: Arc<dyn RawStorage>,
-    pub connection: DatabaseConnection,
+    pub connection: Arc<DatabaseConnection>,
     pub raw_obj_threshold: usize,
 }
 
@@ -141,61 +137,22 @@ impl GitStorageProvider for MegaStorage {
 
 #[async_trait]
 impl MonorepoStorageProvider for MegaStorage {
-    async fn init(&self) {
-        let git_keep = generate_git_keep();
-        let rust_item = TreeItem {
-            mode: TreeItemMode::Blob,
-            id: git_keep.id,
-            name: String::from(".gitkeep"),
-        };
-        let rust = Tree::from_tree_items(vec![rust_item]).unwrap();
-        let imports = rust.clone();
-        let projects_items = vec![
-            TreeItem {
-                mode: TreeItemMode::Blob,
-                id: git_keep.id,
-                name: String::from(".gitkeep"),
-            },
-            TreeItem {
-                mode: TreeItemMode::Tree,
-                id: rust.id,
-                name: String::from("rust"),
-            },
-        ];
-        let projects = Tree::from_tree_items(projects_items).unwrap();
-        let root_items = vec![
-            TreeItem {
-                mode: TreeItemMode::Blob,
-                id: git_keep.id,
-                name: String::from(".gitkeep"),
-            },
-            TreeItem {
-                mode: TreeItemMode::Tree,
-                id: imports.id,
-                name: String::from("imports"),
-            },
-            TreeItem {
-                mode: TreeItemMode::Tree,
-                id: projects.id,
-                name: String::from("projects"),
-            },
-        ];
-
-        let root = Tree::from_tree_items(root_items).unwrap();
-        let trees = vec![root, imports, projects, rust];
-
-        // let mut save_models = Vec::new();
-        // let mut rust_model: mega_tree::Model = rust.clone().into();
-        // rust_model.full_path = String::from("/root/projects/rust");
-        // let mut projects_model: mega_tree::Model = projects.into();
-        // projects_model.full_path = String::from("/root/projects");
-        // let mut import_model: mega_tree::Model = imports.into();
-        // import_model.full_path = String::from("/root/imports");
-        // let mut root_model: mega_tree::Model = root.into();
-        // root_model.full_path = String::from("/root");
-        // batch_save_model(self.get_connection(), vec![root_model, import_model, projects_model, rust_model])
-        //     .await
-        //     .unwrap();
+    async fn init_mega_directory(&self) {
+        let converter = MegaModelConverter::init();
+        converter.traverse_tree(&converter.root_tree);
+        let mega_trees = converter.mega_trees.borrow().clone();
+        let mega_blobs = converter.mega_blobs.borrow().clone();
+        batch_save_model(self.get_connection(), mega_trees)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), mega_blobs)
+            .await
+            .unwrap();
+        let commit: mega_commit::Model = converter.commit.into();
+        mega_commit::Entity::insert(commit.into_active_model())
+            .exec(self.get_connection())
+            .await
+            .unwrap();
     }
 
     fn mega_node_tree(&self, file_infos: Vec<CreateFileInfo>) -> Result<Rc<MegaNode>, MegaError> {
@@ -239,19 +196,17 @@ impl MonorepoStorageProvider for MegaStorage {
     }
 
     async fn create_mega_file(&self, file_info: CreateFileInfo) -> Result<(), MegaError> {
-        let git_keep_content = String::from("This file was used to maintain the git tree");
-        let blob_content = Cursor::new(utils::compress_zlib(git_keep_content.as_bytes()).unwrap());
-        let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, git_keep_content.len());
-        let blob = Blob::from_buf_read(&mut buf, git_keep_content.len());
-        let tree_item = TreeItem {
-            mode: TreeItemMode::Blob,
-            id: blob.id,
-            name: String::from(".gitkeep"),
-        };
-        let _ = Tree::from_tree_items(vec![tree_item]).unwrap();
+        if file_info.is_directory {
+            let blob = generate_git_keep();
+            let tree_item = TreeItem {
+                mode: TreeItemMode::Blob,
+                id: blob.id,
+                name: String::from(".gitkeep"),
+            };
+            let _ = Tree::from_tree_items(vec![tree_item]).unwrap();
 
-        if let Some(_) = self.get_mega_tree_by_path(&file_info.path).await.unwrap() {}
-
+            self.get_mega_tree_by_path(&file_info.path).await.unwrap();
+        }
         Ok(())
     }
 
@@ -348,7 +303,7 @@ impl MegaStorage {
         let storage_type = env::var("MEGA_RAW_STORAGE").unwrap();
         let path = env::var("MEGA_OBJ_LOCAL_PATH").unwrap();
         MegaStorage {
-            connection,
+            connection: Arc::new(connection),
             raw_storage: raw_storage::init(storage_type, path).await,
             raw_obj_threshold,
         }
@@ -356,7 +311,7 @@ impl MegaStorage {
 
     pub async fn mock() -> Self {
         MegaStorage {
-            connection: DatabaseConnection::default(),
+            connection: Arc::new(DatabaseConnection::default()),
             raw_storage: raw_storage::init(String::from("LOCAL"), String::from("/")).await,
             raw_obj_threshold: 1024,
         }
