@@ -183,3 +183,96 @@ pub mod disk_judgment {
         Ok(is_ssd)
     }
 }
+#[cfg( target_os = "linux")]
+pub mod disk_judgment {
+    use std::fs::File;
+    use std::{fs, io};
+    use std::error::Error;
+    use std::io::{BufRead, BufReader};
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    pub fn is_ssd(path: &str) -> Result<bool, Box<dyn Error>> {
+        match find_mount_point(Path::new(path)) {
+            Some(mount_point) => {
+                if let Ok(is_ssd) = is_mount_point_on_ssd(&mount_point) {
+                    return Ok(true)
+                } else {
+                    return Ok(false)
+                }
+            }
+            None => {
+                println!("May be complex LVM logical volumes or RAID arrays");
+                Ok(false)
+            }
+        }
+
+    }
+    fn find_mount_point(path: &Path) -> Option<PathBuf> {
+        let mounts = File::open("/proc/mounts").ok()?;
+        let reader = BufReader::new(mounts);
+
+        let mut best_match: Option<(usize, PathBuf)> = None;
+
+        for mount in reader.lines().filter_map(|line| line.ok()) {
+            let parts: Vec<&str> = mount.split_whitespace().collect();
+            if parts.len() > 1 {
+                let mount_point = PathBuf::from(parts[1]);
+                if path.starts_with(&mount_point) {
+                    let match_len = mount_point.as_os_str().len();
+                    if best_match.as_ref().map_or(true, |(len, _)| match_len > *len) {
+                        best_match = Some((match_len, mount_point));
+                    }
+                }
+            }
+        }
+
+        best_match.map(|(_, mount_point)| mount_point)
+    }
+
+    fn is_mount_point_on_ssd(mount_point: &Path) -> io::Result<bool> {
+        let output = Command::new("findmnt")
+            .arg("-n")
+            .arg("-o")
+            .arg("SOURCE")
+            .arg("--target")
+            .arg(mount_point)
+            .output()?;
+
+        if !output.status.success() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "findmnt command failed",
+            ));
+        }
+
+        let device = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .to_string();
+        let device_path = Path::new("/dev").join(device.trim_start_matches("/dev/"));
+
+        // Handle /dev/mapper devices separately
+        let real_device = if device_path.starts_with("/dev/mapper/") {
+            resolve_device_mapper(&device_path)?
+        } else {
+            device_path
+        };
+
+        let device_name = real_device
+            .file_name()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid device name"))?
+            .to_str()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Non-unicode device name"))?;
+
+        let rotational_path = Path::new("/sys/block").join(device_name).join("queue/rotational");
+
+        let rotational = fs::read_to_string(rotational_path)?.trim().to_string();
+        Ok(rotational == "0")
+    }
+
+    fn resolve_device_mapper(mapper_path: &Path) -> io::Result<PathBuf> {
+        let dm_name = mapper_path.file_name().unwrap().to_str().unwrap();
+        let dm_symlink = Path::new("/dev/mapper").join(dm_name);
+        fs::read_link(dm_symlink).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    }
+}

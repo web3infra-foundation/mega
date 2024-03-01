@@ -464,7 +464,6 @@ pub mod command_install{
     use crate::lfs::commands::command_install::{copy_file};
 
     use crate::lfs::tools::gettext_format::remove_trailing_newlines;
-    use crate::lfs::commands::utils::disk_judgment::disk_judgment::is_ssd;
     use crate::lfs::errors::install_error::ENVINSTALLError;
     use crate::lfs::tools::constant_table::{env_utils_table,env_prompt_message,git_repo_table,vault_config };
 
@@ -473,6 +472,30 @@ pub mod command_install{
             libc::getuid() == 0
         }
     }
+    #[cfg( target_os = "linux")]
+    fn get_user_home() -> PathBuf {
+        let user = if is_root() {
+            env::var("SUDO_USER").ok()
+        } else {
+            env::var("USER").ok()
+        };
+        if let Some(username) = user {
+            let output = Command::new("getent")
+                .args(&["passwd", &username])
+                .output()
+                .expect("failed to get user info");
+            if output.status.success() {
+                let user_info = String::from_utf8_lossy(&output.stdout);
+                if let Some(home_dir) = user_info.split(':').nth(5) {
+                    return PathBuf::from(home_dir.trim());
+                }
+            }
+        }
+        env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| {
+            panic!("Cannot determine the home directory for the current user.")
+        })
+    }
+    #[cfg( target_os = "macos")]
     fn get_user_home() -> PathBuf {
         match env::var(env_utils_table::ENVIRONMENTCharacters::get(
             env_utils_table::ENVIRONMENTEnum::USER_HOME
