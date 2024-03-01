@@ -1,11 +1,15 @@
 use std::{ops::Deref, sync::Arc};
+use std::sync::atomic::AtomicU64;
 
 use crate::internal::pack::utils;
 use lru_mem::HeapSize;
 use serde::{Deserialize, Serialize};
 use venus::{hash::SHA1, internal::object::types::ObjectType};
 
-#[allow(unused)]
+// record heap-size of all CacheObjects, used for memory limit
+// u64 is better than usize (4GB in 32bits)
+static CACHE_OBJS_HEAP_SIZE: AtomicU64 = AtomicU64::new(0);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheObject {
     pub base_offset: usize,
@@ -34,6 +38,38 @@ impl Default for CacheObject {
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
         self.data_decompress.heap_size()
+    }
+}
+
+impl Drop for CacheObject {
+    // Check: the heap-size subtracted when Drop is equal to the heap-size recorded
+    // (cannot change the heap-size during life cycle)
+    fn drop(&mut self) {
+        // (&*self).heap_size() != self.heap_size()
+        CACHE_OBJS_HEAP_SIZE.fetch_sub((&*self).heap_size() as u64, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Heap-size recorder for a class(struct)
+/// <br> You should use a static Var to record heap-size
+/// and record heap-size after construction & minus it in `drop()`
+/// <br> So, variable-size fields in object should NOT be modified to keep heap-size stable.
+/// <br> Or, you can record the initial heap-size in this object
+/// <br> Or, update it (not impl)
+pub trait HeapSizeRecorder: HeapSize {
+    fn record_heap_size(&self);
+    fn get_heap_size() -> u64;
+}
+
+impl HeapSizeRecorder for CacheObject {
+    /// record the heap-size of this `CacheObj` in a `static` `var`
+    /// <br> since that, DO NOT modify `CacheObj` after recording
+    fn record_heap_size(&self) {
+        CACHE_OBJS_HEAP_SIZE.fetch_add(self.heap_size() as u64, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn get_heap_size() -> u64 {
+        CACHE_OBJS_HEAP_SIZE.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 
@@ -113,6 +149,18 @@ mod test {
     use lru_mem::LruCache;
 
     use super::*;
+    #[test]
+    fn test_heap_size_record() {
+        let obj = CacheObject {
+            data_decompress: vec![0; 1024],
+            ..Default::default()
+        };
+        obj.record_heap_size();
+        assert_eq!(CacheObject::get_heap_size(), 1024);
+        drop(obj);
+        assert_eq!(CacheObject::get_heap_size(), 0);
+    }
+
     #[test]
     fn test_cache_object_with_same_size() {
         let a = CacheObject {
