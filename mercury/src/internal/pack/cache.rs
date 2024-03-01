@@ -36,10 +36,10 @@ pub struct Caches {
     // because "multi-thread IO" clone Arc<CacheObject>, so it won't be dropped in the main thread,
     // and `CacheObjects` will be killed by OS after Process ends abnormally
     // Solution: use `mimalloc`
-    lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache reqiure the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
+    lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache require the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
     mem_size: Option<usize>,
     tmp_path: PathBuf,
-    pool: ThreadPool,
+    pool: ThreadPool, //TODO wait for threads to stop & add condition test in thread
 }
 
 impl Caches {

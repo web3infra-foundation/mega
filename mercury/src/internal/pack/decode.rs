@@ -16,7 +16,7 @@ use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
-use crate::internal::pack::cache_object::CacheObject;
+use crate::internal::pack::cache_object::{CacheObject, HeapSizeRecorder};
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
@@ -241,11 +241,10 @@ impl Pack {
 
                 Ok(CacheObject {
                     base_offset,
-                    base_ref: SHA1::default(),
                     data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
-                    hash: SHA1::default(),
+                    ..Default::default()
                 })
             },
             ObjectType::HashDelta => {
@@ -260,12 +259,11 @@ impl Pack {
                 *offset += raw_size;
 
                 Ok(CacheObject {
-                    base_offset: 0,
                     base_ref: ref_sha1,
                     data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
-                    hash: SHA1::default(),
+                    ..Default::default()
                 })
             }
         }
@@ -303,7 +301,8 @@ impl Pack {
             #[cfg(debug_assertions)]
             {
                 if i % 10000 == 0 {
-                    println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {}",time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks());
+                    println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB",
+                             time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks(), CacheObject::get_heap_size() / 1024 / 1024);
                 }
             }
             while self.pool.queued_count() > 200 { // TODO: replace with memory related condition
@@ -312,6 +311,8 @@ impl Pack {
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
+                    obj.record_heap_size();
+
                     let caches = caches.clone();
                     let pool = self.pool.clone();
                     let waitlist = self.waitlist.clone();
@@ -415,13 +416,14 @@ impl Pack {
     }
 
     /// Reconstruct the Delta Object based on the "base object"
-    fn rebuild_delta(mut delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
+    /// and return a New object.
+    fn rebuild_delta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
         const COPY_OFFSET_BYTES: u8 = 4;
         const COPY_SIZE_BYTES: u8 = 3;
         const COPY_ZERO_SIZE: usize = 0x10000;
 
-        let mut stream = Cursor::new(delta_obj.data_decompress);
+        let mut stream = Cursor::new(&delta_obj.data_decompress);
 
         // Read the base object size & Result Size
         // (Size Encoding)
@@ -485,11 +487,16 @@ impl Pack {
             }
         }
 
-        delta_obj.data_decompress = result;
-        delta_obj.obj_type = base_obj.obj_type; // Same as the Type of base object
-        delta_obj.hash = utils::calculate_object_hash(delta_obj.obj_type, &delta_obj.data_decompress);
-
-        delta_obj //Canonical form (Complete Object)
+        let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
+        // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
+        let new_obj = CacheObject {
+            data_decompress: result,
+            obj_type: base_obj.obj_type, // Same as the Type of base object
+            hash,
+            ..delta_obj
+        };
+        new_obj.record_heap_size();
+        new_obj //Canonical form (Complete Object)
     }
 }
 
@@ -503,6 +510,7 @@ mod tests {
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
+    use crate::internal::pack::cache_object::{CacheObject, HeapSizeRecorder};
 
     use crate::internal::pack::Pack;
 
@@ -582,6 +590,8 @@ mod tests {
         let start = Instant::now();
         p.decode(&mut buffered).unwrap();
         println!("Test took {:?}", start.elapsed());
+        drop(p);
+        assert_eq!(CacheObject::get_heap_size(), 0); // all the objs should be dropped until now
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 
     #[test]
