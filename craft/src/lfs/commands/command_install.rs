@@ -487,12 +487,16 @@ pub mod command_install{
             if output.status.success() {
                 let user_info = String::from_utf8_lossy(&output.stdout);
                 if let Some(home_dir) = user_info.split(':').nth(5) {
-                    return PathBuf::from(home_dir.trim());
+                    return PathBuf::from(home_dir.trim().join(git_repo_table::GitRepoCharacters::get(
+                        git_repo_table::GitRepo::GITCONFIG
+                    )));
                 }
             }
         }
         env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| {
-            panic!("Cannot determine the home directory for the current user.")
+            panic!("{}", env_prompt_message::ENVPromptMsgCharacters::get(
+                env_prompt_message::ENVPromptMsg::HOME_DIR_ERROR
+            ))
         })
     }
     #[cfg( target_os = "macos")]
