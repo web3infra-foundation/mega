@@ -17,6 +17,8 @@ use axum::routing::get;
 use axum::Router;
 use clap::Args;
 
+use jupiter::storage::init::database_connection;
+use jupiter::storage::mega_storage::MegaStorage;
 use regex::Regex;
 use serde::Deserialize;
 use tower::ServiceBuilder;
@@ -60,6 +62,7 @@ pub struct HttpCustom {
 #[derive(Clone)]
 pub struct AppState {
     pub storage: Arc<dyn ObjectStorage>,
+    pub mega_storage: MegaStorage,
     pub options: HttpOptions,
 }
 
@@ -93,12 +96,14 @@ pub async fn start_server(options: &HttpOptions) {
     let state = AppState {
         storage: database::init(data_source).await,
         options: options.to_owned(),
+        mega_storage: MegaStorage::new(database_connection().await).await,
     };
     
     let api_state = ApiServiceState {
         object_service: ObjectService {
             storage: state.storage.clone(),
-        }
+        },
+        mega_storage: state.mega_storage.clone(),
     };
     
     let app = Router::new()

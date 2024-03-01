@@ -35,9 +35,7 @@ pub trait ObjectTrait: Send + Sync + Display {
         read.read_to_end(&mut content).unwrap();
         let h = read.hash.clone();
         let hash_str = h.finalize();
-        let result =
-            Self::from_bytes(content, SHA1::from_str(&format!("{:x}", hash_str)).unwrap()).unwrap();
-        result
+        Self::from_bytes(content, SHA1::from_str(&format!("{:x}", hash_str)).unwrap()).unwrap()
     }
 
 
