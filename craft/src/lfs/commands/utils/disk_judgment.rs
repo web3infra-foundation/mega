@@ -191,6 +191,7 @@ pub mod disk_judgment {
     use std::io::{BufRead, BufReader};
     use std::path::{Path, PathBuf};
     use std::process::Command;
+    use crate::lfs::tools::constant_table::disk_judgment_table;
 
     pub fn is_ssd(path: &str) -> Result<bool, Box<dyn Error>> {
         match find_mount_point(Path::new(path)) {
@@ -202,14 +203,20 @@ pub mod disk_judgment {
                 }
             }
             None => {
-                println!("May be complex LVM logical volumes or RAID arrays");
+                eprintln!("{}",disk_judgment_table::DiskJudgmentEnumCharacters::get(
+                    disk_judgment_table::DiskJudgmentEnum::RAID_LVM_ERROR
+                ));
                 Ok(false)
             }
         }
 
     }
     fn find_mount_point(path: &Path) -> Option<PathBuf> {
-        let mounts = File::open("/proc/mounts").ok()?;
+        let mounts = File::open(
+            disk_judgment_table::DiskJudgmentEnumCharacters::get(
+                disk_judgment_table::DiskJudgmentEnum::MOUNTS_DIR
+            )
+        ).ok()?;
         let reader = BufReader::new(mounts);
 
         let mut best_match: Option<(usize, PathBuf)> = None;
@@ -240,31 +247,53 @@ pub mod disk_judgment {
             .output()?;
 
         if !output.status.success() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "findmnt command failed",
+            eprintln!("{}",disk_judgment_table::DiskJudgmentEnumCharacters::get(
+                disk_judgment_table::DiskJudgmentEnum::FINDMNT_ERROR
             ));
+            return Ok(false)
         }
 
         let device = String::from_utf8_lossy(&output.stdout)
             .trim()
             .to_string();
-        let device_path = Path::new("/dev").join(device.trim_start_matches("/dev/"));
+        let device_path = Path::new(disk_judgment_table::DiskJudgmentEnumCharacters::get(
+            disk_judgment_table::DiskJudgmentEnum::DEV
+        )).join(device.trim_start_matches(disk_judgment_table::DiskJudgmentEnumCharacters::get(
+            disk_judgment_table::DiskJudgmentEnum::DEV_
+        )));
 
         // Handle /dev/mapper devices separately
-        let real_device = if device_path.starts_with("/dev/mapper/") {
+        let real_device = if device_path.starts_with(disk_judgment_table::DiskJudgmentEnumCharacters::get(
+            disk_judgment_table::DiskJudgmentEnum::MAPPER
+        )) {
             resolve_device_mapper(&device_path)?
         } else {
             device_path
         };
 
-        let device_name = real_device
-            .file_name()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid device name"))?
-            .to_str()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Non-unicode device name"))?;
+        let device_name_result = real_device.file_name().map(|s| s.to_str());
 
-        let rotational_path = Path::new("/sys/block").join(device_name).join("queue/rotational");
+        let device_name = match device_name_result {
+            Some(Ok(name)) => name,
+            Some(Err(_)) => {
+                eprintln!("{}",disk_judgment_table::DiskJudgmentEnumCharacters::get(
+                    disk_judgment_table::DiskJudgmentEnum::UNICODE_ERROR
+                ));
+                return Ok(false)
+            }
+            None => {
+                eprintln!("{}", disk_judgment_table::DiskJudgmentEnumCharacters::get(
+                    disk_judgment_table::DiskJudgmentEnum::DEVICE_ERROE
+                ));
+                return Ok(false)
+            }
+        };
+
+        let rotational_path = Path::new(disk_judgment_table::DiskJudgmentEnumCharacters::get(
+            disk_judgment_table::DiskJudgmentEnum::BLOCK
+        )).join(device_name).join(disk_judgment_table::DiskJudgmentEnumCharacters::get(
+            disk_judgment_table::DiskJudgmentEnum::ROTATIONAL
+        ));
 
         let rotational = fs::read_to_string(rotational_path)?.trim().to_string();
         Ok(rotational == "0")
@@ -272,7 +301,9 @@ pub mod disk_judgment {
 
     fn resolve_device_mapper(mapper_path: &Path) -> io::Result<PathBuf> {
         let dm_name = mapper_path.file_name().unwrap().to_str().unwrap();
-        let dm_symlink = Path::new("/dev/mapper").join(dm_name);
+        let dm_symlink = Path::new(disk_judgment_table::DiskJudgmentEnumCharacters::get(
+            disk_judgment_table::DiskJudgmentEnum::MAPPER
+        )).join(dm_name);
         fs::read_link(dm_symlink).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 }

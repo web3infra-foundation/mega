@@ -179,6 +179,25 @@ pub mod disk_judgment_table {
         }
     }
 }
+#[cfg( target_os = "linux")]
+pub mod disk_judgment_table {
+    use crate::create_characters;
+    create_characters! {
+        DiskJudgmentEnum,
+        DiskJudgmentEnumCharacters{
+            RAID_LVM_ERROR:"May be complex LVM logical volumes or RAID arrays",
+            MOUNTS_DIR:"/proc/mounts",
+            FINDMNT_ERROR:"findmnt command failed",
+            DEV:"/dev",
+            DEV_:"/dev/",
+            MAPPER:"/dev/mapper/",
+            BLOCK:"/sys/block",
+            ROTATIONAL:"queue/rotational",
+            UNICODE_ERROR:"Non-unicode device name",
+            DEVICE_ERROE:"Invalid device name"
+        }
+    }
+}
 #[cfg(target_os = "windows")]
 pub mod disk_judgment_error {
     use crate::create_characters;
