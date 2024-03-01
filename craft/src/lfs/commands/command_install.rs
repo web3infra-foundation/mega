@@ -1,16 +1,20 @@
-use std::fs::{create_dir_all, read_dir};
+use std::fs::{ File};
 use std::{fs, io};
+use std::io::{ Read};
 use std::path::{Path, PathBuf};
 use gettextrs::gettext;
-use crate::lfs::errors::install_error::ENVINSTALLError;
+use rayon::prelude::*;
+use crate::lfs::commands::utils::disk_judgment::disk_judgment::is_ssd;
 use crate::lfs::tools::constant_table::env_prompt_message;
+use crate::lfs::commands::utils::file_metadata::metadata_same::is_metadata_same;
+
+
 
 #[cfg(target_os = "windows")]
 pub mod command_install{
-    use std::{env, fs, io, ptr};
+    use std::{env,io, ptr};
     use std::os::windows::ffi::OsStrExt;
     use std::ffi::OsStr;
-    use std::fs::{create_dir_all, read_dir};
     use std::iter::once;
     use std::path::{Path, PathBuf};
 
@@ -24,11 +28,18 @@ pub mod command_install{
     use winapi::um::securitybaseapi::GetTokenInformation;
     use winapi::um::handleapi::CloseHandle;
     use winapi::ctypes::c_void;
+    use winapi::um::shlobj::{CSIDL_PROFILE, SHGetFolderPathW};
+    use std::ptr::null_mut;
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use std::process::Command;
 
-    use crate::lfs::commands::command_install::{copy_file,path_buf_to_str,copy_dir};
+    use crate::lfs::commands::command_install::{copy_file,path_buf_to_str};
     use crate::lfs::errors::install_error::ENVINSTALLError;
-    use crate::lfs::tools::constant_table::{env_utils_table,env_prompt_message};
+    use crate::lfs::tools::constant_table::{env_utils_table, env_prompt_message, vault_config,git_repo_table};
     use crate::lfs::tools::env_utils::env_utils;
+    use crate::lfs::tools::gettext_format::remove_trailing_newlines;
+
     fn notify_environment_change() {
         unsafe {
             SendMessageTimeoutW(
@@ -43,7 +54,6 @@ pub mod command_install{
         }
 
     }
-
 
     fn elevate_privileges() ->Result<*mut c_void, ENVINSTALLError> {
         let operation = to_wide_chars("runas");
@@ -128,7 +138,97 @@ pub mod command_install{
     fn to_wide_chars(s: &str) -> Vec<u16> {
         OsStr::new(s).encode_wide().chain(once(0)).collect()
     }
+    fn gitconfig_exists_in_path(directory: &Path) -> bool {
+        let gitconfig_path = directory.join(git_repo_table::GitRepoCharacters::get(
+            git_repo_table::GitRepo::GITCONFIG
+        ));
+        gitconfig_path.exists() && gitconfig_path.is_file()
+    }
+    fn get_user_home() -> PathBuf{
+        let mut path_buf = vec![0u16; winapi::shared::minwindef::MAX_PATH];
+        unsafe {
+            SHGetFolderPathW(
+                null_mut(),
+                CSIDL_PROFILE,
+                null_mut(),
+                0,
+                path_buf.as_mut_ptr(),
+            );
+        }
+        let pos = path_buf.iter().position(|&c| c == 0).unwrap();
+        let path_buf = &path_buf[..pos];
+        let path = OsString::from_wide(path_buf);
+        match path.to_str() {
+            Some(path_str) => {
+                let path = PathBuf::from(path_str);
+                if gitconfig_exists_in_path(&path){
+                    return path
+                } else {
+                    panic!("{}",env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::GITCONFIG_NOT_EXIST_ERROR
+                    ))
+                }
+            },
+            None => {
+                panic!("{}",env_prompt_message::ENVPromptMsgCharacters::get(
+                    env_prompt_message::ENVPromptMsg::HOME_DIR_ERROR
+                ))
+            }
+        }
+    }
 
+    fn set_git_vault_filter(user_git_config_path: PathBuf) -> Result<(), ENVINSTALLError> {
+        if !user_git_config_path.exists() {
+            let error_msg = remove_trailing_newlines(
+                gettext(
+                    env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::GITCONFIG_NOT_EXIST_ERROR
+                    )
+                )
+            );
+            return Err(ENVINSTALLError::new(format!("{} {:?}",error_msg,user_git_config_path)));
+        }
+        let commands = vec![
+            (vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::SMUDGE_KEY
+            ), vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::SMUDGE_VALUE
+            )),
+            (vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::CLEAN_KEY
+            ), vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::CLEAN_VALUE
+            )),
+        ];
+        for (key, value) in commands {
+            let output = Command::new("git")
+                .args(&["config", "--global", key, value])
+                .output();
+            match output {
+                Ok(output) if output.status.success() => continue,
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(ENVINSTALLError::new(
+                        format!("{} {}", env_prompt_message::ENVPromptMsgCharacters::get(
+                            env_prompt_message::ENVPromptMsg::GITCONFIG_ERROR
+                        ),stderr
+                        )
+                    ));
+                }
+                Err(e) => {
+                    let error_msg = remove_trailing_newlines(
+                        gettext(env_prompt_message::ENVPromptMsgCharacters::get(
+                            env_prompt_message::ENVPromptMsg::FAILED_GIT_CONFIG
+                        ))
+                    );
+                    return Err(ENVINSTALLError::new(
+                        format!("{}{}",error_msg,e)
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
     pub fn install_command() -> Result<(),ENVINSTALLError> {
 
         if is_admin(){
@@ -220,6 +320,17 @@ pub mod command_install{
 
             notify_environment_change();
 
+            match set_git_vault_filter(get_user_home()) {
+                Ok(()) =>{
+                    print!("{}", env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::VAULT_CONFIG_SUCCESS
+                    ));
+                },
+                Err(e) => {
+                    panic!("{}",e);
+                }
+            }
+
             Ok(())
         } else {
             elevate_privileges();
@@ -241,48 +352,235 @@ fn path_buf_to_str<'a>(path_buf:&'a PathBuf) -> Result<&'a str,&'static str> {
         )
     }
 }
-fn copy_dir(src: &Path, dst: &Path) -> io::Result<()> {
-    if !dst.exists() {
-        create_dir_all(dst)?;
-    }
-    for entry in read_dir(src)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
+const BUFFER_SIZE: usize = 8 * 1024; // 8 KiB
+fn calculate_md5(path: &Path) -> io::Result<[u8; 16]> {
+    let mut file = File::open(path)?;
+    let mut context = md5::Context::new();
+    let mut buffer = [0; 1024];
 
-        if file_type.is_dir() {
-            copy_dir(&src_path, &dst_path)?;
-        } else if file_type.is_file() {
-            fs::copy(&src_path, &dst_path)?;
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            break;
         }
+        context.consume(&buffer[..count]);
     }
+
+    Ok(context.compute().into())
+}
+fn are_files_identical(src: &Path, dst: &Path) -> io::Result<bool> {
+    if !dst.exists() {
+        return Ok(false);
+    }
+
+    let src_md5 = calculate_md5(src)?;
+    let dst_md5 = calculate_md5(dst)?;
+
+    Ok(src_md5 == dst_md5)
+}
+fn parallel_copy_dir(src: &Path, dst: &Path, is_same_disk: bool) -> io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    let entries = fs::read_dir(src)?
+        .collect::<Result<Vec<_>, io::Error>>()?;
+    if is_same_disk {
+        for entry in entries {
+            let file_type = entry.file_type()?;
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+
+            if file_type.is_dir() {
+                parallel_copy_dir(&src_path, &dst_path, true)?;
+            } else if file_type.is_file() {
+                if !dst_path.exists() || !are_files_identical(&src_path, &dst_path)? {
+                    fs::copy(&src_path, &dst_path)?;
+                }
+            }
+        }
+    } else {
+        entries.into_par_iter().try_for_each(|entry| {
+            let file_type = entry.file_type()?;
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+
+            if file_type.is_dir() {
+                parallel_copy_dir(&src_path, &dst_path, false)
+            } else if file_type.is_file() {
+                if !dst_path.exists() || !are_files_identical(&src_path, &dst_path)? {
+                    fs::copy(&src_path, &dst_path).map(|_| ())
+                } else {
+                    Ok(())
+                }
+            } else {
+                Ok(())
+            }
+        })?;
+    }
+
     Ok(())
 }
-fn copy_file(src: &Path, dst: &Path) -> Result<(), ENVINSTALLError> {
+
+fn copy_file(src: &Path, dst: &Path) -> io::Result<()> {
     if src.is_dir() {
-        copy_dir(src, dst).map_err(|e| ENVINSTALLError::from(e))
+        let b = is_metadata_same(src, dst)?;
+        let a=is_parallel(is_ssd(dst.to_str().unwrap()), b);
+        parallel_copy_dir(src,dst,a)
     } else {
         if let Some(parent) = dst.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::copy(src, dst)?;
+        if !are_files_identical(&src ,&dst)?{
+            fs::copy(src, dst)?;
+        }
         Ok(())
     }
 }
+
+
+
+fn is_parallel(is_ssd:Result<bool,Box<dyn std::error::Error>>,is_same_disk:bool) -> bool {
+    match is_ssd {
+        Ok(ssd) => {
+            if ssd {
+                return false
+            } else {
+                return is_same_disk
+            }
+        },
+        Err(e) => {
+            panic!("{}",e)
+        }
+    }
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub mod command_install{
     use std::env;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
     use gettextrs::gettext;
-    use crate::lfs::commands::command_install::copy_file;
+    use crate::lfs::commands::command_install::{copy_file};
+
+    use crate::lfs::tools::gettext_format::remove_trailing_newlines;
     use crate::lfs::errors::install_error::ENVINSTALLError;
-    use crate::lfs::tools::constant_table::{env_utils_table,env_prompt_message};
+    use crate::lfs::tools::constant_table::{env_utils_table,env_prompt_message,git_repo_table,vault_config };
 
     fn is_root() -> bool {
         unsafe {
             libc::getuid() == 0
         }
+    }
+    #[cfg( target_os = "linux")]
+    fn get_user_home() -> PathBuf {
+        let user = if is_root() {
+            env::var("SUDO_USER").ok()
+        } else {
+            env::var("USER").ok()
+        };
+        if let Some(username) = user {
+            let output = Command::new("getent")
+                .args(&["passwd", &username])
+                .output()
+                .expect("failed to get user info");
+            if output.status.success() {
+                let user_info = String::from_utf8_lossy(&output.stdout);
+                if let Some(home_dir) = user_info.split(':').nth(5) {
+                    let mut home_path = PathBuf::from(home_dir.trim());
+                    home_path.push(
+                        git_repo_table::GitRepoCharacters::get(
+                            git_repo_table::GitRepo::GITCONFIG
+                        )
+                    );
+                    return home_path
+                }
+            }
+        }
+        env::var("HOME").map(|home_dir| {
+            let mut home_path = PathBuf::from(home_dir);
+            home_path.push(
+                git_repo_table::GitRepoCharacters::get(
+                    git_repo_table::GitRepo::GITCONFIG
+                )
+            );
+            home_path
+        }).expect(env_prompt_message::ENVPromptMsgCharacters::get(
+            env_prompt_message::ENVPromptMsg::HOME_DIR_ERROR
+        ))
+    }
+    #[cfg( target_os = "macos")]
+    fn get_user_home() -> PathBuf {
+        match env::var(env_utils_table::ENVIRONMENTCharacters::get(
+            env_utils_table::ENVIRONMENTEnum::USER_HOME
+        )) {
+            Ok(home_dir) => {
+                let mut config_path = PathBuf::from(home_dir);
+                config_path.push(git_repo_table::GitRepoCharacters::get(
+                    git_repo_table::GitRepo::GITCONFIG
+                ));
+                config_path
+            },
+            Err(e) => {
+                panic!("{} {}", gettext(
+                    env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::HOME_DIR_ERROR
+                    )
+                ),e);
+            },
+        }
+    }
+    fn set_git_vault_filter(user_git_config_path: PathBuf) -> Result<(), ENVINSTALLError> {
+        if !user_git_config_path.exists() {
+            let error_msg = remove_trailing_newlines(
+                gettext(
+                    env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::GITCONFIG_NOT_EXIST_ERROR
+                    )
+                )
+            );
+            return Err(ENVINSTALLError::new(format!("{} {:?}",error_msg,user_git_config_path)));
+        }
+        let commands = vec![
+            (vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::SMUDGE_KEY
+            ), vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::SMUDGE_VALUE
+            )),
+            (vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::CLEAN_KEY
+            ), vault_config::VaultConfigEnumCharacters::get(
+                vault_config::VaultConfigEnum::CLEAN_VALUE
+            )),
+        ];
+        for (key, value) in commands {
+            let output = Command::new("git")
+                .args(&["config", "--global", key, value])
+                .output();
+            match output {
+                Ok(output) if output.status.success() => continue,
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(ENVINSTALLError::new(
+                        format!("{} {}", env_prompt_message::ENVPromptMsgCharacters::get(
+                            env_prompt_message::ENVPromptMsg::GITCONFIG_ERROR
+                        ),stderr
+                        )
+                    ));
+                }
+                Err(e) => {
+                    let error_msg = remove_trailing_newlines(
+                        gettext(env_prompt_message::ENVPromptMsgCharacters::get(
+                            env_prompt_message::ENVPromptMsg::FAILED_GIT_CONFIG
+                        ))
+                    );
+                    return Err(ENVINSTALLError::new(
+                        format!("{}{}",error_msg,e)
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
     pub fn install_command() -> Result<(),ENVINSTALLError> {
         if is_root() {
@@ -344,6 +642,16 @@ pub mod command_install{
                             )
                         ),e
                     ))?
+                }
+            }
+            match set_git_vault_filter(get_user_home()) {
+                Ok(()) =>{
+                    print!("{}", env_prompt_message::ENVPromptMsgCharacters::get(
+                        env_prompt_message::ENVPromptMsg::VAULT_CONFIG_SUCCESS
+                    ));
+                },
+                Err(e) => {
+                    panic!("{}",e);
                 }
             }
             Ok(())
