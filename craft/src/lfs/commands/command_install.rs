@@ -487,17 +487,27 @@ pub mod command_install{
             if output.status.success() {
                 let user_info = String::from_utf8_lossy(&output.stdout);
                 if let Some(home_dir) = user_info.split(':').nth(5) {
-                    return PathBuf::from(home_dir.trim().join(git_repo_table::GitRepoCharacters::get(
-                        git_repo_table::GitRepo::GITCONFIG
-                    )));
+                    let mut home_path = PathBuf::from(home_dir.trim());
+                    home_path.push(
+                        git_repo_table::GitRepoCharacters::get(
+                            git_repo_table::GitRepo::GITCONFIG
+                        )
+                    );
+                    return home_path
                 }
             }
         }
-        env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| {
-            panic!("{}", env_prompt_message::ENVPromptMsgCharacters::get(
-                env_prompt_message::ENVPromptMsg::HOME_DIR_ERROR
-            ))
-        })
+        env::var("HOME").map(|home_dir| {
+            let mut home_path = PathBuf::from(home_dir);
+            home_path.push(
+                git_repo_table::GitRepoCharacters::get(
+                    git_repo_table::GitRepo::GITCONFIG
+                )
+            );
+            home_path
+        }).expect(env_prompt_message::ENVPromptMsgCharacters::get(
+            env_prompt_message::ENVPromptMsg::HOME_DIR_ERROR
+        ))
     }
     #[cfg( target_os = "macos")]
     fn get_user_home() -> PathBuf {
