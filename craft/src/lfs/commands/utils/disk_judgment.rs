@@ -271,21 +271,23 @@ pub mod disk_judgment {
             device_path
         };
 
-        let device_name_result = real_device.file_name().map(|s| s.to_str());
+        let device_name_result = real_device.file_name().and_then(|s| s.to_str());
 
         let device_name = match device_name_result {
-            Some(Ok(name)) => name,
-            Some(Err(_)) => {
-                eprintln!("{}",disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::UNICODE_ERROR
-                ));
-                return Ok(false)
-            }
+            Some(name) => name,
             None => {
-                eprintln!("{}", disk_judgment_table::DiskJudgmentEnumCharacters::get(
-                    disk_judgment_table::DiskJudgmentEnum::DEVICE_ERROE
-                ));
-                return Ok(false)
+                return if real_device.file_name().is_none() {
+                    eprintln!("{}", disk_judgment_table::DiskJudgmentEnumCharacters::get(
+                        disk_judgment_table::DiskJudgmentEnum::DEVICE_ERROE
+                    ));
+                    Ok(false)
+                } else {
+                    eprintln!("{}", disk_judgment_table::DiskJudgmentEnumCharacters::get(
+                        disk_judgment_table::DiskJudgmentEnum::UNICODE_ERROR
+                    ));
+                    Ok(false)
+                }
+
             }
         };
 

@@ -194,7 +194,8 @@ pub mod disk_judgment_table {
             BLOCK:"/sys/block",
             ROTATIONAL:"queue/rotational",
             UNICODE_ERROR:"Non-unicode device name",
-            DEVICE_ERROE:"Invalid device name"
+            DEVICE_ERROE:"Invalid device name",
+            UNICODE_DEVICE_ERROR:"Non-unicode device name or Invalid device name"
         }
     }
 }
