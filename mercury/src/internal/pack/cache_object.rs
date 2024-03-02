@@ -1,5 +1,6 @@
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::{ops::Deref, sync::Arc};
-use std::sync::atomic::AtomicU64;
 
 use crate::internal::pack::utils;
 use lru_mem::HeapSize;
@@ -46,7 +47,10 @@ impl Drop for CacheObject {
     // (cannot change the heap-size during life cycle)
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
-        CACHE_OBJS_HEAP_SIZE.fetch_sub((&*self).heap_size() as u64, std::sync::atomic::Ordering::Relaxed);
+        CACHE_OBJS_HEAP_SIZE.fetch_sub(
+            (*self).heap_size() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
     }
 }
 
@@ -65,7 +69,10 @@ impl HeapSizeRecorder for CacheObject {
     /// record the heap-size of this `CacheObj` in a `static` `var`
     /// <br> since that, DO NOT modify `CacheObj` after recording
     fn record_heap_size(&self) {
-        CACHE_OBJS_HEAP_SIZE.fetch_add(self.heap_size() as u64, std::sync::atomic::Ordering::Relaxed);
+        CACHE_OBJS_HEAP_SIZE.fetch_add(
+            self.heap_size() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
     }
 
     fn get_heap_size() -> u64 {
@@ -124,32 +131,71 @@ impl CacheObject {
 /// !Implementing encapsulation of Arc<T> to enable third-party Trait HeapSize implementation for the Arc type
 /// !Because of use Arc<T> in LruCache, the LruCache is not clear whether a pointer will drop the referenced
 /// ! content when it is ejected from the cache, the actual memory usage is not accurate
-pub struct ArcWrapper<T: HeapSize>(pub Arc<T>);
-impl<T: HeapSize> HeapSize for ArcWrapper<T> {
-    fn heap_size(&self) -> usize {
-        self.0.heap_size()
-    }
+pub struct ArcWrapper<T: HeapSize + Serialize> {
+    pub data: Arc<T>,
+    complete_signal: Arc<AtomicBool>,
+    pub store_path: Option<PathBuf>, // path to store when drop
 }
-impl<T: HeapSize> Clone for ArcWrapper<T> {
-    fn clone(&self) -> Self {
-        ArcWrapper(self.0.clone())
+impl<T: HeapSize + Serialize> ArcWrapper<T> {
+    /// Create a new ArcWrapper
+    pub fn new(data: Arc<T>, share_flag: Arc<AtomicBool>) -> Self {
+        ArcWrapper {
+            data,
+            complete_signal: share_flag,
+            store_path: None,
+        }
     }
-}
-impl<T: HeapSize> Deref for ArcWrapper<T> {
-    type Target = Arc<T>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    pub fn set_store_path(&mut self, path: PathBuf) {
+        self.store_path = Some(path);
     }
 }
 
+impl<T: HeapSize + Serialize> HeapSize for ArcWrapper<T> {
+    fn heap_size(&self) -> usize {
+        self.data.heap_size()
+    }
+}
+
+impl<T: HeapSize + Serialize> Clone for ArcWrapper<T> {
+    /// clone won't clone the store_path
+    fn clone(&self) -> Self {
+        ArcWrapper {
+            data: self.data.clone(),
+            complete_signal: self.complete_signal.clone(),
+            store_path: None,
+        }
+    }
+}
+
+impl<T: HeapSize + Serialize> Deref for ArcWrapper<T> {
+    type Target = Arc<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+impl<T: HeapSize + Serialize> Drop for ArcWrapper<T> {
+    fn drop(&mut self) {
+        if !self
+            .complete_signal
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            if let Some(path) = &self.store_path {
+                let data = bincode::serialize(&*self.data).unwrap();
+                std::fs::write(path, data).unwrap();
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod test {
-    use std::sync::Mutex;
+    use std::{fs, sync::Mutex};
 
     use lru_mem::LruCache;
 
     use super::*;
     #[test]
+    #[ignore = "only in single thread"]
+    // 只在单线程测试
     fn test_heap_size_record() {
         let obj = CacheObject {
             data_decompress: vec![0; 1024],
@@ -173,7 +219,8 @@ mod test {
         };
         assert!(a.heap_size() == 1024);
 
-        let b = ArcWrapper(Arc::new(a.clone()));
+        // let b = ArcWrapper(Arc::new(a.clone()));
+        let b = ArcWrapper::new(Arc::new(a.clone()), Arc::new(AtomicBool::new(false)));
         assert!(b.heap_size() == 1024);
     }
     #[test]
@@ -198,13 +245,16 @@ mod test {
             hash: SHA1::new(&vec![1; 20]),
         };
         {
-            let r = cache.insert(a.hash.to_plain_str(), ArcWrapper(Arc::new(a.clone())));
+            let r = cache.insert(
+                a.hash.to_plain_str(),
+                ArcWrapper::new(Arc::new(a.clone()), Arc::new(AtomicBool::new(true))),
+            );
             assert!(r.is_ok())
         }
         {
             let r = cache.try_insert(
                 b.clone().hash.to_plain_str(),
-                ArcWrapper(Arc::new(b.clone())),
+                ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true))),
             );
             assert!(r.is_err());
             if let Err(lru_mem::TryInsertError::WouldEjectLru { .. }) = r {
@@ -212,7 +262,10 @@ mod test {
             } else {
                 panic!("Expected WouldEjectLru error");
             }
-            let r = cache.insert(b.hash.to_plain_str(), ArcWrapper(Arc::new(b.clone())));
+            let r = cache.insert(
+                b.hash.to_plain_str(),
+                ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true))),
+            );
             assert!(r.is_ok());
         }
         {
@@ -222,32 +275,39 @@ mod test {
         }
     }
 
+    #[derive(Serialize, Deserialize)]
+    struct Test {
+        a: usize,
+    }
+    impl Drop for Test {
+        fn drop(&mut self) {
+            println!("drop Test");
+        }
+    }
+    impl HeapSize for Test {
+        fn heap_size(&self) -> usize {
+            self.a
+        }
+    }
     #[test]
     fn test_lru_drop() {
-        struct Test {
-            a: usize,
-        }
-        impl Drop for Test {
-            fn drop(&mut self) {
-                println!("drop Test");
-            }
-        }
-        impl HeapSize for Test {
-            fn heap_size(&self) -> usize {
-                self.a
-            }
-        }
         println!("insert a");
         let cache = LruCache::new(2048);
         let cache = Arc::new(Mutex::new(cache));
         {
             let mut c = cache.as_ref().lock().unwrap();
-            let _ = c.insert("a", ArcWrapper(Arc::new(Test { a: 1024 })));
+            let _ = c.insert(
+                "a",
+                ArcWrapper::new(Arc::new(Test { a: 1024 }), Arc::new(AtomicBool::new(true))),
+            );
         }
         println!("insert b, a should be ejected");
         {
             let mut c = cache.as_ref().lock().unwrap();
-            let _ = c.insert("b", ArcWrapper(Arc::new(Test { a: 1200 })));
+            let _ = c.insert(
+                "b",
+                ArcWrapper::new(Arc::new(Test { a: 1200 }), Arc::new(AtomicBool::new(true))),
+            );
         }
         let b = {
             let mut c = cache.as_ref().lock().unwrap();
@@ -256,7 +316,10 @@ mod test {
         println!("insert c, b should not be ejected");
         {
             let mut c = cache.as_ref().lock().unwrap();
-            let _ = c.insert("c", ArcWrapper(Arc::new(Test { a: 1200 })));
+            let _ = c.insert(
+                "c",
+                ArcWrapper::new(Arc::new(Test { a: 1200 }), Arc::new(AtomicBool::new(true))),
+            );
         }
         println!("user b: {}", b.as_ref().unwrap().a);
         println!("test over, enject all");
@@ -275,5 +338,64 @@ mod test {
         let s = bincode::serialize(&a).unwrap();
         let b: CacheObject = bincode::deserialize(&s).unwrap();
         assert!(a.base_offset == b.base_offset);
+    }
+
+    #[test]
+    fn test_arc_wrapper_drop_store() {
+        let mut path = PathBuf::from(".cache_temp");
+        fs::create_dir_all(&path).unwrap();
+        path.push("test_obj");
+        let mut a = ArcWrapper::new(Arc::new(1024), Arc::new(AtomicBool::new(true)));
+        a.set_store_path(path.clone());
+        drop(a);
+
+        assert!(path.exists());
+        path.pop();
+        fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    /// test warpper can't correctly store the data when lru eject it
+    fn test_arc_wrapper_with_lru() {
+        let mut cache = LruCache::new(1500);
+        let path = PathBuf::from(".cache_temp");
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        let shared_flag = Arc::new(AtomicBool::new(false));
+
+        // insert a, a not ejected
+        let a_path = path.join("a");
+        {
+            let mut a = ArcWrapper::new(Arc::new(Test { a: 1024 }), shared_flag.clone());
+            a.set_store_path(a_path.clone());
+            let b = ArcWrapper::new(Arc::new(1024), shared_flag.clone());
+            assert!(b.store_path.is_none());
+
+            println!("insert a with heap size: {:?}", a.heap_size());
+            let rt = cache.insert("a", a);
+            if let Err(e) = rt {
+                panic!("{}", format!("insert a failed: {:?}", e.to_string()));
+            }
+            println!("after insert a, cache used = {}", cache.current_size());
+        }
+        assert!(!a_path.exists());
+
+        let b_path = path.join("b");
+        // insert b, a should be ejected
+        {
+            let mut b = ArcWrapper::new(Arc::new(Test { a: 996 }), shared_flag.clone());
+            b.set_store_path(b_path.clone());
+            let rt = cache.insert("b", b);
+            if let Err(e) = rt {
+                panic!("{}", format!("insert a failed: {:?}", e.to_string()));
+            }
+            println!("after insert b, cache used = {}", cache.current_size());
+
+        }
+        assert!(a_path.exists());
+        assert!(!b_path.exists());
+        shared_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        fs::remove_dir_all(path).unwrap();
+        // should pass even b's path not exists
     }
 }

@@ -7,10 +7,10 @@
 
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
-use std::sync::atomic::AtomicBool;
 
 use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, HeapSizeRecorder};
 use dashmap::{DashMap, DashSet};
@@ -43,14 +43,16 @@ pub struct Caches {
     mem_size: Option<usize>,
     tmp_path: PathBuf,
     pool: ThreadPool,
-    stop: Arc<AtomicBool>
+    stop: Arc<AtomicBool>,
+
+    shared_complete_signal: Arc<AtomicBool>, // shared with cache object, when set to true, the cache will not store droped data in disk
 }
 
 impl Caches {
     /// only get object from memory, not from tmp file
     fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         let mut map = self.lru_cache.lock().unwrap();
-        map.get(&hash.to_plain_str()).map(|x| x.clone().0)
+        map.get(&hash.to_plain_str()).map(|x| x.data.clone())
     }
 
     /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
@@ -71,9 +73,11 @@ impl Caches {
         };
 
         let mut map = self.lru_cache.lock().unwrap();
-        let x = ArcWrapper(Arc::new(obj)); //TODO 挪出锁外
-        let _ = map.insert(hash.to_plain_str(), x.clone()); // handle the error
-        Ok(x.0)
+        let obj = Arc::new(obj);
+        let mut x = ArcWrapper::new(obj.clone(), self.shared_complete_signal.clone());
+        x.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+        let _ = map.insert(hash.to_plain_str(), x); // handle the error
+        Ok(obj)
     }
 
     /// generate the temp file path, hex string of the hash
@@ -130,6 +134,7 @@ impl _Cache for Caches {
             tmp_path,
             pool: ThreadPool::new(thread_num),
             stop: Arc::new(AtomicBool::new(false)),
+            shared_complete_signal: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -142,7 +147,10 @@ impl _Cache for Caches {
         {
             // ? whether insert to cache directly or only write to tmp file
             let mut map = self.lru_cache.lock().unwrap();
-            let _ = map.insert(hash.to_plain_str(), ArcWrapper(obj_arc.clone()));
+            let _ = map.insert(
+                hash.to_plain_str(),
+                ArcWrapper::new(obj_arc.clone(), self.shared_complete_signal.clone()),
+            );
         }
         //order maters as for reading in 'get_by_offset()'
         self.hash_set.insert(hash);
@@ -154,7 +162,7 @@ impl _Cache for Caches {
             let stop = self.stop.clone();
 
             // TODO limit queue size, achieve balance between with wait list
-            while self.pool.queued_count() > 1000{
+            while self.pool.queued_count() > 1000 {
                 sleep(std::time::Duration::from_millis(10));
             }
             self.pool.execute(move || {
