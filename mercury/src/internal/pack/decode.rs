@@ -273,8 +273,6 @@ impl Pack {
     ///
     ///
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
-
-        #[cfg(debug_assertions)]
         let time = Instant::now();
         
         // // use random subdirectory to avoid conflicts with other files
@@ -384,10 +382,9 @@ impl Pack {
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
         println!("The pack file has been decoded successfully");
+        println!("Pack decode takes: [ {:?} ]", time.elapsed());
 
-        let start = Instant::now();
         self.caches.clear(); // clear cached objects & stop threads
-        println!("Caches clear took {:?}", start.elapsed());
         assert_eq!(CacheObject::get_heap_size(), 0); // all the objs should be dropped until here
 
         Ok(())
@@ -506,7 +503,6 @@ mod tests {
     use std::io::prelude::*;
     use std::io::BufReader;
     use std::io::Cursor;
-    use std::time::Instant;
     use std::{env, path::PathBuf};
 
     use flate2::write::ZlibEncoder;
@@ -587,9 +583,7 @@ mod tests {
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
         let mut p = Pack::new(Some(20), Some(1024*1024*20), Some(tmp));
-        let start = Instant::now();
         p.decode(&mut buffered).unwrap();
-        println!("Test took {:?}", start.elapsed());
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 
     #[test]

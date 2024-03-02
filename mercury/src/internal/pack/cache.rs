@@ -17,6 +17,7 @@ use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
 use venus::hash::SHA1;
+use crate::time_it;
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
@@ -197,12 +198,17 @@ impl _Cache for Caches {
     }
 
     fn clear(&self) {
-        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
-        self.pool.join();
-        self.lru_cache.lock().unwrap().clear();
-        self.hash_set.clear();
-        self.map_offset.clear();
-        // fs::remove_dir_all(&self.tmp_path).unwrap(); //slow
+        time_it!("Caches clear", {
+            self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.pool.join();
+            self.lru_cache.lock().unwrap().clear();
+            self.hash_set.clear();
+            self.map_offset.clear();
+        });
+
+        time_it!("Remove tmp dir", {
+            fs::remove_dir_all(&self.tmp_path).unwrap(); //very slow
+        });
 
         assert_eq!(self.pool.queued_count(), 0);
         assert_eq!(self.pool.active_count(), 0);
