@@ -100,9 +100,12 @@ pub mod disk_judgment {
 }
 #[cfg( target_os = "macos")]
 pub mod disk_judgment {
-    use std::error::Error;
-    use std::fs;
-    use std::process::Command;
+    use std::{
+        error::Error,
+        fs,
+        process::Command,
+    };
+
     use crate::lfs::tools::constant_table::disk_judgment_table;
     pub fn is_ssd(path: &str) -> Result<bool, Box<dyn Error>> {
         let device_path = if fs::metadata(path).is_ok() {
