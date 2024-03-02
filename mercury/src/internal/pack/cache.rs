@@ -7,17 +7,19 @@
 
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
-use std::sync::atomic::AtomicBool;
 
 use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, HeapSizeRecorder};
+use crate::time_it;
 use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
 use venus::hash::SHA1;
-use crate::time_it;
+
+use super::cache_object::FileLoadStore;
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
@@ -28,6 +30,7 @@ pub trait _Cache {
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
     fn total_inserted(&self) -> usize;
+    fn memory_used(&self) -> usize;
     fn clear(&self);
 }
 
@@ -42,15 +45,15 @@ pub struct Caches {
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache require the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
     mem_size: Option<usize>,
     tmp_path: PathBuf,
-    pool: ThreadPool,
-    stop: Arc<AtomicBool>
+    pool: Arc<ThreadPool>,
+    complete_signal: Arc<AtomicBool>,
 }
 
 impl Caches {
     /// only get object from memory, not from tmp file
     fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         let mut map = self.lru_cache.lock().unwrap();
-        map.get(&hash.to_plain_str()).map(|x| x.clone().0)
+        map.get(&hash.to_plain_str()).map(|x| x.data.clone())
     }
 
     /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
@@ -71,9 +74,15 @@ impl Caches {
         };
 
         let mut map = self.lru_cache.lock().unwrap();
-        let x = ArcWrapper(Arc::new(obj)); //TODO 挪出锁外
-        let _ = map.insert(hash.to_plain_str(), x.clone()); // handle the error
-        Ok(x.0)
+        let obj = Arc::new(obj);
+        let mut x = ArcWrapper::new(
+            obj.clone(),
+            self.complete_signal.clone(),
+            Some(self.pool.clone()),
+        );
+        x.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+        let _ = map.insert(hash.to_plain_str(), x); // handle the error
+        Ok(obj)
     }
 
     /// generate the temp file path, hex string of the hash
@@ -85,27 +94,11 @@ impl Caches {
 
     fn read_from_temp(&self, hash: SHA1) -> io::Result<CacheObject> {
         let path = Self::generate_temp_path(&self.tmp_path, hash);
-        let b = fs::read(path)?;
-        let obj: CacheObject =
-            bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let obj = CacheObject::f_load(&path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
         obj.record_heap_size();
         Ok(obj)
-    }
-
-    /// write the object to tmp file,
-    /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
-    // todo use another thread to do this latter
-    fn write_to_temp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) -> io::Result<()> {
-        let path = Self::generate_temp_path(tmp_path, hash);
-        let b = bincode::serialize(&obj).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-        let path = path.with_extension("temp");
-        fs::write(path.clone(), b)?;
-        let final_path = path.with_extension("");
-        fs::rename(path, final_path)?;
-        Ok(())
     }
 
     pub fn queued_tasks(&self) -> usize {
@@ -128,8 +121,8 @@ impl _Cache for Caches {
             lru_cache: Mutex::new(LruCache::new(mem_size.unwrap_or(usize::MAX))),
             mem_size,
             tmp_path,
-            pool: ThreadPool::new(thread_num),
-            stop: Arc::new(AtomicBool::new(false)),
+            pool: Arc::new(ThreadPool::new(thread_num)),
+            complete_signal: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -142,27 +135,18 @@ impl _Cache for Caches {
         {
             // ? whether insert to cache directly or only write to tmp file
             let mut map = self.lru_cache.lock().unwrap();
-            let _ = map.insert(hash.to_plain_str(), ArcWrapper(obj_arc.clone()));
+            let mut a_obj = ArcWrapper::new(
+                obj_arc.clone(),
+                self.complete_signal.clone(),
+                Some(self.pool.clone()),
+            );
+            a_obj.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+            let _ = map.insert(hash.to_plain_str(), a_obj);
         }
         //order maters as for reading in 'get_by_offset()'
         self.hash_set.insert(hash);
         self.map_offset.insert(offset, hash);
 
-        if self.mem_size.is_some() {
-            let tmp_path = self.tmp_path.clone();
-            let obj_clone = obj_arc.clone();
-            let stop = self.stop.clone();
-
-            // TODO limit queue size, achieve balance between with wait list
-            while self.pool.queued_count() > 1000{
-                sleep(std::time::Duration::from_millis(10));
-            }
-            self.pool.execute(move || {
-                if stop.load(std::sync::atomic::Ordering::Relaxed) == false {
-                    Self::write_to_temp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
-                }
-            });
-        }
         obj_arc
     }
 
@@ -196,10 +180,13 @@ impl _Cache for Caches {
     fn total_inserted(&self) -> usize {
         self.hash_set.len()
     }
-
+    fn memory_used(&self) -> usize {
+        self.lru_cache.lock().unwrap().current_size()
+    }
     fn clear(&self) {
         time_it!("Caches clear", {
-            self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.complete_signal
+                .store(true, std::sync::atomic::Ordering::Relaxed);
             self.pool.join();
             self.lru_cache.lock().unwrap().clear();
             self.hash_set.clear();
