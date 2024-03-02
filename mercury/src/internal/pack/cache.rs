@@ -43,9 +43,7 @@ pub struct Caches {
     mem_size: Option<usize>,
     tmp_path: PathBuf,
     pool: ThreadPool,
-    stop: Arc<AtomicBool>,
-
-    shared_complete_signal: Arc<AtomicBool>, // shared with cache object, when set to true, the cache will not store droped data in disk
+    complete_signal: Arc<AtomicBool>,
 }
 
 impl Caches {
@@ -74,7 +72,7 @@ impl Caches {
 
         let mut map = self.lru_cache.lock().unwrap();
         let obj = Arc::new(obj);
-        let mut x = ArcWrapper::new(obj.clone(), self.shared_complete_signal.clone());
+        let mut x = ArcWrapper::new(obj.clone(), self.complete_signal.clone());
         x.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
         let _ = map.insert(hash.to_plain_str(), x); // handle the error
         Ok(obj)
@@ -133,8 +131,7 @@ impl _Cache for Caches {
             mem_size,
             tmp_path,
             pool: ThreadPool::new(thread_num),
-            stop: Arc::new(AtomicBool::new(false)),
-            shared_complete_signal: Arc::new(AtomicBool::new(false)),
+            complete_signal: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -149,7 +146,7 @@ impl _Cache for Caches {
             let mut map = self.lru_cache.lock().unwrap();
             let _ = map.insert(
                 hash.to_plain_str(),
-                ArcWrapper::new(obj_arc.clone(), self.shared_complete_signal.clone()),
+                ArcWrapper::new(obj_arc.clone(), self.complete_signal.clone()),
             );
         }
         //order maters as for reading in 'get_by_offset()'
@@ -159,14 +156,14 @@ impl _Cache for Caches {
         if self.mem_size.is_some() {
             let tmp_path = self.tmp_path.clone();
             let obj_clone = obj_arc.clone();
-            let stop = self.stop.clone();
+            let stop = self.complete_signal.clone();
 
             // TODO limit queue size, achieve balance between with wait list
             while self.pool.queued_count() > 1000 {
                 sleep(std::time::Duration::from_millis(10));
             }
             self.pool.execute(move || {
-                if stop.load(std::sync::atomic::Ordering::Relaxed) == false {
+                if !stop.load(std::sync::atomic::Ordering::Relaxed) {
                     Self::write_to_temp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
                 }
             });
@@ -207,7 +204,7 @@ impl _Cache for Caches {
 
     fn clear(&self) {
         time_it!("Caches clear", {
-            self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.complete_signal.store(true, std::sync::atomic::Ordering::Relaxed);
             self.pool.join();
             self.lru_cache.lock().unwrap().clear();
             self.hash_set.clear();
