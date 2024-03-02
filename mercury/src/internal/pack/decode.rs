@@ -273,8 +273,6 @@ impl Pack {
     ///
     ///
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
-
-        #[cfg(debug_assertions)]
         let time = Instant::now();
         
         // // use random subdirectory to avoid conflicts with other files
@@ -380,14 +378,14 @@ impl Pack {
         self.pool.join(); // wait for all threads to finish
         // !Attention: Caches threadpool may not stop, but it's not a problem (garbage file data)
         // So that files != self.number
-        println!("The pack file has been decoded successfully");
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
+        println!("The pack file has been decoded successfully");
+        println!("Pack decode takes: [ {:?} ]", time.elapsed());
 
-        // todo: difficult to stop threads in cache, so we didn't remove the temp file temporarily
-        // drop(caches);
-        // fs::remove_dir_all(tmp_path).unwrap();
+        self.caches.clear(); // clear cached objects & stop threads
+        assert_eq!(CacheObject::get_heap_size(), 0); // all the objs should be dropped until here
 
         Ok(())
     }
@@ -505,12 +503,10 @@ mod tests {
     use std::io::prelude::*;
     use std::io::BufReader;
     use std::io::Cursor;
-    use std::time::Instant;
     use std::{env, path::PathBuf};
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
-    use crate::internal::pack::cache_object::{CacheObject, HeapSizeRecorder};
 
     use crate::internal::pack::Pack;
 
@@ -586,12 +582,8 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), None, Some(tmp));
-        let start = Instant::now();
+        let mut p = Pack::new(Some(20), Some(1024*1024*20), Some(tmp));
         p.decode(&mut buffered).unwrap();
-        println!("Test took {:?}", start.elapsed());
-        drop(p);
-        assert_eq!(CacheObject::get_heap_size(), 0); // all the objs should be dropped until now
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 
     #[test]
