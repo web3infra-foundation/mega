@@ -582,7 +582,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), Some(1024*1024*1024*10), Some(tmp));
+        let mut p = Pack::new(Some(20), Some(1024*1024*20), Some(tmp));
         p.decode(&mut buffered).unwrap();
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 

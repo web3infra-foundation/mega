@@ -19,6 +19,8 @@ use lru_mem::LruCache;
 use threadpool::ThreadPool;
 use venus::hash::SHA1;
 
+use super::cache_object::FileLoadStore;
+
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
     where
@@ -43,7 +45,7 @@ pub struct Caches {
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache require the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
     mem_size: Option<usize>,
     tmp_path: PathBuf,
-    pool: ThreadPool,
+    pool: Arc<ThreadPool>,
     complete_signal: Arc<AtomicBool>,
 }
 
@@ -73,7 +75,11 @@ impl Caches {
 
         let mut map = self.lru_cache.lock().unwrap();
         let obj = Arc::new(obj);
-        let mut x = ArcWrapper::new(obj.clone(), self.complete_signal.clone());
+        let mut x = ArcWrapper::new(
+            obj.clone(),
+            self.complete_signal.clone(),
+            Some(self.pool.clone()),
+        );
         x.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
         let _ = map.insert(hash.to_plain_str(), x); // handle the error
         Ok(obj)
@@ -88,27 +94,11 @@ impl Caches {
 
     fn read_from_temp(&self, hash: SHA1) -> io::Result<CacheObject> {
         let path = Self::generate_temp_path(&self.tmp_path, hash);
-        let b = fs::read(path)?;
-        let obj: CacheObject =
-            bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let obj = CacheObject::f_load(&path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
         obj.record_heap_size();
         Ok(obj)
-    }
-
-    /// write the object to tmp file,
-    /// ! because the file won't be changed after the object is written, use atomic write will ensure thread safety
-    // todo use another thread to do this latter
-    fn write_to_temp(tmp_path: &Path, hash: SHA1, obj: &CacheObject) -> io::Result<()> {
-        let path = Self::generate_temp_path(tmp_path, hash);
-        let b = bincode::serialize(&obj).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-        let path = path.with_extension("temp");
-        fs::write(path.clone(), b)?;
-        let final_path = path.with_extension("");
-        fs::rename(path, final_path)?;
-        Ok(())
     }
 
     pub fn queued_tasks(&self) -> usize {
@@ -131,7 +121,7 @@ impl _Cache for Caches {
             lru_cache: Mutex::new(LruCache::new(mem_size.unwrap_or(usize::MAX))),
             mem_size,
             tmp_path,
-            pool: ThreadPool::new(thread_num),
+            pool: Arc::new(ThreadPool::new(thread_num)),
             complete_signal: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -145,7 +135,11 @@ impl _Cache for Caches {
         {
             // ? whether insert to cache directly or only write to tmp file
             let mut map = self.lru_cache.lock().unwrap();
-            let mut a_obj = ArcWrapper::new(obj_arc.clone(), self.complete_signal.clone());
+            let mut a_obj = ArcWrapper::new(
+                obj_arc.clone(),
+                self.complete_signal.clone(),
+                Some(self.pool.clone()),
+            );
             a_obj.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
             let _ = map.insert(hash.to_plain_str(), a_obj);
         }
