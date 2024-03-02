@@ -13,11 +13,11 @@ use std::thread::sleep;
 use std::{fs, io};
 
 use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, HeapSizeRecorder};
+use crate::time_it;
 use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
 use venus::hash::SHA1;
-use crate::time_it;
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
@@ -28,6 +28,7 @@ pub trait _Cache {
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
     fn total_inserted(&self) -> usize;
+    fn memory_used(&self) -> usize;
     fn clear(&self);
 }
 
@@ -144,30 +145,14 @@ impl _Cache for Caches {
         {
             // ? whether insert to cache directly or only write to tmp file
             let mut map = self.lru_cache.lock().unwrap();
-            let _ = map.insert(
-                hash.to_plain_str(),
-                ArcWrapper::new(obj_arc.clone(), self.complete_signal.clone()),
-            );
+            let mut a_obj = ArcWrapper::new(obj_arc.clone(), self.complete_signal.clone());
+            a_obj.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+            let _ = map.insert(hash.to_plain_str(), a_obj);
         }
         //order maters as for reading in 'get_by_offset()'
         self.hash_set.insert(hash);
         self.map_offset.insert(offset, hash);
 
-        if self.mem_size.is_some() {
-            let tmp_path = self.tmp_path.clone();
-            let obj_clone = obj_arc.clone();
-            let stop = self.complete_signal.clone();
-
-            // TODO limit queue size, achieve balance between with wait list
-            while self.pool.queued_count() > 1000 {
-                sleep(std::time::Duration::from_millis(10));
-            }
-            self.pool.execute(move || {
-                if !stop.load(std::sync::atomic::Ordering::Relaxed) {
-                    Self::write_to_temp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
-                }
-            });
-        }
         obj_arc
     }
 
@@ -201,10 +186,13 @@ impl _Cache for Caches {
     fn total_inserted(&self) -> usize {
         self.hash_set.len()
     }
-
+    fn memory_used(&self) -> usize {
+        self.lru_cache.lock().unwrap().current_size()
+    }
     fn clear(&self) {
         time_it!("Caches clear", {
-            self.complete_signal.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.complete_signal
+                .store(true, std::sync::atomic::Ordering::Relaxed);
             self.pool.join();
             self.lru_cache.lock().unwrap().clear();
             self.hash_set.clear();
