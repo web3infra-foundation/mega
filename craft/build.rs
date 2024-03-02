@@ -121,6 +121,9 @@ fn main() -> Result<(),BuildError>{
         println!("cargo:rustc-cfg=target_os=\"linux\"");
     } else if effective_target.contains("darwin") {
         println!("cargo:rustc-cfg=target_os=\"macos\"");
+        cc::Build::new()
+            .file("src/lfs/commands/c_utils/memory_info.c")
+            .compile("memory_info")
     }
 
     let translations_dir = Path::new("./src/lfs/errors/translations");
