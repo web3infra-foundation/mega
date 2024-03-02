@@ -10,12 +10,14 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
+use std::sync::atomic::AtomicBool;
 
 use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, HeapSizeRecorder};
 use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
 use venus::hash::SHA1;
+use crate::time_it;
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
@@ -26,6 +28,7 @@ pub trait _Cache {
     fn get_by_offset(&self, offset: usize) -> Option<Arc<CacheObject>>;
     fn get_by_hash(&self, h: SHA1) -> Option<Arc<CacheObject>>;
     fn total_inserted(&self) -> usize;
+    fn clear(&self);
 }
 
 #[allow(unused)]
@@ -39,7 +42,8 @@ pub struct Caches {
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache require the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
     mem_size: Option<usize>,
     tmp_path: PathBuf,
-    pool: ThreadPool, //TODO wait for threads to stop & add condition test in thread
+    pool: ThreadPool,
+    stop: Arc<AtomicBool>
 }
 
 impl Caches {
@@ -125,6 +129,7 @@ impl _Cache for Caches {
             mem_size,
             tmp_path,
             pool: ThreadPool::new(thread_num),
+            stop: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -146,13 +151,16 @@ impl _Cache for Caches {
         if self.mem_size.is_some() {
             let tmp_path = self.tmp_path.clone();
             let obj_clone = obj_arc.clone();
+            let stop = self.stop.clone();
 
             // TODO limit queue size, achieve balance between with wait list
             while self.pool.queued_count() > 1000{
                 sleep(std::time::Duration::from_millis(10));
             }
             self.pool.execute(move || {
-                Self::write_to_temp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
+                if stop.load(std::sync::atomic::Ordering::Relaxed) == false {
+                    Self::write_to_temp(&tmp_path, hash, &obj_clone).unwrap(); //TODO use Database?
+                }
             });
         }
         obj_arc
@@ -187,6 +195,24 @@ impl _Cache for Caches {
 
     fn total_inserted(&self) -> usize {
         self.hash_set.len()
+    }
+
+    fn clear(&self) {
+        time_it!("Caches clear", {
+            self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.pool.join();
+            self.lru_cache.lock().unwrap().clear();
+            self.hash_set.clear();
+            self.map_offset.clear();
+        });
+
+        time_it!("Remove tmp dir", {
+            fs::remove_dir_all(&self.tmp_path).unwrap(); //very slow
+        });
+
+        assert_eq!(self.pool.queued_count(), 0);
+        assert_eq!(self.pool.active_count(), 0);
+        assert_eq!(self.lru_cache.lock().unwrap().len(), 0);
     }
 }
 

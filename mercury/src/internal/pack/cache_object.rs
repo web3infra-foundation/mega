@@ -37,7 +37,7 @@ impl Default for CacheObject {
 // ! the implementation of HeapSize is not accurate, only calculate the size of the data_decompress
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size()
+        self.data_decompress.heap_size() //TODO add more fields
     }
 }
 

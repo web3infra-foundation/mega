@@ -283,6 +283,20 @@ pub fn count_dir_files(path: &Path) -> io::Result<usize> {
     Ok(count)
 }
 
+/// Count the time taken to execute a block of code.
+#[macro_export]
+macro_rules! time_it {
+    ($msg:expr, $block:block) => {
+        {
+            let start = std::time::Instant::now();
+            let result = $block;
+            let elapsed = start.elapsed();
+            println!("{}: {:?}", $msg, elapsed);
+            result
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
