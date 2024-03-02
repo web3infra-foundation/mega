@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
 
-use crate::internal::pack::cache_object::{ArcWrapper, CacheObject};
+use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, HeapSizeRecorder};
 use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
@@ -84,6 +84,9 @@ impl Caches {
         let b = fs::read(path)?;
         let obj: CacheObject =
             bincode::deserialize(&b).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        // Deserializing will also create an object but without Construction outside and `::new()`
+        // So if you want to do sth. while Constructing, impl Deserialize trait yourself
+        obj.record_heap_size();
         Ok(obj)
     }
 
