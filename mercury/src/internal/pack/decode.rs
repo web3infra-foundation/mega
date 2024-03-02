@@ -299,8 +299,8 @@ impl Pack {
             #[cfg(debug_assertions)]
             {
                 if i % 10000 == 0 {
-                    println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB",
-                             time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks(), CacheObject::get_heap_size() / 1024 / 1024);
+                    println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB \t CacheUsed: {}MB",
+                             time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks(), CacheObject::get_heap_size() / 1024 / 1024, caches.memory_used() / 1024 / 1024);
                 }
             }
             while self.pool.queued_count() > 200 { // TODO: replace with memory related condition
