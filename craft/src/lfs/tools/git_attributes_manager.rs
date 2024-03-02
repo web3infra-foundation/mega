@@ -1,12 +1,24 @@
-use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::{
+    fs::{File, OpenOptions},
+    io::{BufRead, BufReader, Write},
+    path::Path,
+};
+
 use gettextrs::gettext;
-use crate::lfs::errors::track_error::{GitAttributesError, DefaultGitAttributesError};
-use crate::lfs::tools::git_repository_checker::{DefaultGitRepositoryChecker, GitRepositoryChecker};
-use crate::lfs::tools::constant_table::{git_attributes_table, git_repo_table, default_git_attributes_error_table, git_attributes_error_table,track_prompt_message};
 
-
+use crate::lfs::{
+    errors::track_error::{GitAttributesError, DefaultGitAttributesError},
+    tools::{
+        constant_table::{
+            default_git_attributes_error_table,
+            git_attributes_error_table,
+            git_attributes_table,
+            git_repo_table,
+            track_prompt_message,
+        },
+        git_repository_checker::{DefaultGitRepositoryChecker, GitRepositoryChecker},
+    },
+};
 pub trait GitAttributesManger {
     fn read_attributes(&self) -> Result<Vec<String>, GitAttributesError>;
     fn write_attributes(&self, lines: &[String]) -> Result<(), GitAttributesError>;
