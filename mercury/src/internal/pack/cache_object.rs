@@ -218,11 +218,13 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
             if let Some(path) = &self.store_path {
                 match &self.pool {
                     Some(pool) => {
-                        let pool_copy = pool.clone();
                         let data_copy = self.data.clone();
                         let path_copy = path.clone();
-                        pool_copy.execute(move || {
-                            data_copy.f_save(&path_copy).unwrap();
+                        let complete_signal = self.complete_signal.clone();
+                        pool.execute(move || {
+                            if !complete_signal.load(Ordering::SeqCst) {
+                                data_copy.f_save(&path_copy).unwrap();
+                            }
                         });
                     }
                     None => {
