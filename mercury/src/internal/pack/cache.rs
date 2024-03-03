@@ -7,12 +7,12 @@
 
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
 
-use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, HeapSizeRecorder};
+use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder};
 use crate::time_it;
 use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
@@ -97,7 +97,7 @@ impl Caches {
         let obj = CacheObject::f_load(&path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
-        obj.record_heap_size();
+        obj.record_mem_size();
         Ok(obj)
     }
 
@@ -182,11 +182,12 @@ impl _Cache for Caches {
     }
     fn memory_used(&self) -> usize {
         self.lru_cache.lock().unwrap().current_size()
+        // + self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
+        // + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
     }
     fn clear(&self) {
         time_it!("Caches clear", {
-            self.complete_signal
-                .store(true, std::sync::atomic::Ordering::Relaxed);
+            self.complete_signal.store(true, Ordering::SeqCst);
             self.pool.join();
             self.lru_cache.lock().unwrap().clear();
             self.hash_set.clear();
