@@ -1,9 +1,12 @@
 use gettextrs::gettext;
-use crate::lfs::errors::track_error::DefaultGitAttributesError;
-use crate::lfs::tools::git_attributes_manager::{DefaultGitAttributesManager, GitAttributesManger};
-use crate::lfs::tools::constant_table::{untrack_prompt_message,git_attributes_table};
 
-
+use crate::lfs::{
+    errors::track_error::DefaultGitAttributesError,
+    tools::{
+        constant_table::{git_attributes_table, untrack_prompt_message},
+        git_attributes_manager::{DefaultGitAttributesManager, GitAttributesManger},
+    },
+};
 
 fn contains_lfs_configuration(lines:&[String],pattern:&str) -> bool {
     lines.iter().any(|line| line.contains(pattern))

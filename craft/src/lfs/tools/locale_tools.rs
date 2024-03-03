@@ -1,7 +1,9 @@
 extern crate libc;
 
-use std::ffi::{CString, NulError, OsStr};
-use std::iter::once;
+use std::{
+    ffi::{CString, NulError, OsStr},
+    iter::once,
+};
 
 #[cfg(target_os = "windows")]
 use winapi::um::winnls::{SetThreadLocale,GetThreadLocale};
