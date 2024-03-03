@@ -1,11 +1,17 @@
-use std::io;
-use std::io::Write;
-use gettextrs::gettext;
-use std::string::String;
+use std::{
+    io::{self, Write},
+    string::String,
+};
 
-use crate::lfs::errors::track_error::DefaultGitAttributesError;
-use crate::lfs::tools::git_attributes_manager::{DefaultGitAttributesManager, GitAttributesManger};
-use crate::lfs::tools::constant_table::{track_prompt_message,git_attributes_table};
+use gettextrs::gettext;
+
+use crate::lfs::{
+    errors::track_error::DefaultGitAttributesError,
+    tools::{
+        constant_table::{git_attributes_table, track_prompt_message},
+        git_attributes_manager::{DefaultGitAttributesManager, GitAttributesManger},
+    },
+};
 
 fn print_attributes<'a,I>(attributes :I) ->io::Result<()>
     where I:IntoIterator<Item = &'a str>

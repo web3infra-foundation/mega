@@ -1,8 +1,15 @@
-use std::{env, fs};
-use std::path::{Path, PathBuf};
+use std::{
+    env,
+    fs,
+    path::{Path, PathBuf},
+};
+
 use gettextrs::gettext;
-use crate::lfs::errors::track_error::GitRepositoryCheckerError;
-use crate::lfs::tools::constant_table::{git_repo_table, git_repository_checker_error};
+
+use crate::lfs::{
+    errors::track_error::GitRepositoryCheckerError,
+    tools::constant_table::{git_repo_table, git_repository_checker_error},
+};
 pub struct DefaultGitRepositoryChecker;
 pub trait GitRepositoryChecker{
     fn is_git_repository_loop(&self) -> Result<bool,GitRepositoryCheckerError>;
