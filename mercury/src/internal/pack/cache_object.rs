@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{fs, io};
 use std::{ops::Deref, sync::Arc};
 
@@ -9,23 +9,24 @@ use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
 use venus::{hash::SHA1, internal::object::types::ObjectType};
 
-// record heap-size of all CacheObjects, used for memory limit
-// u64 is better than usize (4GB in 32bits)
+/// record heap-size of all CacheObjects, used for memory limit.
+/// u64 is better than usize (4GB in 32bits)
 static CACHE_OBJS_HEAP_SIZE: AtomicU64 = AtomicU64::new(0);
 
-// file load&store trait
-pub trait FileLoadStore<T: Serialize + for<'a> Deserialize<'a>> {
-    fn f_load(path: &Path) -> Result<T, std::io::Error>;
-    fn f_save(&self, path: &Path) -> Result<(), std::io::Error>;
+/// file load&store trait
+pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
+    fn f_load(path: &Path) -> Result<Self, io::Error>;
+    fn f_save(&self, path: &Path) -> Result<(), io::Error>;
 }
-impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore<T> for T {
-    fn f_load(path: &Path) -> Result<T, std::io::Error> {
+// trait alias, so that impl FileLoadStore == impl Serialize + Deserialize
+impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
+    fn f_load(path: &Path) -> Result<T, io::Error> {
         let data = fs::read(path)?;
         let obj: T =
             bincode::deserialize(&data).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         Ok(obj)
     }
-    fn f_save(&self, path: &Path) -> Result<(), std::io::Error> {
+    fn f_save(&self, path: &Path) -> Result<(), io::Error> {
         if path.exists() {
             return Ok(());
         }
@@ -34,13 +35,13 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore<T> for T {
         //     panic!("file {:?} already exists", path)
         // }
         let path = path.with_extension("temp");
-        let err = fs::write(path.clone(), data);
-        if let Err(e) = err {
+        let res = fs::write(&path, data);
+        if let Err(e) = res {
             println!("write {:?} error: {:?}", path, e);
         }
         let final_path = path.with_extension("");
-        let err = fs::rename(path.clone(), final_path);
-        if let Err(e) = err {
+        let res = fs::rename(&path, final_path);
+        if let Err(e) = res {
             println!("rename {:?} error: {:?}", path, e);
         }
         Ok(())
@@ -82,10 +83,7 @@ impl Drop for CacheObject {
     // (cannot change the heap-size during life cycle)
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
-        CACHE_OBJS_HEAP_SIZE.fetch_sub(
-            (*self).heap_size() as u64,
-            std::sync::atomic::Ordering::Relaxed,
-        );
+        CACHE_OBJS_HEAP_SIZE.fetch_sub((*self).heap_size() as u64, Ordering::Relaxed);
     }
 }
 
@@ -104,14 +102,11 @@ impl HeapSizeRecorder for CacheObject {
     /// record the heap-size of this `CacheObj` in a `static` `var`
     /// <br> since that, DO NOT modify `CacheObj` after recording
     fn record_heap_size(&self) {
-        CACHE_OBJS_HEAP_SIZE.fetch_add(
-            self.heap_size() as u64,
-            std::sync::atomic::Ordering::Relaxed,
-        );
+        CACHE_OBJS_HEAP_SIZE.fetch_add(self.heap_size() as u64, Ordering::Relaxed);
     }
 
     fn get_heap_size() -> u64 {
-        CACHE_OBJS_HEAP_SIZE.load(std::sync::atomic::Ordering::Relaxed)
+        CACHE_OBJS_HEAP_SIZE.load(Ordering::Relaxed)
     }
 }
 
@@ -163,16 +158,22 @@ impl CacheObject {
     }
 }
 
+/// trait alias for simple use
+pub trait ArcWrapperBounds: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static {}
+// You must impl `Alias Trait` for all the `T` satisfying Constraints
+// Or, `T` will not satisfy `Alias Trait` even if it satisfies the Original traits
+impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds for T {}
+
 /// !Implementing encapsulation of Arc<T> to enable third-party Trait HeapSize implementation for the Arc type
 /// !Because of use Arc<T> in LruCache, the LruCache is not clear whether a pointer will drop the referenced
 /// ! content when it is ejected from the cache, the actual memory usage is not accurate
-pub struct ArcWrapper<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> {
+pub struct ArcWrapper<T: ArcWrapperBounds> {
     pub data: Arc<T>,
     complete_signal: Arc<AtomicBool>,
     pool: Option<Arc<ThreadPool>>,
     pub store_path: Option<PathBuf>, // path to store when drop
 }
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapper<T> {
+impl<T: ArcWrapperBounds> ArcWrapper<T> {
     /// Create a new ArcWrapper
     pub fn new(data: Arc<T>, share_flag: Arc<AtomicBool>, pool: Option<Arc<ThreadPool>>) -> Self {
         ArcWrapper {
@@ -187,17 +188,13 @@ impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> 
     }
 }
 
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> HeapSize
-    for ArcWrapper<T>
-{
+impl<T: ArcWrapperBounds> HeapSize for ArcWrapper<T> {
     fn heap_size(&self) -> usize {
         self.data.heap_size()
     }
 }
 
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> Clone
-    for ArcWrapper<T>
-{
+impl<T: ArcWrapperBounds> Clone for ArcWrapper<T> {
     /// clone won't clone the store_path
     fn clone(&self) -> Self {
         ArcWrapper {
@@ -209,22 +206,15 @@ impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> 
     }
 }
 
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> Deref
-    for ArcWrapper<T>
-{
+impl<T: ArcWrapperBounds> Deref for ArcWrapper<T> {
     type Target = Arc<T>;
     fn deref(&self) -> &Self::Target {
         &self.data
     }
 }
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> Drop
-    for ArcWrapper<T>
-{
+impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
     fn drop(&mut self) {
-        if !self
-            .complete_signal
-            .load(std::sync::atomic::Ordering::Relaxed)
-        {
+        if !self.complete_signal.load(Ordering::Relaxed) {
             if let Some(path) = &self.store_path {
                 match &self.pool {
                     Some(pool) => {
