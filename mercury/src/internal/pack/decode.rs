@@ -218,6 +218,21 @@ impl Pack {
         // Check if the object type is valid
         let t = ObjectType::from_u8(type_bits)?;
 
+        // util lambda: return data with result capacity after rebuilding, for Memory Control
+        let reserve_delta_data = |data: Vec<u8>| -> Vec<u8> {
+            let result_size = { // Read `result-size` of delta_obj
+                let mut reader = Cursor::new(&data);
+                let _ = utils::read_varint_le(&mut reader).unwrap().0; // base_size
+                utils::read_varint_le(&mut reader).unwrap().0 // size after rebuilding
+            };
+            // capacity() == result_size, len() == data.len()
+            // just for accurate Memory Control (rely on `heap_size()` that based on capacity)
+            // Seems wasteful temporarily, but for final memory limit.
+            let mut data_result_cap = Vec::with_capacity(result_size as usize);
+            data_result_cap.extend(data);
+            data_result_cap
+        };
+
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                 let (data, raw_size) = self.decompress_data(pack, size)?;
@@ -241,7 +256,7 @@ impl Pack {
 
                 Ok(CacheObject {
                     base_offset,
-                    data_decompress: data,
+                    data_decompress: reserve_delta_data(data),
                     obj_type: t,
                     offset: init_offset,
                     ..Default::default()
@@ -260,7 +275,7 @@ impl Pack {
 
                 Ok(CacheObject {
                     base_ref: ref_sha1,
-                    data_decompress: data,
+                    data_decompress: reserve_delta_data(data),
                     obj_type: t,
                     offset: init_offset,
                     ..Default::default()
@@ -303,7 +318,8 @@ impl Pack {
                              time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks(), CacheObject::get_heap_size() / 1024 / 1024, caches.memory_used() / 1024 / 1024);
                 }
             }
-            while self.pool.queued_count() > 200 { // TODO: replace with memory related condition
+            // 3 parts: Waitlist + TheadPool + Caches
+            while CacheObject::get_heap_size() > 1024*1024*500 {
                 std::thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
@@ -317,7 +333,7 @@ impl Pack {
                     self.pool.execute(move || {
                         match obj.obj_type {
                             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                                Pack::cache_obj_and_process_waitlist(pool, waitlist, caches, obj);
+                                Self::cache_obj_and_process_waitlist(pool, waitlist, caches, obj);
                             },
                             ObjectType::OffsetDelta => {
                                 if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
@@ -329,7 +345,7 @@ impl Pack {
                                     waitlist.insert_offset(obj.base_offset, obj);
                                     // Second check: prevent that the base_obj thread has finished before the waitlist insert
                                     if let Some(base_obj) = caches.get_by_offset(base_offset) {
-                                        Pack::process_waitlist(pool, waitlist, caches, base_obj);
+                                        Self::process_waitlist(pool, waitlist, caches, base_obj);
                                     }
                                 }
                             },
@@ -340,7 +356,7 @@ impl Pack {
                                     let base_ref = obj.base_ref;
                                     waitlist.insert_ref(obj.base_ref, obj);
                                     if let Some(base_obj) = caches.get_by_hash(base_ref) {
-                                        Pack::process_waitlist(pool, waitlist, caches, base_obj);
+                                        Self::process_waitlist(pool, waitlist, caches, base_obj);
                                     }
                                 }
                             }
@@ -395,21 +411,21 @@ impl Pack {
     fn process_delta(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
         pool.clone().execute(move || {
             let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
-            Pack::cache_obj_and_process_waitlist(pool, waitlist, caches, new_obj); //Indirect Recursion
+            Self::cache_obj_and_process_waitlist(pool, waitlist, caches, new_obj); //Indirect Recursion
         });
     }
 
     /// Cache the new object & process the objects waiting for it (in multi-threading).
     fn cache_obj_and_process_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, new_obj: CacheObject) {
         let new_obj = caches.insert(new_obj.offset, new_obj.hash, new_obj);
-        Pack::process_waitlist(pool, waitlist, caches, new_obj);
+        Self::process_waitlist(pool, waitlist, caches, new_obj);
     }
 
     fn process_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, base_obj: Arc<CacheObject>) {
         let wait_objs = waitlist.take(base_obj.offset, base_obj.hash);
         for obj in wait_objs {
             // Process the objects waiting for the new object(base_obj = new_obj)
-            Pack::process_delta(pool.clone(), waitlist.clone(), caches.clone(), obj, base_obj.clone());
+            Self::process_delta(pool.clone(), waitlist.clone(), caches.clone(), obj, base_obj.clone());
         }
     }
 
@@ -425,8 +441,8 @@ impl Pack {
 
         // Read the base object size & Result Size
         // (Size Encoding)
-        let (base_size, _) = utils::read_varint_le(&mut stream).unwrap();
-        let (result_size, _) = utils::read_varint_le(&mut stream).unwrap();
+        let base_size = utils::read_varint_le(&mut stream).unwrap().0;
+        let result_size = utils::read_varint_le(&mut stream).unwrap().0; //TODO this can tell result_size of delta
 
         //Get the base object row data
         let base_info = &base_obj.data_decompress;
@@ -484,6 +500,7 @@ impl Pack {
                 }
             }
         }
+        assert_eq!(result_size, result.len() as u64);
 
         let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
