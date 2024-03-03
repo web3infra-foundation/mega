@@ -219,6 +219,8 @@ impl<T: ArcWrapperBounds> Deref for ArcWrapper<T> {
     }
 }
 impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
+    // `drop` will be called in `lru_cache.insert()` when cache full & eject the LRU
+    // `lru_cache.insert()` is protected by Mutex
     fn drop(&mut self) {
         if !self.complete_signal.load(Ordering::SeqCst) {
             if let Some(path) = &self.store_path {
@@ -227,6 +229,11 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                         let data_copy = self.data.clone();
                         let path_copy = path.clone();
                         let complete_signal = self.complete_signal.clone();
+                        // block entire process, wait for IO, Control Memory
+                        // queue size will influence the Memory usage
+                        while pool.queued_count() > 5000 {
+                            std::thread::sleep(std::time::Duration::from_millis(10));
+                        }
                         pool.execute(move || {
                             if !complete_signal.load(Ordering::SeqCst) {
                                 data_copy.f_save(&path_copy).unwrap();

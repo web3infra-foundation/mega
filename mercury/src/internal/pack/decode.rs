@@ -5,7 +5,7 @@
 //!
 //!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::{self, sleep};
@@ -324,17 +324,17 @@ impl Pack {
             thread::spawn(move|| {
                 let time = Instant::now();
                 loop {
-                    if log_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    if log_stop.load(Ordering::Relaxed) {
                         break;
                     }
                     println!("execute {:?} \t objects decoded: {:?}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB \t CacheUsed: {}MB",
-                            time.elapsed(), log_i.load(std::sync::atomic::Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, log_cache.memory_used() / 1024 / 1024);
+                            time.elapsed(), log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, log_cache.memory_used() / 1024 / 1024);
 
                     sleep(std::time::Duration::from_secs(1));
                 }
             });
         }
-        while i.load(std::sync::atomic::Ordering::Relaxed)<= self.number {
+        while i.load(Ordering::Relaxed) <= self.number {
             // 3 parts: Waitlist + TheadPool + Caches
             while CacheObject::get_mem_size() > 1024*1024*800 {
                 std::thread::yield_now();
@@ -384,7 +384,7 @@ impl Pack {
                     return Err(e);
                 }
             }
-            i.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            i.fetch_add(1, Ordering::Relaxed);
         }
 
         let render_hash = reader.final_hash();
@@ -420,7 +420,7 @@ impl Pack {
         assert_eq!(CacheObject::get_mem_size(), 0); // all the objs should be dropped until here
         
         #[cfg(debug_assertions)]
-        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        stop.store(true, Ordering::Relaxed);
         
         Ok(())
     }
