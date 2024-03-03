@@ -16,7 +16,7 @@ use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
-use crate::internal::pack::cache_object::{CacheObject, HeapSizeRecorder};
+use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
@@ -315,17 +315,17 @@ impl Pack {
             {
                 if i % 10000 == 0 {
                     println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB \t CacheUsed: {}MB",
-                             time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks(), CacheObject::get_heap_size() / 1024 / 1024, caches.memory_used() / 1024 / 1024);
+                             time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, caches.memory_used() / 1024 / 1024);
                 }
             }
             // 3 parts: Waitlist + TheadPool + Caches
-            while CacheObject::get_heap_size() > 1024*1024*500 {
+            while CacheObject::get_mem_size() > 1024*1024*800 {
                 std::thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(obj) => {
-                    obj.record_heap_size();
+                    obj.record_mem_size();
 
                     let caches = caches.clone();
                     let pool = self.pool.clone();
@@ -401,7 +401,7 @@ impl Pack {
         println!("Pack decode takes: [ {:?} ]", time.elapsed());
 
         self.caches.clear(); // clear cached objects & stop threads
-        assert_eq!(CacheObject::get_heap_size(), 0); // all the objs should be dropped until here
+        assert_eq!(CacheObject::get_mem_size(), 0); // all the objs should be dropped until here
 
         Ok(())
     }
@@ -510,7 +510,7 @@ impl Pack {
             hash,
             ..delta_obj
         };
-        new_obj.record_heap_size();
+        new_obj.record_mem_size();
         new_obj //Canonical form (Complete Object)
     }
 }
@@ -599,7 +599,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), Some(1024*1024*20), Some(tmp));
+        let mut p = Pack::new(Some(20), Some(1024*1024*400), Some(tmp));
         p.decode(&mut buffered).unwrap();
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 

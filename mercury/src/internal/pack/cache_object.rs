@@ -4,14 +4,14 @@ use std::{fs, io};
 use std::{ops::Deref, sync::Arc};
 
 use crate::internal::pack::utils;
-use lru_mem::HeapSize;
+use lru_mem::{HeapSize, MemSize};
 use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
 use venus::{hash::SHA1, internal::object::types::ObjectType};
 
 /// record heap-size of all CacheObjects, used for memory limit.
 /// u64 is better than usize (4GB in 32bits)
-static CACHE_OBJS_HEAP_SIZE: AtomicU64 = AtomicU64::new(0);
+static CACHE_OBJS_MEM_SIZE: AtomicU64 = AtomicU64::new(0);
 
 /// file load&store trait
 pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
@@ -58,23 +58,28 @@ pub struct CacheObject {
 }
 // For Convenience
 impl Default for CacheObject {
+    // It will be called in "struct update syntax": `..Default::default()`
+    // So, mem-record should happen here!
     fn default() -> Self {
-        CacheObject {
+        let obj = CacheObject {
             base_offset: 0,
             base_ref: SHA1::default(),
             data_decompress: Vec::new(),
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::default(),
-        }
+        };
+        obj.record_mem_size();
+        obj
     }
 }
 
 // ! used by lru_mem to calculate the size of the object, limit the memory usage.
 // ! the implementation of HeapSize is not accurate, only calculate the size of the data_decompress
+// Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size() //TODO add more fields & mem_size
+        self.data_decompress.heap_size()
     }
 }
 
@@ -83,30 +88,31 @@ impl Drop for CacheObject {
     // (cannot change the heap-size during life cycle)
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
-        CACHE_OBJS_HEAP_SIZE.fetch_sub((*self).heap_size() as u64, Ordering::Relaxed);
+        CACHE_OBJS_MEM_SIZE.fetch_sub((*self).mem_size() as u64, Ordering::SeqCst);
+
     }
 }
 
 /// Heap-size recorder for a class(struct)
-/// <br> You should use a static Var to record heap-size
-/// and record heap-size after construction & minus it in `drop()`
+/// <br> You should use a static Var to record mem-size
+/// and record mem-size after construction & minus it in `drop()`
 /// <br> So, variable-size fields in object should NOT be modified to keep heap-size stable.
-/// <br> Or, you can record the initial heap-size in this object
+/// <br> Or, you can record the initial mem-size in this object
 /// <br> Or, update it (not impl)
-pub trait HeapSizeRecorder: HeapSize {
-    fn record_heap_size(&self);
-    fn get_heap_size() -> u64;
+pub trait MemSizeRecorder: MemSize {
+    fn record_mem_size(&self);
+    fn get_mem_size() -> u64;
 }
 
-impl HeapSizeRecorder for CacheObject {
-    /// record the heap-size of this `CacheObj` in a `static` `var`
+impl MemSizeRecorder for CacheObject {
+    /// record the mem-size of this `CacheObj` in a `static` `var`
     /// <br> since that, DO NOT modify `CacheObj` after recording
-    fn record_heap_size(&self) {
-        CACHE_OBJS_HEAP_SIZE.fetch_add(self.heap_size() as u64, Ordering::Relaxed);
+    fn record_mem_size(&self) {
+        CACHE_OBJS_MEM_SIZE.fetch_add(self.mem_size() as u64, Ordering::SeqCst);
     }
 
-    fn get_heap_size() -> u64 {
-        CACHE_OBJS_HEAP_SIZE.load(Ordering::Relaxed)
+    fn get_mem_size() -> u64 {
+        CACHE_OBJS_MEM_SIZE.load(Ordering::SeqCst)
     }
 }
 
@@ -214,7 +220,7 @@ impl<T: ArcWrapperBounds> Deref for ArcWrapper<T> {
 }
 impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
     fn drop(&mut self) {
-        if !self.complete_signal.load(Ordering::Relaxed) {
+        if !self.complete_signal.load(Ordering::SeqCst) {
             if let Some(path) = &self.store_path {
                 match &self.pool {
                     Some(pool) => {
@@ -250,10 +256,10 @@ mod test {
             data_decompress: vec![0; 1024],
             ..Default::default()
         };
-        obj.record_heap_size();
-        assert_eq!(CacheObject::get_heap_size(), 1024);
+        obj.record_mem_size();
+        assert_eq!(CacheObject::get_mem_size(), 1024);
         drop(obj);
-        assert_eq!(CacheObject::get_heap_size(), 0);
+        assert_eq!(CacheObject::get_mem_size(), 0);
     }
 
     #[test]
@@ -454,7 +460,7 @@ mod test {
         }
         assert!(a_path.exists());
         assert!(!b_path.exists());
-        shared_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        shared_flag.store(true, Ordering::SeqCst);
         fs::remove_dir_all(path).unwrap();
         // should pass even b's path not exists
     }
