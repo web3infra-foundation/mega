@@ -5,8 +5,10 @@
 //!
 //!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::thread::{self, sleep};
 use std::time::Instant;
 
 use flate2::bufread::ZlibDecoder;
@@ -290,7 +292,6 @@ impl Pack {
     pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
         let time = Instant::now();
         
-        // // use random subdirectory to avoid conflicts with other files
         // let tmp_path = tmp_path.join(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
         // let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
         let caches = self.caches.clone();
@@ -308,16 +309,32 @@ impl Pack {
         println!("The pack file has {} objects", self.number);
 
         let mut offset: usize = 12;
-        let mut i = 1;
+        let i = Arc::new(AtomicUsize::new(1));
+        
+        // debug log thread g   
+        #[cfg(debug_assertions)]
+        let stop = Arc::new(AtomicBool::new(false));
+        #[cfg(debug_assertions)]
+        {
+            let log_pool = self.pool.clone();
+            let log_cache = caches.clone();
+            let log_i = i.clone();
+            let log_stop =  stop.clone();
+            // print log per seconds
+            thread::spawn(move|| {
+                let time = Instant::now();
+                loop {
+                    if log_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                        break;
+                    }
+                    println!("execute {:?} \t objects decoded: {:?}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB \t CacheUsed: {}MB",
+                            time.elapsed(), log_i.load(std::sync::atomic::Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, log_cache.memory_used() / 1024 / 1024);
 
-        while i <= self.number {
-            #[cfg(debug_assertions)]
-            {
-                if i % 10000 == 0 {
-                    println!("execute {:?} \t objects decoded: {}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB \t CacheUsed: {}MB",
-                             time.elapsed(), i, self.pool.queued_count(), caches.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, caches.memory_used() / 1024 / 1024);
+                    sleep(std::time::Duration::from_secs(1));
                 }
-            }
+            });
+        }
+        while i.load(std::sync::atomic::Ordering::Relaxed)<= self.number {
             // 3 parts: Waitlist + TheadPool + Caches
             while CacheObject::get_mem_size() > 1024*1024*800 {
                 std::thread::yield_now();
@@ -367,8 +384,7 @@ impl Pack {
                     return Err(e);
                 }
             }
-
-            i += 1;
+            i.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
 
         let render_hash = reader.final_hash();
@@ -402,7 +418,10 @@ impl Pack {
 
         self.caches.clear(); // clear cached objects & stop threads
         assert_eq!(CacheObject::get_mem_size(), 0); // all the objs should be dropped until here
-
+        
+        #[cfg(debug_assertions)]
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        
         Ok(())
     }
 
@@ -517,6 +536,7 @@ impl Pack {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::io::prelude::*;
     use std::io::BufReader;
     use std::io::Cursor;
@@ -599,8 +619,12 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), Some(1024*1024*400), Some(tmp));
-        p.decode(&mut buffered).unwrap();
+        let mut p = Pack::new(Some(20), Some(1024*1024*200), Some(tmp.clone()));
+        let rt = p.decode(&mut buffered);
+        if let Err(e) = rt {
+            fs::remove_dir_all(tmp).unwrap();
+            panic!("Error: {:?}", e);
+        }
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
 
     #[test]
