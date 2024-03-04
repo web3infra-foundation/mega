@@ -20,4 +20,4 @@ pub mod mega_mr;
 pub mod mega_snapshot;
 pub mod mega_tag;
 pub mod mega_tree;
-pub mod raw_objects;
+pub mod raw_blob;

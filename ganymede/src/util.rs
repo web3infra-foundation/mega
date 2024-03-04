@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::PathBuf;
 
-use callisto::{mega_blob, mega_tree};
+use callisto::{mega_blob, mega_tree, raw_blob};
 use venus::hash::SHA1;
 use venus::internal::object::blob::Blob;
 use venus::internal::object::commit::Commit;
@@ -49,25 +49,13 @@ pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
     };
     let rust = Tree::from_tree_items(vec![rust_item]).unwrap();
     let imports = rust.clone();
-    let projects_items = vec![
-        TreeItem {
-            mode: TreeItemMode::Blob,
-            id: git_keep.id,
-            name: String::from(".gitkeep"),
-        },
-        TreeItem {
-            mode: TreeItemMode::Tree,
-            id: rust.id,
-            name: String::from("rust"),
-        },
-    ];
+    let projects_items = vec![TreeItem {
+        mode: TreeItemMode::Tree,
+        id: rust.id,
+        name: String::from("rust"),
+    }];
     let projects = Tree::from_tree_items(projects_items).unwrap();
     let root_items = vec![
-        TreeItem {
-            mode: TreeItemMode::Blob,
-            id: git_keep.id,
-            name: String::from(".gitkeep"),
-        },
         TreeItem {
             mode: TreeItemMode::Tree,
             id: imports.id,
@@ -92,11 +80,22 @@ pub struct MegaModelConverter {
     pub blob_maps: HashMap<SHA1, Blob>,
     pub mega_trees: RefCell<Vec<mega_tree::ActiveModel>>,
     pub mega_blobs: RefCell<Vec<mega_blob::ActiveModel>>,
+    pub raw_blobs: RefCell<HashMap<SHA1, raw_blob::ActiveModel>>,
     pub current_path: RefCell<PathBuf>,
 }
 
 impl MegaModelConverter {
-    pub fn traverse_tree(&self, tree: &Tree) {
+    pub fn traverse_from_root(&self) {
+        let root_tree = &self.root_tree;
+        let mut mega_tree: mega_tree::Model = root_tree.to_owned().into();
+        mega_tree.full_path = self.current_path.borrow().to_str().unwrap().to_owned();
+        mega_tree.name = String::from("root");
+        mega_tree.commit_id = self.commit.id.to_plain_str();
+        self.mega_trees.borrow_mut().push(mega_tree.into());
+        self.traverse_tree(&self.root_tree);
+    }
+
+    fn traverse_tree(&self, tree: &Tree) {
         for item in &tree.tree_items {
             let name = item.name.clone();
             self.current_path.borrow_mut().push(&name);
@@ -115,6 +114,8 @@ impl MegaModelConverter {
                 mega_blob.name = name;
                 mega_blob.commit_id = self.commit.id.to_plain_str();
                 self.mega_blobs.borrow_mut().push(mega_blob.into());
+                let raw_blob: raw_blob::Model = blob.to_owned().into();
+                self.raw_blobs.borrow_mut().insert(blob.id, raw_blob.into());
             }
             self.current_path.borrow_mut().pop();
         }
@@ -134,6 +135,7 @@ impl MegaModelConverter {
             blob_maps,
             mega_trees: RefCell::new(vec![]),
             mega_blobs: RefCell::new(vec![]),
+            raw_blobs: RefCell::new(HashMap::new()),
             current_path: RefCell::new(PathBuf::from("/")),
         }
     }
@@ -141,20 +143,18 @@ impl MegaModelConverter {
 
 #[cfg(test)]
 mod test {
+
     use crate::util::MegaModelConverter;
 
     #[test]
     pub fn test_init_mega_dir() {
         let converter = MegaModelConverter::init();
-        converter.traverse_tree(&converter.root_tree);
+        converter.traverse_from_root();
         let mega_trees = converter.mega_trees.borrow().clone();
         let mega_blobs = converter.mega_blobs.borrow().clone();
-
-        for i in mega_trees {
-            println!("{:?}", i);
-        }
-        for i in mega_blobs {
-            println!("{:?}", i);
-        }
+        let raw_blob = converter.raw_blobs.borrow().clone();
+        assert_eq!(mega_trees.len(), 4);
+        assert_eq!(mega_blobs.len(), 2);
+        assert_eq!(raw_blob.len(), 1);
     }
 }

@@ -1,6 +1,6 @@
 pub mod git_storage;
-pub mod mega_storage;
 pub mod init;
+pub mod mega_storage;
 
 use async_trait::async_trait;
 use std::rc::Rc;
@@ -9,6 +9,7 @@ use callisto::{git_repo, mega_tree};
 use common::errors::MegaError;
 use ganymede::mega_node::MegaNode;
 use ganymede::model::create_file::CreateFileInfo;
+use venus::internal::object::tree::Tree;
 use venus::internal::{
     object::commit::Commit,
     pack::{entry::Entry, reference::RefCommand},
@@ -45,7 +46,7 @@ pub trait GitStorageProvider: Send + Sync {
 #[async_trait]
 pub trait MonorepoStorageProvider: GitStorageProvider + Send {
     async fn init_mega_directory(&self);
-    
+
     fn mega_node_tree(&self, file_infos: Vec<CreateFileInfo>) -> Result<Rc<MegaNode>, MegaError>;
 
     async fn create_mega_file(&self, file_info: CreateFileInfo) -> Result<(), MegaError>;
@@ -78,4 +79,6 @@ pub trait MonorepoStorageProvider: GitStorageProvider + Send {
         &self,
         full_path: &str,
     ) -> Result<Option<mega_tree::Model>, MegaError>;
+
+    async fn save_mega_tree(&self, trees: Vec<Tree>) -> Result<(), MegaError>;
 }

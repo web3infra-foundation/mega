@@ -8,9 +8,8 @@ use sea_orm::{
     EntityTrait, IntoActiveModel, QueryFilter, Set,
 };
 
-use callisto::{
-    db_enums::StorageType, git_commit, git_refs, git_repo, mega_commit, mega_tree, raw_objects,
-};
+use callisto::db_enums::MergeStatus;
+use callisto::{git_commit, git_refs, git_repo, mega_commit, mega_tree};
 use common::errors::MegaError;
 use ganymede::mega_node::MegaNode;
 use ganymede::model::create_file::CreateFileInfo;
@@ -84,54 +83,56 @@ impl GitStorageProvider for MegaStorage {
         Ok(())
     }
 
-    async fn save_entry(&self, repo: Repo, result_entity: Vec<Entry>) -> Result<(), MegaError> {
-        let mut save_models: Vec<raw_objects::ActiveModel> = Vec::new();
-        for entry in result_entity.iter() {
-            let mut model: raw_objects::Model = entry.clone().into();
-            let data = model.data.clone().unwrap();
-            // save data through raw_storage instead of database if exceed threshold
-            if self.raw_obj_threshold != 0 && data.len() / 1024 > self.raw_obj_threshold {
-                let b_link = self
-                    .raw_storage
-                    .put_entry(&repo.repo_name, entry)
-                    .await
-                    .unwrap();
-                model.storage_type = self.raw_storage.get_storage_type();
-                model.data = Some(b_link);
-            }
-            save_models.push(model.into_active_model())
-        }
-        batch_save_model(self.get_connection(), save_models)
-            .await
-            .unwrap();
-        Ok(())
+    async fn save_entry(&self, _repo: Repo, _result_entity: Vec<Entry>) -> Result<(), MegaError> {
+        // let mut save_models: Vec<raw_objects::ActiveModel> = Vec::new();
+        // for entry in result_entity.iter() {
+        //     let mut model: raw_objects::Model = entry.clone().into();
+        //     let data = model.data.clone().unwrap();
+        //     // save data through raw_storage instead of database if exceed threshold
+        //     if self.raw_obj_threshold != 0 && data.len() / 1024 > self.raw_obj_threshold {
+        //         let b_link = self
+        //             .raw_storage
+        //             .put_entry(&repo.repo_name, entry)
+        //             .await
+        //             .unwrap();
+        //         model.storage_type = self.raw_storage.get_storage_type();
+        //         model.data = Some(b_link);
+        //     }
+        //     save_models.push(model.into_active_model())
+        // }
+        // batch_save_model(self.get_connection(), save_models)
+        //     .await
+        //     .unwrap();
+        // Ok(())
+        todo!()
     }
 
     async fn get_entry_by_sha1(
         &self,
-        repo: Repo,
-        sha1_vec: Vec<&str>,
+        _repo: Repo,
+        _sha1_vec: Vec<&str>,
     ) -> Result<Vec<Entry>, MegaError> {
-        let models = raw_objects::Entity::find()
-            .filter(raw_objects::Column::Sha1.is_in(sha1_vec))
-            .all(self.get_connection())
-            .await
-            .unwrap();
-        let mut result: Vec<Entry> = Vec::new();
-        for mut model in models {
-            if model.storage_type == StorageType::Database {
-                result.push(model.into());
-            } else {
-                let data = self
-                    .raw_storage
-                    .get_object(&repo.repo_name, &model.sha1)
-                    .await
-                    .unwrap();
-                model.data = Some(data.to_vec());
-                result.push(model.into());
-            }
-        }
-        Ok(result)
+        // let models = raw_objects::Entity::find()
+        //     .filter(raw_objects::Column::Sha1.is_in(sha1_vec))
+        //     .all(self.get_connection())
+        //     .await
+        //     .unwrap();
+        // let mut result: Vec<Entry> = Vec::new();
+        // for mut model in models {
+        //     if model.storage_type == StorageType::Database {
+        //         result.push(model.into());
+        //     } else {
+        //         let data = self
+        //             .raw_storage
+        //             .get_object(&repo.repo_name, &model.sha1)
+        //             .await
+        //             .unwrap();
+        //         model.data = Some(data.to_vec());
+        //         result.push(model.into());
+        //     }
+        // }
+        // Ok(result)
+        todo!()
     }
 }
 
@@ -139,16 +140,22 @@ impl GitStorageProvider for MegaStorage {
 impl MonorepoStorageProvider for MegaStorage {
     async fn init_mega_directory(&self) {
         let converter = MegaModelConverter::init();
-        converter.traverse_tree(&converter.root_tree);
+        converter.traverse_from_root();
         let mega_trees = converter.mega_trees.borrow().clone();
-        let mega_blobs = converter.mega_blobs.borrow().clone();
         batch_save_model(self.get_connection(), mega_trees)
             .await
             .unwrap();
+        let mega_blobs = converter.mega_blobs.borrow().clone();
         batch_save_model(self.get_connection(), mega_blobs)
             .await
             .unwrap();
-        let commit: mega_commit::Model = converter.commit.into();
+        let raw_blobs = converter.raw_blobs.borrow().values().cloned().collect();
+        batch_save_model(self.get_connection(), raw_blobs)
+            .await
+            .unwrap();
+
+        let mut commit: mega_commit::Model = converter.commit.into();
+        commit.status = MergeStatus::Merged;
         mega_commit::Entity::insert(commit.into_active_model())
             .exec(self.get_connection())
             .await
@@ -196,17 +203,40 @@ impl MonorepoStorageProvider for MegaStorage {
     }
 
     async fn create_mega_file(&self, file_info: CreateFileInfo) -> Result<(), MegaError> {
-        if file_info.is_directory {
+        let p_tree: Tree = self
+            .get_mega_tree_by_path(&file_info.path)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+
+        let new_item = if file_info.is_directory {
             let blob = generate_git_keep();
             let tree_item = TreeItem {
                 mode: TreeItemMode::Blob,
                 id: blob.id,
                 name: String::from(".gitkeep"),
             };
-            let _ = Tree::from_tree_items(vec![tree_item]).unwrap();
+            let child_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: child_tree.id,
+                name: file_info.name,
+            }
+        } else {
+            // todo!()
+            let blob = generate_git_keep();
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: blob.id,
+                name: file_info.name,
+            }
+        };
 
-            self.get_mega_tree_by_path(&file_info.path).await.unwrap();
-        }
+        let mut tree_items = p_tree.tree_items.clone();
+        tree_items.push(new_item);
+        let new_tree = Tree::from_tree_items(tree_items).unwrap();
+        self.save_mega_tree(vec![new_tree]).await.unwrap();
         Ok(())
     }
 
@@ -287,6 +317,19 @@ impl MonorepoStorageProvider for MegaStorage {
             .one(self.get_connection())
             .await
             .unwrap());
+    }
+
+    async fn save_mega_tree(&self, trees: Vec<Tree>) -> Result<(), MegaError> {
+        let models: Vec<mega_tree::Model> = trees.into_iter().map(|x| x.into()).collect();
+        let mut save_models: Vec<mega_tree::ActiveModel> = Vec::new();
+        for mut model in models {
+            model.status = MergeStatus::Open;
+            save_models.push(model.into_active_model());
+        }
+        batch_save_model(self.get_connection(), save_models)
+            .await
+            .unwrap();
+        Ok(())
     }
 }
 
