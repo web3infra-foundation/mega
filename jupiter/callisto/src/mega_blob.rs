@@ -18,7 +18,6 @@ pub struct Model {
     pub size: i32,
     #[sea_orm(column_type = "Text")]
     pub full_path: String,
-    pub data: Vec<u8>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }
