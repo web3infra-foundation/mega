@@ -5,8 +5,8 @@
 //!
 //!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{self, sleep};
 use std::time::Instant;
@@ -18,14 +18,13 @@ use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
-use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
+use super::cache::_Cache;
 use crate::internal::pack::cache::Caches;
+use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack};
 use uuid::Uuid;
-use super::cache::_Cache;
-
 
 impl Pack {
     /// @param thread_num: The number of threads to use for decoding and cache, None mean use the number of logical CPUs <br>
@@ -34,6 +33,7 @@ impl Pack {
     ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
     /// @param temp_path: The path to a directory for temporary files, default is ./.cache_temp <br>
     /// for example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
+    /// ! IMPORTANT: Can't parallel decode, because memory limit use shared static variable but different cache, cause "dead lock".
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
         temp_path.push(Uuid::new_v4().to_string());
@@ -642,5 +642,21 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
         p.decode(&mut buffered).unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    /// didn't implement the parallel support
+    fn test_pack_decode_multi_task_with_large_file_with_delta_without_ref() {
+        // unimplemented!()
+        let task1 = std::thread::spawn(|| {
+            test_pack_decode_with_large_file_with_delta_without_ref();
+        });
+        let task2 = std::thread::spawn(|| {
+            test_pack_decode_with_large_file_with_delta_without_ref();
+        });
+
+        task1.join().unwrap();
+        task2.join().unwrap();
     }
 }
