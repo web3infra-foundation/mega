@@ -104,6 +104,12 @@ impl Caches {
     pub fn queued_tasks(&self) -> usize {
         self.pool.queued_count()
     }
+
+    /// memory used by the index (exclude lru_cache which is contained in [CacheObject::get_mem_size()])
+    pub fn memory_used_index(&self) -> usize {
+        self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
+        + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
+    }
 }
 
 impl _Cache for Caches {
@@ -182,8 +188,8 @@ impl _Cache for Caches {
     }
     fn memory_used(&self) -> usize {
         self.lru_cache.lock().unwrap().current_size()
-        // + self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
-        // + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
+        + self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
+        + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
     }
     fn clear(&self) {
         time_it!("Caches clear", {

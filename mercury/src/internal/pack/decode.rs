@@ -27,18 +27,22 @@ use crate::internal::pack::{utils, Pack};
 use uuid::Uuid;
 
 impl Pack {
-    /// @param thread_num: The number of threads to use for decoding and cache, None mean use the number of logical CPUs <br>
-    ///     the thread_num can't be zero, panic if it is zero <br>
-    /// @param mem_size: The maximum size of the memory cache in bytes, or None for unlimited <br>
+    /// # Parameters
+    /// - `thread_num`: The number of threads to use for decoding and cache, `None` mean use the number of logical CPUs.
+    /// It can't be zero, or panic <br>
+    /// - `mem_limit`: The maximum size of the memory cache in bytes, or None for unlimited.
+    /// The 80% of it will be used for [Caches]  <br>
     ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
-    /// @param temp_path: The path to a directory for temporary files, default is ./.cache_temp <br>
-    /// for example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
-    /// ! IMPORTANT: Can't parallel decode, because memory limit use shared static variable but different cache, cause "dead lock".
+    /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
+    /// For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
+    ///
+    /// # !IMPORTANT:
+    /// Can't decode in multi-tasking, because memory limit use shared static variable but different cache, cause "deadlock".
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
         temp_path.push(Uuid::new_v4().to_string());
         let thread_num = thread_num.unwrap_or_else(num_cpus::get);
-        let cache_mem_size = mem_limit.map(|mem_limit| mem_limit*4 / 5);
+        let cache_mem_size = mem_limit.map(|mem_limit| mem_limit * 4 / 5);
         Pack {
             number: 0,
             signature: SHA1::default(),
@@ -318,7 +322,7 @@ impl Pack {
         #[cfg(debug_assertions)]
         let stop = Arc::new(AtomicBool::new(false));
         #[cfg(debug_assertions)]
-        {
+        { // LOG
             let log_pool = self.pool.clone();
             let log_cache = caches.clone();
             let log_i = i.clone();
@@ -331,17 +335,20 @@ impl Pack {
                         break;
                     }
                     println!("time {:?} s \t pass: {:?}, \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
-                    time.elapsed().as_millis() as f64 / 1000.0, log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, log_cache.memory_used() / 1024 / 1024);
+                    time.elapsed().as_millis() as f64 / 1000.0, log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(),
+                             CacheObject::get_mem_size() / 1024 / 1024,
+                             log_cache.memory_used() / 1024 / 1024);
 
                     sleep(std::time::Duration::from_secs(1));
                 }
             });
-        }
+        } // LOG
+
         while i.load(Ordering::Relaxed) <= self.number {
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
-            while CacheObject::get_mem_size() > self.mem_limit || self.pool.queued_count() > 2000 {
-                std::thread::yield_now();
+            while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {
+                thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
@@ -429,6 +436,11 @@ impl Pack {
         Ok(())
     }
 
+    /// CacheObjects + Index size of Caches
+    fn memory_used(&self) -> usize {
+        CacheObject::get_mem_size() + self.caches.memory_used_index()
+    }
+
     /// Rebuild the Delta Object in a new thread & process the objects waiting for it recursively.
     /// <br> This function must be *static*, because [&self] can't be moved into a new thread.
     fn process_delta(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
@@ -465,7 +477,7 @@ impl Pack {
         // Read the base object size & Result Size
         // (Size Encoding)
         let base_size = utils::read_varint_le(&mut stream).unwrap().0;
-        let result_size = utils::read_varint_le(&mut stream).unwrap().0; //TODO this can tell result_size of delta
+        let result_size = utils::read_varint_le(&mut stream).unwrap().0;
 
         //Get the base object row data
         let base_info = &base_obj.data_decompress;
