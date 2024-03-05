@@ -29,6 +29,7 @@ pub struct Pack {
     pub pool: Arc<ThreadPool>,
     pub waitlist: Arc<Waitlist>,
     pub caches: Arc<Caches>,
+    pub mem_limit: usize,
 }
 
 #[cfg(test)]
