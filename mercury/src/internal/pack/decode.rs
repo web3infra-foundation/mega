@@ -5,8 +5,8 @@
 //!
 //!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{self, sleep};
 use std::time::Instant;
@@ -18,32 +18,35 @@ use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
-use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
+use super::cache::_Cache;
 use crate::internal::pack::cache::Caches;
+use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack};
 use uuid::Uuid;
-use super::cache::_Cache;
-
 
 impl Pack {
-    /// @param thread_num: The number of threads to use for decoding and cache, None mean use the number of logical CPUs
-    ///     the thread_num can't be zero, panic if it is zero
-    /// @param mem_size: The maximum size of the memory cache in bytes, or None for unlimited
-    /// @param temp_path: The path to a directory for temporary files, default is ./.cache_temp
-    /// for example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache)
-    pub fn new(thread_num: Option<usize>, mem_size: Option<usize>, temp_path: Option<PathBuf>) -> Self {
+    /// @param thread_num: The number of threads to use for decoding and cache, None mean use the number of logical CPUs <br>
+    ///     the thread_num can't be zero, panic if it is zero <br>
+    /// @param mem_size: The maximum size of the memory cache in bytes, or None for unlimited <br>
+    ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
+    /// @param temp_path: The path to a directory for temporary files, default is ./.cache_temp <br>
+    /// for example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
+    /// ! IMPORTANT: Can't parallel decode, because memory limit use shared static variable but different cache, cause "dead lock".
+    pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
         temp_path.push(Uuid::new_v4().to_string());
         let thread_num = thread_num.unwrap_or_else(num_cpus::get);
+        let cache_mem_size = mem_limit.map(|mem_limit| mem_limit*4 / 5);
         Pack {
             number: 0,
             signature: SHA1::default(),
             objects: Vec::new(),
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
-            caches:  Arc::new(Caches::new(mem_size, temp_path, thread_num)),
+            caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
+            mem_limit: mem_limit.unwrap_or(usize::MAX),
         }
     }
 
@@ -327,8 +330,8 @@ impl Pack {
                     if log_stop.load(Ordering::Relaxed) {
                         break;
                     }
-                    println!("execute {:?} \t objects decoded: {:?}, \t decode queue: {} \t cache queue: {} \t CacheObjs: {}MB \t CacheUsed: {}MB",
-                            time.elapsed(), log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, log_cache.memory_used() / 1024 / 1024);
+                    println!("time {:?} s \t pass: {:?}, \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
+                    time.elapsed().as_millis() as f64 / 1000.0, log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(), CacheObject::get_mem_size() / 1024 / 1024, log_cache.memory_used() / 1024 / 1024);
 
                     sleep(std::time::Duration::from_secs(1));
                 }
@@ -336,7 +339,8 @@ impl Pack {
         }
         while i.load(Ordering::Relaxed) <= self.number {
             // 3 parts: Waitlist + TheadPool + Caches
-            while CacheObject::get_mem_size() > 1024*1024*800 {
+            // hardcode the limit of the tasks of threads_pool queue, to limit memory
+            while CacheObject::get_mem_size() > self.mem_limit || self.pool.queued_count() > 2000 {
                 std::thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
@@ -619,7 +623,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), Some(1024*1024*200), Some(tmp.clone()));
+        let mut p = Pack::new(Some(20), Some(1024*1024*1024*4), Some(tmp.clone()));
         let rt = p.decode(&mut buffered);
         if let Err(e) = rt {
             fs::remove_dir_all(tmp).unwrap();
@@ -638,5 +642,21 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
         p.decode(&mut buffered).unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    /// didn't implement the parallel support
+    fn test_pack_decode_multi_task_with_large_file_with_delta_without_ref() {
+        // unimplemented!()
+        let task1 = std::thread::spawn(|| {
+            test_pack_decode_with_large_file_with_delta_without_ref();
+        });
+        let task2 = std::thread::spawn(|| {
+            test_pack_decode_with_large_file_with_delta_without_ref();
+        });
+
+        task1.join().unwrap();
+        task2.join().unwrap();
     }
 }
