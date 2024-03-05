@@ -21,6 +21,7 @@ use venus::hash::SHA1;
 
 use super::cache_object::FileLoadStore;
 
+
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
     where
@@ -34,7 +35,6 @@ pub trait _Cache {
     fn clear(&self);
 }
 
-#[allow(unused)]
 pub struct Caches {
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache

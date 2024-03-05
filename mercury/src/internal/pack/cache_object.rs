@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{fs, io};
 use std::{ops::Deref, sync::Arc};
 
@@ -10,8 +10,7 @@ use threadpool::ThreadPool;
 use venus::{hash::SHA1, internal::object::types::ObjectType};
 
 /// record heap-size of all CacheObjects, used for memory limit.
-/// u64 is better than usize (4GB in 32bits)
-static CACHE_OBJS_MEM_SIZE: AtomicU64 = AtomicU64::new(0);
+static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 /// file load&store trait
 pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
@@ -79,7 +78,7 @@ impl Default for CacheObject {
 // Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size()
+        self.data_decompress.heap_size() 
     }
 }
 
@@ -88,7 +87,7 @@ impl Drop for CacheObject {
     // (cannot change the heap-size during life cycle)
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
-        CACHE_OBJS_MEM_SIZE.fetch_sub((*self).mem_size() as u64, Ordering::SeqCst);
+        CACHE_OBJS_MEM_SIZE.fetch_sub((*self).mem_size(), Ordering::SeqCst);
 
     }
 }
@@ -101,17 +100,17 @@ impl Drop for CacheObject {
 /// <br> Or, update it (not impl)
 pub trait MemSizeRecorder: MemSize {
     fn record_mem_size(&self);
-    fn get_mem_size() -> u64;
+    fn get_mem_size() -> usize;
 }
 
 impl MemSizeRecorder for CacheObject {
     /// record the mem-size of this `CacheObj` in a `static` `var`
     /// <br> since that, DO NOT modify `CacheObj` after recording
     fn record_mem_size(&self) {
-        CACHE_OBJS_MEM_SIZE.fetch_add(self.mem_size() as u64, Ordering::SeqCst);
+        CACHE_OBJS_MEM_SIZE.fetch_add(self.mem_size(), Ordering::SeqCst);
     }
 
-    fn get_mem_size() -> u64 {
+    fn get_mem_size() -> usize {
         CACHE_OBJS_MEM_SIZE.load(Ordering::SeqCst)
     }
 }
@@ -231,8 +230,8 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                         let complete_signal = self.complete_signal.clone();
                         // block entire process, wait for IO, Control Memory
                         // queue size will influence the Memory usage
-                        while pool.queued_count() > 5000 {
-                            std::thread::sleep(std::time::Duration::from_millis(10));
+                        while pool.queued_count() > 2000 {
+                            std::thread::yield_now();
                         }
                         pool.execute(move || {
                             if !complete_signal.load(Ordering::SeqCst) {
