@@ -27,7 +27,7 @@ p2p = { path = "p2p" }
 git = { path = "git" }
 config = "0.14"
 lazy_static = "1.4.0"
-shadow-rs = "0.26.0"
+shadow-rs = "0.27.0"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
@@ -85,4 +85,4 @@ colored = "2.1.0"
 idgenerator = "2.0.0"
 
 [build-dependencies]
-shadow-rs = "0.26.0"
+shadow-rs = "0.27.0"
