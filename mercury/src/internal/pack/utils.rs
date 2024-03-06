@@ -2,7 +2,12 @@
 //! 
 //! 
 //!
+use std::fs;
 use std::io::{self, Read};
+use std::path::Path;
+use sha1::{Digest, Sha1};
+use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
 
 /// Checks if the reader has reached EOF (end of file).
 /// 
@@ -155,16 +160,157 @@ pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
     Ok((value, offset))
 }
 
+
+
+/// The offset for an OffsetDelta object(big-endian order)
+/// # Arguments
+///
+/// * `stream`: Input Data Stream to read
+/// # Returns
+/// * (`delta_offset`(unsigned), `consume`)
+pub fn read_offset_encoding<R: Read>(stream: &mut R) -> io::Result<(u64, usize)> {
+    // Like the object length, the offset for an OffsetDelta object
+    // is stored in a variable number of bytes,
+    // with the most significant bit of each byte indicating whether more bytes follow.
+    // However, the object length encoding allows redundant values,
+    // e.g. the 7-bit value [n] is the same as the 14- or 21-bit values [n, 0] or [n, 0, 0].
+    // Instead, the offset encoding adds 1 to the value of each byte except the least significant one.
+    // And just for kicks, the bytes are ordered from *most* to *least* significant.
+    let mut value = 0;
+    let mut offset = 0;
+    loop {
+        let (byte_value, more_bytes) = read_byte_and_check_continuation(stream)?;
+        offset += 1;
+        value = (value << 7) | byte_value as u64;
+        if !more_bytes {
+            return Ok((value, offset));
+        }
+
+        value += 1; //important!: for n >= 2 adding 2^7 + 2^14 + ... + 2^(7*(n-1)) to the result
+    }
+}
+
+/// Read the next N bytes from the reader
+///
+#[inline]
+pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> io::Result<[u8; N]> {
+    let mut bytes = [0; N];
+    stream.read_exact(&mut bytes)?;
+
+    Ok(bytes)
+}
+
+
+/// Reads a partial integer from a stream. (little-endian order)
+///
+/// # Arguments
+///
+/// * `stream` - A mutable reference to a readable stream.
+/// * `bytes` - The number of bytes to read from the stream.
+/// * `present_bytes` - A mutable reference to a byte indicating which bits are present in the integer value.
+///
+/// # Returns
+///
+/// This function returns a result of type `io::Result<usize>`. If the operation is successful, the integer value
+/// read from the stream is returned as `Ok(value)`. Otherwise, an `Err` variant is returned, wrapping an `io::Error`
+/// that describes the specific error that occurred.
+pub fn read_partial_int<R: Read>(
+    stream: &mut R,
+    bytes: u8,
+    present_bytes: &mut u8,
+) -> io::Result<usize> {
+    let mut value: usize = 0;
+
+    // Iterate over the byte indices
+    for byte_index in 0..bytes {
+        // Check if the current bit is present
+        if *present_bytes & 1 != 0 {
+            // Read a byte from the stream
+            let [byte] = read_bytes(stream)?;
+
+            // Add the byte value to the integer value
+            value |= (byte as usize) << (byte_index * 8);
+        }
+
+        // Shift the present bytes to the right
+        *present_bytes >>= 1;
+    }
+
+    Ok(value)
+}
+
+/// Calculate the SHA1 hash of the given object.
+/// <br> "`<type> <size>\0<content>`"
+/// <br> data: The decompressed content of the object
+pub fn calculate_object_hash(obj_type: ObjectType, data: &Vec<u8>) -> SHA1 {
+    let mut hash = Sha1::new();
+    // Header: "<type> <size>\0"
+    hash.update(obj_type.to_bytes());
+    hash.update(b" ");
+    hash.update(data.len().to_string());
+    hash.update(b"\0");
+
+    // Decompressed data(raw content)
+    hash.update(data);
+
+    let re: [u8; 20] = hash.finalize().into();
+    SHA1(re)
+}
+/// Create an empty directory or clear the existing directory.
+pub fn create_empty_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let dir = path.as_ref();
+    // 删除整个文件夹
+    if dir.exists() {
+        fs::remove_dir_all(dir)?;
+    }
+    // 重新创建文件夹
+    fs::create_dir_all(dir)?;
+    Ok(())
+}
+
+/// Count the number of files in a directory and its subdirectories.
+pub fn count_dir_files(path: &Path) -> io::Result<usize> {
+    let mut count = 0;
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            count += count_dir_files(&path)?;
+        } else {
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
+/// Count the time taken to execute a block of code.
+#[macro_export]
+macro_rules! time_it {
+    ($msg:expr, $block:block) => {
+        {
+            let start = std::time::Instant::now();
+            let result = $block;
+            let elapsed = start.elapsed();
+            println!("{}: {:?}", $msg, elapsed);
+            result
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
     use std::io::Cursor;
     use std::io::Read;
+    use venus::internal::object::types::ObjectType;
 
-    use crate::internal::pack::utils::is_eof;
-    use crate::internal::pack::utils::read_varint_le;
-    use crate::internal::pack::utils::read_type_and_varint_size;
-    use crate::internal::pack::utils::read_byte_and_check_continuation;
+    use crate::internal::pack::utils::*;
+
+    #[test]
+    fn test_calc_obj_hash() {
+        let hash = calculate_object_hash(ObjectType::Blob, &b"a".to_vec());
+        assert_eq!(hash.to_string(), "2e65efe2a145dda7ee51d1741299f848e5bf752e");
+    }
 
     #[test]
     fn eof() {

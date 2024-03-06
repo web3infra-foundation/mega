@@ -39,7 +39,7 @@ thiserror = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 tracing = { workspace = true }
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
