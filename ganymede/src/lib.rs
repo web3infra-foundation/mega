@@ -1,3 +1,2 @@
-pub mod model;
 pub mod mega_node;
-pub mod util;
+pub mod model;

@@ -23,7 +23,7 @@ pub trait ObjectTrait: Send + Sync + Display {
     fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized;
-    
+
     /// Generate a new Object from a `ReadBoxed<BufRead>`.
     /// the input size,is only for new a vec with directive space allocation
     /// the input data stream and output object should be plain base object .
@@ -37,8 +37,6 @@ pub trait ObjectTrait: Send + Sync + Display {
         let hash_str = h.finalize();
         Self::from_bytes(content, SHA1::from_str(&format!("{:x}", hash_str)).unwrap()).unwrap()
     }
-
-
 
     /// Returns the type of the object.
     fn get_type(&self) -> ObjectType;

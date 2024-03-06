@@ -21,8 +21,6 @@ CREATE TABLE IF NOT EXISTS "mega_commit" (
   "content" TEXT,
   "mr_id" VARCHAR(20),
   "status" VARCHAR(20) NOT NULL,
-  "size" INT NOT NULL,
-  "full_path" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_mc_git_id UNIQUE (commit_id)
@@ -31,30 +29,29 @@ CREATE INDEX "idx_mc_git_id" ON "mega_commit" ("commit_id");
 CREATE TABLE IF NOT EXISTS "mega_tree" (
   "id" BIGINT PRIMARY KEY,
   "tree_id" VARCHAR(40) NOT NULL,
-  "sub_trees" TEXT [] NOT NULL,
-  "import_dir" BOOLEAN NOT NULL,
+  "sub_trees" BYTEA NOT NULL,
+  "parent_id" VARCHAR(40),
+  "name" TEXT NOT NULL,
   "mr_id" VARCHAR(20) NOT NULL,
   "status" VARCHAR(20) NOT NULL,
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
+  "commit_id" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_mt_git_id UNIQUE (tree_id)
+  "updated_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_mt_git_id" ON "mega_tree" ("tree_id");
 CREATE TABLE IF NOT EXISTS "mega_blob" (
   "id" BIGINT PRIMARY KEY,
   "blob_id" VARCHAR(40) NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
+  "name" TEXT NOT NULL,
   "mr_id" VARCHAR(20),
   "status" VARCHAR(20) NOT NULL,
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
-  "content" TEXT NOT NULL,
-  "content_type" VARCHAR(20),
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_mb_git_id UNIQUE (blob_id)
+  "updated_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_mb_git_id" ON "mega_blob" ("blob_id");
 CREATE TABLE IF NOT EXISTS "mega_tag" (
@@ -90,7 +87,7 @@ CREATE TABLE IF NOT EXISTS "mega_issue" (
   "closed_at" TIMESTAMP DEFAULT NULL
 );
 CREATE INDEX "idx_info_mr_link" ON "mega_mr" ("mr_link");
-CREATE TABLE IF NOT EXISTS "git_refs" (
+CREATE TABLE IF NOT EXISTS "refs" (
   "id" BIGINT PRIMARY KEY,
   "repo_id" BIGINT NOT NULL,
   "ref_name" TEXT NOT NULL,
@@ -100,7 +97,7 @@ CREATE TABLE IF NOT EXISTS "git_refs" (
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_ref_path_name UNIQUE (repo_id, ref_name)
 );
-CREATE INDEX "idx_refs_repo_id" ON "git_refs" ("repo_id");
+CREATE INDEX "idx_refs_repo_id" ON "refs" ("repo_id");
 CREATE TABLE IF NOT EXISTS "git_repo" (
   "id" BIGINT PRIMARY KEY,
   "repo_path" TEXT NOT NULL,
@@ -118,8 +115,6 @@ CREATE TABLE IF NOT EXISTS "git_commit" (
   "author" TEXT,
   "committer" TEXT,
   "content" TEXT,
-  "size" INT NOT NULL,
-  "full_path" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_c_git_repo_id UNIQUE (repo_id, commit_id)
 );
@@ -166,17 +161,19 @@ CREATE TABLE IF NOT EXISTS "git_tag" (
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_gtag_tag_id UNIQUE (tag_id)
 );
-CREATE TABLE IF NOT EXISTS "raw_objects" (
+CREATE TABLE IF NOT EXISTS "raw_blob" (
   "id" BIGINT PRIMARY KEY,
   "sha1" VARCHAR(40) NOT NULL,
-  "object_type" VARCHAR(20) NOT NULL,
-  "storage_type" INT NOT NULL,
+  "storage_type" VARCHAR(20) NOT NULL,
+  "content" TEXT,
+  "content_type" VARCHAR(20),
   "data" BYTEA,
   "local_storage_path" TEXT,
   "remote_url" TEXT,
-  CONSTRAINT uniq_ro_git_id UNIQUE (sha1)
+  "created_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_rb_sha1 UNIQUE (sha1)
 );
-CREATE INDEX "idx_ro_git_id" ON "raw_objects" ("sha1");
+CREATE INDEX "idx_rb_sha1" ON "raw_blob" ("sha1");
 CREATE TABLE IF NOT EXISTS "git_pr" (
   "id" BIGINT PRIMARY KEY,
   "number" BIGINT NOT NULL,

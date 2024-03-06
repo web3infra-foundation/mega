@@ -1,40 +1,40 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Cursor;
 use std::path::PathBuf;
 
-use callisto::{mega_blob, mega_tree, raw_blob};
+use callisto::db_enums::RefType;
+use callisto::{mega_blob, refs, mega_tree, raw_blob};
+use common::utils::generate_id;
 use venus::hash::SHA1;
 use venus::internal::object::blob::Blob;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::signature::Signature;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::internal::object::types::ObjectType;
-use venus::internal::object::{utils, ObjectTrait};
-use venus::internal::zlib::stream::inflate::ReadBoxed;
 
 pub fn generate_git_keep() -> Blob {
     let git_keep_content = String::from("This file was used to maintain the git tree");
-    let blob_content = Cursor::new(utils::compress_zlib(git_keep_content.as_bytes()).unwrap());
-    let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, git_keep_content.len());
-    Blob::from_buf_read(&mut buf, git_keep_content.len())
+    Blob::from_content(&git_keep_content)
 }
 
-pub fn init_commit(tree_id: SHA1) -> Commit {
+pub fn init_commit(tree_id: SHA1, parent_commit_ids: Vec<SHA1>, message: &str) -> Commit {
     let author = Signature::from_data(
-        "author benjamin.747 <benjamin.747@outlook.com> 1709263583 +0800"
-            .to_string()
-            .into_bytes(),
+        format!(
+            "author benjamin.747 <benjamin.747@outlook.com> {} +0800",
+            chrono::Utc::now().timestamp()
+        )
+        .to_string()
+        .into_bytes(),
     )
     .unwrap();
     let committer = author.clone();
     let mut commit = Commit {
         id: SHA1::default(),
         tree_id,
-        parent_commit_ids: vec![],
+        parent_commit_ids,
         author,
         committer,
-        message: String::from("Init Mega Directory"),
+        message: message.to_string(),
     };
     let hash = SHA1::from_type_and_data(ObjectType::Commit, &commit.to_data().unwrap());
     commit.id = hash;
@@ -49,27 +49,27 @@ pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
     };
     let rust = Tree::from_tree_items(vec![rust_item]).unwrap();
     let imports = rust.clone();
-    let projects_items = vec![TreeItem {
+    let project_items = vec![TreeItem {
         mode: TreeItemMode::Tree,
         id: rust.id,
         name: String::from("rust"),
     }];
-    let projects = Tree::from_tree_items(projects_items).unwrap();
+    let project = Tree::from_tree_items(project_items).unwrap();
     let root_items = vec![
         TreeItem {
             mode: TreeItemMode::Tree,
             id: imports.id,
-            name: String::from("imports"),
+            name: String::from("third_part"),
         },
         TreeItem {
             mode: TreeItemMode::Tree,
-            id: projects.id,
-            name: String::from("projects"),
+            id: project.id,
+            name: String::from("project"),
         },
     ];
 
     let root = Tree::from_tree_items(root_items).unwrap();
-    let trees = vec![imports, projects, rust];
+    let trees = vec![imports, project, rust];
     (trees.into_iter().map(|x| (x.id, x)).collect(), root)
 }
 
@@ -81,6 +81,7 @@ pub struct MegaModelConverter {
     pub mega_trees: RefCell<Vec<mega_tree::ActiveModel>>,
     pub mega_blobs: RefCell<Vec<mega_blob::ActiveModel>>,
     pub raw_blobs: RefCell<HashMap<SHA1, raw_blob::ActiveModel>>,
+    pub refs: refs::ActiveModel,
     pub current_path: RefCell<PathBuf>,
 }
 
@@ -105,6 +106,7 @@ impl MegaModelConverter {
                 mega_tree.full_path = self.current_path.borrow().to_str().unwrap().to_owned();
                 mega_tree.name = name;
                 mega_tree.commit_id = self.commit.id.to_plain_str();
+                mega_tree.parent_id = Some(tree.id.to_plain_str());
                 self.mega_trees.borrow_mut().push(mega_tree.into());
                 self.traverse_tree(child_tree);
             } else {
@@ -124,9 +126,19 @@ impl MegaModelConverter {
     pub fn init() -> Self {
         let git_keep = generate_git_keep();
         let (tree_maps, root_tree) = init_trees(&git_keep);
-        let commit = init_commit(root_tree.id);
+        let commit = init_commit(root_tree.id, vec![], "Init Mega Directory");
         let mut blob_maps = HashMap::new();
         blob_maps.insert(git_keep.id, git_keep);
+
+        let mega_ref = refs::Model {
+            id: generate_id(),
+            repo_id: 0,
+            ref_name: String::from("main"),
+            ref_git_id: commit.id.to_plain_str(),
+            ref_type: RefType::Branch,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
 
         MegaModelConverter {
             commit,
@@ -136,6 +148,7 @@ impl MegaModelConverter {
             mega_trees: RefCell::new(vec![]),
             mega_blobs: RefCell::new(vec![]),
             raw_blobs: RefCell::new(HashMap::new()),
+            refs: mega_ref.into(),
             current_path: RefCell::new(PathBuf::from("/")),
         }
     }
@@ -144,7 +157,11 @@ impl MegaModelConverter {
 #[cfg(test)]
 mod test {
 
-    use crate::util::MegaModelConverter;
+    use std::str::FromStr;
+
+    use venus::hash::SHA1;
+
+    use crate::model::converter::{init_commit, MegaModelConverter};
 
     #[test]
     pub fn test_init_mega_dir() {
@@ -156,5 +173,15 @@ mod test {
         assert_eq!(mega_trees.len(), 4);
         assert_eq!(mega_blobs.len(), 2);
         assert_eq!(raw_blob.len(), 1);
+    }
+
+    #[test]
+    pub fn test_init_commit() {
+        let commit = init_commit(
+            SHA1::from_str("bd4a28f2d8b2efc371f557c3b80d320466ed83f3").unwrap(),
+            vec![],
+            "Init Mega Directory",
+        );
+        println!("{}", commit);
     }
 }

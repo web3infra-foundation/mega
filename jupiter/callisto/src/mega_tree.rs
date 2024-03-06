@@ -11,7 +11,8 @@ pub struct Model {
     pub id: i64,
     #[sea_orm(unique)]
     pub tree_id: String,
-    pub sub_trees: Vec<String>,
+    pub sub_trees: Vec<u8>,
+    pub parent_id: Option<String>,
     pub name: String,
     pub mr_id: String,
     pub status: MergeStatus,

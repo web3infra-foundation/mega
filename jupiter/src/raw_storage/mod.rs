@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use handlebars::Handlebars;
 
-use common::errors::MegaError;
 use callisto::db_enums::StorageType;
+use common::errors::MegaError;
 use venus::internal::pack::entry::Entry;
 
 use crate::raw_storage::local_storage::LocalStorage;
@@ -32,11 +32,21 @@ pub trait RawStorage: Sync + Send {
 
     async fn get_ref(&self, repo_name: &str, ref_name: &str) -> Result<String, MegaError>;
 
-    async fn put_ref(&self, repo_name: &str, ref_name: &str, ref_hash: &str) -> Result<(), MegaError>;
+    async fn put_ref(
+        &self,
+        repo_name: &str,
+        ref_name: &str,
+        ref_hash: &str,
+    ) -> Result<(), MegaError>;
 
     async fn delete_ref(&self, repo_name: &str, ref_name: &str) -> Result<(), MegaError>;
 
-    async fn update_ref(&self, repo_name: &str, ref_name: &str, ref_hash: &str) -> Result<(), MegaError>;
+    async fn update_ref(
+        &self,
+        repo_name: &str,
+        ref_name: &str,
+        ref_hash: &str,
+    ) -> Result<(), MegaError>;
 
     async fn get_object(&self, repo_name: &str, object_id: &str) -> Result<Bytes, MegaError>;
 
@@ -63,11 +73,7 @@ pub trait RawStorage: Sync + Send {
     // save a entry and return the b_link file
     async fn put_entry(&self, repo_name: &str, entry: &Entry) -> Result<Vec<u8>, MegaError> {
         let location = self
-            .put_object(
-                repo_name,
-                &entry.hash.unwrap().to_plain_str(),
-                &entry.data,
-            )
+            .put_object(repo_name, &entry.hash.unwrap().to_plain_str(), &entry.data)
             .await
             .unwrap();
         let handlebars = Handlebars::new();
@@ -114,7 +120,6 @@ pub trait RawStorage: Sync + Send {
 }
 
 pub async fn init(storage_type: String, path: String) -> Arc<dyn RawStorage> {
-
     match storage_type.as_str() {
         "LOCAL" => {
             let base_path = PathBuf::from(path);

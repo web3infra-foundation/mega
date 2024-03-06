@@ -28,7 +28,7 @@ impl MegaNode {
     pub fn convert_to_mega_tree(&self, tree: &Tree) {
         let mut model: mega_tree::Model = self.to_owned().into();
         model.tree_id = tree.id.to_plain_str();
-        model.sub_trees = tree.tree_items.iter().map(|x| x.to_string()).collect();
+        model.sub_trees = tree.to_data().unwrap();
         model.size = 0;
     }
 }
@@ -59,6 +59,7 @@ impl From<MegaNode> for mega_tree::Model {
             tree_id: String::new(),
             sub_trees: Vec::new(),
             name: String::new(),
+            parent_id: None,
             size: 0,
             mr_id: String::new(),
             status: MergeStatus::Merged,

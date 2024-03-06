@@ -17,9 +17,6 @@ pub struct Model {
     pub committer: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub content: Option<String>,
-    pub size: i32,
-    #[sea_orm(column_type = "Text")]
-    pub full_path: String,
     pub created_at: DateTime,
 }
 

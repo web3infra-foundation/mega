@@ -16,6 +16,7 @@ common = { path = "../common" }
 storage = { path = "../storage" }
 entity = { path = "../storage/entity" }
 jupiter = { path = "../jupiter" }
+ganymede = { path = "../ganymede" }
 
 tower = "0.4.13"
 tower-http = { version = "0.5.1", features = ["cors", "trace"] }

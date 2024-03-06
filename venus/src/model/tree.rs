@@ -1,18 +1,20 @@
-use crate::hash::SHA1;
+use std::str::FromStr;
+
 use callisto::db_enums::MergeStatus;
 use callisto::mega_tree;
 use callisto::mega_tree::Model;
 use common::utils::generate_id;
-use std::str::FromStr;
 
-use crate::internal::object::tree::{Tree, TreeItem};
+use crate::internal::object::tree::Tree;
+use crate::{hash::SHA1, internal::object::ObjectTrait};
 
 impl From<Tree> for mega_tree::Model {
     fn from(value: Tree) -> Self {
         mega_tree::Model {
             id: generate_id(),
             tree_id: value.id.to_plain_str(),
-            sub_trees: value.tree_items.iter().map(|x| x.to_string()).collect(),
+            sub_trees: value.to_data().unwrap(),
+            parent_id: None,
             name: String::new(),
             mr_id: String::new(),
             status: MergeStatus::Merged,
@@ -27,13 +29,6 @@ impl From<Tree> for mega_tree::Model {
 
 impl From<mega_tree::Model> for Tree {
     fn from(value: Model) -> Self {
-        Tree {
-            id: SHA1::from_str(&value.tree_id).unwrap(),
-            tree_items: value
-                .sub_trees
-                .iter()
-                .map(|x| TreeItem::from_bytes(x.as_bytes()).unwrap())
-                .collect(),
-        }
+        Tree::from_bytes(value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
     }
 }
