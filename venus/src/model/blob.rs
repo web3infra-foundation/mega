@@ -1,4 +1,7 @@
-use callisto::{db_enums::{MergeStatus, StorageType}, mega_blob, raw_blob};
+use callisto::{
+    db_enums::{MergeStatus, StorageType},
+    mega_blob, raw_blob,
+};
 use common::utils::generate_id;
 
 use crate::internal::object::blob::Blob;
@@ -28,8 +31,8 @@ impl From<Blob> for raw_blob::Model {
             storage_type: StorageType::Database,
             data: Some(value.data),
             content: None,
-            content_type: None,
-            local_storage_path: None,
+            file_type: None,
+            local_path: None,
             remote_url: None,
             created_at: chrono::Utc::now().naive_utc(),
         }

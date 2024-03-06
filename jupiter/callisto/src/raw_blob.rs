@@ -11,14 +11,14 @@ pub struct Model {
     pub id: i64,
     #[sea_orm(unique)]
     pub sha1: String,
-    pub storage_type: StorageType,
     #[sea_orm(column_type = "Text")]
     pub content: Option<String>,
-    pub content_type: Option<String>,
+    pub file_type: Option<String>,
+    pub storage_type: StorageType,
     #[sea_orm(column_type = "Binary(BlobSize::Blob(None))", nullable)]
     pub data: Option<Vec<u8>>,
     #[sea_orm(column_type = "Text", nullable)]
-    pub local_storage_path: Option<String>,
+    pub local_path: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub remote_url: Option<String>,
     pub created_at: DateTime,

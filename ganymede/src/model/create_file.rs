@@ -1,18 +1,21 @@
-use crate::mega_node::MegaNode;
-use venus::{hash::SHA1, internal::object::tree::TreeItemMode};
 use std::cell::RefCell;
 
-#[derive(PartialEq, Eq, Debug, Clone, Default)]
+use serde::{Deserialize, Serialize};
+
+use venus::{hash::SHA1, internal::object::tree::TreeItemMode};
+
+use crate::mega_node::MegaNode;
+
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateFileInfo {
     /// can be a file or directory
     pub is_directory: bool,
     pub name: String,
     /// leave empty if it's under root
     pub path: String,
-    pub import_dir: bool,
+    // pub import_dir: bool,
+    pub content: String,
 }
-
-
 
 // impl From<CreateFileInfo> for mega_snapshot::Model {
 //     fn from(value: CreateFileInfo) -> Self {

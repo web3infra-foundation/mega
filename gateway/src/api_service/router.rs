@@ -4,11 +4,13 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
+
+use ganymede::model::create_file::CreateFileInfo;
 use git::internal::pack::counter::GitTypeCounter;
-use jupiter::storage::{mega_storage::MegaStorage, MonorepoStorageProvider};
+use jupiter::storage::mega_storage::MegaStorage;
 
 use crate::{
     api_service::obj_service::ObjectService,
@@ -24,7 +26,7 @@ pub struct ApiServiceState {
     pub mega_storage: MegaStorage,
 }
 
-pub fn routers<S>(state: ApiServiceState) -> Router<S> {
+pub fn routers() -> Router<ApiServiceState> {
     Router::new()
         .route("/blob", get(get_blob_object))
         .route("/tree", get(get_directories))
@@ -32,7 +34,7 @@ pub fn routers<S>(state: ApiServiceState) -> Router<S> {
         .route("/status", get(life_cycle_check))
         .route("/count-objs", get(get_count_nums))
         .route("/init", get(init))
-        .with_state(state)
+        .route("/create_file", post(create_file))
 }
 
 async fn get_blob_object(
@@ -76,4 +78,12 @@ async fn get_count_nums(
 
 async fn init(state: State<ApiServiceState>) {
     state.mega_storage.init_mega_directory().await;
+}
+
+async fn create_file(
+    state: State<ApiServiceState>,
+    Json(json): Json<CreateFileInfo>,
+) -> Result<Json<CreateFileInfo>, (StatusCode, String)> {
+    state.mega_storage.create_mega_file(json.clone()).await.unwrap();
+    Ok(Json(json))
 }

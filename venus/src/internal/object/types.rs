@@ -1,12 +1,11 @@
 //!
-//! 
-//! 
-//! 
-//! 
+//!
+//!
+//!
+//!
 use std::fmt::Display;
 
 use crate::errors::GitError;
-
 
 /// In Git, each object type is assigned a unique integer value, which is used to identify the
 /// type of the object in Git repositories.

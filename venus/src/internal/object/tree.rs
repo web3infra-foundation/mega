@@ -262,9 +262,6 @@ impl Tree {
         })
     }
 
-
-
-    #[allow(unused)]
     pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
         let mut data: Vec<u8> = Vec::new();
 
@@ -373,6 +370,9 @@ mod tests {
         );
         let tree = Tree::from_tree_items(vec![item]).unwrap();
         println!("{}", tree.id);
-        assert_eq!("cf99336fa61439a2f074c7e6de1c1a05579550e2", tree.id.to_plain_str());
+        assert_eq!(
+            "cf99336fa61439a2f074c7e6de1c1a05579550e2",
+            tree.id.to_plain_str()
+        );
     }
 }

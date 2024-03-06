@@ -98,16 +98,16 @@ pub async fn start_server(options: &HttpOptions) {
         options: options.to_owned(),
         mega_storage: MegaStorage::new(database_connection().await).await,
     };
-    
+
     let api_state = ApiServiceState {
         object_service: ObjectService {
             storage: state.storage.clone(),
         },
         mega_storage: state.mega_storage.clone(),
     };
-    
+
     let app = Router::new()
-        .nest("/api/v1", api_service::router::routers(api_state))
+        .nest("/api/v1", api_service::router::routers().with_state(api_state))
         .route(
             "/*path",
             get(get_method_router)

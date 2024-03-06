@@ -1,11 +1,11 @@
+use callisto::refs;
 use common::utils::generate_id;
-use callisto::git_refs;
 
 use crate::internal::pack::reference::RefCommand;
 
-impl From<RefCommand> for git_refs::Model {
+impl From<RefCommand> for refs::Model {
     fn from(value: RefCommand) -> Self {
-        git_refs::Model {
+        refs::Model {
             id: generate_id(),
             repo_id: 0,
             ref_name: value.ref_name,
