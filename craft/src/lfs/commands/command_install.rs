@@ -1,14 +1,21 @@
-use std::fs::{ File};
-use std::{fs, io};
-use std::io::{ Read};
-use std::path::{Path, PathBuf};
+use std::{
+    fs::{self, File},
+    io::{self, Read},
+    path::{Path, PathBuf},
+};
+
 use gettextrs::gettext;
 use rayon::prelude::*;
-use crate::lfs::commands::utils::disk_judgment::disk_judgment::is_ssd;
-use crate::lfs::tools::constant_table::env_prompt_message;
-use crate::lfs::commands::utils::file_metadata::metadata_same::is_metadata_same;
 
-
+use crate::lfs::{
+    commands::{
+        utils::{
+            disk_judgment::disk_judgment::is_ssd,
+            file_metadata::metadata_same::is_metadata_same,
+        },
+    },
+    tools::constant_table::env_prompt_message,
+};
 
 #[cfg(target_os = "windows")]
 pub mod command_install{
@@ -457,15 +464,22 @@ fn is_parallel(is_ssd:Result<bool,Box<dyn std::error::Error>>,is_same_disk:bool)
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub mod command_install{
-    use std::env;
-    use std::path::{Path, PathBuf};
-    use std::process::Command;
-    use gettextrs::gettext;
-    use crate::lfs::commands::command_install::{copy_file};
+    use std::{
+        env,
+        path::{Path, PathBuf},
+        process::Command,
+    };
 
-    use crate::lfs::tools::gettext_format::remove_trailing_newlines;
-    use crate::lfs::errors::install_error::ENVINSTALLError;
-    use crate::lfs::tools::constant_table::{env_utils_table,env_prompt_message,git_repo_table,vault_config };
+    use gettextrs::gettext;
+
+    use crate::lfs::{
+        commands::command_install::copy_file,
+        errors::install_error::ENVINSTALLError,
+        tools::{
+            constant_table::{env_prompt_message, env_utils_table, git_repo_table, vault_config},
+            gettext_format::remove_trailing_newlines,
+        },
+    };
 
     fn is_root() -> bool {
         unsafe {
