@@ -11,11 +11,9 @@ pub enum EntryHeader {
     Tree,
     Blob,
     Tag,
-    #[allow(unused)]
     RefDelta {
         base_id: SHA1,
     },
-    #[allow(unused)]
     OfsDelta {
         base_distance: usize,
     },

@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../common" }
-db_entity = { path = "../jupiter/entity" }
+callisto = { path = "../jupiter/callisto" }
 venus = { path = "../venus" }
 jupiter = { path = "../jupiter" }
 

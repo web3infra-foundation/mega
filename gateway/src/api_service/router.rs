@@ -4,10 +4,13 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
+
+use ganymede::model::create_file::CreateFileInfo;
 use git::internal::pack::counter::GitTypeCounter;
+use jupiter::storage::mega_storage::MegaStorage;
 
 use crate::{
     api_service::obj_service::ObjectService,
@@ -20,16 +23,18 @@ use crate::{
 #[derive(Clone)]
 pub struct ApiServiceState {
     pub object_service: ObjectService,
+    pub mega_storage: MegaStorage,
 }
 
-pub fn routers<S>(state: ApiServiceState) -> Router<S> {
+pub fn routers() -> Router<ApiServiceState> {
     Router::new()
         .route("/blob", get(get_blob_object))
         .route("/tree", get(get_directories))
         .route("/object", get(get_origin_object))
         .route("/status", get(life_cycle_check))
         .route("/count-objs", get(get_count_nums))
-        .with_state(state)
+        .route("/init", get(init))
+        .route("/create_file", post(create_file))
 }
 
 async fn get_blob_object(
@@ -53,7 +58,10 @@ async fn get_origin_object(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let object_id = query.get("object_id").unwrap();
     let repo_path = query.get("repo_path").expect("repo_path is required");
-    state.object_service.get_objects_data(object_id, repo_path).await
+    state
+        .object_service
+        .get_objects_data(object_id, repo_path)
+        .await
 }
 
 async fn life_cycle_check() -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -66,4 +74,16 @@ async fn get_count_nums(
 ) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
     let repo_path = query.get("repo_path").unwrap();
     state.object_service.count_object_num(repo_path).await
+}
+
+async fn init(state: State<ApiServiceState>) {
+    state.mega_storage.init_mega_directory().await;
+}
+
+async fn create_file(
+    state: State<ApiServiceState>,
+    Json(json): Json<CreateFileInfo>,
+) -> Result<Json<CreateFileInfo>, (StatusCode, String)> {
+    state.mega_storage.create_mega_file(json.clone()).await.unwrap();
+    Ok(Json(json))
 }

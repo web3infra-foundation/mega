@@ -21,7 +21,7 @@ impl ToString for StorageType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
 #[sea_orm(rs_type = "String", db_type = "String(Some(1))")]
 pub enum MergeStatus {
     #[sea_orm(string_value = "open")]

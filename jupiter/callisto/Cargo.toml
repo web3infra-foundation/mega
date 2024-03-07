@@ -1,11 +1,11 @@
 [package]
-name = "db_entity"
+name = "callisto"
 version = "0.1.0"
 edition = "2021"
 publish = false
 
 [lib]
-name = "db_entity"
+name = "callisto"
 path = "src/lib.rs"
 
 [dependencies]

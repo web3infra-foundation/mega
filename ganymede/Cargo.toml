@@ -1,5 +1,5 @@
 [package]
-name = "venus"
+name = "ganymede"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,14 +8,7 @@ edition = "2021"
 [dependencies]
 common = { path = "../common" }
 callisto = { path = "../jupiter/callisto" }
-sha1_smol = "1.0.0"
+venus = { path = "../venus" }
 
 serde = { workspace = true, features = ["derive"] }
-bstr = { workspace = true }
-hex = { workspace = true }
-thiserror = { workspace = true }
-flate2 = { workspace = true }
-tracing = { workspace = true }
-sha1 = { workspace = true }
-colored = { workspace = true }
 chrono = { workspace = true }

@@ -28,16 +28,21 @@
 //! objects to form a version history of the repository.
 //!
 use std::fmt::Display;
+use std::io::Cursor;
 
 use crate::errors::GitError;
+use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
+use crate::internal::object::utils;
 use crate::internal::object::ObjectTrait;
+use crate::internal::zlib::stream::inflate::ReadBoxed;
 
 /// **The Blob Object**
 ///
 #[allow(unused)]
 #[derive(Eq, Debug, Clone)]
 pub struct Blob {
+    pub id: SHA1,
     pub data: Vec<u8>,
 }
 
@@ -57,11 +62,12 @@ impl Display for Blob {
 
 impl ObjectTrait for Blob {
     /// Creates a new object from a byte slice.
-    fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
+    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
         Ok(Blob {
+            id: hash,
             data: data.to_vec(),
         })
     }
@@ -73,5 +79,13 @@ impl ObjectTrait for Blob {
 
     fn get_size(&self) -> usize {
         self.data.len()
+    }
+}
+
+impl Blob {
+    pub fn from_content(content: &str) -> Self {
+        let blob_content = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
+        let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, content.len());
+        Blob::from_buf_read(&mut buf, content.len())
     }
 }

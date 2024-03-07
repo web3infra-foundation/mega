@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn test_calc_obj_hash() {
         let hash = calculate_object_hash(ObjectType::Blob, &b"a".to_vec());
-        assert_eq!(hash.to_string(), "2e65efe2a145dda7ee51d1741299f848e5bf752e");
+        assert_eq!(hash.to_plain_str(), "2e65efe2a145dda7ee51d1741299f848e5bf752e");
     }
 
     #[test]

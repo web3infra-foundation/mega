@@ -1,16 +1,16 @@
-//! 
-//! 
-//! 
-//! 
+//!
+//!
+//!
+//!
 
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 
+use flate2::{write::ZlibEncoder, Compression};
 
 const TYPE_BITS: u8 = 3;
 const VAR_INT_ENCODING_BITS: u8 = 7;
 const TYPE_BYTE_SIZE_BITS: u8 = VAR_INT_ENCODING_BITS - TYPE_BITS;
 const VAR_INT_CONTINUE_FLAG: u8 = 1 << VAR_INT_ENCODING_BITS;
-
 
 /// Parses a byte slice into a `usize` representing the size of a Git object.
 ///
@@ -35,8 +35,6 @@ pub fn parse_size_from_bytes(bytes: &[u8]) -> Result<usize, Box<dyn std::error::
     let size_str = std::str::from_utf8(bytes)?;
     Ok(size_str.parse::<usize>()?)
 }
-
-
 
 /// Preserve the last bits of value binary
 ///
@@ -94,6 +92,12 @@ pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> io::Result<[u8; N]
     Ok(bytes)
 }
 
+pub fn compress_zlib(data: &[u8]) -> io::Result<Vec<u8>> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(data)?;
+    let compressed_data = encoder.finish()?;
+    Ok(compressed_data)
+}
 
 #[cfg(test)]
 mod tests {
@@ -103,7 +107,7 @@ mod tests {
     fn test_parse_size_from_bytes() -> Result<(), Box<dyn std::error::Error>> {
         let size: usize = 12345;
         let size_bytes = size.to_string().as_bytes().to_vec();
-        
+
         let parsed_size = parse_size_from_bytes(&size_bytes)?;
 
         assert_eq!(size, parsed_size);

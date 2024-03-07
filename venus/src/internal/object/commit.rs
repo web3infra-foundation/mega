@@ -90,7 +90,7 @@ impl Commit {
 }
 
 impl ObjectTrait for Commit {
-    fn from_bytes(data: Vec<u8>) -> Result<Self, GitError>
+    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
@@ -123,10 +123,10 @@ impl ObjectTrait for Commit {
 
         // Find the author and committer and remove them from the data
         let author =
-            Signature::new_from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
         commit = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
         let committer =
-            Signature::new_from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
 
         // The rest is the message
         let message = unsafe {
@@ -134,7 +134,7 @@ impl ObjectTrait for Commit {
         };
 
         Ok(Commit {
-            id: SHA1([0u8; 20]),
+            id: hash,
             tree_id,
             parent_commit_ids,
             author,
@@ -148,6 +148,6 @@ impl ObjectTrait for Commit {
     }
 
     fn get_size(&self) -> usize {
-        todo!()
+        0
     }
 }
