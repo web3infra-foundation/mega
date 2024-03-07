@@ -308,7 +308,7 @@ fn create_link(href: &str, header: &HashMap<String, String>) -> Link {
         href: href.to_string(),
         header: header.clone(),
         expires_at: {
-            let expire_time: DateTime<Utc> = Utc::now() + Duration::seconds(86400);
+            let expire_time: DateTime<Utc> = Utc::now() + Duration::try_seconds(86400).unwrap();
             expire_time.to_rfc3339()
         },
     }
