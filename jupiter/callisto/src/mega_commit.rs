@@ -5,19 +5,22 @@ use sea_orm::entity::prelude::*;
 use crate::db_enums::MergeStatus;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "mega_tree")]
+#[sea_orm(table_name = "mega_commit")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     #[sea_orm(unique)]
-    pub tree_id: String,
-    pub sub_trees: Vec<String>,
-    pub import_dir: bool,
-    pub mr_id: String,
+    pub commit_id: String,
+    pub tree: String,
+    pub parents_id: Vec<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub author: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub committer: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub content: Option<String>,
+    pub mr_id: Option<String>,
     pub status: MergeStatus,
-    pub size: i32,
-    #[sea_orm(column_type = "Text")]
-    pub full_path: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }

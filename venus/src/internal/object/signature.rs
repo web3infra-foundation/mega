@@ -93,8 +93,7 @@ impl Display for Signature {
 }
 
 impl Signature {
-    #[allow(unused)]
-    pub fn new_from_data(data: Vec<u8>) -> Result<Signature, GitError> {
+    pub fn from_data(data: Vec<u8>) -> Result<Signature, GitError> {
         // Make a mutable copy of the input data vector.
         let mut sign = data;
 
@@ -227,7 +226,7 @@ mod tests {
 
     #[test]
     fn test_signature_new_from_data() {
-        let sign = Signature::new_from_data(
+        let sign = Signature::from_data(
             "author Quanyi Ma <eli@patch.sh> 1678101573 +0800"
                 .to_string()
                 .into_bytes(),
@@ -243,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_signature_to_data() {
-        let sign = Signature::new_from_data(
+        let sign = Signature::from_data(
             "committer Quanyi Ma <eli@patch.sh> 1678101573 +0800"
                 .to_string()
                 .into_bytes(),

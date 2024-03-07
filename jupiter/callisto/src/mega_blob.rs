@@ -12,14 +12,12 @@ pub struct Model {
     #[sea_orm(unique)]
     pub blob_id: String,
     pub commit_id: String,
-    pub mr_id: Option<String>,
+    pub name: String,
+    pub mr_id: String,
     pub status: MergeStatus,
     pub size: i32,
     #[sea_orm(column_type = "Text")]
     pub full_path: String,
-    #[sea_orm(column_type = "Text")]
-    pub content: String,
-    pub content_type: Option<String>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }

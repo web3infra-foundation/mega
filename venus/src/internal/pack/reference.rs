@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use db_entity::db_enums::RefType;
+use callisto::db_enums::RefType;
 
 ///
 /// Represent the references(all branches and tags) in protocol transfer

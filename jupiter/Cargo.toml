@@ -11,9 +11,11 @@ path = "src/lib.rs"
 
 
 [dependencies]
+callisto = { path = "./callisto" }
 common = { path = "../common" }
-db_entity = { path = "./entity" }
 venus = { path = "../venus" }
+ganymede = { path = "../ganymede" }
+
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
@@ -26,7 +28,8 @@ bytes = { workspace = true }
 chrono = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
-serde_json ={ workspace = true }
+serde_json = { workspace = true }
+idgenerator = { workspace = true }
 
 handlebars = "5.1.0"
 

@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
+use callisto::{db_enums::MergeStatus, git_commit, mega_commit};
 use common::utils::generate_id;
-use db_entity::{db_enums::MergeStatus, git_commit, mega_commit};
 
 use crate::{
     hash::SHA1,
-    internal::object::{commit::Commit, signature::Signature, ObjectTrait},
+    internal::object::{commit::Commit, signature::Signature},
 };
 
 impl From<git_commit::Model> for Commit {
@@ -18,8 +18,8 @@ impl From<git_commit::Model> for Commit {
                 .into_iter()
                 .map(|id| SHA1::from_str(&id).unwrap())
                 .collect(),
-            author: Signature::new_from_data(value.author.unwrap().into()).unwrap(),
-            committer: Signature::new_from_data(value.committer.unwrap().into()).unwrap(),
+            author: Signature::from_data(value.author.unwrap().into()).unwrap(),
+            committer: Signature::from_data(value.committer.unwrap().into()).unwrap(),
             message: value.content.unwrap(),
         }
     }
@@ -40,8 +40,6 @@ impl From<Commit> for git_commit::Model {
             author: Some(value.author.to_string()),
             committer: Some(value.committer.to_string()),
             content: Some(value.message.clone()),
-            size: value.get_size() as i32,
-            full_path: "".to_string(),
             created_at: chrono::Utc::now().naive_utc(),
         }
     }
@@ -61,8 +59,6 @@ impl From<Commit> for mega_commit::Model {
             author: Some(value.author.to_string()),
             committer: Some(value.committer.to_string()),
             content: Some(value.message.clone()),
-            size: value.get_size() as i32,
-            full_path: "".to_string(),
             mr_id: None,
             status: MergeStatus::Open,
             created_at: chrono::Utc::now().naive_utc(),
