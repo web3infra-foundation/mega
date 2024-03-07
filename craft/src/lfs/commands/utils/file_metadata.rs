@@ -66,9 +66,12 @@ pub mod metadata_same{
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub mod metadata_same{
-    use std::{fs, io};
-    use std::path::Path;
-    use std::os::unix::fs::MetadataExt;
+    use std::{
+        fs,
+        io,
+        os::unix::fs::MetadataExt,
+        path::Path,
+    };
     fn get_metadata_or_parent(path: &Path) -> io::Result<fs::Metadata> {
         let mut current_path = path.to_path_buf();
         loop {

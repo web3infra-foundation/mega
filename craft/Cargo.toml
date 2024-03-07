@@ -9,6 +9,7 @@ members = []
 
 [build-dependencies]
 regex = "1.10.3 "
+cc = "1.0"
 [target.'cfg(windows)'.build-dependencies]
 vcpkg = "0.2"
 
@@ -33,6 +34,8 @@ tracing = "0.1.40"
 zeroize = "1.7.0"
 md5 = "0.7.0"
 rayon = "1.5.1"
+sha2 = "0.10.8"
+memmap2 = "0.9.4"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = [

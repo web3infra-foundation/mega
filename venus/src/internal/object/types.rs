@@ -5,6 +5,8 @@
 //!
 use std::fmt::Display;
 
+use serde::{Deserialize, Serialize};
+
 use crate::errors::GitError;
 
 /// In Git, each object type is assigned a unique integer value, which is used to identify the
@@ -25,7 +27,7 @@ use crate::errors::GitError;
 /// identify the type of an object and perform the appropriate operations on it. when parsing a Git
 /// repository, Git can use the integer value of an object's type to determine how to parse
 /// the object's content.
-#[derive(PartialEq, Eq, Hash, Ord, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Ord, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ObjectType {
     Commit,
     Tree,

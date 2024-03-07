@@ -1,7 +1,9 @@
-use std::error::Error;
-use std::ffi::NulError;
-use std::fmt;
-use std::io;
+use std::{
+    error::Error,
+    ffi::NulError,
+    fmt,
+    io,
+};
 
 define_error!(OSGetLocaleError);
 
