@@ -10,7 +10,7 @@ use axum::{
 
 use ganymede::model::create_file::CreateFileInfo;
 use git::internal::pack::counter::GitTypeCounter;
-use jupiter::storage::mega_storage::MegaStorage;
+use jupiter::context::Context;
 
 use crate::{
     api_service::obj_service::ObjectService,
@@ -23,7 +23,7 @@ use crate::{
 #[derive(Clone)]
 pub struct ApiServiceState {
     pub object_service: ObjectService,
-    pub mega_storage: MegaStorage,
+    pub context: Context,
 }
 
 pub fn routers() -> Router<ApiServiceState> {
@@ -77,13 +77,24 @@ async fn get_count_nums(
 }
 
 async fn init(state: State<ApiServiceState>) {
-    state.mega_storage.init_mega_directory().await;
+    state
+        .context
+        .services
+        .mega_storage
+        .init_mega_directory()
+        .await;
 }
 
 async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CreateFileInfo>, (StatusCode, String)> {
-    state.mega_storage.create_mega_file(json.clone()).await.unwrap();
+    state
+        .context
+        .services
+        .mega_storage
+        .create_mega_file(json.clone())
+        .await
+        .unwrap();
     Ok(Json(json))
 }

@@ -20,7 +20,7 @@ use git::lfs::lfs_structs::Link;
 use git::protocol::pack::{self};
 use git::protocol::ServiceType;
 use git::protocol::{PackProtocol, Protocol};
-use storage::driver::database::storage::ObjectStorage;
+use jupiter::context::Context;
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 
@@ -29,7 +29,7 @@ pub struct SshServer {
     pub client_pubkey: Arc<russh_keys::key::PublicKey>,
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
-    pub storage: Arc<dyn ObjectStorage>,
+    pub context: Context,
     // TODO: consider is it a good choice to bind data here, find a better solution to bind data with ssh client
     pub pack_protocol: Option<PackProtocol>,
     pub data_combined: Vec<u8>,
@@ -88,7 +88,7 @@ impl server::Handler for SshServer {
         let path = command[1];
         let path = path.replace(".git", "").replace('\'', "");
         let mut pack_protocol =
-            PackProtocol::new(PathBuf::from(&path), self.storage.clone(), Protocol::Ssh);
+            PackProtocol::new(PathBuf::from(&path), self.context.clone(), Protocol::Ssh);
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
                 pack_protocol.service_type = ServiceType::from_str(command[0]).unwrap();
@@ -112,7 +112,8 @@ impl server::Handler for SshServer {
                     href: "http://localhost:8000".to_string(),
                     header,
                     expires_at: {
-                        let expire_time: DateTime<Utc> = Utc::now() + Duration::try_seconds(86400).unwrap();
+                        let expire_time: DateTime<Utc> =
+                            Utc::now() + Duration::try_seconds(86400).unwrap();
                         expire_time.to_rfc3339()
                     },
                 };

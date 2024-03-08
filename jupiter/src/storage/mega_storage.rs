@@ -162,10 +162,10 @@ impl MegaStorage {
         }
     }
 
-    pub async fn mock() -> Self {
+    pub fn mock() -> Self {
         MegaStorage {
             connection: Arc::new(DatabaseConnection::default()),
-            raw_storage: raw_storage::init(String::from("LOCAL"), String::from("/")).await,
+            raw_storage: raw_storage::mock(),
             raw_obj_threshold: 1024,
         }
     }
@@ -309,7 +309,7 @@ impl MegaStorage {
         self.update_ref(&repo, "main", &commit.id.to_plain_str())
             .await
             .unwrap();
-        self.save_mega_commits(None, MergeStatus::Merged, vec![commit])
+        self.save_mega_commits("", MergeStatus::Merged, vec![commit])
             .await
             .unwrap();
         Ok(())
@@ -363,7 +363,7 @@ impl MegaStorage {
 
     async fn save_mega_commits(
         &self,
-        mr_id: Option<String>,
+        mr_id: &str,
         status: MergeStatus,
         commits: Vec<Commit>,
     ) -> Result<(), MegaError> {
@@ -372,7 +372,7 @@ impl MegaStorage {
         let mut save_models = Vec::new();
         for mut mega_commit in mega_commits {
             mega_commit.status = status;
-            mega_commit.mr_id = mr_id.clone();
+            mega_commit.mr_id = mr_id.to_owned();
             save_models.push(mega_commit.into_active_model());
         }
         batch_save_model(self.get_connection(), save_models)
@@ -494,8 +494,8 @@ mod test {
 
     use crate::storage::mega_storage::MegaStorage;
 
-    #[tokio::test]
-    pub async fn test_node_tree() {
+    #[test]
+    pub fn test_node_tree() {
         let cf1 = CreateFileInfo {
             is_directory: true,
             name: String::from("root"),
@@ -533,7 +533,7 @@ mod test {
             content: String::from(""),
         };
         let cfs: Vec<CreateFileInfo> = vec![cf1, cf2, cf3, cf4, cf5, cf6];
-        let storage = MegaStorage::mock().await;
+        let storage = MegaStorage::mock();
         let root = storage.mega_node_tree(cfs).unwrap();
         print_tree(root, 0);
     }

@@ -3,10 +3,10 @@
 //!
 //!
 //!
+use std::net::SocketAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use axum::body::Body;
@@ -16,20 +16,16 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use clap::Args;
-
-use jupiter::storage::init::database_connection;
-use jupiter::storage::mega_storage::MegaStorage;
 use regex::Regex;
 use serde::Deserialize;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::TraceLayer;
 
 use common::model::CommonOptions;
 use git::lfs::LfsConfig;
 use git::protocol::{PackProtocol, Protocol};
-use storage::driver::database;
-use storage::driver::database::storage::ObjectStorage;
-use tower_http::trace::TraceLayer;
+use jupiter::context::Context;
 
 use crate::api_service::obj_service::ObjectService;
 use crate::api_service::router::ApiServiceState;
@@ -61,8 +57,7 @@ pub struct HttpCustom {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub storage: Arc<dyn ObjectStorage>,
-    pub mega_storage: MegaStorage,
+    pub context: Context,
     pub options: HttpOptions,
 }
 
@@ -94,20 +89,22 @@ pub async fn start_server(options: &HttpOptions) {
     let server_url = format!("{}:{}", host, http_port);
 
     let state = AppState {
-        storage: database::init(data_source).await,
         options: options.to_owned(),
-        mega_storage: MegaStorage::new(database_connection().await).await,
+        context: Context::new(data_source).await,
     };
 
     let api_state = ApiServiceState {
         object_service: ObjectService {
-            storage: state.storage.clone(),
+            storage: state.context.storage.clone(),
         },
-        mega_storage: state.mega_storage.clone(),
+        context: state.context.clone(),
     };
 
     let app = Router::new()
-        .nest("/api/v1", api_service::router::routers().with_state(api_state))
+        .nest(
+            "/api/v1",
+            api_service::router::routers().with_state(api_state),
+        )
         .route(
             "/*path",
             get(get_method_router)
@@ -143,7 +140,7 @@ async fn get_method_router(
     } else if Regex::new(r"/info/refs$").unwrap().is_match(uri.path()) {
         let pack_protocol = PackProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
-            state.storage.clone(),
+            state.context.clone(),
             Protocol::Http,
         );
         return git_protocol::http::git_info_refs(params, pack_protocol).await;
@@ -177,7 +174,7 @@ async fn post_method_router(
     {
         let pack_protocol = PackProtocol::new(
             remove_git_suffix(uri, "/git-upload-pack"),
-            state.storage.clone(),
+            state.context.clone(),
             Protocol::Http,
         );
         git_protocol::http::git_upload_pack(req, pack_protocol).await
@@ -187,7 +184,7 @@ async fn post_method_router(
     {
         let pack_protocol = PackProtocol::new(
             remove_git_suffix(uri, "/git-receive-pack"),
-            state.storage.clone(),
+            state.context.clone(),
             Protocol::Http,
         );
         git_protocol::http::git_receive_pack(req, pack_protocol).await

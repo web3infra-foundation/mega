@@ -5,9 +5,11 @@
 //!
 use std::fmt::Display;
 
+use callisto::{mega_blob, mega_commit, mega_tag, mega_tree};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::GitError;
+use crate::internal::object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree};
 
 /// In Git, each object type is assigned a unique integer value, which is used to identify the
 /// type of the object in Git repositories.
@@ -35,6 +37,22 @@ pub enum ObjectType {
     Tag,
     OffsetDelta,
     HashDelta,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum RawObject {
+    Commit(Commit),
+    Tree(Tree),
+    Blob(Blob),
+    Tag(Tag),
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum MegaModel {
+    Commit(mega_commit::ActiveModel),
+    Tree(mega_tree::ActiveModel),
+    Blob(mega_blob::ActiveModel),
+    Tag(mega_tag::ActiveModel),
 }
 
 const COMMIT_OBJECT_TYPE: &[u8] = b"commit";

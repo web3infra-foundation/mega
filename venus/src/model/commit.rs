@@ -59,7 +59,7 @@ impl From<Commit> for mega_commit::Model {
             author: Some(value.author.to_string()),
             committer: Some(value.committer.to_string()),
             content: Some(value.message.clone()),
-            mr_id: None,
+            mr_id: String::new(),
             status: MergeStatus::Open,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),

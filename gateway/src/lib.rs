@@ -23,7 +23,7 @@ impl From<AppState> for LfsConfig {
         Self {
             host: value.options.common.host,
             port: value.options.custom.http_port,
-            storage: value.storage,
+            storage: value.context.storage.clone(),
             fs_storage: Arc::new(LocalStorage::default()),
         }
     }

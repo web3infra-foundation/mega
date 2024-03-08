@@ -17,7 +17,7 @@ impl From<Tree> for mega_tree::Model {
             parent_id: None,
             name: String::new(),
             mr_id: String::new(),
-            status: MergeStatus::Merged,
+            status: MergeStatus::Open,
             size: 0,
             full_path: String::new(),
             commit_id: String::new(),

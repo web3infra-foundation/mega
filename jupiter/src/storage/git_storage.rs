@@ -7,7 +7,7 @@ use venus::{
     hash::SHA1,
     internal::{
         object::{types::ObjectType, utils},
-        pack::{entry::Entry, header::EntryHeader, reference::RefCommand},
+        pack::{entry::Entry, reference::RefCommand},
         repo::Repo,
     },
 };
@@ -50,7 +50,7 @@ impl GitStorageProvider for GitStorage {
             self.raw_storage
                 .put_object(
                     &repo.repo_name,
-                    &entry.hash.unwrap().to_plain_str(),
+                    &entry.hash.to_plain_str(),
                     &entry.data,
                 )
                 .await
@@ -72,14 +72,12 @@ impl GitStorageProvider for GitStorage {
                 .await
                 .unwrap();
             let (type_num, _) = utils::read_type_and_size(&mut Cursor::new(&data)).unwrap();
-            let o_type = ObjectType::from_u8(type_num).unwrap();
-            let header = EntryHeader::from_string(&o_type.to_string());
-            let sha1 = SHA1::new(&data.to_vec());
+            let obj_type = ObjectType::from_u8(type_num).unwrap();
+            let hash = SHA1::new(&data.to_vec());
             res.push(Entry {
-                header,
-                offset: 0,
+                obj_type,
                 data: data.to_vec(),
-                hash: Some(sha1),
+                hash,
             })
         }
         Ok(res)
@@ -92,6 +90,12 @@ impl GitStorage {
         let path = env::var("MEGA_OBJ_LOCAL_PATH").unwrap();
         GitStorage {
             raw_storage: raw_storage::init(storage_type, path).await,
+        }
+    }
+
+    pub fn mock() -> Self {
+        Self {
+            raw_storage: raw_storage::mock()
         }
     }
 }
