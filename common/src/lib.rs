@@ -1,4 +1,4 @@
-pub mod errors;
-pub mod utils;
 pub mod enums;
+pub mod errors;
 pub mod model;
+pub mod utils;

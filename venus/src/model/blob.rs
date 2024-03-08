@@ -12,7 +12,7 @@ impl From<Blob> for mega_blob::Model {
             id: generate_id(),
             blob_id: value.id.to_plain_str(),
             mr_id: String::new(),
-            status: MergeStatus::Merged,
+            status: MergeStatus::Open,
             size: 0,
             full_path: String::new(),
             commit_id: String::new(),

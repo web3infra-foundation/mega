@@ -48,8 +48,7 @@ use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
 
 /// The tag object is used to Annotated tag
-#[allow(unused)]
-#[derive(Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Tag {
     pub id: SHA1,
     pub object_hash: SHA1,

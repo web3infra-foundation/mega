@@ -19,7 +19,7 @@ pub struct Model {
     pub committer: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub content: Option<String>,
-    pub mr_id: Option<String>,
+    pub mr_id: String,
     pub status: MergeStatus,
     pub created_at: DateTime,
     pub updated_at: DateTime,
