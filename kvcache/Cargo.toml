@@ -21,4 +21,4 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-redis-test = "0.3.0"
+redis-test = "0.4.0"
