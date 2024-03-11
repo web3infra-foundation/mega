@@ -161,6 +161,30 @@ pub mod default_git_attributes_error_table {
     }
 }
 }
+pub mod clean_filter_error {
+    use crate::create_characters;
+    create_characters! {
+        CleanFilterErrorEnum,
+        CleanFilterErrorEnumCharacters{
+            CLEAN_FILTER_FAILED:"Clean file manager creation failed\n",
+            SHA256_FAILED:"The sha256 calculation of the file failed:\n",
+            CP_FILE_FAILED:"Failed to copy file to lfs/object\n",
+            CREAT_DIR_FAILED:"Failed to create lfs object directory\n"
+        }
+    }
+}
+pub mod clean_filter_table {
+    use crate::create_characters;
+    create_characters!{
+        CleanFilterTableEnum,
+        CleanFilterTableCharacters{
+            VERSION:"version https://git-lfs.github.com/spec/v1\n",
+            SHA256:"oid sha256:",
+            SIZE:"size ",
+            GIT_LFS_OBJECT_DIR:"./.git/lfs/objects/"
+        }
+    }
+}
 #[cfg( target_os = "macos")]
 pub mod disk_judgment_table {
     use crate::create_characters;
