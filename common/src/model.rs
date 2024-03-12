@@ -1,4 +1,5 @@
 use clap::Args;
+use serde::Deserialize;
 
 use crate::enums::DataSource;
 
@@ -10,4 +11,15 @@ pub struct CommonOptions {
 
     #[arg(short, long, value_enum, default_value = "postgres")]
     pub data_source: DataSource,
+}
+
+
+#[derive(Deserialize, Debug)]
+pub struct GetParams {
+    pub service: Option<String>,
+    pub refspec: Option<String>,
+    pub id: Option<String>,
+    pub path: Option<String>,
+    pub limit: Option<String>,
+    pub cursor: Option<String>,
 }

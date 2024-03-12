@@ -5,10 +5,10 @@ use async_trait::async_trait;
 use common::errors::MegaError;
 use venus::{
     hash::SHA1,
+    repo::Repo,
     internal::{
         object::{types::ObjectType, utils},
         pack::{entry::Entry, reference::RefCommand},
-        repo::Repo,
     },
 };
 
@@ -23,13 +23,13 @@ pub struct GitStorage {
 
 #[async_trait]
 impl GitStorageProvider for GitStorage {
-    async fn save_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
+    async fn save_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
         self.raw_storage
             .put_ref(&repo.repo_name, &refs.ref_name, &refs.new_id)
             .await
     }
 
-    async fn remove_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
+    async fn remove_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
         self.raw_storage
             .delete_ref(&repo.repo_name, &refs.ref_name)
             .await
@@ -45,19 +45,6 @@ impl GitStorageProvider for GitStorage {
             .await
     }
 
-    async fn save_entry(&self, repo: Repo, result_entity: Vec<Entry>) -> Result<(), MegaError> {
-        for entry in result_entity {
-            self.raw_storage
-                .put_object(
-                    &repo.repo_name,
-                    &entry.hash.to_plain_str(),
-                    &entry.data,
-                )
-                .await
-                .unwrap();
-        }
-        Ok(())
-    }
 
     async fn get_entry_by_sha1(
         &self,
@@ -97,5 +84,20 @@ impl GitStorage {
         Self {
             raw_storage: raw_storage::mock()
         }
+    }
+
+
+    pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
+        for entry in entry_list {
+            self.raw_storage
+                .put_object(
+                    &repo.repo_name,
+                    &entry.hash.to_plain_str(),
+                    &entry.data,
+                )
+                .await
+                .unwrap();
+        }
+        Ok(())
     }
 }

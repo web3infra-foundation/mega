@@ -12,11 +12,12 @@ impl From<Tree> for mega_tree::Model {
     fn from(value: Tree) -> Self {
         mega_tree::Model {
             id: generate_id(),
+            repo_id: 0,
             tree_id: value.id.to_plain_str(),
             sub_trees: value.to_data().unwrap(),
             parent_id: None,
             name: String::new(),
-            mr_id: String::new(),
+            mr_id: 0,
             status: MergeStatus::Open,
             size: 0,
             full_path: String::new(),
