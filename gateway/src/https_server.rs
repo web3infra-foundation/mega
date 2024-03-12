@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::Result;
 use axum::body::Body;
@@ -17,19 +18,19 @@ use axum::routing::get;
 use axum::Router;
 use clap::Args;
 use regex::Regex;
-use serde::Deserialize;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
-use common::model::CommonOptions;
-use git::lfs::LfsConfig;
-use git::protocol::{PackProtocol, Protocol};
+use ceres::lfs::LfsConfig;
+use ceres::protocol::{PackProtocol, Protocol};
+use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
+use jupiter::raw_storage::local_storage::LocalStorage;
 
 use crate::api_service::obj_service::ObjectService;
 use crate::api_service::router::ApiServiceState;
-use crate::{api_service, git_protocol, lfs};
+use crate::{api_service, lfs};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -61,14 +62,16 @@ pub struct AppState {
     pub options: HttpOptions,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct GetParams {
-    pub service: Option<String>,
-    pub refspec: Option<String>,
-    pub id: Option<String>,
-    pub path: Option<String>,
-    pub limit: Option<String>,
-    pub cursor: Option<String>,
+impl From<AppState> for LfsConfig {
+    fn from(value: AppState) -> Self {
+        Self {
+            host: value.options.common.host,
+            port: value.options.custom.http_port,
+            context: value.context.clone(),
+            lfs_storage: Arc::new(LocalStorage::init(PathBuf::from("lfs-files"))),
+            repo_name: String::from("lfs"),
+        }
+    }
 }
 
 pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
@@ -127,8 +130,7 @@ async fn get_method_router(
     Query(params): Query<GetParams>,
     uri: Uri,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.deref().to_owned().into();
-    lfs_config.fs_storage = storage::driver::file_storage::init("lfs-files".to_owned()).await;
+    let lfs_config: LfsConfig = state.deref().to_owned().into();
     // Routing LFS services.
     if Regex::new(r"/objects/[a-z0-9]+$")
         .unwrap()
@@ -143,7 +145,7 @@ async fn get_method_router(
             state.context.clone(),
             Protocol::Http,
         );
-        return git_protocol::http::git_info_refs(params, pack_protocol).await;
+        return ceres::http::handler::git_info_refs(params, pack_protocol).await;
     } else {
         return Err((
             StatusCode::NOT_FOUND,
@@ -157,8 +159,7 @@ async fn post_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.deref().to_owned().into();
-    lfs_config.fs_storage = storage::driver::file_storage::init("lfs-files".to_owned()).await;
+    let lfs_config: LfsConfig = state.deref().to_owned().into();
     // Routing LFS services.
     if Regex::new(r"/locks/verify$").unwrap().is_match(uri.path()) {
         lfs::lfs_verify_lock(state, &lfs_config, req).await
@@ -177,7 +178,7 @@ async fn post_method_router(
             state.context.clone(),
             Protocol::Http,
         );
-        git_protocol::http::git_upload_pack(req, pack_protocol).await
+        ceres::http::handler::git_upload_pack(req, pack_protocol).await
     } else if Regex::new(r"/git-receive-pack$")
         .unwrap()
         .is_match(uri.path())
@@ -187,7 +188,7 @@ async fn post_method_router(
             state.context.clone(),
             Protocol::Http,
         );
-        git_protocol::http::git_receive_pack(req, pack_protocol).await
+        ceres::http::handler::git_receive_pack(req, pack_protocol).await
     } else {
         Err((
             StatusCode::NOT_FOUND,
@@ -201,8 +202,7 @@ async fn put_method_router(
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let mut lfs_config: LfsConfig = state.deref().to_owned().into();
-    lfs_config.fs_storage = storage::driver::file_storage::init("lfs-files".to_owned()).await;
+    let lfs_config: LfsConfig = state.deref().to_owned().into();
     if Regex::new(r"/objects/[a-z0-9]+$")
         .unwrap()
         .is_match(uri.path())

@@ -21,7 +21,6 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
         .map_err(|err| err.exit())
         .unwrap();
     println!("{server_matchers:#?}");
-    init::init_dir(&server_matchers).await.unwrap();
     Ok(())
 }
 

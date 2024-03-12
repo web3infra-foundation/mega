@@ -7,8 +7,8 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub oid: String,
-    pub size: Option<i64>,
-    pub exist: Option<bool>,
+    pub size: i64,
+    pub exist: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

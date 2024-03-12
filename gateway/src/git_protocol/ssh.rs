@@ -16,10 +16,10 @@ use russh::{Channel, ChannelId};
 use russh_keys::key;
 use tokio::io::AsyncReadExt;
 
-use git::lfs::lfs_structs::Link;
-use git::protocol::pack::{self};
-use git::protocol::ServiceType;
-use git::protocol::{PackProtocol, Protocol};
+use ceres::lfs::lfs_structs::Link;
+use ceres::protocol::pack::{self};
+use ceres::protocol::ServiceType;
+use ceres::protocol::{PackProtocol, Protocol};
 use jupiter::context::Context;
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;

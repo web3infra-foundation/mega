@@ -10,8 +10,9 @@ impl From<Blob> for mega_blob::Model {
     fn from(value: Blob) -> Self {
         mega_blob::Model {
             id: generate_id(),
+            repo_id: 0,
             blob_id: value.id.to_plain_str(),
-            mr_id: String::new(),
+            mr_id: 0,
             status: MergeStatus::Open,
             size: 0,
             full_path: String::new(),

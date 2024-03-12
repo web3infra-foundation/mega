@@ -49,17 +49,18 @@ use axum::{
     Json,
 };
 
-use common::errors::GitLFSError;
-use futures::TryStreamExt;
-use git::lfs::{
+use ceres::lfs::{
+    handler,
     lfs_structs::{
         BatchResponse, LockList, LockListQuery, LockRequest, LockResponse, RequestVars,
         UnlockRequest, UnlockResponse, VerifiableLockRequest,
     },
     LfsConfig,
 };
+use common::{errors::GitLFSError, model::GetParams};
+use futures::TryStreamExt;
 
-use crate::https_server::{AppState, GetParams};
+use crate::https_server::AppState;
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 
@@ -77,7 +78,7 @@ pub async fn lfs_retrieve_lock(
     };
 
     let result: Result<LockList, GitLFSError> =
-        git::lfs::handler::lfs_retrieve_lock(config, lock_list_query).await;
+        handler::lfs_retrieve_lock(config, lock_list_query).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -101,7 +102,7 @@ pub async fn lfs_verify_lock(
         .await
         .unwrap_or_else(|_| Json(VerifiableLockRequest::default()));
 
-    let result = git::lfs::handler::lfs_verify_lock(config, request.0).await;
+    let result = handler::lfs_verify_lock(config, request.0).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -128,7 +129,7 @@ pub async fn lfs_create_lock(
         .await
         .unwrap_or_else(|_| Json(LockRequest::default()));
 
-    let result = git::lfs::handler::lfs_create_lock(config, request.0).await;
+    let result = handler::lfs_create_lock(config, request.0).await;
     match result {
         Ok(lock) => {
             let lock_response = LockResponse {
@@ -163,7 +164,7 @@ pub async fn lfs_delete_lock(
         .await
         .unwrap_or_else(|_| Json(UnlockRequest::default()));
 
-    let result = git::lfs::handler::lfs_delete_lock(config, id, request.0).await;
+    let result = handler::lfs_delete_lock(config, id, request.0).await;
 
     match result {
         Ok(lock) => {
@@ -191,10 +192,8 @@ pub async fn lfs_process_batch(
     config: &LfsConfig,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let request = Json::from_request(req, &state)
-        .await
-        .unwrap();
-    let result = git::lfs::handler::lfs_process_batch(config, request.0).await;
+    let request = Json::from_request(req, &state).await.unwrap();
+    let result = handler::lfs_process_batch(config, request.0).await;
 
     match result {
         Ok(response_objects) => {
@@ -229,7 +228,7 @@ pub async fn lfs_download_object(
         authorization: "".to_owned(),
         ..Default::default()
     };
-    let result = git::lfs::handler::lfs_download_object(config, &request_vars).await;
+    let result = handler::lfs_download_object(config, &request_vars).await;
     match result {
         Ok(bytes) => Ok(Response::builder().body(Body::from(bytes)).unwrap()),
         Err(err) => Ok({
@@ -265,7 +264,7 @@ pub async fn lfs_upload_object(
         .await
         .unwrap();
 
-    let result = git::lfs::handler::lfs_upload_object(config, &request_vars, &body_bytes).await;
+    let result = handler::lfs_upload_object(config, &request_vars, &body_bytes).await;
     match result {
         Ok(_) => Ok(Response::builder()
             .header("Content-Type", LFS_CONTENT_TYPE)
