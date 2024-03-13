@@ -14,7 +14,7 @@ pub struct PackEncoder<W: Write> {
     window_size: usize,
     window: VecDeque<Entry>,
     writer: W,
-    innser_hash: Sha1, // Not SHA1 because need update trait
+    inner_hash: Sha1, // Not SHA1 because need update trait
     final_hash: Option<SHA1>,
 }
 fn u32_vec(value: u32) -> Vec<u8> {
@@ -49,7 +49,7 @@ impl<W: Write> PackEncoder<W> {
             process_index: 0,
             window: VecDeque::with_capacity(window_size),
             writer,
-            innser_hash: hash,
+            inner_hash: hash,
             final_hash: None,
         }
     }
@@ -80,7 +80,7 @@ impl<W: Write> PackEncoder<W> {
         } {}
 
         // hash signature
-        let hash_result = self.innser_hash.clone().finalize();
+        let hash_result = self.inner_hash.clone().finalize();
         self.final_hash = Some(SHA1::new(&hash_result.to_vec()));
         self.writer.write_all(&hash_result).unwrap();
         Ok(())
@@ -92,7 +92,7 @@ impl<W: Write> PackEncoder<W> {
         Ok(None)
     }
     fn write_all_and_update_hash(&mut self, data: &[u8]) {
-        self.innser_hash.update(data);
+        self.inner_hash.update(data);
         self.writer.write_all(data).unwrap();
     }
 
@@ -131,8 +131,8 @@ impl<W: Write> PackEncoder<W> {
             todo!("delta encoding"); // TODO
         }
 
-        let mut inflate = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
         // **data** encoding, need zlib compress
+        let mut inflate = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
         inflate
             .write_all(&obj_data)
             .expect("zlib compress should never failed");
