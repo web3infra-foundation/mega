@@ -8,6 +8,8 @@ use std::collections::VecDeque;
 use std::{io::Write, sync::mpsc};
 use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
+const MIN_DELTA_RATE: f64 = 0.5; // minimum delta reate can accept
+
 pub struct PackEncoder<W: Write> {
     object_number: usize,
     process_index: usize,
@@ -17,6 +19,7 @@ pub struct PackEncoder<W: Write> {
     inner_hash: Sha1, // Not SHA1 because need update trait
     final_hash: Option<SHA1>,
 }
+
 fn u32_vec(value: u32) -> Vec<u8> {
     vec![
         (value >> 24 & 0xff) as u8,
@@ -25,6 +28,7 @@ fn u32_vec(value: u32) -> Vec<u8> {
         (value & 0xff) as u8,
     ]
 }
+
 fn encode_header(object_number: usize) -> Vec<u8> {
     let mut result: Vec<u8> = vec![
         b'P', b'A', b'C', b'K', // The logotype of the Pack File
@@ -64,6 +68,7 @@ impl<W: Write> PackEncoder<W> {
         while match rx.recv() {
             Ok(entry) => {
                 self.process_index += 1;
+                // push window after encode to void diff by self
                 self.encode_one_object(&entry)?;
                 self.window.push_back(entry);
                 if self.window.len() > self.window_size {
@@ -85,12 +90,33 @@ impl<W: Write> PackEncoder<W> {
         self.writer.write_all(&hash_result).unwrap();
         Ok(())
     }
-    /// try encode as delta
+
+    /// try encode as delta using obj in window
     fn try_as_delta(&mut self, entry: &Entry) -> Result<Option<Entry>, GitError> {
-        let _ = entry;
-        // TODO no delta support now
-        Ok(None)
+        let mut best_base: Option<&Entry> = None;
+        let mut best_rate: f64 = 0.0;
+        for try_base in self.window.iter() {
+            if try_base.obj_type != entry.obj_type {
+                continue;
+            }
+            let rate = delta::encode_rate(&try_base.data, &entry.data);
+            if rate > MIN_DELTA_RATE && rate > best_rate {
+                best_rate = rate;
+                best_base = Some(try_base);
+            }
+        }
+        if best_rate > 0.0 {
+            let best_base = best_base.unwrap(); // must some if best rate > 0
+            let delta = delta::encode(&best_base.data, &entry.data);
+            Ok(Some(Entry {
+                data: delta,
+                ..entry.clone()
+            }))
+        } else {
+            Ok(None)
+        }
     }
+
     fn write_all_and_update_hash(&mut self, data: &[u8]) {
         self.inner_hash.update(data);
         self.writer.write_all(data).unwrap();
