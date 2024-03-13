@@ -6,10 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+venus = { path = "../venus" }
+mercury = { path = "../mercury" }
 diffs = "0.5.1"
 thiserror = { workspace = true }
 sha1 = { workspace = true }
-
+flate2 = { workspace = true, features = ["zlib"] }
 [features]
 default = ["diff_mydrs"]
 diff_mydrs = []
