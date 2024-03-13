@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 venus = { path = "../venus" }
-mercury = { path = "../mercury" }
 diffs = "0.5.1"
 thiserror = { workspace = true }
 sha1 = { workspace = true }
