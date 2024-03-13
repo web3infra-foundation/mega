@@ -6,6 +6,7 @@ use flate2::write::ZlibEncoder;
 use sha1::{Digest, Sha1};
 use std::collections::VecDeque;
 use std::{io::Write, sync::mpsc};
+use venus::internal::object::types::ObjectType;
 use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta reate can accept
@@ -14,9 +15,10 @@ pub struct PackEncoder<W: Write> {
     object_number: usize,
     process_index: usize,
     window_size: usize,
-    window: VecDeque<Entry>,
+    window: VecDeque<(Entry, usize)>, // entry and offset
     writer: W,
-    inner_hash: Sha1, // Not SHA1 because need update trait
+    inner_offset: usize, // offset of current entry
+    inner_hash: Sha1,    // Not SHA1 because need update trait
     final_hash: Option<SHA1>,
 }
 
@@ -29,6 +31,7 @@ fn u32_vec(value: u32) -> Vec<u8> {
     ]
 }
 
+/// encode header of pack file (12 byte)
 fn encode_header(object_number: usize) -> Vec<u8> {
     let mut result: Vec<u8> = vec![
         b'P', b'A', b'C', b'K', // The logotype of the Pack File
@@ -39,6 +42,26 @@ fn encode_header(object_number: usize) -> Vec<u8> {
     //TODO: GitError:numbers of objects should  < 4G ,
     result.append(&mut u32_vec(object_number as u32));
     result
+}
+
+/// encode offset of delta object
+fn encode_offset(mut value: usize) -> Vec<u8> {
+    assert!(value != 0, "offset can't be zero");
+    let mut bytes = Vec::new();
+    let mut first_byte = true;
+    while value != 0 || first_byte {
+        let mut byte = (value & 0x7F) as u8; // 获取当前值的最低7位
+        value >>= 7; // 右移7位准备处理下一个字节
+        if first_byte {
+            first_byte = false;
+        } else {
+            byte -= 1; // sub 1
+            byte |= 0x80; // set first bit one
+        }
+        bytes.push(byte);
+    }
+    bytes.reverse();
+    bytes
 }
 
 impl<W: Write> PackEncoder<W> {
@@ -53,6 +76,7 @@ impl<W: Write> PackEncoder<W> {
             process_index: 0,
             window: VecDeque::with_capacity(window_size),
             writer,
+            inner_offset: 12, // 12 bytes header
             inner_hash: hash,
             final_hash: None,
         }
@@ -63,14 +87,15 @@ impl<W: Write> PackEncoder<W> {
         self.final_hash
     }
 
-    /// encode a pack file, write to inner writer
+    /// encode entrys to a pack file with delta objects, write to writter
     pub fn encode(&mut self, rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
         while match rx.recv() {
             Ok(entry) => {
                 self.process_index += 1;
                 // push window after encode to void diff by self
+                let offset = self.inner_offset;
                 self.encode_one_object(&entry)?;
-                self.window.push_back(entry);
+                self.window.push_back((entry, offset));
                 if self.window.len() > self.window_size {
                     let _ = self.window.pop_front().unwrap();
                 }
@@ -91,15 +116,18 @@ impl<W: Write> PackEncoder<W> {
         Ok(())
     }
 
-    /// try encode as delta using obj in window
-    fn try_as_delta(&mut self, entry: &Entry) -> Result<Option<Entry>, GitError> {
-        let mut best_base: Option<&Entry> = None;
+    /// try encode as delta using objects in window
+    /// # Returns
+    /// return (delta entry, offset) if success make delta
+    /// return (origin Entry,None) if didn't delta,
+    fn try_as_offset_delta(&mut self, entry: &Entry) -> (Entry, Option<usize>) {
+        let mut best_base: Option<&(Entry, usize)> = None;
         let mut best_rate: f64 = 0.0;
         for try_base in self.window.iter() {
-            if try_base.obj_type != entry.obj_type {
+            if try_base.0.obj_type != entry.obj_type {
                 continue;
             }
-            let rate = delta::encode_rate(&try_base.data, &entry.data);
+            let rate = delta::encode_rate(&try_base.0.data, &entry.data);
             if rate > MIN_DELTA_RATE && rate > best_rate {
                 best_rate = rate;
                 best_base = Some(try_base);
@@ -107,29 +135,31 @@ impl<W: Write> PackEncoder<W> {
         }
         if best_rate > 0.0 {
             let best_base = best_base.unwrap(); // must some if best rate > 0
-            let delta = delta::encode(&best_base.data, &entry.data);
-            Ok(Some(Entry {
-                data: delta,
-                ..entry.clone()
-            }))
+            let delta = delta::encode(&best_base.0.data, &entry.data);
+            let offset = self.inner_offset - best_base.1;
+            (
+                Entry {
+                    data: delta,
+                    obj_type: ObjectType::OffsetDelta,
+                    ..entry.clone()
+                },
+                Some(offset),
+            )
         } else {
-            Ok(None)
+            (entry.clone(), None)
         }
     }
 
-    fn write_all_and_update_hash(&mut self, data: &[u8]) {
+    fn write_all_and_update(&mut self, data: &[u8]) {
         self.inner_hash.update(data);
+        self.inner_offset += data.len();
         self.writer.write_all(data).unwrap();
     }
 
     /// encode one object, and update the hash
     fn encode_one_object(&mut self, entry: &Entry) -> Result<(), GitError> {
         // try encode as delta
-        let entry = match self.try_as_delta(entry)? {
-            Some(entry) => entry,
-            None => entry.clone(),
-        };
-
+        let (entry, offset) = self.try_as_offset_delta(entry);
         let obj_data = entry.data;
         let obj_data_len = obj_data.len();
         let obj_type_number = entry.obj_type.to_u8();
@@ -150,11 +180,14 @@ impl<W: Write> PackEncoder<W> {
         } else {
             header_data.push(0);
         }
-        self.write_all_and_update_hash(&header_data);
+        self.write_all_and_update(&header_data);
 
         // **delta** encoding
-        if !entry.obj_type.is_base() {
-            todo!("delta encoding"); // TODO
+        if entry.obj_type == ObjectType::OffsetDelta {
+            let offset_data = encode_offset(offset.unwrap());
+            self.write_all_and_update(&offset_data);
+        } else if entry.obj_type == ObjectType::HashDelta {
+            unreachable!("unsupported type")
         }
 
         // **data** encoding, need zlib compress
@@ -164,14 +197,14 @@ impl<W: Write> PackEncoder<W> {
             .expect("zlib compress should never failed");
         inflate.flush().expect("zlib flush should never failed");
         let compressed_data = inflate.finish().expect("zlib compress should never failed");
-        self.write_all_and_update_hash(&compressed_data);
+        self.write_all_and_update(&compressed_data);
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, path::PathBuf};
+    use std::{io::Cursor, path::PathBuf, usize};
 
     use venus::internal::object::blob::Blob;
 
@@ -179,29 +212,51 @@ mod tests {
 
     use super::*;
     #[test]
-    fn test_pack_encoder_without_delta() {
-        let mut writter: Vec<u8> = Vec::new();
-        let mut encoder = PackEncoder::new(3, 0, &mut writter);
-        let (tx, rx) = mpsc::channel::<Entry>();
-
-        // make some different objects, or decode will fail
-        let str_vec = vec!["hello", "world", "!"];
-        for str in str_vec {
-            let blob = Blob::from_content(str);
-            let entry: Entry = blob.into();
-            tx.send(entry).unwrap();
+    fn test_pack_encoder() {
+       
+        fn encode_once(window_size: usize) -> Vec<u8> {
+            let mut writter: Vec<u8> = Vec::new();
+            let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
+            let mut encoder = PackEncoder::new(str_vec.len(), window_size, &mut writter);
+            let (tx, rx) = mpsc::channel::<Entry>();
+            // make some different objects, or decode will fail
+            for str in str_vec {
+                let blob = Blob::from_content(str);
+                let entry: Entry = blob.into();
+                tx.send(entry).unwrap();
+            }
+            drop(tx);
+            encoder.encode(rx).unwrap();
+            assert!(encoder.get_hash().is_some());
+            writter
         }
-        drop(tx);
-        encoder.encode(rx).unwrap();
-        assert!(encoder.get_hash().is_some());
+        fn check_format(data: Vec<u8>) {
+            let mut p = Pack::new(
+                None,
+                Some(1024 * 20),
+                Some(PathBuf::from("/tmp/.cache_temp")),
+            );
+            let mut reader = Cursor::new(data);
+            p.decode(&mut reader, None).expect("pack file format error");
+        }
+        // without delta
+        let pack_without_delta = encode_once(0);
+        let pack_without_delta_size = pack_without_delta.len();
+        check_format(pack_without_delta);
 
-        // use decode to check the pack file
-        let mut p = Pack::new(
-            None,
-            Some(1024 * 20),
-            Some(PathBuf::from("/tmp/.cache_temp")),
-        );
-        let mut reader = Cursor::new(writter);
-        p.decode(&mut reader, None).expect("pack file format error");
+        // with delta
+        let pack_with_delta = encode_once(3);
+        assert_ne!(pack_with_delta.len(), pack_without_delta_size);
+        check_format(pack_with_delta);
+    }
+
+    #[test]
+    fn test_encode_offset() {
+        let value = 11013;
+        let data = encode_offset(value);
+        println!("{:?}", data);
+        assert_eq!(data.len(), 2);
+        assert_eq!(data[0], 0b_1101_0101);
+        assert_eq!(data[1], 0b_0000_0101);
     }
 }
