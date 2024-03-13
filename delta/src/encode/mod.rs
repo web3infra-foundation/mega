@@ -237,10 +237,11 @@ mod tests {
     use flate2::bufread::ZlibDecoder;
     use std::env;
     use std::fs::File;
-    use std::io::{self, BufReader, Read};
+    use std::io::{self, BufReader, Cursor, Read};
     use std::path::{Path, PathBuf};
-    use std::sync::Arc;
-    use mercury::internal::pack;
+
+    use crate::decode::delta_decode;
+
     use super::DeltaDiff;
     fn read_zlib_data(path: &Path) -> Result<Vec<u8>, io::Error> {
         // 打开文件进行读取
@@ -263,18 +264,14 @@ mod tests {
 
         let d = DeltaDiff::new(&old_data, &new_data);
         let delta_result = d.encode();
-        println!("delta size: from {} to {}", old_data.len(), delta_result.len());
+        println!(
+            "delta size: from {} to {}",
+            old_data.len(),
+            delta_result.len()
+        );
 
-        // rebuild delta to test
-        let base_obj = mercury::internal::pack::cache_object::CacheObject {
-            data_decompress: old_data,
-            ..Default::default()
-        };
-        let delta_obj = pack::cache_object::CacheObject {
-            data_decompress: delta_result,
-            ..Default::default()
-        };
-        let rebuild_obj = pack::Pack::rebuild_delta(delta_obj, Arc::new(base_obj));
-        assert_eq!(rebuild_obj.data_decompress, new_data);
+        let mut reader = Cursor::new(&delta_result);
+        let rebuild_data = delta_decode(&mut reader, &old_data).expect("delta format error");
+        assert_eq!(new_data, rebuild_data);
     }
 }
