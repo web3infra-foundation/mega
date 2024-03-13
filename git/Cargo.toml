@@ -21,6 +21,9 @@ entity = { path = "../storage/entity" }
 storage = { path = "../storage" }
 kvcache = { path = "../kvcache" }
 delta = { path = "../delta" }
+jupiter = { path = "../jupiter" }
+mercury = { path = "../mercury" }
+
 deflate = "1.0.0"
 byteorder = "1.5.0"
 crc = "3.0"

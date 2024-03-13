@@ -50,6 +50,13 @@ pub trait RawStorage: Sync + Send {
 
     async fn get_object(&self, repo_name: &str, object_id: &str) -> Result<Bytes, MegaError>;
 
+    async fn put_object(
+        &self,
+        repo_name: &str,
+        object_id: &str,
+        body_content: &[u8],
+    ) -> Result<String, MegaError>;
+
     // async fn parse_blob_link(&self, data: Vec<u8>) -> Result<BlobLink, MegaError> {
     //     let mut reader = BufReader::new(data.as_slice());
     //     let mut blink = BlobLink::default();
@@ -63,17 +70,10 @@ pub trait RawStorage: Sync + Send {
     //     Ok(blink)
     // }
 
-    async fn put_object(
-        &self,
-        repo_name: &str,
-        object_id: &str,
-        body_content: &[u8],
-    ) -> Result<String, MegaError>;
-
     // save a entry and return the b_link file
-    async fn put_entry(&self, repo_name: &str, entry: &Entry) -> Result<Vec<u8>, MegaError> {
+    async fn convert_blink(&self, repo_name: &str, entry: &Entry) -> Result<Vec<u8>, MegaError> {
         let location = self
-            .put_object(repo_name, &entry.hash.unwrap().to_plain_str(), &entry.data)
+            .put_object(repo_name, &entry.hash.to_plain_str(), &entry.data)
             .await
             .unwrap();
         let handlebars = Handlebars::new();
@@ -86,11 +86,11 @@ pub trait RawStorage: Sync + Send {
         let mut context = serde_json::Map::new();
         context.insert(
             "objectType".to_string(),
-            serde_json::json!(entry.header.to_string()),
+            serde_json::json!(entry.obj_type.to_string()),
         );
         context.insert(
             "sha1".to_string(),
-            serde_json::json!(entry.hash.unwrap().to_plain_str()),
+            serde_json::json!(entry.hash.to_plain_str()),
         );
         context.insert(
             "type".to_string(),
@@ -130,4 +130,8 @@ pub async fn init(storage_type: String, path: String) -> Arc<dyn RawStorage> {
             "Not supported config, MEGA_OBJ_STORAGE_TYPE should be 'LOCAL' or 'REMOTE'"
         ),
     }
+}
+
+pub fn mock() -> Arc<dyn RawStorage> {
+    Arc::new(LocalStorage::init(PathBuf::from("/")))
 }

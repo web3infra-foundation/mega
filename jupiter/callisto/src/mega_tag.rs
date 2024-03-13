@@ -7,10 +7,11 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
+    pub repo_id: i64,
     #[sea_orm(unique)]
     pub tag_id: String,
     pub object_id: String,
-    pub object_type: Option<String>,
+    pub object_type: String,
     #[sea_orm(column_type = "Text")]
     pub tag_name: String,
     #[sea_orm(column_type = "Text")]

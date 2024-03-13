@@ -13,13 +13,14 @@ CREATE TABLE IF NOT EXISTS "mega_snapshot"(
 );
 CREATE TABLE IF NOT EXISTS "mega_commit" (
   "id" BIGINT PRIMARY KEY,
+  "repo_id" BIGINT NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
   "parents_id" TEXT [] NOT NULL,
   "author" TEXT,
   "committer" TEXT,
   "content" TEXT,
-  "mr_id" VARCHAR(20),
+  "mr_id" VARCHAR(20) NOT NULL,
   "status" VARCHAR(20) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS "mega_commit" (
 CREATE INDEX "idx_mc_git_id" ON "mega_commit" ("commit_id");
 CREATE TABLE IF NOT EXISTS "mega_tree" (
   "id" BIGINT PRIMARY KEY,
+  "repo_id" BIGINT NOT NULL,
   "tree_id" VARCHAR(40) NOT NULL,
   "sub_trees" BYTEA NOT NULL,
   "parent_id" VARCHAR(40),
@@ -43,6 +45,7 @@ CREATE TABLE IF NOT EXISTS "mega_tree" (
 CREATE INDEX "idx_mt_git_id" ON "mega_tree" ("tree_id");
 CREATE TABLE IF NOT EXISTS "mega_blob" (
   "id" BIGINT PRIMARY KEY,
+  "repo_id" BIGINT NOT NULL,
   "blob_id" VARCHAR(40) NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "name" TEXT NOT NULL,
@@ -56,9 +59,10 @@ CREATE TABLE IF NOT EXISTS "mega_blob" (
 CREATE INDEX "idx_mb_git_id" ON "mega_blob" ("blob_id");
 CREATE TABLE IF NOT EXISTS "mega_tag" (
   "id" BIGINT PRIMARY KEY,
+  "repo_id" BIGINT NOT NULL,
   "tag_id" VARCHAR(40) NOT NULL,
   "object_id" VARCHAR(40) NOT NULL,
-  "object_type" VARCHAR(20),
+  "object_type" VARCHAR(20) NOT NULL,
   "tag_name" TEXT NOT NULL,
   "tagger" TEXT NOT NULL,
   "message" TEXT NOT NULL,
@@ -69,7 +73,7 @@ CREATE TABLE IF NOT EXISTS "mega_tag" (
 CREATE TABLE IF NOT EXISTS "mega_mr" (
   "id" BIGINT PRIMARY KEY,
   "mr_link" VARCHAR(40) NOT NULL,
-  "mr_msg" VARCHAR(255) NOT NULL,
+  "mr_msg" VARCHAR(255),
   "merge_date" TIMESTAMP,
   "status" VARCHAR(20) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
@@ -101,6 +105,7 @@ CREATE INDEX "idx_refs_repo_id" ON "refs" ("repo_id");
 CREATE TABLE IF NOT EXISTS "git_repo" (
   "id" BIGINT PRIMARY KEY,
   "repo_path" TEXT NOT NULL,
+  "repo_name" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_ir_path UNIQUE (repo_path)
@@ -208,9 +213,12 @@ CREATE TABLE IF NOT EXISTS "git_issue" (
   "closed_at" TIMESTAMP DEFAULT NULL,
   "repo_id" BIGINT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS "lfs_locks" ("id" VARCHAR(40) PRIMARY KEY, "data" TEXT);
+CREATE TABLE IF NOT EXISTS "lfs_locks" (
+  "id" VARCHAR(40) PRIMARY KEY,
+  "data" TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS "lfs_objects" (
   "oid" VARCHAR(64) PRIMARY KEY,
-  "size" BIGINT,
-  "exist" BOOLEAN
+  "size" BIGINT NOT NULL,
+  "exist" BOOLEAN NOT NULL
 );

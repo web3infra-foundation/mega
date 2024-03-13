@@ -14,8 +14,8 @@ use futures::TryStreamExt;
 use tokio::io::AsyncReadExt;
 
 use common::model::GetParams;
-use git::protocol::{pack, PackProtocol, ServiceType};
 
+use crate::protocol::{pack, PackProtocol, ServiceType};
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
@@ -134,7 +134,6 @@ pub async fn git_receive_pack(
         })
         .await
         .unwrap();
-
 
     let parse_report = pack_protocol
         .git_receive_pack(combined_body_bytes.freeze())

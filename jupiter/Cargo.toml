@@ -15,7 +15,7 @@ callisto = { path = "./callisto" }
 common = { path = "../common" }
 venus = { path = "../venus" }
 ganymede = { path = "../ganymede" }
-
+storage = { path = "../storage" }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",

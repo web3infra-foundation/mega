@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use callisto::{db_enums::MergeStatus, git_commit, mega_commit};
+use callisto::{db_enums::MergeStatus, mega_commit};
 use common::utils::generate_id;
 
 use crate::{
@@ -8,8 +8,8 @@ use crate::{
     internal::object::{commit::Commit, signature::Signature},
 };
 
-impl From<git_commit::Model> for Commit {
-    fn from(value: git_commit::Model) -> Self {
+impl From<mega_commit::Model> for Commit {
+    fn from(value: mega_commit::Model) -> Self {
         Commit {
             id: SHA1::from_str(&value.commit_id).unwrap(),
             tree_id: SHA1::from_str(&value.tree).unwrap(),
@@ -25,9 +25,9 @@ impl From<git_commit::Model> for Commit {
     }
 }
 
-impl From<Commit> for git_commit::Model {
+impl From<Commit> for mega_commit::Model {
     fn from(value: Commit) -> Self {
-        git_commit::Model {
+        mega_commit::Model {
             id: generate_id(),
             repo_id: 0,
             commit_id: value.id.to_plain_str(),
@@ -40,26 +40,7 @@ impl From<Commit> for git_commit::Model {
             author: Some(value.author.to_string()),
             committer: Some(value.committer.to_string()),
             content: Some(value.message.clone()),
-            created_at: chrono::Utc::now().naive_utc(),
-        }
-    }
-}
-
-impl From<Commit> for mega_commit::Model {
-    fn from(value: Commit) -> Self {
-        mega_commit::Model {
-            id: generate_id(),
-            commit_id: value.id.to_plain_str(),
-            tree: value.tree_id.to_plain_str(),
-            parents_id: value
-                .parent_commit_ids
-                .iter()
-                .map(|x| x.to_plain_str())
-                .collect(),
-            author: Some(value.author.to_string()),
-            committer: Some(value.committer.to_string()),
-            content: Some(value.message.clone()),
-            mr_id: None,
+            mr_id: 0,
             status: MergeStatus::Open,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),

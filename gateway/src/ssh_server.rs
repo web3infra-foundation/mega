@@ -19,7 +19,7 @@ use ed25519_dalek::SigningKey;
 use russh_keys::key::KeyPair;
 
 use common::model::CommonOptions;
-use storage::driver::database;
+use jupiter::context::Context;
 
 use crate::git_protocol::ssh::SshServer;
 
@@ -72,11 +72,12 @@ pub async fn start_server(command: &SshOptions) {
                 ssh_cert_path: _,
             },
     } = command;
+    let context = Context::new(data_source).await;
     let sh = SshServer {
         client_pubkey,
         clients: Arc::new(Mutex::new(HashMap::new())),
         id: 0,
-        storage: database::init(data_source).await,
+        context,
         pack_protocol: None,
         data_combined: Vec::new(),
     };
