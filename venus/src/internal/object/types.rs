@@ -37,7 +37,6 @@ pub enum ObjectType {
     HashDelta,
 }
 
-
 const COMMIT_OBJECT_TYPE: &[u8] = b"commit";
 const TREE_OBJECT_TYPE: &[u8] = b"tree";
 const BLOB_OBJECT_TYPE: &[u8] = b"blob";
@@ -70,7 +69,6 @@ impl ObjectType {
     }
 
     /// Parses a string representation of a Git object type and returns an ObjectType value
-    #[allow(unused)]
     pub fn from_string(s: &str) -> Result<ObjectType, GitError> {
         match s {
             "blob" => Ok(ObjectType::Blob),
@@ -82,7 +80,6 @@ impl ObjectType {
     }
 
     /// Convert an object type to a byte array.
-    #[allow(unused)]
     pub fn to_data(self) -> Result<Vec<u8>, GitError> {
         match self {
             ObjectType::Blob => Ok(vec![0x62, 0x6c, 0x6f, 0x62]),
@@ -94,7 +91,6 @@ impl ObjectType {
     }
 
     /// Convert an object type to a number.
-    #[allow(unused)]
     pub fn to_u8(&self) -> u8 {
         match self {
             ObjectType::Commit => 1,
@@ -107,7 +103,6 @@ impl ObjectType {
     }
 
     /// Convert a number to an object type.
-    #[allow(unused)]
     pub fn from_u8(number: u8) -> Result<ObjectType, GitError> {
         match number {
             1 => Ok(ObjectType::Commit),
@@ -120,6 +115,17 @@ impl ObjectType {
                 "Invalid object type number: {}",
                 number
             ))),
+        }
+    }
+
+    pub fn is_base(&self) -> bool {
+        match self {
+            ObjectType::Commit => true,
+            ObjectType::Tree => true,
+            ObjectType::Blob => true,
+            ObjectType::Tag => true,
+            ObjectType::HashDelta => false,
+            ObjectType::OffsetDelta => false,
         }
     }
 }
