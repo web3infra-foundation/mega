@@ -37,11 +37,13 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
         let res = fs::write(&path, data);
         if let Err(e) = res {
             println!("write {:?} error: {:?}", path, e);
+            return Err(e);
         }
         let final_path = path.with_extension("");
-        let res = fs::rename(&path, final_path);
+        let res = fs::rename(&path, final_path.clone());
         if let Err(e) = res {
             println!("rename {:?} error: {:?}", path, e);
+            return Err(e);
         }
         Ok(())
     }

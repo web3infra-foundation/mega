@@ -5,7 +5,7 @@ use crate::lfs::errors::get_locale::get_locale;
 use crate::lfs::tools::git_attributes_manager::{DefaultGitAttributesManager};
 use crate::lfs::tools::constant_table::env_utils_table;
 use crate::lfs::tools::locale_tools;
-use crate::lfs::commands::{command_track,command_untrack,command_install::command_install};
+use crate::lfs::commands::{command_track,command_untrack,command_install::command_install,command_clean};
 
 #[derive(Args,Debug)]
 pub struct LfsArgs{
@@ -21,7 +21,11 @@ enum LfsCommands{
 
         pattern:Option<String>,
     },
+    Clean {
+        pattern:String
+    },
     Install
+
 }
 #[cfg(target_os = "windows")]
 fn gettext_init() {
@@ -66,6 +70,11 @@ pub fn handle(args: LfsArgs){
                 if let Err(e) = command_install::install_command(){
                     eprintln!("Error: {}", e);
                 }
+            },
+            LfsCommands::Clean {pattern} => {
+                 if let Err(e) = command_clean::clean_command(pattern) {
+                     std::process::exit(1);
+                 }
             }
         }
     });
