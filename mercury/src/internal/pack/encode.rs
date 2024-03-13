@@ -56,7 +56,7 @@ impl<W: Write> PackEncoder<W> {
 
     /// get the hash of the pack file. if the pack file is not finished, return None
     pub fn get_hash(&self) -> Option<SHA1> {
-        self.final_hash.clone()
+        self.final_hash
     }
 
     /// encode a pack file, write to inner writer
@@ -87,6 +87,7 @@ impl<W: Write> PackEncoder<W> {
     }
     /// try encode as delta
     fn try_as_delta(&mut self, entry: &Entry) -> Result<Option<Entry>, GitError> {
+        let _ = entry;
         // TODO no delta support now
         Ok(None)
     }
