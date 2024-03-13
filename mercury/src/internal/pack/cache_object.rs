@@ -135,32 +135,14 @@ impl CacheObject {
         match self.obj_type {
             ObjectType::Blob | ObjectType::Tree | ObjectType::Commit | ObjectType::Tag => {
                 venus::internal::pack::entry::Entry {
-                    header: venus::internal::pack::header::EntryHeader::from_string(
-                        self.obj_type.to_string().as_str(),
-                    ),
-                    offset: self.offset,
+                    obj_type: self.obj_type,
                     data: self.data_decompress.clone(),
-                    hash: Some(self.hash),
+                    hash: self.hash,
                 }
             }
-            ObjectType::OffsetDelta => {
-                venus::internal::pack::entry::Entry {
-                    header: venus::internal::pack::header::EntryHeader::OfsDelta {
-                        base_distance: self.offset - self.base_offset, // ?  is the distance is what we want?
-                    },
-                    offset: self.offset,
-                    data: self.data_decompress.clone(),
-                    hash: Some(self.hash),
-                }
+            _ => {
+                unreachable!("delta object should not persist!")
             }
-            ObjectType::HashDelta => venus::internal::pack::entry::Entry {
-                header: venus::internal::pack::header::EntryHeader::RefDelta {
-                    base_id: self.base_ref,
-                },
-                offset: self.offset,
-                data: self.data_decompress.clone(),
-                hash: Some(self.hash),
-            },
         }
     }
 }

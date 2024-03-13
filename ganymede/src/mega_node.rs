@@ -55,13 +55,14 @@ impl From<MegaNode> for mega_tree::Model {
     fn from(value: MegaNode) -> Self {
         mega_tree::Model {
             id: generate_id(),
+            repo_id: 0,
             full_path: value.path.to_str().unwrap().to_owned(),
             tree_id: String::new(),
             sub_trees: Vec::new(),
             name: String::new(),
             parent_id: None,
             size: 0,
-            mr_id: String::new(),
+            mr_id: 0,
             status: MergeStatus::Merged,
             commit_id: String::new(),
             created_at: chrono::Utc::now().naive_utc(),

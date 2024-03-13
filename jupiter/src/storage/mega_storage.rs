@@ -5,24 +5,27 @@ use std::{env, sync::Arc};
 
 use async_trait::async_trait;
 use sea_orm::{
-    sea_query::OnConflict, ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection,
-    EntityTrait, IntoActiveModel, QueryFilter,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
 };
 
 use callisto::db_enums::MergeStatus;
-use callisto::{git_commit, git_repo, mega_commit, mega_tree, refs};
+use callisto::{git_repo, mega_commit, mega_mr, mega_tree, refs};
 use common::errors::MegaError;
 use ganymede::mega_node::MegaNode;
 use ganymede::model::converter::{self, MegaModelConverter};
 use ganymede::model::create_file::CreateFileInfo;
+use storage::driver::database::storage::batch_save_model;
 use venus::hash::SHA1;
 use venus::internal::object::blob::Blob;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use venus::internal::pack::entry::MegaModel;
+use venus::internal::pack::reference::CommandType;
 use venus::internal::{
     object::commit::Commit,
     pack::{entry::Entry, reference::RefCommand},
-    repo::Repo,
 };
+use venus::mr::MergeRequest;
+use venus::repo::Repo;
 
 use crate::{
     raw_storage::{self, RawStorage},
@@ -38,9 +41,9 @@ pub struct MegaStorage {
 
 #[async_trait]
 impl GitStorageProvider for MegaStorage {
-    async fn save_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
+    async fn save_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
         let mut model: refs::Model = refs.clone().into();
-        model.ref_git_id = refs.new_id;
+        model.ref_git_id = refs.new_id.clone();
         model.repo_id = repo.repo_id;
         let a_model = model.into_active_model();
         refs::Entity::insert(a_model)
@@ -50,10 +53,10 @@ impl GitStorageProvider for MegaStorage {
         Ok(())
     }
 
-    async fn remove_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
+    async fn remove_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
         refs::Entity::delete_many()
             .filter(refs::Column::RepoId.eq(repo.repo_id))
-            .filter(refs::Column::RefName.eq(refs.ref_name))
+            .filter(refs::Column::RefName.eq(refs.ref_name.clone()))
             .exec(self.get_connection())
             .await?;
         Ok(())
@@ -89,29 +92,27 @@ impl GitStorageProvider for MegaStorage {
         Ok(())
     }
 
-    async fn save_entry(&self, _repo: Repo, _result_entity: Vec<Entry>) -> Result<(), MegaError> {
-        // let mut save_models: Vec<raw_objects::ActiveModel> = Vec::new();
-        // for entry in result_entity.iter() {
-        //     let mut model: raw_objects::Model = entry.clone().into();
-        //     let data = model.data.clone().unwrap();
-        //     // save data through raw_storage instead of database if exceed threshold
-        //     if self.raw_obj_threshold != 0 && data.len() / 1024 > self.raw_obj_threshold {
-        //         let b_link = self
-        //             .raw_storage
-        //             .put_entry(&repo.repo_name, entry)
-        //             .await
-        //             .unwrap();
-        //         model.storage_type = self.raw_storage.get_storage_type();
-        //         model.data = Some(b_link);
-        //     }
-        //     save_models.push(model.into_active_model())
-        // }
-        // batch_save_model(self.get_connection(), save_models)
-        //     .await
-        //     .unwrap();
-        // Ok(())
-        todo!()
-    }
+    // async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
+    // let mut save_models: Vec<raw_objects::ActiveModel> = Vec::new();
+    // for entry in result_entity.iter() {
+    //     let mut model: raw_objects::Model = entry.clone().into();
+    //     let data = model.data.clone().unwrap();
+    //     // save data through raw_storage instead of database if exceed threshold
+    //     if self.raw_obj_threshold != 0 && data.len() / 1024 > self.raw_obj_threshold {
+    //         let b_link = self
+    //             .raw_storage
+    //             .put_entry(&repo.repo_name, entry)
+    //             .await
+    //             .unwrap();
+    //         model.storage_type = self.raw_storage.get_storage_type();
+    //         model.data = Some(b_link);
+    //     }
+    //     save_models.push(model.into_active_model())
+    // }
+    // batch_save_model(self.get_connection(), save_models)
+    //     .await
+    //     .unwrap();
+    // }
 
     async fn get_entry_by_sha1(
         &self,
@@ -142,13 +143,12 @@ impl GitStorageProvider for MegaStorage {
     }
 }
 
-// #[async_trait]
 impl MegaStorage {
     pub fn get_connection(&self) -> &DatabaseConnection {
         &self.connection
     }
 
-    pub async fn new(connection: DatabaseConnection) -> Self {
+    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
         let raw_obj_threshold = env::var("MEGA_BIG_OBJ_THRESHOLD_SIZE")
             .expect("MEGA_BIG_OBJ_THRESHOLD_SIZE not configured")
             .parse::<usize>()
@@ -156,18 +156,90 @@ impl MegaStorage {
         let storage_type = env::var("MEGA_RAW_STORAGE").unwrap();
         let path = env::var("MEGA_OBJ_LOCAL_PATH").unwrap();
         MegaStorage {
-            connection: Arc::new(connection),
+            connection,
             raw_storage: raw_storage::init(storage_type, path).await,
             raw_obj_threshold,
         }
     }
 
-    pub async fn mock() -> Self {
+    pub fn mock() -> Self {
         MegaStorage {
             connection: Arc::new(DatabaseConnection::default()),
-            raw_storage: raw_storage::init(String::from("LOCAL"), String::from("/")).await,
+            raw_storage: raw_storage::mock(),
             raw_obj_threshold: 1024,
         }
+    }
+
+    pub async fn handler_refs(&self, repo: &Repo, refs: &RefCommand) {
+        match refs.command_type {
+            CommandType::Create => {
+                self.save_ref(repo, refs).await.unwrap();
+            }
+            CommandType::Delete => self.remove_ref(repo, refs).await.unwrap(),
+            CommandType::Update => {
+                self.update_ref(repo, &refs.ref_name, &refs.new_id)
+                    .await
+                    .unwrap();
+            }
+        }
+    }
+
+    pub async fn get_repo_refs(&self, repo: &Repo) -> Result<Vec<refs::Model>, MegaError> {
+        Ok(refs::Entity::find()
+            .filter(refs::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await?)
+    }
+
+    pub async fn save_mr(&self, mr: MergeRequest) -> Result<(), MegaError> {
+        let model: mega_mr::Model = mr.into();
+        mega_mr::Entity::insert(model.into_active_model())
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    pub async fn save_entry(
+        &self,
+        mr: &MergeRequest,
+        repo: &Repo,
+        entry_list: Vec<Entry>,
+    ) -> Result<(), MegaError> {
+        let mut commits = Vec::new();
+        let mut trees = Vec::new();
+        let mut blobs = Vec::new();
+        let mut raw_blobs = Vec::new();
+        let mut tags = Vec::new();
+        for entry in entry_list {
+            let raw_obj = entry.process_entry();
+            let mega_model = raw_obj.convert_to_mega_model(repo.repo_id, mr.id);
+            // self.save_entry_extend(mega_model);
+            match mega_model {
+                MegaModel::Commit(commit) => commits.push(commit),
+                MegaModel::Tree(tree) => trees.push(tree),
+                MegaModel::Blob(blob, raw) => {
+                    blobs.push(blob);
+                    raw_blobs.push(raw);
+                }
+                MegaModel::Tag(tag) => tags.push(tag),
+            }
+        }
+
+        batch_save_model(self.get_connection(), commits)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), trees)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), blobs)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), raw_blobs)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), tags).await.unwrap();
+        Ok(())
     }
 
     pub async fn init_mega_directory(&self) {
@@ -294,11 +366,7 @@ impl MegaStorage {
         // save_trees
         //     .iter()
         //     .for_each(|x| println!("{:?}, {:?}", x.name, x.tree_id));
-        let repo = Repo {
-            repo_id: 0,
-            repo_path: String::new(),
-            repo_name: String::new(),
-        };
+        let repo = Repo::empty();
         let ref_id = self.get_ref(&repo, "main").await.unwrap();
         let commit = converter::init_commit(
             SHA1::from_str(&mega_tree.tree_id).unwrap(),
@@ -309,14 +377,16 @@ impl MegaStorage {
         self.update_ref(&repo, "main", &commit.id.to_plain_str())
             .await
             .unwrap();
-        self.save_mega_commits(None, MergeStatus::Merged, vec![commit])
+        self.save_mega_commits(0, MergeStatus::Merged, vec![commit])
             .await
             .unwrap();
         Ok(())
     }
 
-    #[allow(unused)]
-    async fn find_git_repo(&self, repo_path: &str) -> Result<Option<git_repo::Model>, MegaError> {
+    pub async fn find_git_repo(
+        &self,
+        repo_path: &str,
+    ) -> Result<Option<git_repo::Model>, MegaError> {
         let result = git_repo::Entity::find()
             .filter(git_repo::Column::RepoPath.eq(repo_path))
             .one(self.get_connection())
@@ -346,24 +416,9 @@ impl MegaStorage {
         Ok(())
     }
 
-    #[allow(unused)]
-    async fn save_git_commits(&self, repo_id: i64, commits: Vec<Commit>) -> Result<(), MegaError> {
-        let git_commits: Vec<git_commit::Model> =
-            commits.into_iter().map(git_commit::Model::from).collect();
-        let mut save_models = Vec::new();
-        for mut git_commit in git_commits {
-            git_commit.repo_id = repo_id;
-            save_models.push(git_commit.into_active_model());
-        }
-        batch_save_model(self.get_connection(), save_models)
-            .await
-            .unwrap();
-        Ok(())
-    }
-
     async fn save_mega_commits(
         &self,
-        mr_id: Option<String>,
+        mr_id: i64,
         status: MergeStatus,
         commits: Vec<Commit>,
     ) -> Result<(), MegaError> {
@@ -372,13 +427,26 @@ impl MegaStorage {
         let mut save_models = Vec::new();
         for mut mega_commit in mega_commits {
             mega_commit.status = status;
-            mega_commit.mr_id = mr_id.clone();
+            mega_commit.mr_id = mr_id;
             save_models.push(mega_commit.into_active_model());
         }
         batch_save_model(self.get_connection(), save_models)
             .await
             .unwrap();
         Ok(())
+    }
+
+    pub async fn get_commit_by_hash(
+        &self,
+        sha: &str,
+        repo: &Repo,
+    ) -> Result<Option<mega_commit::Model>, MegaError> {
+        Ok(mega_commit::Entity::find()
+            .filter(mega_commit::Column::CommitId.eq(sha))
+            .filter(mega_commit::Column::RepoId.eq(repo.repo_id))
+            .one(self.get_connection())
+            .await
+            .unwrap())
     }
 
     async fn get_mega_tree_by_path(
@@ -415,76 +483,6 @@ impl MegaStorage {
     }
 }
 
-/// Performs batch saving of models in the database.
-///
-/// The method takes a vector of models to be saved and performs batch inserts using the given entity type `E`.
-/// The models should implement the `ActiveModelTrait` trait, which provides the necessary functionality for saving and inserting the models.
-///
-/// The method splits the models into smaller chunks, each containing models configured by chunk_size, and inserts them into the database using the `E::insert_many` function.
-/// The results of each insertion are collected into a vector of futures.
-///
-/// Note: Currently, SQLx does not support packets larger than 16MB.
-///
-///
-/// # Arguments
-///
-/// * `save_models` - A vector of models to be saved.
-///
-/// # Generic Constraints
-///
-/// * `E` - The entity type that implements the `EntityTrait` trait.
-/// * `A` - The model type that implements the `ActiveModelTrait` trait and is convertible from the corresponding model type of `E`.
-///
-/// # Errors
-///
-/// Returns a `MegaError` if an error occurs during the batch save operation.
-pub async fn batch_save_model<E, A>(
-    connection: &impl ConnectionTrait,
-    save_models: Vec<A>,
-) -> Result<(), MegaError>
-where
-    E: EntityTrait,
-    A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
-{
-    let mut results = Vec::new();
-    for chunk in save_models.chunks(1000) {
-        // notice that sqlx not support packets larger than 16MB now
-        let res = E::insert_many(chunk.iter().cloned())
-            .on_conflict(OnConflict::new().do_nothing().to_owned())
-            .exec(connection);
-        results.push(res);
-    }
-    futures::future::join_all(results).await;
-    Ok(())
-}
-
-#[allow(unused)]
-async fn batch_query_by_columns<T, C>(
-    connection: &DatabaseConnection,
-    column: C,
-    ids: Vec<String>,
-    filter_column: Option<C>,
-    value: Option<String>,
-) -> Result<Vec<T::Model>, MegaError>
-where
-    T: EntityTrait,
-    C: ColumnTrait,
-{
-    let mut result = Vec::<T::Model>::new();
-    for chunk in ids.chunks(1000) {
-        let query_builder = T::find().filter(column.is_in(chunk));
-
-        // Conditionally add the filter based on the value parameter
-        let query_builder = match value {
-            Some(ref v) => query_builder.filter(filter_column.unwrap().eq(v)),
-            None => query_builder,
-        };
-
-        result.extend(query_builder.all(connection).await?);
-    }
-    Ok(result)
-}
-
 #[cfg(test)]
 mod test {
     use std::rc::Rc;
@@ -494,8 +492,8 @@ mod test {
 
     use crate::storage::mega_storage::MegaStorage;
 
-    #[tokio::test]
-    pub async fn test_node_tree() {
+    #[test]
+    pub fn test_node_tree() {
         let cf1 = CreateFileInfo {
             is_directory: true,
             name: String::from("root"),
@@ -533,7 +531,7 @@ mod test {
             content: String::from(""),
         };
         let cfs: Vec<CreateFileInfo> = vec![cf1, cf2, cf3, cf4, cf5, cf6];
-        let storage = MegaStorage::mock().await;
+        let storage = MegaStorage::mock();
         let root = storage.mega_node_tree(cfs).unwrap();
         print_tree(root, 0);
     }

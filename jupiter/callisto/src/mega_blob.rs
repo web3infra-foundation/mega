@@ -9,11 +9,12 @@ use crate::db_enums::MergeStatus;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
+    pub repo_id: i64,
     #[sea_orm(unique)]
     pub blob_id: String,
     pub commit_id: String,
     pub name: String,
-    pub mr_id: String,
+    pub mr_id: i64,
     pub status: MergeStatus,
     pub size: i32,
     #[sea_orm(column_type = "Text")]

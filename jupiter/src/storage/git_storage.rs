@@ -5,10 +5,10 @@ use async_trait::async_trait;
 use common::errors::MegaError;
 use venus::{
     hash::SHA1,
+    repo::Repo,
     internal::{
         object::{types::ObjectType, utils},
-        pack::{entry::Entry, header::EntryHeader, reference::RefCommand},
-        repo::Repo,
+        pack::{entry::Entry, reference::RefCommand},
     },
 };
 
@@ -23,13 +23,13 @@ pub struct GitStorage {
 
 #[async_trait]
 impl GitStorageProvider for GitStorage {
-    async fn save_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
+    async fn save_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
         self.raw_storage
             .put_ref(&repo.repo_name, &refs.ref_name, &refs.new_id)
             .await
     }
 
-    async fn remove_ref(&self, repo: Repo, refs: RefCommand) -> Result<(), MegaError> {
+    async fn remove_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
         self.raw_storage
             .delete_ref(&repo.repo_name, &refs.ref_name)
             .await
@@ -45,19 +45,6 @@ impl GitStorageProvider for GitStorage {
             .await
     }
 
-    async fn save_entry(&self, repo: Repo, result_entity: Vec<Entry>) -> Result<(), MegaError> {
-        for entry in result_entity {
-            self.raw_storage
-                .put_object(
-                    &repo.repo_name,
-                    &entry.hash.unwrap().to_plain_str(),
-                    &entry.data,
-                )
-                .await
-                .unwrap();
-        }
-        Ok(())
-    }
 
     async fn get_entry_by_sha1(
         &self,
@@ -72,14 +59,12 @@ impl GitStorageProvider for GitStorage {
                 .await
                 .unwrap();
             let (type_num, _) = utils::read_type_and_size(&mut Cursor::new(&data)).unwrap();
-            let o_type = ObjectType::from_u8(type_num).unwrap();
-            let header = EntryHeader::from_string(&o_type.to_string());
-            let sha1 = SHA1::new(&data.to_vec());
+            let obj_type = ObjectType::from_u8(type_num).unwrap();
+            let hash = SHA1::new(&data.to_vec());
             res.push(Entry {
-                header,
-                offset: 0,
+                obj_type,
                 data: data.to_vec(),
-                hash: Some(sha1),
+                hash,
             })
         }
         Ok(res)
@@ -93,5 +78,26 @@ impl GitStorage {
         GitStorage {
             raw_storage: raw_storage::init(storage_type, path).await,
         }
+    }
+
+    pub fn mock() -> Self {
+        Self {
+            raw_storage: raw_storage::mock()
+        }
+    }
+
+
+    pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
+        for entry in entry_list {
+            self.raw_storage
+                .put_object(
+                    &repo.repo_name,
+                    &entry.hash.to_plain_str(),
+                    &entry.data,
+                )
+                .await
+                .unwrap();
+        }
+        Ok(())
     }
 }

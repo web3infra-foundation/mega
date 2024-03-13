@@ -13,7 +13,8 @@ use sea_orm::{ActiveValue::NotSet, Set};
 
 use common::{errors::MegaError, utils::ZERO_ID};
 use entity::{mr_info, refs};
-use storage::driver::{database::mysql_storage::MysqlStorage, database::storage::ObjectStorage};
+use jupiter::context::Context;
+use storage::driver::database::storage::ObjectStorage;
 
 use crate::protocol::pack::SP;
 
@@ -27,6 +28,7 @@ pub struct PackProtocol {
     pub command_list: Vec<RefCommand>,
     // only needed in ssh protocal
     pub service_type: ServiceType,
+    pub context: Context,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -240,7 +242,23 @@ pub fn new_mr_info(mr_id: i64) -> mr_info::ActiveModel {
 }
 
 impl PackProtocol {
-    pub fn new(path: PathBuf, storage: Arc<dyn ObjectStorage>, transfer_protocol: Protocol) -> Self {
+    pub fn new(path: PathBuf, context: Context, transfer_protocol: Protocol) -> Self {
+        PackProtocol {
+            transfer_protocol,
+            capabilities: Vec::new(),
+            path,
+            storage: context.storage.clone(),
+            command_list: Vec::new(),
+            service_type: ServiceType::ReceivePack,
+            context,
+        }
+    }
+
+    pub fn compatibility_new(
+        path: PathBuf,
+        storage: Arc<dyn ObjectStorage>,
+        transfer_protocol: Protocol,
+    ) -> Self {
         PackProtocol {
             transfer_protocol,
             capabilities: Vec::new(),
@@ -248,17 +266,20 @@ impl PackProtocol {
             storage,
             command_list: Vec::new(),
             service_type: ServiceType::ReceivePack,
+            context: Context::mock(),
         }
     }
 
     pub fn mock() -> Self {
+        let context = Context::mock();
         PackProtocol {
             transfer_protocol: Protocol::default(),
             capabilities: Vec::new(),
             path: PathBuf::new(),
-            storage: Arc::new(MysqlStorage::default()),
+            storage: context.storage.clone(),
             command_list: Vec::new(),
             service_type: ServiceType::ReceivePack,
+            context,
         }
     }
 }

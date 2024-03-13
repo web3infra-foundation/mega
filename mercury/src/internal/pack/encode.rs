@@ -106,7 +106,7 @@ impl<W: Write> PackEncoder<W> {
 
         let obj_data = entry.data;
         let obj_data_len = obj_data.len();
-        let obj_type_number = entry.header.to_number();
+        let obj_type_number = entry.obj_type.to_u8();
 
         // **header** encoding
         let mut header_data = vec![(0x80 | (obj_type_number << 4)) + (obj_data_len & 0x0f) as u8];
@@ -127,7 +127,7 @@ impl<W: Write> PackEncoder<W> {
         self.write_all_and_update_hash(&header_data);
 
         // **delta** encoding
-        if !entry.header.is_base() {
+        if !entry.obj_type.is_base() {
             todo!("delta encoding"); // TODO
         }
 
@@ -145,7 +145,9 @@ impl<W: Write> PackEncoder<W> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
+    use std::{io::Cursor, path::PathBuf};
+
+    use venus::internal::object::blob::Blob;
 
     use crate::internal::pack::Pack;
 
@@ -156,25 +158,24 @@ mod tests {
         let mut encoder = PackEncoder::new(3, 0, &mut writter);
         let (tx, rx) = mpsc::channel::<Entry>();
 
-        let mut entry = Entry {
-            header: venus::internal::pack::header::EntryHeader::Blob,
-            data: vec![1, 2, 3],
-            offset: 0,
-            hash: None,
-        };
         // make some different objects, or decode will fail
-        tx.send(entry.clone()).unwrap();
-        entry.data = vec![1, 2, 3, 4];
-        tx.send(entry.clone()).unwrap();
-        entry.data = vec![1, 2, 3, 4, 5];
-        tx.send(entry.clone()).unwrap();
+        let str_vec = vec!["hello", "world", "!"];
+        for str in str_vec {
+            let blob = Blob::from_content(str);
+            let entry: Entry = blob.into();
+            tx.send(entry).unwrap();
+        }
         drop(tx);
         encoder.encode(rx).unwrap();
         assert!(encoder.get_hash().is_some());
 
         // use decode to check the pack file
-        let mut p = Pack::new(None, Some(1024 * 20), None);
+        let mut p = Pack::new(
+            None,
+            Some(1024 * 20),
+            Some(PathBuf::from("/tmp/.cache_temp")),
+        );
         let mut reader = Cursor::new(writter);
-        p.decode(&mut reader).expect("pack file format error");
+        p.decode(&mut reader, None).expect("pack file format error");
     }
 }
