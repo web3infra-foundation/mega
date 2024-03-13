@@ -32,7 +32,7 @@ pub const PKT_LINE_END_MARKER: &[u8; 4] = b"0000";
 
 // The atomic, report-status, report-status-v2, delete-refs, quiet,
 // and push-cert capabilities are sent and recognized by the receive-pack (push to server) process.
-const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet atomic ";
+const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet atomic no-thin ";
 
 // The ofs-delta and side-band-64k capabilities are sent and recognized by both upload-pack and receive-pack protocols.
 // The agent and session-id capabilities may optionally be sent in both protocols.
