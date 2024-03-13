@@ -85,3 +85,14 @@ impl RawObject {
         }
     }
 }
+
+ 
+impl From<Blob> for Entry {
+    fn from(value: Blob) -> Self {
+        Self {
+            obj_type: ObjectType::Blob,
+            data: value.data,
+            hash: value.id,
+        }
+    }
+}
