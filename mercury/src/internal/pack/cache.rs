@@ -224,11 +224,13 @@ mod test {
         let a = CacheObject {
             data_decompress: vec![0; 1024],
             hash: SHA1::new(&String::from("a").into_bytes()),
+            mem_recorder: None,
             ..Default::default()
         };
         let b = CacheObject {
             data_decompress: vec![0; 1636],
             hash: SHA1::new(&String::from("b").into_bytes()),
+            mem_recorder: None,
             ..Default::default()
         };
         // insert a
@@ -251,6 +253,7 @@ mod test {
         let c = CacheObject {
             data_decompress: vec![0; 2049],
             hash: SHA1::new(&String::from("c").into_bytes()),
+            mem_recorder: None,
             ..Default::default()
         };
         cache.insert(c.offset, c.hash, c.clone());

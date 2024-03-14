@@ -205,7 +205,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_pack_encoder() {
-       
+
         fn encode_once(window_size: usize) -> Vec<u8> {
             let mut writter: Vec<u8> = Vec::new();
             // make some different objects, or decode will fail

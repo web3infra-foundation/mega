@@ -7,9 +7,9 @@
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
-use std::thread::{self, sleep};
+use std::sync::mpsc::Sender;
+use std::thread::{self, JoinHandle, sleep};
 use std::time::Instant;
 
 use flate2::bufread::ZlibDecoder;
@@ -18,7 +18,6 @@ use threadpool::ThreadPool;
 use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
-use venus::internal::pack::entry::Entry;
 
 use super::cache::_Cache;
 use crate::internal::pack::cache::Caches;
@@ -27,6 +26,16 @@ use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack};
 use uuid::Uuid;
+use venus::internal::pack::entry::Entry;
+
+/// For Convenient to pass Params
+struct SharedParams {
+    pub pool: Arc<ThreadPool>,
+    pub waitlist: Arc<Waitlist>,
+    pub caches: Arc<Caches>,
+    pub cache_objs_mem_size: Arc<AtomicUsize>,
+    pub callback: Arc<dyn Fn(Entry) + Sync + Send>
+}
 
 impl Pack {
     /// # Parameters
@@ -42,7 +51,7 @@ impl Pack {
     /// Can't decode in multi-tasking, because memory limit use shared static variable but different cache, cause "deadlock".
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
-        temp_path.push(Uuid::new_v4().to_string());
+        temp_path.push(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
         let thread_num = thread_num.unwrap_or_else(num_cpus::get);
         let cache_mem_size = mem_limit.map(|mem_limit| mem_limit * 4 / 5);
         Pack {
@@ -53,6 +62,7 @@ impl Pack {
             waitlist: Arc::new(Waitlist::new()),
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
             mem_limit: mem_limit.unwrap_or(usize::MAX),
+            cache_objs_mem: Arc::new(AtomicUsize::default()),
         }
     }
 
@@ -270,6 +280,7 @@ impl Pack {
                     data_decompress: reserve_delta_data(data),
                     obj_type: t,
                     offset: init_offset,
+                    mem_recorder: None,
                     ..Default::default()
                 })
             },
@@ -289,6 +300,7 @@ impl Pack {
                     data_decompress: reserve_delta_data(data),
                     obj_type: t,
                     offset: init_offset,
+                    mem_recorder: None,
                     ..Default::default()
                 })
             }
@@ -298,11 +310,13 @@ impl Pack {
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
     ///
     ///
-    pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), sender: Option<Sender<Entry>>) -> Result<(), GitError> {
+    pub fn decode<F>(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), callback: F) -> Result<(), GitError>
+    where
+        F: Fn(Entry) + Sync + Send + 'static
+    {
         let time = Instant::now();
-        
-        // let tmp_path = tmp_path.join(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
-        // let caches = Arc::new(Caches::new(Some(mem_size), Some(tmp_path.clone()), self.pool.max_count()));
+        let callback = Arc::new(callback);
+
         let caches = self.caches.clone();
         let mut reader = Wrapper::new(io::BufReader::new(pack));
 
@@ -329,6 +343,7 @@ impl Pack {
             let log_cache = caches.clone();
             let log_i = i.clone();
             let log_stop =  stop.clone();
+            let cache_objs_mem = self.cache_objs_mem.clone();
             // print log per seconds
             thread::spawn(move|| {
                 let time = Instant::now();
@@ -338,7 +353,7 @@ impl Pack {
                     }
                     println!("time {:?} s \t pass: {:?}, \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
                     time.elapsed().as_millis() as f64 / 1000.0, log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(),
-                             CacheObject::get_mem_size() / 1024 / 1024,
+                             cache_objs_mem.load(Ordering::Relaxed) / 1024 / 1024,
                              log_cache.memory_used() / 1024 / 1024);
 
                     sleep(std::time::Duration::from_secs(1));
@@ -354,24 +369,29 @@ impl Pack {
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
             match r {
-                Ok(obj) => {
+                Ok(mut obj) => {
+                    obj.set_mem_recorder(self.cache_objs_mem.clone());
                     obj.record_mem_size();
 
+                    // Wrapper of Arc Params, for convenience to pass
+                    let params = Arc::new(SharedParams {
+                        pool: self.pool.clone(),
+                        waitlist: self.waitlist.clone(),
+                        caches: self.caches.clone(),
+                        cache_objs_mem_size: self.cache_objs_mem.clone(),
+                        callback: callback.clone()
+                    });
+
                     let caches = caches.clone();
-                    let pool = self.pool.clone();
                     let waitlist = self.waitlist.clone();
-                    let sender = sender.clone();
                     self.pool.execute(move || {
                         match obj.obj_type {
                             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                                let obj = Self::cache_obj_and_process_waitlist(pool, waitlist, caches, obj, sender.clone());
-                                if let Some(sender) = sender {
-                                    sender.send(obj.to_entry()).unwrap();
-                                }
+                                Self::cache_obj_and_process_waitlist(params, obj);
                             },
                             ObjectType::OffsetDelta => {
                                 if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
-                                    Self::process_delta(pool, waitlist, caches, obj, base_obj, sender);
+                                    Self::process_delta(params, obj, base_obj);
                                 } else {
                                     // You can delete this 'if' block ↑, because there are Second check in 'else'
                                     // It will be more readable, but the performance will be slightly reduced
@@ -379,18 +399,18 @@ impl Pack {
                                     waitlist.insert_offset(obj.base_offset, obj);
                                     // Second check: prevent that the base_obj thread has finished before the waitlist insert
                                     if let Some(base_obj) = caches.get_by_offset(base_offset) {
-                                        Self::process_waitlist(pool, waitlist, caches, base_obj, sender);
+                                        Self::process_waitlist(params, base_obj);
                                     }
                                 }
                             },
                             ObjectType::HashDelta => {
                                 if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
-                                    Self::process_delta(pool, waitlist, caches, obj, base_obj, sender);
+                                    Self::process_delta(params, obj, base_obj);
                                 } else {
                                     let base_ref = obj.base_ref;
                                     waitlist.insert_ref(obj.base_ref, obj);
                                     if let Some(base_obj) = caches.get_by_hash(base_ref) {
-                                        Self::process_waitlist(pool, waitlist, caches, base_obj, sender);
+                                        Self::process_waitlist(params, base_obj);
                                     }
                                 }
                             }
@@ -434,7 +454,7 @@ impl Pack {
         println!("Pack decode takes: [ {:?} ]", time.elapsed());
 
         self.caches.clear(); // clear cached objects & stop threads
-        assert_eq!(CacheObject::get_mem_size(), 0); // all the objs should be dropped until here
+        assert_eq!(self.cache_objs_mem_used(), 0); // all the objs should be dropped until here
         
         #[cfg(debug_assertions)]
         stop.store(true, Ordering::Relaxed);
@@ -442,35 +462,50 @@ impl Pack {
         Ok(())
     }
 
+    /// Decode Pack in a new thread and send the CacheObjects while decoding.
+    /// <br> Attention: It will consume the `pack` and return in JoinHandle
+    pub fn decode_async(mut self, mut pack: (impl Read + BufRead + Seek + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
+        thread::spawn(move || {
+            self.decode(&mut pack, move |entry| {
+                sender.send(entry).unwrap();
+            }).unwrap();
+            self
+        })
+    }
+
     /// CacheObjects + Index size of Caches
     fn memory_used(&self) -> usize {
-        CacheObject::get_mem_size() + self.caches.memory_used_index()
+        self.cache_objs_mem_used() + self.caches.memory_used_index()
+    }
+
+    /// The total memory used by the CacheObjects of this Pack
+    fn cache_objs_mem_used(&self) -> usize {
+        self.cache_objs_mem.load(Ordering::Relaxed)
     }
 
     /// Rebuild the Delta Object in a new thread & process the objects waiting for it recursively.
     /// <br> This function must be *static*, because [&self] can't be moved into a new thread.
-    fn process_delta(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, delta_obj: CacheObject, base_obj: Arc<CacheObject>, sender: Option<Sender<Entry>>) {
-        pool.clone().execute(move || {
-            let new_obj = Pack::rebuild_delta(delta_obj, base_obj);
-            if let Some(sender) = sender.clone() {
-                sender.send(new_obj.to_entry()).unwrap();
-            }
-            Self::cache_obj_and_process_waitlist(pool, waitlist, caches, new_obj, sender); //Indirect Recursion
+    fn process_delta(shared_params: Arc<SharedParams>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
+        shared_params.pool.clone().execute(move || {
+            let mut new_obj = Pack::rebuild_delta(delta_obj, base_obj);
+            new_obj.set_mem_recorder(shared_params.cache_objs_mem_size.clone());
+            new_obj.record_mem_size();
+            Self::cache_obj_and_process_waitlist(shared_params, new_obj); //Indirect Recursion
         });
     }
 
     /// Cache the new object & process the objects waiting for it (in multi-threading).
-    fn cache_obj_and_process_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, new_obj: CacheObject, sender: Option<Sender<Entry>>) -> Arc<CacheObject> {
-        let new_obj = caches.insert(new_obj.offset, new_obj.hash, new_obj);
-        Self::process_waitlist(pool, waitlist, caches, new_obj.clone(), sender);
-        new_obj
+    fn cache_obj_and_process_waitlist(shared_params: Arc<SharedParams>, new_obj: CacheObject) {
+        (shared_params.callback)(new_obj.to_entry());
+        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.hash, new_obj);
+        Self::process_waitlist(shared_params, new_obj);
     }
 
-    fn process_waitlist(pool: Arc<ThreadPool>, waitlist: Arc<Waitlist>, caches: Arc<Caches>, base_obj: Arc<CacheObject>, sender: Option<Sender<Entry>>) {
-        let wait_objs = waitlist.take(base_obj.offset, base_obj.hash);
+    fn process_waitlist(shared_params: Arc<SharedParams>, base_obj: Arc<CacheObject>) {
+        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.hash);
         for obj in wait_objs {
             // Process the objects waiting for the new object(base_obj = new_obj)
-            Self::process_delta(pool.clone(), waitlist.clone(), caches.clone(), obj, base_obj.clone(), sender.clone());
+            Self::process_delta(shared_params.clone(), obj, base_obj.clone());
         }
     }
 
@@ -549,14 +584,14 @@ impl Pack {
 
         let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
-        let new_obj = CacheObject {
+        CacheObject {
             data_decompress: result,
             obj_type: base_obj.obj_type, // Same as the Type of base object
             hash,
-            ..delta_obj
-        };
-        new_obj.record_mem_size();
-        new_obj //Canonical form (Complete Object)
+            mem_recorder: None, // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
+            ..delta_obj // This syntax is actually move `delta_obj` to `new_obj`
+        } // Canonical form (Complete Object)
+        // mem_size recorder will be set later outside, to keep this func param clear
     }
 }
 
@@ -619,7 +654,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
-        p.decode(&mut buffered, None).unwrap();
+        p.decode(&mut buffered, |_|{}).unwrap();
     }
 
     #[test]
@@ -632,7 +667,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
-        p.decode(&mut buffered, None).unwrap();
+        p.decode(&mut buffered,|_|{}).unwrap();
     }
 
     #[test]
@@ -645,13 +680,35 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), Some(1024*1024*1024*4), Some(tmp.clone()));
-        let rt = p.decode(&mut buffered, None);
+        let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
+        let rt = p.decode(&mut buffered, |_obj|{
+            // println!("{:?}", obj.hash);
+        });
         if let Err(e) = rt {
             fs::remove_dir_all(tmp).unwrap();
             panic!("Error: {:?}", e);
         }
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
+
+    #[test]
+    fn test_decode_large_file_async() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let f = fs::File::open(source).unwrap();
+        let buffered = BufReader::new(f);
+        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = p.decode_async(buffered, tx); // new thread
+        let mut cnt = 0;
+        for _entry in rx {
+            cnt += 1; //use entry here
+        }
+        let p = handle.join().unwrap();
+        assert_eq!(cnt, p.number);
+    }
 
     #[test]
     fn test_pack_decode_with_delta_without_ref() {
@@ -663,14 +720,11 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
-        p.decode(&mut buffered, None).unwrap();
+        p.decode(&mut buffered, |_|{}).unwrap();
     }
 
     #[test]
-    #[ignore]
-    /// didn't implement the parallel support
     fn test_pack_decode_multi_task_with_large_file_with_delta_without_ref() {
-        // unimplemented!()
         let task1 = std::thread::spawn(|| {
             test_pack_decode_with_large_file_with_delta_without_ref();
         });
