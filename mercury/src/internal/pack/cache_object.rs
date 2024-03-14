@@ -48,7 +48,7 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
         Ok(())
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CacheObject {
     pub base_offset: usize,
     pub base_ref: SHA1,
@@ -56,8 +56,25 @@ pub struct CacheObject {
     pub data_decompress: Vec<u8>,
     pub offset: usize,
     pub hash: SHA1,
-    pub mem_recorder: Arc<AtomicUsize> // record mem-size of all CacheObjects of a Pack
+    pub mem_recorder: Option<Arc<AtomicUsize>> // record mem-size of all CacheObjects of a Pack
 }
+
+impl Clone for CacheObject {
+    fn clone(&self) -> Self {
+        let obj = CacheObject {
+            base_offset: self.base_offset,
+            base_ref: self.base_ref,
+            obj_type: self.obj_type,
+            data_decompress: self.data_decompress.clone(),
+            offset: self.offset,
+            hash: self.hash,
+            mem_recorder: self.mem_recorder.clone(),
+        };
+        obj.record_mem_size();
+        obj
+    }
+}
+
 // For Convenience
 impl Default for CacheObject {
     // It will be called in "struct update syntax": `..Default::default()`
@@ -70,7 +87,7 @@ impl Default for CacheObject {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::default(),
-            mem_recorder: Arc::new(AtomicUsize::default()),
+            mem_recorder: None,
         };
         obj.record_mem_size();
         obj
@@ -91,7 +108,9 @@ impl Drop for CacheObject {
     // (cannot change the heap-size during life cycle)
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
-        self.mem_recorder.fetch_sub((*self).mem_size(), Ordering::SeqCst);
+        if let Some(mem_recorder) = &self.mem_recorder {
+            mem_recorder.fetch_sub((*self).mem_size(), Ordering::SeqCst);
+        }
 
     }
 }
@@ -112,11 +131,13 @@ impl MemSizeRecorder for CacheObject {
     /// record the mem-size of this `CacheObj` in a `static` `var`
     /// <br> since that, DO NOT modify `CacheObj` after recording
     fn record_mem_size(&self) {
-        self.mem_recorder.fetch_add(self.mem_size(), Ordering::SeqCst);
+        if let Some(mem_recorder) = &self.mem_recorder {
+            mem_recorder.fetch_add(self.mem_size(), Ordering::SeqCst);
+        }
     }
 
-    fn set_mem_recorder(&mut self, mem_size: Arc<AtomicUsize>) {
-        self.mem_recorder = mem_size;
+    fn set_mem_recorder(&mut self, mem_recorder: Arc<AtomicUsize>) {
+        self.mem_recorder = Some(mem_recorder);
     }
 
     // fn get_mem_size() -> usize {
@@ -133,7 +154,7 @@ impl CacheObject {
             obj_type,
             offset,
             hash,
-            mem_recorder: Arc::new(AtomicUsize::default()),
+            mem_recorder: None,
             ..Default::default()
         }
     }
@@ -252,7 +273,7 @@ mod test {
     fn test_heap_size_record() {
         let mut obj = CacheObject {
             data_decompress: vec![0; 1024],
-            mem_recorder: Arc::new(AtomicUsize::default()),
+            mem_recorder: None,
             ..Default::default()
         };
         let mem = Arc::new(AtomicUsize::default());
@@ -273,7 +294,8 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
-            mem_recorder: Arc::new(AtomicUsize::default()),
+            mem_recorder: None,
+            ..Default::default()
         };
         assert!(a.heap_size() == 1024);
 
@@ -291,7 +313,8 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
-            mem_recorder: Arc::new(AtomicUsize::default()),
+            mem_recorder: None,
+            ..Default::default()
         };
         println!("a.heap_size() = {}", a.heap_size());
 
@@ -302,7 +325,8 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![1; 20]),
-            mem_recorder: Arc::new(AtomicUsize::default()),
+            mem_recorder: None,
+            ..Default::default()
         };
         {
             let r = cache.insert(
@@ -406,7 +430,8 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
-            mem_recorder: Arc::new(AtomicUsize::default()),
+            mem_recorder: None,
+            ..Default::default()
         };
         let s = bincode::serialize(&a).unwrap();
         let b: CacheObject = bincode::deserialize(&s).unwrap();
