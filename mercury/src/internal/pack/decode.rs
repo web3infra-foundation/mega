@@ -8,7 +8,8 @@ use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread::{self, sleep};
+use std::sync::mpsc::Sender;
+use std::thread::{self, JoinHandle, sleep};
 use std::time::Instant;
 
 use flate2::bufread::ZlibDecoder;
@@ -25,13 +26,15 @@ use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack};
 use uuid::Uuid;
+use venus::internal::pack::entry::Entry;
 
 /// For Convenient to pass Params
 struct SharedParams {
     pub pool: Arc<ThreadPool>,
     pub waitlist: Arc<Waitlist>,
     pub caches: Arc<Caches>,
-    pub cache_objs_mem_size: Arc<AtomicUsize>
+    pub cache_objs_mem_size: Arc<AtomicUsize>,
+    pub callback: Arc<dyn Fn(Entry) + Sync + Send>
 }
 
 impl Pack {
@@ -277,7 +280,7 @@ impl Pack {
                     data_decompress: reserve_delta_data(data),
                     obj_type: t,
                     offset: init_offset,
-                    mem_recorder: Arc::new(AtomicUsize::default()),
+                    mem_recorder: None,
                     ..Default::default()
                 })
             },
@@ -297,7 +300,7 @@ impl Pack {
                     data_decompress: reserve_delta_data(data),
                     obj_type: t,
                     offset: init_offset,
-                    mem_recorder: Arc::new(AtomicUsize::default()),
+                    mem_recorder: None,
                     ..Default::default()
                 })
             }
@@ -307,8 +310,12 @@ impl Pack {
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
     ///
     ///
-    pub fn decode(&mut self, pack: &mut (impl Read + BufRead + Seek + Send)) -> Result<(), GitError> {
+    pub fn decode<F>(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), callback: F) -> Result<(), GitError>
+    where
+        F: Fn(Entry) + Sync + Send + 'static
+    {
         let time = Instant::now();
+        let callback = Arc::new(callback);
 
         let caches = self.caches.clone();
         let mut reader = Wrapper::new(io::BufReader::new(pack));
@@ -371,7 +378,8 @@ impl Pack {
                         pool: self.pool.clone(),
                         waitlist: self.waitlist.clone(),
                         caches: self.caches.clone(),
-                        cache_objs_mem_size: self.cache_objs_mem.clone()
+                        cache_objs_mem_size: self.cache_objs_mem.clone(),
+                        callback: callback.clone()
                     });
 
                     let caches = caches.clone();
@@ -454,6 +462,17 @@ impl Pack {
         Ok(())
     }
 
+    /// Decode Pack in a new thread and send the CacheObjects while decoding.
+    /// <br> Attention: It will consume the `pack` and return in JoinHandle
+    pub fn decode_async(mut self, mut pack: (impl Read + BufRead + Seek + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
+        thread::spawn(move || {
+            self.decode(&mut pack, move |entry| {
+                sender.send(entry).unwrap();
+            }).unwrap();
+            self
+        })
+    }
+
     /// CacheObjects + Index size of Caches
     fn memory_used(&self) -> usize {
         self.cache_objs_mem_used() + self.caches.memory_used_index()
@@ -477,6 +496,7 @@ impl Pack {
 
     /// Cache the new object & process the objects waiting for it (in multi-threading).
     fn cache_obj_and_process_waitlist(shared_params: Arc<SharedParams>, new_obj: CacheObject) {
+        (shared_params.callback)(new_obj.to_entry());
         let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.hash, new_obj);
         Self::process_waitlist(shared_params, new_obj);
     }
@@ -564,15 +584,14 @@ impl Pack {
 
         let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
-        let new_obj = CacheObject {
+        CacheObject {
             data_decompress: result,
             obj_type: base_obj.obj_type, // Same as the Type of base object
             hash,
-            mem_recorder: Arc::new(AtomicUsize::default()), // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
+            mem_recorder: None, // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
             ..delta_obj // This syntax is actually move `delta_obj` to `new_obj`
-        };
+        } // Canonical form (Complete Object)
         // mem_size recorder will be set later outside, to keep this func param clear
-        new_obj // Canonical form (Complete Object)
     }
 }
 
@@ -634,8 +653,8 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(0), Some(tmp));
-        p.decode(&mut buffered).unwrap();
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        p.decode(&mut buffered, |_|{}).unwrap();
     }
 
     #[test]
@@ -647,8 +666,8 @@ mod tests {
 
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(0), Some(tmp));
-        p.decode(&mut buffered).unwrap();
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        p.decode(&mut buffered,|_|{}).unwrap();
     }
 
     #[test]
@@ -662,12 +681,34 @@ mod tests {
         let mut buffered = BufReader::new(f);
         // let mut p = Pack::default(); //Pack::new(2);
         let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
-        let rt = p.decode(&mut buffered);
+        let rt = p.decode(&mut buffered, |_obj|{
+            // println!("{:?}", obj.hash);
+        });
         if let Err(e) = rt {
             fs::remove_dir_all(tmp).unwrap();
             panic!("Error: {:?}", e);
         }
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
+
+    #[test]
+    fn test_decode_large_file_async() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let f = fs::File::open(source).unwrap();
+        let buffered = BufReader::new(f);
+        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = p.decode_async(buffered, tx); // new thread
+        let mut cnt = 0;
+        for _entry in rx {
+            cnt += 1; //use entry here
+        }
+        let p = handle.join().unwrap();
+        assert_eq!(cnt, p.number);
+    }
 
     #[test]
     fn test_pack_decode_with_delta_without_ref() {
@@ -679,7 +720,7 @@ mod tests {
         let f = std::fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
-        p.decode(&mut buffered).unwrap();
+        p.decode(&mut buffered, |_|{}).unwrap();
     }
 
     #[test]
