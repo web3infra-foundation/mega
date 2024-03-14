@@ -144,16 +144,10 @@ impl CacheObject {
 }
 
 /// trait alias for simple use
-pub trait ArcWrapperBounds:
-    HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static
-{
-}
+pub trait ArcWrapperBounds: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static {}
 // You must impl `Alias Trait` for all the `T` satisfying Constraints
 // Or, `T` will not satisfy `Alias Trait` even if it satisfies the Original traits
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds
-    for T
-{
-}
+impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds for T {}
 
 /// !Implementing encapsulation of Arc<T> to enable third-party Trait HeapSize implementation for the Arc type
 /// !Because of use Arc<T> in LruCache, the LruCache is not clear whether a pointer will drop the referenced

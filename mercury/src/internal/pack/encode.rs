@@ -9,7 +9,7 @@ use std::{io::Write, sync::mpsc};
 use venus::internal::object::types::ObjectType;
 use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
-const MIN_DELTA_RATE: f64 = 0.5; // minimum delta reate can accept
+const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
 
 pub struct PackEncoder<W: Write> {
     object_number: usize,
@@ -22,31 +22,23 @@ pub struct PackEncoder<W: Write> {
     final_hash: Option<SHA1>,
 }
 
-fn u32_vec(value: u32) -> Vec<u8> {
-    vec![
-        (value >> 24 & 0xff) as u8,
-        (value >> 16 & 0xff) as u8,
-        (value >> 8 & 0xff) as u8,
-        (value & 0xff) as u8,
-    ]
-}
-
-/// encode header of pack file (12 byte)
+/// encode header of pack file (12 byte)<br>
+/// include: 'PACK', Version(2), number of objects
 fn encode_header(object_number: usize) -> Vec<u8> {
     let mut result: Vec<u8> = vec![
         b'P', b'A', b'C', b'K', // The logotype of the Pack File
-        0, 0, 0, 2,
-    ]; // THe Version  of the Pack File
+        0, 0, 0, 2, // generates version 2 only.
+    ];
     assert_ne!(object_number, 0); // guarantee self.number_of_objects!=0
     assert!(object_number < (1 << 32));
-    //TODO: GitError:numbers of objects should  < 4G ,
-    result.append(&mut u32_vec(object_number as u32));
+    //TODO: GitError:numbers of objects should < 4G ,
+    result.append((object_number as u32).to_be_bytes().to_vec().as_mut()); // to 4 bytes (network byte order aka. big-endian)
     result
 }
 
 /// encode offset of delta object
 fn encode_offset(mut value: usize) -> Vec<u8> {
-    assert!(value != 0, "offset can't be zero");
+    assert_ne!(value, 0, "offset can't be zero");
     let mut bytes = Vec::new();
     let mut first_byte = true;
     while value != 0 || first_byte {
@@ -87,27 +79,28 @@ impl<W: Write> PackEncoder<W> {
         self.final_hash
     }
 
-    /// encode entrys to a pack file with delta objects, write to writter
+    /// encode entries to a pack file with delta objects, write to writer
     pub fn encode(&mut self, rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
-        while match rx.recv() {
-            Ok(entry) => {
-                self.process_index += 1;
-                // push window after encode to void diff by self
-                let offset = self.inner_offset;
-                self.encode_one_object(&entry)?;
-                self.window.push_back((entry, offset));
-                if self.window.len() > self.window_size {
-                    let _ = self.window.pop_front().unwrap();
+        loop {
+            match rx.recv() {
+                Ok(entry) => {
+                    self.process_index += 1;
+                    // push window after encode to void diff by self
+                    let offset = self.inner_offset;
+                    self.encode_one_object(&entry)?;
+                    self.window.push_back((entry, offset));
+                    if self.window.len() > self.window_size {
+                        self.window.pop_front();
+                    }
                 }
-                true
-            }
-            Err(_) => {
-                if self.process_index != self.object_number {
-                    panic!("not all objects are encoded");
+                Err(_) => {
+                    if self.process_index != self.object_number {
+                        panic!("not all objects are encoded");
+                    }
+                    break;
                 }
-                false
             }
-        } {}
+        }
 
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
@@ -116,7 +109,7 @@ impl<W: Write> PackEncoder<W> {
         Ok(())
     }
 
-    /// try encode as delta using objects in window
+    /// try to encode as delta using objects in window
     /// # Returns
     /// return (delta entry, offset) if success make delta
     /// return (origin Entry,None) if didn't delta,
@@ -182,7 +175,7 @@ impl<W: Write> PackEncoder<W> {
         }
         self.write_all_and_update(&header_data);
 
-        // **delta** encoding
+        // **offset** encoding
         if entry.obj_type == ObjectType::OffsetDelta {
             let offset_data = encode_offset(offset.unwrap());
             self.write_all_and_update(&offset_data);
@@ -192,8 +185,7 @@ impl<W: Write> PackEncoder<W> {
 
         // **data** encoding, need zlib compress
         let mut inflate = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-        inflate
-            .write_all(&obj_data)
+        inflate.write_all(&obj_data)
             .expect("zlib compress should never failed");
         inflate.flush().expect("zlib flush should never failed");
         let compressed_data = inflate.finish().expect("zlib compress should never failed");
