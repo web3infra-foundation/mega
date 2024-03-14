@@ -133,7 +133,7 @@ impl MegaModelConverter {
         let mega_ref = refs::Model {
             id: generate_id(),
             repo_id: 0,
-            ref_name: String::from("main"),
+            ref_name: String::from("refs/heads/main"),
             ref_git_id: commit.id.to_plain_str(),
             ref_type: RefType::Branch,
             created_at: chrono::Utc::now().naive_utc(),

@@ -3,24 +3,16 @@
 //!
 //!
 
-use std::io::Cursor;
-use std::path::{Path, PathBuf};
-use std::sync::mpsc;
-use std::thread::{self};
-
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use callisto::db_enums::RefType;
-use callisto::refs;
-use mercury::internal::pack::Pack;
-use venus::errors::GitError;
-use venus::repo::Repo;
 
+use crate::pack::handler::PackHandler;
 use crate::protocol::ZERO_ID;
-use crate::protocol::{Capability, PackProtocol, Protocol, RefCommand, ServiceType, SideBind};
-
-use venus::mr::MergeRequest;
+use crate::protocol::{
+    Capability, RefCommand, ServiceType, SideBind, SmartProtocol, TransportProtocol,
+};
 
 const LF: char = '\n';
 
@@ -42,7 +34,7 @@ const CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.0.1";
 const UPLOAD_CAP_LIST: &str =
     "shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done include-tag ";
 
-impl PackProtocol {
+impl SmartProtocol {
     /// # Retrieves the information about Git references (refs) for the specified service type.
     ///
     /// The function returns a `BytesMut` object containing the Git reference information.
@@ -68,8 +60,10 @@ impl PackProtocol {
     ///
     /// Finally, the constructed packet line stream is returned.
     pub async fn git_info_refs(&self) -> BytesMut {
-        let service_type = self.service_type;
         let repo = self.convert_path_to_repo().await;
+
+        let service_type = self.service_type;
+
         // The stream MUST include capability declarations behind a NUL on the first ref.
         let (head_hash, git_refs) = self.repo_head_object_id(repo).await;
         let name = if head_hash == ZERO_ID {
@@ -140,7 +134,7 @@ impl PackProtocol {
         }
 
         tracing::info!(
-            "want commands: {:?}\n have commans: {:?}\n caps:{:?}",
+            "want commands: {:?}\n have commands: {:?}\n caps:{:?}",
             want,
             have,
             self.capabilities
@@ -150,7 +144,7 @@ impl PackProtocol {
         let mut buf = BytesMut::new();
 
         if have.is_empty() {
-            pack_data = self.get_full_pack_data(&self.path).await.unwrap();
+            pack_data = self.full_pack(&repo).await.unwrap();
             add_pkt_line_string(&mut buf, String::from("NAK\n"));
         } else {
             if self.capabilities.contains(&Capability::MultiAckDetailed) {
@@ -186,7 +180,7 @@ impl PackProtocol {
                     }
                 }
 
-                pack_data = self.get_incremental_pack_data(want, have).await.unwrap();
+                pack_data = self.incremental_pack(want, have).await.unwrap();
             } else {
                 tracing::error!("capability unsupported");
             }
@@ -216,13 +210,9 @@ impl PackProtocol {
         }
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
-        let storage = self.context.services.mega_storage.clone();
         let repo = self.convert_path_to_repo().await;
-        let mut mr = MergeRequest::default();
-        mr.merge(None);
-        storage.save_mr(mr.clone()).await.unwrap();
         //1. unpack progress
-        let parse_obj_result = self.unpack_and_persist(&mr, &repo, body_bytes).await;
+        let parse_obj_result = self.unpack(&repo, body_bytes).await.is_ok();
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
         //2. parse progress
@@ -234,14 +224,14 @@ impl PackProtocol {
         for mut command in self.command_list.clone() {
             if command.ref_type == RefType::Tag {
                 // just update if refs type is tag
-                storage.handler_refs(&repo, &command).await;
+                self.update_refs(&repo, &command).await.unwrap();
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
                 if parse_obj_result {
-                    storage.handler_refs(&repo, &command).await;
+                    self.update_refs(&repo, &command).await.unwrap();
                 // self.handle_directory().await.unwrap()
                 } else {
                     command.failed(String::from("parse commit tree from obj failed"));
@@ -290,7 +280,7 @@ impl PackProtocol {
 
     pub fn build_smart_reply(&self, ref_list: &Vec<String>, service: String) -> BytesMut {
         let mut pkt_line_stream = BytesMut::new();
-        if self.transfer_protocol == Protocol::Http {
+        if self.transport_protocol == TransportProtocol::Http {
             add_pkt_line_string(&mut pkt_line_stream, format!("# service={}\n", service));
             pkt_line_stream.put(&PKT_LINE_END_MARKER[..]);
         }
@@ -312,24 +302,6 @@ impl PackProtocol {
         }
     }
 
-    pub async fn convert_path_to_repo(&self) -> Repo {
-        let path_str = self.path.to_str().unwrap();
-        let model = self
-            .context
-            .services
-            .mega_storage
-            .find_git_repo(path_str)
-            .await
-            .unwrap();
-        if let Some(repo) = model {
-            repo.into()
-        } else {
-            Repo::empty()
-        }
-    }
-
-    pub async fn open_mr(&self) {}
-
     // the first line contains the capabilities
     pub fn parse_ref_command(&self, pkt_line: &mut Bytes) -> RefCommand {
         RefCommand::new(
@@ -337,63 +309,6 @@ impl PackProtocol {
             read_until_white_space(pkt_line),
             read_until_white_space(pkt_line),
         )
-    }
-
-    pub async fn repo_head_object_id(&self, repo: Repo) -> (String, Vec<refs::Model>) {
-        let storage = self.context.services.mega_storage.clone();
-        let refs = storage.get_repo_refs(&repo).await.unwrap();
-
-        let mut head_hash = ZERO_ID.to_string();
-        for git_ref in refs.iter() {
-            if git_ref.ref_name == *"refs/heads/main" {
-                head_hash = git_ref.ref_git_id.clone();
-            }
-        }
-        (head_hash, refs)
-    }
-
-    async fn unpack_and_persist(&self, mr: &MergeRequest, repo: &Repo, pack_file: Bytes) -> bool {
-        let (sender, receiver) = mpsc::channel();
-        thread::spawn(|| {
-            let tmp = PathBuf::from("/tmp/.cache_temp");
-            let mut p = Pack::new(None, Some(1024 * 1024 * 1024 * 4), Some(tmp.clone()));
-            p.decode(&mut Cursor::new(pack_file), Some(sender)).unwrap();
-        });
-        let storage = self.context.services.mega_storage.clone();
-        let mut entry_list = Vec::new();
-
-        for entry in receiver {
-            entry_list.push(entry);
-            if entry_list.len() >= 1000 {
-                storage.save_entry(mr, repo, entry_list).await.unwrap();
-                entry_list = Vec::new();
-            }
-        }
-        storage.save_entry(mr, repo, entry_list).await.unwrap();
-        true
-    }
-
-    /// Asynchronously retrieves the full pack data for the specified repository path.
-    /// This function collects commits and nodes from the storage and packs them into
-    /// a single binary vector. There is no need to build the entire tree; the function
-    /// only sends all the data related to this repository.
-    ///
-    /// # Arguments
-    /// * `repo_path` - The path to the repository.
-    ///
-    /// # Returns
-    /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
-    ///
-    pub async fn get_full_pack_data(&self, _repo_path: &Path) -> Result<Vec<u8>, GitError> {
-        todo!()
-    }
-
-    pub async fn get_incremental_pack_data(
-        &self,
-        _want: Vec<String>,
-        _have: Vec<String>,
-    ) -> Result<Vec<u8>, GitError> {
-        todo!()
     }
 }
 
@@ -439,7 +354,7 @@ fn add_pkt_line_string(pkt_line_stream: &mut BytesMut, buf_str: String) {
 ///
 /// ```
 /// use bytes::Bytes;
-/// use git::protocol::pack::read_pkt_line;
+/// use ceres::protocol::smart::read_pkt_line;
 ///
 /// let mut bytes = Bytes::from_static(b"000Bexample");
 /// let (length, line) = read_pkt_line(&mut bytes);
@@ -469,8 +384,8 @@ pub mod test {
     use callisto::db_enums::RefType;
     use venus::internal::pack::reference::{CommandType, RefCommand};
 
-    use crate::protocol::pack::{add_pkt_line_string, read_pkt_line, read_until_white_space};
-    use crate::protocol::{Capability, PackProtocol};
+    use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
+    use crate::protocol::{Capability, SmartProtocol};
 
     #[test]
     pub fn test_read_pkt_line() {
@@ -482,7 +397,7 @@ pub mod test {
 
     #[test]
     pub fn test_build_smart_reply() {
-        let mock = PackProtocol::mock();
+        let mock = SmartProtocol::mock();
         let ref_list = vec![String::from("7bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n")];
         let pkt_line_stream = mock.build_smart_reply(&ref_list, String::from("git-upload-pack"));
         assert_eq!(&pkt_line_stream[..], b"001e# service=git-upload-pack\n000000e87bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n0000")
@@ -522,7 +437,7 @@ pub mod test {
 
     #[test]
     pub fn test_parse_ref_update() {
-        let mock = PackProtocol::mock();
+        let mock = SmartProtocol::mock();
         let mut bytes = Bytes::from("0000000000000000000000000000000000000000 27dd8d4cf39f3868c6eee38b601bc9e9939304f5 refs/heads/master\0".as_bytes());
         let result = mock.parse_ref_command(&mut bytes);
 
@@ -540,7 +455,7 @@ pub mod test {
 
     #[test]
     pub fn test_parse_capabilities() {
-        let mut mock = PackProtocol::mock();
+        let mut mock = SmartProtocol::mock();
         mock.parse_capabilities("report-status-v2 side-band-64k object-format=sha10000");
         assert_eq!(
             mock.capabilities,
