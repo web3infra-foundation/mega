@@ -295,7 +295,6 @@ mod test {
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
             mem_recorder: None,
-            ..Default::default()
         };
         assert!(a.heap_size() == 1024);
 
@@ -314,7 +313,6 @@ mod test {
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
             mem_recorder: None,
-            ..Default::default()
         };
         println!("a.heap_size() = {}", a.heap_size());
 
@@ -326,7 +324,6 @@ mod test {
             offset: 0,
             hash: SHA1::new(&vec![1; 20]),
             mem_recorder: None,
-            ..Default::default()
         };
         {
             let r = cache.insert(
@@ -431,7 +428,6 @@ mod test {
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
             mem_recorder: None,
-            ..Default::default()
         };
         let s = bincode::serialize(&a).unwrap();
         let b: CacheObject = bincode::deserialize(&s).unwrap();
