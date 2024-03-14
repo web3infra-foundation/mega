@@ -6,7 +6,6 @@
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use std::thread::{self};
 
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -354,11 +353,15 @@ impl PackProtocol {
 
     async fn unpack_and_persist(&self, mr: &MergeRequest, repo: &Repo, pack_file: Bytes) -> bool {
         let (sender, receiver) = mpsc::channel();
-        thread::spawn(|| {
-            let tmp = PathBuf::from("/tmp/.cache_temp");
-            let mut p = Pack::new(None, Some(1024 * 1024 * 1024 * 4), Some(tmp.clone()));
-            p.decode(&mut Cursor::new(pack_file), Some(sender)).unwrap();
-        });
+        // thread::spawn(|| {
+        //     let tmp = PathBuf::from("/tmp/.cache_temp");
+        //     let mut p = Pack::new(None, Some(1024 * 1024 * 1024 * 4), Some(tmp.clone()));
+        //     p.decode(&mut Cursor::new(pack_file), Some(sender)).unwrap();
+        // });
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let p = Pack::new(None, Some(1024 * 1024 * 1024 * 4), Some(tmp.clone()));
+        p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
+
         let storage = self.context.services.mega_storage.clone();
         let mut entry_list = Vec::new();
 
