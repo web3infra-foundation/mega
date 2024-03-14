@@ -166,7 +166,7 @@ impl<W: Write> PackEncoder<W> {
                     header_data.push((0x80 | size) as u8);
                     size >>= 7;
                 } else {
-                    header_data.push((size) as u8);
+                    header_data.push(size as u8);
                     break;
                 }
             }
@@ -207,10 +207,10 @@ mod tests {
     fn test_pack_encoder() {
 
         fn encode_once(window_size: usize) -> Vec<u8> {
-            let mut writter: Vec<u8> = Vec::new();
+            let mut writer: Vec<u8> = Vec::new();
             // make some different objects, or decode will fail
             let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
-            let mut encoder = PackEncoder::new(str_vec.len(), window_size, &mut writter);
+            let mut encoder = PackEncoder::new(str_vec.len(), window_size, &mut writer);
             let (tx, rx) = mpsc::channel::<Entry>();
             for str in str_vec {
                 let blob = Blob::from_content(str);
@@ -220,7 +220,7 @@ mod tests {
             drop(tx);
             encoder.encode(rx).unwrap();
             assert!(encoder.get_hash().is_some());
-            writter
+            writer
         }
         fn check_format(data: Vec<u8>) {
             let mut p = Pack::new(
@@ -229,7 +229,7 @@ mod tests {
                 Some(PathBuf::from("/tmp/.cache_temp")),
             );
             let mut reader = Cursor::new(data);
-            p.decode(&mut reader, None).expect("pack file format error");
+            p.decode(&mut reader, |_|{}).expect("pack file format error");
         }
         // without delta
         let pack_without_delta = encode_once(0);
