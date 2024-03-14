@@ -23,7 +23,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
-use ceres::protocol::{PackProtocol, Protocol};
+use ceres::protocol::{SmartProtocol, TransportProtocol};
 use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
@@ -140,10 +140,10 @@ async fn get_method_router(
     } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
         return lfs::lfs_retrieve_lock(&lfs_config, params).await;
     } else if Regex::new(r"/info/refs$").unwrap().is_match(uri.path()) {
-        let pack_protocol = PackProtocol::new(
+        let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
             state.context.clone(),
-            Protocol::Http,
+            TransportProtocol::Http,
         );
         return ceres::http::handler::git_info_refs(params, pack_protocol).await;
     } else {
@@ -173,20 +173,20 @@ async fn post_method_router(
         .unwrap()
         .is_match(uri.path())
     {
-        let pack_protocol = PackProtocol::new(
+        let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/git-upload-pack"),
             state.context.clone(),
-            Protocol::Http,
+            TransportProtocol::Http,
         );
         ceres::http::handler::git_upload_pack(req, pack_protocol).await
     } else if Regex::new(r"/git-receive-pack$")
         .unwrap()
         .is_match(uri.path())
     {
-        let pack_protocol = PackProtocol::new(
+        let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/git-receive-pack"),
             state.context.clone(),
-            Protocol::Http,
+            TransportProtocol::Http,
         );
         ceres::http::handler::git_receive_pack(req, pack_protocol).await
     } else {

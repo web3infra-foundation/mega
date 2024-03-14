@@ -1,10 +1,12 @@
+use std::str::FromStr;
+
 use callisto::{
     db_enums::{MergeStatus, StorageType},
     mega_blob, raw_blob,
 };
 use common::utils::generate_id;
 
-use crate::internal::object::blob::Blob;
+use crate::{hash::SHA1, internal::object::blob::Blob};
 
 impl From<Blob> for mega_blob::Model {
     fn from(value: Blob) -> Self {
@@ -36,6 +38,15 @@ impl From<Blob> for raw_blob::Model {
             local_path: None,
             remote_url: None,
             created_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+}
+
+impl From<raw_blob::Model> for Blob {
+    fn from(value: raw_blob::Model) -> Self {
+        Blob {
+            id: SHA1::from_str(&value.sha1).unwrap(),
+            data: value.data.unwrap(),
         }
     }
 }

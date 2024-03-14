@@ -15,7 +15,7 @@ use tokio::io::AsyncReadExt;
 
 use common::model::GetParams;
 
-use crate::protocol::{pack, PackProtocol, ServiceType};
+use crate::protocol::{smart, SmartProtocol, ServiceType};
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
@@ -25,7 +25,7 @@ use crate::protocol::{pack, PackProtocol, ServiceType};
 // The request MUST NOT contain additional query parameters.
 pub async fn git_info_refs(
     params: GetParams,
-    mut pack_protocol: PackProtocol,
+    mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let service_name = params.service.unwrap();
     pack_protocol.service_type = service_name.parse::<ServiceType>().unwrap();
@@ -57,7 +57,7 @@ pub async fn git_info_refs(
 /// Finally, the constructed response with the response body is returned.
 pub async fn git_upload_pack(
     req: Request<Body>,
-    mut pack_protocol: PackProtocol,
+    mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let upload_request: BytesMut = req
         .into_body()
@@ -87,7 +87,7 @@ pub async fn git_upload_pack(
         temp.reserve(65500);
         let length = reader.read_buf(&mut temp).await.unwrap();
         if length == 0 {
-            let bytes_out = Bytes::from_static(pack::PKT_LINE_END_MARKER);
+            let bytes_out = Bytes::from_static(smart::PKT_LINE_END_MARKER);
             tracing::info!("send back pkt-flush line '0000', actually: {:?}", bytes_out);
             res_bytes.extend(bytes_out);
             break;
@@ -123,7 +123,7 @@ pub async fn git_upload_pack(
 /// Finally, the constructed response is returned.
 pub async fn git_receive_pack(
     req: Request<Body>,
-    mut pack_protocol: PackProtocol,
+    mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let combined_body_bytes: BytesMut = req
         .into_body()

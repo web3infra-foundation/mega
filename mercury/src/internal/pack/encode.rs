@@ -145,7 +145,7 @@ impl<W: Write> PackEncoder<W> {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, path::PathBuf};
+    use std::{io::Cursor, path::PathBuf, thread, time::Duration};
 
     use venus::internal::object::blob::Blob;
 
@@ -163,7 +163,9 @@ mod tests {
         for str in str_vec {
             let blob = Blob::from_content(str);
             let entry: Entry = blob.into();
+            thread::sleep(Duration::from_secs(1));
             tx.send(entry).unwrap();
+            println!("send:{}", str);
         }
         drop(tx);
         encoder.encode(rx).unwrap();
