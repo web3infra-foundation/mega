@@ -176,6 +176,6 @@ mod tests {
             Some(PathBuf::from("/tmp/.cache_temp")),
         );
         let mut reader = Cursor::new(writter);
-        p.decode(&mut reader, None).expect("pack file format error");
+        p.decode(&mut reader, |_|{}).expect("pack file format error");
     }
 }
