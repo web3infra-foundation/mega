@@ -1,3 +1,5 @@
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{fs, io};
@@ -30,21 +32,16 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
             return Ok(());
         }
         let data = bincode::serialize(&self).unwrap();
-        // if path.exists(){
-        //     panic!("file {:?} already exists", path)
-        // }
         let path = path.with_extension("temp");
-        let res = fs::write(&path, data);
-        if let Err(e) = res {
-            println!("write {:?} error: {:?}", path, e);
-            return Err(e);
+        {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path.clone())?;
+            file.write_all(&data)?;
         }
         let final_path = path.with_extension("");
-        let res = fs::rename(&path, final_path.clone());
-        if let Err(e) = res {
-            println!("rename {:?} error: {:?}", path, e);
-            return Err(e);
-        }
+        fs::rename(&path, final_path.clone())?;
         Ok(())
     }
 }
@@ -80,7 +77,7 @@ impl Default for CacheObject {
 // Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size() 
+        self.data_decompress.heap_size()
     }
 }
 
@@ -90,7 +87,6 @@ impl Drop for CacheObject {
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
         CACHE_OBJS_MEM_SIZE.fetch_sub((*self).mem_size(), Ordering::SeqCst);
-
     }
 }
 
@@ -148,10 +144,16 @@ impl CacheObject {
 }
 
 /// trait alias for simple use
-pub trait ArcWrapperBounds: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static {}
+pub trait ArcWrapperBounds:
+    HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static
+{
+}
 // You must impl `Alias Trait` for all the `T` satisfying Constraints
 // Or, `T` will not satisfy `Alias Trait` even if it satisfies the Original traits
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds for T {}
+impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds
+    for T
+{
+}
 
 /// !Implementing encapsulation of Arc<T> to enable third-party Trait HeapSize implementation for the Arc type
 /// !Because of use Arc<T> in LruCache, the LruCache is not clear whether a pointer will drop the referenced
@@ -219,12 +221,18 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                         }
                         pool.execute(move || {
                             if !complete_signal.load(Ordering::SeqCst) {
-                                data_copy.f_save(&path_copy).unwrap();
+                                let res = data_copy.f_save(&path_copy);
+                                if let Err(e) = res {
+                                    println!("[f_save] {:?} error: {:?}", path_copy, e);
+                                }
                             }
                         });
                     }
                     None => {
-                        self.data.f_save(path).unwrap();
+                        let res = self.data.f_save(path);
+                        if let Err(e) = res {
+                            println!("[f_save] {:?} error: {:?}", path, e);
+                        }
                     }
                 }
             }
