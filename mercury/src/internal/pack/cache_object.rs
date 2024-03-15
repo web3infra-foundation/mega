@@ -1,3 +1,5 @@
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{fs, io};
@@ -10,7 +12,7 @@ use threadpool::ThreadPool;
 use venus::{hash::SHA1, internal::object::types::ObjectType};
 
 /// record heap-size of all CacheObjects, used for memory limit.
-static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
+// static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 /// file load&store trait
 pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
@@ -30,25 +32,20 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
             return Ok(());
         }
         let data = bincode::serialize(&self).unwrap();
-        // if path.exists(){
-        //     panic!("file {:?} already exists", path)
-        // }
         let path = path.with_extension("temp");
-        let res = fs::write(&path, data);
-        if let Err(e) = res {
-            println!("write {:?} error: {:?}", path, e);
-            return Err(e);
+        {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path.clone())?;
+            file.write_all(&data)?;
         }
         let final_path = path.with_extension("");
-        let res = fs::rename(&path, final_path.clone());
-        if let Err(e) = res {
-            println!("rename {:?} error: {:?}", path, e);
-            return Err(e);
-        }
+        fs::rename(&path, final_path.clone())?;
         Ok(())
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CacheObject {
     pub base_offset: usize,
     pub base_ref: SHA1,
@@ -56,7 +53,25 @@ pub struct CacheObject {
     pub data_decompress: Vec<u8>,
     pub offset: usize,
     pub hash: SHA1,
+    pub mem_recorder: Option<Arc<AtomicUsize>> // record mem-size of all CacheObjects of a Pack
 }
+
+impl Clone for CacheObject {
+    fn clone(&self) -> Self {
+        let obj = CacheObject {
+            base_offset: self.base_offset,
+            base_ref: self.base_ref,
+            obj_type: self.obj_type,
+            data_decompress: self.data_decompress.clone(),
+            offset: self.offset,
+            hash: self.hash,
+            mem_recorder: self.mem_recorder.clone(),
+        };
+        obj.record_mem_size();
+        obj
+    }
+}
+
 // For Convenience
 impl Default for CacheObject {
     // It will be called in "struct update syntax": `..Default::default()`
@@ -69,6 +84,7 @@ impl Default for CacheObject {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::default(),
+            mem_recorder: None,
         };
         obj.record_mem_size();
         obj
@@ -80,7 +96,7 @@ impl Default for CacheObject {
 // Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
     fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size() 
+        self.data_decompress.heap_size()
     }
 }
 
@@ -89,7 +105,9 @@ impl Drop for CacheObject {
     // (cannot change the heap-size during life cycle)
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
-        CACHE_OBJS_MEM_SIZE.fetch_sub((*self).mem_size(), Ordering::SeqCst);
+        if let Some(mem_recorder) = &self.mem_recorder {
+            mem_recorder.fetch_sub((*self).mem_size(), Ordering::SeqCst);
+        }
 
     }
 }
@@ -102,19 +120,26 @@ impl Drop for CacheObject {
 /// <br> Or, update it (not impl)
 pub trait MemSizeRecorder: MemSize {
     fn record_mem_size(&self);
-    fn get_mem_size() -> usize;
+    fn set_mem_recorder(&mut self, mem_size: Arc<AtomicUsize>);
+    // fn get_mem_size() -> usize;
 }
 
 impl MemSizeRecorder for CacheObject {
     /// record the mem-size of this `CacheObj` in a `static` `var`
     /// <br> since that, DO NOT modify `CacheObj` after recording
     fn record_mem_size(&self) {
-        CACHE_OBJS_MEM_SIZE.fetch_add(self.mem_size(), Ordering::SeqCst);
+        if let Some(mem_recorder) = &self.mem_recorder {
+            mem_recorder.fetch_add(self.mem_size(), Ordering::SeqCst);
+        }
     }
 
-    fn get_mem_size() -> usize {
-        CACHE_OBJS_MEM_SIZE.load(Ordering::SeqCst)
+    fn set_mem_recorder(&mut self, mem_recorder: Arc<AtomicUsize>) {
+        self.mem_recorder = Some(mem_recorder);
     }
+
+    // fn get_mem_size() -> usize {
+    //     CACHE_OBJS_MEM_SIZE.load(Ordering::SeqCst)
+    // }
 }
 
 impl CacheObject {
@@ -126,6 +151,7 @@ impl CacheObject {
             obj_type,
             offset,
             hash,
+            mem_recorder: None,
             ..Default::default()
         }
     }
@@ -219,12 +245,18 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                         }
                         pool.execute(move || {
                             if !complete_signal.load(Ordering::SeqCst) {
-                                data_copy.f_save(&path_copy).unwrap();
+                                let res = data_copy.f_save(&path_copy);
+                                if let Err(e) = res {
+                                    println!("[f_save] {:?} error: {:?}", path_copy, e);
+                                }
                             }
                         });
                     }
                     None => {
-                        self.data.f_save(path).unwrap();
+                        let res = self.data.f_save(path);
+                        if let Err(e) = res {
+                            println!("[f_save] {:?} error: {:?}", path, e);
+                        }
                     }
                 }
             }
@@ -242,14 +274,18 @@ mod test {
     #[ignore = "only in single thread"]
     // 只在单线程测试
     fn test_heap_size_record() {
-        let obj = CacheObject {
+        let mut obj = CacheObject {
             data_decompress: vec![0; 1024],
+            mem_recorder: None,
             ..Default::default()
         };
+        let mem = Arc::new(AtomicUsize::default());
+        assert_eq!(mem.load(Ordering::Relaxed), 0);
+        obj.set_mem_recorder(mem.clone());
         obj.record_mem_size();
-        assert_eq!(CacheObject::get_mem_size(), 1024);
+        assert_eq!(mem.load(Ordering::Relaxed), 1120);
         drop(obj);
-        assert_eq!(CacheObject::get_mem_size(), 0);
+        assert_eq!(mem.load(Ordering::Relaxed), 0);
     }
 
     #[test]
@@ -261,6 +297,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
+            mem_recorder: None,
         };
         assert!(a.heap_size() == 1024);
 
@@ -278,6 +315,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
+            mem_recorder: None,
         };
         println!("a.heap_size() = {}", a.heap_size());
 
@@ -288,6 +326,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![1; 20]),
+            mem_recorder: None,
         };
         {
             let r = cache.insert(
@@ -391,6 +430,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
+            mem_recorder: None,
         };
         let s = bincode::serialize(&a).unwrap();
         let b: CacheObject = bincode::deserialize(&s).unwrap();

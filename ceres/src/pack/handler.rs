@@ -3,7 +3,6 @@ use std::{
     io::{Cursor, Write},
     path::PathBuf,
     sync::mpsc,
-    thread,
 };
 
 use async_trait::async_trait;
@@ -88,11 +87,9 @@ impl PackHandler for SmartProtocol {
         }
 
         let (sender, receiver) = mpsc::channel();
-        thread::spawn(|| {
-            let tmp = PathBuf::from("/tmp/.cache_temp");
-            let mut p = Pack::new(None, Some(1024 * 1024 * 1024 * 4), Some(tmp.clone()));
-            p.decode(&mut Cursor::new(pack_file), Some(sender)).unwrap();
-        });
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let p = Pack::new(None, Some(1024 * 1024 * 1024 * 4), Some(tmp.clone()));
+        p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
         let storage = self.context.services.mega_storage.clone();
         let mut entry_list = Vec::new();
 
@@ -115,7 +112,6 @@ impl PackHandler for SmartProtocol {
         let total = storage.get_obj_count_by_repo_id(repo).await;
         tracing::info!("total: {}", total);
         let mut encoder = PackEncoder::new(total, 0, &mut writer);
-
 
         for m in storage
             .get_commits_by_repo_id(repo)
