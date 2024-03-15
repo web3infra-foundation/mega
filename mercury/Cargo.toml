@@ -9,7 +9,7 @@ edition = "2021"
 common = { path = "../common" }
 callisto = { path = "../jupiter/callisto" }
 venus = { path = "../venus" }
-
+delta = { path = "../delta" }
 serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
 hex = { workspace = true }
