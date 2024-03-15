@@ -3,8 +3,8 @@
 //!
 //!
 //!
-//! 
-#[cfg(feature="diff_mydrs")]
+//!
+#[cfg(feature = "diff_mydrs")]
 use diffs::myers;
 use diffs::Diff;
 
@@ -26,16 +26,16 @@ struct DeltaOp {
 #[derive(Debug)]
 pub struct DeltaDiff<'a> {
     ops: Vec<DeltaOp>,
-    old_data :&'a [u8],
+    old_data: &'a [u8],
     new_data: &'a [u8],
     ssam: usize,
     ssam_r: f64,
 }
 
-impl <'a>DeltaDiff<'a> {
+impl<'a> DeltaDiff<'a> {
     /// Diff the two u8 array slice , Type should be same.
     /// Return the DeltaDiff struct.
-    pub fn new(old_data: &'a [u8], new_data: &'a [u8]) ->  Self {
+    pub fn new(old_data: &'a [u8], new_data: &'a [u8]) -> Self {
         let mut delta_diff = DeltaDiff {
             ops: vec![],
             old_data,
@@ -44,7 +44,7 @@ impl <'a>DeltaDiff<'a> {
             ssam_r: 0.00,
         };
 
-        #[cfg(feature="diff_mydrs")]
+        #[cfg(feature = "diff_mydrs")]
         myers::diff(
             &mut delta_diff,
             old_data,
@@ -56,7 +56,7 @@ impl <'a>DeltaDiff<'a> {
         )
         .unwrap();
 
-        #[cfg(not(feature="diff_mydrs"))]
+        #[cfg(not(feature = "diff_mydrs"))]
         diffs::patience::diff(
             &mut delta_diff,
             old_data,
@@ -74,7 +74,7 @@ impl <'a>DeltaDiff<'a> {
     ///
     ///
     pub fn encode(&self) -> Vec<u8> {
-        let mut result: Vec<u8> = Vec::with_capacity(self.ops.len()*30);
+        let mut result: Vec<u8> = Vec::with_capacity(self.ops.len() * 30);
         result.append(&mut write_size_encoding(self.old_data.len()));
         result.append(&mut write_size_encoding(self.new_data.len()));
 
@@ -134,7 +134,6 @@ impl <'a>DeltaDiff<'a> {
     }
 }
 
-
 impl Diff for DeltaDiff<'_> {
     type Error = ();
 
@@ -186,25 +185,24 @@ impl Diff for DeltaDiff<'_> {
                 len,
             });
         } else if let Some(tail) = self.ops.last_mut() {
-                if tail.begin + tail.len == _new
-                    && tail.ins == Optype::Data
-                    && tail.len + _len < DATA_INS_LEN
-                {
-                    tail.len += _len;
-                } else {
-                    self.ops.push(DeltaOp {
-                        ins: Optype::Data,
-                        begin: new,
-                        len,
-                    });
-                }
-        } else {
+            if tail.begin + tail.len == _new
+                && tail.ins == Optype::Data
+                && tail.len + _len < DATA_INS_LEN
+            {
+                tail.len += _len;
+            } else {
                 self.ops.push(DeltaOp {
                     ins: Optype::Data,
                     begin: new,
                     len,
                 });
-            
+            }
+        } else {
+            self.ops.push(DeltaOp {
+                ins: Optype::Data,
+                begin: new,
+                len,
+            });
         }
 
         Ok(())
@@ -234,36 +232,46 @@ fn write_size_encoding(number: usize) -> Vec<u8> {
     num
 }
 
-
 #[cfg(test)]
-mod tests{
+mod tests {
+    use flate2::bufread::ZlibDecoder;
+    use std::env;
+    use std::fs::File;
+    use std::io::{self, BufReader, Cursor, Read};
+    use std::path::{Path, PathBuf};
 
-    // use std::io::Cursor;
-    // use std::path::PathBuf;
-    // use std::env;
+    use crate::decode::delta_decode;
 
-    // use crate::internal::object::meta::Meta;
-    // use crate::internal::pack::delta::{undelta};
+    use super::DeltaDiff;
+    fn read_zlib_data(path: &Path) -> Result<Vec<u8>, io::Error> {
+        // 打开文件进行读取
+        let file = File::open(path)?;
+        let buf_reader = BufReader::new(file);
+        let mut deflate = ZlibDecoder::new(buf_reader);
+        let mut result = Vec::new();
+        deflate.read_to_end(&mut result)?;
+        Ok(result)
+    }
 
-    // use super::DeltaDiff;
-    // #[test]
-    // fn test_delta_fn(){
-       
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/diff/16ecdcc8f663777896bd39ca025a041b7f005e");
-    //     let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
-    //     let old_data= meta.data;
+    #[test]
+    fn test_delta_fn() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/diff/16ecdcc8f663777896bd39ca025a041b7f005e");
+        let old_data = read_zlib_data(&source).unwrap();
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/diff/bee0d45f981adf7c2926a0dc04deb7f006bcc3");
+        let new_data = read_zlib_data(&source).unwrap();
 
-    //     let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-    //     source.push("tests/diff/bee0d45f981adf7c2926a0dc04deb7f006bcc3");
-    //     let meta = Meta::new_from_file(source.to_str().unwrap()).unwrap();
-    //     let new_data= meta.data;
-        
-    //     let d = DeltaDiff::new(&old_data,&new_data);
-    //     let delta_result = d.encode();
-    //     let tounpack = undelta(&mut Cursor::new(delta_result),&old_data ).unwrap();
-    //     assert_eq!(tounpack,new_data);
-    //     let rate = d.get_ssam_rate();
-    //     println!("P{}",rate);
-    // }
+        let d = DeltaDiff::new(&old_data, &new_data);
+        let delta_result = d.encode();
+        println!(
+            "delta size: from {} to {}",
+            old_data.len(),
+            delta_result.len()
+        );
+
+        let mut reader = Cursor::new(&delta_result);
+        let rebuild_data = delta_decode(&mut reader, &old_data).expect("delta format error");
+        assert_eq!(new_data, rebuild_data);
+    }
 }

@@ -486,4 +486,13 @@ mod tests {
 
         assert!(result.is_err());
     }
+    
+    #[test]
+    fn test_read_offset_encoding(){
+        let data:Vec<u8> = vec![0b_1101_0101,0b_0000_0101];
+        let mut cursor = Cursor::new(data);
+        let result = read_offset_encoding(&mut cursor);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), (11013, 2));
+    }
 }

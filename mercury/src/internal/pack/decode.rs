@@ -511,7 +511,7 @@ impl Pack {
 
     /// Reconstruct the Delta Object based on the "base object"
     /// and return a New object.
-    fn rebuild_delta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
+    pub fn rebuild_delta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
         const COPY_OFFSET_BYTES: u8 = 4;
         const COPY_SIZE_BYTES: u8 = 3;
