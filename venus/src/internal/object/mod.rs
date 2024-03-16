@@ -57,10 +57,10 @@ pub enum GitObject {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum GitObjectModel {
-    Commit(mega_commit::ActiveModel),
-    Tree(mega_tree::ActiveModel),
-    Blob(mega_blob::ActiveModel, raw_blob::ActiveModel),
-    Tag(mega_tag::ActiveModel),
+    Commit(mega_commit::Model),
+    Tree(mega_tree::Model),
+    Blob(mega_blob::Model, raw_blob::Model),
+    Tag(mega_tag::Model),
 }
 
 impl GitObject {
@@ -70,25 +70,25 @@ impl GitObject {
                 let mut mega_commit: mega_commit::Model = commit.into();
                 mega_commit.mr_id = mr_id;
                 mega_commit.repo_id = repo_id;
-                GitObjectModel::Commit(mega_commit.into())
+                GitObjectModel::Commit(mega_commit)
             }
             GitObject::Tree(tree) => {
                 let mut mega_tree: mega_tree::Model = tree.into();
                 mega_tree.mr_id = mr_id;
                 mega_tree.repo_id = repo_id;
-                GitObjectModel::Tree(mega_tree.into())
+                GitObjectModel::Tree(mega_tree)
             }
             GitObject::Blob(blob) => {
                 let mut mega_blob: mega_blob::Model = blob.clone().into();
                 let raw_blob: raw_blob::Model = blob.into();
                 mega_blob.mr_id = mr_id;
                 mega_blob.repo_id = repo_id;
-                GitObjectModel::Blob(mega_blob.into(), raw_blob.into())
+                GitObjectModel::Blob(mega_blob, raw_blob)
             }
             GitObject::Tag(tag) => {
                 let mut mega_tag: mega_tag::Model = tag.into();
                 mega_tag.repo_id = repo_id;
-                GitObjectModel::Tag(mega_tag.into())
+                GitObjectModel::Tag(mega_tag)
             }
         }
     }

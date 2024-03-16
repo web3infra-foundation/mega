@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use callisto::{raw_blob, refs};
-use common::utils::{generate_id, ZERO_ID};
+use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
 use jupiter::storage::batch_query_by_columns;
 use jupiter::storage::GitStorageProvider;
 use mercury::internal::pack::{encode::PackEncoder, Pack};
@@ -51,7 +51,10 @@ pub trait PackHandler {
         &self,
         want: Vec<String>,
         have: Vec<String>,
+        repo: &Repo,
     ) -> Result<Vec<u8>, GitError>;
+
+    // async fn init_encoder(&self, repo: &Repo, writer: &mut Vec<u8>) -> PackEncoder<&mut Vec<u8>>;
 
     async fn open_mr(&self) -> MergeRequest;
 
@@ -68,7 +71,7 @@ impl PackHandler for SmartProtocol {
 
         let mut head_hash = ZERO_ID.to_string();
         for git_ref in refs.iter() {
-            if git_ref.ref_name == *"refs/heads/main" {
+            if git_ref.ref_name == *MEGA_BRANCH_NAME {
                 head_hash = git_ref.ref_git_id.clone();
             }
         }
@@ -110,7 +113,6 @@ impl PackHandler for SmartProtocol {
 
         let storage = self.context.services.mega_storage.clone();
         let total = storage.get_obj_count_by_repo_id(repo).await;
-        tracing::info!("total: {}", total);
         let mut encoder = PackEncoder::new(total, 0, &mut writer);
 
         for m in storage
@@ -175,6 +177,7 @@ impl PackHandler for SmartProtocol {
         &self,
         _want: Vec<String>,
         _have: Vec<String>,
+        _repo: &Repo,
     ) -> Result<Vec<u8>, GitError> {
         todo!()
     }
