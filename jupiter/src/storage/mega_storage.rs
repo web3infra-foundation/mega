@@ -4,21 +4,24 @@ use std::str::FromStr;
 use std::{env, sync::Arc};
 
 use async_trait::async_trait;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
+    PaginatorTrait, QueryFilter, Set,
 };
 
 use callisto::db_enums::MergeStatus;
-use callisto::{git_repo, mega_commit, mega_mr, mega_tree, refs};
+use callisto::{
+    git_repo, mega_blob, mega_commit, mega_mr, mega_snapshot, mega_tag, mega_tree, raw_blob, refs,
+};
 use common::errors::MegaError;
 use ganymede::mega_node::MegaNode;
 use ganymede::model::converter::{self, MegaModelConverter};
 use ganymede::model::create_file::CreateFileInfo;
-use storage::driver::database::storage::batch_save_model;
 use venus::hash::SHA1;
 use venus::internal::object::blob::Blob;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use venus::internal::pack::entry::MegaModel;
+use venus::internal::object::GitObjectModel;
 use venus::internal::pack::reference::CommandType;
 use venus::internal::{
     object::commit::Commit,
@@ -27,10 +30,13 @@ use venus::internal::{
 use venus::mr::MergeRequest;
 use venus::repo::Repo;
 
+use crate::storage::batch_save_model;
 use crate::{
     raw_storage::{self, RawStorage},
     storage::GitStorageProvider,
 };
+
+use super::batch_save_model_with_conflict;
 
 #[derive(Clone)]
 pub struct MegaStorage {
@@ -75,20 +81,17 @@ impl GitStorageProvider for MegaStorage {
     }
 
     async fn update_ref(&self, repo: &Repo, ref_name: &str, new_id: &str) -> Result<(), MegaError> {
-        let mut ref_data: refs::Model = refs::Entity::find()
+        let ref_data: refs::Model = refs::Entity::find()
             .filter(refs::Column::RepoId.eq(repo.repo_id))
             .filter(refs::Column::RefName.eq(ref_name))
             .one(self.get_connection())
             .await
             .unwrap()
             .unwrap();
-        ref_data.ref_git_id = new_id.to_string();
-        ref_data.updated_at = chrono::Utc::now().naive_utc();
-        ref_data
-            .into_active_model()
-            .update(self.get_connection())
-            .await
-            .unwrap();
+        let mut ref_data: refs::ActiveModel = ref_data.into();
+        ref_data.ref_git_id = Set(new_id.to_string());
+        ref_data.updated_at = Set(chrono::Utc::now().naive_utc());
+        ref_data.update(self.get_connection()).await.unwrap();
         Ok(())
     }
 
@@ -211,18 +214,29 @@ impl MegaStorage {
         let mut blobs = Vec::new();
         let mut raw_blobs = Vec::new();
         let mut tags = Vec::new();
+        let mut snapshots: Vec<mega_snapshot::ActiveModel> = Vec::new();
+
         for entry in entry_list {
             let raw_obj = entry.process_entry();
-            let mega_model = raw_obj.convert_to_mega_model(repo.repo_id, mr.id);
-            // self.save_entry_extend(mega_model);
-            match mega_model {
-                MegaModel::Commit(commit) => commits.push(commit),
-                MegaModel::Tree(tree) => trees.push(tree),
-                MegaModel::Blob(blob, raw) => {
-                    blobs.push(blob);
-                    raw_blobs.push(raw);
+            let model = raw_obj.convert_to_mega_model(repo.repo_id, mr.id);
+            match model {
+                GitObjectModel::Commit(commit) => commits.push(commit.into_active_model()),
+                GitObjectModel::Tree(tree) => {
+                    trees.push(tree.clone().into_active_model());
+                    if repo.monorepo() {
+                        let snapshot: mega_snapshot::Model = tree.into();
+                        snapshots.push(snapshot.into_active_model());
+                    }
                 }
-                MegaModel::Tag(tag) => tags.push(tag),
+                GitObjectModel::Blob(blob, raw) => {
+                    blobs.push(blob.clone().into_active_model());
+                    raw_blobs.push(raw.into_active_model());
+                    if repo.monorepo() {
+                        let snapshot: mega_snapshot::Model = blob.into();
+                        snapshots.push(snapshot.into_active_model());
+                    }
+                }
+                GitObjectModel::Tag(tag) => tags.push(tag.into_active_model()),
             }
         }
 
@@ -239,12 +253,25 @@ impl MegaStorage {
             .await
             .unwrap();
         batch_save_model(self.get_connection(), tags).await.unwrap();
+        if repo.monorepo() {
+            batch_save_model_with_conflict(
+                self.get_connection(),
+                snapshots,
+                OnConflict::new()
+                    .update_columns(vec![
+                        mega_snapshot::Column::CommitId,
+                        mega_snapshot::Column::Sha1,
+                    ])
+                    .to_owned(),
+            )
+            .await
+            .unwrap();
+        }
         Ok(())
     }
 
     pub async fn init_mega_directory(&self) {
         let converter = MegaModelConverter::init();
-        converter.traverse_from_root();
         let mut commit: mega_commit::Model = converter.commit.into();
         commit.status = MergeStatus::Merged;
         mega_commit::Entity::insert(commit.into_active_model())
@@ -266,6 +293,10 @@ impl MegaStorage {
             .unwrap();
         let raw_blobs = converter.raw_blobs.borrow().values().cloned().collect();
         batch_save_model(self.get_connection(), raw_blobs)
+            .await
+            .unwrap();
+        let mega_snapshot = converter.mega_snapshots.borrow().clone();
+        batch_save_model(self.get_connection(), mega_snapshot)
             .await
             .unwrap();
     }
@@ -334,7 +365,7 @@ impl MegaStorage {
                 name: file_info.name.clone(),
             }
         } else {
-            let blob = Blob::from_content(&file_info.content);
+            let blob = Blob::from_content(&file_info.content.unwrap());
             TreeItem {
                 mode: TreeItemMode::Blob,
                 id: blob.id,
@@ -394,8 +425,7 @@ impl MegaStorage {
         Ok(result)
     }
 
-    #[allow(unused)]
-    async fn save_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
+    pub async fn save_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
         let model: git_repo::Model = repo.into();
         let a_model = model.into_active_model();
         git_repo::Entity::insert(a_model)
@@ -406,7 +436,7 @@ impl MegaStorage {
     }
 
     #[allow(unused)]
-    async fn update_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
+    pub async fn update_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
         let git_repo = git_repo::Entity::find_by_id(repo.repo_id)
             .one(self.get_connection())
             .await
@@ -449,6 +479,17 @@ impl MegaStorage {
             .unwrap())
     }
 
+    pub async fn get_commits_by_repo_id(
+        &self,
+        repo: &Repo,
+    ) -> Result<Vec<mega_commit::Model>, MegaError> {
+        Ok(mega_commit::Entity::find()
+            .filter(mega_commit::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
     async fn get_mega_tree_by_path(
         &self,
         full_path: &str,
@@ -481,6 +522,77 @@ impl MegaStorage {
             .unwrap();
         Ok(())
     }
+
+    pub async fn get_trees_by_repo_id(
+        &self,
+        repo: &Repo,
+    ) -> Result<Vec<mega_tree::Model>, MegaError> {
+        Ok(mega_tree::Entity::find()
+            .filter(mega_tree::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_blobs_by_repo_id(
+        &self,
+        repo: &Repo,
+    ) -> Result<Vec<mega_blob::Model>, MegaError> {
+        Ok(mega_blob::Entity::find()
+            .filter(mega_blob::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_tags_by_repo_id(
+        &self,
+        repo: &Repo,
+    ) -> Result<Vec<mega_tag::Model>, MegaError> {
+        Ok(mega_tag::Entity::find()
+            .filter(mega_tag::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_obj_count_by_repo_id(&self, repo: &Repo) -> usize {
+        let c_count = mega_commit::Entity::find()
+            .filter(mega_commit::Column::RepoId.eq(repo.repo_id))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        let t_count = mega_tree::Entity::find()
+            .filter(mega_tree::Column::RepoId.eq(repo.repo_id))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        let bids: Vec<String> = self
+            .get_blobs_by_repo_id(repo)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|b| b.blob_id)
+            .collect();
+
+        let b_count = raw_blob::Entity::find()
+            .filter(raw_blob::Column::Sha1.is_in(bids))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        let tag_count = mega_tag::Entity::find()
+            .filter(mega_tag::Column::RepoId.eq(repo.repo_id))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        (c_count + t_count + b_count + tag_count)
+            .try_into()
+            .unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -498,37 +610,37 @@ mod test {
             is_directory: true,
             name: String::from("root"),
             path: String::from("/"),
-            content: String::from(""),
+            content: None,
         };
         let cf2 = CreateFileInfo {
             is_directory: true,
             name: String::from("projects"),
             path: String::from("/root"),
-            content: String::from(""),
+            content: None,
         };
         let cf3 = CreateFileInfo {
             is_directory: true,
             name: String::from("mega"),
             path: String::from("/root/projects"),
-            content: String::from(""),
+            content: None,
         };
         let cf4 = CreateFileInfo {
             is_directory: false,
             name: String::from("readme"),
             path: String::from("/root"),
-            content: String::from(""),
+            content: Some(String::from("readme")),
         };
         let cf5 = CreateFileInfo {
             is_directory: true,
             name: String::from("import"),
             path: String::from("/root"),
-            content: String::from(""),
+            content: None,
         };
         let cf6 = CreateFileInfo {
             is_directory: true,
             name: String::from("linux"),
             path: String::from("/root/import"),
-            content: String::from(""),
+            content: None,
         };
         let cfs: Vec<CreateFileInfo> = vec![cf1, cf2, cf3, cf4, cf5, cf6];
         let storage = MegaStorage::mock();

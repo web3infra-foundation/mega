@@ -8,13 +8,11 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     #[sea_orm(column_type = "Text", unique)]
-    pub path: String,
+    pub full_path: String,
     #[sea_orm(column_type = "Text")]
     pub name: String,
-    pub import_dir: bool,
-    pub tree_id: Option<String>,
-    pub sub_trees: Option<Vec<String>>,
-    pub commit_id: Option<String>,
+    pub sha1: String,
+    pub commit_id: String,
     pub size: i32,
     pub created_at: DateTime,
     pub updated_at: DateTime,

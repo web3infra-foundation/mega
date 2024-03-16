@@ -21,3 +21,4 @@ pub mod mega_tag;
 pub mod mega_tree;
 pub mod raw_blob;
 pub mod refs;
+pub mod model;

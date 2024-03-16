@@ -1,15 +1,13 @@
 CREATE TABLE IF NOT EXISTS "mega_snapshot"(
   "id" BIGINT PRIMARY KEY,
-  "path" TEXT NOT NULL,
+  "full_path" TEXT NOT NULL,
   "name" TEXT NOT NULL,
-  "import_dir" BOOLEAN NOT NULL,
-  "tree_id" VARCHAR(40),
-  "sub_trees" TEXT [],
-  "commit_id" VARCHAR(40),
+  "sha1" VARCHAR(40) NOT NULL,
+  "commit_id" VARCHAR(40) NOT NULL, 
   "size" INT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_md_full_path UNIQUE (path)
+  CONSTRAINT uniq_md_full_path UNIQUE (full_path)
 );
 CREATE TABLE IF NOT EXISTS "mega_commit" (
   "id" BIGINT PRIMARY KEY,
@@ -20,7 +18,7 @@ CREATE TABLE IF NOT EXISTS "mega_commit" (
   "author" TEXT,
   "committer" TEXT,
   "content" TEXT,
-  "mr_id" VARCHAR(20) NOT NULL,
+  "mr_id" BIGINT NOT NULL,
   "status" VARCHAR(20) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
@@ -34,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "mega_tree" (
   "sub_trees" BYTEA NOT NULL,
   "parent_id" VARCHAR(40),
   "name" TEXT NOT NULL,
-  "mr_id" VARCHAR(20) NOT NULL,
+  "mr_id" BIGINT NOT NULL,
   "status" VARCHAR(20) NOT NULL,
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
@@ -49,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "mega_blob" (
   "blob_id" VARCHAR(40) NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "name" TEXT NOT NULL,
-  "mr_id" VARCHAR(20),
+  "mr_id" BIGINT NOT NULL,
   "status" VARCHAR(20) NOT NULL,
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
@@ -169,11 +167,11 @@ CREATE TABLE IF NOT EXISTS "git_tag" (
 CREATE TABLE IF NOT EXISTS "raw_blob" (
   "id" BIGINT PRIMARY KEY,
   "sha1" VARCHAR(40) NOT NULL,
-  "storage_type" VARCHAR(20) NOT NULL,
   "content" TEXT,
-  "content_type" VARCHAR(20),
+  "file_type" VARCHAR(20),
+  "storage_type" VARCHAR(20) NOT NULL,
   "data" BYTEA,
-  "local_storage_path" TEXT,
+  "local_path" TEXT,
   "remote_url" TEXT,
   "created_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_rb_sha1 UNIQUE (sha1)

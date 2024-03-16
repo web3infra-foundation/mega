@@ -17,9 +17,9 @@ use russh_keys::key;
 use tokio::io::AsyncReadExt;
 
 use ceres::lfs::lfs_structs::Link;
-use ceres::protocol::pack::{self};
+use ceres::protocol::smart::{self};
 use ceres::protocol::ServiceType;
-use ceres::protocol::{PackProtocol, Protocol};
+use ceres::protocol::{TransportProtocol, SmartProtocol};
 use jupiter::context::Context;
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
@@ -31,7 +31,7 @@ pub struct SshServer {
     pub id: usize,
     pub context: Context,
     // TODO: consider is it a good choice to bind data here, find a better solution to bind data with ssh client
-    pub pack_protocol: Option<PackProtocol>,
+    pub smart_protocol: Option<SmartProtocol>,
     pub data_combined: Vec<u8>,
 }
 
@@ -87,13 +87,13 @@ impl server::Handler for SshServer {
         let command: Vec<_> = data.split(' ').collect();
         let path = command[1];
         let path = path.replace(".git", "").replace('\'', "");
-        let mut pack_protocol =
-            PackProtocol::new(PathBuf::from(&path), self.context.clone(), Protocol::Ssh);
+        let mut smart_protocol =
+            SmartProtocol::new(PathBuf::from(&path), self.context.clone(), TransportProtocol::Ssh);
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
-                pack_protocol.service_type = ServiceType::from_str(command[0]).unwrap();
-                let res = pack_protocol.git_info_refs().await;
-                self.pack_protocol = Some(pack_protocol);
+                smart_protocol.service_type = ServiceType::from_str(command[0]).unwrap();
+                let res = smart_protocol.git_info_refs().await;
+                self.smart_protocol = Some(smart_protocol);
                 session.data(channel, res.to_vec().into());
                 session.channel_success(channel);
             }
@@ -155,14 +155,14 @@ impl server::Handler for SshServer {
         data: &[u8],
         mut session: Session,
     ) -> Result<(Self, Session), Self::Error> {
-        let pack_protocol = self.pack_protocol.as_mut().unwrap();
+        let smart_protocol = self.smart_protocol.as_mut().unwrap();
         tracing::info!(
             "receiving data length:{}",
             // String::from_utf8_lossy(data),
             data.len()
         );
 
-        match pack_protocol.service_type {
+        match smart_protocol.service_type {
             ServiceType::UploadPack => {
                 self.handle_upload_pack(channel, data, &mut session).await;
             }
@@ -179,8 +179,8 @@ impl server::Handler for SshServer {
         channel: ChannelId,
         mut session: Session,
     ) -> Result<(Self, Session), Self::Error> {
-        if let Some(pack_protocol) = self.pack_protocol.as_mut() {
-            if pack_protocol.service_type == ServiceType::ReceivePack {
+        if let Some(smart_protocol) = self.smart_protocol.as_mut() {
+            if smart_protocol.service_type == ServiceType::ReceivePack {
                 self.handle_receive_pack(channel, &mut session).await;
             };
         }
@@ -197,9 +197,9 @@ impl server::Handler for SshServer {
 
 impl SshServer {
     async fn handle_upload_pack(&mut self, channel: ChannelId, data: &[u8], session: &mut Session) {
-        let pack_protocol = self.pack_protocol.as_mut().unwrap();
+        let smart_protocol = self.smart_protocol.as_mut().unwrap();
 
-        let (send_pack_data, buf) = pack_protocol
+        let (send_pack_data, buf) = smart_protocol
             .git_upload_pack(&mut Bytes::copy_from_slice(data))
             .await
             .unwrap();
@@ -213,18 +213,18 @@ impl SshServer {
             temp.reserve(65500);
             let length = reader.read_buf(&mut temp).await.unwrap();
             if temp.is_empty() {
-                session.data(channel, pack::PKT_LINE_END_MARKER.to_vec().into());
+                session.data(channel, smart::PKT_LINE_END_MARKER.to_vec().into());
                 return;
             }
-            let bytes_out = pack_protocol.build_side_band_format(temp, length);
+            let bytes_out = smart_protocol.build_side_band_format(temp, length);
             session.data(channel, bytes_out.to_vec().into());
         }
     }
 
     async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
-        let pack_protocol = self.pack_protocol.as_mut().unwrap();
+        let smart_protocol = self.smart_protocol.as_mut().unwrap();
 
-        let buf = pack_protocol
+        let buf = smart_protocol
             .git_receive_pack(Bytes::from(self.data_combined.to_vec()))
             .await
             .unwrap();
