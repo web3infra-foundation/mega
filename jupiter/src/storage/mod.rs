@@ -10,7 +10,10 @@ use sea_orm::{
     sea_query::OnConflict, ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection,
     EntityTrait, QueryFilter,
 };
-use venus::{internal::pack::{entry::Entry, reference::RefCommand}, repo::Repo};
+use venus::{
+    internal::pack::{entry::Entry, reference::RefCommand},
+    repo::Repo,
+};
 
 ///
 /// This interface is designed to handle the commonalities between the git storage
@@ -66,11 +69,28 @@ where
     E: EntityTrait,
     A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
 {
+    batch_save_model_with_conflict(
+        connection,
+        save_models,
+        OnConflict::new().do_nothing().to_owned(),
+    )
+    .await
+}
+
+pub async fn batch_save_model_with_conflict<E, A>(
+    connection: &impl ConnectionTrait,
+    save_models: Vec<A>,
+    onconflict: OnConflict,
+) -> Result<(), MegaError>
+where
+    E: EntityTrait,
+    A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
+{
     let mut results = Vec::new();
     for chunk in save_models.chunks(1000) {
         // notice that sqlx not support packets larger than 16MB now
         let res = E::insert_many(chunk.iter().cloned())
-            .on_conflict(OnConflict::new().do_nothing().to_owned())
+            .on_conflict(onconflict.clone())
             .exec(connection);
         results.push(res);
     }

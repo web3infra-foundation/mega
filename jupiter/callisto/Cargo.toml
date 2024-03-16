@@ -9,6 +9,8 @@ name = "callisto"
 path = "src/lib.rs"
 
 [dependencies]
+common = { path = "../../common" }
+
 serde = { workspace = true, features = ["derive"] }
 chrono = { workspace = true }
 sea-orm = { workspace = true, features = ["sqlx-postgres", "sqlx-mysql"] }

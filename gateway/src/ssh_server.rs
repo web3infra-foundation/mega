@@ -78,7 +78,7 @@ pub async fn start_server(command: &SshOptions) {
         clients: Arc::new(Mutex::new(HashMap::new())),
         id: 0,
         context,
-        pack_protocol: None,
+        smart_protocol: None,
         data_combined: Vec::new(),
     };
     let server_url = format!("{}:{}", host, ssh_port);

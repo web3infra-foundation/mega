@@ -10,11 +10,11 @@ use jupiter::context::Context;
 
 use venus::internal::pack::reference::RefCommand;
 
-pub mod pack;
+pub mod smart;
 
 #[derive(Clone)]
-pub struct PackProtocol {
-    pub transfer_protocol: Protocol,
+pub struct SmartProtocol {
+    pub transport_protocol: TransportProtocol,
     pub capabilities: Vec<Capability>,
     pub path: PathBuf,
     pub command_list: Vec<RefCommand>,
@@ -24,7 +24,7 @@ pub struct PackProtocol {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
-pub enum Protocol {
+pub enum TransportProtocol {
     Local,
     #[default]
     Http,
@@ -116,14 +116,14 @@ impl SideBind {
         }
     }
 }
-pub struct RefUpdateRequet {
-    pub comand_list: Vec<RefCommand>,
+pub struct RefUpdateRequest {
+    pub command_list: Vec<RefCommand>,
 }
 
-impl PackProtocol {
-    pub fn new(path: PathBuf, context: Context, transfer_protocol: Protocol) -> Self {
-        PackProtocol {
-            transfer_protocol,
+impl SmartProtocol {
+    pub fn new(path: PathBuf, context: Context, transport_protocol: TransportProtocol) -> Self {
+        SmartProtocol {
+            transport_protocol,
             capabilities: Vec::new(),
             path,
             command_list: Vec::new(),
@@ -134,8 +134,8 @@ impl PackProtocol {
 
     pub fn mock() -> Self {
         let context = Context::mock();
-        PackProtocol {
-            transfer_protocol: Protocol::default(),
+        SmartProtocol {
+            transport_protocol: TransportProtocol::default(),
             capabilities: Vec::new(),
             path: PathBuf::new(),
             command_list: Vec::new(),

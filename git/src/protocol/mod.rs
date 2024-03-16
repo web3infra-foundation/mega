@@ -242,17 +242,6 @@ pub fn new_mr_info(mr_id: i64) -> mr_info::ActiveModel {
 }
 
 impl PackProtocol {
-    pub fn new(path: PathBuf, context: Context, transfer_protocol: Protocol) -> Self {
-        PackProtocol {
-            transfer_protocol,
-            capabilities: Vec::new(),
-            path,
-            storage: context.storage.clone(),
-            command_list: Vec::new(),
-            service_type: ServiceType::ReceivePack,
-            context,
-        }
-    }
 
     pub fn compatibility_new(
         path: PathBuf,

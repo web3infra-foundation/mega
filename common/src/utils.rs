@@ -19,3 +19,5 @@ pub fn generate_id() -> i64 {
     }
     new_id
 }
+
+pub const MEGA_BRANCH_NAME: &str= "refs/heads/main";

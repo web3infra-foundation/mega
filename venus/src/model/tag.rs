@@ -1,9 +1,9 @@
+use std::str::FromStr;
+
 use callisto::mega_tag;
 use common::utils::generate_id;
 
-use crate::internal::object::tag::Tag;
-
-
+use crate::{hash::SHA1, internal::object::{signature::Signature, tag::Tag, types::ObjectType}};
 
 impl From<Tag> for mega_tag::Model {
     fn from(value: Tag) -> Self {
@@ -18,6 +18,19 @@ impl From<Tag> for mega_tag::Model {
             message: value.message,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+}
+
+impl From<mega_tag::Model> for Tag {
+    fn from(value: mega_tag::Model) -> Self {
+        Self {
+            id: SHA1::from_str(&value.tag_id).unwrap(),
+            object_hash: SHA1::from_str(&value.object_id).unwrap(),
+            object_type: ObjectType::from_string(&value.object_type).unwrap(),
+            tag_name: value.tag_name,
+            tagger: Signature::from_data(value.tagger.into_bytes()).unwrap(),
+            message: value.message,
         }
     }
 }
