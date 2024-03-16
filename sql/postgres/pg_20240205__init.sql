@@ -1,15 +1,13 @@
 CREATE TABLE IF NOT EXISTS "mega_snapshot"(
   "id" BIGINT PRIMARY KEY,
-  "path" TEXT NOT NULL,
+  "full_path" TEXT NOT NULL,
   "name" TEXT NOT NULL,
-  "import_dir" BOOLEAN NOT NULL,
-  "tree_id" VARCHAR(40),
-  "sub_trees" TEXT [],
-  "commit_id" VARCHAR(40),
+  "sha1" VARCHAR(40) NOT NULL,
+  "commit_id" VARCHAR(40) NOT NULL, 
   "size" INT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_md_full_path UNIQUE (path)
+  CONSTRAINT uniq_md_full_path UNIQUE (full_path)
 );
 CREATE TABLE IF NOT EXISTS "mega_commit" (
   "id" BIGINT PRIMARY KEY,

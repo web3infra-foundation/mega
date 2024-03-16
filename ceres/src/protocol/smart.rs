@@ -180,7 +180,7 @@ impl SmartProtocol {
                     }
                 }
 
-                pack_data = self.incremental_pack(want, have).await.unwrap();
+                pack_data = self.incremental_pack(want, have, &repo).await.unwrap();
             } else {
                 tracing::error!("capability unsupported");
             }
@@ -438,11 +438,11 @@ pub mod test {
     #[test]
     pub fn test_parse_ref_update() {
         let mock = SmartProtocol::mock();
-        let mut bytes = Bytes::from("0000000000000000000000000000000000000000 27dd8d4cf39f3868c6eee38b601bc9e9939304f5 refs/heads/master\0".as_bytes());
+        let mut bytes = Bytes::from("0000000000000000000000000000000000000000 27dd8d4cf39f3868c6eee38b601bc9e9939304f5 refs/heads/main\0".as_bytes());
         let result = mock.parse_ref_command(&mut bytes);
 
         let command = RefCommand {
-            ref_name: String::from("refs/heads/master"),
+            ref_name: String::from("refs/heads/main"),
             old_id: String::from("0000000000000000000000000000000000000000"),
             new_id: String::from("27dd8d4cf39f3868c6eee38b601bc9e9939304f5"),
             status: String::from("ok"),

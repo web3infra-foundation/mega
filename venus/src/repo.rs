@@ -16,6 +16,10 @@ impl Repo {
             repo_name: String::new(),
         }
     }
+
+    pub fn monorepo(&self) -> bool {
+        self.repo_id == 0
+    }
 }
 
 impl From<git_repo::Model> for Repo {

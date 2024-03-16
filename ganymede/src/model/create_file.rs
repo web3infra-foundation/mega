@@ -14,7 +14,7 @@ pub struct CreateFileInfo {
     /// leave empty if it's under root
     pub path: String,
     // pub import_dir: bool,
-    pub content: String,
+    pub content: Option<String>,
 }
 
 // impl From<CreateFileInfo> for mega_snapshot::Model {
