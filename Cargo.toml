@@ -54,7 +54,7 @@ go-defer = { workspace = true }
 
 
 [workspace.dependencies]
-anyhow = "1.0.80"
+anyhow = "1.0.81"
 serde = { version = "1.0.197" }
 serde_json = "1.0.114"
 dotenvy = "0.15.7"
@@ -64,9 +64,9 @@ thiserror = "1.0.57"
 rand = "0.8.5"
 smallvec = "1.13.1"
 tokio = { version = "1.36.0" }
-tokio-test = "0.4.3"
-clap = { version = "4.5.2" }
-async-trait = "0.1.77"
+tokio-test = "0.4.4"
+clap = { version = "4.5.3" }
+async-trait = "0.1.78"
 bytes = "1.5.0"
 chrono = "0.4.35"
 sha1 = "0.10.6"
@@ -77,7 +77,7 @@ russh = "0.42.0"
 russh-keys = "0.42.0"
 axum = "0.7.4"
 hex = "0.4.3"
-sea-orm = "0.12.14"
+sea-orm = "0.12.15"
 redis = "0.24.0"
 flate2 = "1.0.28"
 bstr = "1.9.1"

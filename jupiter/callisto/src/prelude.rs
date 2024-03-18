@@ -13,6 +13,7 @@ pub use crate::mega_blob::Entity as MegaBlob;
 pub use crate::mega_commit::Entity as MegaCommit;
 pub use crate::mega_issue::Entity as MegaIssue;
 pub use crate::mega_mr::Entity as MegaMr;
+pub use crate::mega_refs::Entity as MegaRefs;
 pub use crate::mega_snapshot::Entity as MegaSnapshot;
 pub use crate::mega_tag::Entity as MegaTag;
 pub use crate::mega_tree::Entity as MegaTree;

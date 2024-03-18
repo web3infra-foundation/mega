@@ -1,16 +1,37 @@
-use common::utils::ZERO_ID;
+use common::utils::{MEGA_BRANCH_NAME, ZERO_ID};
 use serde::{Deserialize, Serialize};
 
-use callisto::db_enums::RefType;
+use callisto::{db_enums::RefType, mega_refs, refs};
 
 ///
 /// Represent the references(all branches and tags) in protocol transfer
 ///
 #[derive(Clone, Serialize, Deserialize, Default)]
-pub struct Reference {
+pub struct Refs {
     pub ref_name: String,
     pub ref_hash: String,
 }
+
+
+impl From<refs::Model> for Refs {
+    fn from(value: refs::Model) -> Self {
+        Self {
+            ref_name: value.ref_name,
+            ref_hash: value.ref_git_id,
+        }
+    }
+}
+
+impl From<mega_refs::Model> for Refs {
+    fn from(value: mega_refs::Model) -> Self {
+        Self {
+            ref_name: MEGA_BRANCH_NAME.to_owned(),
+            ref_hash: value.ref_git_id,
+        }
+    }
+}
+
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CommandType {

@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::{env, sync::Arc};
 
 use async_trait::async_trait;
+use common::utils::generate_id;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
@@ -12,7 +13,8 @@ use sea_orm::{
 
 use callisto::db_enums::MergeStatus;
 use callisto::{
-    git_repo, mega_blob, mega_commit, mega_mr, mega_snapshot, mega_tag, mega_tree, raw_blob, refs,
+    git_repo, mega_blob, mega_commit, mega_mr, mega_refs, mega_snapshot, mega_tag, mega_tree,
+    raw_blob, refs,
 };
 use common::errors::MegaError;
 use ganymede::mega_node::MegaNode;
@@ -194,6 +196,29 @@ impl MegaStorage {
             .await?)
     }
 
+    pub async fn save_mega_refs(&self, path: &str, ref_id: &str) -> Result<(), MegaError> {
+        let model = mega_refs::Model {
+            id: generate_id(),
+            path: path.to_owned(),
+            ref_git_id: ref_id.to_owned(),
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
+        model
+            .into_active_model()
+            .insert(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    pub async fn get_mega_refs(&self, path: &str) -> Result<Option<mega_refs::Model>, MegaError> {
+        Ok(mega_refs::Entity::find()
+            .filter(mega_refs::Column::Path.eq(path))
+            .one(self.get_connection())
+            .await?)
+    }
+
     pub async fn save_mr(&self, mr: MergeRequest) -> Result<(), MegaError> {
         let model: mega_mr::Model = mr.into();
         mega_mr::Entity::insert(model.into_active_model())
@@ -261,6 +286,7 @@ impl MegaStorage {
                     .update_columns(vec![
                         mega_snapshot::Column::CommitId,
                         mega_snapshot::Column::Sha1,
+                        mega_snapshot::Column::UpdatedAt,
                     ])
                     .to_owned(),
             )
@@ -278,7 +304,7 @@ impl MegaStorage {
             .exec(self.get_connection())
             .await
             .unwrap();
-        refs::Entity::insert(converter.refs)
+        mega_refs::Entity::insert(converter.refs)
             .exec(self.get_connection())
             .await
             .unwrap();
@@ -380,7 +406,7 @@ impl MegaStorage {
         while let Some(parent_id) = mega_tree.parent_id {
             let replace_name = mega_tree.name;
             mega_tree = self
-                .get_mega_tree_by_sha(&parent_id)
+                .get_tree_by_hash(&Repo::empty(), &parent_id)
                 .await
                 .unwrap()
                 .unwrap();
@@ -399,7 +425,7 @@ impl MegaStorage {
         //     .for_each(|x| println!("{:?}, {:?}", x.name, x.tree_id));
         let repo = Repo::empty();
         let ref_id = self.get_ref(&repo, "main").await.unwrap();
-        let commit = converter::init_commit(
+        let commit = Commit::from_tree_id(
             SHA1::from_str(&mega_tree.tree_id).unwrap(),
             vec![SHA1::from_str(&ref_id).unwrap()],
             &format!("create file {} commit", file_info.name),
@@ -408,7 +434,7 @@ impl MegaStorage {
         self.update_ref(&repo, "main", &commit.id.to_plain_str())
             .await
             .unwrap();
-        self.save_mega_commits(0, MergeStatus::Merged, vec![commit])
+        self.save_mega_commits(&Repo::empty(), &MergeRequest::empty(), vec![commit])
             .await
             .unwrap();
         Ok(())
@@ -446,18 +472,19 @@ impl MegaStorage {
         Ok(())
     }
 
-    async fn save_mega_commits(
+    pub async fn save_mega_commits(
         &self,
-        mr_id: i64,
-        status: MergeStatus,
+        repo: &Repo,
+        mr: &MergeRequest,
         commits: Vec<Commit>,
     ) -> Result<(), MegaError> {
         let mega_commits: Vec<mega_commit::Model> =
             commits.into_iter().map(mega_commit::Model::from).collect();
         let mut save_models = Vec::new();
         for mut mega_commit in mega_commits {
-            mega_commit.status = status;
-            mega_commit.mr_id = mr_id;
+            mega_commit.status = mr.status;
+            mega_commit.mr_id = mr.id;
+            mega_commit.repo_id = repo.repo_id;
             save_models.push(mega_commit.into_active_model());
         }
         batch_save_model(self.get_connection(), save_models)
@@ -468,12 +495,13 @@ impl MegaStorage {
 
     pub async fn get_commit_by_hash(
         &self,
-        sha: &str,
         repo: &Repo,
+        hash: &str,
     ) -> Result<Option<mega_commit::Model>, MegaError> {
         Ok(mega_commit::Entity::find()
-            .filter(mega_commit::Column::CommitId.eq(sha))
             .filter(mega_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(mega_commit::Column::Status.eq(MergeStatus::Merged))
+            .filter(mega_commit::Column::CommitId.eq(hash))
             .one(self.get_connection())
             .await
             .unwrap())
@@ -485,6 +513,7 @@ impl MegaStorage {
     ) -> Result<Vec<mega_commit::Model>, MegaError> {
         Ok(mega_commit::Entity::find()
             .filter(mega_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(mega_commit::Column::Status.eq(MergeStatus::Merged))
             .all(self.get_connection())
             .await
             .unwrap())
@@ -496,32 +525,39 @@ impl MegaStorage {
     ) -> Result<Option<mega_tree::Model>, MegaError> {
         Ok(mega_tree::Entity::find()
             .filter(mega_tree::Column::FullPath.eq(full_path))
+            .filter(mega_tree::Column::Status.eq(MergeStatus::Merged))
             .one(self.get_connection())
             .await
             .unwrap())
     }
 
-    async fn get_mega_tree_by_sha(&self, sha: &str) -> Result<Option<mega_tree::Model>, MegaError> {
+    pub async fn get_tree_by_hash(
+        &self,
+        repo: &Repo,
+        sha: &str,
+    ) -> Result<Option<mega_tree::Model>, MegaError> {
         Ok(mega_tree::Entity::find()
+            .filter(mega_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(mega_tree::Column::Status.eq(MergeStatus::Merged))
             .filter(mega_tree::Column::TreeId.eq(sha))
             .one(self.get_connection())
             .await
             .unwrap())
     }
 
-    #[allow(unused)]
-    async fn save_mega_trees(&self, trees: Vec<Tree>) -> Result<(), MegaError> {
-        let models: Vec<mega_tree::Model> = trees.into_iter().map(|x| x.into()).collect();
-        let mut save_models: Vec<mega_tree::ActiveModel> = Vec::new();
-        for mut model in models {
-            model.status = MergeStatus::Open;
-            save_models.push(model.into_active_model());
-        }
-        batch_save_model(self.get_connection(), save_models)
-            .await
-            .unwrap();
-        Ok(())
-    }
+    // #[allow(unused)]
+    // async fn save_mega_trees(&self, trees: Vec<Tree>) -> Result<(), MegaError> {
+    //     let models: Vec<mega_tree::Model> = trees.into_iter().map(|x| x.into()).collect();
+    //     let mut save_models: Vec<mega_tree::ActiveModel> = Vec::new();
+    //     for mut model in models {
+    //         model.status = MergeStatus::Open;
+    //         save_models.push(model.into_active_model());
+    //     }
+    //     batch_save_model(self.get_connection(), save_models)
+    //         .await
+    //         .unwrap();
+    //     Ok(())
+    // }
 
     pub async fn get_trees_by_repo_id(
         &self,
@@ -529,6 +565,7 @@ impl MegaStorage {
     ) -> Result<Vec<mega_tree::Model>, MegaError> {
         Ok(mega_tree::Entity::find()
             .filter(mega_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(mega_tree::Column::Status.eq(MergeStatus::Merged))
             .all(self.get_connection())
             .await
             .unwrap())
