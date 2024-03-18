@@ -28,7 +28,7 @@ const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet
 
 // The ofs-delta and side-band-64k capabilities are sent and recognized by both upload-pack and receive-pack protocols.
 // The agent and session-id capabilities may optionally be sent in both protocols.
-const CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.0.1";
+const COMMON_CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.1.0";
 
 // All other capabilities are only recognized by the upload-pack (fetch from server) process.
 const UPLOAD_CAP_LIST: &str =
@@ -65,21 +65,21 @@ impl SmartProtocol {
         let service_type = self.service_type;
 
         // The stream MUST include capability declarations behind a NUL on the first ref.
-        let (head_hash, git_refs) = self.repo_head_object_id(repo).await;
+        let (head_hash, git_refs) = self.head_hash(repo).await;
         let name = if head_hash == ZERO_ID {
             "capabilities^{}"
         } else {
             "HEAD"
         };
         let cap_list = match service_type {
-            ServiceType::UploadPack => format!("{}{}", UPLOAD_CAP_LIST, CAP_LIST),
-            ServiceType::ReceivePack => format!("{}{}", RECEIVE_CAP_LIST, CAP_LIST),
+            ServiceType::UploadPack => format!("{}{}", UPLOAD_CAP_LIST, COMMON_CAP_LIST),
+            ServiceType::ReceivePack => format!("{}{}", RECEIVE_CAP_LIST, COMMON_CAP_LIST),
         };
         let pkt_line = format!("{}{}{}{}{}{}", head_hash, SP, name, NUL, cap_list, LF);
         let mut ref_list = vec![pkt_line];
 
         for git_ref in git_refs {
-            let pkt_line = format!("{}{}{}{}", git_ref.ref_git_id, SP, git_ref.ref_name, LF);
+            let pkt_line = format!("{}{}{}{}", git_ref.ref_hash, SP, git_ref.ref_name, LF);
             ref_list.push(pkt_line);
         }
         let pkt_line_stream = self.build_smart_reply(&ref_list, service_type.to_string());
@@ -156,7 +156,7 @@ impl SmartProtocol {
                         .context
                         .services
                         .mega_storage
-                        .get_commit_by_hash(hash, &repo)
+                        .get_commit_by_hash(&repo, hash )
                         .await
                         .unwrap()
                         .is_some()

@@ -24,6 +24,16 @@ impl Default for MergeRequest {
 }
 
 impl MergeRequest {
+    pub fn empty() -> Self {
+        Self {
+            id: 0,
+            mr_link: String::new(),
+            status: MergeStatus::Merged,
+            message: None,
+            merge_date: None,
+        }
+    }
+
     pub fn close(&mut self, msg: Option<String>) {
         self.status = MergeStatus::Closed;
         self.message = msg;

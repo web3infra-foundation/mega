@@ -88,6 +88,14 @@ CREATE TABLE IF NOT EXISTS "mega_issue" (
   "updated_at" TIMESTAMP NOT NULL,
   "closed_at" TIMESTAMP DEFAULT NULL
 );
+CREATE TABLE IF NOT EXISTS "mega_refs" (
+  "id" BIGINT PRIMARY KEY,
+  "path" TEXT NOT NULL,
+  "ref_git_id" VARCHAR(40) NOT NULL,
+  "created_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_mref_path UNIQUE (path)
+);
 CREATE INDEX "idx_info_mr_link" ON "mega_mr" ("mr_link");
 CREATE TABLE IF NOT EXISTS "refs" (
   "id" BIGINT PRIMARY KEY,
