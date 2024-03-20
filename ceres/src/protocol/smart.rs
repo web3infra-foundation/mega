@@ -212,7 +212,12 @@ impl SmartProtocol {
         let mut report_status = BytesMut::new();
         let repo = self.convert_path_to_repo().await;
         //1. unpack progress
-        let parse_obj_result = self.unpack(&repo, body_bytes).await.is_ok();
+        let unpack_success = self.unpack(&repo, body_bytes).await.is_ok();
+
+
+        // if repo.monorepo() {
+        //     self.context.services.mega_storage.handle_parent_directory().await;
+        // }
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
         //2. parse progress
@@ -230,9 +235,8 @@ impl SmartProtocol {
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
-                if parse_obj_result {
-                    self.update_refs(&repo, &command).await.unwrap();
-                // self.handle_directory().await.unwrap()
+                if unpack_success {
+                    // self.update_refs(&repo, &command).await.unwrap();
                 } else {
                     command.failed(String::from("parse commit tree from obj failed"));
                 }
