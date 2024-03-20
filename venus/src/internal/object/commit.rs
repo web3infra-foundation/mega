@@ -97,7 +97,15 @@ impl Commit {
             .into_bytes(),
         )
         .unwrap();
-        let committer = author.clone();
+        let committer = Signature::from_data(
+            format!(
+                "committer benjamin.747 <benjamin.747@outlook.com> {} +0800",
+                chrono::Utc::now().timestamp()
+            )
+            .to_string()
+            .into_bytes(),
+        )
+        .unwrap();
         let mut commit = Commit {
             id: SHA1::default(),
             tree_id,

@@ -117,7 +117,8 @@ impl MegaModelConverter {
         let mega_ref = mega_refs::Model {
             id: generate_id(),
             path: "/".to_owned(),
-            ref_git_id: commit.id.to_plain_str(),
+            ref_commit_hash: commit.id.to_plain_str(),
+            ref_tree_hash: commit.tree_id.to_plain_str(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
