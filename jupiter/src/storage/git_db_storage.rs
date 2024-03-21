@@ -1,6 +1,7 @@
 use std::{env, sync::Arc};
 
 use async_trait::async_trait;
+use callisto::db_enums::MergeStatus;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
     Set,
@@ -8,6 +9,8 @@ use sea_orm::{
 
 use callisto::refs;
 use common::errors::MegaError;
+use venus::internal::object::GitObjectModel;
+use venus::internal::pack::entry::Entry;
 use venus::internal::pack::reference::RefCommand;
 use venus::internal::pack::reference::Refs;
 use venus::repo::Repo;
@@ -16,6 +19,8 @@ use crate::{
     raw_storage::{self, RawStorage},
     storage::GitStorageProvider,
 };
+
+use super::batch_save_model;
 
 #[derive(Clone)]
 pub struct GitDbStorage {
@@ -49,13 +54,8 @@ impl GitStorageProvider for GitDbStorage {
     async fn get_ref(&self, repo: &Repo) -> Result<Vec<Refs>, MegaError> {
         let result = refs::Entity::find()
             .filter(refs::Column::RepoId.eq(repo.repo_id))
-            // .filter(refs::Column::RefName.eq(ref_name))
             .all(self.get_connection())
             .await?;
-        // if let Some(model) = result {
-        //     return Ok(model.ref_git_id);
-        // }
-        // Ok(String::new())
         let res: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
         Ok(res)
     }
@@ -101,5 +101,62 @@ impl GitDbStorage {
             raw_storage: raw_storage::mock(),
             raw_obj_threshold: 1024,
         }
+    }
+
+    pub async fn save_entry(
+        &self,
+        repo: &Repo,
+        entry_list: Vec<Entry>,
+    ) -> Result<(), MegaError> {
+        let mut commits = Vec::new();
+        let mut trees = Vec::new();
+        let mut blobs = Vec::new();
+        let mut raw_blobs = Vec::new();
+        let mut tags = Vec::new();
+
+        for entry in entry_list {
+            let raw_obj = entry.process_entry();
+            let model = raw_obj.convert_to_mega_model();
+            match model {
+                GitObjectModel::Commit(mut commit) => {
+                    commit.mr_id = 0;
+                    commit.status = MergeStatus::Merged;
+                    commit.repo_id = repo.repo_id;
+                    commits.push(commit.into_active_model())
+                },
+                GitObjectModel::Tree(mut tree) => {
+                    tree.mr_id = 0;
+                    tree.status = MergeStatus::Merged;
+                    tree.repo_id = repo.repo_id;
+                    trees.push(tree.clone().into_active_model());
+                }
+                GitObjectModel::Blob(mut blob, raw) => {
+                    blob.mr_id = 0;
+                    blob.status = MergeStatus::Merged;
+                    blob.repo_id = repo.repo_id;
+                    blobs.push(blob.clone().into_active_model());
+                    raw_blobs.push(raw.into_active_model());
+                }
+                GitObjectModel::Tag(mut tag) => {
+                    tag.repo_id = repo.repo_id;
+                    tags.push(tag.into_active_model())
+                },
+            }
+        }
+
+        batch_save_model(self.get_connection(), commits)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), trees)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), blobs)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), raw_blobs)
+            .await
+            .unwrap();
+        batch_save_model(self.get_connection(), tags).await.unwrap();
+        Ok(())
     }
 }
