@@ -121,6 +121,20 @@ impl MegaStorage {
         Ok(())
     }
 
+    pub async fn get_open_mr(&self, path: &str) -> Result<Option<MergeRequest>, MegaError> {
+        let model = mega_mr::Entity::find()
+            .filter(mega_mr::Column::Path.eq(path))
+            .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
+            .one(self.get_connection())
+            .await
+            .unwrap();
+        if let Some(model) = model {
+            let mr: MergeRequest = model.into();
+            return Ok(Some(mr));
+        }
+        Ok(None)
+    }
+
     pub async fn save_mr(&self, mr: MergeRequest) -> Result<(), MegaError> {
         let model: mega_mr::Model = mr.into();
         mega_mr::Entity::insert(model.into_active_model())
@@ -133,7 +147,6 @@ impl MegaStorage {
     pub async fn save_entry(
         &self,
         mr: &MergeRequest,
-        repo: &Repo,
         entry_list: Vec<Entry>,
     ) -> Result<(), MegaError> {
         let mut commits = Vec::new();
@@ -144,17 +157,31 @@ impl MegaStorage {
 
         for entry in entry_list {
             let raw_obj = entry.process_entry();
-            let model = raw_obj.convert_to_mega_model(repo.repo_id, mr.id);
+            let model = raw_obj.convert_to_mega_model();
             match model {
-                GitObjectModel::Commit(commit) => commits.push(commit.into_active_model()),
-                GitObjectModel::Tree(tree) => {
+                GitObjectModel::Commit(mut commit) => {
+                    commit.mr_id = mr.id;
+                    commit.status = mr.status;
+                    commit.repo_id = 0;
+                    commits.push(commit.into_active_model())
+                },
+                GitObjectModel::Tree(mut tree) => {
+                    tree.mr_id = mr.id;
+                    tree.status = mr.status;
+                    tree.repo_id = 0;
                     trees.push(tree.clone().into_active_model());
                 }
-                GitObjectModel::Blob(blob, raw) => {
+                GitObjectModel::Blob(mut blob, raw) => {
+                    blob.mr_id = mr.id;
+                    blob.status = mr.status;
+                    blob.repo_id = 0;
                     blobs.push(blob.clone().into_active_model());
                     raw_blobs.push(raw.into_active_model());
                 }
-                GitObjectModel::Tag(tag) => tags.push(tag.into_active_model()),
+                GitObjectModel::Tag(mut tag) => {
+                    tag.repo_id = 0;
+                    tags.push(tag.into_active_model())
+                },
             }
         }
 
@@ -353,15 +380,20 @@ impl MegaStorage {
     pub async fn save_mega_commits(
         &self,
         repo: &Repo,
-        mr: &MergeRequest,
+        mr: Option<&MergeRequest>,
         commits: Vec<Commit>,
     ) -> Result<(), MegaError> {
         let mega_commits: Vec<mega_commit::Model> =
             commits.into_iter().map(mega_commit::Model::from).collect();
         let mut save_models = Vec::new();
         for mut mega_commit in mega_commits {
-            mega_commit.status = mr.status;
-            mega_commit.mr_id = mr.id;
+            if let Some(mr) = mr {
+                mega_commit.status = mr.status;
+                mega_commit.mr_id = mr.id;
+            } else {
+                mega_commit.status = MergeStatus::Merged;
+                mega_commit.mr_id = 0;
+            }
             mega_commit.repo_id = repo.repo_id;
             save_models.push(mega_commit.into_active_model());
         }

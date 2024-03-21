@@ -13,6 +13,9 @@ pub struct Model {
     pub mr_msg: Option<String>,
     pub merge_date: Option<DateTime>,
     pub status: MergeStatus,
+    #[sea_orm(column_type = "Text")]
+    pub path: String,
+    pub commit_hash: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }
