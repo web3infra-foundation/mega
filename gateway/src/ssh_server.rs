@@ -16,6 +16,7 @@ use clap::Args;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use ed25519_dalek::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey};
 use ed25519_dalek::SigningKey;
+use russh::server::Server;
 use russh_keys::key::KeyPair;
 
 use common::model::CommonOptions;
@@ -73,7 +74,7 @@ pub async fn start_server(command: &SshOptions) {
             },
     } = command;
     let context = Context::new(data_source).await;
-    let sh = SshServer {
+    let mut ssh_server = SshServer {
         client_pubkey,
         clients: Arc::new(Mutex::new(HashMap::new())),
         id: 0,
@@ -83,7 +84,7 @@ pub async fn start_server(command: &SshOptions) {
     };
     let server_url = format!("{}:{}", host, ssh_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
-    russh::server::run(config, addr, sh).await.unwrap()
+    ssh_server.run_on_address(config, addr).await.unwrap();
 }
 
 /// # Loads an SSH keypair.
