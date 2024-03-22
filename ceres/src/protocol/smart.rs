@@ -8,7 +8,6 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use callisto::db_enums::RefType;
 
-use crate::pack::handler::PackHandler;
 use crate::protocol::ZERO_ID;
 use crate::protocol::{
     Capability, RefCommand, ServiceType, SideBind, SmartProtocol, TransportProtocol,
@@ -28,7 +27,7 @@ const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet
 
 // The ofs-delta and side-band-64k capabilities are sent and recognized by both upload-pack and receive-pack protocols.
 // The agent and session-id capabilities may optionally be sent in both protocols.
-const CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.0.1";
+const COMMON_CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.1.0";
 
 // All other capabilities are only recognized by the upload-pack (fetch from server) process.
 const UPLOAD_CAP_LIST: &str =
@@ -60,26 +59,26 @@ impl SmartProtocol {
     ///
     /// Finally, the constructed packet line stream is returned.
     pub async fn git_info_refs(&self) -> BytesMut {
-        let repo = self.convert_path_to_repo().await;
+        let pack_handler = self.pack_handler().await;
 
         let service_type = self.service_type;
 
         // The stream MUST include capability declarations behind a NUL on the first ref.
-        let (head_hash, git_refs) = self.repo_head_object_id(repo).await;
+        let (head_hash, git_refs) = pack_handler.head_hash().await;
         let name = if head_hash == ZERO_ID {
             "capabilities^{}"
         } else {
             "HEAD"
         };
         let cap_list = match service_type {
-            ServiceType::UploadPack => format!("{}{}", UPLOAD_CAP_LIST, CAP_LIST),
-            ServiceType::ReceivePack => format!("{}{}", RECEIVE_CAP_LIST, CAP_LIST),
+            ServiceType::UploadPack => format!("{}{}", UPLOAD_CAP_LIST, COMMON_CAP_LIST),
+            ServiceType::ReceivePack => format!("{}{}", RECEIVE_CAP_LIST, COMMON_CAP_LIST),
         };
         let pkt_line = format!("{}{}{}{}{}{}", head_hash, SP, name, NUL, cap_list, LF);
         let mut ref_list = vec![pkt_line];
 
         for git_ref in git_refs {
-            let pkt_line = format!("{}{}{}{}", git_ref.ref_git_id, SP, git_ref.ref_name, LF);
+            let pkt_line = format!("{}{}{}{}", git_ref.ref_hash, SP, git_ref.ref_name, LF);
             ref_list.push(pkt_line);
         }
         let pkt_line_stream = self.build_smart_reply(&ref_list, service_type.to_string());
@@ -91,7 +90,7 @@ impl SmartProtocol {
         &mut self,
         upload_request: &mut Bytes,
     ) -> Result<(Vec<u8>, BytesMut)> {
-        let repo = self.convert_path_to_repo().await;
+        let pack_handler = self.pack_handler().await;
 
         let mut want: Vec<String> = Vec::new();
         let mut have: Vec<String> = Vec::new();
@@ -144,22 +143,16 @@ impl SmartProtocol {
         let mut buf = BytesMut::new();
 
         if have.is_empty() {
-            pack_data = self.full_pack(&repo).await.unwrap();
+            pack_data = pack_handler.full_pack().await.unwrap();
             add_pkt_line_string(&mut buf, String::from("NAK\n"));
         } else {
             if self.capabilities.contains(&Capability::MultiAckDetailed) {
                 // multi_ack_detailed mode, the server will differentiate the ACKs where it is signaling that
                 // it is ready to send data with ACK obj-id ready lines,
                 // and signals the identified common commits with ACK obj-id common lines
+                
                 for hash in &have {
-                    if self
-                        .context
-                        .services
-                        .mega_storage
-                        .get_commit_by_hash(hash, &repo)
-                        .await
-                        .unwrap()
-                        .is_some()
+                    if pack_handler.check_commit_exist(hash).await
                     {
                         add_pkt_line_string(&mut buf, format!("ACK {} common\n", hash));
                         if last_common_commit.is_empty() {
@@ -180,7 +173,7 @@ impl SmartProtocol {
                     }
                 }
 
-                pack_data = self.incremental_pack(want, have, &repo).await.unwrap();
+                pack_data = pack_handler.incremental_pack(want, have).await.unwrap();
             } else {
                 tracing::error!("capability unsupported");
             }
@@ -210,9 +203,15 @@ impl SmartProtocol {
         }
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
-        let repo = self.convert_path_to_repo().await;
+        let pack_handler = self.pack_handler().await;
         //1. unpack progress
-        let parse_obj_result = self.unpack(&repo, body_bytes).await.is_ok();
+        let unpack_success = pack_handler.unpack(body_bytes).await.is_ok();
+
+        // if repo.monorepo() {
+        //     self.handle_parent_directory(&self.path)
+        //         .await
+        //         .unwrap();
+        // }
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
         //2. parse progress
@@ -224,15 +223,14 @@ impl SmartProtocol {
         for mut command in self.command_list.clone() {
             if command.ref_type == RefType::Tag {
                 // just update if refs type is tag
-                self.update_refs(&repo, &command).await.unwrap();
+                pack_handler.update_refs(&command).await.unwrap();
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
-                if parse_obj_result {
-                    self.update_refs(&repo, &command).await.unwrap();
-                // self.handle_directory().await.unwrap()
+                if unpack_success {
+                    pack_handler.update_refs(&command).await.unwrap();
                 } else {
                     command.failed(String::from("parse commit tree from obj failed"));
                 }

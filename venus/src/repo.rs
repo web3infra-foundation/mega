@@ -17,6 +17,14 @@ impl Repo {
         }
     }
 
+    pub fn from_path(path: &str) -> Self {
+        Self {
+            repo_id: 0,
+            repo_path: path.to_owned(),
+            repo_name: String::new(),
+        }
+    }
+
     pub fn monorepo(&self) -> bool {
         self.repo_id == 0
     }

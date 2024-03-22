@@ -65,7 +65,6 @@ impl Display for Commit {
 }
 
 impl Commit {
-    #[allow(unused)]
     pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
         let mut data = Vec::new();
 
@@ -86,6 +85,38 @@ impl Commit {
         data.extend(self.message.as_bytes());
 
         Ok(data)
+    }
+
+    pub fn from_tree_id(tree_id: SHA1, parent_commit_ids: Vec<SHA1>, message: &str) -> Commit {
+        let author = Signature::from_data(
+            format!(
+                "author benjamin.747 <benjamin.747@outlook.com> {} +0800",
+                chrono::Utc::now().timestamp()
+            )
+            .to_string()
+            .into_bytes(),
+        )
+        .unwrap();
+        let committer = Signature::from_data(
+            format!(
+                "committer benjamin.747 <benjamin.747@outlook.com> {} +0800",
+                chrono::Utc::now().timestamp()
+            )
+            .to_string()
+            .into_bytes(),
+        )
+        .unwrap();
+        let mut commit = Commit {
+            id: SHA1::default(),
+            tree_id,
+            parent_commit_ids,
+            author,
+            committer,
+            message: message.to_string(),
+        };
+        let hash = SHA1::from_type_and_data(ObjectType::Commit, &commit.to_data().unwrap());
+        commit.id = hash;
+        commit
     }
 }
 

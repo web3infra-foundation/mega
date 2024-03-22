@@ -1,15 +1,36 @@
-use common::utils::ZERO_ID;
 use serde::{Deserialize, Serialize};
 
-use callisto::db_enums::RefType;
+use callisto::{db_enums::RefType, mega_refs, refs};
+use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
 
 ///
 /// Represent the references(all branches and tags) in protocol transfer
 ///
 #[derive(Clone, Serialize, Deserialize, Default)]
-pub struct Reference {
+pub struct Refs {
     pub ref_name: String,
     pub ref_hash: String,
+    pub ref_tree_hash: Option<String>,
+}
+
+impl From<refs::Model> for Refs {
+    fn from(value: refs::Model) -> Self {
+        Self {
+            ref_name: value.ref_name,
+            ref_hash: value.ref_git_id,
+            ref_tree_hash: None,
+        }
+    }
+}
+
+impl From<mega_refs::Model> for Refs {
+    fn from(value: mega_refs::Model) -> Self {
+        Self {
+            ref_name: MEGA_BRANCH_NAME.to_owned(),
+            ref_hash: value.ref_commit_hash,
+            ref_tree_hash: Some(value.ref_tree_hash)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -82,3 +103,16 @@ impl RefCommand {
     }
 }
 
+impl From<RefCommand> for refs::Model {
+    fn from(value: RefCommand) -> Self {
+        refs::Model {
+            id: generate_id(),
+            repo_id: 0,
+            ref_name: value.ref_name,
+            ref_git_id: value.new_id,
+            ref_type: value.ref_type,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+}
