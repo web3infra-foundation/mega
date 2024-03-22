@@ -1,4 +1,5 @@
-pub mod git_storage;
+pub mod git_db_storage;
+pub mod git_fs_storage;
 pub mod init;
 pub mod lfs_storage;
 pub mod mega_storage;
@@ -11,7 +12,7 @@ use sea_orm::{
     EntityTrait, QueryFilter,
 };
 use venus::{
-    internal::pack::{entry::Entry, reference::RefCommand},
+    internal::pack::reference::{RefCommand, Refs},
     repo::Repo,
 };
 
@@ -25,17 +26,17 @@ pub trait GitStorageProvider: Send + Sync {
 
     async fn remove_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError>;
 
-    async fn get_ref(&self, repo: &Repo, ref_name: &str) -> Result<String, MegaError>;
+    async fn get_ref(&self, repo: &Repo) -> Result<Vec<Refs>, MegaError>;
 
     async fn update_ref(&self, repo: &Repo, ref_name: &str, new_id: &str) -> Result<(), MegaError>;
 
     // async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError>;
 
-    async fn get_entry_by_sha1(
-        &self,
-        repo: Repo,
-        sha1_vec: Vec<&str>,
-    ) -> Result<Vec<Entry>, MegaError>;
+    // async fn get_entry_by_sha1(
+    //     &self,
+    //     repo: Repo,
+    //     sha1_vec: Vec<&str>,
+    // ) -> Result<Vec<Entry>, MegaError>;
 }
 
 /// Performs batch saving of models in the database.
