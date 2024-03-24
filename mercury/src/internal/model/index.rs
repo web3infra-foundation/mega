@@ -1,11 +1,14 @@
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
-use std::io::Read;
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use venus::errors::GitError;
 use venus::hash::SHA1;
 use crate::internal::model::utils;
+use crate::internal::model::utils::SHA1_SIZE;
+use crate::internal::pack::wrapper::Wrapper;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Time {
@@ -93,7 +96,7 @@ impl Display for IndexEntry {
                self.ctime, self.mtime, self.dev, self.ino, self.mode, self.uid, self.gid, self.size, self.hash, self.flags, self.name)
     }
 }
-
+/// see [index-format](https://git-scm.com/docs/index-format)
 pub struct Index {
     entries: BTreeMap<PathBuf, IndexEntry>,
     work_dir: PathBuf
@@ -124,10 +127,19 @@ impl Index {
         }
     }
 
-    pub fn from_file(file: &mut impl Read, work_dir: &Path) -> Result<Self, GitError> {
+    pub fn size(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn from_file(path: impl AsRef<Path>, work_dir: &Path) -> Result<Self, GitError> {
+        let file = File::open(path.as_ref())?; // read-only
+        let total_size = file.metadata()?.len();
+        let file = &mut Wrapper::new(BufReader::new(file)); // TODO move Wrapper & utils to a common module
+
         let num = Index::check_header(file)?;
         let mut index = Index::new(work_dir.to_path_buf());
 
+        println!("number: {}", num);
         for _ in 0..num {
             let mut entry = IndexEntry {
                 ctime: Time::from_stream(file)?,
@@ -147,7 +159,6 @@ impl Index {
             file.read_exact(&mut name)?;
             // The exact encoding is undefined, but the '.' and '/' characters are encoded in 7-bit ASCII
             entry.name = String::from_utf8(name)?; // TODO check the encoding
-            println!("{}", entry);
             index.entries.insert(PathBuf::from(entry.name.clone()), entry); // TODO determine relative or absolute path
 
             // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
@@ -155,7 +166,27 @@ impl Index {
             let padding = 8 - ((22 + name_len) % 8); // 22 = sha1 + flags, others are 40 % 8 == 0
             utils::read_bytes(file, padding)?;
         }
-        // TODO check sum
+
+        // Extensions
+        while file.bytes_read() + SHA1_SIZE < total_size as usize { // The remaining 20 bytes must be checksum
+            let sign = utils::read_bytes(file, 4)?;
+            println!("{:?}", String::from_utf8(sign.clone())?);
+            // If the first byte is 'A'...'Z' the extension is optional and can be ignored.
+            if sign[0] >= ('A' as u8) && sign[0] <= ('Z' as u8) { // Optional extension
+                let size = utils::read_u32_be(file)?;
+                utils::read_bytes(file, size as usize)?; // Ignore the extension
+            } else { // 'link' or 'sdir' extension
+                return Err(GitError::InvalidIndexFile("Unsupported extension".to_string()));
+            }
+        }
+
+        // check sum
+        let file_hash = file.final_hash();
+        let check_sum = utils::read_sha1(file)?;
+        if file_hash != check_sum {
+            return Err(GitError::InvalidIndexFile("Check sum failed".to_string()));
+        }
+        assert_eq!(index.size(), num as usize);
         Ok(index)
     }
 }
@@ -183,8 +214,10 @@ mod tests {
 
     #[test]
     fn test_index() {
-        let file = File::open("../tests/data/index/index-9").unwrap();
-        let mut index = Index::from_file(&mut BufReader::new(file), Path::new("")).unwrap();
-        assert_eq!(index.entries.len(), 9);
+        let index = Index::from_file("../tests/data/index/index-760", Path::new("")).unwrap();
+        assert_eq!(index.size(), 760);
+        for (_, entry) in index.entries.iter() {
+            println!("{}", entry);
+        }
     }
 }
