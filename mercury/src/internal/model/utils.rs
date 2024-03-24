@@ -2,6 +2,7 @@ use std::io;
 use std::io::Read;
 use venus::hash::SHA1;
 
+pub const SHA1_SIZE: usize = 20;
 pub fn read_u32_be(file: &mut impl Read) -> io::Result<u32> {
     let mut buf = [0; 4];
     file.read_exact(&mut buf)?;
