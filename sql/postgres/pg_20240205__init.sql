@@ -74,9 +74,12 @@ CREATE TABLE IF NOT EXISTS "mega_mr" (
   "mr_msg" VARCHAR(255),
   "merge_date" TIMESTAMP,
   "status" VARCHAR(20) NOT NULL,
+  "path" TEXT NOT NULL,
+  "commit_hash" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
+CREATE INDEX "idx_mr_path" ON "mega_mr" ("path");
 CREATE TABLE IF NOT EXISTS "mega_issue" (
   "id" BIGINT PRIMARY KEY,
   "number" BIGINT NOT NULL,
@@ -88,7 +91,15 @@ CREATE TABLE IF NOT EXISTS "mega_issue" (
   "updated_at" TIMESTAMP NOT NULL,
   "closed_at" TIMESTAMP DEFAULT NULL
 );
-CREATE INDEX "idx_info_mr_link" ON "mega_mr" ("mr_link");
+CREATE TABLE IF NOT EXISTS "mega_refs" (
+  "id" BIGINT PRIMARY KEY,
+  "path" TEXT NOT NULL,
+  "ref_commit_hash" VARCHAR(40) NOT NULL,
+  "ref_tree_hash" VARCHAR(40) NOT NULL,
+  "created_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_mref_path UNIQUE (path)
+);
 CREATE TABLE IF NOT EXISTS "refs" (
   "id" BIGINT PRIMARY KEY,
   "repo_id" BIGINT NOT NULL,

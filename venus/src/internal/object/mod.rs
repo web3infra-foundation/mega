@@ -64,30 +64,23 @@ pub enum GitObjectModel {
 }
 
 impl GitObject {
-    pub fn convert_to_mega_model(self, repo_id: i64, mr_id: i64) -> GitObjectModel {
+    pub fn convert_to_mega_model(self) -> GitObjectModel {
         match self {
             GitObject::Commit(commit) => {
-                let mut mega_commit: mega_commit::Model = commit.into();
-                mega_commit.mr_id = mr_id;
-                mega_commit.repo_id = repo_id;
+                let mega_commit: mega_commit::Model = commit.into();
                 GitObjectModel::Commit(mega_commit)
             }
             GitObject::Tree(tree) => {
-                let mut mega_tree: mega_tree::Model = tree.into();
-                mega_tree.mr_id = mr_id;
-                mega_tree.repo_id = repo_id;
+                let mega_tree: mega_tree::Model = tree.into();
                 GitObjectModel::Tree(mega_tree)
             }
             GitObject::Blob(blob) => {
-                let mut mega_blob: mega_blob::Model = blob.clone().into();
+                let mega_blob: mega_blob::Model = blob.clone().into();
                 let raw_blob: raw_blob::Model = blob.into();
-                mega_blob.mr_id = mr_id;
-                mega_blob.repo_id = repo_id;
                 GitObjectModel::Blob(mega_blob, raw_blob)
             }
             GitObject::Tag(tag) => {
-                let mut mega_tag: mega_tag::Model = tag.into();
-                mega_tag.repo_id = repo_id;
+                let mega_tag: mega_tag::Model = tag.into();
                 GitObjectModel::Tag(mega_tag)
             }
         }
