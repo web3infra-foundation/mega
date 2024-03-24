@@ -63,6 +63,9 @@ pub enum GitError {
 
     #[error("UTF-8 conversion error: {0}")]
     ConversionError(String),
+
+    #[error("Can't find parent tree by path: {0}")]
+    InvalidPathError(String)
 }
 
 impl From<FromUtf8Error> for GitError {

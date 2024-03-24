@@ -167,9 +167,9 @@ impl Meta {
         // Write the object type to the encoder
         // Object Type + Space + Object Size + \0 + Object Data
         e.write_all(&self.object_type.to_data().unwrap());
-        e.write(&[b' ']);
-        e.write(self.size.to_string().as_bytes());
-        e.write(&[b'\0']);
+        e.write_all(&[b' ']);
+        e.write_all(self.size.to_string().as_bytes());
+        e.write_all(&[b'\0']);
         e.write_all(&self.data)
             .with_context(|| format!("Failed to write to encoder: {}", self.id.to_plain_str()));
         let c = e.finish().unwrap();

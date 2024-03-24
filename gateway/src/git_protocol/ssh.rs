@@ -19,7 +19,7 @@ use tokio::io::AsyncReadExt;
 use ceres::lfs::lfs_structs::Link;
 use ceres::protocol::smart::{self};
 use ceres::protocol::ServiceType;
-use ceres::protocol::{TransportProtocol, SmartProtocol};
+use ceres::protocol::{SmartProtocol, TransportProtocol};
 use jupiter::context::Context;
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
@@ -49,16 +49,16 @@ impl server::Handler for SshServer {
     type Error = anyhow::Error;
 
     async fn channel_open_session(
-        self,
+        &mut self,
         channel: Channel<Msg>,
-        session: Session,
-    ) -> Result<(Self, bool, Session), Self::Error> {
+        _: &mut Session,
+    ) -> Result<bool, Self::Error> {
         tracing::info!("SshServer::channel_open_session:{}", channel.id());
         {
             let mut clients = self.clients.lock().unwrap();
             clients.insert((self.id, channel.id()), channel);
         }
-        Ok((self, true, session))
+        Ok(true)
     }
 
     /// # Executes a request on the SSH server.
@@ -73,11 +73,11 @@ impl server::Handler for SshServer {
     /// - `session`: The current SSH session.
     ///
     async fn exec_request(
-        mut self,
+        &mut self,
         channel: ChannelId,
         data: &[u8],
-        mut session: Session,
-    ) -> Result<(Self, Session), Self::Error> {
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
         let data = String::from_utf8_lossy(data).trim().to_owned();
         tracing::info!("exec_request, channel:{:?}, command: {}", channel, data);
         // command exmaple:
@@ -87,8 +87,11 @@ impl server::Handler for SshServer {
         let command: Vec<_> = data.split(' ').collect();
         let path = command[1];
         let path = path.replace(".git", "").replace('\'', "");
-        let mut smart_protocol =
-            SmartProtocol::new(PathBuf::from(&path), self.context.clone(), TransportProtocol::Ssh);
+        let mut smart_protocol = SmartProtocol::new(
+            PathBuf::from(&path),
+            self.context.clone(),
+            TransportProtocol::Ssh,
+        );
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
                 smart_protocol.service_type = ServiceType::from_str(command[0]).unwrap();
@@ -121,40 +124,40 @@ impl server::Handler for SshServer {
             }
             command => println!("Not Supported command! {}", command),
         }
-        Ok((self, session))
+        Ok(())
     }
 
     async fn auth_publickey(
-        self,
+        &mut self,
         user: &str,
         public_key: &key::PublicKey,
-    ) -> Result<(Self, Auth), Self::Error> {
+    ) -> Result<Auth, Self::Error> {
         tracing::info!("auth_publickey: {} / {:?}", user, public_key);
-        Ok((self, Auth::Accept))
+        Ok(Auth::Accept)
     }
 
     async fn auth_keyboard_interactive(
-        self,
+        &mut self,
         _: &str,
         _: &str,
         _: Option<Response<'async_trait>>,
-    ) -> Result<(Self, Auth), Self::Error> {
+    ) -> Result<Auth, Self::Error> {
         tracing::info!("auth_keyboard_interactive");
-        Ok((self, Auth::Accept))
+        Ok(Auth::Accept)
     }
 
-    async fn auth_password(self, user: &str, password: &str) -> Result<(Self, Auth), Self::Error> {
+    async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
         tracing::info!("auth_password: {} / {}", user, password);
         // in this example implementation, any username/password combination is accepted
-        Ok((self, Auth::Accept))
+        Ok(Auth::Accept)
     }
 
     async fn data(
-        mut self,
+        &mut self,
         channel: ChannelId,
         data: &[u8],
-        mut session: Session,
-    ) -> Result<(Self, Session), Self::Error> {
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
         tracing::info!(
             "receiving data length:{}",
@@ -164,24 +167,24 @@ impl server::Handler for SshServer {
 
         match smart_protocol.service_type {
             ServiceType::UploadPack => {
-                self.handle_upload_pack(channel, data, &mut session).await;
+                self.handle_upload_pack(channel, data, session).await;
             }
             ServiceType::ReceivePack => {
                 self.data_combined.extend(data);
             }
         };
         session.channel_success(channel);
-        Ok((self, session))
+        Ok(())
     }
 
     async fn channel_eof(
-        mut self,
+        &mut self,
         channel: ChannelId,
-        mut session: Session,
-    ) -> Result<(Self, Session), Self::Error> {
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
         if let Some(smart_protocol) = self.smart_protocol.as_mut() {
             if smart_protocol.service_type == ServiceType::ReceivePack {
-                self.handle_receive_pack(channel, &mut session).await;
+                self.handle_receive_pack(channel, session).await;
             };
         }
 
@@ -191,7 +194,7 @@ impl server::Handler for SshServer {
         }
         session.exit_status_request(channel, 0000);
         session.close(channel);
-        Ok((self, session))
+        Ok(())
     }
 }
 

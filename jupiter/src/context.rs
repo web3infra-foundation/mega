@@ -4,7 +4,7 @@ use common::enums::DataSource;
 use storage::driver::database::{self, mysql_storage::MysqlStorage, storage::ObjectStorage};
 
 use crate::storage::{
-    git_storage::GitStorage, init::database_connection, lfs_storage::LfsStorage,
+    git_db_storage::GitDbStorage, init::database_connection, lfs_storage::LfsStorage,
     mega_storage::MegaStorage,
 };
 
@@ -32,7 +32,7 @@ impl Context {
 #[derive(Clone)]
 pub struct Service {
     pub mega_storage: Arc<MegaStorage>,
-    pub git_storage: Arc<GitStorage>,
+    pub git_db_storage: Arc<GitDbStorage>,
     pub lfs_storage: Arc<LfsStorage>,
 }
 
@@ -41,7 +41,7 @@ impl Service {
         let connection = Arc::new(database_connection().await);
         Service {
             mega_storage: Arc::new(MegaStorage::new(connection.clone()).await),
-            git_storage: Arc::new(GitStorage::new().await),
+            git_db_storage: Arc::new(GitDbStorage::new(connection.clone()).await),
             lfs_storage: Arc::new(LfsStorage::new(connection.clone()).await),
         }
     }
@@ -53,7 +53,7 @@ impl Service {
     fn mock() -> Arc<Self> {
         Arc::new(Self {
             mega_storage: Arc::new(MegaStorage::mock()),
-            git_storage: Arc::new(GitStorage::mock()),
+            git_db_storage: Arc::new(GitDbStorage::mock()),
             lfs_storage: Arc::new(LfsStorage::mock()),
         })
     }
