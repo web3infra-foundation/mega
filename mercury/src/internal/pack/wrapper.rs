@@ -20,6 +20,7 @@ use venus::hash::SHA1;
 pub struct Wrapper<R> {
     inner: R,
     hash: Sha1,
+    bytes_read: usize,
 }
 
 impl<R> Wrapper<R>
@@ -35,7 +36,12 @@ where
         Self {
             inner,
             hash: Sha1::new(), // Initialize a new SHA1 hasher
+            bytes_read: 0,
         }
+    }
+
+    pub fn bytes_read(&self) -> usize {
+        self.bytes_read
     }
 
     /// Returns the final SHA1 hash of the data read so far.
@@ -64,6 +70,7 @@ where
         let buffer = self.inner.fill_buf().expect("Failed to fill buffer");
         self.hash.update(&buffer[..amt]); // Update hash with the data being consumed
         self.inner.consume(amt); // Consume the data from the inner reader
+        self.bytes_read += amt;
     }
 }
 
@@ -72,6 +79,7 @@ where
     R: BufRead,
 {
     /// Reads data into the provided buffer and updates the hash if `count_hash` is true.
+    /// <br> [Read::read_exact] calls it internally.
     ///
     /// # Parameters
     /// * `buf`: The buffer to read data into.
@@ -81,6 +89,7 @@ where
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let o = self.inner.read(buf)?; // Read data into the buffer
         self.hash.update(&buf[..o]); // Update hash with the data being read
+        self.bytes_read += o;
         Ok(o) // Return the number of bytes read
     }
 }
