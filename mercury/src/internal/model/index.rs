@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use byteorder::{BigEndian, WriteBytesExt};
+use sha1::{Digest, Sha1};
 use venus::errors::GitError;
 use venus::hash::SHA1;
 use crate::internal::model::utils;
@@ -189,6 +191,48 @@ impl Index {
         assert_eq!(index.size(), num as usize);
         Ok(index)
     }
+
+    pub fn to_file(&self, path: impl AsRef<Path>) -> Result<(), GitError> {
+        let mut file = File::create(path)?;
+        let mut hash = Sha1::new();
+
+        let mut header = Vec::new();
+        header.write_all(b"DIRC")?;
+        header.write_u32::<BigEndian>(2u32)?; // version 2
+        header.write_u32::<BigEndian>(self.entries.len() as u32)?;
+        file.write_all(&header)?;
+        hash.update(&header);
+
+        for (_, entry) in self.entries.iter() {
+            let mut entry_bytes = Vec::new();
+            entry_bytes.write_u32::<BigEndian>(entry.ctime.seconds)?;
+            entry_bytes.write_u32::<BigEndian>(entry.ctime.nanos)?;
+            entry_bytes.write_u32::<BigEndian>(entry.mtime.seconds)?;
+            entry_bytes.write_u32::<BigEndian>(entry.mtime.nanos)?;
+            entry_bytes.write_u32::<BigEndian>(entry.dev)?;
+            entry_bytes.write_u32::<BigEndian>(entry.ino)?;
+            entry_bytes.write_u32::<BigEndian>(entry.mode)?;
+            entry_bytes.write_u32::<BigEndian>(entry.uid)?;
+            entry_bytes.write_u32::<BigEndian>(entry.gid)?;
+            entry_bytes.write_u32::<BigEndian>(entry.size)?;
+            entry_bytes.write_all(&entry.hash.0)?;
+            entry_bytes.write_u16::<BigEndian>(entry.flags.to_u16())?;
+            entry_bytes.write_all(entry.name.as_bytes())?;
+            let padding = 8 - ((22 + entry.name.len()) % 8);
+            entry_bytes.write_all(&vec![0; padding])?;
+
+            file.write_all(&entry_bytes)?;
+            hash.update(&entry_bytes);
+        }
+
+        // Extensions
+        // TODO
+
+        // check sum
+        let file_hash: [u8; 20] = hash.finalize().into();
+        file.write_all(&file_hash)?;
+        Ok(())
+    }
 }
 
 mod tests {
@@ -219,5 +263,13 @@ mod tests {
         for (_, entry) in index.entries.iter() {
             println!("{}", entry);
         }
+    }
+
+    #[test]
+    fn test_index_to_file() {
+        let index = Index::from_file("../tests/data/index/index-760", Path::new("")).unwrap();
+        index.to_file("/tmp/index-760").unwrap();
+        let new_index = Index::from_file("/tmp/index-760", Path::new("")).unwrap();
+        assert_eq!(index.size(), new_index.size());
     }
 }
