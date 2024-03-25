@@ -135,6 +135,19 @@ impl MegaStorage {
         Ok(None)
     }
 
+    pub async fn get_open_mr_by_id(&self, mr_id: i64) -> Result<Option<MergeRequest>, MegaError> {
+        let model = mega_mr::Entity::find_by_id(mr_id)
+            .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
+            .one(self.get_connection())
+            .await
+            .unwrap();
+        if let Some(model) = model {
+            let mr: MergeRequest = model.into();
+            return Ok(Some(mr));
+        }
+        Ok(None)
+    }
+
     pub async fn save_mr(&self, mr: MergeRequest) -> Result<(), MegaError> {
         let model: mega_mr::Model = mr.into();
         mega_mr::Entity::insert(model.into_active_model())
@@ -142,6 +155,16 @@ impl MegaStorage {
             .await
             .unwrap();
         Ok(())
+    }
+
+    pub async fn update_mr(&self, mr: MergeRequest) {
+        let model: mega_mr::Model = mr.into();
+        let mut a_model = model.into_active_model();
+        a_model.reset(mega_mr::Column::MergeDate);
+        a_model.reset(mega_mr::Column::Status);
+        a_model.reset(mega_mr::Column::MrMsg);
+        a_model.reset(mega_mr::Column::UpdatedAt);
+        a_model.update(self.get_connection()).await.unwrap();
     }
 
     pub async fn save_entry(
@@ -164,7 +187,7 @@ impl MegaStorage {
                     commit.status = mr.status;
                     commit.repo_id = 0;
                     commits.push(commit.into_active_model())
-                },
+                }
                 GitObjectModel::Tree(mut tree) => {
                     tree.mr_id = mr.id;
                     tree.status = mr.status;
@@ -181,7 +204,7 @@ impl MegaStorage {
                 GitObjectModel::Tag(mut tag) => {
                     tag.repo_id = 0;
                     tags.push(tag.into_active_model())
-                },
+                }
             }
         }
 
@@ -201,7 +224,7 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn init_mega_directory(&self) {
+    pub async fn init_monorepo(&self) {
         let converter = MegaModelConverter::init();
         let mut commit: mega_commit::Model = converter.commit.into();
         commit.status = MergeStatus::Merged;
