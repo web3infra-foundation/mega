@@ -88,6 +88,10 @@ impl Caches {
     /// generate the temp file path, hex string of the hash
     fn generate_temp_path(tmp_path: &Path, hash: SHA1) -> PathBuf {
         let mut path = tmp_path.to_path_buf();
+        path.push(&hash.to_plain_str()[..2]); // use first 2 chars as the directory
+        if !path.exists() {
+            fs::create_dir(&path).unwrap();
+        }
         path.push(hash.to_plain_str());
         path
     }
