@@ -28,6 +28,7 @@ use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
+use crate::api_service::monorepo_service::MonorepoService;
 use crate::api_service::obj_service::ObjectService;
 use crate::api_service::router::ApiServiceState;
 use crate::{api_service, lfs};
@@ -100,7 +101,9 @@ pub async fn start_server(options: &HttpOptions) {
         object_service: ObjectService {
             storage: state.context.storage.clone(),
         },
-        context: state.context.clone(),
+        monorepo_service: MonorepoService {
+            storage: state.context.services.mega_storage.clone(),
+        },
     };
 
     let app = Router::new()

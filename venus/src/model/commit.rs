@@ -37,8 +37,8 @@ impl From<Commit> for mega_commit::Model {
                 .iter()
                 .map(|x| x.to_plain_str())
                 .collect(),
-            author: Some(String::from_utf8(value.author.to_data().unwrap()).unwrap()),
-            committer: Some(String::from_utf8(value.committer.to_data().unwrap()).unwrap()),
+            author: Some(String::from_utf8_lossy(&value.author.to_data().unwrap()).to_string()),
+            committer: Some(String::from_utf8_lossy(&value.committer.to_data().unwrap()).to_string()),
             content: Some(value.message.clone()),
             mr_id: 0,
             status: MergeStatus::Open,
