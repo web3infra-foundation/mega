@@ -51,7 +51,15 @@ impl Pack {
     /// Can't decode in multi-tasking, because memory limit use shared static variable but different cache, cause "deadlock".
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
-        temp_path.push(Uuid::new_v4().to_string()); //maybe Snowflake or ULID is better (less collision)
+        // add 8 random characters as subdirectory, check if the directory exists
+        loop {
+            let sub_dir = Uuid::new_v4().to_string()[..8].to_string();
+            temp_path.push(sub_dir);
+            if !temp_path.exists() {
+                break;
+            }
+            temp_path.pop();
+        }
         let thread_num = thread_num.unwrap_or_else(num_cpus::get);
         let cache_mem_size = mem_limit.map(|mem_limit| mem_limit * 4 / 5);
         Pack {
