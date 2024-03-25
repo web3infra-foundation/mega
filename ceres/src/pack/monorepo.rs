@@ -32,6 +32,8 @@ use crate::pack::handler::{check_head_hash, decode_for_receiver, PackHandler};
 pub struct MonoRepo {
     pub context: Context,
     pub path: PathBuf,
+    pub from_hash: Option<String>,
+    pub to_hash: Option<String>,
 }
 
 #[async_trait]
@@ -80,8 +82,7 @@ impl PackHandler for MonoRepo {
                                 .unwrap()
                                 .into();
                         } else {
-                            refs = vec![];
-                            return check_head_hash(refs);
+                            return check_head_hash(vec![]);
                         }
                     }
                 }
@@ -142,8 +143,8 @@ impl PackHandler for MonoRepo {
         let mut writer: Vec<u8> = Vec::new();
         let repo = &Repo::empty();
         let storage = self.context.services.mega_storage.clone();
-        let total = storage.get_obj_count_by_repo_id(repo).await;
-        let mut encoder = PackEncoder::new(total, 0, &mut writer);
+        let obj_num = storage.get_obj_count_by_repo_id(repo).await;
+        let mut encoder = PackEncoder::new(obj_num, 0, &mut writer);
 
         for m in storage
             .get_commits_by_repo_id(repo)
@@ -240,6 +241,8 @@ impl MonoRepo {
         } else {
             let mr = MergeRequest {
                 path: self.path.to_str().unwrap().to_owned(),
+                from_hash: self.from_hash.clone().unwrap(),
+                to_hash: self.to_hash.clone().unwrap(),
                 ..Default::default()
             };
             storage.save_mr(mr.clone()).await.unwrap();

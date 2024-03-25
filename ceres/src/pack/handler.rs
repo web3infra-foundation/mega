@@ -8,6 +8,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 
+use callisto::db_enums::RefType;
 use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
 use mercury::internal::pack::Pack;
 use venus::{
@@ -32,9 +33,6 @@ pub trait PackHandler: Send + Sync {
     /// This function collects commits and nodes from the storage and packs them into
     /// a single binary vector. There is no need to build the entire tree; the function
     /// only sends all the data related to this repository.
-    ///
-    /// # Arguments
-    /// * `repo_path` - The path to the repository.
     ///
     /// # Returns
     /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
@@ -76,10 +74,21 @@ impl SmartProtocol {
                 repo,
             })
         } else {
-            Box::new(MonoRepo {
+            let mut res = Box::new(MonoRepo {
                 context: self.context.clone(),
                 path: self.path.clone(),
-            })
+                from_hash: None,
+                to_hash: None,
+            });
+            if let Some(command) = self
+                .command_list
+                .iter()
+                .find(|x| x.ref_type == RefType::Branch)
+            {
+                res.from_hash = Some(command.old_id.clone());
+                res.to_hash = Some(command.new_id.clone());
+            }
+            res
         }
     }
 }
@@ -103,9 +112,18 @@ pub fn decode_for_receiver(pack_file: Bytes) -> Result<Receiver<Entry>, GitError
         output.write_all(&pack_file).unwrap();
     }
 
+    let cache_size: usize = env::var("MEGA_PACK_DECODE_MEM_SIZE")
+        .unwrap()
+        .parse::<usize>()
+        .unwrap();
+
     let (sender, receiver) = mpsc::channel();
-    let tmp = PathBuf::from("/tmp/.cache_temp");
-    let p = Pack::new(None, Some(1024 * 1024 * 1024 * 4), Some(tmp.clone()));
+    let tmp = PathBuf::from(env::var("MEGA_PACK_DECODE_CACHE_PATH").unwrap());
+    let p = Pack::new(
+        None,
+        Some(1024 * 1024 * 1024 * cache_size),
+        Some(tmp.clone()),
+    );
     p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
     Ok(receiver)
 }
