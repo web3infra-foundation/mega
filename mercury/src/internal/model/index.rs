@@ -24,10 +24,12 @@ impl Time {
         Ok(Time { seconds, nanos })
     }
 
+    #[allow(dead_code)]
     fn to_system_time(&self) -> SystemTime {
         UNIX_EPOCH + std::time::Duration::new(self.seconds.into(), self.nanos)
     }
 
+    #[allow(dead_code)]
     fn from_system_time(system_time: SystemTime) -> Self {
         match system_time.duration_since(UNIX_EPOCH) {
             Ok(duration) => {
@@ -173,7 +175,7 @@ impl Index {
             let sign = utils::read_bytes(file, 4)?;
             println!("{:?}", String::from_utf8(sign.clone())?);
             // If the first byte is 'A'...'Z' the extension is optional and can be ignored.
-            if sign[0] >= ('A' as u8) && sign[0] <= ('Z' as u8) { // Optional extension
+            if sign[0] >= b'A' && sign[0] <= b'Z' { // Optional extension
                 let size = utils::read_u32_be(file)?;
                 utils::read_bytes(file, size as usize)?; // Ignore the extension
             } else { // 'link' or 'sdir' extension
@@ -233,10 +235,9 @@ impl Index {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use std::io::BufReader;
-    use crate::internal::model::index::{Index, Time};
+    use super::*;
 
     #[test]
     fn test_time() {
