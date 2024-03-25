@@ -16,23 +16,20 @@ pub fn generate_git_keep() -> Blob {
 }
 
 pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
-    let rust_item = TreeItem {
+    let tree_item = TreeItem {
         mode: TreeItemMode::Blob,
         id: git_keep.id,
         name: String::from(".gitkeep"),
     };
-    let rust = Tree::from_tree_items(vec![rust_item]).unwrap();
-    let import = rust.clone();
-    let project_items = vec![TreeItem {
-        mode: TreeItemMode::Tree,
-        id: rust.id,
-        name: String::from("rust"),
-    }];
-    let project = Tree::from_tree_items(project_items).unwrap();
+    let third_part = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+    let project = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+    let doc = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+    let release = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+
     let root_items = vec![
         TreeItem {
             mode: TreeItemMode::Tree,
-            id: import.id,
+            id: third_part.id,
             name: String::from("third-part"),
         },
         TreeItem {
@@ -40,10 +37,20 @@ pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
             id: project.id,
             name: String::from("project"),
         },
+        TreeItem {
+            mode: TreeItemMode::Tree,
+            id: project.id,
+            name: String::from("doc"),
+        },
+        TreeItem {
+            mode: TreeItemMode::Tree,
+            id: project.id,
+            name: String::from("release"),
+        },
     ];
 
     let root = Tree::from_tree_items(root_items).unwrap();
-    let trees = vec![import, project, rust];
+    let trees = vec![third_part, project, doc, release];
     (trees.into_iter().map(|x| (x.id, x)).collect(), root)
 }
 

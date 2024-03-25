@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS "mega_mr" (
   "merge_date" TIMESTAMP,
   "status" VARCHAR(20) NOT NULL,
   "path" TEXT NOT NULL,
-  "commit_hash" VARCHAR(40) NOT NULL,
+  "from_hash" VARCHAR(40) NOT NULL,
+  "to_hash" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
