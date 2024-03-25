@@ -9,7 +9,6 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-pub mod cache;
 pub mod internal;
 
 #[cfg(test)]
