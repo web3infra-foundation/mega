@@ -24,7 +24,7 @@
 
 3. Install PostgreSQL and init database.
 
-    1.  Install PostgreSQL 16 with `brew` command.
+   1. Install PostgreSQL 16 with `brew` command.
 
    ```bash
    $ brew install postgresql@16
@@ -33,7 +33,7 @@
    $ initdb /Volumes/Data/postgres -E utf8 # /Volumes/Data is path store data
    ```
 
-    2.  Create a database, then find the dump file in the SQL directory of the Mega repository and import it into the database.
+   2. Create a database, then find the dump file in the SQL directory of the Mega repository and import it into the database.
 
    ```bash
    $ psql postgres
@@ -48,14 +48,14 @@
 
    ```bash
    $ cd mega/sql/postgres
-   $ psql mega < pg_20240205__init.sql
+   $ psql mega < pg_20240205_init.sql
    ```
 
-    3. Create user and grant privileges.
+   3. Create user and grant privileges.
 
    ```sql
    postgres=# DROP USER IF EXISTS mega;
-   postgres=# CREATE USER mega WITH ENCRYPTED PASSWORD 'rustgit';
+   postgres=# CREATE USER mega WITH ENCRYPTED PASSWORD 'mega';
    postgres=# GRANT ALL PRIVILEGES ON DATABASE mega TO mega;
    ```
 
@@ -72,44 +72,68 @@
    $ brew services start redis
    ```
 
-5. Config environment variables for local test. For local testing, Mega uses the .env file to configure the required parameters. However, before starting the project, you also need to configure the environment variables such as `DB_USERNAME`, `DB_SECRET`, and `DB_HOST`.
+5. Config environment variables for local test. For local testing, Mega uses the .env file to configure the required parameters. However, before starting the project, you also need to configure the environment variables such as `DB_USERNAME`, `DB_PASSWORD`, and `DB_HOST`.
 
    ```ini
-   MEGA_DB_POSTGRESQL_URL = "postgres://mega:rustgit@127.0.0.1/mega"
+   ## Fillin the following environment variables with values you set
+   DB = "postgres" # {postgres, mysql}
+   DB_USERNAME = "mega"
+   DB_PASSWORD = "mega"
+   DB_HOST = "localhost"
+
+   MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
+   MEGA_DB_MYSQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
    MEGA_DB_MAX_CONNECTIONS = 32
    MEGA_DB_MIN_CONNECTIONS = 16
 
-   MEGA_DB_SQLX_LOGGING = false # Whether to disabling SQLx Log
+   ## Whether to disabling SQLx Log
+   MEGA_DB_SQLX_LOGGING = false
+
+   ## Mega SSH key path
+   MEGA_SSH_KEY = "/tmp/.mega/ssh"
 
    ## file storage configuration
    MEGA_RAW_STORAGE = "LOCAL" # LOCAL or REMOTE
-   MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects" # This configuration is used to set the local path of the project storage
-   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB. If the object file size exceeds the threshold value, it will be handled by file storage instead of the database.
+
+   ## This configuration is used to set the local path of the project storage
+   MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects"
+
+   ## Remote cloud storage region
+   MEGA_OBS_ACCESS_KEY = ""
+   MEGA_OBS_SECRET_KEY = ""
+   MEGA_OBJ_REMOTE_REGION = ""
+   MEGA_OBJ_REMOTE_ENDPOINT = ""
+
+   ## Unit KB. If the object file size exceeds the threshold value, it will be handled by file storage instead of the database
+   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024
 
    ## Init directory configuration
-   MEGA_IMPORT_DIRS = "third_parts" # Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+   ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+   MEGA_IMPORT_DIRS = "/third-part"
 
    ## Decode cache configuration
    MEGA_PACK_DECODE_MEM_SIZE = 4 # Unit GB.
    MEGA_PACK_DECODE_CACHE_PATH = "/tmp/.mega/cache"
 
-1. Init the Mega
+   ```
+
+6. Init the Mega
 
    ```bash
    $ cd mega
-   $ cargo run init
+   $ cargo run init -d postgres
    ```
 
-2. Start the Mega server for testing.
+7. Start the Mega server for testing.
 
    ```bash
    # Starting a single https server
-   $ cargo run service https 
+   $ cargo run service https
    # Or Starting multiple server
    $ cargo run service start http ssh p2p
    ```
 
-3. Test the `git push` and `git clone`
+8. Test the `git push` and `git clone`
 
    ```bash
    $ cd mega
@@ -138,7 +162,7 @@
 
 3. Install PostgreSQL and initialize database.
 
-    1.  Install PostgreSQL.
+   1. Install PostgreSQL.
 
    ```bash
    $ pacman -S postgresql
@@ -149,7 +173,7 @@
    $ systemctl enable --now postgresql
    ```
 
-    2.  Create database.
+   2. Create database.
 
    ```bash
    $ sudo -u postgres psql postgres
@@ -162,25 +186,26 @@
    postgres=# \q
    ```
 
-    3.  Import `mega/sql/postgres/pg_<time>_init.sql` to `mega`.
+   3. Import `mega/sql/postgres/pg_<time>_init.sql` to `mega`.
 
    ```bash
    $ cd mega/sql/postgres
-   $ psql mega < pg_<time>__init.sql
+   $ sudo -u postgres psql mega < pg_20240205__init.sql
    ```
 
-    4. Craeate user and grant privileges.
+   4. Craeate user and grant privileges.
 
    ```sql
+   $ sudo -u postgres psql postgres
    postgres=# DROP USER IF EXISTS mega;
-   postgres=# CREATE USER mega WITH ENCRYPTED PASSWORD 'rustgit';
+   postgres=# CREATE USER mega WITH ENCRYPTED PASSWORD 'mega';
    postgres=# GRANT ALL PRIVILEGES ON DATABASE mega TO mega;
    ```
 
    ```bash
-   $ psql mega -c "GRANT ALL ON ALL TABLES IN SCHEMA public to mega;"
-   $ psql mega -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public to mega;"
-   $ psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
+   $ sudo -u postgres psql mega -c "GRANT ALL ON ALL TABLES IN SCHEMA public to mega;"
+   $ sudo -u postgres psql mega -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public to mega;"
+   $ sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
    ```
 
 4. Install redis.
@@ -193,40 +218,59 @@
 5. Config `.env`.
 
    ```ini
-   # If you followed the installation guide, you can use below URL directly, comment it the otherwise.
-   MEGA_DB_POSTGRESQL_URL = "postgres://mega:rustgit@127.0.0.1/mega"
-   # If you changed any of the username, password or host, you will need to uncomment the following line and replace the placeholders manually.
-   #MEGA_DB_POSTGRESQL_URL = "postgres://<username>:<password>@127.0.0.1/<db_name (or host)>"
+   ## Fillin the following environment variables with values you set
+   DB = "postgres" # {postgres, mysql}
+   DB_USERNAME = "mega"
+   DB_PASSWORD = "mega"
+   DB_HOST = "localhost"
+
+   MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
+   MEGA_DB_MYSQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
    MEGA_DB_MAX_CONNECTIONS = 32
    MEGA_DB_MIN_CONNECTIONS = 16
 
-   MEGA_DB_SQLX_LOGGING = false # Whether to disabling SQLx Log
+   ## Whether to disabling SQLx Log
+   MEGA_DB_SQLX_LOGGING = false
+
+   ## Mega SSH key path
+   MEGA_SSH_KEY = "/tmp/.mega/ssh"
 
    ## file storage configuration
    MEGA_RAW_STORAGE = "LOCAL" # LOCAL or REMOTE
-   MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects" # This configuration is used to set the local path of the project storage
-   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB. If the object file size exceeds the threshold value, it will be handled by file storage instead of the database.
+
+   ## This configuration is used to set the local path of the project storage
+   MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects"
+
+   ## Remote cloud storage region
+   MEGA_OBS_ACCESS_KEY = ""
+   MEGA_OBS_SECRET_KEY = ""
+   MEGA_OBJ_REMOTE_REGION = ""
+   MEGA_OBJ_REMOTE_ENDPOINT = ""
+
+   ## Unit KB. If the object file size exceeds the threshold value, it will be handled by file storage instead of the database
+   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024
 
    ## Init directory configuration
-   MEGA_IMPORT_DIRS = "third_parts" # Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
-
+   ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+   MEGA_IMPORT_DIRS = "/third-part"
 
    ## Decode cache configuration
    MEGA_PACK_DECODE_MEM_SIZE = 4 # Unit GB.
    MEGA_PACK_DECODE_CACHE_PATH = "/tmp/.mega/cache"
+   ```
 
 6. Init Mega.
 
    ```bash
    $ cd mega
-   $ cargo run init
+   $ cargo run init -d postgres
    ```
 
 7. Start Mega server.
 
    ```bash
    # Start a single https server
-   $ cargo run service https 
+   $ cargo run service https
    # Or Start multiple server
    $ cargo run service start http ssh p2p
    ```
@@ -234,11 +278,14 @@
 8. Test `git push` and `git clone`
 
    ```bash
-   $ cd mega
-   $ git remote add local http://localhost:8000/projects/mega.git
-   $ git push local main
    $ cd /tmp
-   $ git clone http://localhost:8000/projects/mega.git
+   $ git clone https://github.com/Rust-for-Linux/linux.git
+   $ cd linux
+   $ git remote add mega http://localhost:8000/third-part/linux.git
+   $ git push --all mega
+   $ sudo rm -r /tmp/linux
+   $ cd /tmp
+   $ git clone http://localhost:8000/third-part/linux.git
    ```
 
 ## Comment Guideline
@@ -250,7 +297,6 @@ This guide outlines the recommended order for importing dependencies in Rust pro
 ### Struct Comments (///)
 
 ### Function Comments (///)
-
 
 ## Rust Dependency Import Order Guideline
 
@@ -272,8 +318,8 @@ Import dependencies from other modules within the project workspace.
 
 Import functions and structs from within modules.
 
-
 Example:
+
 ```rust
 
 // 1. Rust Standard Library
@@ -298,8 +344,8 @@ use crate::protocol::ServiceType;
 use crate::protocol::{PackProtocol, Protocol};
 ```
 
-
 ### Additional Notes:
+
 - Always group imports with an empty line between different sections for better readability.
 - Alphabetize imports within each section to maintain consistency.
 - Avoid using extern crate syntax for Rust 2018 edition and later; prefer using use with crates.
