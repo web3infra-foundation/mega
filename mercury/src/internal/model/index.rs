@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use byteorder::{BigEndian, WriteBytesExt};
 use sha1::{Digest, Sha1};
@@ -84,7 +84,7 @@ pub struct IndexEntry {
     pub mtime: Time,
     pub dev: u32, // 0 for windows
     pub ino: u32, // 0 for windows
-    pub mode: u32, // 0o100644
+    pub mode: u32, // 0o100644 // 4-bit object type + 3-bit unused + 9-bit unix permission
     pub uid: u32, // 0 for windows
     pub gid: u32, // 0 for windows
     pub size: u32,
@@ -99,9 +99,9 @@ impl Display for IndexEntry {
     }
 }
 /// see [index-format](https://git-scm.com/docs/index-format)
+/// <br> to Working Dir relative path
 pub struct Index {
-    entries: BTreeMap<PathBuf, IndexEntry>,
-    work_dir: PathBuf
+    entries: BTreeMap<(String, u8), IndexEntry>,
 }
 
 impl Index {
@@ -122,10 +122,9 @@ impl Index {
         Ok(entries)
     }
 
-    pub fn new(work_dir: PathBuf) -> Self {
+    pub fn new() -> Self {
         Index {
             entries: BTreeMap::new(),
-            work_dir
         }
     }
 
@@ -133,13 +132,13 @@ impl Index {
         self.entries.len()
     }
 
-    pub fn from_file(path: impl AsRef<Path>, work_dir: &Path) -> Result<Self, GitError> {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self, GitError> {
         let file = File::open(path.as_ref())?; // read-only
         let total_size = file.metadata()?.len();
         let file = &mut Wrapper::new(BufReader::new(file)); // TODO move Wrapper & utils to a common module
 
         let num = Index::check_header(file)?;
-        let mut index = Index::new(work_dir.to_path_buf());
+        let mut index = Index::new();
 
         println!("number: {}", num);
         for _ in 0..num {
@@ -161,7 +160,7 @@ impl Index {
             file.read_exact(&mut name)?;
             // The exact encoding is undefined, but the '.' and '/' characters are encoded in 7-bit ASCII
             entry.name = String::from_utf8(name)?; // TODO check the encoding
-            index.entries.insert(PathBuf::from(entry.name.clone()), entry); // TODO determine relative or absolute path
+            index.entries.insert((entry.name.clone(), entry.flags.stage), entry);
 
             // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
             // while keeping the name NUL-terminated. // so at least 1 byte nul
@@ -226,7 +225,6 @@ impl Index {
         }
 
         // Extensions
-        // TODO
 
         // check sum
         let file_hash: [u8; 20] = hash.finalize().into();
@@ -238,7 +236,6 @@ impl Index {
 mod tests {
     use std::fs::File;
     use std::io::BufReader;
-    use std::path::Path;
     use crate::internal::model::index::{Index, Time};
 
     #[test]
@@ -258,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_index() {
-        let index = Index::from_file("../tests/data/index/index-760", Path::new("")).unwrap();
+        let index = Index::from_file("../tests/data/index/index-760").unwrap();
         assert_eq!(index.size(), 760);
         for (_, entry) in index.entries.iter() {
             println!("{}", entry);
@@ -267,9 +264,9 @@ mod tests {
 
     #[test]
     fn test_index_to_file() {
-        let index = Index::from_file("../tests/data/index/index-760", Path::new("")).unwrap();
+        let index = Index::from_file("../tests/data/index/index-760").unwrap();
         index.to_file("/tmp/index-760").unwrap();
-        let new_index = Index::from_file("/tmp/index-760", Path::new("")).unwrap();
+        let new_index = Index::from_file("/tmp/index-760").unwrap();
         assert_eq!(index.size(), new_index.size());
     }
 }
