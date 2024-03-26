@@ -43,6 +43,15 @@ pub enum GitError {
     #[error("The `{0}` is not a valid pack header.")]
     InvalidPackHeader(String),
 
+    #[error("The `{0}` is not a valid index file.")]
+    InvalidIndexFile(String),
+
+    #[error("The `{0}` is not a valid index header.")]
+    InvalidIndexHeader(String),
+
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
+
     #[error("The {0} is not a valid Hash value ")]
     InvalidHashValue(String),
 
