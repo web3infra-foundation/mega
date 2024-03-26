@@ -3,6 +3,7 @@
 //!
 //!
 //!
+use std::env;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -69,8 +70,8 @@ impl From<AppState> for LfsConfig {
             host: value.options.common.host,
             port: value.options.custom.http_port,
             context: value.context.clone(),
-            lfs_storage: Arc::new(LocalStorage::init(PathBuf::from("lfs-files"))),
-            repo_name: String::from("lfs"),
+            lfs_storage: Arc::new(LocalStorage::init(PathBuf::from(env::var("MEGA_LFS_OBJ_LOCAL_PATH").unwrap()))),
+            repo_name: String::from("repo_name"),
         }
     }
 }

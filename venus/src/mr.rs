@@ -8,7 +8,6 @@ pub struct MergeRequest {
     pub id: i64,
     pub mr_link: String,
     pub status: MergeStatus,
-    pub message: Option<String>,
     pub merge_date: Option<NaiveDateTime>,
     pub path: String,
     pub from_hash: String,
@@ -21,7 +20,6 @@ impl Default for MergeRequest {
             id: generate_id(),
             mr_link: String::new(),
             status: MergeStatus::Open,
-            message: None,
             merge_date: None,
             path: String::new(),
             from_hash: String::new(),
@@ -31,14 +29,12 @@ impl Default for MergeRequest {
 }
 
 impl MergeRequest {
-    pub fn close(&mut self, msg: Option<String>) {
+    pub fn close(&mut self) {
         self.status = MergeStatus::Closed;
-        self.message = msg;
     }
 
-    pub fn merge(&mut self, msg: Option<String>) {
+    pub fn merge(&mut self, _: Option<String>) {
         self.status = MergeStatus::Merged;
-        self.message = msg;
         self.merge_date = Some(chrono::Utc::now().naive_utc())
     }
 }
@@ -50,7 +46,6 @@ impl From<MergeRequest> for mega_mr::Model {
             mr_link: value.mr_link,
             status: value.status,
             merge_date: value.merge_date,
-            mr_msg: value.message,
             path: value.path,
             from_hash: value.from_hash,
             to_hash: value.to_hash,
@@ -67,7 +62,6 @@ impl From<mega_mr::Model> for MergeRequest {
             mr_link: value.mr_link,
             status: value.status,
             merge_date: value.merge_date,
-            message: value.mr_msg,
             path: value.path,
             from_hash: value.from_hash,
             to_hash: value.to_hash,

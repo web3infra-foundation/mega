@@ -1,7 +1,6 @@
 use std::{env, sync::Arc};
 
 use async_trait::async_trait;
-use callisto::db_enums::MergeStatus;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
     Set,
@@ -119,20 +118,14 @@ impl GitDbStorage {
             let model = raw_obj.convert_to_mega_model();
             match model {
                 GitObjectModel::Commit(mut commit) => {
-                    commit.mr_id = 0;
-                    commit.status = MergeStatus::Merged;
                     commit.repo_id = repo.repo_id;
                     commits.push(commit.into_active_model())
                 },
                 GitObjectModel::Tree(mut tree) => {
-                    tree.mr_id = 0;
-                    tree.status = MergeStatus::Merged;
                     tree.repo_id = repo.repo_id;
                     trees.push(tree.clone().into_active_model());
                 }
                 GitObjectModel::Blob(mut blob, raw) => {
-                    blob.mr_id = 0;
-                    blob.status = MergeStatus::Merged;
                     blob.repo_id = repo.repo_id;
                     blobs.push(blob.clone().into_active_model());
                     raw_blobs.push(raw.into_active_model());

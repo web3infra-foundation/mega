@@ -18,8 +18,6 @@ CREATE TABLE IF NOT EXISTS "mega_commit" (
   "author" TEXT,
   "committer" TEXT,
   "content" TEXT,
-  "mr_id" BIGINT NOT NULL,
-  "status" VARCHAR(20) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_mc_git_id UNIQUE (commit_id)
@@ -32,8 +30,6 @@ CREATE TABLE IF NOT EXISTS "mega_tree" (
   "sub_trees" BYTEA NOT NULL,
   "parent_id" VARCHAR(40),
   "name" TEXT NOT NULL,
-  "mr_id" BIGINT NOT NULL,
-  "status" VARCHAR(20) NOT NULL,
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
@@ -47,8 +43,6 @@ CREATE TABLE IF NOT EXISTS "mega_blob" (
   "blob_id" VARCHAR(40) NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "name" TEXT NOT NULL,
-  "mr_id" BIGINT NOT NULL,
-  "status" VARCHAR(20) NOT NULL,
   "size" INT NOT NULL,
   "full_path" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
@@ -71,7 +65,6 @@ CREATE TABLE IF NOT EXISTS "mega_tag" (
 CREATE TABLE IF NOT EXISTS "mega_mr" (
   "id" BIGINT PRIMARY KEY,
   "mr_link" VARCHAR(40) NOT NULL,
-  "mr_msg" VARCHAR(255),
   "merge_date" TIMESTAMP,
   "status" VARCHAR(20) NOT NULL,
   "path" TEXT NOT NULL,
@@ -81,6 +74,26 @@ CREATE TABLE IF NOT EXISTS "mega_mr" (
   "updated_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_mr_path" ON "mega_mr" ("path");
+
+CREATE TABLE IF NOT EXISTS "mega_mr_conv" (
+  "id" BIGINT PRIMARY KEY,
+  "mr_id" BIGINT NOT NULL,
+  "user_id" BIGINT NOT NULL,
+  "conv_type"  VARCHAR(20) NOT NULL,
+  "created_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP NOT NULL
+);
+CREATE INDEX "idx_conversation" ON "mega_mr_conv" ("mr_id");
+
+
+CREATE TABLE IF NOT EXISTS "mega_mr_comment" (
+  "id" BIGINT PRIMARY KEY,
+  "conv_id" BIGINT NOT NULL,
+  "comment" TEXT,
+  "edited" BOOLEAN NOT NULL
+);
+CREATE INDEX "idx_comment_id" ON "mega_mr_comment" ("conv_id");
+
 CREATE TABLE IF NOT EXISTS "mega_issue" (
   "id" BIGINT PRIMARY KEY,
   "number" BIGINT NOT NULL,
