@@ -31,7 +31,7 @@ impl MonorepoService {
 
             if mr.from_hash == refs[0].ref_hash {
                 mr.merge(op.message);
-                self.storage.update_mr(mr).await;
+                self.storage.update_mr(mr).await.unwrap();
             } else {
                 res.result = false;
                 res.err_message = "ref hash conflict".to_owned();
