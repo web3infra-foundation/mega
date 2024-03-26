@@ -8,8 +8,7 @@ const TopNavbar = () => {
                 {/* level first */}
                 <div className='logo-container'>
                     <div className='navLeft'>
-                        <img src="/images/mega.png" alt="log" className='logOfMega'></img>
-                        <h1 className='titleOfMega'>MEGA</h1>
+                        <img src="/images/megaTitle.png" alt="logo" className='logOfMega'></img>
                     </div>
                     <div className='navRight'>
                         <div>
