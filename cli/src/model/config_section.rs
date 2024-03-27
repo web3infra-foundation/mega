@@ -4,9 +4,9 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "config_section")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
-    pub section_id: i32,
-    pub section_name: String,
-    pub unique_name: String,
+    pub section_id: i64,
+    pub section_name: String, // core/remote/branch etc
+    pub unique_name: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
