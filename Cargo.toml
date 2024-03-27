@@ -19,7 +19,7 @@ members = [
     "venus",
     "ganymede", 
     "ceres",
-    "cli",
+    "client",
 ]
 exclude = ["craft", "fuse"]
 
