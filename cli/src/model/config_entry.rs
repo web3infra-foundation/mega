@@ -4,8 +4,8 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "config_entry")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
-    pub entry_id: i32,
-    pub section_id: i32,
+    pub entry_id: i64,
+    pub section_id: i64,
     pub key: String,
     pub value: String,
 }
