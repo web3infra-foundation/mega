@@ -114,17 +114,18 @@ CREATE TABLE IF NOT EXISTS "mega_refs" (
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_mref_path UNIQUE (path)
 );
-CREATE TABLE IF NOT EXISTS "refs" (
+CREATE TABLE IF NOT EXISTS "import_refs" (
   "id" BIGINT PRIMARY KEY,
   "repo_id" BIGINT NOT NULL,
   "ref_name" TEXT NOT NULL,
   "ref_git_id" VARCHAR(40) NOT NULL,
   "ref_type" VARCHAR(20) NOT NULL,
+  "default_branch" BOOLEAN NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_ref_path_name UNIQUE (repo_id, ref_name)
 );
-CREATE INDEX "idx_refs_repo_id" ON "refs" ("repo_id");
+CREATE INDEX "idx_refs_repo_id" ON "import_refs" ("repo_id");
 CREATE TABLE IF NOT EXISTS "git_repo" (
   "id" BIGINT PRIMARY KEY,
   "repo_path" TEXT NOT NULL,

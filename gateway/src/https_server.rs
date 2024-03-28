@@ -24,12 +24,12 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
+use ceres::monorepo::service::MonorepoService;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
 use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
-use crate::api_service::monorepo_service::MonorepoService;
 use crate::api_service::obj_service::ObjectService;
 use crate::api_service::router::ApiServiceState;
 use crate::{api_service, lfs};
@@ -70,7 +70,9 @@ impl From<AppState> for LfsConfig {
             host: value.options.common.host,
             port: value.options.custom.http_port,
             context: value.context.clone(),
-            lfs_storage: Arc::new(LocalStorage::init(PathBuf::from(env::var("MEGA_LFS_OBJ_LOCAL_PATH").unwrap()))),
+            lfs_storage: Arc::new(LocalStorage::init(PathBuf::from(
+                env::var("MEGA_LFS_OBJ_LOCAL_PATH").unwrap(),
+            ))),
             repo_name: String::from("repo_name"),
         }
     }
