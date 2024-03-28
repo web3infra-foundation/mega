@@ -6,10 +6,10 @@
 //!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
-use std::thread::{self, JoinHandle, sleep};
+use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use flate2::bufread::ZlibDecoder;
@@ -323,6 +323,13 @@ impl Pack {
         F: Fn(Entry) + Sync + Send + 'static
     {
         let time = Instant::now();
+        let mut last_update_time = time.elapsed().as_millis();
+        let log_info = |_i:usize, pack:&Pack| {
+            tracing::info!("time {:?} s \t pass: {:?}, \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB", 
+                time.elapsed().as_millis() as f64 / 1000.0, _i, pack.pool.queued_count(), pack.caches.queued_tasks(),
+                pack.cache_objs_mem_used() / 1024 / 1024,
+                pack.caches.memory_used_index() / 1024 / 1024);
+        };
         let callback = Arc::new(callback);
 
         let caches = self.caches.clone();
@@ -337,39 +344,18 @@ impl Pack {
                 return Err(e);
             }
         }
-        println!("The pack file has {} objects", self.number);
-
+        tracing::info!("The pack file has {} objects", self.number);
         let mut offset: usize = 12;
-        let i = Arc::new(AtomicUsize::new(0));
-        
-        // debug log thread g   
-        #[cfg(debug_assertions)]
-        let stop = Arc::new(AtomicBool::new(false));
-        #[cfg(debug_assertions)]
-        { // LOG
-            let log_pool = self.pool.clone();
-            let log_cache = caches.clone();
-            let log_i = i.clone();
-            let log_stop =  stop.clone();
-            let cache_objs_mem = self.cache_objs_mem.clone();
-            // print log per seconds
-            thread::spawn(move|| {
-                let time = Instant::now();
-                loop {
-                    if log_stop.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    println!("time {:?} s \t pass: {:?}, \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
-                    time.elapsed().as_millis() as f64 / 1000.0, log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(),
-                             cache_objs_mem.load(Ordering::Relaxed) / 1024 / 1024,
-                             log_cache.memory_used() / 1024 / 1024);
-
-                    sleep(std::time::Duration::from_secs(1));
+        let mut i = 0;
+        while i < self.number {
+            // log per 2000&more then 1 se objects
+            if i%1000 == 0 {
+                let time_now = time.elapsed().as_millis();
+                if time_now - last_update_time > 1000 {
+                    log_info(i, self);
+                    last_update_time = time_now;
                 }
-            });
-        } // LOG
-
-        while i.load(Ordering::Relaxed) < self.number {
+            }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
             while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {
@@ -429,9 +415,9 @@ impl Pack {
                     return Err(e);
                 }
             }
-            i.fetch_add(1, Ordering::Relaxed);
+            i += 1;
         }
-
+        log_info(i, self);
         let render_hash = reader.final_hash();
         let mut trailer_buf = [0; 20];
         reader.read_exact(&mut trailer_buf).unwrap();
@@ -458,18 +444,13 @@ impl Pack {
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
-        println!("The pack file has been decoded successfully");
-        println!("Pack decode takes: [ {:?} ]", time.elapsed());
-
+        tracing::info!("The pack file has been decoded successfully, takes: [ {:?} ]", time.elapsed());
         self.caches.clear(); // clear cached objects & stop threads
         assert_eq!(self.cache_objs_mem_used(), 0); // all the objs should be dropped until here
 
         if self.clean_tmp {
             self.caches.remove_tmp_dir();
         }
-        
-        #[cfg(debug_assertions)]
-        stop.store(true, Ordering::Relaxed);
         
         Ok(())
     }
@@ -617,6 +598,7 @@ mod tests {
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
+    use tracing_test::traced_test;
 
     use crate::internal::pack::Pack;
 
@@ -683,6 +665,7 @@ mod tests {
     }
 
     #[test]
+    #[traced_test]
     fn test_pack_decode_with_large_file_with_delta_without_ref() {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
