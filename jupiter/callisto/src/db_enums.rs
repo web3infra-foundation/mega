@@ -55,10 +55,12 @@ pub enum ConvType {
     ForcePush,
     #[sea_orm(string_value = "edit")]
     Edit,   
-    #[sea_orm(string_value = "reciew")]
+    #[sea_orm(string_value = "review")]
     Review,
     #[sea_orm(string_value = "approve")]
     Approve,
     #[sea_orm(string_value = "merge_queue")]
     MergeQueue,
+    #[sea_orm(string_value = "merged")]
+    Merged,
 }

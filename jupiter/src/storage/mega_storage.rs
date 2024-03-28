@@ -5,12 +5,13 @@ use std::{env, sync::Arc};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, Set,
+    PaginatorTrait, QueryFilter,
 };
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    git_repo, mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tag, mega_tree, raw_blob
+    git_repo, mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tag,
+    mega_tree, raw_blob,
 };
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -18,9 +19,9 @@ use ganymede::mega_node::MegaNode;
 use ganymede::model::converter::MegaModelConverter;
 use ganymede::model::create_file::CreateFileInfo;
 use venus::internal::object::GitObjectModel;
-use venus::internal::pack::reference::Refs;
 use venus::internal::{object::commit::Commit, pack::entry::Entry};
-use venus::mr::MergeRequest;
+use venus::monorepo::mega_refs::MegaRefs;
+use venus::monorepo::mr::MergeRequest;
 use venus::repo::Repo;
 
 use crate::raw_storage::{self, RawStorage};
@@ -91,33 +92,23 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn get_ref(&self, path: &str) -> Result<Vec<Refs>, MegaError> {
+    pub async fn get_ref(&self, path: &str) -> Result<Option<MegaRefs>, MegaError> {
         let result = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
             .one(self.get_connection())
             .await?;
-        if let Some(model) = result {
-            return Ok(vec![model.into()]);
-        }
-        Ok(Vec::new())
+        Ok(result.map(|model| model.into()))
     }
 
     pub async fn update_ref(
         &self,
-        path: &str,
-        ref_commit_hash: &str,
-        ref_tree_hash: &str,
+        refs: MegaRefs
     ) -> Result<(), MegaError> {
-        let ref_data: mega_refs::Model = mega_refs::Entity::find()
-            .filter(mega_refs::Column::Path.eq(path))
-            .one(self.get_connection())
-            .await
-            .unwrap()
-            .unwrap();
+        let ref_data: mega_refs::Model = refs.into();
         let mut ref_data: mega_refs::ActiveModel = ref_data.into();
-        ref_data.ref_commit_hash = Set(ref_commit_hash.to_string());
-        ref_data.ref_tree_hash = Set(ref_tree_hash.to_string());
-        ref_data.updated_at = Set(chrono::Utc::now().naive_utc());
+        ref_data.reset(mega_refs::Column::RefCommitHash);
+        ref_data.reset(mega_refs::Column::RefTreeHash);
+        ref_data.reset(mega_refs::Column::UpdatedAt);
         ref_data.update(self.get_connection()).await.unwrap();
         Ok(())
     }
@@ -165,32 +156,47 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn add_mr_comment(&self, mr_id: i64, user_id: i64, comment: Option<String>) -> Result<(), MegaError> {
+    pub async fn add_mr_conversation(
+        &self,
+        mr_id: i64,
+        user_id: i64,
+        conv_type: ConvType,
+    ) -> Result<i64, MegaError> {
         let conversation = mega_mr_conv::Model {
             id: generate_id(),
             mr_id,
             user_id,
-            conv_type: ConvType::Comment,
+            conv_type,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
+        let conversation = conversation.into_active_model();
+        let res = conversation.insert(self.get_connection()).await.unwrap();
+        Ok(res.id)
+    }
+
+    pub async fn add_mr_comment(
+        &self,
+        mr_id: i64,
+        user_id: i64,
+        comment: Option<String>,
+    ) -> Result<(), MegaError> {
+        let conv_id = self
+            .add_mr_conversation(mr_id, user_id, ConvType::Comment)
+            .await
+            .unwrap();
         let comment = mega_mr_comment::Model {
             id: generate_id(),
-            conv_id: conversation.id,
+            conv_id,
             comment,
             edited: false,
         };
-        let conversation = conversation.into_active_model();
         let comment = comment.into_active_model();
-        conversation.insert(self.get_connection()).await.unwrap();
         comment.insert(self.get_connection()).await.unwrap();
         Ok(())
     }
 
-    pub async fn save_entry(
-        &self,
-        entry_list: Vec<Entry>,
-    ) -> Result<(), MegaError> {
+    pub async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let mut commits = Vec::new();
         let mut trees = Vec::new();
         let mut blobs = Vec::new();
@@ -261,10 +267,6 @@ impl MegaStorage {
         batch_save_model(self.get_connection(), raw_blobs)
             .await
             .unwrap();
-        // let mega_snapshot = converter.mega_snapshots.borrow().clone();
-        // batch_save_model(self.get_connection(), mega_snapshot)
-        //     .await
-        //     .unwrap();
     }
 
     #[allow(unused)]

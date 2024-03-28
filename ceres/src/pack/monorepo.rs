@@ -1,6 +1,5 @@
 use std::{
-    path::{Component, Path, PathBuf},
-    str::FromStr,
+    path::{Component, PathBuf},
     sync::mpsc::{self, Receiver},
     vec,
 };
@@ -8,14 +7,12 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use callisto::{db_enums::MergeStatus, mega_tree, raw_blob};
+use callisto::raw_blob;
 use common::utils::MEGA_BRANCH_NAME;
-use jupiter::storage::batch_save_model;
 use jupiter::{context::Context, storage::batch_query_by_columns};
 use mercury::internal::pack::encode::PackEncoder;
 use venus::{
     errors::GitError,
-    hash::SHA1,
     internal::{
         object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree, types::ObjectType},
         pack::{
@@ -23,7 +20,7 @@ use venus::{
             reference::{RefCommand, Refs},
         },
     },
-    mr::MergeRequest,
+    monorepo::mr::MergeRequest,
     repo::Repo,
 };
 
@@ -39,15 +36,20 @@ pub struct MonoRepo {
 #[async_trait]
 impl PackHandler for MonoRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
-        // let refs: Vec<Refs>;
         let storage = self.context.services.mega_storage.clone();
 
         let result = storage.get_ref(self.path.to_str().unwrap()).await.unwrap();
-        let refs = if !result.is_empty() {
-            result
+        let refs = if result.is_some() {
+            vec![result.unwrap().into()]
         } else {
             let target_path = self.path.clone();
-            let ref_hash = storage.get_ref("/").await.unwrap()[0].ref_hash.clone();
+            let ref_hash = storage
+                .get_ref("/")
+                .await
+                .unwrap()
+                .unwrap()
+                .ref_commit_hash
+                .clone();
 
             let commit: Commit = storage
                 .get_commit_by_hash(&Repo::empty(), &ref_hash)
@@ -105,11 +107,17 @@ impl PackHandler for MonoRepo {
             vec![Refs {
                 ref_name: MEGA_BRANCH_NAME.to_string(),
                 ref_hash: c.id.to_plain_str(),
-                ref_tree_hash: Some(c.tree_id.to_plain_str()),
+                default_branch: true,
+                ..Default::default()
             }]
         };
         check_head_hash(refs)
     }
+    // 001e# service=git-upload-pack\n
+    // 0000 00b2
+    // c9ba5f3b45016391455e70cbbf2db55efeb013f6 HEAD\0
+    // shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done include-tag side-band-64k ofs-delta agent=mega/0.1.0\n
+    // 002e c9ba5f3b45016391455e70cbbf2db55efeb013f6 \n0000
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
         let receiver = decode_for_receiver(pack_file).unwrap();
@@ -123,30 +131,38 @@ impl PackHandler for MonoRepo {
             if mr.from_hash == self.from_hash.clone().unwrap() {
                 let to_hash = self.to_hash.clone().unwrap();
                 if mr.to_hash != to_hash {
-                    let comment = self.update_mr_comment(&mr.to_hash, &to_hash);
+                    let comment = self.comment_for_force_update(&mr.to_hash, &to_hash);
                     mr.to_hash = to_hash;
                     storage
                         .add_mr_comment(mr.id, 0, Some(comment))
                         .await
                         .unwrap();
-                    commit_size = self.save_entry(receiver).await
+                    commit_size = self.save_entry(receiver).await;
                 }
             } else {
-                mr.status = MergeStatus::Closed;
+                mr.close();
                 storage
-                    .add_mr_comment(mr.id, 0, Some("Mega cloed MR due to conflict".to_string()))
+                    .add_mr_comment(mr.id, 0, Some("Mega closed MR due to conflict".to_string()))
                     .await
                     .unwrap();
             }
-            storage.update_mr(mr).await.unwrap();
+            storage.update_mr(mr.clone()).await.unwrap();
         } else {
-            storage.save_mr(mr).await.unwrap();
-            commit_size = self.save_entry(receiver).await
+            commit_size = self.save_entry(receiver).await;
+
+            storage.save_mr(mr.clone()).await.unwrap();
         };
 
         if commit_size > 1 {
-            // mr.status = MergeStatus::Closed;
-            // todo!
+            mr.close();
+            storage
+                .add_mr_comment(
+                    mr.id,
+                    0,
+                    Some("Mega closed MR due to multi commit detected".to_string()),
+                )
+                .await
+                .unwrap();
         }
         Ok(())
     }
@@ -239,6 +255,10 @@ impl PackHandler for MonoRepo {
         //do nothing in monorepo because need mr to handle refs
         Ok(())
     }
+
+    async fn check_default_branch(&self) -> bool {
+        true
+    }
 }
 
 impl MonoRepo {
@@ -262,60 +282,9 @@ impl MonoRepo {
         }
     }
 
-    async fn handle_parent_directory(&self, mut path: &Path) -> Result<(), GitError> {
-        let storage = self.context.services.mega_storage.clone();
-        let refs = &storage.get_ref("/").await.unwrap()[0];
-
-        let mut target_name = path.file_name().unwrap().to_str().unwrap();
-        let mut target_hash = SHA1::from_str(&refs.ref_tree_hash.clone().unwrap()).unwrap();
-
-        let mut save_models: Vec<mega_tree::ActiveModel> = Vec::new();
-
-        while let Some(parent) = path.parent() {
-            let model = storage
-                .get_tree_by_path(parent.to_str().unwrap(), &refs.ref_hash)
-                .await
-                .unwrap();
-            if let Some(model) = model {
-                let mut p_tree: Tree = model.into();
-                let index = p_tree.tree_items.iter().position(|x| x.name == target_name);
-                if let Some(index) = index {
-                    p_tree.tree_items[index].id = target_hash;
-                    let new_p_tree = Tree::from_tree_items(p_tree.tree_items).unwrap();
-
-                    if parent.parent().is_some() {
-                        target_name = parent.file_name().unwrap().to_str().unwrap();
-                        target_hash = new_p_tree.id;
-                    } else {
-                        target_name = "root";
-                    }
-
-                    let mut model: mega_tree::Model = new_p_tree.into();
-                    model.full_path = parent.to_str().unwrap().to_owned();
-                    model.name = target_name.to_owned();
-                    let a_model = model.into();
-                    save_models.push(a_model);
-                } else {
-                    return Err(GitError::ConversionError("Can't find child.".to_string()));
-                }
-            } else {
-                return Err(GitError::ConversionError(
-                    "Can't find parent tree.".to_string(),
-                ));
-            }
-            path = parent;
-        }
-
-        batch_save_model(storage.get_connection(), save_models)
-            .await
-            .unwrap();
-
-        Ok(())
-    }
-
-    fn update_mr_comment(&self, from: &str, to: &str) -> String {
+    fn comment_for_force_update(&self, from: &str, to: &str) -> String {
         format!(
-            "mega updated the mr automatic from {} to {}",
+            "Mega updated the mr automatic from {} to {}",
             &from[..6],
             &to[..6]
         )
@@ -337,9 +306,6 @@ impl MonoRepo {
             }
         }
         storage.save_entry(entry_list).await.unwrap();
-        if self.path != PathBuf::from("/") {
-            self.handle_parent_directory(&self.path).await.unwrap();
-        }
         commit_size
     }
 }
