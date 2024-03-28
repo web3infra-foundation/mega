@@ -2,8 +2,6 @@
 
 use sea_orm::entity::prelude::*;
 
-use crate::db_enums::MergeStatus;
-
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "mega_commit")]
 pub struct Model {
@@ -20,8 +18,6 @@ pub struct Model {
     pub committer: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub content: Option<String>,
-    pub mr_id: i64,
-    pub status: MergeStatus,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }

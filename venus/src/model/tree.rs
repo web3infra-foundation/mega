@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use callisto::db_enums::MergeStatus;
 use callisto::mega_tree;
 use callisto::mega_tree::Model;
 use common::utils::generate_id;
@@ -17,8 +16,6 @@ impl From<Tree> for mega_tree::Model {
             sub_trees: value.to_data().unwrap(),
             parent_id: None,
             name: String::new(),
-            mr_id: 0,
-            status: MergeStatus::Open,
             size: 0,
             full_path: String::new(),
             commit_id: String::new(),

@@ -1,9 +1,6 @@
 use std::str::FromStr;
 
-use callisto::{
-    db_enums::{MergeStatus, StorageType},
-    mega_blob, raw_blob,
-};
+use callisto::{db_enums::StorageType, mega_blob, raw_blob};
 use common::utils::generate_id;
 
 use crate::{hash::SHA1, internal::object::blob::Blob};
@@ -14,8 +11,6 @@ impl From<Blob> for mega_blob::Model {
             id: generate_id(),
             repo_id: 0,
             blob_id: value.id.to_plain_str(),
-            mr_id: 0,
-            status: MergeStatus::Open,
             size: 0,
             full_path: String::new(),
             commit_id: String::new(),

@@ -149,4 +149,9 @@ impl PackHandler for ImportRepo {
         }
         Ok(())
     }
+
+    async fn check_default_branch(&self) -> bool {
+        let storage = self.context.services.git_db_storage.clone();
+        storage.default_branch_exist(&self.repo).await.unwrap()
+    }
 }

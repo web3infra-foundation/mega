@@ -3,7 +3,7 @@
 //!
 //!
 //!
-use std::{path::PathBuf, str::FromStr};
+use std::{env, path::PathBuf, str::FromStr};
 
 use common::{errors::MegaError, utils::ZERO_ID};
 use jupiter::context::Context;
@@ -141,6 +141,13 @@ impl SmartProtocol {
             command_list: Vec::new(),
             service_type: ServiceType::ReceivePack,
             context,
+        }
+    }
+
+    pub fn handle_monorepo_root_path(&mut self) {
+        let root_name = env::var("MEGA_MONOREPO_ROOT_NAME").unwrap();
+        if self.path == PathBuf::from(root_name) {
+            self.path = PathBuf::from("/");
         }
     }
 }

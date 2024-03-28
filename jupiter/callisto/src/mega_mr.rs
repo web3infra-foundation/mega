@@ -10,7 +10,6 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub mr_link: String,
-    pub mr_msg: Option<String>,
     pub merge_date: Option<DateTime>,
     pub status: MergeStatus,
     #[sea_orm(column_type = "Text")]

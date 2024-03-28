@@ -16,6 +16,7 @@ jupiter = { path = "../jupiter" }
 callisto = { path = "../jupiter/callisto" }
 mercury = { path = "../mercury" }
 venus = { path = "../venus" }
+ganymede = { path = "../ganymede" }
 
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["net"] }

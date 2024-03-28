@@ -9,7 +9,7 @@ use crate::internal::object::types::ObjectType;
 use crate::internal::object::{GitObject, ObjectTrait};
 
 ///
-/// Git object for storage
+/// Git object data from pack file
 ///
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Entry {

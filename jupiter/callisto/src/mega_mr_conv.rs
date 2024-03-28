@@ -2,19 +2,16 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::db_enums::ConvType;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "mega_blob")]
+#[sea_orm(table_name = "mega_mr_conv")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    pub repo_id: i64,
-    #[sea_orm(unique)]
-    pub blob_id: String,
-    pub commit_id: String,
-    pub name: String,
-    pub size: i32,
-    #[sea_orm(column_type = "Text")]
-    pub full_path: String,
+    pub mr_id: i64,
+    pub user_id: i64,
+    pub conv_type: ConvType,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }
