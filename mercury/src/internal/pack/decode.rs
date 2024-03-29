@@ -340,7 +340,7 @@ impl Pack {
         println!("The pack file has {} objects", self.number);
 
         let mut offset: usize = 12;
-        let i = Arc::new(AtomicUsize::new(1));
+        let i = Arc::new(AtomicUsize::new(0));
         
         // debug log thread g   
         #[cfg(debug_assertions)]
@@ -369,7 +369,7 @@ impl Pack {
             });
         } // LOG
 
-        while i.load(Ordering::Relaxed) <= self.number {
+        while i.load(Ordering::Relaxed) < self.number {
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
             while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {

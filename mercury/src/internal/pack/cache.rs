@@ -201,7 +201,9 @@ impl _Cache for Caches {
             self.pool.join();
             self.lru_cache.lock().unwrap().clear();
             self.hash_set.clear();
+            self.hash_set.shrink_to_fit();
             self.map_offset.clear();
+            self.map_offset.shrink_to_fit();
         });
 
         time_it!("Remove tmp dir", {
