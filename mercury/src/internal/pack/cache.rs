@@ -114,6 +114,13 @@ impl Caches {
         self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
         + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
     }
+
+    /// remove the tmp dir
+    pub fn remove_tmp_dir(&self) {
+        time_it!("Remove tmp dir", {
+            fs::remove_dir_all(&self.tmp_path).unwrap(); //very slow
+        });
+    }
 }
 
 impl _Cache for Caches {
@@ -204,10 +211,6 @@ impl _Cache for Caches {
             self.hash_set.shrink_to_fit();
             self.map_offset.clear();
             self.map_offset.shrink_to_fit();
-        });
-
-        time_it!("Remove tmp dir", {
-            fs::remove_dir_all(&self.tmp_path).unwrap(); //very slow
         });
 
         assert_eq!(self.pool.queued_count(), 0);

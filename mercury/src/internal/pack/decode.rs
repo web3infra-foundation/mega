@@ -46,10 +46,9 @@ impl Pack {
     ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
     /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
     /// For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
+    /// - `clean_tmp`: whether to remove temp dir
     ///
-    /// # !IMPORTANT:
-    /// Can't decode in multi-tasking, because memory limit use shared static variable but different cache, cause "deadlock".
-    pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>) -> Self {
+    pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>, clean_tmp: bool) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
         // add 8 random characters as subdirectory, check if the directory exists
         loop {
@@ -71,6 +70,7 @@ impl Pack {
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
             mem_limit: mem_limit.unwrap_or(usize::MAX),
             cache_objs_mem: Arc::new(AtomicUsize::default()),
+            clean_tmp,
         }
     }
 
@@ -463,6 +463,10 @@ impl Pack {
 
         self.caches.clear(); // clear cached objects & stop threads
         assert_eq!(self.cache_objs_mem_used(), 0); // all the objs should be dropped until here
+
+        if self.clean_tmp {
+            self.caches.remove_tmp_dir();
+        }
         
         #[cfg(debug_assertions)]
         stop.store(true, Ordering::Relaxed);
@@ -621,7 +625,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buf_reader = BufReader::new(f);
         let (object_num, _) = Pack::check_header(&mut buf_reader).unwrap();
 
@@ -641,7 +645,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack::new(None, None, None);
+        let mut p = Pack::new(None, None, None, true);
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, bytes_read)) => {
@@ -659,9 +663,9 @@ mod tests {
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered, |_|{}).unwrap();
     }
 
@@ -672,9 +676,9 @@ mod tests {
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered,|_|{}).unwrap();
     }
 
@@ -685,10 +689,9 @@ mod tests {
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
+        let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
         let rt = p.decode(&mut buffered, |_obj|{
             // println!("{:?}", obj.hash);
         });
@@ -706,7 +709,7 @@ mod tests {
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = fs::File::open(source).unwrap();
         let buffered = BufReader::new(f);
-        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
+        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
 
         let (tx, rx) = std::sync::mpsc::channel();
         let handle = p.decode_async(buffered, tx); // new thread
@@ -725,9 +728,9 @@ mod tests {
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered, |_|{}).unwrap();
     }
 
