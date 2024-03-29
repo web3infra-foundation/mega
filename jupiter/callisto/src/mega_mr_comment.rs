@@ -3,20 +3,14 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "mega_blob")]
+#[sea_orm(table_name = "mega_mr_comment")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    pub repo_id: i64,
-    #[sea_orm(unique)]
-    pub blob_id: String,
-    pub commit_id: String,
-    pub name: String,
-    pub size: i32,
+    pub conv_id: i64,
     #[sea_orm(column_type = "Text")]
-    pub full_path: String,
-    pub created_at: DateTime,
-    pub updated_at: DateTime,
+    pub comment: Option<String>,
+    pub edited: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

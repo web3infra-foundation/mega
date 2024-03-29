@@ -1,34 +1,26 @@
 use serde::{Deserialize, Serialize};
 
-use callisto::{db_enums::RefType, mega_refs, refs};
-use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
+use callisto::{db_enums::RefType, import_refs};
+use common::utils::{generate_id, ZERO_ID};
 
 ///
 /// Represent the references(all branches and tags) in protocol transfer
 ///
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Refs {
+    pub id: i64,
     pub ref_name: String,
     pub ref_hash: String,
-    pub ref_tree_hash: Option<String>,
+    pub default_branch: bool,
 }
 
-impl From<refs::Model> for Refs {
-    fn from(value: refs::Model) -> Self {
+impl From<import_refs::Model> for Refs {
+    fn from(value: import_refs::Model) -> Self {
         Self {
+            id: value.id,
             ref_name: value.ref_name,
             ref_hash: value.ref_git_id,
-            ref_tree_hash: None,
-        }
-    }
-}
-
-impl From<mega_refs::Model> for Refs {
-    fn from(value: mega_refs::Model) -> Self {
-        Self {
-            ref_name: MEGA_BRANCH_NAME.to_owned(),
-            ref_hash: value.ref_commit_hash,
-            ref_tree_hash: Some(value.ref_tree_hash)
+            default_branch: value.default_branch,
         }
     }
 }
@@ -50,6 +42,7 @@ pub struct RefCommand {
     pub error_msg: String,
     pub command_type: CommandType,
     pub ref_type: RefType,
+    pub default_branch: bool,
 }
 
 pub const SP: char = ' ';
@@ -79,6 +72,7 @@ impl RefCommand {
             } else {
                 RefType::Branch
             },
+            default_branch: false,
         }
     }
 
@@ -103,14 +97,15 @@ impl RefCommand {
     }
 }
 
-impl From<RefCommand> for refs::Model {
+impl From<RefCommand> for import_refs::Model {
     fn from(value: RefCommand) -> Self {
-        refs::Model {
+        import_refs::Model {
             id: generate_id(),
             repo_id: 0,
             ref_name: value.ref_name,
             ref_git_id: value.new_id,
             ref_type: value.ref_type,
+            default_branch: value.default_branch,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         }

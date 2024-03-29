@@ -183,7 +183,7 @@ impl SmartProtocol {
     }
 
     pub async fn git_receive_pack(&mut self, mut body_bytes: Bytes) -> Result<Bytes> {
-        if body_bytes.len() < 1000 {
+        if body_bytes.len() < 1_000 {
             tracing::debug!("bytes from client: {:?}", body_bytes);
         } else {
             tracing::debug!("{} bytes from client", body_bytes.len())
@@ -207,19 +207,12 @@ impl SmartProtocol {
         //1. unpack progress
         let unpack_success = pack_handler.unpack(body_bytes).await.is_ok();
 
-        // if repo.monorepo() {
-        //     self.handle_parent_directory(&self.path)
-        //         .await
-        //         .unwrap();
-        // }
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
-        //2. parse progress
-        // let parse_obj_result = conversion::save_node_from_mr(self.storage.clone(), 0, &self.path)
-        //     .await
-        //     .is_ok();
 
-        //3. update each refs and build report
+        let mut default_exist = pack_handler.check_default_branch().await;
+
+        //2. update each refs and build report
         for mut command in self.command_list.clone() {
             if command.ref_type == RefType::Tag {
                 // just update if refs type is tag
@@ -230,6 +223,10 @@ impl SmartProtocol {
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
                 if unpack_success {
+                    if !default_exist {
+                        command.default_branch = true;
+                        default_exist = true;
+                    }
                     pack_handler.update_refs(&command).await.unwrap();
                 } else {
                     command.failed(String::from("parse commit tree from obj failed"));
@@ -447,6 +444,7 @@ pub mod test {
             error_msg: String::new(),
             command_type: CommandType::Create,
             ref_type: RefType::Branch,
+            default_branch: false
         };
         assert_eq!(result, command);
     }
