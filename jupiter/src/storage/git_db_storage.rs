@@ -1,13 +1,13 @@
 use std::{env, sync::Arc};
 
 use async_trait::async_trait;
-use callisto::db_enums::MergeStatus;
+use sea_orm::PaginatorTrait;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
     Set,
 };
 
-use callisto::refs;
+use callisto::import_refs;
 use common::errors::MegaError;
 use venus::internal::object::GitObjectModel;
 use venus::internal::pack::entry::Entry;
@@ -32,10 +32,10 @@ pub struct GitDbStorage {
 #[async_trait]
 impl GitStorageProvider for GitDbStorage {
     async fn save_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
-        let mut model: refs::Model = refs.clone().into();
+        let mut model: import_refs::Model = refs.clone().into();
         model.repo_id = repo.repo_id;
         let a_model = model.into_active_model();
-        refs::Entity::insert(a_model)
+        import_refs::Entity::insert(a_model)
             .exec(self.get_connection())
             .await
             .unwrap();
@@ -43,17 +43,17 @@ impl GitStorageProvider for GitDbStorage {
     }
 
     async fn remove_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
-        refs::Entity::delete_many()
-            .filter(refs::Column::RepoId.eq(repo.repo_id))
-            .filter(refs::Column::RefName.eq(refs.ref_name.clone()))
+        import_refs::Entity::delete_many()
+            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::RefName.eq(refs.ref_name.clone()))
             .exec(self.get_connection())
             .await?;
         Ok(())
     }
 
     async fn get_ref(&self, repo: &Repo) -> Result<Vec<Refs>, MegaError> {
-        let result = refs::Entity::find()
-            .filter(refs::Column::RepoId.eq(repo.repo_id))
+        let result = import_refs::Entity::find()
+            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
             .all(self.get_connection())
             .await?;
         let res: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
@@ -61,14 +61,14 @@ impl GitStorageProvider for GitDbStorage {
     }
 
     async fn update_ref(&self, repo: &Repo, ref_name: &str, new_id: &str) -> Result<(), MegaError> {
-        let ref_data: refs::Model = refs::Entity::find()
-            .filter(refs::Column::RepoId.eq(repo.repo_id))
-            .filter(refs::Column::RefName.eq(ref_name))
+        let ref_data: import_refs::Model = import_refs::Entity::find()
+            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::RefName.eq(ref_name))
             .one(self.get_connection())
             .await
             .unwrap()
             .unwrap();
-        let mut ref_data: refs::ActiveModel = ref_data.into();
+        let mut ref_data: import_refs::ActiveModel = ref_data.into();
         ref_data.ref_git_id = Set(new_id.to_string());
         ref_data.updated_at = Set(chrono::Utc::now().naive_utc());
         ref_data.update(self.get_connection()).await.unwrap();
@@ -103,6 +103,15 @@ impl GitDbStorage {
         }
     }
 
+    pub async fn default_branch_exist(&self, repo: &Repo) -> Result<bool, MegaError> {
+        let result = import_refs::Entity::find()
+            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::DefaultBranch.eq(true))
+            .count(self.get_connection())
+            .await?;
+        Ok(result > 0)
+    }
+
     pub async fn save_entry(
         &self,
         repo: &Repo,
@@ -119,20 +128,14 @@ impl GitDbStorage {
             let model = raw_obj.convert_to_mega_model();
             match model {
                 GitObjectModel::Commit(mut commit) => {
-                    commit.mr_id = 0;
-                    commit.status = MergeStatus::Merged;
                     commit.repo_id = repo.repo_id;
                     commits.push(commit.into_active_model())
                 },
                 GitObjectModel::Tree(mut tree) => {
-                    tree.mr_id = 0;
-                    tree.status = MergeStatus::Merged;
                     tree.repo_id = repo.repo_id;
                     trees.push(tree.clone().into_active_model());
                 }
                 GitObjectModel::Blob(mut blob, raw) => {
-                    blob.mr_id = 0;
-                    blob.status = MergeStatus::Merged;
                     blob.repo_id = repo.repo_id;
                     blobs.push(blob.clone().into_active_model());
                     raw_blobs.push(raw.into_active_model());

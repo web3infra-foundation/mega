@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use callisto::db_enums::RefType;
-use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
+use common::utils::{generate_id, ZERO_ID};
 use mercury::internal::pack::Pack;
 use venus::{
     errors::GitError,
@@ -48,6 +48,8 @@ pub trait PackHandler: Send + Sync {
     ) -> Result<Vec<u8>, GitError>;
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
+
+    async fn check_default_branch(&self) -> bool;
 }
 
 impl SmartProtocol {
@@ -96,7 +98,7 @@ impl SmartProtocol {
 pub fn check_head_hash(refs: Vec<Refs>) -> (String, Vec<Refs>) {
     let mut head_hash = ZERO_ID.to_string();
     for git_ref in refs.iter() {
-        if git_ref.ref_name == *MEGA_BRANCH_NAME {
+        if git_ref.default_branch {
             head_hash = git_ref.ref_hash.clone();
         }
     }
