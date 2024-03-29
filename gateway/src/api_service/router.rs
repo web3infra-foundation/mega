@@ -10,7 +10,8 @@ use axum::{
 
 use ganymede::model::create_file::CreateFileInfo;
 use git::internal::pack::counter::GitTypeCounter;
-use jupiter::context::Context;
+use ceres::monorepo::service::MonorepoService;
+use venus::monorepo::mr::{MergeOperation, MergeResult};
 
 use crate::{
     api_service::obj_service::ObjectService,
@@ -23,7 +24,7 @@ use crate::{
 #[derive(Clone)]
 pub struct ApiServiceState {
     pub object_service: ObjectService,
-    pub context: Context,
+    pub monorepo_service: MonorepoService,
 }
 
 pub fn routers() -> Router<ApiServiceState> {
@@ -35,6 +36,7 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/count-objs", get(get_count_nums))
         .route("/init", get(init))
         .route("/create_file", post(create_file))
+        .route("/merge", post(merge))
 }
 
 async fn get_blob_object(
@@ -77,12 +79,7 @@ async fn get_count_nums(
 }
 
 async fn init(state: State<ApiServiceState>) {
-    state
-        .context
-        .services
-        .mega_storage
-        .init_mega_directory()
-        .await;
+    state.monorepo_service.init_monorepo().await
 }
 
 async fn create_file(
@@ -90,11 +87,17 @@ async fn create_file(
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CreateFileInfo>, (StatusCode, String)> {
     state
-        .context
-        .services
-        .mega_storage
+        .monorepo_service
         .create_mega_file(json.clone())
         .await
         .unwrap();
     Ok(Json(json))
+}
+
+async fn merge(
+    state: State<ApiServiceState>,
+    Json(json): Json<MergeOperation>,
+) -> Result<Json<MergeResult>, (StatusCode, String)> {
+    let res = state.monorepo_service.merge_mr(json.clone()).await.unwrap();
+    Ok(Json(res))
 }

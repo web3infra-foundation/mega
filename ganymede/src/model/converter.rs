@@ -2,8 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use callisto::db_enums::MergeStatus;
-use callisto::{mega_blob, mega_refs, mega_snapshot, mega_tree, raw_blob};
+use callisto::{mega_blob, mega_refs, mega_tree, raw_blob};
 use common::utils::generate_id;
 use venus::hash::SHA1;
 use venus::internal::object::blob::Blob;
@@ -16,23 +15,20 @@ pub fn generate_git_keep() -> Blob {
 }
 
 pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
-    let rust_item = TreeItem {
+    let tree_item = TreeItem {
         mode: TreeItemMode::Blob,
         id: git_keep.id,
         name: String::from(".gitkeep"),
     };
-    let rust = Tree::from_tree_items(vec![rust_item]).unwrap();
-    let import = rust.clone();
-    let project_items = vec![TreeItem {
-        mode: TreeItemMode::Tree,
-        id: rust.id,
-        name: String::from("rust"),
-    }];
-    let project = Tree::from_tree_items(project_items).unwrap();
+    let third_part = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+    let project = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+    let doc = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+    let release = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+
     let root_items = vec![
         TreeItem {
             mode: TreeItemMode::Tree,
-            id: import.id,
+            id: third_part.id,
             name: String::from("third-part"),
         },
         TreeItem {
@@ -40,10 +36,20 @@ pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
             id: project.id,
             name: String::from("project"),
         },
+        TreeItem {
+            mode: TreeItemMode::Tree,
+            id: project.id,
+            name: String::from("doc"),
+        },
+        TreeItem {
+            mode: TreeItemMode::Tree,
+            id: project.id,
+            name: String::from("release"),
+        },
     ];
 
     let root = Tree::from_tree_items(root_items).unwrap();
-    let trees = vec![import, project, rust];
+    let trees = vec![third_part, project, doc, release];
     (trees.into_iter().map(|x| (x.id, x)).collect(), root)
 }
 
@@ -54,7 +60,6 @@ pub struct MegaModelConverter {
     pub blob_maps: HashMap<SHA1, Blob>,
     pub mega_trees: RefCell<Vec<mega_tree::ActiveModel>>,
     pub mega_blobs: RefCell<Vec<mega_blob::ActiveModel>>,
-    pub mega_snapshots: RefCell<Vec<mega_snapshot::ActiveModel>>,
     pub raw_blobs: RefCell<HashMap<SHA1, raw_blob::ActiveModel>>,
     pub refs: mega_refs::ActiveModel,
     pub current_path: RefCell<PathBuf>,
@@ -67,10 +72,7 @@ impl MegaModelConverter {
         mega_tree.full_path = self.current_path.borrow().to_str().unwrap().to_owned();
         mega_tree.name = String::from("root");
         mega_tree.commit_id = self.commit.id.to_plain_str();
-        mega_tree.status = MergeStatus::Merged;
         self.mega_trees.borrow_mut().push(mega_tree.clone().into());
-        let snapshot: mega_snapshot::Model = mega_tree.into();
-        self.mega_snapshots.borrow_mut().push(snapshot.into());
         self.traverse_for_update(&self.root_tree);
     }
 
@@ -85,10 +87,7 @@ impl MegaModelConverter {
                 mega_tree.name = name;
                 mega_tree.commit_id = self.commit.id.to_plain_str();
                 mega_tree.parent_id = Some(tree.id.to_plain_str());
-                mega_tree.status = MergeStatus::Merged;
                 self.mega_trees.borrow_mut().push(mega_tree.clone().into());
-                let snapshot: mega_snapshot::Model = mega_tree.into();
-                self.mega_snapshots.borrow_mut().push(snapshot.into());
                 self.traverse_for_update(child_tree);
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
@@ -96,12 +95,9 @@ impl MegaModelConverter {
                 mega_blob.full_path = self.current_path.borrow().to_str().unwrap().to_owned();
                 mega_blob.name = name;
                 mega_blob.commit_id = self.commit.id.to_plain_str();
-                mega_blob.status = MergeStatus::Merged;
                 self.mega_blobs.borrow_mut().push(mega_blob.clone().into());
                 let raw_blob: raw_blob::Model = blob.to_owned().into();
                 self.raw_blobs.borrow_mut().insert(blob.id, raw_blob.into());
-                let snapshot: mega_snapshot::Model = mega_blob.into();
-                self.mega_snapshots.borrow_mut().push(snapshot.into());
             }
             self.current_path.borrow_mut().pop();
         }
@@ -130,7 +126,6 @@ impl MegaModelConverter {
             blob_maps,
             mega_trees: RefCell::new(vec![]),
             mega_blobs: RefCell::new(vec![]),
-            mega_snapshots: RefCell::new(vec![]),
             raw_blobs: RefCell::new(HashMap::new()),
             refs: mega_ref.into(),
             current_path: RefCell::new(PathBuf::from("/")),
@@ -155,14 +150,9 @@ mod test {
         let mega_trees = converter.mega_trees.borrow().clone();
         let mega_blobs = converter.mega_blobs.borrow().clone();
         let raw_blob = converter.raw_blobs.borrow().clone();
-        let snapshot = converter.mega_snapshots.borrow().clone();
         assert_eq!(mega_trees.len(), 4);
         assert_eq!(mega_blobs.len(), 2);
         assert_eq!(raw_blob.len(), 1);
-        assert_eq!(snapshot.len(), 6);
-        for i in snapshot {
-            println!("{:?}", i.full_path);
-        }
     }
 
     #[test]

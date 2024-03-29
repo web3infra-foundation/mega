@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use callisto::{db_enums::MergeStatus, mega_commit};
+use callisto::mega_commit;
 use common::utils::generate_id;
 
 use crate::{
@@ -37,11 +37,11 @@ impl From<Commit> for mega_commit::Model {
                 .iter()
                 .map(|x| x.to_plain_str())
                 .collect(),
-            author: Some(String::from_utf8(value.author.to_data().unwrap()).unwrap()),
-            committer: Some(String::from_utf8(value.committer.to_data().unwrap()).unwrap()),
+            author: Some(String::from_utf8_lossy(&value.author.to_data().unwrap()).to_string()),
+            committer: Some(
+                String::from_utf8_lossy(&value.committer.to_data().unwrap()).to_string(),
+            ),
             content: Some(value.message.clone()),
-            mr_id: 0,
-            status: MergeStatus::Open,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         }

@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use callisto::db_enums::MergeStatus;
 use callisto::mega_tree;
 use common::utils::generate_id;
 use venus::hash::SHA1;
@@ -62,8 +61,6 @@ impl From<MegaNode> for mega_tree::Model {
             name: String::new(),
             parent_id: None,
             size: 0,
-            mr_id: 0,
-            status: MergeStatus::Merged,
             commit_id: String::new(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
