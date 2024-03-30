@@ -121,9 +121,9 @@ impl PackEncoder {
 
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
-        self.final_hash = Some(SHA1::from_bytes(&hash_result.to_vec()));
+        self.final_hash = Some(SHA1::from_bytes(&hash_result));
         self.writer.write_all(&hash_result).unwrap();
-        Ok(mem::replace(&mut self.writer, Vec::new()))
+        Ok(mem::take(&mut self.writer))
     }
 
     /// Try to encode as delta using objects in window
