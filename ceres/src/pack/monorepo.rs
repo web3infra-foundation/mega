@@ -1,18 +1,24 @@
 use std::{
+    collections::{HashMap, HashSet},
     path::{Component, PathBuf},
-    sync::mpsc::{self, Receiver},
+    str::FromStr,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{self, Receiver},
+    },
     vec,
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use callisto::raw_blob;
-use common::utils::MEGA_BRANCH_NAME;
+use callisto::{mega_tree, raw_blob};
+use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
 use jupiter::{context::Context, storage::batch_query_by_columns};
 use mercury::internal::pack::encode::PackEncoder;
 use venus::{
     errors::GitError,
+    hash::SHA1,
     internal::{
         object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree, types::ObjectType},
         pack::{
@@ -24,7 +30,7 @@ use venus::{
     repo::Repo,
 };
 
-use crate::pack::handler::{check_head_hash, decode_for_receiver, PackHandler};
+use crate::pack::handler::PackHandler;
 
 pub struct MonoRepo {
     pub context: Context,
@@ -59,10 +65,10 @@ impl PackHandler for MonoRepo {
                 .into();
             let tree_id = commit.tree_id.to_plain_str();
             let mut tree: Tree = storage
-                .get_tree_by_hash(&Repo::empty(), &tree_id)
+                .get_trees_by_hashes(&Repo::empty(), vec![tree_id])
                 .await
-                .unwrap()
-                .unwrap()
+                .unwrap()[0]
+                .clone()
                 .into();
 
             for component in target_path.components() {
@@ -75,13 +81,13 @@ impl PackHandler for MonoRepo {
                         .map(|x| x.id);
                     if let Some(sha1) = sha1 {
                         tree = storage
-                            .get_tree_by_hash(&Repo::empty(), &sha1.to_plain_str())
+                            .get_trees_by_hashes(&Repo::empty(), vec![sha1.to_plain_str()])
                             .await
-                            .unwrap()
-                            .unwrap()
+                            .unwrap()[0]
+                            .clone()
                             .into();
                     } else {
-                        return check_head_hash(vec![]);
+                        return self.check_head_hash(vec![]);
                     }
                 }
             }
@@ -111,16 +117,11 @@ impl PackHandler for MonoRepo {
                 ..Default::default()
             }]
         };
-        check_head_hash(refs)
+        self.check_head_hash(refs)
     }
-    // 001e# service=git-upload-pack\n
-    // 0000 00b2
-    // c9ba5f3b45016391455e70cbbf2db55efeb013f6 HEAD\0
-    // shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done include-tag side-band-64k ofs-delta agent=mega/0.1.0\n
-    // 002e c9ba5f3b45016391455e70cbbf2db55efeb013f6 \n0000
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = decode_for_receiver(pack_file).unwrap();
+        let receiver = self.pack_decoder(pack_file).unwrap();
 
         let storage = self.context.services.mega_storage.clone();
 
@@ -172,9 +173,9 @@ impl PackHandler for MonoRepo {
         let mut writer: Vec<u8> = Vec::new();
         let repo = &Repo::empty();
         let storage = self.context.services.mega_storage.clone();
-        let obj_num = storage.get_obj_count_by_repo_id(repo).await;
-        let mut encoder = PackEncoder::new(obj_num, 0, &mut writer);
+        // let obj_num = storage.get_obj_count_by_repo_id(repo).await;
 
+        let mut obj_num = 0;
         for m in storage
             .get_commits_by_repo_id(repo)
             .await
@@ -184,6 +185,7 @@ impl PackHandler for MonoRepo {
             let c: Commit = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
+            obj_num += 1;
         }
 
         for m in storage
@@ -195,6 +197,7 @@ impl PackHandler for MonoRepo {
             let c: Tree = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
+            obj_num += 1;
         }
 
         let bids: Vec<String> = storage
@@ -220,17 +223,143 @@ impl PackHandler for MonoRepo {
             let c: Blob = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
+            obj_num += 1;
         }
 
         for m in storage.get_tags_by_repo_id(repo).await.unwrap().into_iter() {
             let c: Tag = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
+            obj_num += 1;
         }
         drop(sender);
-        encoder.encode(receiver).unwrap();
+        let mut encoder = PackEncoder::new(obj_num, 3, &mut writer);
 
+        encoder.encode(receiver).unwrap();
         Ok(writer)
+    }
+
+    async fn incremental_pack(
+        &self,
+        want: Vec<String>,
+        have: Vec<String>,
+    ) -> Result<Vec<u8>, GitError> {
+        let (sender, receiver) = mpsc::channel();
+        let mut writer: Vec<u8> = Vec::new();
+        let repo = Repo::empty();
+        let storage = self.context.services.mega_storage.clone();
+        // let obj_num = storage.get_obj_count_by_repo_id(repo).await;
+        let obj_num = AtomicUsize::new(0);
+
+        let mut exist_objs = HashSet::new();
+
+        let commits: Vec<Commit> = storage
+            .get_commits_by_hashes(&repo, want)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|x| x.into())
+            .collect();
+        let mut traversal_list: Vec<Commit> = commits.clone();
+        let mut want_commits: Vec<Commit> = commits;
+
+        // tarverse commit's all parents to find the commit that client does not have
+        while let Some(temp) = traversal_list.pop() {
+            for p_commit_id in temp.parent_commit_ids {
+                let p_commit_id = &p_commit_id.to_plain_str();
+
+                let want_commit_ids: Vec<String> =
+                    want_commits.iter().map(|x| x.id.to_plain_str()).collect();
+
+                if !have.contains(p_commit_id) && !want_commit_ids.contains(p_commit_id) {
+                    let parent: Commit = storage
+                        .get_commit_by_hash(&repo, p_commit_id)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .into();
+                    want_commits.push(parent.clone());
+                    traversal_list.push(parent);
+                }
+            }
+        }
+
+        let want_tree_ids = want_commits
+            .iter()
+            .map(|c| c.tree_id.to_plain_str())
+            .collect();
+        let want_trees: HashMap<SHA1, Tree> = storage
+            .get_trees_by_hashes(&repo, want_tree_ids)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), m.into()))
+            .collect();
+
+        for c in want_commits {
+            let have_commit_hashes: Vec<String> = c
+                .parent_commit_ids
+                .clone()
+                .into_iter()
+                .filter(|p_id| have.contains(&p_id.to_plain_str()))
+                .map(|hash| hash.to_plain_str())
+                .collect();
+            let have_commits = storage
+                .get_commits_by_hashes(&repo, have_commit_hashes)
+                .await
+                .unwrap();
+
+            for have_c in have_commits {
+                let have_tree = storage
+                    .get_trees_by_hashes(&repo, vec![have_c.tree])
+                    .await
+                    .unwrap()[0]
+                    .clone()
+                    .into();
+                self.add_to_exist_objs(have_tree, &mut exist_objs).await;
+            }
+
+            self.traverse_want_trees(
+                want_trees.get(&c.tree_id).unwrap().clone(),
+                &exist_objs,
+                sender.clone(),
+                &obj_num,
+            )
+            .await;
+            sender.send(c.into()).unwrap();
+            obj_num.fetch_add(1, Ordering::SeqCst);
+        }
+        drop(sender);
+        let mut encoder = PackEncoder::new(obj_num.into_inner(), 0, &mut writer);
+        encoder.encode(receiver).unwrap();
+        Ok(writer)
+    }
+
+    async fn get_trees_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<mega_tree::Model>, MegaError> {
+        self.context
+            .services
+            .mega_storage
+            .get_trees_by_hashes(&Repo::empty(), hashes)
+            .await
+    }
+
+    async fn get_blobs_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<raw_blob::Model>, MegaError> {
+        self.context
+            .services
+            .mega_storage
+            .get_raw_blobs_by_hashes(hashes)
+            .await
+    }
+
+    async fn update_refs(&self, _: &RefCommand) -> Result<(), GitError> {
+        //do nothing in monorepo because need mr to handle refs
+        Ok(())
     }
 
     async fn check_commit_exist(&self, hash: &str) -> bool {
@@ -241,19 +370,6 @@ impl PackHandler for MonoRepo {
             .await
             .unwrap()
             .is_some()
-    }
-
-    async fn incremental_pack(
-        &self,
-        _want: Vec<String>,
-        _have: Vec<String>,
-    ) -> Result<Vec<u8>, GitError> {
-        todo!()
-    }
-
-    async fn update_refs(&self, _: &RefCommand) -> Result<(), GitError> {
-        //do nothing in monorepo because need mr to handle refs
-        Ok(())
     }
 
     async fn check_default_branch(&self) -> bool {

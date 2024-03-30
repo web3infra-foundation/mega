@@ -7,7 +7,7 @@ use sea_orm::{
     Set,
 };
 
-use callisto::import_refs;
+use callisto::{git_repo, import_refs};
 use common::errors::MegaError;
 use venus::internal::object::GitObjectModel;
 use venus::internal::pack::entry::Entry;
@@ -112,11 +112,7 @@ impl GitDbStorage {
         Ok(result > 0)
     }
 
-    pub async fn save_entry(
-        &self,
-        repo: &Repo,
-        entry_list: Vec<Entry>,
-    ) -> Result<(), MegaError> {
+    pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let mut commits = Vec::new();
         let mut trees = Vec::new();
         let mut blobs = Vec::new();
@@ -130,7 +126,7 @@ impl GitDbStorage {
                 GitObjectModel::Commit(mut commit) => {
                     commit.repo_id = repo.repo_id;
                     commits.push(commit.into_active_model())
-                },
+                }
                 GitObjectModel::Tree(mut tree) => {
                     tree.repo_id = repo.repo_id;
                     trees.push(tree.clone().into_active_model());
@@ -143,7 +139,7 @@ impl GitDbStorage {
                 GitObjectModel::Tag(mut tag) => {
                     tag.repo_id = repo.repo_id;
                     tags.push(tag.into_active_model())
-                },
+                }
             }
         }
 
@@ -160,6 +156,38 @@ impl GitDbStorage {
             .await
             .unwrap();
         batch_save_model(self.get_connection(), tags).await.unwrap();
+        Ok(())
+    }
+
+    pub async fn find_git_repo(
+        &self,
+        repo_path: &str,
+    ) -> Result<Option<git_repo::Model>, MegaError> {
+        let result = git_repo::Entity::find()
+            .filter(git_repo::Column::RepoPath.eq(repo_path))
+            .one(self.get_connection())
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn save_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
+        let model: git_repo::Model = repo.into();
+        let a_model = model.into_active_model();
+        git_repo::Entity::insert(a_model)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    #[allow(unused)]
+    pub async fn update_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
+        let git_repo = git_repo::Entity::find_by_id(repo.repo_id)
+            .one(self.get_connection())
+            .await
+            .unwrap();
+        let git_repo: git_repo::ActiveModel = git_repo.unwrap().into();
+        git_repo.update(self.get_connection()).await.unwrap();
         Ok(())
     }
 }
