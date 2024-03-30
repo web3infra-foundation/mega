@@ -125,6 +125,7 @@ pub fn decode_for_receiver(pack_file: Bytes) -> Result<Receiver<Entry>, GitError
         None,
         Some(1024 * 1024 * 1024 * cache_size),
         Some(tmp.clone()),
+        true
     );
     p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
     Ok(receiver)
