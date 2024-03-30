@@ -38,27 +38,29 @@ impl MonorepoService {
             let mut refs = self.storage.get_ref(&mr.path).await.unwrap().unwrap();
 
             if mr.from_hash == refs.ref_commit_hash {
-                let ref_hash = &mr.to_hash.clone();
+                // update mr
+                mr.merge(op.message);
+                self.storage.update_mr(mr.clone()).await.unwrap();
+
+                // update refs
+                let ref_commit = mr.to_hash;
                 let commit = self
                     .storage
-                    .get_commit_by_hash(&Repo::empty(), ref_hash)
+                    .get_commit_by_hash(&Repo::empty(), &ref_commit)
                     .await
                     .unwrap()
                     .unwrap();
-
-                mr.merge(op.message);
-
-                self.storage.update_mr(mr.clone()).await.unwrap();
-                refs.ref_commit_hash = ref_hash.to_string();
-                refs.ref_tree_hash = commit.tree;
+                refs.ref_commit_hash = ref_commit;
+                refs.ref_tree_hash = commit.tree.clone();
                 self.storage.update_ref(refs).await.unwrap();
 
+                // add conversation
                 self.storage
                     .add_mr_conversation(mr.id, 0, ConvType::Merged)
                     .await
                     .unwrap();
                 if mr.path != "/" {
-                    self.handle_parent_directory(&PathBuf::from(mr.path))
+                    self.handle_parent_directory(&PathBuf::from(mr.path), &commit.tree)
                         .await
                         .unwrap();
                 }
@@ -73,11 +75,15 @@ impl MonorepoService {
         Ok(res)
     }
 
-    async fn handle_parent_directory(&self, mut path: &Path) -> Result<(), GitError> {
+    async fn handle_parent_directory(
+        &self,
+        mut path: &Path,
+        path_tree_hash: &str,
+    ) -> Result<(), GitError> {
         let refs = self.storage.get_ref("/").await.unwrap().unwrap();
 
         let mut target_name = path.file_name().unwrap().to_str().unwrap();
-        let mut target_hash = SHA1::from_str(&refs.ref_tree_hash.clone()).unwrap();
+        let mut target_hash = SHA1::from_str(path_tree_hash).unwrap();
 
         let mut save_trees: Vec<mega_tree::ActiveModel> = Vec::new();
         let mut save_commits: Vec<mega_commit::ActiveModel> = Vec::new();
