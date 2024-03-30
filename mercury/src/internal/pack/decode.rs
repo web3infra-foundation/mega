@@ -324,11 +324,11 @@ impl Pack {
     {
         let time = Instant::now();
         let mut last_update_time = time.elapsed().as_millis();
-        let log_info = |_i:usize, pack:&Pack| {
-            tracing::info!("time {:?} s \t pass: {:?}, \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB", 
+        let log_info = |_i: usize, pack: &Pack| {
+            tracing::info!("time {:.2} s \t decode: {:?} \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
                 time.elapsed().as_millis() as f64 / 1000.0, _i, pack.pool.queued_count(), pack.caches.queued_tasks(),
                 pack.cache_objs_mem_used() / 1024 / 1024,
-                pack.caches.memory_used_index() / 1024 / 1024);
+                pack.caches.memory_used() / 1024 / 1024);
         };
         let callback = Arc::new(callback);
 
@@ -598,9 +598,25 @@ mod tests {
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
-    use tracing_test::traced_test;
+    use tracing_subscriber::util::SubscriberInitExt;
 
     use crate::internal::pack::Pack;
+
+    fn init_logger() {
+        let _ = tracing_subscriber::fmt::Subscriber::builder()
+            .with_target(false)
+            .without_time()
+            .finish()
+            .try_init();// avoid multi-init
+
+        // CAUTION: This two is same
+        // 1.
+        // tracing_subscriber::fmt().init();
+        //
+        // 2.
+        // env::set_var("RUST_LOG", "debug"); // must be set if use `fmt::init()`, or no output
+        // tracing_subscriber::fmt::init();
+    }
 
     #[test]
     fn test_pack_check_header() {
@@ -652,7 +668,10 @@ mod tests {
     }
 
     #[test]
+    // #[traced_test]
     fn test_pack_decode_with_ref_delta() {
+        init_logger();
+
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/ref-delta-65d47638aa7cb7c39f1bd1d5011a415439b887a8.pack");
 
@@ -665,8 +684,9 @@ mod tests {
     }
 
     #[test]
-    #[traced_test]
     fn test_pack_decode_with_large_file_with_delta_without_ref() {
+        init_logger();
+
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 

@@ -169,11 +169,10 @@ impl PackHandler for MonoRepo {
 
     async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
         let (sender, receiver) = mpsc::channel();
-        let mut writer: Vec<u8> = Vec::new();
         let repo = &Repo::empty();
         let storage = self.context.services.mega_storage.clone();
         let obj_num = storage.get_obj_count_by_repo_id(repo).await;
-        let mut encoder = PackEncoder::new(obj_num, 0, &mut writer);
+        let mut encoder = PackEncoder::new(obj_num, 0);
 
         for m in storage
             .get_commits_by_repo_id(repo)
@@ -228,9 +227,9 @@ impl PackHandler for MonoRepo {
             sender.send(entry).unwrap();
         }
         drop(sender);
-        encoder.encode(receiver).unwrap();
+        let data = encoder.encode(receiver).unwrap();
 
-        Ok(writer)
+        Ok(data)
     }
 
     async fn check_commit_exist(&self, hash: &str) -> bool {
