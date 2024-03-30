@@ -199,8 +199,7 @@ impl _Cache for Caches {
     }
     fn memory_used(&self) -> usize {
         self.lru_cache.lock().unwrap().current_size()
-        + self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
-        + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
+        + self.memory_used_index()
     }
     fn clear(&self) {
         time_it!("Caches clear", {
