@@ -5,6 +5,8 @@
 use flate2::write::ZlibEncoder;
 use sha1::{Digest, Sha1};
 use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::{io::Write, sync::mpsc};
 use venus::internal::object::types::ObjectType;
 use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
@@ -20,6 +22,7 @@ pub struct PackEncoder<W: Write> {
     inner_offset: usize, // offset of current entry
     inner_hash: Sha1,    // Not SHA1 because need update trait
     final_hash: Option<SHA1>,
+    start_encoding: bool,
 }
 
 /// encode header of pack file (12 byte)<br>
@@ -71,6 +74,7 @@ impl<W: Write> PackEncoder<W> {
             inner_offset: 12, // 12 bytes header
             inner_hash: hash,
             final_hash: None,
+            start_encoding: false,
         }
     }
 
@@ -81,6 +85,12 @@ impl<W: Write> PackEncoder<W> {
 
     /// encode entries to a pack file with delta objects, write to writer
     pub fn encode(&mut self, rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
+        // ensure only one decode can only invoke once
+        if self.start_encoding {
+            return Err(GitError::PackEncodeError(
+                "encoding operation is already in progress".to_string(),
+            ));
+        }
         loop {
             match rx.recv() {
                 Ok(entry) => {
@@ -185,7 +195,8 @@ impl<W: Write> PackEncoder<W> {
 
         // **data** encoding, need zlib compress
         let mut inflate = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-        inflate.write_all(&obj_data)
+        inflate
+            .write_all(&obj_data)
             .expect("zlib compress should never failed");
         inflate.flush().expect("zlib flush should never failed");
         let compressed_data = inflate.finish().expect("zlib compress should never failed");
@@ -194,9 +205,20 @@ impl<W: Write> PackEncoder<W> {
     }
 }
 
+impl<W: Write + Send + 'static> PackEncoder<W> {
+    pub fn encode_async(
+        encoder: Arc<Mutex<PackEncoder<W>>>,
+        rx: mpsc::Receiver<Entry>,
+    ) -> Result<thread::JoinHandle<()>, GitError> {
+        Ok(thread::spawn(move || {
+            let mut encoder = encoder.lock().unwrap();
+            encoder.encode(rx).unwrap();
+        }))
+    }
+}
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, path::PathBuf, usize};
+    use std::{io::Cursor, path::PathBuf, thread::sleep, usize};
 
     use venus::internal::object::blob::Blob;
 
@@ -230,7 +252,8 @@ mod tests {
                 true
             );
             let mut reader = Cursor::new(data);
-            p.decode(&mut reader, |_|{}).expect("pack file format error");
+            p.decode(&mut reader, |_| {})
+                .expect("pack file format error");
         }
         // without delta
         let pack_without_delta = encode_once(0);
@@ -251,5 +274,42 @@ mod tests {
         assert_eq!(data.len(), 2);
         assert_eq!(data[0], 0b_1101_0101);
         assert_eq!(data[1], 0b_0000_0101);
+    }
+
+    #[test]
+    fn test_async_pack_encoder() {
+        let writer: Vec<u8> = Vec::new();
+        let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
+        let encoder = Arc::new(Mutex::new(PackEncoder::new(str_vec.len(), 3, writer)));
+        let (tx, rx) = mpsc::channel::<Entry>();
+        PackEncoder::encode_async(encoder.clone(), rx).unwrap();
+
+        sleep(std::time::Duration::from_secs(1)); // wait for encode thread start
+        assert!(encoder.try_lock().is_err()); // get lock should failed
+        for str in str_vec {
+            let blob = Blob::from_content(str);
+            let entry: Entry = blob.into();
+            tx.send(entry).unwrap();
+        }
+        drop(tx);
+        assert!(encoder.lock().unwrap().get_hash().is_some()); // can only get lock when encode finished
+        let hash = encoder.lock().unwrap().get_hash().unwrap();
+        let correct_hash = {
+            let mut writer: Vec<u8> = Vec::new();
+            // make some different objects, or decode will fail
+            let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
+            let mut encoder = PackEncoder::new(str_vec.len(), 3, &mut writer);
+            let (tx, rx) = mpsc::channel::<Entry>();
+            for str in str_vec {
+                let blob = Blob::from_content(str);
+                let entry: Entry = blob.into();
+                tx.send(entry).unwrap();
+            }
+            drop(tx);
+            encoder.encode(rx).unwrap();
+            assert!(encoder.get_hash().is_some());
+            encoder.get_hash().unwrap()
+        };
+        assert_eq!(hash, correct_hash);
     }
 }
