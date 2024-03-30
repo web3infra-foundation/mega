@@ -227,6 +227,7 @@ mod tests {
                 None,
                 Some(1024 * 20),
                 Some(PathBuf::from("/tmp/.cache_temp")),
+                true
             );
             let mut reader = Cursor::new(data);
             p.decode(&mut reader, |_|{}).expect("pack file format error");
