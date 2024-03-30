@@ -13,6 +13,7 @@ use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
 
+/// A encoder for generating pack files with delta objects.
 pub struct PackEncoder<W: Write> {
     object_number: usize,
     process_index: usize,
@@ -25,8 +26,8 @@ pub struct PackEncoder<W: Write> {
     start_encoding: bool,
 }
 
-/// encode header of pack file (12 byte)<br>
-/// include: 'PACK', Version(2), number of objects
+/// Encode header of pack file (12 byte)<br>
+/// Content: 'PACK', Version(2), number of objects
 fn encode_header(object_number: usize) -> Vec<u8> {
     let mut result: Vec<u8> = vec![
         b'P', b'A', b'C', b'K', // The logotype of the Pack File
@@ -39,7 +40,7 @@ fn encode_header(object_number: usize) -> Vec<u8> {
     result
 }
 
-/// encode offset of delta object
+/// Encode offset of delta object
 fn encode_offset(mut value: usize) -> Vec<u8> {
     assert_ne!(value, 0, "offset can't be zero");
     let mut bytes = Vec::new();
@@ -78,12 +79,18 @@ impl<W: Write> PackEncoder<W> {
         }
     }
 
-    /// get the hash of the pack file. if the pack file is not finished, return None
+    /// Get the hash of the pack file. if the pack file is not finished, return None
     pub fn get_hash(&self) -> Option<SHA1> {
         self.final_hash
     }
 
-    /// encode entries to a pack file with delta objects, write to writer
+    /// Encodes entries into a pack file with delta objects and outputs them through the specified writer.
+    /// # Arguments
+    /// - `rx` - A receiver channel (`mpsc::Receiver<Entry>`) from which entries to be encoded are received.
+    /// # Returns
+    /// Returns `Ok(())` if encoding is successful, or a `GitError` in case of failure.
+    /// - Returns a `GitError` if there is a failure during the encoding process.
+    /// - Returns `PackEncodeError` if an encoding operation is already in progress.
     pub fn encode(&mut self, rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
         // ensure only one decode can only invoke once
         if self.start_encoding {
@@ -119,10 +126,10 @@ impl<W: Write> PackEncoder<W> {
         Ok(())
     }
 
-    /// try to encode as delta using objects in window
+    /// Try to encode as delta using objects in window
     /// # Returns
-    /// return (delta entry, offset) if success make delta
-    /// return (origin Entry,None) if didn't delta,
+    /// - Return (delta entry, offset) if success make delta
+    /// - Return (origin Entry,None) if didn't delta,
     fn try_as_offset_delta(&mut self, entry: &Entry) -> (Entry, Option<usize>) {
         let mut best_base: Option<&(Entry, usize)> = None;
         let mut best_rate: f64 = 0.0;
@@ -153,13 +160,14 @@ impl<W: Write> PackEncoder<W> {
         }
     }
 
+    /// Write data to writer and update hash & offset
     fn write_all_and_update(&mut self, data: &[u8]) {
         self.inner_hash.update(data);
         self.inner_offset += data.len();
         self.writer.write_all(data).unwrap();
     }
 
-    /// encode one object, and update the hash
+    /// Encode one object, and update the hash
     fn encode_one_object(&mut self, entry: &Entry) -> Result<(), GitError> {
         // try encode as delta
         let (entry, offset) = self.try_as_offset_delta(entry);
@@ -206,6 +214,21 @@ impl<W: Write> PackEncoder<W> {
 }
 
 impl<W: Write + Send + 'static> PackEncoder<W> {
+    /// Asynchronously encodes entries into a pack file in a separate thread.
+    /// The separate thread acquires a lock and retains it until encoding is complete.
+    /// However, attempting to acquire the lock immediately after invoking `encode_async`
+    /// may result in blocking the encoding thread, as acquiring the lock can take some time.
+    ///
+    /// **Dead Lock Warning**: If user try to get lock or join the thread before ensure 
+    /// entries can be sent to the channel, the thread will be blocked forever.
+    /// # Arguments
+    /// - `encoder` - An `Arc<Mutex<PackEncoder<W>>>` shared among threads, ensuring safe and exclusive
+    /// access to the `PackEncoder` instance during encoding.
+    /// - `rx` - A receiver channel (`mpsc::Receiver<Entry>`) for receiving entries to be encoded.
+    ///
+    /// # Returns
+    /// Returns a `Result` containing a `thread::JoinHandle<()>` for the spawned thread,
+    /// allowing for synchronization with the encoding operation, or a `GitError` in case of failure.
     pub fn encode_async(
         encoder: Arc<Mutex<PackEncoder<W>>>,
         rx: mpsc::Receiver<Entry>,
