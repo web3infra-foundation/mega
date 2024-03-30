@@ -51,11 +51,10 @@ impl PackHandler for ImportRepo {
 
     async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
         let (sender, receiver) = mpsc::channel();
-        let mut writer: Vec<u8> = Vec::new();
 
         let storage = self.context.services.mega_storage.clone();
         let total = storage.get_obj_count_by_repo_id(&self.repo).await;
-        let mut encoder = PackEncoder::new(total, 0, &mut writer);
+        let mut encoder = PackEncoder::new(total, 0);
 
         for m in storage
             .get_commits_by_repo_id(&self.repo)
@@ -110,9 +109,9 @@ impl PackHandler for ImportRepo {
             sender.send(entry).unwrap();
         }
         drop(sender);
-        encoder.encode(receiver).unwrap();
+        let data = encoder.encode(receiver).unwrap();
 
-        Ok(writer)
+        Ok(data)
     }
 
     async fn check_commit_exist(&self, hash: &str) -> bool {

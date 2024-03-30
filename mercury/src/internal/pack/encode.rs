@@ -5,8 +5,7 @@
 use flate2::write::ZlibEncoder;
 use sha1::{Digest, Sha1};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
-use std::thread;
+use std::{mem, thread};
 use std::{io::Write, sync::mpsc};
 use venus::internal::object::types::ObjectType;
 use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
@@ -14,12 +13,12 @@ use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
 
 /// A encoder for generating pack files with delta objects.
-pub struct PackEncoder<W: Write> {
+pub struct PackEncoder {
     object_number: usize,
     process_index: usize,
     window_size: usize,
     window: VecDeque<(Entry, usize)>, // entry and offset
-    writer: W,
+    writer: Vec<u8>,
     inner_offset: usize, // offset of current entry
     inner_hash: Sha1,    // Not SHA1 because need update trait
     final_hash: Option<SHA1>,
@@ -60,9 +59,10 @@ fn encode_offset(mut value: usize) -> Vec<u8> {
     bytes
 }
 
-impl<W: Write> PackEncoder<W> {
-    pub fn new(object_number: usize, window_size: usize, mut writer: W) -> Self {
+impl PackEncoder {
+    pub fn new(object_number: usize, window_size: usize) -> Self {
         let head = encode_header(object_number);
+        let mut writer = Vec::new();
         writer.write_all(&head).unwrap();
         let mut hash = Sha1::new();
         hash.update(&head);
@@ -91,7 +91,7 @@ impl<W: Write> PackEncoder<W> {
     /// Returns `Ok(())` if encoding is successful, or a `GitError` in case of failure.
     /// - Returns a `GitError` if there is a failure during the encoding process.
     /// - Returns `PackEncodeError` if an encoding operation is already in progress.
-    pub fn encode(&mut self, rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
+    pub fn encode(&mut self, rx: mpsc::Receiver<Entry>) -> Result<Vec<u8>, GitError> {
         // ensure only one decode can only invoke once
         if self.start_encoding {
             return Err(GitError::PackEncodeError(
@@ -121,9 +121,9 @@ impl<W: Write> PackEncoder<W> {
 
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
-        self.final_hash = Some(SHA1::new(&hash_result.to_vec()));
+        self.final_hash = Some(SHA1::from_bytes(&hash_result.to_vec()));
         self.writer.write_all(&hash_result).unwrap();
-        Ok(())
+        Ok(mem::replace(&mut self.writer, Vec::new()))
     }
 
     /// Try to encode as delta using objects in window
@@ -211,40 +211,20 @@ impl<W: Write> PackEncoder<W> {
         self.write_all_and_update(&compressed_data);
         Ok(())
     }
-}
 
-impl<W: Write + Send + 'static> PackEncoder<W> {
-    /// Asynchronously encodes entries into a pack file in a separate thread.
-    /// The separate thread acquires a lock and retains it until encoding is complete.
-    /// However, attempting to acquire the lock immediately after invoking `encode_async`
-    /// may result in blocking the encoding thread, as acquiring the lock can take some time.
-    ///
-    /// **Dead Lock Warning**: If user try to get lock or join the thread before ensure 
-    /// entries can be sent to the channel, the thread will be blocked forever.
-    /// # Arguments
-    /// - `encoder` - An `Arc<Mutex<PackEncoder<W>>>` shared among threads, ensuring safe and exclusive
-    /// access to the `PackEncoder` instance during encoding.
-    /// - `rx` - A receiver channel (`mpsc::Receiver<Entry>`) for receiving entries to be encoded.
-    ///
-    /// # Returns
-    /// Returns a `Result` containing a `thread::JoinHandle<()>` for the spawned thread,
-    /// allowing for synchronization with the encoding operation, or a `GitError` in case of failure.
-    pub fn encode_async(
-        encoder: Arc<Mutex<PackEncoder<W>>>,
-        rx: mpsc::Receiver<Entry>,
-    ) -> Result<thread::JoinHandle<()>, GitError> {
+    /// async version of encode, result data will be returned by JoinHandle.
+    /// It will consume PackEncoder, so you can't use it after calling this function.
+    pub fn encode_async(mut self, rx: mpsc::Receiver<Entry>) -> Result<thread::JoinHandle<Vec<u8>>, GitError> {
         Ok(thread::spawn(move || {
-            let mut encoder = encoder.lock().unwrap();
-            encoder.encode(rx).unwrap();
+            self.encode(rx).unwrap()
         }))
     }
 }
+
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, path::PathBuf, thread::sleep, usize};
-
+    use std::{io::Cursor, path::PathBuf,  usize};
     use venus::internal::object::blob::Blob;
-
     use crate::internal::pack::Pack;
 
     use super::*;
@@ -252,10 +232,9 @@ mod tests {
     fn test_pack_encoder() {
 
         fn encode_once(window_size: usize) -> Vec<u8> {
-            let mut writer: Vec<u8> = Vec::new();
             // make some different objects, or decode will fail
             let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
-            let mut encoder = PackEncoder::new(str_vec.len(), window_size, &mut writer);
+            let mut encoder = PackEncoder::new(str_vec.len(), window_size);
             let (tx, rx) = mpsc::channel::<Entry>();
             for str in str_vec {
                 let blob = Blob::from_content(str);
@@ -263,9 +242,9 @@ mod tests {
                 tx.send(entry).unwrap();
             }
             drop(tx);
-            encoder.encode(rx).unwrap();
+            let res = encoder.encode(rx).unwrap();
             assert!(encoder.get_hash().is_some());
-            writer
+            res
         }
         fn check_format(data: Vec<u8>) {
             let mut p = Pack::new(
@@ -301,27 +280,23 @@ mod tests {
 
     #[test]
     fn test_async_pack_encoder() {
-        let writer: Vec<u8> = Vec::new();
         let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
-        let encoder = Arc::new(Mutex::new(PackEncoder::new(str_vec.len(), 3, writer)));
+        let encoder = PackEncoder::new(str_vec.len(), 3);
         let (tx, rx) = mpsc::channel::<Entry>();
-        PackEncoder::encode_async(encoder.clone(), rx).unwrap();
+        let handle = encoder.encode_async(rx).unwrap();
 
-        sleep(std::time::Duration::from_secs(1)); // wait for encode thread start
-        assert!(encoder.try_lock().is_err()); // get lock should failed
         for str in str_vec {
             let blob = Blob::from_content(str);
             let entry: Entry = blob.into();
             tx.send(entry).unwrap();
         }
         drop(tx);
-        assert!(encoder.lock().unwrap().get_hash().is_some()); // can only get lock when encode finished
-        let hash = encoder.lock().unwrap().get_hash().unwrap();
+
+        let data = handle.join().unwrap();
+
         let correct_hash = {
-            let mut writer: Vec<u8> = Vec::new();
-            // make some different objects, or decode will fail
             let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
-            let mut encoder = PackEncoder::new(str_vec.len(), 3, &mut writer);
+            let mut encoder = PackEncoder::new(str_vec.len(), 3);
             let (tx, rx) = mpsc::channel::<Entry>();
             for str in str_vec {
                 let blob = Blob::from_content(str);
@@ -329,10 +304,11 @@ mod tests {
                 tx.send(entry).unwrap();
             }
             drop(tx);
-            encoder.encode(rx).unwrap();
+            let _data = encoder.encode(rx).unwrap();
             assert!(encoder.get_hash().is_some());
             encoder.get_hash().unwrap()
         };
+        let hash = SHA1::from_bytes(&data[data.len().saturating_sub(20)..]);
         assert_eq!(hash, correct_hash);
     }
 }
