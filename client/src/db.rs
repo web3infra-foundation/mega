@@ -215,4 +215,27 @@ mod tests {
             assert_eq!(reference_entry.name.unwrap(), name.to_string());
         }
     }
+
+    #[tokio::test]
+    async fn test_referenct_check() {
+        // test reference check
+        let test_db = TestDbPath::new("test_reference_check.db").await;
+        let db_path = test_db.0.as_str();
+
+        let conn = establish_connection(db_path).await.unwrap();
+
+        // test `remote`` can't be ''
+        let entry = reference::ActiveModel {
+            name: Set("master".to_string()),
+            kind: Set(ConfigKind::Head),
+            commit: Set(Some("2019922235".to_string())),
+            remote: Set(Some("".to_string())),
+            ..Default::default()
+        };
+        let result = entry.save(&conn).await;
+        assert!(
+            result.is_err(),
+            "reference check `remote` can't be '' failed"
+        );
+    }
 }
