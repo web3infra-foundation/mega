@@ -1,3 +1,2 @@
-pub mod config_entry;
-pub mod config_section;
+pub mod config;
 pub mod reference;
