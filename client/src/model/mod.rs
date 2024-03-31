@@ -1,2 +1,2 @@
-pub mod config_entry;
+pub mod config;
 pub mod reference;

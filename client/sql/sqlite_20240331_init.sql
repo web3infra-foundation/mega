@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS `config_entry` (
+CREATE TABLE IF NOT EXISTS `config` (
     `id` INTEGER PRIMARY KEY AUTOINCREMENT,
     `configuration` TEXT NOT NULL,
     `name` TEXT,

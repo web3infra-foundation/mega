@@ -30,7 +30,7 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
 #[deprecated]
 #[allow(dead_code)]
 async fn setup_database_model(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
-    // 开始一个事务
+    // start a transaction
     conn.transaction::<_, _, DbErr>(|txn| {
         Box::pin(async move {
             let backend = txn.get_database_backend();
@@ -41,7 +41,7 @@ async fn setup_database_model(conn: &DatabaseConnection) -> Result<(), Transacti
             txn.execute(backend.build(&table_create_statement)).await?;
 
             // config_section table
-            let table_create_statement = schema.create_table_from_entity(config_entry::Entity);
+            let table_create_statement = schema.create_table_from_entity(config::Entity);
             txn.execute(backend.build(&table_create_statement)).await?;
 
             Ok(())
@@ -50,11 +50,13 @@ async fn setup_database_model(conn: &DatabaseConnection) -> Result<(), Transacti
     .await
 }
 
-/// create table using sql in `src/sql/sqlite.sql`
+/// create table using sql in `src/sql/sqlite_20240331_init.sql`
 async fn setup_database_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
     conn.transaction::<_, _, DbErr>(|txn| {
         Box::pin(async move {
             let backend = txn.get_database_backend();
+
+            // `include_str!` will expand the file while compiling, so `.sql` is not needed after that
             const SETUP_SQL: &str = include_str!("../sql/sqlite_20240331_init.sql");
             txn.execute(Statement::from_string(backend, SETUP_SQL))
                 .await?;
@@ -155,7 +157,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_config() {
         // insert into config_entry & config_section, check foreign key constraint
-        let test_db = TestDbPath::new("test_insert_config_entry.db").await;
+        let test_db = TestDbPath::new("test_insert_config.db").await;
         let db_path = test_db.0.as_str();
 
         let conn = establish_connection(db_path).await.unwrap();
@@ -168,36 +170,36 @@ mod tests {
                 ("logallrefupdates".to_string(), "true".to_string()),
             ];
             for (key, value) in entries.iter() {
-                let entry = config_entry::ActiveModel {
+                let entry = config::ActiveModel {
                     configuration: Set("core".to_string()),
                     name: Set(None),
                     key: Set(key.to_string()),
                     value: Set(value.to_string()),
                     ..Default::default()
                 };
-                let config_entry = entry.save(&conn).await.unwrap();
-                assert_eq!(config_entry.key.unwrap(), key.to_string());
+                let config = entry.save(&conn).await.unwrap();
+                assert_eq!(config.key.unwrap(), key.to_string());
             }
-            let result = config_entry::Entity::find().all(&conn).await.unwrap();
+            let result = config::Entity::find().all(&conn).await.unwrap();
             assert_eq!(result.len(), entries.len(), "config_section count is not 1");
         }
         // test insert config with name
         {
-            let entry = config_entry::ActiveModel {
+            let entry = config::ActiveModel {
                 id: NotSet,
                 configuration: Set("remote".to_string()),
                 name: Set(Some("origin".to_string())),
                 key: Set("url".to_string()),
                 value: Set("https://localhost".to_string()),
             };
-            let config_entry = entry.save(&conn).await.unwrap();
-            assert_ne!(config_entry.id.unwrap(), 0);
+            let config = entry.save(&conn).await.unwrap();
+            assert_ne!(config.id.unwrap(), 0);
         }
 
         // test search config
         {
-            let result = config_entry::Entity::find()
-                .filter(config_entry::Column::Configuration.eq("core"))
+            let result = config::Entity::find()
+                .filter(config::Column::Configuration.eq("core"))
                 .all(&conn)
                 .await
                 .unwrap();
@@ -214,18 +216,18 @@ mod tests {
         let conn = establish_connection(db_path).await.unwrap();
         // test insert reference
         let entries = [
-            ("master", ConfigKind::Head, "2019", None), // attached head
-            ("", ConfigKind::Head, "2019", None),       // detached head
-            ("master", ConfigKind::Branch, "2019", None), // local branch
-            ("release1", ConfigKind::Tag, "2019", None), // tag (remote tag store same as local tag)
-            ("main", ConfigKind::Head, "a", Some("origin".to_string())), // remote head
-            ("main", ConfigKind::Branch, "a", Some("origin".to_string())),
+            ("master", ConfigKind::Head, None, None), // attached head
+            ("", ConfigKind::Head, Some("2019"), None),       // detached head
+            ("master", ConfigKind::Branch, Some("2019"), None), // local branch
+            ("release1", ConfigKind::Tag, Some("2019"), None), // tag (remote tag store same as local tag)
+            ("main", ConfigKind::Head, Some("a"), Some("origin".to_string())), // remote head
+            ("main", ConfigKind::Branch, Some("a"), Some("origin".to_string())),
         ];
         for (name, kind, commit, remote) in entries.iter() {
             let entry = reference::ActiveModel {
                 name: Set(name.to_string()),
                 kind: Set(kind.clone()),
-                commit: Set(Some(commit.to_string())),
+                commit: Set(commit.map(|s| s.to_string())),
                 remote: Set(remote.clone()),
                 ..Default::default()
             };
@@ -235,7 +237,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_referenct_check() {
+    async fn test_reference_check() {
         // test reference check
         let test_db = TestDbPath::new("test_reference_check.db").await;
         let db_path = test_db.0.as_str();
