@@ -196,20 +196,19 @@ mod tests {
         let conn = establish_connection(db_path).await.unwrap();
         // test insert reference
         let entries = [
-            ("master", ConfigKind::Head, "2019922235", ""),     // attached head
-            ("", ConfigKind::Head, "2019922235", ""),           // detached head
-            ("master", ConfigKind::Branch, "2019922235", ""),   // local branch
-            ("release1", ConfigKind::Tag, "2019922235", ""),    // tag
-            ("main", ConfigKind::Head, "2019922235", "origin"), // remote head
-            ("main", ConfigKind::Branch, "2019922235", "origin"), // remote branch
-                                                                // remote tag store same as local tag
+            ("master", ConfigKind::Head, "2019", None), // attached head
+            ("", ConfigKind::Head, "2019", None),       // detached head
+            ("master", ConfigKind::Branch, "2019", None), // local branch
+            ("release1", ConfigKind::Tag, "2019", None), // tag (remote tag store same as local tag)
+            ("main", ConfigKind::Head, "a", Some("origin".to_string())), // remote head
+            ("main", ConfigKind::Branch, "a", Some("origin".to_string())),
         ];
-        for (name, kind, commit, source) in entries.iter() {
+        for (name, kind, commit, remote) in entries.iter() {
             let entry = reference::ActiveModel {
                 name: Set(name.to_string()),
                 kind: Set(kind.clone()),
                 commit: Set(Some(commit.to_string())),
-                source: Set(Some(source.to_string())),
+                remote: Set(remote.clone()),
                 ..Default::default()
             };
             let reference_entry = entry.save(&conn).await.unwrap();
