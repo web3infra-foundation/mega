@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `config` (
 );
 CREATE TABLE IF NOT EXISTS `reference` (
     `id` INTEGER PRIMARY KEY AUTOINCREMENT,
-    `name` TEXT NOT NULL,
+    `name` TEXT CHECK (name <> '' OR name IS NULL),
     `kind` TEXT NOT NULL CHECK (kind IN ('Branch', 'Tag', 'Head')),
     `commit` TEXT,
     -- remote can't be ''. If kind is Tag, remote must be NULL.

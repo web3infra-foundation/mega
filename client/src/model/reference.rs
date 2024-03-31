@@ -5,7 +5,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
     pub id: i64,
-    pub name: String,
+    pub name: Option<String>,
     pub kind: ConfigKind, // type is a reserved keyword
     pub commit: Option<String>,
     pub remote: Option<String>, // None for local, Some for remote, '' is not valid
