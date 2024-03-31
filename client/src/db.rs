@@ -40,7 +40,7 @@ async fn setup_database(conn: &DatabaseConnection) -> Result<(), sea_orm::error:
     }
 
     // config_section table
-    let table_create_statement = schema.create_table_from_entity(config::Entity);
+    let table_create_statement = schema.create_table_from_entity(config_entry::Entity);
     let table_create_result = conn.execute(backend.build(&table_create_statement)).await;
     match table_create_result {
         Ok(_) => (),
@@ -88,7 +88,10 @@ pub async fn create_database(db_path: &str) -> Result<(), IOError> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, QueryFilter, Set};
+    use sea_orm::{
+        ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, QueryFilter, Set,
+    };
+    use tests::reference::ConfigKind;
 
     use super::*;
     use std::{fs, path::PathBuf};
@@ -147,7 +150,7 @@ mod tests {
                 ("logallrefupdates".to_string(), "true".to_string()),
             ];
             for (key, value) in entries.iter() {
-                let entry = config::ActiveModel {
+                let entry = config_entry::ActiveModel {
                     configuration: Set("core".to_string()),
                     name: Set(None),
                     key: Set(key.to_string()),
@@ -157,12 +160,12 @@ mod tests {
                 let config_entry = entry.save(&conn).await.unwrap();
                 assert_eq!(config_entry.key.unwrap(), key.to_string());
             }
-            let result = config::Entity::find().all(&conn).await.unwrap();
+            let result = config_entry::Entity::find().all(&conn).await.unwrap();
             assert_eq!(result.len(), entries.len(), "config_section count is not 1");
         }
         // test insert config with name
         {
-            let entry = config::ActiveModel {
+            let entry = config_entry::ActiveModel {
                 id: NotSet,
                 configuration: Set("remote".to_string()),
                 name: Set(Some("origin".to_string())),
@@ -175,12 +178,42 @@ mod tests {
 
         // test search config
         {
-            let result = config::Entity::find()
-                .filter(config::Column::Configuration.eq("core"))
+            let result = config_entry::Entity::find()
+                .filter(config_entry::Column::Configuration.eq("core"))
                 .all(&conn)
                 .await
                 .unwrap();
             assert_eq!(result.len(), 4, "config_section count is not 5");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_insert_reference() {
+        // insert into reference, check foreign key constraint
+        let test_db = TestDbPath::new("test_insert_reference.db").await;
+        let db_path = test_db.0.as_str();
+
+        let conn = establish_connection(db_path).await.unwrap();
+        // test insert reference
+        let entries = [
+            ("master", ConfigKind::Head, "2019922235", ""),     // attached head
+            ("", ConfigKind::Head, "2019922235", ""),           // detached head
+            ("master", ConfigKind::Branch, "2019922235", ""),   // local branch
+            ("release1", ConfigKind::Tag, "2019922235", ""),    // tag
+            ("main", ConfigKind::Head, "2019922235", "origin"), // remote head
+            ("main", ConfigKind::Branch, "2019922235", "origin"), // remote branch
+                                                                // remote tag store same as local tag
+        ];
+        for (name, kind, commit, source) in entries.iter() {
+            let entry = reference::ActiveModel {
+                name: Set(name.to_string()),
+                kind: Set(kind.clone()),
+                commit: Set(Some(commit.to_string())),
+                source: Set(Some(source.to_string())),
+                ..Default::default()
+            };
+            let reference_entry = entry.save(&conn).await.unwrap();
+            assert_eq!(reference_entry.name.unwrap(), name.to_string());
         }
     }
 }
