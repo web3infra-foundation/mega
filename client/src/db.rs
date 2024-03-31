@@ -40,23 +40,7 @@ async fn setup_database(conn: &DatabaseConnection) -> Result<(), sea_orm::error:
     }
 
     // config_section table
-    let table_create_statement = schema.create_table_from_entity(config_section::Entity);
-    let table_create_result = conn.execute(backend.build(&table_create_statement)).await;
-    match table_create_result {
-        Ok(_) => (),
-        Err(err) => return Err(err),
-    }
-    // add unique constraint (section_name, unique_name) for config_section
-    let sql = "CREATE UNIQUE INDEX IF NOT EXISTS unique_section_name ON config_section (section_name, unique_name)".to_string();
-    conn.execute(sea_orm::Statement::from_sql_and_values(
-        sea_orm::DatabaseBackend::Sqlite,
-        &sql,
-        [],
-    ))
-    .await?;
-
-    // config_entry table
-    let table_create_statement = schema.create_table_from_entity(config_entry::Entity);
+    let table_create_statement = schema.create_table_from_entity(config::Entity);
     let table_create_result = conn.execute(backend.build(&table_create_statement)).await;
     match table_create_result {
         Ok(_) => (),
@@ -104,7 +88,7 @@ pub async fn create_database(db_path: &str) -> Result<(), IOError> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+    use sea_orm::{ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, QueryFilter, Set};
 
     use super::*;
     use std::{fs, path::PathBuf};
@@ -148,20 +132,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_insert_config_entry() {
+    async fn test_insert_config() {
         // insert into config_entry & config_section, check foreign key constraint
         let test_db = TestDbPath::new("test_insert_config_entry.db").await;
         let db_path = test_db.0.as_str();
 
         let conn = establish_connection(db_path).await.unwrap();
-        // test insert into config_entry & config_section
+        // test insert config without name
         {
-            let config_section = config_section::ActiveModel {
-                section_name: Set("core".to_string()),
-                unique_name: Set("".to_string()),
-                ..Default::default()
-            };
-            let config_section = config_section.save(&conn).await.unwrap();
             let entries = [
                 ("repositoryformatversion".to_string(), "0".to_string()),
                 ("filemode".to_string(), "true".to_string()),
@@ -169,43 +147,40 @@ mod tests {
                 ("logallrefupdates".to_string(), "true".to_string()),
             ];
             for (key, value) in entries.iter() {
-                let config_entry = config_entry::ActiveModel {
-                    section_id: Set(*config_section.section_id.as_ref()),
+                let entry = config::ActiveModel {
+                    configuration: Set("core".to_string()),
+                    name: Set(None),
                     key: Set(key.to_string()),
                     value: Set(value.to_string()),
                     ..Default::default()
                 };
-                let config_entry = config_entry.save(&conn).await.unwrap();
-                assert_eq!(config_entry.section_id, config_section.section_id);
+                let config_entry = entry.save(&conn).await.unwrap();
+                assert_eq!(config_entry.key.unwrap(), key.to_string());
             }
-            let result = config_section::Entity::find().all(&conn).await.unwrap();
-            assert_eq!(result.len(), 1, "config_section count is not 1");
-            let result = config_entry::Entity::find().all(&conn).await.unwrap();
-            assert_eq!(result.len(), entries.len(), "config_entry count error");
+            let result = config::Entity::find().all(&conn).await.unwrap();
+            assert_eq!(result.len(), entries.len(), "config_section count is not 1");
         }
-        // test foreign key constraint error
+        // test insert config with name
         {
-            let config_entry = config_entry::ActiveModel {
-                section_id: Set(999),
-                key: Set("key".to_string()),
-                value: Set("value".to_string()),
-                ..Default::default()
+            let entry = config::ActiveModel {
+                id: NotSet,
+                configuration: Set("remote".to_string()),
+                name: Set(Some("origin".to_string())),
+                key: Set("url".to_string()),
+                value: Set("https://localhost".to_string()),
             };
-            let result = config_entry.save(&conn).await;
-            assert!(result.is_err(), "foreign key constraint error not found");
+            let config_entry = entry.save(&conn).await.unwrap();
+            assert_ne!(config_entry.id.unwrap(), 0);
         }
 
-        // test unique constraint error
+        // test search config
         {
-            let config_section = config_section::ActiveModel {
-                section_name: Set("origin".to_string()),
-                unique_name: Set("main".to_string()),
-                ..Default::default()
-            };
-            let result = config_section.clone().save(&conn).await;
-            assert!(result.is_ok());
-            let result = config_section.save(&conn).await;
-            assert!(result.is_err(), "unique constraint error not found");
+            let result = config::Entity::find()
+                .filter(config::Column::Configuration.eq("core"))
+                .all(&conn)
+                .await
+                .unwrap();
+            assert_eq!(result.len(), 4, "config_section count is not 5");
         }
     }
 }
