@@ -1,5 +1,5 @@
 use crate::model::*;
-use sea_orm::{ConnectionTrait, Schema};
+use sea_orm::{ConnectionTrait, DbErr, Schema, TransactionError, TransactionTrait};
 use sea_orm::{Database, DatabaseConnection};
 use std::io::Error as IOError;
 use std::io::ErrorKind;
@@ -27,26 +27,26 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
 }
 
 /// create table according to the Model
-async fn setup_database(conn: &DatabaseConnection) -> Result<(), sea_orm::error::DbErr> {
-    let backend = conn.get_database_backend();
-    let schema = Schema::new(backend);
+async fn setup_database(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
+    // 开始一个事务
+    conn.transaction::<_, _, DbErr>(|txn| {
+        Box::pin(async move {
+            let backend = txn.get_database_backend();
+            let schema = Schema::new(backend);
 
-    // reference table
-    let table_create_statement = schema.create_table_from_entity(reference::Entity);
-    let table_create_result = conn.execute(backend.build(&table_create_statement)).await;
-    match table_create_result {
-        Ok(_) => (),
-        Err(err) => return Err(err),
-    }
+            // reference table
+            let table_create_statement = schema.create_table_from_entity(reference::Entity);
+            txn.execute(backend.build(&table_create_statement)).await?;
 
-    // config_section table
-    let table_create_statement = schema.create_table_from_entity(config_entry::Entity);
-    let table_create_result = conn.execute(backend.build(&table_create_statement)).await;
-    match table_create_result {
-        Ok(_) => (),
-        Err(err) => return Err(err),
-    }
-    Ok(())
+            // config_section table
+            let table_create_statement = schema.create_table_from_entity(config_entry::Entity);
+            txn.execute(backend.build(&table_create_statement)).await?;
+
+            // 如果到这里没有错误，事务将自动提交
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// Create a new SQLite database file at the specified path.
@@ -117,7 +117,7 @@ mod tests {
                 let _ = fs::remove_file(&db_path);
             }
             let rt = TestDbPath(db_path.to_str().unwrap().to_string());
-            let _ = create_database(rt.0.as_str()).await;
+            create_database(rt.0.as_str()).await.unwrap();
             rt
         }
     }
