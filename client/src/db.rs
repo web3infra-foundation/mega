@@ -1,5 +1,5 @@
 use crate::model::*;
-use sea_orm::{ConnectionTrait, DbErr, Schema, TransactionError, TransactionTrait};
+use sea_orm::{ConnectionTrait, DbErr, Schema, Statement, TransactionError, TransactionTrait};
 use sea_orm::{Database, DatabaseConnection};
 use std::io::Error as IOError;
 use std::io::ErrorKind;
@@ -27,7 +27,9 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
 }
 
 /// create table according to the Model
-async fn setup_database(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
+#[deprecated]
+#[allow(dead_code)]
+async fn setup_database_model(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
     // 开始一个事务
     conn.transaction::<_, _, DbErr>(|txn| {
         Box::pin(async move {
@@ -42,7 +44,20 @@ async fn setup_database(conn: &DatabaseConnection) -> Result<(), TransactionErro
             let table_create_statement = schema.create_table_from_entity(config_entry::Entity);
             txn.execute(backend.build(&table_create_statement)).await?;
 
-            // 如果到这里没有错误，事务将自动提交
+            Ok(())
+        })
+    })
+    .await
+}
+
+/// create table using sql in `src/sql/sqlite.sql`
+async fn setup_database_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
+    conn.transaction::<_, _, DbErr>(|txn| {
+        Box::pin(async move {
+            let backend = txn.get_database_backend();
+            const SETUP_SQL: &str = include_str!("../sql/sqlite_20240331_init.sql");
+            txn.execute(Statement::from_string(backend, SETUP_SQL))
+                .await?;
             Ok(())
         })
     })
@@ -72,7 +87,7 @@ pub async fn create_database(db_path: &str) -> Result<(), IOError> {
 
     // Connect to the new database and setup the schema.
     if let Ok(conn) = establish_connection(db_path).await {
-        setup_database(&conn).await.map_err(|err| {
+        setup_database_sql(&conn).await.map_err(|err| {
             IOError::new(
                 ErrorKind::Other,
                 format!("Failed to setup database: {:?}", err),
@@ -236,6 +251,20 @@ mod tests {
         assert!(
             result.is_err(),
             "reference check `remote` can't be '' failed"
+        );
+
+        // test `remote` must be None for tag
+        let entry = reference::ActiveModel {
+            name: Set("master".to_string()),
+            kind: Set(ConfigKind::Tag),
+            commit: Set(Some("2019922235".to_string())),
+            remote: Set(Some("origin".to_string())),
+            ..Default::default()
+        };
+        let result = entry.save(&conn).await;
+        assert!(
+            result.is_err(),
+            "reference check `remote` must be None for tag failed"
         );
     }
 }
