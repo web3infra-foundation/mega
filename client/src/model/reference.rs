@@ -8,7 +8,7 @@ pub struct Model {
     pub name: String,
     pub kind: ConfigKind, // type is a reserved keyword
     pub commit: Option<String>,
-    pub source: Option<String>, // None for local, Some for remote
+    pub remote: Option<String>, // None for local, Some for remote, '' is not valid
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
