@@ -216,23 +216,23 @@ mod tests {
         let conn = establish_connection(db_path).await.unwrap();
         // test insert reference
         let entries = [
-            ("master", ConfigKind::Head, None, None), // attached head
-            ("", ConfigKind::Head, Some("2019"), None),       // detached head
-            ("master", ConfigKind::Branch, Some("2019"), None), // local branch
-            ("release1", ConfigKind::Tag, Some("2019"), None), // tag (remote tag store same as local tag)
-            ("main", ConfigKind::Head, Some("a"), Some("origin".to_string())), // remote head
-            ("main", ConfigKind::Branch, Some("a"), Some("origin".to_string())),
+            (Some("master"), ConfigKind::Head, None, None), // attached head
+            (None, ConfigKind::Head, Some("2019"), None),       // detached head
+            (Some("master"), ConfigKind::Branch, Some("2019"), None), // local branch
+            (Some("release1"), ConfigKind::Tag, Some("2019"), None), // tag (remote tag store same as local tag)
+            (Some("main"), ConfigKind::Head, Some("a"), Some("origin".to_string())), // remote head
+            (Some("main"), ConfigKind::Branch, Some("a"), Some("origin".to_string())),
         ];
         for (name, kind, commit, remote) in entries.iter() {
             let entry = reference::ActiveModel {
-                name: Set(name.to_string()),
+                name: Set(name.map(|s| s.to_string())),
                 kind: Set(kind.clone()),
                 commit: Set(commit.map(|s| s.to_string())),
                 remote: Set(remote.clone()),
                 ..Default::default()
             };
             let reference_entry = entry.save(&conn).await.unwrap();
-            assert_eq!(reference_entry.name.unwrap(), name.to_string());
+            assert_eq!(reference_entry.name.unwrap(), name.map(|s| s.to_string()));
         }
     }
 
@@ -246,7 +246,7 @@ mod tests {
 
         // test `remote`` can't be ''
         let entry = reference::ActiveModel {
-            name: Set("master".to_string()),
+            name: Set(Some("master".to_string())),
             kind: Set(ConfigKind::Head),
             commit: Set(Some("2019922235".to_string())),
             remote: Set(Some("".to_string())),
@@ -258,9 +258,23 @@ mod tests {
             "reference check `remote` can't be '' failed"
         );
 
+        // test `name`` can't be ''
+        let entry = reference::ActiveModel {
+            name: Set(Some("".to_string())),
+            kind: Set(ConfigKind::Head),
+            commit: Set(Some("2019922235".to_string())),
+            remote: Set(Some("origin".to_string())),
+            ..Default::default()
+        };
+        let result = entry.save(&conn).await;
+        assert!(
+            result.is_err(),
+            "reference check `name` can't be '' failed"
+        );
+
         // test `remote` must be None for tag
         let entry = reference::ActiveModel {
-            name: Set("master".to_string()),
+            name: Set(Some("master".to_string())),
             kind: Set(ConfigKind::Tag),
             commit: Set(Some("2019922235".to_string())),
             remote: Set(Some("origin".to_string())),
