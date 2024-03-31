@@ -141,6 +141,9 @@ mod tests {
     async fn test_create_database() {
         // didn't use TestDbPath, because TestDbPath use create_database to work.
         let db_path = "/tmp/test_create_database.db";
+        if Path::new(db_path).exists() {
+            fs::remove_file(db_path).unwrap();
+        }
         let result = create_database(db_path).await;
         assert!(result.is_ok(), "create_database failed: {:?}", result);
         assert!(Path::new(db_path).exists());
