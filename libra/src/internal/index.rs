@@ -4,12 +4,12 @@ use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use byteorder::{BigEndian, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use sha1::{Digest, Sha1};
 use venus::errors::GitError;
 use venus::hash::SHA1;
-use crate::internal::utils;
-use crate::internal::utils::SHA1_SIZE;
+// use utils;
+// use utils::SHA1_SIZE;
 use mercury::internal::pack::wrapper::Wrapper;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -19,8 +19,8 @@ pub struct Time {
 }
 impl Time {
     pub fn from_stream(stream: &mut impl Read) -> Result<Self, GitError> {
-        let seconds = utils::read_u32_be(stream)?;
-        let nanos = utils::read_u32_be(stream)?;
+        let seconds = stream.read_u32::<BigEndian>()?;
+        let nanos = stream.read_u32::<BigEndian>()?;
         Ok(Time { seconds, nanos })
     }
 
@@ -114,13 +114,13 @@ impl Index {
             return Err(GitError::InvalidIndexHeader(String::from_utf8_lossy(&magic).to_string()));
         }
 
-        let version = utils::read_u32_be(file)?;
+        let version = file.read_u32::<BigEndian>()?;
         // only support v2 now
         if version != 2 {
             return Err(GitError::InvalidIndexHeader(version.to_string()));
         }
 
-        let entries = utils::read_u32_be(file)?;
+        let entries = file.read_u32::<BigEndian>()?;
         Ok(entries)
     }
 
@@ -147,14 +147,14 @@ impl Index {
             let mut entry = IndexEntry {
                 ctime: Time::from_stream(file)?,
                 mtime: Time::from_stream(file)?,
-                dev: utils::read_u32_be(file)?,
-                ino: utils::read_u32_be(file)?,
-                mode: utils::read_u32_be(file)?,
-                uid: utils::read_u32_be(file)?,
-                gid: utils::read_u32_be(file)?,
-                size: utils::read_u32_be(file)?,
+                dev: file.read_u32::<BigEndian>()?,//utils::read_u32_be(file)?,
+                ino: file.read_u32::<BigEndian>()?,
+                mode: file.read_u32::<BigEndian>()?,
+                uid: file.read_u32::<BigEndian>()?,
+                gid: file.read_u32::<BigEndian>()?,
+                size: file.read_u32::<BigEndian>()?,
                 hash: utils::read_sha1(file)?,
-                flags: Flags::new(utils::read_u16_be(file)?),
+                flags: Flags::new(file.read_u16::<BigEndian>()?),
                 name: String::new()
             };
             let name_len = entry.flags.name_length as usize;
@@ -171,12 +171,12 @@ impl Index {
         }
 
         // Extensions
-        while file.bytes_read() + SHA1_SIZE < total_size as usize { // The remaining 20 bytes must be checksum
+        while file.bytes_read() + utils::SHA1_SIZE < total_size as usize { // The remaining 20 bytes must be checksum
             let sign = utils::read_bytes(file, 4)?;
             println!("{:?}", String::from_utf8(sign.clone())?);
             // If the first byte is 'A'...'Z' the extension is optional and can be ignored.
             if sign[0] >= b'A' && sign[0] <= b'Z' { // Optional extension
-                let size = utils::read_u32_be(file)?;
+                let size = file.read_u32::<BigEndian>()?;
                 utils::read_bytes(file, size as usize)?; // Ignore the extension
             } else { // 'link' or 'sdir' extension
                 return Err(GitError::InvalidIndexFile("Unsupported extension".to_string()));
@@ -232,6 +232,26 @@ impl Index {
         let file_hash: [u8; 20] = hash.finalize().into();
         file.write_all(&file_hash)?;
         Ok(())
+    }
+}
+
+mod utils {
+    use std::io;
+    use std::io::Read;
+    use venus::hash::SHA1;
+
+    pub const SHA1_SIZE: usize = 20;
+
+    pub fn read_bytes(file: &mut impl Read, len: usize) -> io::Result<Vec<u8>> {
+        let mut buf = vec![0; len];
+        file.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
+    pub fn read_sha1(file: &mut impl Read) -> io::Result<SHA1> {
+        let mut buf = [0; 20];
+        file.read_exact(&mut buf)?;
+        Ok(SHA1::from_bytes(&buf))
     }
 }
 
