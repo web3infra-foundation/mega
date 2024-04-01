@@ -18,6 +18,7 @@ pub struct Time {
     nanos: u32
 }
 impl Time {
+    #[allow(dead_code)]
     pub fn from_stream(stream: &mut impl Read) -> Result<Self, GitError> {
         let seconds = stream.read_u32::<BigEndian>()?;
         let nanos = stream.read_u32::<BigEndian>()?;

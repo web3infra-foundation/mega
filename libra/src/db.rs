@@ -1,3 +1,4 @@
+use std::io;
 use crate::model::*;
 use sea_orm::{ConnectionTrait, DbErr, Schema, Statement, TransactionError, TransactionTrait};
 use sea_orm::{Database, DatabaseConnection};
@@ -58,8 +59,7 @@ async fn setup_database_sql(conn: &DatabaseConnection) -> Result<(), Transaction
 
             // `include_str!` will expand the file while compiling, so `.sql` is not needed after that
             const SETUP_SQL: &str = include_str!("../sql/sqlite_20240331_init.sql");
-            txn.execute(Statement::from_string(backend, SETUP_SQL))
-                .await?;
+            txn.execute(Statement::from_string(backend, SETUP_SQL)).await?;
             Ok(())
         })
     })
@@ -72,7 +72,7 @@ async fn setup_database_sql(conn: &DatabaseConnection) -> Result<(), Transaction
 /// - Returns `Ok(())` if the database file was created and the schema was setup successfully.
 /// - Returns an `IOError` if the database file already exists, or if there was an error creating the file or setting up the schema.
 #[allow(dead_code)]
-pub async fn create_database(db_path: &str) -> Result<(), IOError> {
+pub async fn create_database(db_path: &str) -> io::Result<DatabaseConnection> {
     if Path::new(db_path).exists() {
         return Err(IOError::new(
             ErrorKind::AlreadyExists,
@@ -94,7 +94,8 @@ pub async fn create_database(db_path: &str) -> Result<(), IOError> {
                 ErrorKind::Other,
                 format!("Failed to setup database: {:?}", err),
             )
-        })
+        })?;
+        Ok(conn)
     } else {
         Err(IOError::new(
             ErrorKind::Other,
@@ -164,10 +165,10 @@ mod tests {
         // test insert config without name
         {
             let entries = [
-                ("repositoryformatversion".to_string(), "0".to_string()),
-                ("filemode".to_string(), "true".to_string()),
-                ("bare".to_string(), "false".to_string()),
-                ("logallrefupdates".to_string(), "true".to_string()),
+                ("repositoryformatversion", "0"),
+                ("filemode", "true"),
+                ("bare", "false"),
+                ("logallrefupdates", "true"),
             ];
             for (key, value) in entries.iter() {
                 let entry = config::ActiveModel {
