@@ -170,12 +170,12 @@ impl PackHandler for MonoRepo {
 
     async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
         let (sender, receiver) = mpsc::channel();
-        let mut writer: Vec<u8> = Vec::new();
         let repo = &Repo::empty();
         let storage = self.context.services.mega_storage.clone();
         // let obj_num = storage.get_obj_count_by_repo_id(repo).await;
-
         let mut obj_num = 0;
+        let mut encoder = PackEncoder::new(obj_num, 0);
+
         for m in storage
             .get_commits_by_repo_id(repo)
             .await
@@ -233,10 +233,9 @@ impl PackHandler for MonoRepo {
             obj_num += 1;
         }
         drop(sender);
-        let mut encoder = PackEncoder::new(obj_num, 3, &mut writer);
+        let data = encoder.encode(receiver).unwrap();
 
-        encoder.encode(receiver).unwrap();
-        Ok(writer)
+        Ok(data)
     }
 
     async fn incremental_pack(
@@ -245,7 +244,6 @@ impl PackHandler for MonoRepo {
         have: Vec<String>,
     ) -> Result<Vec<u8>, GitError> {
         let (sender, receiver) = mpsc::channel();
-        let mut writer: Vec<u8> = Vec::new();
         let repo = Repo::empty();
         let storage = self.context.services.mega_storage.clone();
         // let obj_num = storage.get_obj_count_by_repo_id(repo).await;
@@ -330,9 +328,9 @@ impl PackHandler for MonoRepo {
             obj_num.fetch_add(1, Ordering::SeqCst);
         }
         drop(sender);
-        let mut encoder = PackEncoder::new(obj_num.into_inner(), 0, &mut writer);
-        encoder.encode(receiver).unwrap();
-        Ok(writer)
+        let mut encoder = PackEncoder::new(obj_num.into_inner(), 0);
+        let data = encoder.encode(receiver).unwrap();
+        Ok(data)
     }
 
     async fn get_trees_by_hashes(
