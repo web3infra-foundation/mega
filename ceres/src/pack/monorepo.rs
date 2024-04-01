@@ -168,13 +168,14 @@ impl PackHandler for MonoRepo {
         Ok(())
     }
 
+    // monorepo's full pack should follow the shallow clone command 'git clone --depth=1'
     async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
         let (sender, receiver) = mpsc::channel();
         let repo = &Repo::empty();
         let storage = self.context.services.mega_storage.clone();
-        // let obj_num = storage.get_obj_count_by_repo_id(repo).await;
-        let mut obj_num = 0;
-        let mut encoder = PackEncoder::new(obj_num, 0);
+        let obj_num = storage.get_obj_count_by_repo_id(repo).await;
+        let encoder = PackEncoder::new(obj_num, 0);
+        let data = encoder.encode_async(receiver).unwrap();
 
         for m in storage
             .get_commits_by_repo_id(repo)
@@ -185,7 +186,6 @@ impl PackHandler for MonoRepo {
             let c: Commit = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
-            obj_num += 1;
         }
 
         for m in storage
@@ -197,7 +197,6 @@ impl PackHandler for MonoRepo {
             let c: Tree = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
-            obj_num += 1;
         }
 
         let bids: Vec<String> = storage
@@ -223,60 +222,52 @@ impl PackHandler for MonoRepo {
             let c: Blob = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
-            obj_num += 1;
         }
 
         for m in storage.get_tags_by_repo_id(repo).await.unwrap().into_iter() {
             let c: Tag = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
-            obj_num += 1;
         }
         drop(sender);
-        let data = encoder.encode(receiver).unwrap();
 
-        Ok(data)
+        Ok(data.join().unwrap())
     }
 
     async fn incremental_pack(
         &self,
-        want: Vec<String>,
+        mut want: Vec<String>,
         have: Vec<String>,
     ) -> Result<Vec<u8>, GitError> {
-        let (sender, receiver) = mpsc::channel();
         let repo = Repo::empty();
         let storage = self.context.services.mega_storage.clone();
-        // let obj_num = storage.get_obj_count_by_repo_id(repo).await;
         let obj_num = AtomicUsize::new(0);
 
         let mut exist_objs = HashSet::new();
 
-        let commits: Vec<Commit> = storage
-            .get_commits_by_hashes(&repo, want)
+        let mut want_commits: Vec<Commit> = storage
+            .get_commits_by_hashes(&repo, &want)
             .await
             .unwrap()
             .into_iter()
             .map(|x| x.into())
             .collect();
-        let mut traversal_list: Vec<Commit> = commits.clone();
-        let mut want_commits: Vec<Commit> = commits;
+        let mut traversal_list: Vec<Commit> = want_commits.clone();
 
         // tarverse commit's all parents to find the commit that client does not have
         while let Some(temp) = traversal_list.pop() {
             for p_commit_id in temp.parent_commit_ids {
-                let p_commit_id = &p_commit_id.to_plain_str();
+                let p_commit_id = p_commit_id.to_plain_str();
 
-                let want_commit_ids: Vec<String> =
-                    want_commits.iter().map(|x| x.id.to_plain_str()).collect();
-
-                if !have.contains(p_commit_id) && !want_commit_ids.contains(p_commit_id) {
+                if !have.contains(&p_commit_id) && !want.contains(&p_commit_id) {
                     let parent: Commit = storage
-                        .get_commit_by_hash(&repo, p_commit_id)
+                        .get_commit_by_hash(&repo, &p_commit_id)
                         .await
                         .unwrap()
                         .unwrap()
                         .into();
                     want_commits.push(parent.clone());
+                    want.push(p_commit_id);
                     traversal_list.push(parent);
                 }
             }
@@ -294,43 +285,45 @@ impl PackHandler for MonoRepo {
             .map(|m| (SHA1::from_str(&m.tree_id).unwrap(), m.into()))
             .collect();
 
-        for c in want_commits {
-            let have_commit_hashes: Vec<String> = c
-                .parent_commit_ids
-                .clone()
-                .into_iter()
-                .filter(|p_id| have.contains(&p_id.to_plain_str()))
-                .map(|hash| hash.to_plain_str())
-                .collect();
-            let have_commits = storage
-                .get_commits_by_hashes(&repo, have_commit_hashes)
+        obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
+
+        let have_commits = storage.get_commits_by_hashes(&repo, &have).await.unwrap();
+        for have_c in have_commits {
+            let have_tree = storage
+                .get_trees_by_hashes(&repo, vec![have_c.tree])
                 .await
-                .unwrap();
+                .unwrap()[0]
+                .clone()
+                .into();
+            self.traverse_tree(have_tree, &mut exist_objs, None).await;
+        }
 
-            for have_c in have_commits {
-                let have_tree = storage
-                    .get_trees_by_hashes(&repo, vec![have_c.tree])
-                    .await
-                    .unwrap()[0]
-                    .clone()
-                    .into();
-                self.add_to_exist_objs(have_tree, &mut exist_objs).await;
-            }
-
-            self.traverse_want_trees(
+        // traverse for get obj nums
+        for c in want_commits.clone() {
+            self.traverse_tree(
                 want_trees.get(&c.tree_id).unwrap().clone(),
-                &exist_objs,
-                sender.clone(),
-                &obj_num,
+                &mut exist_objs,
+                Some(&obj_num),
+            )
+            .await;
+        }
+
+        let (sender, receiver) = mpsc::channel();
+        let encoder = PackEncoder::new(obj_num.into_inner(), 0);
+        let data = encoder.encode_async(receiver).unwrap();
+
+        for c in want_commits {
+            self.traverse_and_send(
+                want_trees.get(&c.tree_id).unwrap().clone(),
+                &mut exist_objs,
+                &sender,
             )
             .await;
             sender.send(c.into()).unwrap();
-            obj_num.fetch_add(1, Ordering::SeqCst);
         }
         drop(sender);
-        let mut encoder = PackEncoder::new(obj_num.into_inner(), 0);
-        let data = encoder.encode(receiver).unwrap();
-        Ok(data)
+
+        Ok(data.join().unwrap())
     }
 
     async fn get_trees_by_hashes(

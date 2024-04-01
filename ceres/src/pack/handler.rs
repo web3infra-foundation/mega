@@ -3,7 +3,10 @@ use std::{
     env,
     io::{Cursor, Write},
     path::PathBuf,
-    sync::{atomic::{AtomicUsize, Ordering}, mpsc::{self, Receiver, Sender}},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{self, Receiver, Sender},
+    },
 };
 
 use async_trait::async_trait;
@@ -58,23 +61,56 @@ pub trait PackHandler: Send + Sync {
         have: Vec<String>,
     ) -> Result<Vec<u8>, GitError>;
 
-    // retrieve all sub trees recursively
-    async fn traverse_want_trees(
+    async fn traverse_tree(
         &self,
         tree: Tree,
-        exist_objs: &HashSet<String>,
-        sender: Sender<Entry>,
-        obj_num: &AtomicUsize,
+        exist_objs: &mut HashSet<String>,
+        obj_num: Option<&AtomicUsize>,
     ) {
+        exist_objs.insert(tree.id.to_plain_str());
         let mut search_tree_ids = vec![];
         let mut seacrh_blob_ids = vec![];
         for item in &tree.tree_items {
-            if !exist_objs.contains(&item.id.to_plain_str()) {
+            let hash = item.id.to_plain_str();
+            if !exist_objs.contains(&hash) {
                 if item.mode == TreeItemMode::Tree {
-                    search_tree_ids.push(item.id.to_plain_str())
+                    search_tree_ids.push(hash.clone())
                 } else {
-                    seacrh_blob_ids.push(item.id.to_plain_str());
+                    seacrh_blob_ids.push(hash.clone());
                 }
+                exist_objs.insert(hash);
+            }
+        }
+        if let Some(obj_num) = obj_num {
+            obj_num.fetch_add(seacrh_blob_ids.len(), Ordering::SeqCst);
+        }
+        let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
+        for t in trees {
+            self.traverse_tree(t.into(), exist_objs, obj_num).await;
+        }
+        if let Some(obj_num) = obj_num {
+            obj_num.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    async fn traverse_and_send(
+        &self,
+        tree: Tree,
+        exist_objs: &mut HashSet<String>,
+        sender: &Sender<Entry>,
+    ) {
+        exist_objs.insert(tree.id.to_plain_str());
+        let mut search_tree_ids = vec![];
+        let mut seacrh_blob_ids = vec![];
+        for item in &tree.tree_items {
+            let hash = item.id.to_plain_str();
+            if !exist_objs.contains(&hash) {
+                if item.mode == TreeItemMode::Tree {
+                    search_tree_ids.push(hash.clone())
+                } else {
+                    seacrh_blob_ids.push(hash.clone());
+                }
+                exist_objs.insert(hash);
             }
         }
 
@@ -82,34 +118,12 @@ pub trait PackHandler: Send + Sync {
         for b in blobs {
             let blob: Blob = b.into();
             sender.send(blob.into()).unwrap();
-            obj_num.fetch_add(1, Ordering::SeqCst);
         }
-
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
-            self.traverse_want_trees(t.into(), exist_objs, sender.clone(), obj_num)
-                .await;
+            self.traverse_and_send(t.into(), exist_objs, sender).await;
         }
         sender.send(tree.into()).unwrap();
-        obj_num.fetch_add(1, Ordering::SeqCst);
-    }
-
-    async fn add_to_exist_objs(&self, tree: Tree, exist_objs: &mut HashSet<String>) {
-        let mut search_tree_ids = vec![];
-        for item in &tree.tree_items {
-            if !exist_objs.contains(&item.id.to_plain_str()) {
-                if item.mode == TreeItemMode::Tree {
-                    search_tree_ids.push(item.id.to_plain_str())
-                } else {
-                    exist_objs.insert(item.id.to_plain_str());
-                }
-            }
-        }
-        let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
-        for tree in trees {
-            self.add_to_exist_objs(tree.into(), exist_objs).await;
-        }
-        exist_objs.insert(tree.id.to_plain_str());
     }
 
     async fn get_trees_by_hashes(

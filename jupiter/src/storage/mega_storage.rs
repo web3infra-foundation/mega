@@ -413,7 +413,7 @@ impl MegaStorage {
     pub async fn get_commits_by_hashes(
         &self,
         repo: &Repo,
-        hashes: Vec<String>,
+        hashes: &Vec<String>,
     ) -> Result<Vec<mega_commit::Model>, MegaError> {
         Ok(mega_commit::Entity::find()
             .filter(mega_commit::Column::RepoId.eq(repo.repo_id))
