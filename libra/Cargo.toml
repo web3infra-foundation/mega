@@ -6,12 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+venus = { path = "../venus" }
+mercury = { path = "../mercury" }
 sea-orm = { workspace = true, features = [
     "sqlx-sqlite",
     "runtime-tokio-rustls",
     "macros",
 ] }
 tokio.workspace = true
+sha1 = { workspace = true }
+byteorder = "1.5.0"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }

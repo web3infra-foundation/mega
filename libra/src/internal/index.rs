@@ -8,9 +8,9 @@ use byteorder::{BigEndian, WriteBytesExt};
 use sha1::{Digest, Sha1};
 use venus::errors::GitError;
 use venus::hash::SHA1;
-use crate::internal::model::utils;
-use crate::internal::model::utils::SHA1_SIZE;
-use crate::internal::pack::wrapper::Wrapper;
+use crate::internal::utils;
+use crate::internal::utils::SHA1_SIZE;
+use mercury::internal::pack::wrapper::Wrapper;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Time {
