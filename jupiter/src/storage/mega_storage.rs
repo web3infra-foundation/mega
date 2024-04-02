@@ -5,13 +5,13 @@ use std::{env, sync::Arc};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter,
+    PaginatorTrait, QueryFilter, QuerySelect,
 };
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    git_repo, mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tag,
-    mega_tree, raw_blob,
+    mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tag, mega_tree,
+    raw_blob,
 };
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -100,10 +100,7 @@ impl MegaStorage {
         Ok(result.map(|model| model.into()))
     }
 
-    pub async fn update_ref(
-        &self,
-        refs: MegaRefs
-    ) -> Result<(), MegaError> {
+    pub async fn update_ref(&self, refs: MegaRefs) -> Result<(), MegaError> {
         let ref_data: mega_refs::Model = refs.into();
         let mut ref_data: mega_refs::ActiveModel = ref_data.into();
         ref_data.reset(mega_refs::Column::RefCommitHash);
@@ -382,38 +379,6 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn find_git_repo(
-        &self,
-        repo_path: &str,
-    ) -> Result<Option<git_repo::Model>, MegaError> {
-        let result = git_repo::Entity::find()
-            .filter(git_repo::Column::RepoPath.eq(repo_path))
-            .one(self.get_connection())
-            .await?;
-        Ok(result)
-    }
-
-    pub async fn save_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
-        let model: git_repo::Model = repo.into();
-        let a_model = model.into_active_model();
-        git_repo::Entity::insert(a_model)
-            .exec(self.get_connection())
-            .await
-            .unwrap();
-        Ok(())
-    }
-
-    #[allow(unused)]
-    pub async fn update_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
-        let git_repo = git_repo::Entity::find_by_id(repo.repo_id)
-            .one(self.get_connection())
-            .await
-            .unwrap();
-        let git_repo: git_repo::ActiveModel = git_repo.unwrap().into();
-        git_repo.update(self.get_connection()).await.unwrap();
-        Ok(())
-    }
-
     pub async fn save_mega_commits(
         &self,
         repo: &Repo,
@@ -445,6 +410,20 @@ impl MegaStorage {
             .unwrap())
     }
 
+    pub async fn get_commits_by_hashes(
+        &self,
+        repo: &Repo,
+        hashes: &Vec<String>,
+    ) -> Result<Vec<mega_commit::Model>, MegaError> {
+        Ok(mega_commit::Entity::find()
+            .filter(mega_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(mega_commit::Column::CommitId.is_in(hashes))
+            .distinct()
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
     pub async fn get_commits_by_repo_id(
         &self,
         repo: &Repo,
@@ -469,32 +448,19 @@ impl MegaStorage {
             .unwrap())
     }
 
-    pub async fn get_tree_by_hash(
+    pub async fn get_trees_by_hashes(
         &self,
         repo: &Repo,
-        sha: &str,
-    ) -> Result<Option<mega_tree::Model>, MegaError> {
+        hashes: Vec<String>,
+    ) -> Result<Vec<mega_tree::Model>, MegaError> {
         Ok(mega_tree::Entity::find()
             .filter(mega_tree::Column::RepoId.eq(repo.repo_id))
-            .filter(mega_tree::Column::TreeId.eq(sha))
-            .one(self.get_connection())
+            .filter(mega_tree::Column::TreeId.is_in(hashes))
+            .distinct()
+            .all(self.get_connection())
             .await
             .unwrap())
     }
-
-    // #[allow(unused)]
-    // async fn save_mega_trees(&self, trees: Vec<Tree>) -> Result<(), MegaError> {
-    //     let models: Vec<mega_tree::Model> = trees.into_iter().map(|x| x.into()).collect();
-    //     let mut save_models: Vec<mega_tree::ActiveModel> = Vec::new();
-    //     for mut model in models {
-    //         model.status = MergeStatus::Open;
-    //         save_models.push(model.into_active_model());
-    //     }
-    //     batch_save_model(self.get_connection(), save_models)
-    //         .await
-    //         .unwrap();
-    //     Ok(())
-    // }
 
     pub async fn get_trees_by_repo_id(
         &self,
@@ -517,6 +483,18 @@ impl MegaStorage {
             .await
             .unwrap())
     }
+
+    pub async fn get_raw_blobs_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<raw_blob::Model>, MegaError> {
+        Ok(raw_blob::Entity::find()
+            .filter(raw_blob::Column::Sha1.is_in(hashes))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
 
     pub async fn get_tags_by_repo_id(
         &self,
