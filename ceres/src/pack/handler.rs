@@ -61,69 +61,67 @@ pub trait PackHandler: Send + Sync {
         have: Vec<String>,
     ) -> Result<Vec<u8>, GitError>;
 
-    async fn traverse_tree(
+    async fn traverse_for_count(
         &self,
         tree: Tree,
-        exist_objs: &mut HashSet<String>,
-        obj_num: Option<&AtomicUsize>,
+        exist_objs: &HashSet<String>,
+        obj_num: &AtomicUsize,
     ) {
-        exist_objs.insert(tree.id.to_plain_str());
         let mut search_tree_ids = vec![];
-        let mut seacrh_blob_ids = vec![];
+        let mut search_blob_ids = vec![];
         for item in &tree.tree_items {
             let hash = item.id.to_plain_str();
             if !exist_objs.contains(&hash) {
                 if item.mode == TreeItemMode::Tree {
                     search_tree_ids.push(hash.clone())
                 } else {
-                    seacrh_blob_ids.push(hash.clone());
+                    search_blob_ids.push(hash.clone());
                 }
-                exist_objs.insert(hash);
             }
         }
-        if let Some(obj_num) = obj_num {
-            obj_num.fetch_add(seacrh_blob_ids.len(), Ordering::SeqCst);
-        }
+        obj_num.fetch_add(search_blob_ids.len(), Ordering::SeqCst);
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
-            self.traverse_tree(t.into(), exist_objs, obj_num).await;
+            self.traverse_for_count(t.into(), exist_objs, obj_num).await;
         }
-        if let Some(obj_num) = obj_num {
-            obj_num.fetch_add(1, Ordering::SeqCst);
-        }
+        obj_num.fetch_add(1, Ordering::SeqCst);
     }
 
-    async fn traverse_and_send(
+    async fn traverse(
         &self,
         tree: Tree,
         exist_objs: &mut HashSet<String>,
-        sender: &Sender<Entry>,
+        sender: Option<&Sender<Entry>>,
     ) {
         exist_objs.insert(tree.id.to_plain_str());
         let mut search_tree_ids = vec![];
-        let mut seacrh_blob_ids = vec![];
+        let mut search_blob_ids = vec![];
         for item in &tree.tree_items {
             let hash = item.id.to_plain_str();
             if !exist_objs.contains(&hash) {
                 if item.mode == TreeItemMode::Tree {
                     search_tree_ids.push(hash.clone())
                 } else {
-                    seacrh_blob_ids.push(hash.clone());
+                    search_blob_ids.push(hash.clone());
                 }
                 exist_objs.insert(hash);
             }
         }
 
-        let blobs = self.get_blobs_by_hashes(seacrh_blob_ids).await.unwrap();
-        for b in blobs {
-            let blob: Blob = b.into();
-            sender.send(blob.into()).unwrap();
+        if let Some(sender) = sender {
+            let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
+            for b in blobs {
+                let blob: Blob = b.into();
+                sender.send(blob.into()).unwrap();
+            }
         }
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
-            self.traverse_and_send(t.into(), exist_objs, sender).await;
+            self.traverse(t.into(), exist_objs, sender).await;
         }
-        sender.send(tree.into()).unwrap();
+        if let Some(sender) = sender {
+            sender.send(tree.into()).unwrap();
+        }
     }
 
     async fn get_trees_by_hashes(
