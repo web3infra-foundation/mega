@@ -3,16 +3,26 @@ use std::sync::mpsc;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use callisto::raw_blob;
-use jupiter::{context::Context, storage::{batch_query_by_columns, GitStorageProvider}};
+use callisto::{mega_tree, raw_blob};
+use common::errors::MegaError;
+use jupiter::{
+    context::Context,
+    storage::{batch_query_by_columns, GitStorageProvider},
+};
 use mercury::internal::pack::encode::PackEncoder;
 use venus::{
     errors::GitError,
-    internal::{object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree}, pack::{entry::Entry, reference::{CommandType, RefCommand, Refs}}},
+    internal::{
+        object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree},
+        pack::{
+            entry::Entry,
+            reference::{CommandType, RefCommand, Refs},
+        },
+    },
     repo::Repo,
 };
 
-use crate::pack::handler::{check_head_hash, decode_for_receiver, PackHandler};
+use crate::pack::handler::PackHandler;
 
 pub struct ImportRepo {
     pub context: Context,
@@ -30,11 +40,11 @@ impl PackHandler for ImportRepo {
             .await
             .unwrap();
 
-        check_head_hash(refs)
+        self.check_head_hash(refs)
     }
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = decode_for_receiver(pack_file).unwrap();
+        let receiver = self.pack_decoder(pack_file).unwrap();
 
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = Vec::new();
@@ -103,7 +113,12 @@ impl PackHandler for ImportRepo {
             sender.send(entry).unwrap();
         }
 
-        for m in storage.get_tags_by_repo_id(&self.repo).await.unwrap().into_iter() {
+        for m in storage
+            .get_tags_by_repo_id(&self.repo)
+            .await
+            .unwrap()
+            .into_iter()
+        {
             let c: Tag = m.into();
             let entry: Entry = c.into();
             sender.send(entry).unwrap();
@@ -114,16 +129,6 @@ impl PackHandler for ImportRepo {
         Ok(data)
     }
 
-    async fn check_commit_exist(&self, hash: &str) -> bool {
-        self.context
-            .services
-            .mega_storage
-            .get_commit_by_hash(&self.repo, hash)
-            .await
-            .unwrap()
-            .is_some()
-    }
-
     async fn incremental_pack(
         &self,
         _want: Vec<String>,
@@ -132,6 +137,21 @@ impl PackHandler for ImportRepo {
         todo!()
     }
 
+
+    async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<mega_tree::Model>, MegaError> {
+        self.context
+            .services
+            .mega_storage
+            .get_trees_by_hashes(&self.repo, hashes)
+            .await
+    }
+
+    async fn get_blobs_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<raw_blob::Model>, MegaError> {
+        self.context.services.mega_storage.get_raw_blobs_by_hashes(hashes).await
+    }
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {
@@ -147,6 +167,16 @@ impl PackHandler for ImportRepo {
             }
         }
         Ok(())
+    }
+
+    async fn check_commit_exist(&self, hash: &str) -> bool {
+        self.context
+            .services
+            .mega_storage
+            .get_commit_by_hash(&self.repo, hash)
+            .await
+            .unwrap()
+            .is_some()
     }
 
     async fn check_default_branch(&self) -> bool {
