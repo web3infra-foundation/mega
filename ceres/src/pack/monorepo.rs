@@ -65,10 +65,10 @@ impl PackHandler for MonoRepo {
                 .into();
             let tree_id = commit.tree_id.to_plain_str();
             let mut tree: Tree = storage
-                .get_trees_by_hashes(&Repo::empty(), vec![tree_id])
+                .get_tree_by_hash(&Repo::empty(), &tree_id)
                 .await
-                .unwrap()[0]
-                .clone()
+                .unwrap()
+                .unwrap()
                 .into();
 
             for component in target_path.components() {
@@ -168,7 +168,7 @@ impl PackHandler for MonoRepo {
         Ok(())
     }
 
-    // monorepo's full pack should follow the shallow clone command 'git clone --depth=1'
+    // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
     async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
         let (sender, receiver) = mpsc::channel();
         let repo = &Repo::empty();
@@ -254,7 +254,7 @@ impl PackHandler for MonoRepo {
             .collect();
         let mut traversal_list: Vec<Commit> = want_commits.clone();
 
-        // tarverse commit's all parents to find the commit that client does not have
+        // traverse commit's all parents to find the commit that client does not have
         while let Some(temp) = traversal_list.pop() {
             for p_commit_id in temp.parent_commit_ids {
                 let p_commit_id = p_commit_id.to_plain_str();
@@ -288,22 +288,20 @@ impl PackHandler for MonoRepo {
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
 
         let have_commits = storage.get_commits_by_hashes(&repo, &have).await.unwrap();
-        for have_c in have_commits {
-            let have_tree = storage
-                .get_trees_by_hashes(&repo, vec![have_c.tree])
-                .await
-                .unwrap()[0]
-                .clone()
-                .into();
-            self.traverse_tree(have_tree, &mut exist_objs, None).await;
+        let have_trees = storage
+            .get_trees_by_hashes(&repo, have_commits.iter().map(|x| x.tree.clone()).collect())
+            .await
+            .unwrap();
+        for have_tree in have_trees {
+            self.traverse(have_tree.into(), &mut exist_objs, None).await;
         }
 
         // traverse for get obj nums
         for c in want_commits.clone() {
-            self.traverse_tree(
+            self.traverse_for_count(
                 want_trees.get(&c.tree_id).unwrap().clone(),
-                &mut exist_objs,
-                Some(&obj_num),
+                &exist_objs,
+                &obj_num,
             )
             .await;
         }
@@ -313,10 +311,10 @@ impl PackHandler for MonoRepo {
         let data = encoder.encode_async(receiver).unwrap();
 
         for c in want_commits {
-            self.traverse_and_send(
+            self.traverse(
                 want_trees.get(&c.tree_id).unwrap().clone(),
                 &mut exist_objs,
-                &sender,
+                Some(&sender),
             )
             .await;
             sender.send(c.into()).unwrap();

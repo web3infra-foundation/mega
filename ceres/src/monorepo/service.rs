@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -77,70 +77,85 @@ impl MonorepoService {
 
     async fn handle_parent_directory(
         &self,
-        mut path: &Path,
+        path: &Path,
         path_tree_hash: &str,
     ) -> Result<(), GitError> {
         let refs = self.storage.get_ref("/").await.unwrap().unwrap();
 
-        let mut target_name = path.file_name().unwrap().to_str().unwrap();
-        let mut target_hash = SHA1::from_str(path_tree_hash).unwrap();
-
         let mut save_trees: Vec<mega_tree::ActiveModel> = Vec::new();
         let mut save_commits: Vec<mega_commit::ActiveModel> = Vec::new();
 
-        while let Some(parent) = path.parent() {
-            let parent_path = parent.to_str().unwrap().to_owned();
-            let model = self
-                .storage
-                .get_tree_by_path(&parent_path, &refs.ref_commit_hash)
-                .await
-                .unwrap();
-            if let Some(model) = model {
-                let mut p_tree: Tree = model.into();
-                let index = p_tree.tree_items.iter().position(|x| x.name == target_name);
-                if let Some(index) = index {
-                    p_tree.tree_items[index].id = target_hash;
-                    let new_p_tree = Tree::from_tree_items(p_tree.tree_items).unwrap();
-                    let new_tree_id = new_p_tree.id;
-                    if parent.parent().is_some() {
-                        target_name = parent.file_name().unwrap().to_str().unwrap();
-                        target_hash = new_p_tree.id;
-                    } else {
-                        target_name = "root";
-                    }
+        let handle_path = path.parent().unwrap().to_owned();
+        let root_tree: Tree = self
+            .storage
+            .get_tree_by_hash(&Repo::empty(), &refs.ref_tree_hash)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+        let mut search_tree = root_tree.clone();
+        let mut tree_vec = vec![root_tree];
+        for component in handle_path.components() {
+            if component != Component::RootDir {
+                let target_name = component.as_os_str().to_str().unwrap();
+                let search_res = search_tree
+                    .tree_items
+                    .iter()
+                    .find(|x| x.name == target_name);
 
-                    let mut model: mega_tree::Model = new_p_tree.into();
-                    model.full_path = parent_path.clone();
-                    model.name = target_name.to_owned();
-                    let a_model = model.into();
-                    save_trees.push(a_model);
-                    let p_ref = self.storage.get_ref(&parent_path).await.unwrap();
-                    if let Some(mut p_ref) = p_ref {
-                        // generate commit
-                        let p_commit = Commit::from_tree_id(
-                            new_tree_id,
-                            vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
-                            "This Commit was generate for handle parent directory",
-                        );
-                        // update p_ref
-                        p_ref.ref_commit_hash = p_commit.id.to_plain_str();
-                        p_ref.ref_tree_hash = new_tree_id.to_plain_str();
-                        self.storage.update_ref(p_ref).await.unwrap();
-
-                        let model: mega_commit::Model = p_commit.into();
-                        save_commits.push(model.into());
-                    }
+                if let Some(search_res) = search_res {
+                    let hash = search_res.id.to_plain_str();
+                    let res: Tree = self
+                        .storage
+                        .get_tree_by_hash(&Repo::empty(), &hash)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .into();
+                    search_tree = res.clone();
+                    tree_vec.push(res);
                 } else {
-                    return Err(GitError::ConversionError("Can't find child.".to_string()));
+                    return Err(GitError::ConversionError(
+                        "can't find target parent tree under latest commit, you should update your local repository".to_string(),
+                    ));
                 }
-            } else {
-                return Err(GitError::ConversionError(
-                    "Can't find parent tree.".to_string(),
-                ));
             }
-            path = parent;
         }
 
+        let mut target_hash = SHA1::from_str(path_tree_hash).unwrap();
+
+        let mut full_path = PathBuf::from(path);
+        while let Some(mut tree) = tree_vec.pop() {
+            let cloned_path = full_path.clone();
+            let name = cloned_path.file_name().unwrap().to_str().unwrap();
+            full_path.pop();
+
+            let index = tree.tree_items.iter().position(|x| x.name == name).unwrap();
+            tree.tree_items[index].id = target_hash;
+            let new_tree = Tree::from_tree_items(tree.tree_items).unwrap();
+            target_hash = new_tree.id;
+
+            let model: mega_tree::Model = new_tree.into();
+            let a_model = model.into();
+            save_trees.push(a_model);
+
+            let p_ref = self.storage.get_ref(full_path.to_str().unwrap()).await.unwrap();
+            if let Some(mut p_ref) = p_ref {
+                // generate commit
+                let p_commit = Commit::from_tree_id(
+                    target_hash,
+                    vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
+                    "This Commit was generate for handle parent directory",
+                );
+                // update p_ref
+                p_ref.ref_commit_hash = p_commit.id.to_plain_str();
+                p_ref.ref_tree_hash = target_hash.to_plain_str();
+                self.storage.update_ref(p_ref).await.unwrap();
+
+                let model: mega_commit::Model = p_commit.into();
+                save_commits.push(model.into());
+            }
+        }
         batch_save_model(self.storage.get_connection(), save_trees)
             .await
             .unwrap();
@@ -148,5 +163,21 @@ impl MonorepoService {
             .await
             .unwrap();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::PathBuf;
+
+    #[test]
+    pub fn test() {
+        let mut full_path = PathBuf::from("/project/rust/mega");
+        for _ in 0..3 {
+            let cloned_path = full_path.clone(); // Clone full_path
+            let name = cloned_path.file_name().unwrap().to_str().unwrap();
+            full_path.pop();
+            println!("name: {}, path: {:?}", name, full_path);
+        }
     }
 }

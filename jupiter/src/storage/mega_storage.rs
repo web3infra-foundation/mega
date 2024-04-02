@@ -252,11 +252,11 @@ impl MegaStorage {
             .await
             .unwrap();
 
-        let mega_trees = converter.mega_trees.borrow().clone();
+        let mega_trees = converter.mega_trees.borrow().values().cloned().collect();
         batch_save_model(self.get_connection(), mega_trees)
             .await
             .unwrap();
-        let mega_blobs = converter.mega_blobs.borrow().clone();
+        let mega_blobs = converter.mega_blobs.borrow().values().cloned().collect();
         batch_save_model(self.get_connection(), mega_blobs)
             .await
             .unwrap();
@@ -435,14 +435,14 @@ impl MegaStorage {
             .unwrap())
     }
 
-    pub async fn get_tree_by_path(
+    pub async fn get_tree_by_hash(
         &self,
-        full_path: &str,
-        ref_commit_hash: &str,
+        repo: &Repo,
+        hash: &str,
     ) -> Result<Option<mega_tree::Model>, MegaError> {
         Ok(mega_tree::Entity::find()
-            .filter(mega_tree::Column::FullPath.eq(full_path))
-            .filter(mega_tree::Column::CommitId.eq(ref_commit_hash))
+            .filter(mega_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(mega_tree::Column::TreeId.eq(hash))
             .one(self.get_connection())
             .await
             .unwrap())
