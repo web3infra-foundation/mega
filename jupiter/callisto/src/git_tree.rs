@@ -9,11 +9,8 @@ pub struct Model {
     pub id: i64,
     pub repo_id: i64,
     pub tree_id: String,
-    pub sub_trees: Option<Vec<String>>,
-    pub name: Option<String>,
+    pub sub_trees: Vec<u8>,
     pub size: i32,
-    #[sea_orm(column_type = "Text")]
-    pub full_path: String,
     pub commit_id: String,
     pub created_at: DateTime,
 }

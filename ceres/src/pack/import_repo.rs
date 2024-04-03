@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use callisto::{mega_tree, raw_blob};
+use callisto::raw_blob;
 use common::errors::MegaError;
 use jupiter::{
     context::Context,
@@ -40,7 +40,7 @@ impl PackHandler for ImportRepo {
             .await
             .unwrap();
 
-        self.check_head_hash(refs)
+        self.find_head_hash(refs)
     }
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
@@ -62,7 +62,7 @@ impl PackHandler for ImportRepo {
     async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
         let (sender, receiver) = mpsc::channel();
 
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.git_db_storage.clone();
         let total = storage.get_obj_count_by_repo_id(&self.repo).await;
         let mut encoder = PackEncoder::new(total, 0);
 
@@ -134,24 +134,33 @@ impl PackHandler for ImportRepo {
         _want: Vec<String>,
         _have: Vec<String>,
     ) -> Result<Vec<u8>, GitError> {
-        todo!()
+        unimplemented!()
     }
 
-
-    async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<mega_tree::Model>, MegaError> {
-        self.context
+    async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError> {
+        Ok(self
+            .context
             .services
-            .mega_storage
+            .git_db_storage
             .get_trees_by_hashes(&self.repo, hashes)
             .await
+            .unwrap()
+            .into_iter()
+            .map(|x| x.into())
+            .collect())
     }
 
     async fn get_blobs_by_hashes(
         &self,
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
-        self.context.services.mega_storage.get_raw_blobs_by_hashes(hashes).await
+        self.context
+            .services
+            .mega_storage
+            .get_raw_blobs_by_hashes(hashes)
+            .await
     }
+    
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {
@@ -172,7 +181,7 @@ impl PackHandler for ImportRepo {
     async fn check_commit_exist(&self, hash: &str) -> bool {
         self.context
             .services
-            .mega_storage
+            .git_db_storage
             .get_commit_by_hash(&self.repo, hash)
             .await
             .unwrap()
