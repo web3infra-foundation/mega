@@ -149,13 +149,6 @@ impl SmartProtocol {
         }
     }
 
-    pub fn handle_monorepo_root_path(&mut self) {
-        let root_name = env::var("MEGA_MONOREPO_ROOT_NAME").unwrap();
-        if self.path == PathBuf::from(root_name) {
-            self.path = PathBuf::from("/");
-        }
-    }
-
     pub async fn pack_handler(&self) -> Box<dyn PackHandler> {
         let import_dir = PathBuf::from(env::var("MEGA_IMPORT_DIRS").unwrap());
         if self.path.starts_with(import_dir.clone()) && self.path != import_dir {
