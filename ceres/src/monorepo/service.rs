@@ -13,7 +13,6 @@ use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::Tree;
 use venus::monorepo::mr::{MergeOperation, MergeResult};
-use venus::repo::Repo;
 
 #[derive(Clone)]
 pub struct MonorepoService {
@@ -46,7 +45,7 @@ impl MonorepoService {
                 let ref_commit = mr.to_hash;
                 let commit = self
                     .storage
-                    .get_commit_by_hash(&Repo::empty(), &ref_commit)
+                    .get_commit_by_hash(&ref_commit)
                     .await
                     .unwrap()
                     .unwrap();
@@ -88,7 +87,7 @@ impl MonorepoService {
         let handle_path = path.parent().unwrap().to_owned();
         let root_tree: Tree = self
             .storage
-            .get_tree_by_hash(&Repo::empty(), &refs.ref_tree_hash)
+            .get_tree_by_hash(&refs.ref_tree_hash)
             .await
             .unwrap()
             .unwrap()
@@ -107,7 +106,7 @@ impl MonorepoService {
                     let hash = search_res.id.to_plain_str();
                     let res: Tree = self
                         .storage
-                        .get_tree_by_hash(&Repo::empty(), &hash)
+                        .get_tree_by_hash(&hash)
                         .await
                         .unwrap()
                         .unwrap()
@@ -139,7 +138,11 @@ impl MonorepoService {
             let a_model = model.into();
             save_trees.push(a_model);
 
-            let p_ref = self.storage.get_ref(full_path.to_str().unwrap()).await.unwrap();
+            let p_ref = self
+                .storage
+                .get_ref(full_path.to_str().unwrap())
+                .await
+                .unwrap();
             if let Some(mut p_ref) = p_ref {
                 // generate commit
                 let p_commit = Commit::from_tree_id(

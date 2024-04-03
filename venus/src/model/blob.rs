@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use callisto::{db_enums::StorageType, mega_blob, raw_blob};
+use callisto::{db_enums::StorageType, git_blob, mega_blob, raw_blob};
 use common::utils::generate_id;
 
 use crate::{hash::SHA1, internal::object::blob::Blob};
@@ -9,14 +9,25 @@ impl From<Blob> for mega_blob::Model {
     fn from(value: Blob) -> Self {
         mega_blob::Model {
             id: generate_id(),
-            repo_id: 0,
             blob_id: value.id.to_plain_str(),
             size: 0,
-            full_path: String::new(),
             commit_id: String::new(),
             name: String::new(),
             created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+}
+
+impl From<Blob> for git_blob::Model {
+    fn from(value: Blob) -> Self {
+        git_blob::Model {
+            id: generate_id(),
+            repo_id: 0,
+            blob_id: value.id.to_plain_str(),
+            size: 0,
+            commit_id: String::new(),
+            name: String::new(),
+            created_at: chrono::Utc::now().naive_utc(),
         }
     }
 }

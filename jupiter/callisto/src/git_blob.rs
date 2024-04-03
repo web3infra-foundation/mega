@@ -9,14 +9,9 @@ pub struct Model {
     pub id: i64,
     pub repo_id: i64,
     pub blob_id: String,
-    pub name: Option<String>,
-    pub size: i32,
-    #[sea_orm(column_type = "Text")]
-    pub full_path: String,
-    #[sea_orm(column_type = "Text")]
-    pub content: String,
-    pub content_type: Option<String>,
     pub commit_id: String,
+    pub name: String,
+    pub size: i32,
     pub created_at: DateTime,
 }
 

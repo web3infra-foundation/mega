@@ -12,7 +12,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use callisto::{mega_tree, raw_blob};
+use callisto::raw_blob;
 use common::{errors::MegaError, utils::ZERO_ID};
 use mercury::internal::pack::Pack;
 use venus::{
@@ -33,7 +33,7 @@ use venus::{
 pub trait PackHandler: Send + Sync {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
-    fn check_head_hash(&self, refs: Vec<Refs>) -> (String, Vec<Refs>) {
+    fn find_head_hash(&self, refs: Vec<Refs>) -> (String, Vec<Refs>) {
         let mut head_hash = ZERO_ID.to_string();
         for git_ref in refs.iter() {
             if git_ref.default_branch {
@@ -82,7 +82,7 @@ pub trait PackHandler: Send + Sync {
         obj_num.fetch_add(search_blob_ids.len(), Ordering::SeqCst);
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
-            self.traverse_for_count(t.into(), exist_objs, obj_num).await;
+            self.traverse_for_count(t, exist_objs, obj_num).await;
         }
         obj_num.fetch_add(1, Ordering::SeqCst);
     }
@@ -117,17 +117,14 @@ pub trait PackHandler: Send + Sync {
         }
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
-            self.traverse(t.into(), exist_objs, sender).await;
+            self.traverse(t, exist_objs, sender).await;
         }
         if let Some(sender) = sender {
             sender.send(tree.into()).unwrap();
         }
     }
 
-    async fn get_trees_by_hashes(
-        &self,
-        hashes: Vec<String>,
-    ) -> Result<Vec<mega_tree::Model>, MegaError>;
+    async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError>;
 
     async fn get_blobs_by_hashes(
         &self,
