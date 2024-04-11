@@ -3,15 +3,17 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use callisto::db_enums::ConvType;
-use callisto::mega_tree;
+use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
+use ganymede::model::converter;
 use ganymede::model::create_file::CreateFileInfo;
 use jupiter::storage::batch_save_model;
 use jupiter::storage::mega_storage::MegaStorage;
 use venus::errors::GitError;
 use venus::hash::SHA1;
+use venus::internal::object::blob::Blob;
 use venus::internal::object::commit::Commit;
-use venus::internal::object::tree::Tree;
+use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::monorepo::mr::{MergeOperation, MergeResult};
 
 #[derive(Clone)]
@@ -24,8 +26,66 @@ impl MonorepoService {
         self.storage.init_monorepo().await
     }
 
-    pub async fn create_mega_file(&self, file_info: CreateFileInfo) -> Result<(), MegaError> {
-        self.storage.create_mega_file(file_info).await
+    pub async fn create_mega_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
+        let path = PathBuf::from(file_info.path);
+
+        let new_item = if file_info.is_directory {
+            let blob = converter::generate_git_keep();
+            let tree_item = TreeItem {
+                mode: TreeItemMode::Blob,
+                id: blob.id,
+                name: String::from(".gitkeep"),
+            };
+            let child_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: child_tree.id,
+                name: file_info.name.clone(),
+            }
+        } else {
+            let blob = Blob::from_content(&file_info.content.unwrap());
+            let mega_blob: mega_blob::Model = blob.clone().into();
+            let mega_blob: mega_blob::ActiveModel = mega_blob.into();
+            let raw_blob: raw_blob::Model = blob.clone().into();
+            let raw_blob: raw_blob::ActiveModel = raw_blob.into();
+            batch_save_model(self.storage.get_connection(), vec![mega_blob])
+                .await
+                .unwrap();
+            batch_save_model(self.storage.get_connection(), vec![raw_blob])
+                .await
+                .unwrap();
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: blob.id,
+                name: file_info.name.clone(),
+            }
+        };
+
+        let (tree_vec, search_tree) = self.search_tree_by_path(&path).await.unwrap();
+
+        let mut t_items = search_tree.tree_items;
+        t_items.push(new_item);
+        let new_tree = Tree::from_tree_items(t_items).unwrap();
+
+        let refs = self.storage.get_ref("/").await.unwrap().unwrap();
+        let commit = Commit::from_tree_id(
+            new_tree.id,
+            vec![SHA1::from_str(&refs.ref_commit_hash).unwrap()],
+            &format!("create file {} commit", file_info.name),
+        );
+
+        let tree_model: mega_tree::Model = new_tree.into();
+        let tree_model: mega_tree::ActiveModel = tree_model.into();
+
+        batch_save_model(self.storage.get_connection(), vec![tree_model])
+            .await
+            .unwrap();
+
+        self.update_parent_tree(path, tree_vec, commit)
+            .await
+            .unwrap();
+
+        Ok(())
     }
 
     pub async fn merge_mr(&self, op: MergeOperation) -> Result<MergeResult, MegaError> {
@@ -55,7 +115,10 @@ impl MonorepoService {
                     .await
                     .unwrap();
                 if mr.path != "/" {
-                    self.update_parent_tree(&PathBuf::from(mr.path.clone()), commit)
+                    let path = PathBuf::from(mr.path.clone());
+
+                    let (tree_vec, _) = self.search_tree_by_path(&path).await.unwrap();
+                    self.update_parent_tree(path, tree_vec, commit)
                         .await
                         .unwrap();
                     // remove refs start with path
@@ -73,11 +136,8 @@ impl MonorepoService {
         Ok(res)
     }
 
-    async fn update_parent_tree(&self, path: &Path, commit: Commit) -> Result<(), GitError> {
+    async fn search_tree_by_path(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
         let refs = self.storage.get_ref("/").await.unwrap().unwrap();
-
-        let mut save_trees = Vec::new();
-        let mut p_commit_id = String::new();
 
         let path_parent = path.parent().unwrap().to_owned();
         let root_tree: Tree = self
@@ -110,15 +170,25 @@ impl MonorepoService {
                     tree_vec.push(res);
                 } else {
                     return Err(GitError::ConversionError(
-                        "can't find target parent tree under latest commit, you should update your local repository".to_string(),
+                        "can't find target parent tree under latest commit".to_string(),
                     ));
                 }
             }
         }
+        Ok((tree_vec, search_tree))
+    }
+
+    async fn update_parent_tree(
+        &self,
+        mut path: PathBuf,
+        mut tree_vec: Vec<Tree>,
+        commit: Commit,
+    ) -> Result<(), GitError> {
+        let mut save_trees = Vec::new();
+        let mut p_commit_id = String::new();
 
         let mut target_hash = commit.tree_id;
 
-        let mut path = PathBuf::from(path);
         while let Some(mut tree) = tree_vec.pop() {
             let cloned_path = path.clone();
             let name = cloned_path.file_name().unwrap().to_str().unwrap();
