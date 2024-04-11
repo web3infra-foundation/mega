@@ -4,12 +4,13 @@ use std::{env, sync::Arc};
 
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    QuerySelect,
 };
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tree, raw_blob
+    mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tree, raw_blob,
 };
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -80,10 +81,16 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn remove_ref(&self, path: &str, ref_commit_hash: &str) -> Result<(), MegaError> {
+    pub async fn remove_refs(&self, path: &str) -> Result<(), MegaError> {
         mega_refs::Entity::delete_many()
-            .filter(mega_refs::Column::Path.eq(path))
-            .filter(mega_refs::Column::RefCommitHash.eq(ref_commit_hash))
+            .filter(mega_refs::Column::Path.starts_with(path))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn remove_ref(&self, refs: MegaRefs) -> Result<(), MegaError> {
+        mega_refs::Entity::delete_by_id(refs.id)
             .exec(self.get_connection())
             .await?;
         Ok(())
@@ -404,9 +411,7 @@ impl MegaStorage {
             .unwrap())
     }
 
-    pub async fn get_commits(
-        &self,
-    ) -> Result<Vec<mega_commit::Model>, MegaError> {
+    pub async fn get_commits(&self) -> Result<Vec<mega_commit::Model>, MegaError> {
         Ok(mega_commit::Entity::find()
             .all(self.get_connection())
             .await
