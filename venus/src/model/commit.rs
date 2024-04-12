@@ -5,7 +5,7 @@ use common::utils::generate_id;
 
 use crate::{
     hash::SHA1,
-    internal::object::{commit::Commit, signature::Signature},
+    internal::{object::{commit::Commit, signature::Signature, ObjectTrait}, pack::entry::Entry},
 };
 
 impl From<mega_commit::Model> for Commit {
@@ -82,5 +82,11 @@ impl From<Commit> for git_commit::Model {
             content: Some(value.message.clone()),
             created_at: chrono::Utc::now().naive_utc(),
         }
+    }
+}
+
+impl From<Entry> for Commit {
+    fn from(value: Entry) -> Self {
+        Commit::from_bytes(value.data, value.hash).unwrap()
     }
 }

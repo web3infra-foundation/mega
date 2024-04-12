@@ -4,12 +4,13 @@ use std::{env, sync::Arc};
 
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    QuerySelect,
 };
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tree, raw_blob
+    mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tree, raw_blob,
 };
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -80,10 +81,16 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn remove_ref(&self, path: &str, ref_commit_hash: &str) -> Result<(), MegaError> {
+    pub async fn remove_refs(&self, path: &str) -> Result<(), MegaError> {
         mega_refs::Entity::delete_many()
-            .filter(mega_refs::Column::Path.eq(path))
-            .filter(mega_refs::Column::RefCommitHash.eq(ref_commit_hash))
+            .filter(mega_refs::Column::Path.starts_with(path))
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn remove_ref(&self, refs: MegaRefs) -> Result<(), MegaError> {
+        mega_refs::Entity::delete_by_id(refs.id)
             .exec(self.get_connection())
             .await?;
         Ok(())
@@ -296,78 +303,6 @@ impl MegaStorage {
         Ok(root)
     }
 
-    pub async fn create_mega_file(&self, _file_info: CreateFileInfo) -> Result<(), MegaError> {
-        // let mut save_trees: Vec<mega_tree::ActiveModel> = Vec::new();
-        // let mut mega_tree = self
-        //     .get_tree_by_path(&file_info.path, "")
-        //     .await
-        //     .unwrap()
-        //     .unwrap();
-        // let mut p_tree: Tree = mega_tree.clone().into();
-
-        // let new_item = if file_info.is_directory {
-        //     let blob = converter::generate_git_keep();
-        //     let tree_item = TreeItem {
-        //         mode: TreeItemMode::Blob,
-        //         id: blob.id,
-        //         name: String::from(".gitkeep"),
-        //     };
-        //     let child_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
-        //     TreeItem {
-        //         mode: TreeItemMode::Tree,
-        //         id: child_tree.id,
-        //         name: file_info.name.clone(),
-        //     }
-        // } else {
-        //     let blob = Blob::from_content(&file_info.content.unwrap());
-        //     TreeItem {
-        //         mode: TreeItemMode::Blob,
-        //         id: blob.id,
-        //         name: file_info.name.clone(),
-        //     }
-        // };
-        // p_tree.tree_items.push(new_item);
-        // let mut new_tree = Tree::from_tree_items(p_tree.tree_items).unwrap();
-        // let model: mega_tree::Model = new_tree.clone().into();
-        // save_trees.push(model.into_active_model());
-
-        // while let Some(parent_id) = mega_tree.parent_id {
-        //     let replace_name = mega_tree.name;
-        //     mega_tree = self
-        //         .get_tree_by_hash(&Repo::empty(), &parent_id)
-        //         .await
-        //         .unwrap()
-        //         .unwrap();
-        //     let mut tmp: Tree = mega_tree.clone().into();
-        //     if let Some(item) = tmp.tree_items.iter_mut().find(|x| x.name == replace_name) {
-        //         item.id = new_tree.id;
-        //     }
-
-        //     new_tree = Tree::from_tree_items(tmp.tree_items).unwrap();
-        //     let model: mega_tree::Model = new_tree.clone().into();
-        //     save_trees.push(model.into_active_model());
-        // }
-
-        // // save_trees
-        // //     .iter()
-        // //     .for_each(|x| println!("{:?}, {:?}", x.name, x.tree_id));
-        // let repo = Repo::empty();
-        // let refs = &self.get_ref(&repo).await.unwrap()[0];
-        // let commit = Commit::from_tree_id(
-        //     SHA1::from_str(&mega_tree.tree_id).unwrap(),
-        //     vec![SHA1::from_str(&refs.ref_hash).unwrap()],
-        //     &format!("create file {} commit", file_info.name),
-        // );
-        // // update ref
-        // self.update_ref(&repo, "main", &commit.id.to_plain_str())
-        //     .await
-        //     .unwrap();
-        // self.save_mega_commits(&Repo::empty(), &MergeRequest::empty(), vec![commit])
-        //     .await
-        //     .unwrap();
-        Ok(())
-    }
-
     pub async fn save_mega_commits(&self, commits: Vec<Commit>) -> Result<(), MegaError> {
         let mega_commits: Vec<mega_commit::Model> =
             commits.into_iter().map(mega_commit::Model::from).collect();
@@ -404,9 +339,7 @@ impl MegaStorage {
             .unwrap())
     }
 
-    pub async fn get_commits(
-        &self,
-    ) -> Result<Vec<mega_commit::Model>, MegaError> {
+    pub async fn get_commits(&self) -> Result<Vec<mega_commit::Model>, MegaError> {
         Ok(mega_commit::Entity::find()
             .all(self.get_connection())
             .await
