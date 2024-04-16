@@ -9,14 +9,6 @@ pub struct Repo {
 }
 
 impl Repo {
-    pub fn empty() -> Self {
-        Self {
-            repo_id: 0,
-            repo_path: String::new(),
-            repo_name: String::new(),
-        }
-    }
-
     pub fn from_path(path: &str) -> Self {
         Self {
             repo_id: 0,

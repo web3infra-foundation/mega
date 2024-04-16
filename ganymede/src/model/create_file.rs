@@ -17,22 +17,6 @@ pub struct CreateFileInfo {
     pub content: Option<String>,
 }
 
-// impl From<CreateFileInfo> for mega_snapshot::Model {
-//     fn from(value: CreateFileInfo) -> Self {
-//         mega_snapshot::Model {
-//             id: generate_id(),
-//             path: value.path,
-//             name: value.name,
-//             import_dir: value.import_dir,
-//             tree_id: None,
-//             sub_trees: None,
-//             commit_id: None,
-//             size: 0,
-//             created_at: chrono::Utc::now().naive_utc(),
-//             updated_at: chrono::Utc::now().naive_utc(),
-//         }
-//     }
-// }
 
 impl From<CreateFileInfo> for MegaNode {
     fn from(value: CreateFileInfo) -> Self {
