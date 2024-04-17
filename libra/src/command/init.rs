@@ -4,6 +4,10 @@ use crate::db;
 use crate::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
 
+pub async fn execute() { 
+    init().await.unwrap();
+}
+
 /// Initialize a new Libra repository
 #[allow(dead_code)]
 pub async fn init() -> io::Result<()> {
@@ -95,7 +99,7 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::command::init;
+    use super::*;
     use crate::utils::test;
 
     #[tokio::test]

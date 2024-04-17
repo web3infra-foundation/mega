@@ -16,6 +16,7 @@ sea-orm = { workspace = true, features = [
 tokio.workspace = true
 sha1 = { workspace = true }
 byteorder = "1.5.0"
+clap = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }
