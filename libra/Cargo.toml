@@ -13,7 +13,7 @@ sea-orm = { workspace = true, features = [
     "runtime-tokio-rustls",
     "macros",
 ] }
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 sha1 = { workspace = true }
 byteorder = "1.5.0"
 clap = { workspace = true, features = ["derive"] }
