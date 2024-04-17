@@ -27,10 +27,10 @@ pub async fn execute(mut args: AddArgs) {
             println!("Nothing specified, nothing added.");
         } else {
             // add all files in the entire working tree
-            args.files
-                .push(util::working_dir().to_str().unwrap().to_owned().to_string());
+            args.files.push(util::working_dir_string());
         }
     }
+    let pathspec = util::pathspec_to_workpath(args.files);
 
     unimplemented!(); // TODO
 }
