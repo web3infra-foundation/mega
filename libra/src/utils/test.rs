@@ -8,23 +8,24 @@ pub const TEST_DIR: &str = "libra_test_repo";
 /* tools for test */
 fn find_cargo_dir() -> PathBuf {
     let cargo_path = env::var("CARGO_MANIFEST_DIR");
-    if cargo_path.is_err() {
-        // vscode DEBUG test没有CARGO_MANIFEST_DIR宏，手动尝试查找cargo.toml
-        println!("CARGO_MANIFEST_DIR not found, try to find Cargo.toml manually");
-        let mut path = util::cur_dir();
-        loop {
-            path.push("Cargo.toml");
-            if path.exists() {
-                break;
+    match cargo_path {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => {
+            // vscode DEBUG test没有CARGO_MANIFEST_DIR宏，手动尝试查找cargo.toml
+            println!("CARGO_MANIFEST_DIR not found, try to find Cargo.toml manually");
+            let mut path = util::cur_dir();
+            loop {
+                path.push("Cargo.toml");
+                if path.exists() {
+                    break;
+                }
+                if !path.pop() {
+                    panic!("找不到CARGO_MANIFEST_DIR");
+                }
             }
-            if !path.pop() {
-                panic!("找不到CARGO_MANIFEST_DIR");
-            }
+            path.pop();
+            path
         }
-        path.pop();
-        path
-    } else {
-        PathBuf::from(cargo_path.unwrap())
     }
 }
 
