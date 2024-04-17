@@ -7,7 +7,7 @@ pub struct CommitArgs {
     pub message: String,
 }
 
-pub async fn execute(args: &CommitArgs) {
+pub async fn execute(args: CommitArgs) {
     println!("Committing with message: '{}'", args.message);
     println!("Not yet implemented");
 }
