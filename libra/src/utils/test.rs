@@ -2,6 +2,7 @@
 
 use std::{env, fs, path::PathBuf};
 
+use crate::command;
 use super::util;
 
 pub const TEST_DIR: &str = "libra_test_repo";
@@ -31,7 +32,7 @@ fn find_cargo_dir() -> PathBuf {
 
 /// switch cur_dir to test_dir
 fn setup_env() {
-    // color_backtrace::install(); // colorize backtrace
+    color_backtrace::install(); // colorize backtrace
 
     let mut path = find_cargo_dir();
     path.push(TEST_DIR);
@@ -44,12 +45,12 @@ fn setup_env() {
 // pub async fn init_repo() {
 //     crate::command::init().await.unwrap();
 // }
-//
-// /// with 初始化的干净的mit
-// pub fn setup_with_clean_mit() {
-//     setup_without_mit();
-//     init_repo();
-// }
+
+/// switch to test dir and create a new .libra
+pub async fn setup_with_new_libra() {
+    setup_without_libra();
+    command::init::init().await.unwrap();
+}
 
 /// switch to test dir and clean .libra
 pub fn setup_without_libra() {
