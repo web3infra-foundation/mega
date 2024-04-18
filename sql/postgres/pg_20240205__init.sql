@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS "mega_blob" (
   "commit_id" VARCHAR(40) NOT NULL,
   "name" TEXT NOT NULL,
   "size" INT NOT NULL,
-  "created_at" TIMESTAMP NOT NULL,
+  "created_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_mb_git_id" ON "mega_blob" ("blob_id");
 CREATE TABLE IF NOT EXISTS "mega_tag" (
