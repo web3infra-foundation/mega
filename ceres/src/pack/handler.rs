@@ -1,7 +1,7 @@
 use std::{
     collections::HashSet,
     env,
-    io::{Cursor, Write},
+    io::Cursor,
     path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -138,13 +138,13 @@ pub trait PackHandler: Send + Sync {
     async fn check_default_branch(&self) -> bool;
 
     fn pack_decoder(&self, pack_file: Bytes) -> Result<Receiver<Entry>, GitError> {
-        #[cfg(debug_assertions)]
-        {
-            let datetime = chrono::Utc::now().naive_utc();
-            let path = format!("{}.pack", datetime);
-            let mut output = std::fs::File::create(path).unwrap();
-            output.write_all(&pack_file).unwrap();
-        }
+        // #[cfg(debug_assertions)]
+        // {
+        //     let datetime = chrono::Utc::now().naive_utc();
+        //     let path = format!("{}.pack", datetime);
+        //     let mut output = std::fs::File::create(path).unwrap();
+        //     output.write_all(&pack_file).unwrap();
+        // }
 
         let cache_size: usize = env::var("MEGA_PACK_DECODE_MEM_SIZE")
             .unwrap()
