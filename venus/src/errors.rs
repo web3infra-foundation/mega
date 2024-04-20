@@ -74,7 +74,10 @@ pub enum GitError {
     ConversionError(String),
 
     #[error("Can't find parent tree by path: {0}")]
-    InvalidPathError(String)
+    InvalidPathError(String),
+
+    #[error("Can't encode entries to pack: {0}")]
+    PackEncodeError(String),
 }
 
 impl From<FromUtf8Error> for GitError {

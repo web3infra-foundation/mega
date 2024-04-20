@@ -1,17 +1,5 @@
-CREATE TABLE IF NOT EXISTS "mega_snapshot"(
-  "id" BIGINT PRIMARY KEY,
-  "full_path" TEXT NOT NULL,
-  "name" TEXT NOT NULL,
-  "sha1" VARCHAR(40) NOT NULL,
-  "commit_id" VARCHAR(40) NOT NULL, 
-  "size" INT NOT NULL,
-  "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_md_full_path UNIQUE (full_path)
-);
 CREATE TABLE IF NOT EXISTS "mega_commit" (
   "id" BIGINT PRIMARY KEY,
-  "repo_id" BIGINT NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
   "parents_id" TEXT [] NOT NULL,
@@ -19,39 +7,29 @@ CREATE TABLE IF NOT EXISTS "mega_commit" (
   "committer" TEXT,
   "content" TEXT,
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_mc_git_id UNIQUE (commit_id)
 );
 CREATE INDEX "idx_mc_git_id" ON "mega_commit" ("commit_id");
 CREATE TABLE IF NOT EXISTS "mega_tree" (
   "id" BIGINT PRIMARY KEY,
-  "repo_id" BIGINT NOT NULL,
   "tree_id" VARCHAR(40) NOT NULL,
   "sub_trees" BYTEA NOT NULL,
-  "parent_id" VARCHAR(40),
-  "name" TEXT NOT NULL,
   "size" INT NOT NULL,
-  "full_path" TEXT NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
-  "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL
+  "created_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_mt_git_id" ON "mega_tree" ("tree_id");
 CREATE TABLE IF NOT EXISTS "mega_blob" (
   "id" BIGINT PRIMARY KEY,
-  "repo_id" BIGINT NOT NULL,
   "blob_id" VARCHAR(40) NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "name" TEXT NOT NULL,
   "size" INT NOT NULL,
-  "full_path" TEXT NOT NULL,
-  "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL
+  "created_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_mb_git_id" ON "mega_blob" ("blob_id");
 CREATE TABLE IF NOT EXISTS "mega_tag" (
   "id" BIGINT PRIMARY KEY,
-  "repo_id" BIGINT NOT NULL,
   "tag_id" VARCHAR(40) NOT NULL,
   "object_id" VARCHAR(40) NOT NULL,
   "object_type" VARCHAR(20) NOT NULL,
@@ -59,7 +37,6 @@ CREATE TABLE IF NOT EXISTS "mega_tag" (
   "tagger" TEXT NOT NULL,
   "message" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_mtag_tag_id UNIQUE (tag_id)
 );
 CREATE TABLE IF NOT EXISTS "mega_mr" (
@@ -153,10 +130,8 @@ CREATE TABLE IF NOT EXISTS "git_tree" (
   "id" BIGINT PRIMARY KEY,
   "repo_id" BIGINT NOT NULL,
   "tree_id" VARCHAR(40) NOT NULL,
-  "sub_trees" TEXT [],
-  "name" TEXT NOT NULL,
+  "sub_trees" BYTEA NOT NULL,
   "size" INT NOT NULL,
-  "full_path" TEXT NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_t_git_repo UNIQUE (repo_id, tree_id)
@@ -169,9 +144,6 @@ CREATE TABLE IF NOT EXISTS "git_blob" (
   "blob_id" VARCHAR(40) NOT NULL,
   "name" VARCHAR(128),
   "size" INT NOT NULL,
-  "full_path" TEXT NOT NULL,
-  "content" TEXT NOT NULL,
-  "content_type" VARCHAR(20),
   "commit_id" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_b_git_repo UNIQUE (repo_id, blob_id)
@@ -182,12 +154,11 @@ CREATE TABLE IF NOT EXISTS "git_tag" (
   "repo_id" BIGINT NOT NULL,
   "tag_id" VARCHAR(40) NOT NULL,
   "object_id" VARCHAR(40) NOT NULL,
-  "object_type" VARCHAR(20),
+  "object_type" VARCHAR(20) NOT NULL,
   "tag_name" TEXT NOT NULL,
   "tagger" TEXT NOT NULL,
   "message" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_gtag_tag_id UNIQUE (tag_id)
 );
 CREATE TABLE IF NOT EXISTS "raw_blob" (

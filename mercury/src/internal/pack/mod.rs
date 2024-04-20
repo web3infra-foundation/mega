@@ -31,7 +31,8 @@ pub struct Pack {
     pub waitlist: Arc<Waitlist>,
     pub caches: Arc<Caches>,
     pub mem_limit: usize,
-    pub cache_objs_mem: Arc<AtomicUsize> // the memory size of CacheObjects in this Pack
+    pub cache_objs_mem: Arc<AtomicUsize>, // the memory size of CacheObjects in this Pack
+    pub clean_tmp: bool,
 }
 
 #[cfg(test)]

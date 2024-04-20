@@ -30,7 +30,6 @@ pub async fn git_info_refs(
     let service_name = params.service.unwrap();
     pack_protocol.service_type = service_name.parse::<ServiceType>().unwrap();
     let resp = build_res_header(format!("application/x-{}-advertisement", service_name));
-    pack_protocol.handle_monorepo_root_path();
     let pkt_line_stream = pack_protocol.git_info_refs().await;
     let body = Body::from(pkt_line_stream.freeze());
     Ok(resp.body(body).unwrap())
@@ -60,7 +59,6 @@ pub async fn git_upload_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    pack_protocol.handle_monorepo_root_path();
     let upload_request: BytesMut = req
         .into_body()
         .into_data_stream()
@@ -127,7 +125,6 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    pack_protocol.handle_monorepo_root_path();
     let combined_body_bytes: BytesMut = req
         .into_body()
         .into_data_stream()

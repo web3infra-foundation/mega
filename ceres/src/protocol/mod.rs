@@ -5,10 +5,15 @@
 //!
 use std::{env, path::PathBuf, str::FromStr};
 
-use common::{errors::MegaError, utils::ZERO_ID};
+use callisto::db_enums::RefType;
+use common::{
+    errors::MegaError,
+    utils::{generate_id, ZERO_ID},
+};
 use jupiter::context::Context;
+use venus::{internal::pack::reference::RefCommand, repo::Repo};
 
-use venus::internal::pack::reference::RefCommand;
+use crate::pack::{handler::PackHandler, import_repo::ImportRepo, monorepo::MonoRepo};
 
 pub mod smart;
 
@@ -144,10 +149,45 @@ impl SmartProtocol {
         }
     }
 
-    pub fn handle_monorepo_root_path(&mut self) {
-        let root_name = env::var("MEGA_MONOREPO_ROOT_NAME").unwrap();
-        if self.path == PathBuf::from(root_name) {
-            self.path = PathBuf::from("/");
+    pub async fn pack_handler(&self) -> Box<dyn PackHandler> {
+        let import_dir = PathBuf::from(env::var("MEGA_IMPORT_DIRS").unwrap());
+        if self.path.starts_with(import_dir.clone()) && self.path != import_dir {
+            let storage = self.context.services.git_db_storage.clone();
+
+            let path_str = self.path.to_str().unwrap();
+            let model = storage.find_git_repo(path_str).await.unwrap();
+            let repo = if let Some(repo) = model {
+                repo.into()
+            } else {
+                let repo_name = self.path.file_name().unwrap().to_str().unwrap().to_owned();
+                let repo = Repo {
+                    repo_id: generate_id(),
+                    repo_path: self.path.to_str().unwrap().to_owned(),
+                    repo_name,
+                };
+                storage.save_git_repo(repo.clone()).await.unwrap();
+                repo
+            };
+            Box::new(ImportRepo {
+                context: self.context.clone(),
+                repo,
+            })
+        } else {
+            let mut res = Box::new(MonoRepo {
+                context: self.context.clone(),
+                path: self.path.clone(),
+                from_hash: None,
+                to_hash: None,
+            });
+            if let Some(command) = self
+                .command_list
+                .iter()
+                .find(|x| x.ref_type == RefType::Branch)
+            {
+                res.from_hash = Some(command.old_id.clone());
+                res.to_hash = Some(command.new_id.clone());
+            }
+            res
         }
     }
 }
