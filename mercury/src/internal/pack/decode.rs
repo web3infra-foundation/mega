@@ -6,10 +6,10 @@
 //!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
-use std::thread::{self, JoinHandle, sleep};
+use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use flate2::bufread::ZlibDecoder;
@@ -46,10 +46,9 @@ impl Pack {
     ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
     /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
     /// For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
+    /// - `clean_tmp`: whether to remove temp dir
     ///
-    /// # !IMPORTANT:
-    /// Can't decode in multi-tasking, because memory limit use shared static variable but different cache, cause "deadlock".
-    pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>) -> Self {
+    pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>, clean_tmp: bool) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
         // add 8 random characters as subdirectory, check if the directory exists
         loop {
@@ -71,6 +70,7 @@ impl Pack {
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
             mem_limit: mem_limit.unwrap_or(usize::MAX),
             cache_objs_mem: Arc::new(AtomicUsize::default()),
+            clean_tmp,
         }
     }
 
@@ -323,6 +323,13 @@ impl Pack {
         F: Fn(Entry) + Sync + Send + 'static
     {
         let time = Instant::now();
+        let mut last_update_time = time.elapsed().as_millis();
+        let log_info = |_i: usize, pack: &Pack| {
+            tracing::info!("time {:.2} s \t decode: {:?} \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
+                time.elapsed().as_millis() as f64 / 1000.0, _i, pack.pool.queued_count(), pack.caches.queued_tasks(),
+                pack.cache_objs_mem_used() / 1024 / 1024,
+                pack.caches.memory_used() / 1024 / 1024);
+        };
         let callback = Arc::new(callback);
 
         let caches = self.caches.clone();
@@ -337,39 +344,18 @@ impl Pack {
                 return Err(e);
             }
         }
-        println!("The pack file has {} objects", self.number);
-
+        tracing::info!("The pack file has {} objects", self.number);
         let mut offset: usize = 12;
-        let i = Arc::new(AtomicUsize::new(1));
-        
-        // debug log thread g   
-        #[cfg(debug_assertions)]
-        let stop = Arc::new(AtomicBool::new(false));
-        #[cfg(debug_assertions)]
-        { // LOG
-            let log_pool = self.pool.clone();
-            let log_cache = caches.clone();
-            let log_i = i.clone();
-            let log_stop =  stop.clone();
-            let cache_objs_mem = self.cache_objs_mem.clone();
-            // print log per seconds
-            thread::spawn(move|| {
-                let time = Instant::now();
-                loop {
-                    if log_stop.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    println!("time {:?} s \t pass: {:?}, \t dec-num: {} \t cah-num: {} \t Objs: {} MB \t CacheUsed: {} MB",
-                    time.elapsed().as_millis() as f64 / 1000.0, log_i.load(Ordering::Relaxed), log_pool.queued_count(), log_cache.queued_tasks(),
-                             cache_objs_mem.load(Ordering::Relaxed) / 1024 / 1024,
-                             log_cache.memory_used() / 1024 / 1024);
-
-                    sleep(std::time::Duration::from_secs(1));
+        let mut i = 0;
+        while i < self.number {
+            // log per 2000&more then 1 se objects
+            if i%1000 == 0 {
+                let time_now = time.elapsed().as_millis();
+                if time_now - last_update_time > 1000 {
+                    log_info(i, self);
+                    last_update_time = time_now;
                 }
-            });
-        } // LOG
-
-        while i.load(Ordering::Relaxed) <= self.number {
+            }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
             while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {
@@ -429,9 +415,9 @@ impl Pack {
                     return Err(e);
                 }
             }
-            i.fetch_add(1, Ordering::Relaxed);
+            i += 1;
         }
-
+        log_info(i, self);
         let render_hash = reader.final_hash();
         let mut trailer_buf = [0; 20];
         reader.read_exact(&mut trailer_buf).unwrap();
@@ -458,14 +444,13 @@ impl Pack {
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
-        println!("The pack file has been decoded successfully");
-        println!("Pack decode takes: [ {:?} ]", time.elapsed());
-
+        tracing::info!("The pack file has been decoded successfully, takes: [ {:?} ]", time.elapsed());
         self.caches.clear(); // clear cached objects & stop threads
         assert_eq!(self.cache_objs_mem_used(), 0); // all the objs should be dropped until here
-        
-        #[cfg(debug_assertions)]
-        stop.store(true, Ordering::Relaxed);
+
+        if self.clean_tmp {
+            self.caches.remove_tmp_dir();
+        }
         
         Ok(())
     }
@@ -613,15 +598,32 @@ mod tests {
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
+    use tracing_subscriber::util::SubscriberInitExt;
 
     use crate::internal::pack::Pack;
+
+    fn init_logger() {
+        let _ = tracing_subscriber::fmt::Subscriber::builder()
+            .with_target(false)
+            .without_time()
+            .finish()
+            .try_init();// avoid multi-init
+
+        // CAUTION: This two is same
+        // 1.
+        // tracing_subscriber::fmt().init();
+        //
+        // 2.
+        // env::set_var("RUST_LOG", "debug"); // must be set if use `fmt::init()`, or no output
+        // tracing_subscriber::fmt::init();
+    }
 
     #[test]
     fn test_pack_check_header() {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buf_reader = BufReader::new(f);
         let (object_num, _) = Pack::check_header(&mut buf_reader).unwrap();
 
@@ -641,7 +643,7 @@ mod tests {
         let expected_size = data.len();
 
         // Decompress the data and assert correctness
-        let mut p = Pack::new(None, None, None);
+        let mut p = Pack::new(None, None, None, true);
         let result = p.decompress_data(&mut cursor, expected_size);
         match result {
             Ok((decompressed_data, bytes_read)) => {
@@ -659,36 +661,40 @@ mod tests {
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered, |_|{}).unwrap();
     }
 
     #[test]
+    // #[traced_test]
     fn test_pack_decode_with_ref_delta() {
+        init_logger();
+
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/ref-delta-65d47638aa7cb7c39f1bd1d5011a415439b887a8.pack");
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered,|_|{}).unwrap();
     }
 
     #[test]
     fn test_pack_decode_with_large_file_with_delta_without_ref() {
+        init_logger();
+
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        // let mut p = Pack::default(); //Pack::new(2);
-        let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
+        let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
         let rt = p.decode(&mut buffered, |_obj|{
             // println!("{:?}", obj.hash);
         });
@@ -706,7 +712,7 @@ mod tests {
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = fs::File::open(source).unwrap();
         let buffered = BufReader::new(f);
-        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()));
+        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
 
         let (tx, rx) = std::sync::mpsc::channel();
         let handle = p.decode_async(buffered, tx); // new thread
@@ -725,9 +731,9 @@ mod tests {
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
-        let f = std::fs::File::open(source).unwrap();
+        let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp));
+        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered, |_|{}).unwrap();
     }
 

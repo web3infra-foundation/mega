@@ -87,25 +87,7 @@ impl Commit {
         Ok(data)
     }
 
-    pub fn from_tree_id(tree_id: SHA1, parent_commit_ids: Vec<SHA1>, message: &str) -> Commit {
-        let author = Signature::from_data(
-            format!(
-                "author benjamin.747 <benjamin.747@outlook.com> {} +0800",
-                chrono::Utc::now().timestamp()
-            )
-            .to_string()
-            .into_bytes(),
-        )
-        .unwrap();
-        let committer = Signature::from_data(
-            format!(
-                "committer benjamin.747 <benjamin.747@outlook.com> {} +0800",
-                chrono::Utc::now().timestamp()
-            )
-            .to_string()
-            .into_bytes(),
-        )
-        .unwrap();
+    pub fn new(author: Signature, committer: Signature, tree_id: SHA1, parent_commit_ids: Vec<SHA1>, message: &str) -> Commit  {
         let mut commit = Commit {
             id: SHA1::default(),
             tree_id,
@@ -117,6 +99,28 @@ impl Commit {
         let hash = SHA1::from_type_and_data(ObjectType::Commit, &commit.to_data().unwrap());
         commit.id = hash;
         commit
+    }
+
+    pub fn from_tree_id(tree_id: SHA1, parent_commit_ids: Vec<SHA1>, message: &str) -> Commit {
+        let author = Signature::from_data(
+            format!(
+                "author mega <admin@mega.org> {} +0800",
+                chrono::Utc::now().timestamp()
+            )
+            .to_string()
+            .into_bytes(),
+        )
+        .unwrap();
+        let committer = Signature::from_data(
+            format!(
+                "committer mega <admin@mega.org> {} +0800",
+                chrono::Utc::now().timestamp()
+            )
+            .to_string()
+            .into_bytes(),
+        )
+        .unwrap();
+        Commit::new(author, committer, tree_id, parent_commit_ids, message)
     }
 }
 

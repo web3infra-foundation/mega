@@ -7,7 +7,7 @@ use sea_orm::{
     Set,
 };
 
-use callisto::import_refs;
+use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
 use common::errors::MegaError;
 use venus::internal::object::GitObjectModel;
 use venus::internal::pack::entry::Entry;
@@ -112,11 +112,7 @@ impl GitDbStorage {
         Ok(result > 0)
     }
 
-    pub async fn save_entry(
-        &self,
-        repo: &Repo,
-        entry_list: Vec<Entry>,
-    ) -> Result<(), MegaError> {
+    pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let mut commits = Vec::new();
         let mut trees = Vec::new();
         let mut blobs = Vec::new();
@@ -125,12 +121,12 @@ impl GitDbStorage {
 
         for entry in entry_list {
             let raw_obj = entry.process_entry();
-            let model = raw_obj.convert_to_mega_model();
+            let model = raw_obj.convert_to_git_model();
             match model {
                 GitObjectModel::Commit(mut commit) => {
                     commit.repo_id = repo.repo_id;
                     commits.push(commit.into_active_model())
-                },
+                }
                 GitObjectModel::Tree(mut tree) => {
                     tree.repo_id = repo.repo_id;
                     trees.push(tree.clone().into_active_model());
@@ -143,7 +139,7 @@ impl GitDbStorage {
                 GitObjectModel::Tag(mut tag) => {
                     tag.repo_id = repo.repo_id;
                     tags.push(tag.into_active_model())
-                },
+                }
             }
         }
 
@@ -161,5 +157,142 @@ impl GitDbStorage {
             .unwrap();
         batch_save_model(self.get_connection(), tags).await.unwrap();
         Ok(())
+    }
+
+    pub async fn find_git_repo(
+        &self,
+        repo_path: &str,
+    ) -> Result<Option<git_repo::Model>, MegaError> {
+        let result = git_repo::Entity::find()
+            .filter(git_repo::Column::RepoPath.eq(repo_path))
+            .one(self.get_connection())
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn save_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
+        let model: git_repo::Model = repo.into();
+        let a_model = model.into_active_model();
+        git_repo::Entity::insert(a_model)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    // #[allow(unused)]
+    // pub async fn update_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
+    //     let git_repo = git_repo::Entity::find_by_id(repo.repo_id)
+    //         .one(self.get_connection())
+    //         .await
+    //         .unwrap();
+    //     let git_repo: git_repo::ActiveModel = git_repo.unwrap().into();
+    //     git_repo.update(self.get_connection()).await.unwrap();
+    //     Ok(())
+    // }
+
+    pub async fn get_commit_by_hash(
+        &self,
+        repo: &Repo,
+        hash: &str,
+    ) -> Result<Option<git_commit::Model>, MegaError> {
+        Ok(git_commit::Entity::find()
+            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(git_commit::Column::CommitId.eq(hash))
+            .one(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_commits_by_repo_id(
+        &self,
+        repo: &Repo,
+    ) -> Result<Vec<git_commit::Model>, MegaError> {
+        Ok(git_commit::Entity::find()
+            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_trees_by_repo_id(
+        &self,
+        repo: &Repo,
+    ) -> Result<Vec<git_tree::Model>, MegaError> {
+        Ok(git_tree::Entity::find()
+            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_trees_by_hashes(
+        &self,
+        repo: &Repo,
+        hashes: Vec<String>,
+    ) -> Result<Vec<git_tree::Model>, MegaError> {
+        Ok(git_tree::Entity::find()
+            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tree::Column::TreeId.is_in(hashes))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_blobs_by_repo_id(
+        &self,
+        repo: &Repo,
+    ) -> Result<Vec<git_blob::Model>, MegaError> {
+        Ok(git_blob::Entity::find()
+            .filter(git_blob::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_tags_by_repo_id(&self, repo: &Repo) -> Result<Vec<git_tag::Model>, MegaError> {
+        Ok(git_tag::Entity::find()
+            .filter(git_tag::Column::RepoId.eq(repo.repo_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_obj_count_by_repo_id(&self, repo: &Repo) -> usize {
+        let c_count = git_commit::Entity::find()
+            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        let t_count = git_tree::Entity::find()
+            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        let bids: Vec<String> = self
+            .get_blobs_by_repo_id(repo)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|b| b.blob_id)
+            .collect();
+
+        let b_count = raw_blob::Entity::find()
+            .filter(raw_blob::Column::Sha1.is_in(bids))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        let tag_count = git_tag::Entity::find()
+            .filter(git_tag::Column::RepoId.eq(repo.repo_id))
+            .count(self.get_connection())
+            .await
+            .unwrap();
+
+        (c_count + t_count + b_count + tag_count)
+            .try_into()
+            .unwrap()
     }
 }
