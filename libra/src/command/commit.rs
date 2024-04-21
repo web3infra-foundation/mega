@@ -5,6 +5,9 @@ use clap::Parser;
 pub struct CommitArgs {
     #[arg(short, long)]
     pub message: String,
+
+    #[arg(long)]
+    pub allow_empty: bool,
 }
 
 pub async fn execute(args: CommitArgs) {
