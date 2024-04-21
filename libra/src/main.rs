@@ -4,6 +4,7 @@ mod command;
 mod db;
 mod model;
 mod utils;
+mod internal;
 
 #[derive(Parser, Debug)]
 #[command(about = "Simulates git commands", version = "1.0")]
