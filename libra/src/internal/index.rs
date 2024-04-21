@@ -109,7 +109,7 @@ impl Display for IndexEntry {
 }
 
 impl IndexEntry {
-    pub fn new(meta: &fs::Metadata, hash: SHA1, name: String) -> Self {
+    pub fn new(meta: &fs::Metadata, hash: SHA1, name: String, flag: Flags) -> Self {
         let mut entry = IndexEntry {
             ctime: Time::from_system_time(meta.created().unwrap()),
             mtime: Time::from_system_time(meta.modified().unwrap()),
@@ -119,7 +119,7 @@ impl IndexEntry {
             gid: 0,
             size: meta.len() as u32,
             hash,
-            flags: Flags::new(0),
+            flags: flag,
             name,
             mode: 0o100644,
         };
@@ -303,8 +303,18 @@ impl Index {
         self.entries.get(&(name.to_string(), stage))
     }
 
-    pub fn tracked(&self, name: &str) -> bool {
-        self.entries.contains_key(&(name.to_string(), 0))
+    pub fn tracked(&self, name: &str, stage: u8) -> bool {
+        self.entries.contains_key(&(name.to_string(), stage))
+    }
+
+    /// Get all entries with the same stage
+    pub fn tracked_entries(&self, stage: u8) -> Vec<&IndexEntry> {
+        // ? should use stage or not
+        self.entries
+            .iter()
+            .filter(|(_, entry)| entry.flags.stage == stage)
+            .map(|(_, entry)| entry)
+            .collect()
     }
 }
 
@@ -375,7 +385,7 @@ mod tests {
         let meta = file.metadata().unwrap();
         let hash = SHA1::from_bytes(&[0; 20]);
         let name = file.as_os_str().to_str().unwrap().to_string();
-        let entry = IndexEntry::new(&meta, hash, name);
+        let entry = IndexEntry::new(&meta, hash, name, Flags::new(0));
         println!("{}", entry);
     }
 }
