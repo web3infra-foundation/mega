@@ -121,10 +121,7 @@ impl IndexEntry {
             hash,
             flags: Flags::new(0),
             name,
-            mode: match meta.is_dir() {
-                true => 0o040000,  // tree
-                false => 0o100644, // blob
-            },
+            mode: 0o100644,
         };
         #[cfg(unix)]
         {
@@ -134,7 +131,6 @@ impl IndexEntry {
             entry.gid = meta.gid();
 
             entry.mode = match meta.mode() & 0o170000/* file mode */ {
-                0o040000 => 0o040000, // tree
                 0o100000 => {
                     match meta.mode() & 0o111 {
                         0 => 0o100644, // no execute permission
