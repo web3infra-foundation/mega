@@ -97,6 +97,11 @@ pub fn pathspec_to_workpath(pathspec: Vec<String>) -> Vec<PathBuf> {
         .collect::<Vec<PathBuf>>()
 }
 
+/// transform path to string, use '/' as separator even on windows
+pub fn path_to_string(path: &Path) -> String {
+    path.to_string_lossy().to_string() // TODO: test on windows
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 venus = { path = "../venus" }
 mercury = { path = "../mercury" }
+storage ={ path = "../storage" }
 sea-orm = { workspace = true, features = [
     "sqlx-sqlite",
     "runtime-tokio-rustls",
