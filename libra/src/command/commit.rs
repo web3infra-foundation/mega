@@ -1,10 +1,17 @@
+use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
+use crate::model::reference::ActiveModel;
+use crate::model::{config, reference};
+use crate::{db::establish_connection, internal::index::Index, utils::util};
 use clap::Parser;
+use sea_orm::ActiveValue::NotSet;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
+use venus::hash::SHA1;
+use venus::internal::object::commit::Commit;
+use venus::internal::object::signature::{Signature, SignatureType};
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-
-use crate::{internal::index::Index, utils::util};
 
 #[derive(Parser, Debug)]
 #[command(about = "Record changes to the repository")]
@@ -96,6 +103,105 @@ pub async fn execute(args: CommitArgs) {
 
     let tree = create_tree(&index, &storage, "".into()).await;
     // TODO wait for head & status
+    let db = establish_connection(
+        util::path_to_string(&util::storage_path().join(util::DATABASE)).as_str(),
+    )
+    .await
+    .unwrap();
+
+    let parents_commit_ids = {
+        let head = reference::Entity::find()
+            .filter(reference::Column::Kind.eq(reference::ConfigKind::Head))
+            .one(&db)
+            .await
+            .unwrap();
+
+        match head {
+            Some(head) => {
+                match head.name {
+                    Some(name) => {
+                        let commit = reference::Entity::find()
+                            .filter(reference::Column::Name.eq(name))
+                            .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
+                            .one(&db)
+                            .await
+                            .unwrap()
+                            .unwrap();
+                        vec![SHA1::from_str(commit.commit.unwrap().as_str()).unwrap()]
+                    }
+                    // None => vec![head.commit.unwrap()], // should never be None
+                    None => vec![SHA1::from_str(head.commit.unwrap().as_str()).unwrap()],
+                }
+            }
+            None => vec![],
+        }
+    };
+
+    // default signature created in `frrom_tree_id`
+    // TODO wait `git config` to set user info
+    let commit = Commit::from_tree_id(tree.id, parents_commit_ids, args.message.as_str());
+
+    // save object
+    storage
+        .put(
+            &commit.id.to_plain_str(),
+            commit.to_data().unwrap().len() as i64,
+            &commit.to_data().unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // update HEAD
+    let head = reference::Entity::find()
+        .filter(reference::Column::Kind.eq(reference::ConfigKind::Head))
+        .one(&db)
+        .await
+        .unwrap();
+    match head {
+        Some(head) => {
+            match head.name {
+                Some(name) => {
+                    // in branch
+                    let mut branch: ActiveModel = reference::Entity::find()
+                        .filter(reference::Column::Name.eq(name))
+                        .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
+                        .one(&db)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .into();
+                    branch.commit = Set(Some(commit.id.to_plain_str().to_string()));
+                    branch.update(&db).await.unwrap();
+                }
+                None => {
+                    // detached head
+                    let mut head: ActiveModel = head.into();
+                    head.commit = Set(Some(commit.id.to_plain_str().to_string()));
+                    head.update(&db).await.unwrap();
+                }
+            }
+        }
+        None => {
+            // create main branch
+            let branch = reference::ActiveModel {
+                name: Set(Some("main".to_owned())),
+                kind: Set(reference::ConfigKind::Branch),
+                commit: Set(Some(commit.id.to_plain_str().to_string())),
+                ..Default::default()
+            };
+            branch.save(&db).await.unwrap();
+
+            // create & set head to main
+            let head = reference::ActiveModel {
+                name: Set(Some("main".to_owned())),
+                kind: Set(reference::ConfigKind::Head),
+                ..Default::default()
+            };
+            head.save(&db).await.unwrap();
+        }
+    }
+
+    // TODO make some test
 }
 
 #[cfg(test)]
@@ -108,7 +214,12 @@ mod test {
 
     #[tokio::test]
     async fn test_create_tree() {
-        let index = Index::from_file("../tests/data/index/index-760").unwrap();
+        let index = Index::from_file(
+            "../tests/data/index/index-760,
+        timestamp: todo!(),
+        timezone: todo!(), ",
+        )
+        .unwrap();
         println!("{:?}", index.tracked_entries(0).len());
         test::setup_with_new_libra().await;
         let storage = LocalStorage::init(util::storage_path().join("objects"));
