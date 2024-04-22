@@ -2,7 +2,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use clap::Parser;
 use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
-use venus::{hash::SHA1, internal::object::tree};
+use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 use crate::{internal::index::Index, utils::util};
 
@@ -16,28 +16,22 @@ pub struct CommitArgs {
     pub allow_empty: bool,
 }
 
-async fn create_tree(
-    index: &Index,
-    storage: &dyn FileStorage,
-    current_root: PathBuf,
-) -> tree::Tree {
+async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: PathBuf) -> Tree {
     // blob created when add file to index
     let get_blob_entry = |path: &PathBuf| {
         let name = util::path_to_string(path);
         let mete = index.get(&name, 0).unwrap();
         let filename = path.file_name().unwrap().to_str().unwrap().to_string();
 
-        tree::TreeItem {
+        TreeItem {
             name: filename,
-            mode: tree::TreeItemMode::tree_item_type_from_bytes(
-                format!("{:o}", mete.mode).as_bytes(),
-            )
-            .unwrap(),
+            mode: TreeItemMode::tree_item_type_from_bytes(format!("{:o}", mete.mode).as_bytes())
+                .unwrap(),
             id: mete.hash,
         }
     };
 
-    let mut tree_items: Vec<tree::TreeItem> = Vec::new();
+    let mut tree_items: Vec<TreeItem> = Vec::new();
     let mut processed_path: HashSet<String> = HashSet::new();
     let path_entries: Vec<PathBuf> = index
         .tracked_entries(0)
@@ -75,14 +69,14 @@ async fn create_tree(
                 current_root.clone().join(process_path),
             ))
             .await;
-            tree_items.push(tree::TreeItem {
+            tree_items.push(TreeItem {
                 name: process_path.to_string(),
-                mode: tree::TreeItemMode::Tree,
+                mode: TreeItemMode::Tree,
                 id: sub_tree.id,
             });
         }
     }
-    let tree = tree::Tree::from_tree_items(tree_items).unwrap();
+    let tree = Tree::from_tree_items(tree_items).unwrap();
     // save
     let data = tree.to_data().unwrap();
     storage
@@ -101,6 +95,7 @@ pub async fn execute(args: CommitArgs) {
     }
 
     let tree = create_tree(&index, &storage, "".into()).await;
+    // TODO wait for head & status
 }
 
 #[cfg(test)]
@@ -121,12 +116,12 @@ mod test {
 
         assert!(storage.get(&tree.id.to_plain_str()).await.is_ok());
         for item in tree.tree_items.iter() {
-            if item.mode == tree::TreeItemMode::Tree {
+            if item.mode == TreeItemMode::Tree {
                 assert!(storage.get(&item.id.to_plain_str()).await.is_ok());
                 // println!("tree: {}", item.name);
                 if item.name == "DeveloperExperience" {
                     let sub_tree = storage.get(&item.id.to_plain_str()).await.unwrap();
-                    let tree = tree::Tree::from_bytes(sub_tree.to_vec(), item.id).unwrap();
+                    let tree = Tree::from_bytes(sub_tree.to_vec(), item.id).unwrap();
                     assert!(tree.tree_items.len() == 4); // 4 sub tree according to the test data
                 }
             }
