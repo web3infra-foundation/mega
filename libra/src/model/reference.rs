@@ -1,5 +1,5 @@
 use sea_orm::entity::prelude::*;
-
+use sea_orm::QueryFilter;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "reference")]
 pub struct Model {
@@ -24,4 +24,24 @@ pub enum ConfigKind {
     Tag, // .git/refs/tags
     #[sea_orm(string_value = "Head")]
     Head, // .git/HEAD
+}
+
+// some useful functions
+impl Model {
+    pub async fn current_head(db: &DbConn) -> Result<Option<Self>, DbErr> {
+        Ok(self::Entity::find()
+            .filter(self::Column::Kind.eq(self::ConfigKind::Head))
+            .one(db)
+            .await
+            .unwrap())
+    }
+
+    pub async fn find_branch_by_name(db: &DbConn, name: &str) -> Result<Option<Self>, DbErr> {
+        Ok(self::Entity::find()
+            .filter(self::Column::Name.eq(name))
+            .filter(self::Column::Kind.eq(self::ConfigKind::Branch))
+            .one(db)
+            .await
+            .unwrap())
+    }
 }

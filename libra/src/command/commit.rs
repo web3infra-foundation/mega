@@ -5,12 +5,10 @@ use crate::model::reference::ActiveModel;
 use crate::model::{config, reference};
 use crate::{db::establish_connection, internal::index::Index, utils::util};
 use clap::Parser;
-use sea_orm::ActiveValue::NotSet;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, Set};
 use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
 use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
-use venus::internal::object::signature::{Signature, SignatureType};
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 #[derive(Parser, Debug)]
@@ -23,6 +21,46 @@ pub struct CommitArgs {
     pub allow_empty: bool,
 }
 
+pub async fn execute(args: CommitArgs) {
+    /* check args */
+    let index = Index::from_file(util::working_dir().join("index")).unwrap();
+    let storage = LocalStorage::init(util::storage_path().join("objects"));
+    let tracked_entries = index.tracked_entries(0);
+    if tracked_entries.is_empty() && !args.allow_empty {
+        panic!("fatal: no changes added to commit, use --allow-empty to override");
+    }
+
+    /* Create tree */
+    let tree = create_tree(&index, &storage, "".into()).await;
+    // TODO wait for head & status
+    let db = establish_connection(
+        util::path_to_string(&util::storage_path().join(util::DATABASE)).as_str(),
+    )
+    .await
+    .unwrap();
+
+    /* Create & save commit objects */
+    let parents_commit_ids = get_parents_ids(&db).await;
+    let commit = Commit::from_tree_id(tree.id, parents_commit_ids, args.message.as_str());
+
+    // TODO  default signature created in `frrom_tree_id`, wait `git config` to set correct user info
+
+    storage
+        .put(
+            &commit.id.to_plain_str(),
+            commit.to_data().unwrap().len() as i64,
+            &commit.to_data().unwrap(),
+        )
+        .await
+        .unwrap();
+
+    /* update HEAD */
+    update_head(&db, &commit.id.to_plain_str()).await;
+
+    // TODO make some test
+}
+
+/// recursively create tree from index's tracked entries
 async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: PathBuf) -> Tree {
     // blob created when add file to index
     let get_blob_entry = |path: &PathBuf| {
@@ -93,91 +131,46 @@ async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: Pat
     tree
 }
 
-pub async fn execute(args: CommitArgs) {
-    let index = Index::from_file(util::working_dir().join("index")).unwrap();
-    let storage = LocalStorage::init(util::storage_path().join("objects"));
-    let tracked_entries = index.tracked_entries(0);
-    if tracked_entries.is_empty() && !args.allow_empty {
-        panic!("fatal: no changes added to commit, use --allow-empty to override");
-    }
-
-    let tree = create_tree(&index, &storage, "".into()).await;
-    // TODO wait for head & status
-    let db = establish_connection(
-        util::path_to_string(&util::storage_path().join(util::DATABASE)).as_str(),
-    )
-    .await
-    .unwrap();
-
-    let parents_commit_ids = {
-        let head = reference::Entity::find()
-            .filter(reference::Column::Kind.eq(reference::ConfigKind::Head))
-            .one(&db)
-            .await
-            .unwrap();
-
-        match head {
-            Some(head) => {
-                match head.name {
-                    Some(name) => {
-                        let commit = reference::Entity::find()
-                            .filter(reference::Column::Name.eq(name))
-                            .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-                            .one(&db)
-                            .await
-                            .unwrap()
-                            .unwrap();
-                        vec![SHA1::from_str(commit.commit.unwrap().as_str()).unwrap()]
-                    }
-                    // None => vec![head.commit.unwrap()], // should never be None
-                    None => vec![SHA1::from_str(head.commit.unwrap().as_str()).unwrap()],
-                }
+/// get current head commit id as parent, if in branch, get branch's commit id, if detached head, get head's commit id
+async fn get_parents_ids(db: &sea_orm::DbConn) -> Vec<SHA1> {
+    let head = reference::Model::current_head(db).await.unwrap();
+    match head {
+        Some(head) => match head.name {
+            Some(name) => {
+                let commit = reference::Model::find_branch_by_name(db, name.as_str())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                vec![SHA1::from_str(commit.commit.unwrap().as_str()).unwrap()]
             }
-            None => vec![],
-        }
-    };
+            None => vec![SHA1::from_str(head.commit.unwrap().as_str()).unwrap()],
+        },
+        None => vec![],
+    }
+}
 
-    // default signature created in `frrom_tree_id`
-    // TODO wait `git config` to set user info
-    let commit = Commit::from_tree_id(tree.id, parents_commit_ids, args.message.as_str());
-
-    // save object
-    storage
-        .put(
-            &commit.id.to_plain_str(),
-            commit.to_data().unwrap().len() as i64,
-            &commit.to_data().unwrap(),
-        )
-        .await
-        .unwrap();
-
-    // update HEAD
-    let head = reference::Entity::find()
-        .filter(reference::Column::Kind.eq(reference::ConfigKind::Head))
-        .one(&db)
-        .await
-        .unwrap();
+/// update HEAD to new commit, if in branch, update branch's commit id, if detached head, update head's commit id
+async fn update_head(db: &sea_orm::DbConn, commit_id: &str) {
+    let head = reference::Model::current_head(db).await.unwrap();
     match head {
         Some(head) => {
             match head.name {
                 Some(name) => {
                     // in branch
-                    let mut branch: ActiveModel = reference::Entity::find()
-                        .filter(reference::Column::Name.eq(name))
-                        .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-                        .one(&db)
-                        .await
-                        .unwrap()
-                        .unwrap()
-                        .into();
-                    branch.commit = Set(Some(commit.id.to_plain_str().to_string()));
-                    branch.update(&db).await.unwrap();
+                    let mut branch: ActiveModel =
+                        reference::Model::find_branch_by_name(db, name.as_str())
+                            .await
+                            .unwrap()
+                            .unwrap()
+                            .into();
+                    branch.commit = Set(Some(commit_id.to_string()));
+                    branch.update(db).await.unwrap();
                 }
                 None => {
                     // detached head
                     let mut head: ActiveModel = head.into();
-                    head.commit = Set(Some(commit.id.to_plain_str().to_string()));
-                    head.update(&db).await.unwrap();
+                    head.commit = Set(Some(commit_id.to_string()));
+                    head.update(db).await.unwrap();
                 }
             }
         }
@@ -186,10 +179,10 @@ pub async fn execute(args: CommitArgs) {
             let branch = reference::ActiveModel {
                 name: Set(Some("main".to_owned())),
                 kind: Set(reference::ConfigKind::Branch),
-                commit: Set(Some(commit.id.to_plain_str().to_string())),
+                commit: Set(Some(commit_id.to_string())),
                 ..Default::default()
             };
-            branch.save(&db).await.unwrap();
+            branch.save(db).await.unwrap();
 
             // create & set head to main
             let head = reference::ActiveModel {
@@ -197,11 +190,9 @@ pub async fn execute(args: CommitArgs) {
                 kind: Set(reference::ConfigKind::Head),
                 ..Default::default()
             };
-            head.save(&db).await.unwrap();
+            head.save(db).await.unwrap();
         }
     }
-
-    // TODO make some test
 }
 
 #[cfg(test)]
