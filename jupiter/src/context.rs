@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use common::enums::DataSource;
-use storage::driver::database::{self, mysql_storage::MysqlStorage, storage::ObjectStorage};
 
 use crate::storage::{
     git_db_storage::GitDbStorage, init::database_connection, lfs_storage::LfsStorage,
@@ -11,20 +10,17 @@ use crate::storage::{
 #[derive(Clone)]
 pub struct Context {
     pub services: Arc<Service>,
-    pub storage: Arc<dyn ObjectStorage>,
 }
 
 impl Context {
-    pub async fn new(data_source: &DataSource) -> Self {
+    pub async fn new(_: &DataSource) -> Self {
         Context {
             services: Service::shared().await,
-            storage: database::init(data_source).await,
         }
     }
     pub fn mock() -> Self {
         Context {
             services: Service::mock(),
-            storage: Arc::new(MysqlStorage::default()),
         }
     }
 }

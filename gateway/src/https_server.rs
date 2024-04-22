@@ -24,13 +24,11 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
-use ceres::monorepo::service::MonorepoService;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
 use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
-use crate::api_service::obj_service::ObjectService;
 use crate::api_service::router::ApiServiceState;
 use crate::{api_service, lfs};
 
@@ -101,12 +99,8 @@ pub async fn start_server(options: &HttpOptions) {
     };
 
     let api_state = ApiServiceState {
-        object_service: ObjectService {
-            storage: state.context.storage.clone(),
-        },
-        monorepo_service: MonorepoService {
-            storage: state.context.services.mega_storage.clone(),
-        },
+        mega_storage: state.context.services.mega_storage.clone(),
+        git_db_storage: state.context.services.git_db_storage.clone(),
     };
 
     let app = Router::new()
