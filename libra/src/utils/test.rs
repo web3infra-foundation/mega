@@ -1,6 +1,8 @@
 #![cfg(test)]
 
 use std::{env, fs, path::PathBuf};
+use std::io::Write;
+use std::path::Path;
 
 use crate::command;
 use super::util;
@@ -87,18 +89,19 @@ pub fn setup_without_libra() {
 //     setup_with_clean_mit();
 // }
 //
-// pub fn ensure_file(path: &Path, content: Option<&str>) {
-//     // 以测试目录为根目录，创建文件
-//     fs::create_dir_all(path.parent().unwrap()).unwrap(); // ensure父目录
-//     let mut file = fs::File::create(util::get_working_dir().unwrap().join(path))
-//         .expect(format!("无法创建文件：{:?}", path).as_str());
-//     if let Some(content) = content {
-//         file.write(content.as_bytes()).unwrap();
-//     } else {
-//         // 写入文件名
-//         file.write(path.file_name().unwrap().to_str().unwrap().as_bytes()).unwrap();
-//     }
-// }
+/// create file related to working directory
+pub fn ensure_file(path: impl AsRef<Path>, content: Option<&str>) {
+    let path = path.as_ref();
+    fs::create_dir_all(path.parent().unwrap()).unwrap(); // ensure父目录
+    let mut file = fs::File::create(util::working_dir().join(path))
+        .expect(format!("Cannot create file：{:?}", path).as_str());
+    if let Some(content) = content {
+        file.write(content.as_bytes()).unwrap();
+    } else {
+        // write filename if no content
+        file.write(path.file_name().unwrap().as_encoded_bytes()).unwrap();
+    }
+}
 //
 // pub fn ensure_no_file(path: &Path) {
 //     // 以测试目录为根目录，删除文件
