@@ -5,7 +5,6 @@ use gateway::{
     https_server::{self, HttpCustom, HttpOptions},
     ssh_server::{self, SshCustom, SshOptions},
 };
-use p2p::peer::{self, P2pCustom, P2pOptions};
 
 use crate::cli::Config;
 
@@ -30,8 +29,8 @@ pub struct StartOptions {
     #[clap(flatten)]
     pub ssh: SshCustom,
 
-    #[clap(flatten)]
-    pub p2p: P2pCustom,
+    // #[clap(flatten)]
+    // pub p2p: P2pCustom,
 }
 
 pub fn cli() -> Command {
@@ -71,19 +70,19 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
         tokio::task::spawn(async {})
     };
 
-    let p2p_server = if service_type.contains(&StartCommand::P2p) {
-        let p2p = P2pOptions {
-            common: server_matchers.common.clone(),
-            custom: server_matchers.p2p,
-        };
-        tokio::spawn(async move {
-            peer::run(&p2p).await.unwrap();
-        })
-    } else {
-        tokio::task::spawn(async {})
-    };
+    // let p2p_server = if service_type.contains(&StartCommand::P2p) {
+    //     let p2p = P2pOptions {
+    //         common: server_matchers.common.clone(),
+    //         custom: server_matchers.p2p,
+    //     };
+    //     tokio::spawn(async move {
+    //         peer::run(&p2p).await.unwrap();
+    //     })
+    // } else {
+    //     tokio::task::spawn(async {})
+    // };
 
-    let _ = tokio::join!(http_server, ssh_server, p2p_server);
+    let _ = tokio::join!(http_server, ssh_server);
 
     Ok(())
 }

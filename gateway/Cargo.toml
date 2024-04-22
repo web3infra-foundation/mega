@@ -11,11 +11,9 @@ path = "src/lib.rs"
 
 
 [dependencies]
-git = { path = "../git" }
 common = { path = "../common" }
-storage = { path = "../storage" }
-entity = { path = "../storage/entity" }
 jupiter = { path = "../jupiter" }
+callisto = { path = "../jupiter/callisto" }
 ganymede = { path = "../ganymede" }
 ceres = { path = "../ceres" }
 venus = { path = "../venus" }
