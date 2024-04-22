@@ -1,11 +1,11 @@
 #![cfg(test)]
 
-use std::{env, fs, path::PathBuf};
 use std::io::Write;
 use std::path::Path;
+use std::{env, fs, path::PathBuf};
 
-use crate::command;
 use super::util;
+use crate::command;
 
 pub const TEST_DIR: &str = "libra_test_repo";
 /* tools for test */
@@ -94,12 +94,13 @@ pub fn ensure_file(path: impl AsRef<Path>, content: Option<&str>) {
     let path = path.as_ref();
     fs::create_dir_all(path.parent().unwrap()).unwrap(); // ensure父目录
     let mut file = fs::File::create(util::working_dir().join(path))
-        .expect(format!("Cannot create file：{:?}", path).as_str());
+        .unwrap_or_else(|_| panic!("Cannot create file：{:?}", path));
     if let Some(content) = content {
-        file.write(content.as_bytes()).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
     } else {
         // write filename if no content
-        file.write(path.file_name().unwrap().as_encoded_bytes()).unwrap();
+        file.write_all(path.file_name().unwrap().as_encoded_bytes())
+            .unwrap();
     }
 }
 //
