@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::{env, io};
+use path_abs::{PathAbs, PathInfo};
 
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
@@ -44,6 +45,19 @@ pub fn working_dir() -> PathBuf {
 /// Get the working directory of the repository as a string, panics if the path is not valid utf-8
 pub fn working_dir_string() -> String {
     working_dir().to_str().unwrap().to_string()
+}
+
+/// Turn a path to a relative path to the working directory
+/// - panic if the path is not in the repository
+/// - not check existence
+pub fn to_workdir_path(path: impl AsRef<Path>) -> PathBuf {
+    let abs_path = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\'
+    let workdir = PathAbs::new(working_dir()).unwrap();
+    if let Some(workdir_path) = pathdiff::diff_paths(abs_path, workdir) {
+        workdir_path
+    } else {
+        panic!("fatal: path {:?} is not in the repository", path.as_ref());
+    }
 }
 
 /// clean up the path
@@ -100,6 +114,7 @@ pub fn pathspec_to_workpath(pathspec: Vec<String>) -> Vec<PathBuf> {
 /// transform path to string, use '/' as separator even on windows
 pub fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string() // TODO: test on windows
+    // TODO maybe 'into_os_string().into_string().unwrap()' is good
 }
 
 #[cfg(test)]
@@ -125,5 +140,12 @@ mod test {
             "test.rs".to_owned(),
             working_dir().join("../test").to_str().unwrap().to_owned(),
         ]);
+    }
+
+    #[tokio::test]
+    async fn test_to_workdir_path() {
+        test::setup_with_new_libra().await;
+        let workdir_path = to_workdir_path("src/main.rs");
+        assert_eq!(workdir_path, PathBuf::from("src/main.rs"));
     }
 }

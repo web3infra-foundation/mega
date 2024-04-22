@@ -3,6 +3,7 @@ use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::fs::{self, File};
+use std::io;
 use std::io::{BufReader, Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -11,9 +12,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use venus::errors::GitError;
 use venus::hash::SHA1;
-// use utils;
-// use utils::SHA1_SIZE;
 use mercury::internal::pack::wrapper::Wrapper;
+use crate::utils::util;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Time {
@@ -64,7 +64,16 @@ pub struct Flags {
 }
 
 impl Flags {
-    pub fn new(flags: u16) -> Self {
+    pub fn new(name_len: u16) -> Self {
+        Flags {
+            assume_valid: true,
+            extended: false,
+            stage: 0,
+            name_length: name_len,
+        }
+    }
+
+    pub fn from_u16(flags: u16) -> Self {
         Flags {
             assume_valid: flags & 0x8000 != 0,
             extended: flags & 0x4000 != 0,
@@ -109,7 +118,8 @@ impl Display for IndexEntry {
 }
 
 impl IndexEntry {
-    pub fn new(meta: &fs::Metadata, hash: SHA1, name: String, flag: Flags) -> Self {
+    /** Metadata must be got by [fs::symlink_metadata] to avoid following symlink */
+    pub fn new(meta: &fs::Metadata, hash: SHA1, name: String) -> Self {
         let mut entry = IndexEntry {
             ctime: Time::from_system_time(meta.created().unwrap()),
             mtime: Time::from_system_time(meta.modified().unwrap()),
@@ -119,7 +129,7 @@ impl IndexEntry {
             gid: 0,
             size: meta.len() as u32,
             hash,
-            flags: flag,
+            flags: Flags::new(name.len() as u16),
             name,
             mode: 0o100644,
         };
@@ -141,7 +151,21 @@ impl IndexEntry {
                 _ =>  entry.mode, // keep the original mode
             }
         }
+        #[cfg(windows)]
+        {
+            if meta.is_symlink() {
+                entry.mode = 0o120000;
+            }
+        }
         entry
+    }
+
+    /// file must be in the libra repository
+    pub fn new_from_file(file: &Path, hash: SHA1) -> io::Result<Self> {
+        let meta = fs::symlink_metadata(file)?; // without following symlink
+        let name = util::to_workdir_path(file).into_os_string().into_string().unwrap();
+        let index = IndexEntry::new(&meta, hash, name);
+        Ok(index)
     }
 }
 
@@ -201,7 +225,7 @@ impl Index {
                 gid: file.read_u32::<BigEndian>()?,
                 size: file.read_u32::<BigEndian>()?,
                 hash: utils::read_sha1(file)?,
-                flags: Flags::new(file.read_u16::<BigEndian>()?),
+                flags: Flags::from_u16(file.read_u16::<BigEndian>()?),
                 name: String::new(),
             };
             let name_len = entry.flags.name_length as usize;
@@ -209,9 +233,7 @@ impl Index {
             file.read_exact(&mut name)?;
             // The exact encoding is undefined, but the '.' and '/' characters are encoded in 7-bit ASCII
             entry.name = String::from_utf8(name)?; // TODO check the encoding
-            index
-                .entries
-                .insert((entry.name.clone(), entry.flags.stage), entry);
+            index.entries.insert((entry.name.clone(), entry.flags.stage), entry);
 
             // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
             // while keeping the name NUL-terminated. // so at least 1 byte nul
@@ -341,7 +363,7 @@ mod utils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use crate::utils::test;
 
     #[test]
     fn test_time() {
@@ -378,14 +400,14 @@ mod tests {
         assert_eq!(index.size(), new_index.size());
     }
 
-    #[test]
-    fn test_index_entry_create() {
+    #[tokio::test]
+    async fn test_index_entry_create() {
         // test create index entry from file
-        let file = PathBuf::from("../tests/integration_test.rs"); // use as a normal file
-        let meta = file.metadata().unwrap();
+        test::setup_with_new_libra().await;
+        test::ensure_file("src/test.rs", None);
+        let file = Path::new("src/test.rs"); // use as a normal file
         let hash = SHA1::from_bytes(&[0; 20]);
-        let name = file.as_os_str().to_str().unwrap().to_string();
-        let entry = IndexEntry::new(&meta, hash, name, Flags::new(0));
+        let entry = IndexEntry::new_from_file(file, hash).unwrap();
         println!("{}", entry);
     }
 }
