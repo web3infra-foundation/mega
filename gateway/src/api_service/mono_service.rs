@@ -2,6 +2,8 @@ use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
+use axum::async_trait;
+
 use callisto::db_enums::ConvType;
 use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
@@ -16,9 +18,26 @@ use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::monorepo::mr::{MergeOperation, MergeResult};
 
+use crate::model::objects::{LatestCommitInfo, TreeCommitInfo};
+
+use super::ApiHandler;
+
 #[derive(Clone)]
 pub struct MonorepoService {
     pub storage: Arc<MegaStorage>,
+}
+
+#[async_trait]
+impl ApiHandler for MonorepoService {
+    async fn get_latest_commit(
+        &self,
+    ) -> Result<LatestCommitInfo, GitError> {
+        todo!()
+    }
+
+    async fn get_tree_commit_info(&self) -> Result<TreeCommitInfo, GitError> {
+        unimplemented!()
+    }
 }
 
 impl MonorepoService {
