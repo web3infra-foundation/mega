@@ -8,6 +8,15 @@ pub struct DirectoryQuery {
     pub repo_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CodePreviewQuery {
+    #[serde(default)]
+    pub refs: String,
+    #[serde(default = "default_path")]
+    pub path: String,
+}
+
+
 fn default_path() -> String {
     "/".to_string()
 }
