@@ -7,7 +7,7 @@ use std::io;
 use std::io::{BufReader, Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use venus::errors::GitError;
@@ -346,6 +346,15 @@ impl Index {
             .filter(|(_, entry)| entry.flags.stage == stage)
             .map(|(_, entry)| entry)
             .collect()
+    }
+
+    pub fn tracked_files(&self) -> Vec<PathBuf> {
+        self.entries.keys().map(|(name, _)| PathBuf::from(name)).collect()
+    }
+
+    /// saved to index file
+    pub fn save(&self) -> Result<(), GitError> {
+        self.to_file(path::index())
     }
 }
 

@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::model::reference::ActiveModel;
-use crate::model::{config, reference};
+use crate::model::reference;
 use crate::{db::establish_connection, internal::index::Index, utils::util};
 use clap::Parser;
 use sea_orm::ActiveValue::NotSet;
@@ -36,7 +36,7 @@ pub async fn execute(args: CommitArgs) {
     let tree = create_tree(&index, &storage, "".into()).await;
     // TODO wait for head & status
     let db = establish_connection(
-        util::path_to_string(&util::storage_path().join(util::DATABASE)).as_str(),
+        util::path_to_string(&path::database()).as_str(),
     )
     .await
     .unwrap();
