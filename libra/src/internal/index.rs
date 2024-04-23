@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use venus::errors::GitError;
 use venus::hash::SHA1;
 use mercury::internal::pack::wrapper::Wrapper;
-use crate::utils::util;
+use crate::utils::{path, util};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Time {
@@ -312,6 +312,15 @@ impl Index {
 }
 
 impl Index {
+    /// Load index, if not exist, return an empty index
+    pub fn load() -> Result<Self, GitError> {
+        let path = path::index();
+        if !path.exists() {
+            return Ok(Index::new());
+        }
+        Index::from_file(path)
+    }
+
     pub fn update(&mut self, entry: IndexEntry) {
         self.entries
             .insert((entry.name.clone(), entry.flags.stage), entry);

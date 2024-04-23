@@ -11,6 +11,7 @@ use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
 use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use crate::utils::path;
 
 #[derive(Parser, Debug)]
 #[command(about = "Record changes to the repository")]
@@ -24,8 +25,8 @@ pub struct CommitArgs {
 
 pub async fn execute(args: CommitArgs) {
     /* check args */
-    let index = Index::from_file(util::working_dir().join("index")).unwrap();
-    let storage = LocalStorage::init(util::storage_path().join("objects"));
+    let index = Index::load().unwrap();
+    let storage = LocalStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
         panic!("fatal: no changes added to commit, use --allow-empty to override");
@@ -44,7 +45,7 @@ pub async fn execute(args: CommitArgs) {
     let parents_commit_ids = get_parents_ids(&db).await;
     let commit = Commit::from_tree_id(tree.id, parents_commit_ids, args.message.as_str());
 
-    // TODO  default signature created in `frrom_tree_id`, wait `git config` to set correct user info
+    // TODO  default signature created in `from_tree_id`, wait `git config` to set correct user info
 
     storage
         .put(
@@ -211,7 +212,7 @@ mod test {
         .unwrap();
         println!("{:?}", index.tracked_entries(0).len());
         test::setup_with_new_libra().await;
-        let storage = LocalStorage::init(util::storage_path().join("objects"));
+        let storage = LocalStorage::init(path::objects());
         let tree = create_tree(&index, &storage, "".into()).await;
 
         assert!(storage.get(&tree.id.to_plain_str()).await.is_ok());
