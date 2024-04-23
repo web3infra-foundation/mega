@@ -9,29 +9,36 @@ pub fn cur_dir() -> PathBuf {
     env::current_dir().unwrap()
 }
 
-/// Try get the storage path of the repository, which is the path of the .libra directory
-/// if the current directory is not a repository, return an error
+/// Try get the storage path of the repository, which is the path of the `.libra` directory
+/// - if the current directory is not a repository, return an error
 pub fn try_get_storage_path() -> Result<PathBuf, io::Error> {
     /*递归获取储存库 */
-    let mut current_dir = std::env::current_dir()?;
+    let mut cur_dir = env::current_dir()?;
     loop {
-        let mut git_path = current_dir.clone();
-        git_path.push(ROOT_DIR);
-        if git_path.exists() {
-            return Ok(git_path);
+        let mut libra = cur_dir.clone();
+        libra.push(ROOT_DIR);
+        if libra.exists() {
+            return Ok(libra);
         }
-        if !current_dir.pop() {
+        if !cur_dir.pop() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("{:?} is not a git repository", std::env::current_dir()?),
+                format!("{:?} is not a git repository", env::current_dir()?),
             ));
         }
     }
 }
-/// Get the storage path of the repository
+/// Get the storage path of the repository, aka `.libra`
 /// - panics if the current directory is not a repository
 pub fn storage_path() -> PathBuf {
     try_get_storage_path().unwrap()
+}
+/// Check if libra repo exists
+pub fn check_repo_exist() {
+    if try_get_storage_path().is_err() {
+        eprintln!("fatal: not a libra repository (or any of the parent directories): .libra");
+        panic!("fatal: not a libra repository (or any of the parent directories): .libra");
+    }
 }
 
 /// Get the working directory of the repository
