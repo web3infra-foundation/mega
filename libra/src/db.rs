@@ -5,6 +5,8 @@ use sea_orm::{Database, DatabaseConnection};
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 use std::path::Path;
+use crate::utils::path;
+
 /// Establish a connection to the database.
 ///  - `db_path` is the path to the SQLite database file.
 /// - Returns a `DatabaseConnection` if successful, or an `IOError` if the database file does not exist.
@@ -25,6 +27,14 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
                 format!("Database connection error: {:?}", err),
             )
         })
+}
+
+/// Get a connection to the database of current repo: `.libra/libra.db`
+pub async fn get_db_conn() -> io::Result<DatabaseConnection> {
+    let db_path = path::database(); // for longer lifetime
+    let db_path = db_path.to_str().unwrap();
+    establish_connection(db_path).await
+    // TODO singleton
 }
 
 /// create table according to the Model
