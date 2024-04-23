@@ -5,6 +5,7 @@ use crate::model::reference::ActiveModel;
 use crate::model::{config, reference};
 use crate::{db::establish_connection, internal::index::Index, utils::util};
 use clap::Parser;
+use sea_orm::ActiveValue::NotSet;
 use sea_orm::{ActiveModelTrait, Set};
 use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
 use venus::hash::SHA1;
@@ -133,64 +134,61 @@ async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: Pat
 
 /// get current head commit id as parent, if in branch, get branch's commit id, if detached head, get head's commit id
 async fn get_parents_ids(db: &sea_orm::DbConn) -> Vec<SHA1> {
-    let head = reference::Model::current_head(db).await.unwrap();
-    match head {
-        Some(head) => match head.name {
-            Some(name) => {
-                let commit = reference::Model::find_branch_by_name(db, name.as_str())
-                    .await
-                    .unwrap()
-                    .unwrap();
-                vec![SHA1::from_str(commit.commit.unwrap().as_str()).unwrap()]
+    let head = reference::Model::current_head(db)
+        .await
+        .unwrap()
+        .expect("fatal: storage broken, HEAD not found");
+    match head.name {
+        Some(name) => {
+            let commit = reference::Model::find_branch_by_name(db, name.as_str())
+                .await
+                .unwrap();
+            match commit {
+                Some(commit) => vec![SHA1::from_str(commit.commit.unwrap().as_str()).unwrap()],
+                None => vec![], // empty branch, first commit
             }
-            None => vec![SHA1::from_str(head.commit.unwrap().as_str()).unwrap()],
-        },
-        None => vec![],
+        }
+        None => vec![SHA1::from_str(head.commit.unwrap().as_str()).unwrap()],
     }
 }
 
 /// update HEAD to new commit, if in branch, update branch's commit id, if detached head, update head's commit id
 async fn update_head(db: &sea_orm::DbConn, commit_id: &str) {
-    let head = reference::Model::current_head(db).await.unwrap();
-    match head {
-        Some(head) => {
-            match head.name {
-                Some(name) => {
-                    // in branch
-                    let mut branch: ActiveModel =
-                        reference::Model::find_branch_by_name(db, name.as_str())
-                            .await
-                            .unwrap()
-                            .unwrap()
-                            .into();
+    let head = reference::Model::current_head(db)
+        .await
+        .unwrap()
+        .expect("fatal: storage broken, HEAD not found");
+
+    match head.name {
+        Some(name) => {
+            // in branch
+            let branch = reference::Model::find_branch_by_name(db, name.as_str())
+                .await
+                .unwrap();
+            match branch {
+                Some(branch) => {
+                    let mut branch: ActiveModel = branch.into();
                     branch.commit = Set(Some(commit_id.to_string()));
                     branch.update(db).await.unwrap();
                 }
                 None => {
-                    // detached head
-                    let mut head: ActiveModel = head.into();
-                    head.commit = Set(Some(commit_id.to_string()));
-                    head.update(db).await.unwrap();
+                    // branch not found, create new branch
+                    let new_branch = reference::ActiveModel {
+                        id: NotSet,
+                        name: Set(Some(name.clone())),
+                        kind: Set(reference::ConfigKind::Branch),
+                        commit: Set(Some(commit_id.to_string())),
+                        remote: Set(None),
+                    };
+                    new_branch.save(db).await.unwrap();
                 }
             }
         }
         None => {
-            // create main branch
-            let branch = reference::ActiveModel {
-                name: Set(Some("main".to_owned())),
-                kind: Set(reference::ConfigKind::Branch),
-                commit: Set(Some(commit_id.to_string())),
-                ..Default::default()
-            };
-            branch.save(db).await.unwrap();
-
-            // create & set head to main
-            let head = reference::ActiveModel {
-                name: Set(Some("main".to_owned())),
-                kind: Set(reference::ConfigKind::Head),
-                ..Default::default()
-            };
-            head.save(db).await.unwrap();
+            // detached head
+            let mut head: ActiveModel = head.into();
+            head.commit = Set(Some(commit_id.to_string()));
+            head.update(db).await.unwrap();
         }
     }
 }
