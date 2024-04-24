@@ -1,10 +1,11 @@
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
+use crate::db::get_db_conn;
 use crate::model::reference;
 use crate::model::reference::ActiveModel;
 use crate::utils::path;
-use crate::{db::establish_connection, internal::index::Index, utils::util};
+use crate::{internal::index::Index, utils::util};
 use clap::Parser;
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{ActiveModelTrait, Set};
@@ -35,10 +36,7 @@ pub async fn execute(args: CommitArgs) {
 
     /* Create tree */
     let tree = create_tree(&index, &storage, "".into()).await;
-    // TODO wait for head & status
-    let db = establish_connection(util::path_to_string(&path::database()).as_str())
-        .await
-        .unwrap();
+    let db = get_db_conn().await.unwrap();
 
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids(&db).await;
@@ -57,8 +55,6 @@ pub async fn execute(args: CommitArgs) {
 
     /* update HEAD */
     update_head(&db, &commit.id.to_plain_str()).await;
-
-    // TODO make some test
 }
 
 /// recursively create tree from index's tracked entries
@@ -86,16 +82,15 @@ async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: Pat
         .filter(|path| path.starts_with(&current_root))
         .collect();
     for path in path_entries.iter() {
-        // check if the file is in the current root
-        let in_path = path.parent().unwrap() == current_root;
-        if in_path {
+        let in_current_path = path.parent().unwrap() == current_root;
+        if in_current_path {
             let item = get_blob_entry(path);
             tree_items.push(item);
         } else {
             if path.components().count() == 1 {
                 continue;
             }
-            // 拿到下一级别目录
+            // next level tree
             let process_path = path
                 .components()
                 .nth(current_root.components().count())
@@ -234,11 +229,7 @@ mod test {
         };
         execute(args).await;
 
-        let db = establish_connection(
-            util::path_to_string(&util::storage_path().join(util::DATABASE)).as_str(),
-        )
-        .await
-        .unwrap();
+        let db = get_db_conn().await.unwrap();
         // check head branch exists
         let head = reference::Model::current_head(&db).await.unwrap();
         let branch = reference::Model::find_branch_by_name(&db, &head.name.unwrap())
