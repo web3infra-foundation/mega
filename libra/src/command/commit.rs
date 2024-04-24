@@ -1,8 +1,9 @@
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
-use crate::model::reference::ActiveModel;
 use crate::model::reference;
+use crate::model::reference::ActiveModel;
+use crate::utils::path;
 use crate::{db::establish_connection, internal::index::Index, utils::util};
 use clap::Parser;
 use sea_orm::ActiveValue::NotSet;
@@ -11,7 +12,6 @@ use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
 use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use crate::utils::path;
 use venus::internal::object::ObjectTrait;
 
 #[derive(Parser, Debug)]
@@ -36,11 +36,9 @@ pub async fn execute(args: CommitArgs) {
     /* Create tree */
     let tree = create_tree(&index, &storage, "".into()).await;
     // TODO wait for head & status
-    let db = establish_connection(
-        util::path_to_string(&path::database()).as_str(),
-    )
-    .await
-    .unwrap();
+    let db = establish_connection(util::path_to_string(&path::database()).as_str())
+        .await
+        .unwrap();
 
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids(&db).await;
@@ -253,7 +251,7 @@ mod test {
             .unwrap();
         assert!(branch.is_some());
         let commit_id = branch.unwrap().commit.unwrap();
-        let storage = LocalStorage::init(util::storage_path().join("objects"));
+        let storage = LocalStorage::init(path::objects());
         let commit_data = storage.get(&commit_id).await.unwrap();
         let commit =
             Commit::from_bytes(commit_data.to_vec(), SHA1::from_str(&commit_id).unwrap()).unwrap();
