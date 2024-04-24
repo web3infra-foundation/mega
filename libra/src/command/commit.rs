@@ -12,6 +12,7 @@ use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use crate::utils::path;
+use venus::internal::object::ObjectTrait;
 
 #[derive(Parser, Debug)]
 #[command(about = "Record changes to the repository")]
@@ -123,7 +124,15 @@ async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: Pat
             });
         }
     }
-    let tree = Tree::from_tree_items(tree_items).unwrap();
+    let tree = {
+        // `from_tree_items` can't create empty tree, so use `from_bytes` instead
+        if tree_items.is_empty() {
+            // git create a no zero hash for empty tree, didn't know method. use default SHA1 temporarily
+            Tree::from_bytes(vec![], SHA1::default()).unwrap()
+        } else {
+            Tree::from_tree_items(tree_items).unwrap()
+        }
+    };
     // save
     let data = tree.to_data().unwrap();
     storage
@@ -135,10 +144,7 @@ async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: Pat
 
 /// get current head commit id as parent, if in branch, get branch's commit id, if detached head, get head's commit id
 async fn get_parents_ids(db: &sea_orm::DbConn) -> Vec<SHA1> {
-    let head = reference::Model::current_head(db)
-        .await
-        .unwrap()
-        .expect("fatal: storage broken, HEAD not found");
+    let head = reference::Model::current_head(db).await.unwrap();
     match head.name {
         Some(name) => {
             let commit = reference::Model::find_branch_by_name(db, name.as_str())
@@ -155,10 +161,7 @@ async fn get_parents_ids(db: &sea_orm::DbConn) -> Vec<SHA1> {
 
 /// update HEAD to new commit, if in branch, update branch's commit id, if detached head, update head's commit id
 async fn update_head(db: &sea_orm::DbConn, commit_id: &str) {
-    let head = reference::Model::current_head(db)
-        .await
-        .unwrap()
-        .expect("fatal: storage broken, HEAD not found");
+    let head = reference::Model::current_head(db).await.unwrap();
 
     match head.name {
         Some(name) => {
@@ -227,5 +230,34 @@ mod test {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_execute_commit_with_empty_index() {
+        test::setup_with_new_libra().await;
+        let args = CommitArgs {
+            message: "init".to_string(),
+            allow_empty: true,
+        };
+        execute(args).await;
+
+        let db = establish_connection(
+            util::path_to_string(&util::storage_path().join(util::DATABASE)).as_str(),
+        )
+        .await
+        .unwrap();
+        // check head branch exists
+        let head = reference::Model::current_head(&db).await.unwrap();
+        let branch = reference::Model::find_branch_by_name(&db, &head.name.unwrap())
+            .await
+            .unwrap();
+        assert!(branch.is_some());
+        let commit_id = branch.unwrap().commit.unwrap();
+        let storage = LocalStorage::init(util::storage_path().join("objects"));
+        let commit_data = storage.get(&commit_id).await.unwrap();
+        let commit =
+            Commit::from_bytes(commit_data.to_vec(), SHA1::from_str(&commit_id).unwrap()).unwrap();
+        assert!(commit.message == "init");
+        println!("commit tree: {:?}", commit.tree_id);
     }
 }

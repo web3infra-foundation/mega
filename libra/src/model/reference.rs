@@ -28,12 +28,13 @@ pub enum ConfigKind {
 
 // some useful functions
 impl Model {
-    pub async fn current_head(db: &DbConn) -> Result<Option<Self>, DbErr> {
-        Ok(Entity::find()
-            .filter(Column::Kind.eq(ConfigKind::Head))
+    pub async fn current_head(db: &DbConn) -> Result<Self, DbErr> {
+        Ok(self::Entity::find()
+            .filter(self::Column::Kind.eq(self::ConfigKind::Head))
             .one(db)
             .await
-            .unwrap())
+            .unwrap()
+            .expect("fatal: storage broken, HEAD not found"))
     }
 
     pub async fn find_branch_by_name(db: &DbConn, name: &str) -> Result<Option<Self>, DbErr> {
