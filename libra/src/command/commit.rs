@@ -205,12 +205,7 @@ mod test {
 
     #[tokio::test]
     async fn test_create_tree() {
-        let index = Index::from_file(
-            "../tests/data/index/index-760,
-        timestamp: todo!(),
-        timezone: todo!(), ",
-        )
-        .unwrap();
+        let index = Index::from_file("../tests/data/index/index-760").unwrap();
         println!("{:?}", index.tracked_entries(0).len());
         test::setup_with_new_libra().await;
         let storage = LocalStorage::init(path::objects());
