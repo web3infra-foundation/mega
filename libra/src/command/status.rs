@@ -1,6 +1,12 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
+use colored::Colorize;
+use path_abs::PathInfo;
+use venus::internal::object::commit::Commit;
+use venus::internal::object::tree::Tree;
 use crate::internal::head::Head;
 use crate::internal::index::Index;
+use crate::utils::object_ext::{CommitExt, TreeExt};
 use crate::utils::util;
 
 #[derive(Debug, Default, Clone)]
@@ -9,9 +15,88 @@ pub struct Changes {
     pub modified: Vec<PathBuf>,
     pub deleted: Vec<PathBuf>,
 }
-pub fn execute() {
-    util::check_repo_exist();
-    todo!()
+impl Changes {
+    pub fn is_empty(&self) -> bool {
+        self.new.is_empty() && self.modified.is_empty() && self.deleted.is_empty()
+    }
+
+    /// to relative path(to cur_dir)
+    pub fn to_relative(&self) -> Changes {
+        let mut change = self.clone();
+        let cur_dir = util::cur_dir();
+        [&mut change.new, &mut change.modified, &mut change.deleted]
+            .into_iter()
+            .for_each(|paths| {
+                *paths = paths.iter().map(|p| util::to_relative(p, &cur_dir)).collect();
+            });
+        change
+    }
+}
+
+/**
+ * 2 parts:
+ * 1. unstaged
+ * 2. staged to be committed
+ */
+pub async fn execute() {
+    if !util::check_repo_exist() {
+        return;
+    }
+
+    match Head::current().await {
+        Head::Detached(commit) => {
+            println!("HEAD detached at {}", String::from_utf8_lossy(&commit.0[0..7]));
+        }
+        Head::Branch(branch) => {
+            println!("On branch {}", branch);
+        }
+    }
+
+    // to cur_dir relative path
+    let staged = changes_to_be_committed().await.to_relative();
+    let unstaged = changes_to_be_staged().to_relative();
+    if staged.is_empty() && unstaged.is_empty() {
+        println!("nothing to commit, working tree clean");
+        return;
+    }
+
+    if !staged.is_empty() {
+        println!("Changes to be committed:");
+        println!("  use \"libra restore --staged <file>...\" to unstage");
+        staged.deleted.iter().for_each(|f| {
+            let str = format!("\tdeleted: {}", f.display());
+            println!("{}", str.bright_green());
+        });
+        staged.modified.iter().for_each(|f| {
+            let str = format!("\tmodified: {}", f.display());
+            println!("{}", str.bright_green());
+        });
+        staged.new.iter().for_each(|f| {
+            let str = format!("\tnew file: {}", f.display());
+            println!("{}", str.bright_green());
+        });
+    }
+
+    if !unstaged.deleted.is_empty() || !unstaged.modified.is_empty() {
+        println!("Changes not staged for commit:");
+        println!("  use \"libra add <file>...\" to update what will be committed");
+        unstaged.deleted.iter().for_each(|f| {
+            let str = format!("\tdeleted: {}", f.display());
+            println!("{}", str.bright_red());
+        });
+        unstaged.modified.iter().for_each(|f| {
+            let str = format!("\tmodified: {}", f.display());
+            println!("{}", str.bright_red());
+        });
+    }
+    if !unstaged.new.is_empty() {
+        println!("Untracked files:");
+        println!("  use \"libra add <file>...\" to include in what will be committed");
+        unstaged.new.iter().for_each(|f| {
+            let str = format!("\t{}", f.display());
+            println!("{}", str.bright_red());
+        });
+    }
 }
 
 /**
@@ -22,16 +107,61 @@ pub async fn changes_to_be_committed() -> Changes {
     let index = Index::load().unwrap();
     let head_commit = Head::current_commit().await;
     let tracked_files = index.tracked_files();
-    if head_commit.is_none() {
+
+    if head_commit.is_none() { // no commit yet
         changes.new = tracked_files;
         return changes;
     }
-    let head_commit = head_commit.unwrap();
 
-    !todo!()
+    let head_commit = head_commit.unwrap();
+    let commit = Commit::load(&head_commit).await;
+    let tree = Tree::load(&commit.tree_id).await;
+    let tree_files = tree.get_plain_items().await;
+
+    for (item_path, item_hash) in tree_files.iter() {
+        let item_str = item_path.to_str().unwrap();
+        if index.tracked(item_str, 0) {
+            if !index.verify_hash(item_str, 0, item_hash) {
+                changes.modified.push(item_path.clone());
+            }
+        } else {
+            // in the last commit but not in the index
+            changes.deleted.push(item_path.clone());
+        }
+    }
+    let tree_files_set: HashSet<PathBuf> = tree_files.into_iter().map(|(path, _)| path).collect();
+    // `new` means the files in index but not in the last commit
+    changes.new = tracked_files.into_iter()
+        .filter(|path| !tree_files_set.contains(path))
+        .collect();
+
+    changes
 }
 
 /// Compare the difference between `index` and the `workdir`
 pub fn changes_to_be_staged() -> Changes {
-    !todo!()
+    let mut changes = Changes::default();
+    let index = Index::load().unwrap();
+    let tracked_files = index.tracked_files();
+    for file in tracked_files.iter() {
+        let file_str = file.to_str().unwrap();
+        let file_abs = util::workdir_to_absolute(file);
+        if !file_abs.exists() {
+            changes.deleted.push(file.clone());
+        } else if index.is_modified(file_str, 0) {
+            // only calc the hash if the file is modified (metadata), for optimization
+            let file_hash = util::calc_file_hash(&file_abs).unwrap();
+            if !index.verify_hash(file_str, 0, &file_hash) {
+                changes.modified.push(file.clone());
+            }
+        }
+    }
+    let files = util::list_workdir_files().unwrap();
+    for file in files.iter() {
+        if !index.tracked(file.to_str().unwrap(), 0) {
+            // file not tracked in `index`
+            changes.new.push(file.clone());
+        }
+    }
+    changes
 }

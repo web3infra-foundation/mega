@@ -338,6 +338,34 @@ impl Index {
         self.entries.contains_key(&(name.to_string(), stage))
     }
 
+    pub fn get_hash(&self, file: &str, stage: u8) -> Option<SHA1> {
+        self.get(file, stage).map(|entry| entry.hash)
+    }
+
+    pub fn verify_hash(&self, file: &str, stage: u8, hash: &SHA1) -> bool {
+        let inner_hash = self.get_hash(file, stage);
+        if let Some(inner_hash) = inner_hash {
+            &inner_hash == hash
+        } else {
+            false
+        }
+    }
+    // modified after last `add` (need hash to confirm content change)
+    pub fn is_modified(&self, file: &str, stage: u8) -> bool {
+        if let Some(entry) = self.get(file, stage) {
+            let path = Path::new(file);
+            let meta = path.symlink_metadata().unwrap();
+            // TODO more filed
+            let same = entry.ctime == Time::from_system_time(meta.created().unwrap_or(SystemTime::now()))
+            && entry.mtime == Time::from_system_time(meta.modified().unwrap_or(SystemTime::now()))
+            && entry.size == meta.len() as u32;
+
+            !same
+        } else {
+            panic!("File not found in index");
+        }
+    }
+
     /// Get all entries with the same stage
     pub fn tracked_entries(&self, stage: u8) -> Vec<&IndexEntry> {
         // ? should use stage or not
@@ -348,8 +376,9 @@ impl Index {
             .collect()
     }
 
+    /// Get all tracked files(stage = 0)
     pub fn tracked_files(&self) -> Vec<PathBuf> {
-        self.entries.keys().map(|(name, _)| PathBuf::from(name)).collect()
+        self.tracked_entries(0).iter().map(|entry| PathBuf::from(&entry.name)).collect()
     }
 
     /// saved to index file
