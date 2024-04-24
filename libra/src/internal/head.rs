@@ -22,8 +22,7 @@ impl Head {
         let db_conn = get_db_conn().await;
         let head = reference::Model::current_head(db_conn)
             .await
-            .unwrap()
-            .expect("fatal: storage broken, HEAD not found");
+            .unwrap();
         match head.name {
             Some(name) => {
                 Head::Branch(name)
