@@ -35,7 +35,7 @@ async fn main() {
         Commands::Init => command::init::execute().await,
         Commands::Commit(args) => command::commit::execute(args).await,
         Commands::Add(args) => command::add::execute(args).await,
-        Commands::Status => command::status::execute(),
+        Commands::Status => command::status::execute().await,
     }
 }
 

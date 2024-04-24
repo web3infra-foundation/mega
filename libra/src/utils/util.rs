@@ -1,6 +1,11 @@
 use std::path::{Path, PathBuf};
-use std::{env, io};
+use std::{env, fs, io};
+use std::io::{BufReader, Read};
 use path_abs::{PathAbs, PathInfo};
+use sha1::{Digest, Sha1};
+use storage::driver::file_storage::local_storage::LocalStorage;
+use venus::hash::SHA1;
+use crate::utils::path;
 
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
@@ -34,11 +39,17 @@ pub fn storage_path() -> PathBuf {
     try_get_storage_path().unwrap()
 }
 /// Check if libra repo exists
-pub fn check_repo_exist() {
+pub fn check_repo_exist() -> bool {
     if try_get_storage_path().is_err() {
         eprintln!("fatal: not a libra repository (or any of the parent directories): .libra");
-        panic!("fatal: not a libra repository (or any of the parent directories): .libra");
+        return false;
     }
+    true
+}
+
+/// Get `LocalStorage` for the `objects` directory
+pub fn objects_storage() -> LocalStorage {
+    LocalStorage::init(path::objects())
 }
 
 /// Get the working directory of the repository
@@ -55,16 +66,71 @@ pub fn working_dir_string() -> String {
 }
 
 /// Turn a path to a relative path to the working directory
-/// - panic if the path is not in the repository
 /// - not check existence
 pub fn to_workdir_path(path: impl AsRef<Path>) -> PathBuf {
-    let abs_path = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\'
-    let workdir = PathAbs::new(working_dir()).unwrap();
-    if let Some(workdir_path) = pathdiff::diff_paths(abs_path, workdir) {
-        workdir_path
+    to_relative(path, working_dir())
+}
+
+/// Turn a workdir path to absolute path
+pub fn workdir_to_absolute(path: impl AsRef<Path>) -> PathBuf {
+    working_dir().join(path.as_ref())
+}
+
+pub fn to_relative<P, B>(path: P, base: B) -> PathBuf
+where P: AsRef<Path>, B: AsRef<Path>
+{
+    let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\'
+    let base_abs = PathAbs::new(base.as_ref()).unwrap();
+    if let Some(rel_path) = pathdiff::diff_paths(path_abs, base_abs) {
+        rel_path
     } else {
-        panic!("fatal: path {:?} is not in the repository", path.as_ref());
+        panic!("fatal: path {:?} cannot convert to relative based on {:?}", path.as_ref(), base.as_ref());
     }
+}
+
+pub fn calc_file_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
+    let file = fs::File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut hasher = Sha1::new();
+
+    let mut buffer = [0; 8192]; // 8K buffer
+    loop {
+        let count = reader.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+
+    let hash:[u8; 20] = hasher.finalize().into();
+    Ok(SHA1(hash))
+}
+
+/// List all files in the given dir and its subdir, except `.libra`
+pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    if path.is_dir() {
+        if path.file_name().unwrap_or_default() == ROOT_DIR {
+            // ignore `.libra`
+            return Ok(files);
+        }
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                // subdir
+                files.extend(list_files(&path)?);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    Ok(files)
+}
+
+/// list all files in the working dir(include subdir)
+pub fn list_workdir_files() -> io::Result<Vec<PathBuf>> {
+    list_files(&working_dir())
 }
 
 /// clean up the path
