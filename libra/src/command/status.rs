@@ -24,11 +24,10 @@ impl Changes {
     /// to relative path(to cur_dir)
     pub fn to_relative(&self) -> Changes {
         let mut change = self.clone();
-        let cur_dir = util::cur_dir();
         [&mut change.new, &mut change.modified, &mut change.deleted]
             .into_iter()
             .for_each(|paths| {
-                *paths = paths.iter().map(|p| util::to_relative(p, &cur_dir)).collect();
+                *paths = paths.iter().map(|p| util::workdir_to_current(p)).collect();
             });
         change
     }
@@ -146,7 +145,7 @@ pub fn changes_to_be_staged() -> Changes {
     let tracked_files = index.tracked_files();
     for file in tracked_files.iter() {
         let file_str = file.to_str().unwrap();
-        let file_abs = util::workdir_to_abs_path(file);
+        let file_abs = util::workdir_to_absolute(file);
         if !file_abs.exists() {
             changes.deleted.push(file.clone());
         } else if index.is_modified(file_str, 0) {
