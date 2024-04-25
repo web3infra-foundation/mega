@@ -72,7 +72,7 @@ pub fn to_workdir_path(path: impl AsRef<Path>) -> PathBuf {
 }
 
 /// Turn a workdir path to absolute path
-pub fn workdir_to_abs_path(path: impl AsRef<Path>) -> PathBuf {
+pub fn workdir_to_absolute(path: impl AsRef<Path>) -> PathBuf {
     working_dir().join(path.as_ref())
 }
 
@@ -110,8 +110,9 @@ where
     paths.iter().filter(|p| is_sub_of_paths(p.as_ref(), fit_paths)).cloned().collect()
 }
 
+/// `path` & `base` must be absolute or relative (to current dir)
 pub fn to_relative<P, B>(path: P, base: B) -> PathBuf
-where P: AsRef<Path>, B: AsRef<Path>
+    where P: AsRef<Path>, B: AsRef<Path>
 {
     let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
     let base_abs = PathAbs::new(base.as_ref()).unwrap();
@@ -126,6 +127,30 @@ where P: AsRef<Path>, B: AsRef<Path>
     } else {
         panic!("fatal: path {:?} cannot convert to relative based on {:?}", path.as_ref(), base.as_ref());
     }
+}
+
+/// Convert a path to relative path to the current directory
+/// - `path` must be absolute or relative (to current dir)
+pub fn to_current_dir<P>(path: P) -> PathBuf
+    where P: AsRef<Path>
+{
+    to_relative(path, cur_dir())
+}
+
+/// Convert a workdir path to relative path
+/// - `base` must be absolute or relative (to current dir)
+pub fn workdir_to_relative<P, B>(path: P, base: B) -> PathBuf
+    where P: AsRef<Path>, B: AsRef<Path>
+{
+    let path_abs = workdir_to_absolute(path);
+    to_relative(path_abs, base)
+}
+
+/// Convert a workdir path to relative path to the current directory
+pub fn workdir_to_current<P>(path: P) -> PathBuf
+    where P: AsRef<Path>
+{
+    workdir_to_relative(path, cur_dir())
 }
 
 pub fn calc_file_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
@@ -170,6 +195,7 @@ pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
 }
 
 /// list all files in the working dir(include subdir)
+/// - to workdir path
 pub fn list_workdir_files() -> io::Result<Vec<PathBuf>> {
     list_files(&working_dir())
 }

@@ -86,7 +86,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         return;
     }
 
-    let file_abs = util::workdir_to_abs_path(file);
+    let file_abs = util::workdir_to_absolute(file);
     let file_str = file.to_str().unwrap();
     if !file_abs.exists() {
         if index.tracked(file_str, 0) {

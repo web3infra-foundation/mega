@@ -158,7 +158,7 @@ impl IndexEntry {
         entry
     }
 
-    /// file must be in the libra repository
+    /// absolute or relative path (to current dir)
     pub fn new_from_file(file: &Path, hash: SHA1) -> io::Result<Self> {
         let meta = fs::symlink_metadata(file)?; // without following symlink
         let name = util::to_workdir_path(file).into_os_string().into_string().unwrap();
@@ -353,8 +353,8 @@ impl Index {
     // modified after last `add` (need hash to confirm content change)
     pub fn is_modified(&self, file: &str, stage: u8) -> bool {
         if let Some(entry) = self.get(file, stage) {
-            let path = Path::new(file);
-            let meta = path.symlink_metadata().unwrap();
+            let path_abs = util::workdir_to_absolute(Path::new(file));
+            let meta = path_abs.symlink_metadata().unwrap();
             // TODO more filed
             let same = entry.ctime == Time::from_system_time(meta.created().unwrap_or(SystemTime::now()))
             && entry.mtime == Time::from_system_time(meta.modified().unwrap_or(SystemTime::now()))
