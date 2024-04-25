@@ -194,7 +194,10 @@ async fn update_head(db: &sea_orm::DbConn, commit_id: &str) {
 mod test {
     use venus::internal::object::ObjectTrait;
 
-    use crate::{command::add::AddArgs, utils::test};
+    use crate::{
+        command::{add::AddArgs, load_object},
+        utils::test,
+    };
 
     use super::*;
 
@@ -251,7 +254,8 @@ mod test {
             assert!(branch.is_some());
             let commit_id = branch.unwrap().commit.unwrap();
             let storage = LocalStorage::init(path::objects());
-            let commit = load_commit(&commit_id, &storage).await;
+            let commit: Commit = load_object(&commit_id, &storage).await.unwrap();
+
             assert!(commit.message == "init");
             db.close().await.unwrap();
         }
@@ -285,26 +289,16 @@ mod test {
                 .unwrap();
             let commit_id = branch.unwrap().commit.unwrap();
             let storage = LocalStorage::init(path::objects());
-            let commit = load_commit(&commit_id, &storage).await;
+            let commit: Commit = load_object(&commit_id, &storage).await.unwrap();
             assert!(commit.message == "add some files");
 
             let pre_commit_id = commit.parent_commit_ids[0].to_plain_str();
-            let pre_commit = load_commit(&pre_commit_id, &storage).await;
+            let pre_commit: Commit = load_object(&pre_commit_id, &storage).await.unwrap();
             assert!(pre_commit.message == "init");
 
             let tree_id = commit.tree_id.to_plain_str();
-            let tree = load_tree(&tree_id, &storage).await;
+            let tree: Tree = load_object(&tree_id, &storage).await.unwrap();
             assert!(tree.tree_items.len() == 2); // 2 sub tree according to the test data
         }
-    }
-
-    async fn load_commit(id: &str, storage: &dyn FileStorage) -> Commit {
-        let commit_data = storage.get(id).await.unwrap();
-        Commit::from_bytes(commit_data.to_vec(), SHA1::from_str(id).unwrap()).unwrap()
-    }
-
-    async fn load_tree(id: &str, storage: &dyn FileStorage) -> Tree {
-        let tree_data = storage.get(id).await.unwrap();
-        Tree::from_bytes(tree_data.to_vec(), SHA1::from_str(id).unwrap()).unwrap()
     }
 }
