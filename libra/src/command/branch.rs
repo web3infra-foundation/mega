@@ -1,15 +1,4 @@
-use std::str::FromStr;
-use std::{collections::HashSet, path::PathBuf};
-
-use crate::model::reference::ActiveModel;
-use crate::model::{config, reference};
-use crate::{db::establish_connection, internal::index::Index, utils::util};
 use clap::Parser;
-use sea_orm::{ActiveModelTrait, Set};
-use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
-use venus::hash::SHA1;
-use venus::internal::object::commit::Commit;
-use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 #[derive(Parser, Debug)]
 #[command(about = "List, create, or delete branches")]

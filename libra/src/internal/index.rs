@@ -21,7 +21,6 @@ pub struct Time {
     nanos: u32,
 }
 impl Time {
-    #[allow(dead_code)]
     pub fn from_stream(stream: &mut impl Read) -> Result<Self, GitError> {
         let seconds = stream.read_u32::<BigEndian>()?;
         let nanos = stream.read_u32::<BigEndian>()?;
@@ -33,7 +32,6 @@ impl Time {
         UNIX_EPOCH + std::time::Duration::new(self.seconds.into(), self.nanos)
     }
 
-    #[allow(dead_code)]
     fn from_system_time(system_time: SystemTime) -> Self {
         match system_time.duration_since(UNIX_EPOCH) {
             Ok(duration) => {
@@ -62,7 +60,7 @@ pub struct Flags {
     pub stage: u8,        // 2-bit during merge
     pub name_length: u16, // 12-bit
 }
-
+// TODO From Trait
 impl Flags {
     pub fn new(name_len: u16) -> Self {
         Flags {
@@ -213,7 +211,6 @@ impl Index {
         let num = Index::check_header(file)?;
         let mut index = Index::new();
 
-        println!("number: {}", num);
         for _ in 0..num {
             let mut entry = IndexEntry {
                 ctime: Time::from_stream(file)?,
@@ -322,8 +319,11 @@ impl Index {
     }
 
     pub fn update(&mut self, entry: IndexEntry) {
-        self.entries
-            .insert((entry.name.clone(), entry.flags.stage), entry);
+        self.add(entry)
+    }
+
+    pub fn add(&mut self, entry: IndexEntry) {
+        self.entries.insert((entry.name.clone(), entry.flags.stage), entry);
     }
 
     pub fn remove(&mut self, name: &str, stage: u8) {
@@ -409,6 +409,7 @@ mod utils {
 
 #[cfg(test)]
 mod tests {
+    use path_abs::PathOps;
     use super::*;
     use crate::utils::test;
 
@@ -434,6 +435,14 @@ mod tests {
     fn test_index() {
         let index = Index::from_file("../tests/data/index/index-760").unwrap();
         assert_eq!(index.size(), 760);
+        for (_, entry) in index.entries.iter() {
+            println!("{}", entry);
+        }
+    }
+
+    #[test]
+    fn test_libra_index() {
+        let index = Index::from_file(PathBuf::from(test::TEST_DIR).join(".libra/index")).unwrap();
         for (_, entry) in index.entries.iter() {
             println!("{}", entry);
         }

@@ -9,6 +9,7 @@ use crate::internal::index::Index;
 use crate::utils::object_ext::{CommitExt, TreeExt};
 use crate::utils::util;
 
+/// path: to workdir
 #[derive(Debug, Default, Clone)]
 pub struct Changes {
     pub new: Vec<PathBuf>,
@@ -42,7 +43,7 @@ pub async fn execute() {
     if !util::check_repo_exist() {
         return;
     }
-
+    // TODO .gitignore
     match Head::current().await {
         Head::Detached(commit) => {
             println!("HEAD detached at {}", String::from_utf8_lossy(&commit.0[0..7]));
@@ -145,7 +146,7 @@ pub fn changes_to_be_staged() -> Changes {
     let tracked_files = index.tracked_files();
     for file in tracked_files.iter() {
         let file_str = file.to_str().unwrap();
-        let file_abs = util::workdir_to_absolute(file);
+        let file_abs = util::workdir_to_abs_path(file);
         if !file_abs.exists() {
             changes.deleted.push(file.clone());
         } else if index.is_modified(file_str, 0) {
@@ -156,7 +157,7 @@ pub fn changes_to_be_staged() -> Changes {
             }
         }
     }
-    let files = util::list_workdir_files().unwrap();
+    let files = util::list_workdir_files().unwrap(); // to workdir
     for file in files.iter() {
         if !index.tracked(file.to_str().unwrap(), 0) {
             // file not tracked in `index`
