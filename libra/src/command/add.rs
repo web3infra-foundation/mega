@@ -1,13 +1,18 @@
+use std::path::{Path, PathBuf};
 use clap::Parser;
+use venus::internal::object::blob::Blob;
+use crate::command::status;
+use crate::internal::index::{Index, IndexEntry};
+use crate::utils::object_ext::BlobExt;
 
 use crate::utils::util;
 
 #[derive(Parser, Debug)]
 #[command(about = "Add file contents to the index")]
 pub struct AddArgs {
-    /// <pathspec>... Files to add content from.
+    /// <pathspec>... files & dir to add content from.
     #[clap(required = false)]
-    files: Vec<String>,
+    pathspec: Vec<String>,
 
     /// Update the index not only where the working tree has a file matching <pathspec> but also where the index already has an entry. This adds, modifies, and removes index entries to match the working tree.
     ///
@@ -19,20 +24,107 @@ pub struct AddArgs {
     /// This removes as well as modifies index entries to match the working tree, but adds no new files.
     #[clap(short, long, group = "mode")]
     update: bool,
+
+    /// more detailed output
+    #[clap(short, long)]
+    verbose: bool,
 }
 
-pub async fn execute(mut args: AddArgs) {
-    if args.files.is_empty() {
+pub async fn execute(args: AddArgs) {
+    // TODO .gitignore
+    if !util::check_repo_exist() {
+        return;
+    }
+
+    // `String` to `PathBuf`
+    let mut paths: Vec<PathBuf> = args.pathspec.iter().map(PathBuf::from).collect();
+    if args.pathspec.is_empty() {
         if !args.all && !args.update {
             println!("Nothing specified, nothing added.");
+            return;
         } else {
             // add all files in the entire working tree
-            args.files.push(util::working_dir_string());
+            paths.push(util::working_dir());
+        } // '-A' and '-u' cannot be used together
+    }
+
+    // index vs worktree
+    let mut changes = status::changes_to_be_staged(); // to workdir
+    // filter paths to fit `pathspec` that user inputs
+    changes.new = util::filter_to_fit_paths(&changes.new, &paths);
+    // if `--all` & <pathspec> is given, it will update `index` as well, so no need to filter `deleted` & `modified`
+    if !(!args.pathspec.is_empty() && args.all) {
+        changes.modified = util::filter_to_fit_paths(&changes.modified, &paths);
+        changes.deleted = util::filter_to_fit_paths(&changes.deleted, &paths);
+    }
+
+    let mut files = changes.modified;
+    files.extend(changes.deleted);
+    // `--update` only operates on tracked files, not including `new` files
+    if !args.update {
+        files.extend(changes.new);
+    }
+
+    let mut index = Index::load().unwrap();
+    for file in &files {
+        add_a_file(file, &mut index, args.verbose).await;
+    }
+    index.save().unwrap();
+}
+
+/// `file` path must relative to the working directory
+async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
+    let workdir = util::working_dir();
+    if !util::is_sub_path(file, &workdir) {
+        // file is not in the working directory
+        println!("fatal: '{}' is outside workdir at '{}'", file.display(), workdir.display());
+        return;
+    }
+    if util::is_sub_path(file, &util::storage_path()) {
+        // file is in `.libra`
+        println!("fatal: '{}' is inside '{}' repo", file.display(), util::ROOT_DIR); // Git won't print this
+        return;
+    }
+
+    let file_abs = util::workdir_to_abs_path(file);
+    let file_str = file.to_str().unwrap();
+    if !file_abs.exists() {
+        if index.tracked(file_str, 0) {
+            // file is removed
+            index.remove(file_str, 0);
+            if verbose {
+                println!("removed: {}", file_str);
+            }
+        } else {
+            // file is not tracked && not exists, which means wrong pathspec
+            println!("fatal: pathspec '{}' did not match any files", file.display());
+        }
+    } else {
+        // file exists
+        if !index.tracked(file_str, 0) {
+            // file is not tracked
+            let blob = Blob::from_file(&file_abs);
+            blob.save().await;
+            index.add(IndexEntry::new_from_file(&file_abs, blob.id).unwrap());
+            if verbose {
+                println!("add(new): {}", file.display());
+            }
+        } else {
+            // file is tracked, maybe modified
+            if index.is_modified(file_str, 0) {
+                // file is modified(meta), but content may not change
+                let blob = Blob::from_file(&file_abs);
+                if !index.verify_hash(file_str, 0, &blob.id) {
+                    // content is changed
+                    blob.save().await;
+                    index.update(IndexEntry::new_from_file(&file_abs, blob.id).unwrap());
+                    if verbose {
+                        println!("add(modified): {}", file.display());
+                    }
+                }
+            }
         }
     }
-    let pathspec = util::pathspec_to_workpath(args.files);
-
-    unimplemented!(); // TODO
 }
 #[cfg(test)]
 mod test {

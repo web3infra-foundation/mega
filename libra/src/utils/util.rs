@@ -72,15 +72,55 @@ pub fn to_workdir_path(path: impl AsRef<Path>) -> PathBuf {
 }
 
 /// Turn a workdir path to absolute path
-pub fn workdir_to_absolute(path: impl AsRef<Path>) -> PathBuf {
+pub fn workdir_to_abs_path(path: impl AsRef<Path>) -> PathBuf {
     working_dir().join(path.as_ref())
+}
+
+/// Judge if the path is a sub path of the parent path
+/// - Not check existence
+/// - `true` if path == parent
+pub fn is_sub_path<P: AsRef<Path>>(path: P, parent: P) -> bool {
+    let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
+    let parent_abs = PathAbs::new(parent.as_ref()).unwrap();
+    path_abs.starts_with(parent_abs)
+}
+
+/// Judge if the `path` is sub-path of `paths`(include sub-dirs)
+/// - Not check existence
+pub fn is_sub_of_paths<P, U>(path: impl AsRef<Path>, paths: U) -> bool
+    where
+        P: AsRef<Path>,
+        U: IntoIterator<Item = P>,
+{
+    for p in paths {
+        if is_sub_path(path.as_ref(), p.as_ref()) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Filter paths to fit the given paths, include sub-dirs
+/// - return the paths that are sub-path of the fit paths
+/// - Not check existence
+pub fn filter_to_fit_paths<P>(paths: &Vec<P>, fit_paths: &Vec<P>) -> Vec<P>
+where
+    P: AsRef<Path> + Clone,
+{
+    paths.iter().filter(|p| is_sub_of_paths(p.as_ref(), fit_paths)).cloned().collect()
 }
 
 pub fn to_relative<P, B>(path: P, base: B) -> PathBuf
 where P: AsRef<Path>, B: AsRef<Path>
 {
-    let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\'
+    let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
     let base_abs = PathAbs::new(base.as_ref()).unwrap();
+    if cfg!(windows) {
+        assert_eq!( // just little check
+            path_abs.to_str().unwrap().starts_with(r"\\?\"),
+            base_abs.to_str().unwrap().starts_with(r"\\?\")
+        )
+    }
     if let Some(rel_path) = pathdiff::diff_paths(path_abs, base_abs) {
         rel_path
     } else {
@@ -107,6 +147,7 @@ pub fn calc_file_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
 }
 
 /// List all files in the given dir and its subdir, except `.libra`
+/// - to workdir path
 pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     if path.is_dir() {
@@ -121,7 +162,7 @@ pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
                 // subdir
                 files.extend(list_files(&path)?);
             } else {
-                files.push(path);
+                files.push(to_workdir_path(&path));
             }
         }
     }
@@ -194,6 +235,14 @@ pub fn path_to_string(path: &Path) -> String {
 mod test {
     use super::*;
     use crate::utils::test;
+
+    #[test]
+    fn test_is_sub_path() {
+        assert!(is_sub_path("src/main.rs", "src"));
+        assert!(is_sub_path("src/main.rs", "src/"));
+        assert!(is_sub_path("src/main.rs", "src/main.rs"));
+    }
+
     #[tokio::test]
     async fn test_pathspec_to_workpath_with_workdir() {
         test::setup_with_new_libra().await;

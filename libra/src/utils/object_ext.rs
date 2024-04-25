@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use storage::driver::file_storage::FileStorage;
 use venus::hash::SHA1;
+use venus::internal::object::blob::Blob;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::ObjectTrait;
 use venus::internal::object::tree::{Tree, TreeItemMode};
@@ -15,6 +16,11 @@ pub trait TreeExt {
 
 pub trait CommitExt {
     async fn load(hash: &SHA1) -> Commit;
+}
+
+pub trait BlobExt {
+    fn from_file(path: impl AsRef<Path>) -> Blob;
+    async fn save(&self) -> SHA1;
 }
 
 impl TreeExt for Tree {
@@ -54,5 +60,22 @@ impl CommitExt for Commit {
         let storage = util::objects_storage();
         let commit_data = storage.get(&hash.to_plain_str()).await.unwrap();
         Commit::from_bytes(commit_data.to_vec(), hash.clone()).unwrap()
+    }
+}
+
+impl BlobExt for Blob {
+    fn from_file(path: impl AsRef<Path>) -> Blob {
+        let file_content = std::fs::read_to_string(path).unwrap();
+        Blob::from_content(&file_content)
+    }
+
+    async fn save(&self) -> SHA1 {
+        let storage = util::objects_storage();
+        let id = self.id.to_plain_str();
+        if !storage.exist(&id) {
+            // TODO LocalStorage::put 使用了`write` 而不是 `write_all`，可能会导致写入不完整
+            storage.put(&id, self.data.len() as i64, &self.data).await.unwrap();
+        }
+        self.id.clone()
     }
 }
