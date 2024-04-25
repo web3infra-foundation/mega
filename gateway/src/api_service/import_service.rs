@@ -1,33 +1,36 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::async_trait;
 
 use jupiter::storage::git_db_storage::GitDbStorage;
 use venus::errors::GitError;
 
-use crate::model::objects::{LatestCommitInfo, TreeCommitInfo};
+use crate::model::objects::{LatestCommitInfo, TreeCommitInfo, TreeBriefInfo};
 
 use super::ApiHandler;
 
 #[derive(Clone)]
-pub struct ObjectService {
+pub struct ImportRepoService {
     pub storage: Arc<GitDbStorage>,
 }
 
 #[async_trait]
-impl ApiHandler for ObjectService {
-    async fn get_latest_commit(&self) -> Result<LatestCommitInfo, GitError> {
+impl ApiHandler for ImportRepoService {
+    async fn get_latest_commit(&self, _path: PathBuf) -> Result<LatestCommitInfo, GitError> {
         todo!()
     }
 
-    async fn get_tree_commit_info(&self) -> Result<TreeCommitInfo, GitError> {
+    async fn get_tree_info(&self, _path: PathBuf) -> Result<TreeBriefInfo, GitError> {
+        unimplemented!()
+    }
+
+    async fn get_tree_commit_info(&self, _path: PathBuf) -> Result<TreeCommitInfo, GitError> {
         unimplemented!()
     }
 }
 
-// const SIGNATURE_END: &str = "-----END PGP SIGNATURE-----";
 
-impl ObjectService {
+impl ImportRepoService {
     // pub async fn get_blob_objects(
     //     &self,
     //     object_id: &str,
@@ -222,15 +225,3 @@ impl ObjectService {
     //     Ok(Json(counter))
     // }
 }
-
-// pub mod utils {
-//     pub(crate) fn remove_useless_str(content: String, remove_str: String) -> String {
-//         if let Some(index) = content.find(&remove_str) {
-//             let filtered_text = &content[index + remove_str.len()..].replace('\n', "");
-//             let truncated_text = filtered_text.chars().take(50).collect::<String>();
-//             truncated_text.to_owned()
-//         } else {
-//             "".to_owned()
-//         }
-//     }
-// }

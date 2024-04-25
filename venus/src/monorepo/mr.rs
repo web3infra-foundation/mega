@@ -72,7 +72,7 @@ impl From<mega_mr::Model> for MergeRequest {
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MergeOperation {
-    pub message: Option<String>,
+    pub comment: Option<String>,
     pub mr_id: i64,
 }
 

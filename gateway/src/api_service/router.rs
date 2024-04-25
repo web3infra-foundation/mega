@@ -8,13 +8,17 @@ use axum::{
     Json, Router,
 };
 
+
 use ganymede::model::create_file::CreateFileInfo;
 use jupiter::storage::{git_db_storage::GitDbStorage, mega_storage::MegaStorage};
 use venus::monorepo::mr::{MergeOperation, MergeResult};
 
-use crate::api_service::ApiHandler;
-use crate::{api_service::mono_service::MonorepoService, model::objects::LatestCommitInfo};
-use crate::{api_service::obj_service::ObjectService, model::query::CodePreviewQuery};
+use crate::{
+    api_service::mono_service::MonorepoService,
+    model::objects::{LatestCommitInfo, TreeCommitInfo},
+};
+use crate::{api_service::import_service::ImportRepoService, model::query::CodePreviewQuery};
+use crate::{api_service::ApiHandler, model::objects::TreeBriefInfo};
 
 #[derive(Clone)]
 pub struct ApiServiceState {
@@ -32,7 +36,7 @@ impl ApiServiceState {
     pub fn api_handler(&self, path: PathBuf) -> Box<dyn ApiHandler> {
         let import_dir = PathBuf::from(env::var("MEGA_IMPORT_DIRS").unwrap());
         if path.starts_with(import_dir.clone()) && path != import_dir {
-            Box::new(ObjectService {
+            Box::new(ImportRepoService {
                 storage: self.git_db_storage.clone(),
             })
         } else {
@@ -54,9 +58,10 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/create-file", post(create_file))
         .route("/merge", post(merge));
 
-    let preview_code = Router::new().route("/latest-commit", get(get_latest_commit))
-    .route("/tree-commit-info", get(get_latest_commit))
-    .route("/tree", get(get_latest_commit));
+    let preview_code = Router::new()
+        .route("/latest-commit", get(get_latest_commit))
+        .route("/tree-commit-info", get(get_tree_commit_info))
+        .route("/tree", get(get_tree_info));
 
     Router::new().merge(router_v1).merge(preview_code)
 }
@@ -110,7 +115,7 @@ async fn create_file(
 ) -> Result<Json<CreateFileInfo>, (StatusCode, String)> {
     state
         .monorepo()
-        .create_mega_file(json.clone())
+        .create_monorepo_file(json.clone())
         .await
         .unwrap();
     Ok(Json(json))
@@ -129,8 +134,32 @@ async fn get_latest_commit(
     state: State<ApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, (StatusCode, String)> {
     let res = state
-        .api_handler(query.path.into())
-        .get_latest_commit()
+        .api_handler(query.path.clone().into())
+        .get_latest_commit(query.path.into())
+        .await
+        .unwrap();
+    Ok(Json(res))
+}
+
+async fn get_tree_info(
+    Query(query): Query<CodePreviewQuery>,
+    state: State<ApiServiceState>,
+) -> Result<Json<TreeBriefInfo>, (StatusCode, String)> {
+    let res = state
+        .api_handler(query.path.clone().into())
+        .get_tree_info(query.path.into())
+        .await
+        .unwrap();
+    Ok(Json(res))
+}
+
+async fn get_tree_commit_info(
+    Query(query): Query<CodePreviewQuery>,
+    state: State<ApiServiceState>,
+) -> Result<Json<TreeCommitInfo>, (StatusCode, String)> {
+    let res = state
+        .api_handler(query.path.clone().into())
+        .get_tree_commit_info(query.path.into())
         .await
         .unwrap();
     Ok(Json(res))
