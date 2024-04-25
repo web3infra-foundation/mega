@@ -45,4 +45,13 @@ impl Model {
             .await
             .unwrap())
     }
+
+    pub async fn find_all_branches(db: &DbConn, remote: Option<&str>) -> Result<Vec<Self>, DbErr> {
+        Ok(Entity::find()
+            .filter(Column::Kind.eq(ConfigKind::Branch))
+            .filter(Column::Remote.eq(remote))
+            .all(db)
+            .await
+            .unwrap())
+    }
 }
