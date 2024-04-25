@@ -2,9 +2,9 @@ use clap::{Parser, Subcommand};
 
 mod command;
 mod db;
+mod internal;
 mod model;
 mod utils;
-mod internal;
 
 #[derive(Parser, Debug)]
 #[command(about = "Simulates git commands", version = "1.0")]
@@ -25,6 +25,8 @@ enum Commands {
     Add(command::add::AddArgs),
     #[command(about = "Show the working tree status")]
     Status,
+    #[command(about = "List, create, or delete branches")]
+    Branch(command::branch::BranchArgs),
 }
 
 #[tokio::main]
@@ -36,6 +38,7 @@ async fn main() {
         Commands::Commit(args) => command::commit::execute(args).await,
         Commands::Add(args) => command::add::execute(args).await,
         Commands::Status => command::status::execute().await,
+        Commands::Branch(args) => command::branch::execute(args).await,
     }
 }
 
