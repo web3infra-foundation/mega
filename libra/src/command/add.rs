@@ -12,22 +12,22 @@ use crate::utils::util;
 pub struct AddArgs {
     /// <pathspec>... files & dir to add content from.
     #[clap(required = false)]
-    pathspec: Vec<String>,
+    pub pathspec: Vec<String>,
 
     /// Update the index not only where the working tree has a file matching <pathspec> but also where the index already has an entry. This adds, modifies, and removes index entries to match the working tree.
     ///
     /// If no <pathspec> is given when -A option is used, all files in the entire working tree are updated
     #[clap(short = 'A', long, group = "mode")]
-    all: bool,
+    pub all: bool,
 
     /// Update the index just where it already has an entry matching <pathspec>.
     /// This removes as well as modifies index entries to match the working tree, but adds no new files.
     #[clap(short, long, group = "mode")]
-    update: bool,
+    pub update: bool,
 
     /// more detailed output
     #[clap(short, long)]
-    verbose: bool,
+    pub verbose: bool,
 }
 
 pub async fn execute(args: AddArgs) {

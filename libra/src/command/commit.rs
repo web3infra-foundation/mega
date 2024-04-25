@@ -194,7 +194,7 @@ async fn update_head(db: &sea_orm::DbConn, commit_id: &str) {
 mod test {
     use venus::internal::object::ObjectTrait;
 
-    use crate::utils::test;
+    use crate::{command::add::AddArgs, utils::test};
 
     use super::*;
 
@@ -221,27 +221,90 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_execute_commit_with_empty_index() {
+    #[should_panic]
+    async fn test_excute_commit_with_empty_index_fail() {
         test::setup_with_new_libra().await;
         let args = CommitArgs {
             message: "init".to_string(),
-            allow_empty: true,
+            allow_empty: false,
         };
         execute(args).await;
+    }
 
-        let db = get_db_conn().await.unwrap();
-        // check head branch exists
-        let head = reference::Model::current_head(&db).await.unwrap();
-        let branch = reference::Model::find_branch_by_name(&db, &head.name.unwrap())
-            .await
-            .unwrap();
-        assert!(branch.is_some());
-        let commit_id = branch.unwrap().commit.unwrap();
-        let storage = LocalStorage::init(path::objects());
-        let commit_data = storage.get(&commit_id).await.unwrap();
-        let commit =
-            Commit::from_bytes(commit_data.to_vec(), SHA1::from_str(&commit_id).unwrap()).unwrap();
-        assert!(commit.message == "init");
-        println!("commit tree: {:?}", commit.tree_id);
+    #[tokio::test]
+    async fn test_execute_commit() {
+        test::setup_with_new_libra().await;
+        // create first empty commit
+        {
+            let args = CommitArgs {
+                message: "init".to_string(),
+                allow_empty: true,
+            };
+            execute(args).await;
+
+            let db = get_db_conn().await.unwrap();
+            // check head branch exists
+            let head = reference::Model::current_head(&db).await.unwrap();
+            let branch = reference::Model::find_branch_by_name(&db, &head.name.unwrap())
+                .await
+                .unwrap();
+            assert!(branch.is_some());
+            let commit_id = branch.unwrap().commit.unwrap();
+            let storage = LocalStorage::init(path::objects());
+            let commit = load_commit(&commit_id, &storage).await;
+            assert!(commit.message == "init");
+            db.close().await.unwrap();
+        }
+        // create a new commit
+        {
+            // create `a.txt` `bb/b.txt` `bb/c.txt`
+            test::ensure_file("a.txt", Some("a"));
+            test::ensure_file("bb/b.txt", Some("b"));
+            test::ensure_file("bb/c.txt", Some("c"));
+            let args = AddArgs {
+                all: true,
+                update: false,
+                verbose: false,
+                pathspec: vec![],
+            };
+            crate::command::add::execute(args).await;
+        }
+
+        {
+            let args = CommitArgs {
+                message: "add some files".to_string(),
+                allow_empty: false,
+            };
+            execute(args).await;
+
+            let db = get_db_conn().await.unwrap();
+            // check head branch exists
+            let head = reference::Model::current_head(&db).await.unwrap();
+            let branch = reference::Model::find_branch_by_name(&db, &head.name.unwrap())
+                .await
+                .unwrap();
+            let commit_id = branch.unwrap().commit.unwrap();
+            let storage = LocalStorage::init(path::objects());
+            let commit = load_commit(&commit_id, &storage).await;
+            assert!(commit.message == "add some files");
+
+            let pre_commit_id = commit.parent_commit_ids[0].to_plain_str();
+            let pre_commit = load_commit(&pre_commit_id, &storage).await;
+            assert!(pre_commit.message == "init");
+
+            let tree_id = commit.tree_id.to_plain_str();
+            let tree = load_tree(&tree_id, &storage).await;
+            assert!(tree.tree_items.len() == 2); // 2 sub tree according to the test data
+        }
+    }
+
+    async fn load_commit(id: &str, storage: &dyn FileStorage) -> Commit {
+        let commit_data = storage.get(id).await.unwrap();
+        Commit::from_bytes(commit_data.to_vec(), SHA1::from_str(id).unwrap()).unwrap()
+    }
+
+    async fn load_tree(id: &str, storage: &dyn FileStorage) -> Tree {
+        let tree_data = storage.get(id).await.unwrap();
+        Tree::from_bytes(tree_data.to_vec(), SHA1::from_str(id).unwrap()).unwrap()
     }
 }
