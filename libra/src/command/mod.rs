@@ -3,6 +3,7 @@ pub mod branch;
 pub mod commit;
 pub mod init;
 pub mod status;
+pub mod remove;
 
 use std::str::FromStr;
 

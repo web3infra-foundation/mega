@@ -8,7 +8,6 @@ use crate::utils::object_ext::BlobExt;
 use crate::utils::util;
 
 #[derive(Parser, Debug)]
-#[command(about = "Add file contents to the index")]
 pub struct AddArgs {
     /// <pathspec>... files & dir to add content from.
     #[clap(required = false)]
@@ -77,12 +76,14 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
     let workdir = util::working_dir();
     if !util::is_sub_path(file, &workdir) {
         // file is not in the working directory
+        // TODO check this earlier, once fatal occurs, nothing should be done
         println!("fatal: '{}' is outside workdir at '{}'", file.display(), workdir.display());
         return;
     }
     if util::is_sub_path(file, &util::storage_path()) {
         // file is in `.libra`
-        println!("fatal: '{}' is inside '{}' repo", file.display(), util::ROOT_DIR); // Git won't print this
+        // Git won't print this
+        println!("warning: '{}' is inside '{}' repo, which will be ignored by `add`", file.display(), util::ROOT_DIR);
         return;
     }
 
@@ -96,6 +97,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
                 println!("removed: {}", file_str);
             }
         } else {
+            // TODO do this check earlier, once fatal occurs, nothing should be done
             // file is not tracked && not exists, which means wrong pathspec
             println!("fatal: pathspec '{}' did not match any files", file.display());
         }
