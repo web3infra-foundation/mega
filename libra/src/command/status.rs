@@ -52,6 +52,10 @@ pub async fn execute() {
         }
     }
 
+    if Head::current_commit().await.is_none() {
+        println!("\nNo commits yet\n");
+    }
+
     // to cur_dir relative path
     let staged = changes_to_be_committed().await.to_relative();
     let unstaged = changes_to_be_staged().to_relative();
@@ -80,6 +84,7 @@ pub async fn execute() {
     if !unstaged.deleted.is_empty() || !unstaged.modified.is_empty() {
         println!("Changes not staged for commit:");
         println!("  use \"libra add <file>...\" to update what will be committed");
+        println!("  use \"libra restore <file>...\" to discard changes in working directory");
         unstaged.deleted.iter().for_each(|f| {
             let str = format!("\tdeleted: {}", f.display());
             println!("{}", str.bright_red());

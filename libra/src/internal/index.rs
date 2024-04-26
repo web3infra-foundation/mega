@@ -350,7 +350,7 @@ impl Index {
             false
         }
     }
-    // modified after last `add` (need hash to confirm content change)
+    /// is file modified after last `add` (need hash to confirm content change)
     pub fn is_modified(&self, file: &str, stage: u8) -> bool {
         if let Some(entry) = self.get(file, stage) {
             let path_abs = util::workdir_to_absolute(Path::new(file));

@@ -27,6 +27,8 @@ enum Commands {
     Status,
     #[command(about = "List, create, or delete branches")]
     Branch(command::branch::BranchArgs),
+    #[command(about = "Remove files from the working tree and from the index")]
+    Rm(command::remove::RemoveArgs),
 }
 
 #[tokio::main]
@@ -39,6 +41,7 @@ async fn main() {
         Commands::Add(args) => command::add::execute(args).await,
         Commands::Status => command::status::execute().await,
         Commands::Branch(args) => command::branch::execute(args).await,
+        Commands::Rm(args) => command::remove::execute(args),
     }
 }
 

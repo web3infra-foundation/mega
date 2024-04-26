@@ -16,7 +16,6 @@ use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::internal::object::ObjectTrait;
 
 #[derive(Parser, Debug)]
-#[command(about = "Record changes to the repository")]
 pub struct CommitArgs {
     #[arg(short, long)]
     pub message: String,

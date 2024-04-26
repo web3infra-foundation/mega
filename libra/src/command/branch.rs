@@ -12,7 +12,6 @@ use crate::{
 };
 
 #[derive(Parser, Debug)]
-#[command(about = "List, create, or delete branches")]
 pub struct BranchArgs {
     /// new branch name
     #[clap(group = "sub")]
