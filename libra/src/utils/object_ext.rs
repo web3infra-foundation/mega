@@ -73,8 +73,7 @@ impl BlobExt for Blob {
         let storage = util::objects_storage();
         let id = self.id.to_plain_str();
         if !storage.exist(&id) {
-            // TODO LocalStorage::put 使用了`write` 而不是 `write_all`，可能会导致写入不完整
-            storage.put(&id, self.data.len() as i64, &self.data).await.unwrap();
+            storage.put(&id, 0, &self.data).await.unwrap();
         }
         self.id.clone()
     }

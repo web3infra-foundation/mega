@@ -15,6 +15,7 @@ use crate::driver::file_storage::remote_storage::RemoteStorage;
 pub mod local_storage;
 pub mod remote_storage;
 pub mod s3_service;
+pub mod client_storage;
 
 #[async_trait]
 pub trait FileStorage: Sync + Send {

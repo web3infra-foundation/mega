@@ -9,7 +9,7 @@ use crate::{internal::index::Index, utils::util};
 use clap::Parser;
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{ActiveModelTrait, Set};
-use storage::driver::file_storage::{local_storage::LocalStorage, FileStorage};
+use storage::driver::file_storage::{client_storage::ClientStorage, FileStorage};
 use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
@@ -27,7 +27,7 @@ pub struct CommitArgs {
 pub async fn execute(args: CommitArgs) {
     /* check args */
     let index = Index::load().unwrap();
-    let storage = LocalStorage::init(path::objects());
+    let storage = ClientStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
         panic!("fatal: no changes added to commit, use --allow-empty to override");
@@ -205,7 +205,7 @@ mod test {
         let index = Index::from_file("../tests/data/index/index-760").unwrap();
         println!("{:?}", index.tracked_entries(0).len());
         test::setup_with_new_libra().await;
-        let storage = LocalStorage::init(path::objects());
+        let storage = ClientStorage::init(path::objects());
         let tree = create_tree(&index, &storage, "".into()).await;
 
         assert!(storage.get(&tree.id.to_plain_str()).await.is_ok());
@@ -252,7 +252,7 @@ mod test {
                 .unwrap();
             assert!(branch.is_some());
             let commit_id = branch.unwrap().commit.unwrap();
-            let storage = LocalStorage::init(path::objects());
+            let storage = ClientStorage::init(path::objects());
             let commit: Commit = load_object(&commit_id, &storage).await.unwrap();
 
             assert!(commit.message == "init");
@@ -287,7 +287,7 @@ mod test {
                 .await
                 .unwrap();
             let commit_id = branch.unwrap().commit.unwrap();
-            let storage = LocalStorage::init(path::objects());
+            let storage = ClientStorage::init(path::objects());
             let commit: Commit = load_object(&commit_id, &storage).await.unwrap();
             assert!(commit.message == "add some files");
 
