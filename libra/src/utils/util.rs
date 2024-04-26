@@ -3,7 +3,7 @@ use std::{env, fs, io};
 use std::io::{BufReader, Read};
 use path_abs::{PathAbs, PathInfo};
 use sha1::{Digest, Sha1};
-use storage::driver::file_storage::local_storage::LocalStorage;
+use storage::driver::file_storage::client_storage::ClientStorage;
 use venus::hash::SHA1;
 use crate::utils::path;
 
@@ -47,9 +47,9 @@ pub fn check_repo_exist() -> bool {
     true
 }
 
-/// Get `LocalStorage` for the `objects` directory
-pub fn objects_storage() -> LocalStorage {
-    LocalStorage::init(path::objects())
+/// Get `ClientStorage` for the `objects` directory
+pub fn objects_storage() -> ClientStorage {
+    ClientStorage::init(path::objects())
 }
 
 /// Get the working directory of the repository

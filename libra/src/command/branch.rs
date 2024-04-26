@@ -1,7 +1,7 @@
 use clap::Parser;
 use colored::Colorize;
 use sea_orm::{ActiveModelTrait, Set};
-use storage::driver::file_storage::local_storage::LocalStorage;
+use storage::driver::file_storage::client_storage::ClientStorage;
 use venus::internal::object::commit::Commit;
 
 use crate::{
@@ -77,7 +77,7 @@ async fn create_branch(new_branch: String, commit_hash: Option<String>) {
     };
 
     // check if commit_hash exists
-    let storage = LocalStorage::init(path::objects());
+    let storage = ClientStorage::init(path::objects());
     let _ = load_object::<Commit>(&commit_hash, &storage)
         .await
         .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{}'", commit_hash));
