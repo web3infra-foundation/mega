@@ -48,17 +48,17 @@ pub async fn execute(args: BranchArgs) {
     }
 }
 
-async fn create_branch(new_branch: String, commit_hash: Option<String>) {
+async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
     // commit hash maybe a branch name
     let db = db::get_db_conn().await.unwrap();
-    let commit_hash = match commit_hash {
-        Some(commit_hash) => {
-            let branch = reference::Model::find_branch_by_name(&db, &commit_hash)
+    let commit_hash = match branch_or_commit {
+        Some(branch_or_commit) => {
+            let branch = reference::Model::find_branch_by_name(&db, &branch_or_commit)
                 .await
                 .unwrap();
             match branch {
                 Some(branch) => branch.commit.unwrap(),
-                None => commit_hash,
+                None => branch_or_commit,
             }
         }
         None => {

@@ -136,18 +136,10 @@ async fn create_tree(index: &Index, storage: &dyn FileStorage, current_root: Pat
 
 /// get current head commit id as parent, if in branch, get branch's commit id, if detached head, get head's commit id
 async fn get_parents_ids(db: &sea_orm::DbConn) -> Vec<SHA1> {
-    let head = reference::Model::current_head(db).await.unwrap();
-    match head.name {
-        Some(name) => {
-            let commit = reference::Model::find_branch_by_name(db, name.as_str())
-                .await
-                .unwrap();
-            match commit {
-                Some(commit) => vec![SHA1::from_str(commit.commit.unwrap().as_str()).unwrap()],
-                None => vec![], // empty branch, first commit
-            }
-        }
-        None => vec![SHA1::from_str(head.commit.unwrap().as_str()).unwrap()],
+    let current_commit_id = reference::Model::current_commit_hash(db).await.unwrap();
+    match current_commit_id {
+        Some(id) => vec![SHA1::from_str(id.as_str()).unwrap()],
+        None => vec![], // first commit
     }
 }
 
@@ -282,11 +274,10 @@ mod test {
 
             let db = get_db_conn().await.unwrap();
             // check head branch exists
-            let head = reference::Model::current_head(&db).await.unwrap();
-            let branch = reference::Model::find_branch_by_name(&db, &head.name.unwrap())
+            let commit_id = reference::Model::current_commit_hash(&db)
                 .await
+                .unwrap()
                 .unwrap();
-            let commit_id = branch.unwrap().commit.unwrap();
             let storage = ClientStorage::init(path::objects());
             let commit: Commit = load_object(&commit_id, &storage).await.unwrap();
             assert!(commit.message == "add some files");
