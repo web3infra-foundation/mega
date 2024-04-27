@@ -381,6 +381,33 @@ impl Index {
         self.tracked_entries(0).iter().map(|entry| PathBuf::from(&entry.name)).collect()
     }
 
+    /// Judge if the file(s) of `dir` is in the index
+    /// - false if `dir` is a file
+    pub fn contains_dir_file(&self, dir: &str) -> bool {
+        let dir = Path::new(dir);
+        self.entries.iter().any(|((name, _), _)| {
+            let path = Path::new(name);
+            path.starts_with(dir) && path != dir
+        })
+    }
+
+    /// remove all files in `dir` from index
+    /// - do nothing if `dir` is a file
+    pub fn remove_dir_files(&mut self, dir: &str) -> Vec<String> {
+        let dir = Path::new(dir);
+        let mut removed = Vec::new();
+        self.entries.retain(|(name, _), _| {
+            let path = Path::new(name);
+            if path.starts_with(dir) && path != dir {
+                removed.push(name.clone());
+                false
+            } else {
+                true
+            }
+        });
+        removed
+    }
+
     /// saved to index file
     pub fn save(&self) -> Result<(), GitError> {
         self.to_file(path::index())

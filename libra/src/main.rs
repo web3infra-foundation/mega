@@ -48,7 +48,7 @@ async fn main() {
         Commands::Add(args) => command::add::execute(args).await,
         Commands::Status => command::status::execute().await,
         Commands::Branch(args) => command::branch::execute(args).await,
-        Commands::Rm(args) => command::remove::execute(args),
+        Commands::Rm(args) => command::remove::execute(args).unwrap(),
         Commands::Log(args) => command::log::execute(args).await,
     }
 }
