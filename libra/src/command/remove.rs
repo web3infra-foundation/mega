@@ -40,7 +40,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     for path_str in args.pathspec.iter() {
         let path = PathBuf::from(path_str);
         let path_wd = path.to_workdir().to_string_or_panic();
-        if dirs.contains(&path_str) {
+        if dirs.contains(path_str) {
             // dir
             let removed = index.remove_dir_files(&path_wd);
             for file in removed.iter() { // to workdir
@@ -64,7 +64,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
 
 /// check if pathspec is all valid(in index)
 /// - if path is a dir, check if any file in the dir is in index
-fn validate_pathspec(pathspec: &Vec<String>, index: &Index) -> bool {
+fn validate_pathspec(pathspec: &[String], index: &Index) -> bool {
     if pathspec.is_empty() {
         println!("fatal: No pathspec was given. Which files should I remove?");
         return false;
@@ -85,7 +85,7 @@ fn validate_pathspec(pathspec: &Vec<String>, index: &Index) -> bool {
 }
 
 /// run after `validate_pathspec`
-fn get_dirs(pathspec: &Vec<String>, index: &Index) -> Vec<String> {
+fn get_dirs(pathspec: &[String], index: &Index) -> Vec<String> {
     let mut dirs = Vec::new();
     for path_str in pathspec.iter() {
         let path = PathBuf::from(path_str);

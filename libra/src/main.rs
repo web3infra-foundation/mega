@@ -1,6 +1,4 @@
 use clap::{Parser, Subcommand};
-#[cfg(unix)]
-use pager::Pager;
 
 mod command;
 mod db;
@@ -37,13 +35,6 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
-    #[cfg(unix)]
-    {
-        // init a pager to show the output
-        let mut pager = Pager::new();
-        pager.setup();
-    }
-
     let args = Cli::parse();
     // parse the command and execute the corresponding function with it's args
     match args.command {

@@ -27,7 +27,7 @@ impl Changes {
         [&mut change.new, &mut change.modified, &mut change.deleted]
             .into_iter()
             .for_each(|paths| {
-                *paths = paths.iter().map(|p| util::workdir_to_current(p)).collect();
+                *paths = paths.iter().map(util::workdir_to_current).collect();
             });
         change
     }

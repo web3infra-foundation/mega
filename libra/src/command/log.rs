@@ -8,6 +8,8 @@ use clap::Parser;
 use colored::Colorize;
 use std::collections::VecDeque;
 use venus::internal::object::commit::Commit;
+#[cfg(unix)]
+use pager::Pager;
 
 #[derive(Parser, Debug)]
 pub struct LogArgs {
@@ -46,6 +48,13 @@ async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
 }
 
 pub async fn execute(args: LogArgs) {
+    #[cfg(unix)]
+    {
+        // init a pager to show the output
+        let mut pager = Pager::new();
+        pager.setup();
+    }
+
     let db = db::get_db_conn().await.unwrap();
     let head = reference::Model::current_head(&db).await.unwrap();
 
