@@ -104,7 +104,7 @@ pub fn is_sub_of_paths<P, U>(path: impl AsRef<Path>, paths: U) -> bool
 /// Filter paths to fit the given paths, include sub-dirs
 /// - return the paths that are sub-path of the fit paths
 /// - Not check existence
-pub fn filter_to_fit_paths<P>(paths: &Vec<P>, fit_paths: &Vec<P>) -> Vec<P>
+pub fn filter_to_fit_paths<P>(paths: &[P], fit_paths: &Vec<P>) -> Vec<P>
 where
     P: AsRef<Path> + Clone,
 {

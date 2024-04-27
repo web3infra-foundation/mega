@@ -27,7 +27,7 @@ impl TreeExt for Tree {
     async fn load(hash: &SHA1) -> Tree {
         let storage = util::objects_storage();
         let tree_data = storage.get(&hash.to_plain_str()).await.unwrap();
-        Tree::from_bytes(tree_data.to_vec(), hash.clone()).unwrap()
+        Tree::from_bytes(tree_data.to_vec(), *hash).unwrap()
     }
 
     /// Get all the items in the tree recursively (to workdir path)
@@ -35,7 +35,7 @@ impl TreeExt for Tree {
         let mut items = Vec::new();
         for item in self.tree_items.iter() {
             if item.mode == TreeItemMode::Blob {
-                items.push((PathBuf::from(item.name.clone()), item.id.clone()));
+                items.push((PathBuf::from(item.name.clone()), item.id));
             } else {
                 let sub_tree = Tree::load(&item.id).await;
                 // let sub_entries = sub_tree.get_plain_items().await;
@@ -45,7 +45,7 @@ impl TreeExt for Tree {
                 items.append(
                     sub_entries
                         .iter()
-                        .map(|(path, hash)| (PathBuf::from(item.name.clone()).join(path), hash.clone()))
+                        .map(|(path, hash)| (PathBuf::from(item.name.clone()).join(path), *hash))
                         .collect::<Vec<(PathBuf, SHA1)>>()
                         .as_mut(),
                 );
@@ -59,7 +59,7 @@ impl CommitExt for Commit {
     async fn load(hash: &SHA1) -> Commit {
         let storage = util::objects_storage();
         let commit_data = storage.get(&hash.to_plain_str()).await.unwrap();
-        Commit::from_bytes(commit_data.to_vec(), hash.clone()).unwrap()
+        Commit::from_bytes(commit_data.to_vec(), *hash).unwrap()
     }
 }
 
@@ -75,6 +75,6 @@ impl BlobExt for Blob {
         if !storage.exist(&id) {
             storage.put(&id, 0, &self.data).await.unwrap();
         }
-        self.id.clone()
+        self.id
     }
 }
