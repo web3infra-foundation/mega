@@ -23,6 +23,8 @@ colored = "2.1.0"
 chrono.workspace = true
 path_abs = "0.5.1"
 pathdiff = "0.2.1"
+
+[target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
 
 [dev-dependencies]
