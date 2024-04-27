@@ -4,6 +4,7 @@ pub mod commit;
 pub mod init;
 pub mod status;
 pub mod remove;
+pub mod log;
 
 use std::str::FromStr;
 
