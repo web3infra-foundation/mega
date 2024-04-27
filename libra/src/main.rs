@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use pager::Pager;
 
 mod command;
 mod db;
@@ -29,10 +30,16 @@ enum Commands {
     Branch(command::branch::BranchArgs),
     #[command(about = "Remove files from the working tree and from the index")]
     Rm(command::remove::RemoveArgs),
+    #[command(about = "Show commit logs")]
+    Log(command::log::LogArgs),
 }
 
 #[tokio::main]
 async fn main() {
+    // init a pager to show the output
+    let mut pager = Pager::new();
+    pager.setup();
+
     let args = Cli::parse();
     // parse the command and execute the corresponding function with it's args
     match args.command {
@@ -42,6 +49,7 @@ async fn main() {
         Commands::Status => command::status::execute().await,
         Commands::Branch(args) => command::branch::execute(args).await,
         Commands::Rm(args) => command::remove::execute(args),
+        Commands::Log(args) => command::log::execute(args).await,
     }
 }
 
