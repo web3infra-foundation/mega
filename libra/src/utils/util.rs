@@ -86,6 +86,7 @@ pub fn is_sub_path<P: AsRef<Path>>(path: P, parent: P) -> bool {
 }
 
 /// Judge if the `path` is sub-path of `paths`(include sub-dirs)
+/// - absolute path or relative path to the current dir
 /// - Not check existence
 pub fn is_sub_of_paths<P, U>(path: impl AsRef<Path>, paths: U) -> bool
     where
