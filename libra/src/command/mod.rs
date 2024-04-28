@@ -16,18 +16,34 @@ where
     T: ObjectTrait,
 {
     let storage = util::objects_storage();
-    let data = storage.get(hash).unwrap();
+    let data = storage.get(hash)?;
     T::from_bytes(data.to_vec(), *hash)
 }
 
 // impl save for all objects
-fn save_object<T>(object: &T) -> Result<SHA1, venus::errors::GitError>
+fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), venus::errors::GitError>
 where
     T: ObjectTrait,
 {
     let storage = util::objects_storage();
     let data = object.to_data()?;
-    let hash = SHA1::from_type_and_data(object.get_type(), &data);
-    storage.put(&hash, &data, object.get_type()).unwrap();
-    Ok(hash)
+    storage.put(ojb_id, &data, object.get_type())?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::utils::test;
+    #[tokio::test]
+    async fn test_save_load_object() {
+        test::setup_with_new_libra().await;
+        let object = venus::internal::object::commit::Commit::from_tree_id(
+            venus::hash::SHA1::new(&vec![1; 20]),
+            vec![],
+            "Commit_1",
+        );
+        save_object(&object, &object.id).unwrap();
+        let _ = load_object::<venus::internal::object::commit::Commit>(&object.id).unwrap();
+    }
 }

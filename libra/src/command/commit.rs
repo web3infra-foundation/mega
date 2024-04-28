@@ -127,7 +127,7 @@ async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathB
         }
     };
     // save
-    let _ = save_object(&tree).unwrap();
+    save_object(&tree, &tree.id).unwrap();
     tree
 }
 
