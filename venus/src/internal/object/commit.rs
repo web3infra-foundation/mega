@@ -65,27 +65,6 @@ impl Display for Commit {
 }
 
 impl Commit {
-    pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
-        let mut data = Vec::new();
-
-        data.extend(b"tree ");
-        data.extend(self.tree_id.to_plain_str().as_bytes());
-        data.extend(&[0x0a]);
-
-        for parent_tree_id in &self.parent_commit_ids {
-            data.extend(b"parent ");
-            data.extend(parent_tree_id.to_plain_str().as_bytes());
-            data.extend(&[0x0a]);
-        }
-
-        data.extend(self.author.to_data()?);
-        data.extend(&[0x0a]);
-        data.extend(self.committer.to_data()?);
-        data.extend(&[0x0a]);
-        data.extend(self.message.as_bytes());
-
-        Ok(data)
-    }
 
     pub fn new(author: Signature, committer: Signature, tree_id: SHA1, parent_commit_ids: Vec<SHA1>, message: &str) -> Commit  {
         let mut commit = Commit {
@@ -184,5 +163,27 @@ impl ObjectTrait for Commit {
 
     fn get_size(&self) -> usize {
         0
+    }
+
+    fn to_data(&self) -> Result<Vec<u8>, GitError> {
+        let mut data = Vec::new();
+
+        data.extend(b"tree ");
+        data.extend(self.tree_id.to_plain_str().as_bytes());
+        data.extend(&[0x0a]);
+
+        for parent_tree_id in &self.parent_commit_ids {
+            data.extend(b"parent ");
+            data.extend(parent_tree_id.to_plain_str().as_bytes());
+            data.extend(&[0x0a]);
+        }
+
+        data.extend(self.author.to_data()?);
+        data.extend(&[0x0a]);
+        data.extend(self.committer.to_data()?);
+        data.extend(&[0x0a]);
+        data.extend(self.message.as_bytes());
+
+        Ok(data)
     }
 }

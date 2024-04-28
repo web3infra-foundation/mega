@@ -15,6 +15,8 @@ use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::internal::object::ObjectTrait;
 
+use super::save_object;
+
 #[derive(Parser, Debug)]
 pub struct CommitArgs {
     #[arg(short, long)]
@@ -125,8 +127,7 @@ async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathB
         }
     };
     // save
-    let data = tree.to_data().unwrap();
-    storage.put(&tree.id, &data, tree.get_type()).unwrap();
+    let _ = save_object(&tree).unwrap();
     tree
 }
 
