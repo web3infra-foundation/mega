@@ -57,7 +57,7 @@ pub async fn execute(args: RestoreArgs) {
                 if objs.len() != 1 { // TODO 判断objs[0]是否是commit!
                     None // Wrong Commit Hash
                 } else {
-                    Some(SHA1::from_str(&objs[0]).unwrap())
+                    Some(objs[0])
                 }
             }
         }
