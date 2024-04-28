@@ -134,7 +134,7 @@ mod tests {
             let data = commit.to_data().unwrap();
             let storage = util::objects_storage();
             storage
-                .put(&commit.id, &data)
+                .put(&commit.id, &data, commit.get_type())
                 .unwrap();
         }
         let storage = util::objects_storage();

@@ -5,8 +5,10 @@ use std::str::FromStr;
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
+use venus::errors::GitError;
 
 use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
 
 #[derive(Default)]
 pub struct ClientStorage {
@@ -31,6 +33,14 @@ impl ClientStorage {
             .unwrap()
     }
 
+    pub fn get_object_type(&self, obj_id: &SHA1) -> Result<ObjectType, GitError> {
+        let raw_data = self.read_raw_data(obj_id)?;
+        let data = Self::decompress_zlib(&raw_data)?;
+        let (obj_type, _, _) = Self::parse_header(&data);
+        ObjectType::from_string(&obj_type)
+    }
+
+    /// Search objects that start with `obj_id`
     pub fn search(&self, obj_id: &str) -> Vec<SHA1> {
         self.list_objects()
             .into_iter()
@@ -38,12 +48,13 @@ impl ClientStorage {
             .collect()
     }
 
+    /// list all objects' hash in `objects`
     pub fn list_objects(&self) -> Vec<SHA1> {
         let mut objects = Vec::new();
         let paths = fs::read_dir(&self.base_path).unwrap();
         for path in paths {
             let path = path.unwrap().path();
-            if path.is_dir() && path.file_name().unwrap().len() == 2 {
+            if path.is_dir() && path.file_name().unwrap().len() == 2 { // not very elegant
                 let sub_paths = fs::read_dir(&path).unwrap();
                 for sub_path in sub_paths {
                     let sub_path = sub_path.unwrap().path();
@@ -51,7 +62,7 @@ impl ClientStorage {
                         let parent_name = path.file_name().unwrap().to_str().unwrap().to_string();
                         let file_name = sub_path.file_name().unwrap().to_str().unwrap().to_string();
                         let file_name = parent_name + &file_name;
-                        objects.push(SHA1::from_str(&file_name).unwrap());
+                        objects.push(SHA1::from_str(&file_name).unwrap()); // this will check format, so don't worry
                     }
                 }
             }
@@ -60,7 +71,8 @@ impl ClientStorage {
     }
 }
 
-impl ClientStorage { // TODO 读写 压缩 deflate
+impl ClientStorage {
+    /// zlib header: 78 9C, but Git is 78 01
     fn compress_zlib(data: &[u8]) -> io::Result<Vec<u8>> {
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(data)?;
@@ -75,23 +87,49 @@ impl ClientStorage { // TODO 读写 压缩 deflate
         Ok(decompressed_data)
     }
 
-    pub fn get(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
+    fn parse_header(data: &[u8]) -> (String, usize, usize) {
+        let end_of_header = data.iter()
+            .position(|&b| b == b'\0')
+            .expect("Invalid object: no header terminator");
+        let header_str = std::str::from_utf8(&data[..end_of_header])
+            .expect("Invalid UTF-8 in header");
+
+        let mut parts = header_str.splitn(2, ' ');
+        let obj_type = parts.next().expect("No object type in header").to_string();
+        let size_str = parts.next().expect("No size in header");
+        let size = size_str.parse::<usize>().expect("Invalid size in header");
+        assert_eq!(size, data.len() - 1 - end_of_header, "Invalid object size");
+        (obj_type, size, end_of_header)
+    }
+
+    fn read_raw_data(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
         let path = Path::new(&self.base_path).join(self.transform_path(object_id));
         let mut file = fs::File::open(&path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
-        Self::decompress_zlib(&buffer)
+        Ok(buffer)
+    }
+
+    pub fn get(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
+        let raw_data = self.read_raw_data(object_id)?;
+        let data = Self::decompress_zlib(&raw_data)?;
+
+        // skip & check header
+        let (_, _, end_of_header) = Self::parse_header(&data);
+        Ok(data[end_of_header + 1..].to_vec())
     }
 
     /// Save content to `objects`
-    /// - `_size` is ignored
-    pub fn put(&self, obj_id: &SHA1, content: &[u8]) -> Result<String, io::Error> {
+    pub fn put(&self, obj_id: &SHA1, content: &[u8], obj_type: ObjectType) -> Result<String, io::Error> {
         let path = Path::new(&self.base_path).join(self.transform_path(obj_id));
         let dir = path.parent().unwrap();
         fs::create_dir_all(dir)?;
 
+        let header = format!("{} {}\0", obj_type.to_string(), content.len());
+        let full_content = [header.as_bytes().to_vec(), Vec::from(content)].concat();
+
         let mut file = fs::File::create(&path)?;
-        file.write_all(&Self::compress_zlib(content)?)?;
+        file.write_all(&Self::compress_zlib(&full_content)?)?;
         Ok(path.to_str().unwrap().to_string())
     }
 
@@ -107,6 +145,8 @@ mod tests {
     use std::path::PathBuf;
 
     use venus::internal::object::blob::Blob;
+    use venus::internal::object::ObjectTrait;
+    use venus::internal::object::types::ObjectType;
 
     use crate::utils::{test, util};
 
@@ -121,10 +161,7 @@ mod tests {
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage
-            .put(&blob.id, &blob.data)
-            .is_ok());
-
+        assert!(client_storage.put(&blob.id, &blob.data, blob.get_type()).is_ok());
         assert!(client_storage.exist(&blob.id));
 
         let data = client_storage.get(&blob.id).unwrap();
@@ -140,9 +177,7 @@ mod tests {
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage
-            .put(&blob.id, &blob.data)
-            .is_ok());
+        assert!(client_storage.put(&blob.id, &blob.data, blob.get_type()).is_ok());
 
         let objs = client_storage.search("5dd01c177");
 
@@ -160,5 +195,27 @@ mod tests {
         for obj in objs {
             println!("{}", obj);
         }
+    }
+
+    #[test]
+    fn test_get_obj_type() {
+        let blob = Blob::from_content("Hello, world!");
+
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/objects");
+
+        let client_storage = ClientStorage::init(source.clone());
+        assert!(client_storage.put(&blob.id, &blob.data, blob.get_type()).is_ok());
+
+        let obj_type = client_storage.get_object_type(&blob.id).unwrap();
+        assert_eq!(obj_type, ObjectType::Blob);
+    }
+
+    #[test]
+    fn test_decompress() {
+        let data = b"blob 13\0Hello, world!";
+        let compressed_data = ClientStorage::compress_zlib(data).unwrap();
+        let decompressed_data = ClientStorage::decompress_zlib(&compressed_data).unwrap();
+        assert_eq!(decompressed_data, data);
     }
 }
