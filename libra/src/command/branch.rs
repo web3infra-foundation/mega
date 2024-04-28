@@ -1,7 +1,8 @@
+use std::str::FromStr;
 use clap::Parser;
 use colored::Colorize;
 use sea_orm::{ActiveModelTrait, Set};
-use storage::driver::file_storage::client_storage::ClientStorage;
+use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 
 use crate::{
@@ -77,9 +78,7 @@ async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
     };
 
     // check if commit_hash exists
-    let storage = ClientStorage::init(path::objects());
-    let _ = load_object::<Commit>(&commit_hash, &storage)
-        .await
+    let _ = load_object::<Commit>(&SHA1::from_str(&commit_hash).unwrap())
         .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{}'", commit_hash));
 
     // create branch

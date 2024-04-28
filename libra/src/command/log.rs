@@ -9,6 +9,8 @@ use colored::Colorize;
 #[cfg(unix)]
 use pager::Pager;
 use std::collections::VecDeque;
+use std::str::FromStr;
+use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 
 #[derive(Parser, Debug)]
@@ -21,7 +23,6 @@ pub struct LogArgs {
 ///  Get all reachable commits from the given commit hash
 ///  **didn't consider the order of the commits**
 async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
-    let storage = util::objects_storage();
     let mut queue = VecDeque::new();
     let mut commit_set: HashSet<String> = HashSet::new(); // to avoid duplicate commits because of circular reference
     let mut reachable_commits: Vec<Commit> = Vec::new();
@@ -30,8 +31,7 @@ async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
     while !queue.is_empty() {
         let commit_id = queue.pop_front().unwrap();
 
-        let commit = load_object::<Commit>(&commit_id, &storage)
-            .await
+        let commit = load_object::<Commit>(&SHA1::from_str(&commit_id).unwrap())
             .expect("fatal: storage broken, object not found");
         if commit_set.contains(&commit_id) {
             continue;
@@ -129,43 +129,43 @@ mod tests {
     ///    1 -- 2    5
     //           \  / \
     ///            4   7
-    async fn create_test_commit_tree() -> String {
-        async fn save_commit(commit: &Commit, storage: &impl FileStorage) {
+    fn create_test_commit_tree() -> String {
+        fn save_commit(commit: &Commit) {
             let data = commit.to_data().unwrap();
+            let storage = util::objects_storage();
             storage
-                .put(&commit.id.to_plain_str(), data.len() as i64, &data)
-                .await
+                .put(&commit.id, &data)
                 .unwrap();
         }
         let storage = util::objects_storage();
         let commit_1 = Commit::from_tree_id(SHA1::new(&vec![1; 20]), vec![], "Commit_1");
 
-        save_commit(&commit_1, &storage).await;
+        save_commit(&commit_1);
         let commit_2 = Commit::from_tree_id(SHA1::new(&vec![2; 20]), vec![commit_1.id], "Commit_2");
-        save_commit(&commit_2, &storage).await;
+        save_commit(&commit_2);
 
         let commit_3 = Commit::from_tree_id(SHA1::new(&vec![3; 20]), vec![commit_2.id], "Commit_3");
-        save_commit(&commit_3, &storage).await;
+        save_commit(&commit_3);
 
         let commit_4 = Commit::from_tree_id(SHA1::new(&vec![4; 20]), vec![commit_2.id], "Commit_4");
-        save_commit(&commit_4, &storage).await;
+        save_commit(&commit_4);
 
         let commit_5 = Commit::from_tree_id(
             SHA1::new(&vec![5; 20]),
             vec![commit_2.id, commit_4.id],
             "Commit_5",
         );
-        save_commit(&commit_5, &storage).await;
+        save_commit(&commit_5);
 
         let commit_6 = Commit::from_tree_id(
             SHA1::new(&vec![6; 20]),
             vec![commit_3.id, commit_5.id],
             "Commit_6",
         );
-        save_commit(&commit_6, &storage).await;
+        save_commit(&commit_6);
 
         let commit_7 = Commit::from_tree_id(SHA1::new(&vec![7; 20]), vec![commit_5.id], "Commit_7");
-        save_commit(&commit_7, &storage).await;
+        save_commit(&commit_7);
 
         commit_6.id.to_plain_str()
     }
@@ -173,7 +173,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_reachable_commits() {
         test::setup_with_new_libra().await;
-        let commit_id = create_test_commit_tree().await;
+        let commit_id = create_test_commit_tree();
 
         let reachable_commits = get_reachable_commits(commit_id).await;
         assert_eq!(reachable_commits.len(), 6);

@@ -119,9 +119,9 @@ pub async fn changes_to_be_committed() -> Changes {
     }
 
     let head_commit = head_commit.unwrap();
-    let commit = Commit::load(&head_commit).await;
-    let tree = Tree::load(&commit.tree_id).await;
-    let tree_files = tree.get_plain_items().await;
+    let commit = Commit::load(&head_commit);
+    let tree = Tree::load(&commit.tree_id);
+    let tree_files = tree.get_plain_items();
 
     for (item_path, item_hash) in tree_files.iter() {
         let item_str = item_path.to_str().unwrap();

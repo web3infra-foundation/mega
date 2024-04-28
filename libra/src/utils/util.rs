@@ -3,8 +3,8 @@ use std::{env, fs, io};
 use std::io::{BufReader, Read};
 use path_abs::{PathAbs, PathInfo};
 use sha1::{Digest, Sha1};
-use storage::driver::file_storage::client_storage::ClientStorage;
 use venus::hash::SHA1;
+use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 
 pub const ROOT_DIR: &str = ".libra";

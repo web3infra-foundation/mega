@@ -11,14 +11,16 @@ use std::str::FromStr;
 
 use storage::driver::file_storage::FileStorage;
 use venus::{hash::SHA1, internal::object::ObjectTrait};
+use crate::utils::util;
+
 // impl load for all objects
-async fn load_object<T>(
-    hash: &str,
-    storage: &impl FileStorage,
+fn load_object<T>(
+    hash: &SHA1,
 ) -> Result<T, venus::errors::GitError>
 where
     T: ObjectTrait,
 {
-    let data = storage.get(hash).await.unwrap();
-    T::from_bytes(data.to_vec(), SHA1::from_str(hash).unwrap())
+    let storage = util::objects_storage();
+    let data = storage.get(hash).unwrap();
+    T::from_bytes(data.to_vec(), *hash)
 }

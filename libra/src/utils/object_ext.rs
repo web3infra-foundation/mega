@@ -10,37 +10,35 @@ use venus::internal::object::tree::{Tree, TreeItemMode};
 use crate::utils::util;
 
 pub trait TreeExt {
-    async fn load(hash: &SHA1) -> Tree;
-    async fn get_plain_items(&self) -> Vec<(PathBuf, SHA1)>;
+    fn load(hash: &SHA1) -> Tree;
+    fn get_plain_items(&self) -> Vec<(PathBuf, SHA1)>;
 }
 
 pub trait CommitExt {
-    async fn load(hash: &SHA1) -> Commit;
+    fn load(hash: &SHA1) -> Commit;
 }
 
 pub trait BlobExt {
     fn from_file(path: impl AsRef<Path>) -> Blob;
-    async fn save(&self) -> SHA1;
+    fn save(&self) -> SHA1;
 }
 
 impl TreeExt for Tree {
-    async fn load(hash: &SHA1) -> Tree {
+    fn load(hash: &SHA1) -> Tree {
         let storage = util::objects_storage();
-        let tree_data = storage.get(&hash.to_plain_str()).await.unwrap();
+        let tree_data = storage.get(&hash).unwrap();
         Tree::from_bytes(tree_data.to_vec(), *hash).unwrap()
     }
 
     /// Get all the items in the tree recursively (to workdir path)
-    async fn get_plain_items(&self) -> Vec<(PathBuf, SHA1)> {
+    fn get_plain_items(&self) -> Vec<(PathBuf, SHA1)> {
         let mut items = Vec::new();
         for item in self.tree_items.iter() {
             if item.mode == TreeItemMode::Blob {
                 items.push((PathBuf::from(item.name.clone()), item.id));
             } else {
-                let sub_tree = Tree::load(&item.id).await;
-                // let sub_entries = sub_tree.get_plain_items().await;
-                let sub_entries = Box::pin(sub_tree.get_plain_items()).await;
-                //TODO 异步递归可能有问题
+                let sub_tree = Tree::load(&item.id);
+                let sub_entries = sub_tree.get_plain_items();
 
                 items.append(
                     sub_entries
@@ -56,9 +54,9 @@ impl TreeExt for Tree {
 }
 
 impl CommitExt for Commit {
-    async fn load(hash: &SHA1) -> Commit {
+    fn load(hash: &SHA1) -> Commit {
         let storage = util::objects_storage();
-        let commit_data = storage.get(&hash.to_plain_str()).await.unwrap();
+        let commit_data = storage.get(&hash).unwrap();
         Commit::from_bytes(commit_data.to_vec(), *hash).unwrap()
     }
 }
@@ -69,11 +67,11 @@ impl BlobExt for Blob {
         Blob::from_content(&file_content)
     }
 
-    async fn save(&self) -> SHA1 {
+    fn save(&self) -> SHA1 {
         let storage = util::objects_storage();
-        let id = self.id.to_plain_str();
+        let id = self.id;
         if !storage.exist(&id) {
-            storage.put(&id, 0, &self.data).await.unwrap();
+            storage.put(&id, &self.data).unwrap();
         }
         self.id
     }
