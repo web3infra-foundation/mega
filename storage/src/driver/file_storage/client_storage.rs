@@ -31,6 +31,34 @@ impl ClientStorage {
             .into_string()
             .unwrap()
     }
+
+    pub fn search(&self, obj_id: &str) -> Vec<String> {
+        self.list_objects()
+            .into_iter()
+            .filter(|x| x.starts_with(obj_id))
+            .collect()
+    }
+
+    pub fn list_objects(&self) -> Vec<String> {
+        let mut objects = Vec::new();
+        let paths = fs::read_dir(&self.base_path).expect("Read directory failed!");
+        for path in paths {
+            let path = path.unwrap().path();
+            if path.is_dir() && path.file_name().unwrap().len() == 2 {
+                let sub_paths = fs::read_dir(&path).expect("Read directory failed!");
+                for sub_path in sub_paths {
+                    let sub_path = sub_path.unwrap().path();
+                    if sub_path.is_file() {
+                        let parent_name = path.file_name().unwrap().to_str().unwrap().to_string();
+                        let file_name = sub_path.file_name().unwrap().to_str().unwrap().to_string();
+                        let file_name = parent_name + &file_name;
+                        objects.push(file_name);
+                    }
+                }
+            }
+        }
+        objects
+    }
 }
 
 #[async_trait]
@@ -101,5 +129,30 @@ mod tests {
             .is_ok());
 
         assert!(client_storage.exist(&meta.oid));
+    }
+
+    #[tokio::test]
+    async fn test_search() {
+        let meta = MetaObject {
+            oid: "6ae8a75555209fd6c44157c0aed8016e763ff435a19cf186f76863140143ff72".to_owned(),
+            size: 12,
+            exist: false,
+        };
+
+        let content = "test content".as_bytes().to_vec();
+
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/objects");
+
+        let client_storage = ClientStorage::init(source.clone());
+        assert!(client_storage
+            .put(&meta.oid, meta.size, &content)
+            .await
+            .is_ok());
+
+        let objs = client_storage.search("6ae8a755");
+        println!("{:?}", objs);
+
+        assert_eq!(objs.len(), 1);
     }
 }
