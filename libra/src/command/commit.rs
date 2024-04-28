@@ -240,7 +240,6 @@ mod test {
                 .unwrap();
             assert!(branch.is_some());
             let commit_id = branch.unwrap().commit.unwrap();
-            let storage = ClientStorage::init(path::objects());
             let commit: Commit = load_object(&SHA1::from_str(&commit_id).unwrap()).unwrap();
 
             assert!(commit.message == "init");

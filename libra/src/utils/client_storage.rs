@@ -104,7 +104,7 @@ impl ClientStorage {
 
     fn read_raw_data(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
         let path = Path::new(&self.base_path).join(self.transform_path(object_id));
-        let mut file = fs::File::open(&path)?;
+        let mut file = fs::File::open(path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
         Ok(buffer)
@@ -125,7 +125,7 @@ impl ClientStorage {
         let dir = path.parent().unwrap();
         fs::create_dir_all(dir)?;
 
-        let header = format!("{} {}\0", obj_type.to_string(), content.len());
+        let header = format!("{} {}\0", obj_type, content.len());
         let full_content = [header.as_bytes().to_vec(), Vec::from(content)].concat();
 
         let mut file = fs::File::create(&path)?;
