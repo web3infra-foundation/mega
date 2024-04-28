@@ -77,6 +77,10 @@ impl ObjectTrait for Blob {
     fn get_size(&self) -> usize {
         self.data.len()
     }
+
+    fn to_data(&self) -> Result<Vec<u8>, GitError> {
+        Ok(self.data.clone())
+    }
 }
 
 impl Blob {
@@ -99,6 +103,9 @@ mod tests {
     fn test_blob_from_content() {
         let content = "Hello, world!";
         let blob = Blob::from_content(content);
-        assert_eq!(blob.id.to_string(), "5dd01c177f5d7d1be5346a5bc18a569a7410c2ef");
+        assert_eq!(
+            blob.id.to_string(),
+            "5dd01c177f5d7d1be5346a5bc18a569a7410c2ef"
+        );
     }
 }

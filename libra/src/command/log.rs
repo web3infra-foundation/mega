@@ -138,13 +138,10 @@ pub async fn execute(args: LogArgs) {
 mod tests {
 
     use super::*;
-    use crate::utils::{test, util};
+    use crate::{command::save_object, utils::test};
     use sea_orm::{ActiveModelTrait, Set};
     use tests::reference::ActiveModel;
-    use venus::{
-        hash::SHA1,
-        internal::object::{commit::Commit, ObjectTrait},
-    };
+    use venus::{hash::SHA1, internal::object::commit::Commit};
 
     /// create a test commit tree structure as graph and create branch (master) head to commit 6
     /// return a commit hash of commit 6
@@ -154,29 +151,25 @@ mod tests {
     //           \  / \
     ///            4   7
     async fn create_test_commit_tree() -> String {
-        fn save_commit(commit: &Commit) {
-            let data = commit.to_data().unwrap();
-            let storage = util::objects_storage();
-            storage.put(&commit.id, &data, commit.get_type()).unwrap();
-        }
         let mut commit_1 = Commit::from_tree_id(SHA1::new(&vec![1; 20]), vec![], "Commit_1");
         commit_1.committer.timestamp = 1;
-        save_commit(&commit_1);
+        // save_object(&commit_1);
+        let _ = save_object(&commit_1);
 
         let mut commit_2 =
             Commit::from_tree_id(SHA1::new(&vec![2; 20]), vec![commit_1.id], "Commit_2");
         commit_2.committer.timestamp = 2;
-        save_commit(&commit_2);
+        let _ = save_object(&commit_2);
 
         let mut commit_3 =
             Commit::from_tree_id(SHA1::new(&vec![3; 20]), vec![commit_2.id], "Commit_3");
         commit_3.committer.timestamp = 3;
-        save_commit(&commit_3);
+        let _ = save_object(&commit_3);
 
         let mut commit_4 =
             Commit::from_tree_id(SHA1::new(&vec![4; 20]), vec![commit_2.id], "Commit_4");
         commit_4.committer.timestamp = 4;
-        save_commit(&commit_4);
+        let _ = save_object(&commit_4);
 
         let mut commit_5 = Commit::from_tree_id(
             SHA1::new(&vec![5; 20]),
@@ -184,7 +177,7 @@ mod tests {
             "Commit_5",
         );
         commit_5.committer.timestamp = 5;
-        save_commit(&commit_5);
+        let _ = save_object(&commit_5);
 
         let mut commit_6 = Commit::from_tree_id(
             SHA1::new(&vec![6; 20]),
@@ -192,12 +185,12 @@ mod tests {
             "Commit_6",
         );
         commit_6.committer.timestamp = 6;
-        save_commit(&commit_6);
+        let _ = save_object(&commit_6);
 
         let mut commit_7 =
             Commit::from_tree_id(SHA1::new(&vec![7; 20]), vec![commit_5.id], "Commit_7");
         commit_7.committer.timestamp = 7;
-        save_commit(&commit_7);
+        let _ = save_object(&commit_7);
 
         // set current branch head to commit 6
         let db = db::get_db_conn().await.unwrap();
