@@ -31,6 +31,8 @@ enum Commands {
     Rm(command::remove::RemoveArgs),
     #[command(about = "Show commit logs")]
     Log(command::log::LogArgs),
+    #[command(about = "Restore working tree files")]
+    Restore(command::restore::RestoreArgs),
 }
 
 #[tokio::main]
@@ -45,6 +47,7 @@ async fn main() {
         Commands::Branch(args) => command::branch::execute(args).await,
         Commands::Rm(args) => command::remove::execute(args).unwrap(),
         Commands::Log(args) => command::log::execute(args).await,
+        Commands::Restore(args) => command::restore::execute(args).await,
     }
 }
 

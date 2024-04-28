@@ -3,6 +3,7 @@ use sea_orm::DbConn;
 use tokio::sync::OnceCell;
 use venus::hash::SHA1;
 use crate::db;
+use crate::internal::branch::Branch;
 use crate::model::reference;
 
 // singleton pattern
@@ -40,19 +41,7 @@ impl Head {
         match Self::current().await {
             Head::Detached(commit_hash) => Some(commit_hash),
             Head::Branch(name) => {
-                let db_conn = get_db_conn().await;
-                let branch = reference::Model::find_branch_by_name(db_conn, name.as_str())
-                    .await
-                    .unwrap();
-                match branch {
-                    Some(branch) => {
-                        let commit_hash = branch.commit.expect("branch without commit");
-                        Some(SHA1::from_str(commit_hash.as_str()).unwrap())
-                    }
-                    None => {
-                        None // empty branch, no commit
-                    }
-                }
+                Branch::current_commit(&name).await
             },
         }
     }
