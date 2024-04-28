@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use clap::Parser;
 use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
 use crate::utils::util;
@@ -54,7 +55,7 @@ pub async fn execute(args: RestoreArgs) {
                 // [Commit Hash, e.g. a1b2c3d4] || [Wrong Branch Name]
                 let storage = util::objects_storage();
                 let objs = storage.search(&src);
-                if objs.len() != 1 { // TODO 判断objs[0]是否是commit!
+                if objs.len() != 1 || (storage.get_object_type(&objs[0]).unwrap() != ObjectType::Commit) {
                     None // Wrong Commit Hash
                 } else {
                     Some(objs[0])

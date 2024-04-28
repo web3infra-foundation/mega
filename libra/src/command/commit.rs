@@ -47,6 +47,7 @@ pub async fn execute(args: CommitArgs) {
         .put(
             &commit.id,
             &commit.to_data().unwrap(),
+            commit.get_type()
         )
         .unwrap();
 
@@ -125,7 +126,7 @@ async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathB
     };
     // save
     let data = tree.to_data().unwrap();
-    storage.put(&tree.id, &data).unwrap();
+    storage.put(&tree.id, &data, tree.get_type()).unwrap();
     tree
 }
 

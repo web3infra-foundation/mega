@@ -71,7 +71,7 @@ impl BlobExt for Blob {
         let storage = util::objects_storage();
         let id = self.id;
         if !storage.exist(&id) {
-            storage.put(&id, &self.data).unwrap();
+            storage.put(&id, &self.data, self.get_type()).unwrap();
         }
         self.id
     }
