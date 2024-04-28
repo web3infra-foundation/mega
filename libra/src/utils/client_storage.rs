@@ -1,6 +1,11 @@
 use std::{fs, io};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use flate2::Compression;
+use flate2::read::ZlibDecoder;
+use flate2::write::ZlibEncoder;
+
 use venus::hash::SHA1;
 
 #[derive(Default)]
@@ -26,14 +31,14 @@ impl ClientStorage {
             .unwrap()
     }
 
-    pub fn search(&self, obj_id: &str) -> Vec<String> {
+    pub fn search(&self, obj_id: &str) -> Vec<SHA1> {
         self.list_objects()
             .into_iter()
-            .filter(|x| x.starts_with(obj_id))
+            .filter(|x| x.to_plain_str().starts_with(obj_id))
             .collect()
     }
 
-    pub fn list_objects(&self) -> Vec<String> {
+    pub fn list_objects(&self) -> Vec<SHA1> {
         let mut objects = Vec::new();
         let paths = fs::read_dir(&self.base_path).unwrap();
         for path in paths {
@@ -46,7 +51,7 @@ impl ClientStorage {
                         let parent_name = path.file_name().unwrap().to_str().unwrap().to_string();
                         let file_name = sub_path.file_name().unwrap().to_str().unwrap().to_string();
                         let file_name = parent_name + &file_name;
-                        objects.push(file_name);
+                        objects.push(SHA1::from_str(&file_name).unwrap());
                     }
                 }
             }
@@ -56,12 +61,26 @@ impl ClientStorage {
 }
 
 impl ClientStorage { // TODO 读写 压缩 deflate
+    fn compress_zlib(data: &[u8]) -> io::Result<Vec<u8>> {
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(data)?;
+        let compressed_data = encoder.finish()?;
+        Ok(compressed_data)
+    }
+
+    fn decompress_zlib(data: &[u8]) -> io::Result<Vec<u8>> {
+        let mut decoder = ZlibDecoder::new(data);
+        let mut decompressed_data = Vec::new();
+        decoder.read_to_end(&mut decompressed_data)?;
+        Ok(decompressed_data)
+    }
+
     pub fn get(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
         let path = Path::new(&self.base_path).join(self.transform_path(object_id));
         let mut file = fs::File::open(&path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
-        Ok(buffer)
+        Self::decompress_zlib(&buffer)
     }
 
     /// Save content to `objects`
@@ -72,7 +91,7 @@ impl ClientStorage { // TODO 读写 压缩 deflate
         fs::create_dir_all(dir)?;
 
         let mut file = fs::File::create(&path)?;
-        file.write_all(content)?;
+        file.write_all(&Self::compress_zlib(content)?)?;
         Ok(path.to_str().unwrap().to_string())
     }
 
@@ -86,12 +105,17 @@ impl ClientStorage { // TODO 读写 压缩 deflate
 mod tests {
     use std::env;
     use std::path::PathBuf;
+
     use venus::internal::object::blob::Blob;
+
+    use crate::utils::{test, util};
+
     use super::ClientStorage;
 
     #[test]
     fn test_content_store() {
-        let blob = Blob::from_content("Hello, world!");
+        let content = "Hello, world!";
+        let blob = Blob::from_content(content);
 
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/objects");
@@ -102,6 +126,10 @@ mod tests {
             .is_ok());
 
         assert!(client_storage.exist(&blob.id));
+
+        let data = client_storage.get(&blob.id).unwrap();
+        assert_eq!(data, blob.data);
+        assert_eq!(String::from_utf8(data).unwrap(), content);
     }
 
     #[test]
@@ -117,8 +145,20 @@ mod tests {
             .is_ok());
 
         let objs = client_storage.search("5dd01c177");
-        println!("{:?}", objs);
 
         assert_eq!(objs.len(), 1);
+    }
+
+    #[test]
+    fn test_list_objs() {
+        let source = PathBuf::from(test::TEST_DIR).join(util::ROOT_DIR).join("objects");
+        if !source.exists() {
+            return;
+        }
+        let client_storage = ClientStorage::init(source);
+        let objs = client_storage.list_objects();
+        for obj in objs {
+            println!("{}", obj);
+        }
     }
 }
