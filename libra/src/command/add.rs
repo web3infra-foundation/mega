@@ -106,7 +106,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         if !index.tracked(file_str, 0) {
             // file is not tracked
             let blob = Blob::from_file(&file_abs);
-            blob.save().await;
+            blob.save();
             index.add(IndexEntry::new_from_file(&file_abs, blob.id).unwrap());
             if verbose {
                 println!("add(new): {}", file.display());
@@ -118,7 +118,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
                 let blob = Blob::from_file(&file_abs);
                 if !index.verify_hash(file_str, 0, &blob.id) {
                     // content is changed
-                    blob.save().await;
+                    blob.save();
                     index.update(IndexEntry::new_from_file(&file_abs, blob.id).unwrap());
                     if verbose {
                         println!("add(modified): {}", file.display());
