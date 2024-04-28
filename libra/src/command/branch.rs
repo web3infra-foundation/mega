@@ -9,7 +9,6 @@ use crate::{
     command::load_object,
     db,
     model::reference::{self, ConfigKind},
-    utils::path,
 };
 
 #[derive(Parser, Debug)]

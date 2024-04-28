@@ -7,9 +7,6 @@ pub mod remove;
 pub mod log;
 pub mod restore;
 
-use std::str::FromStr;
-
-use storage::driver::file_storage::FileStorage;
 use venus::{hash::SHA1, internal::object::ObjectTrait};
 use crate::utils::util;
 
