@@ -387,7 +387,7 @@ impl Index {
         let dir = Path::new(dir);
         self.entries.iter().any(|((name, _), _)| {
             let path = Path::new(name);
-            path.starts_with(dir) && path != dir
+            path.starts_with(dir) && path != dir // TODO change to is_sub_path!
         })
     }
 

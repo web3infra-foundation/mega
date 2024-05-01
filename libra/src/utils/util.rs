@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
-use std::io::{BufReader, Read};
+use std::collections::HashSet;
+use std::io::{BufReader, Read, Write};
 use path_abs::{PathAbs, PathInfo};
+use path_abs::PathType::File;
 use sha1::{Digest, Sha1};
 use venus::hash::SHA1;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
+use crate::utils::path_ext::PathExt;
 
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
@@ -173,7 +176,8 @@ pub fn calc_file_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
 }
 
 /// List all files in the given dir and its subdir, except `.libra`
-/// - to workdir path
+/// - input `path`: absolute path or relative path to the current dir
+/// - output: to workdir path
 pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     if path.is_dir() {
@@ -196,9 +200,65 @@ pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
 }
 
 /// list all files in the working dir(include subdir)
-/// - to workdir path
+/// - output: to workdir path
 pub fn list_workdir_files() -> io::Result<Vec<PathBuf>> {
     list_files(&working_dir())
+}
+
+/// Integrate the input paths (relative, absolute, file, dir) to workdir paths
+/// - only include existing files
+pub fn integrate_pathspec(paths: &Vec<PathBuf>) -> HashSet<PathBuf> {
+    let mut workdir_paths = HashSet::new();
+    for path in paths {
+        if path.is_dir() {
+            let files = list_files(&path).unwrap(); // to workdir
+            workdir_paths.extend(files);
+        } else {
+            workdir_paths.insert(path.to_workdir());
+        }
+    }
+    workdir_paths
+}
+
+/// write content to file
+/// - create parent directory if not exist
+pub fn write_file(content: &[u8], file: &PathBuf) -> io::Result<()> {
+    let mut parent = file.clone();
+    parent.pop();
+    fs::create_dir_all(parent)?;
+    let mut file = fs::File::create(file)?;
+    file.write_all(content)
+}
+
+/// Removing the empty directories in cascade until meet the root of workdir or the current dir
+pub fn clear_empty_dir(dir: &Path) {
+    let mut dir = if dir.is_dir() {
+        dir.to_path_buf()
+    } else {
+        dir.parent().unwrap().to_path_buf()
+    };
+
+    let repo = storage_path();
+    // CAN NOT remove .libra & current dir
+    while !is_sub_path(&repo, &dir) && !is_cur_dir(&dir) {
+        if is_empty_dir(&dir) {
+            fs::remove_dir(&dir).unwrap();
+        } else {
+            break; // once meet a non-empty dir, stop
+        }
+        dir.pop();
+    }
+}
+
+pub fn is_empty_dir(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    fs::read_dir(dir).unwrap().next().is_none()
+}
+
+pub fn is_cur_dir(dir: &Path) -> bool {
+    PathAbs::new(dir).unwrap() == PathAbs::new(cur_dir()).unwrap()
 }
 
 /// clean up the path
