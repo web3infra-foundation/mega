@@ -78,13 +78,12 @@
     # Fillin the following environment variables with values you set
 
     ## Database Configuration
-    DB = "postgres" # {postgres, mysql}
+    DB = "postgres" # {postgres}
     DB_USERNAME = "mega"
     DB_PASSWORD = "mega"
     DB_HOST = "localhost"
 
     MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
-    MEGA_DB_MYSQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
     MEGA_DB_MAX_CONNECTIONS = 32
     MEGA_DB_MIN_CONNECTIONS = 16
 
@@ -228,13 +227,12 @@
     # Fillin the following environment variables with values you set
 
     ## Database Configuration
-    DB = "postgres" # {postgres, mysql}
+    DB = "postgres" # {postgres}
     DB_USERNAME = "mega"
     DB_PASSWORD = "mega"
     DB_HOST = "localhost"
 
     MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
-    MEGA_DB_MYSQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
     MEGA_DB_MAX_CONNECTIONS = 32
     MEGA_DB_MIN_CONNECTIONS = 16
 
