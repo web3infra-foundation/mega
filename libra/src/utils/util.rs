@@ -106,12 +106,17 @@ pub fn is_sub_of_paths<P, U>(path: impl AsRef<Path>, paths: U) -> bool
 
 /// Filter paths to fit the given paths, include sub-dirs
 /// - return the paths that are sub-path of the fit paths
+/// - `paths`: to workdir
+/// - `fit_paths`: abs or rel
 /// - Not check existence
 pub fn filter_to_fit_paths<P>(paths: &[P], fit_paths: &Vec<P>) -> Vec<P>
 where
     P: AsRef<Path> + Clone,
 {
-    paths.iter().filter(|p| is_sub_of_paths(p.as_ref(), fit_paths)).cloned().collect()
+    paths.iter().filter(|p| {
+        let p = workdir_to_absolute(p.as_ref());
+        is_sub_of_paths(p.as_ref(), fit_paths)
+    }).cloned().collect()
 }
 
 /// `path` & `base` must be absolute or relative (to current dir)
