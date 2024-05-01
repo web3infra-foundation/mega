@@ -19,6 +19,7 @@ pub trait CommitExt {
 }
 
 pub trait BlobExt {
+    fn load(hash: &SHA1) -> Blob;
     fn from_file(path: impl AsRef<Path>) -> Blob;
     fn save(&self) -> SHA1;
 }
@@ -62,6 +63,14 @@ impl CommitExt for Commit {
 }
 
 impl BlobExt for Blob {
+    fn load(hash: &SHA1) -> Blob {
+        let storage = util::objects_storage();
+        let blob_data = storage.get(&hash).unwrap();
+        Blob::from_bytes(blob_data, *hash).unwrap()
+    }
+
+    /// Create a blob from a file
+    /// - `path`: absolute  or relative path to current dir
     fn from_file(path: impl AsRef<Path>) -> Blob {
         let file_content = std::fs::read_to_string(path).unwrap();
         Blob::from_content(&file_content)

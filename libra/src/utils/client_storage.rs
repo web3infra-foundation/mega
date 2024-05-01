@@ -40,6 +40,14 @@ impl ClientStorage {
         ObjectType::from_string(&obj_type)
     }
 
+    /// Check if the object with `obj_id` is of type `obj_type`
+    pub fn is_object_type(&self, obj_id: &SHA1, obj_type: ObjectType) -> bool {
+        match self.get_object_type(obj_id) {
+            Ok(t) => t == obj_type,
+            Err(_) => false,
+        }
+    }
+
     /// Search objects that start with `obj_id`
     pub fn search(&self, obj_id: &str) -> Vec<SHA1> {
         self.list_objects()
