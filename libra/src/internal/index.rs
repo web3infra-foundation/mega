@@ -165,6 +165,23 @@ impl IndexEntry {
         let index = IndexEntry::new(&meta, hash, name);
         Ok(index)
     }
+
+    pub fn new_from_blob(name: String, hash: SHA1, size: u32) -> Self {
+        let mut entry = IndexEntry {
+            ctime: Time { seconds: 0, nanos: 0 },
+            mtime: Time { seconds: 0, nanos: 0 },
+            dev: 0,
+            ino: 0,
+            mode: 0o100644,
+            uid: 0,
+            gid: 0,
+            size,
+            hash,
+            flags: Flags::new(name.len() as u16),
+            name,
+        };
+        entry
+    }
 }
 
 /// see [index-format](https://git-scm.com/docs/index-format)
