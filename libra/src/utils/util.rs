@@ -115,7 +115,7 @@ where
 {
     paths.iter().filter(|p| {
         let p = workdir_to_absolute(p.as_ref());
-        is_sub_of_paths(p.as_ref(), fit_paths)
+        is_sub_of_paths(&p, fit_paths)
     }).cloned().collect()
 }
 

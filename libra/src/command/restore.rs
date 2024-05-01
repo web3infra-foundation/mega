@@ -11,7 +11,7 @@ use venus::internal::object::tree::Tree;
 use venus::internal::object::types::ObjectType;
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
-use crate::internal::index::Index;
+use crate::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 use crate::utils::path_ext::PathExt;
 use crate::utils::util;
@@ -142,7 +142,7 @@ fn get_worktree_deleted_files_in_filters(
         .iter()
         .filter(|(path, _)| {
             let path = util::workdir_to_absolute(path); // to absolute path
-            !path.exists() && util::is_sub_of_paths(path, filters) // in filters & target but not in workdir
+            !path.exists() && path.sub_of_paths(filters) // in filters & target but not in workdir
         })
         .map(|(path, _)| path.clone())
         .collect() // HashSet auto deduplication
@@ -157,8 +157,8 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1
 
     { // validate input pathspec(filter)
         for path in filter { // abs or relative to cur
-            if !path.exists() {
-                if !target_blobs.iter().any(|(p, _)| util::is_sub_path(p, path)) {
+            if !path.exists() { //TODO bug problem: 路径设计大问题，全部统一为to workdir
+                if !target_blobs.iter().any(|(p, _)| util::is_sub_path(&p.workdir_to_absolute(), path)) {
                     // not in target_blobs & worktree, illegal path
                     eprintln!("fatal: pathspec '{}' did not match any files", path.display());
                     return; // once fatal occurs, nothing should be done
@@ -205,6 +205,57 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1
     }
 }
 
-pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1)>) {
+/// Get the deleted files in the `index`(vs target_blobs), filtered by `filters`
+fn get_index_deleted_files_in_filters(
+    index: &Index,
+    filters: &Vec<PathBuf>,
+    target_blobs: &HashMap<PathBuf, SHA1>,
+) -> HashSet<PathBuf> {
+    target_blobs
+        .iter()
+        .filter(|(path_wd, _)| { // to workdir
+            let path_abs = util::workdir_to_absolute(path_wd); // to absolute path
+            !index.tracked(&path_wd.to_string_or_panic(), 0) && util::is_sub_of_paths(path_abs, filters)
+        })
+        .map(|(path, _)| path.clone())
+        .collect() // HashSet auto deduplication
+}
 
+pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1)>) {
+    let target_blobs = preprocess_blobs(target_blobs);
+
+    let mut index = Index::load().unwrap();
+    let deleted_files_index = get_index_deleted_files_in_filters(&index, filter, &target_blobs);
+
+    let mut file_paths = util::filter_to_fit_paths(&index.tracked_files(), filter);
+    file_paths.extend(deleted_files_index); // maybe we should not integrate them rater than deal separately
+
+    for path in &file_paths { // to workdir
+        let path_str = path.to_string_or_panic();
+        let hash = target_blobs[path];
+        if !index.tracked(&path_str, 0) {
+            // file not exist in index
+            if target_blobs.contains_key(path) {
+                // file in target_blobs (deleted), need to restore
+                let blob = Blob::load(&hash);
+                index.add(IndexEntry::new_from_blob(path_str, hash, blob.data.len() as u32));
+            } else {
+                eprintln!("fatal: pathspec '{}' did not match any files", path.display());
+                continue; // TODO once fatal occurs, nothing should be done
+            }
+        } else {
+            // file exists in index: 1. modified 2. same 3. need to deleted
+            if target_blobs.contains_key(path) {
+                if !index.verify_hash(&path_str, 0, &hash) {
+                    // modified
+                    let blob = Blob::load(&hash);
+                    index.update(IndexEntry::new_from_blob(path_str, hash, blob.data.len() as u32));
+                } // else: same, keep
+            } else {
+                // not in target but in index: need to delete
+                index.remove(&path_str, 0); // TODO all stages
+            }
+        }
+    }
+    index.save().unwrap(); // DO NOT forget to save
 }
