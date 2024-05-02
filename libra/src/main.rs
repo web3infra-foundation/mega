@@ -33,6 +33,8 @@ enum Commands {
     Log(command::log::LogArgs),
     #[command(about = "Restore working tree files")]
     Restore(command::restore::RestoreArgs),
+    #[command(about = "Switch branches")]
+    Switch(command::switch::SwitchArgs),
 }
 
 #[tokio::main]
@@ -48,6 +50,7 @@ async fn main() {
         Commands::Rm(args) => command::remove::execute(args).unwrap(),
         Commands::Log(args) => command::log::execute(args).await,
         Commands::Restore(args) => command::restore::execute(args).await,
+        Commands::Switch(args) => command::switch::execute(args).await,
     }
 }
 
