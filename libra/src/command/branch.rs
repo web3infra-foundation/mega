@@ -1,7 +1,7 @@
-use std::str::FromStr;
 use clap::Parser;
 use colored::Colorize;
 use sea_orm::{ActiveModelTrait, Set};
+use std::str::FromStr;
 use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 
@@ -48,7 +48,7 @@ pub async fn execute(args: BranchArgs) {
     }
 }
 
-async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
+pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
     // commit hash maybe a branch name
     let db = db::get_db_conn().await.unwrap();
     let commit_hash = match branch_or_commit {
@@ -66,10 +66,11 @@ async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
             match head.commit {
                 Some(commit) => commit,
                 None => {
-                    let branch = reference::Model::find_branch_by_name(&db, "master")
+                    let current_branch_name = head.name.unwrap();
+                    let branch = reference::Model::find_branch_by_name(&db, &current_branch_name)
                         .await
                         .unwrap()
-                        .expect("fatal: no branch named 'master'");
+                        .unwrap_or_else(|| panic!("fatal: no branch named '{}'", current_branch_name));
                     branch.commit.unwrap()
                 }
             }
