@@ -21,6 +21,13 @@ The purpose of the B-link file is to store file index information, serving as a 
   storage_location /tmp/.mega/{{reponame}}/.objects/3a/73/9f77180d81aa45d9bd11eb6be7098bf1991f
  ```
 
+```bash
+version https://gitmega.dev/spec/v1
+{{objectType}} {{sha1}}
+storage_type {{type}}
+storage_locaton {{location}}
+```
+
 It includes the following records:
 - version: Represents the version information of the structure.
 - blob: Points to the hash value of the actual blob.

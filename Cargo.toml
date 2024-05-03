@@ -8,7 +8,6 @@ members = [
     ".",
     "gateway",
     "common",
-    "kvcache",
     "delta",
     "mercury",
     "jupiter",
