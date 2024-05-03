@@ -1,17 +1,10 @@
 # Mega - is an unofficial open source implementation of Google Piper.
 
-Mega is an unofficial open source implementation of Google Piper. 
-It is a monorepo & monolithic codebase management system that supports Git. 
-Mega is designed to manage large-scale codebases, streamline development, and foster collaboration.
+Mega is an unofficial open source implementation of Google Piper. It is a monorepo & monolithic codebase management system that supports Git. Mega is designed to manage large-scale codebases, streamline development, and foster collaboration.
 
 ## What's the Piper?
 
-Google Piper is a massive, centralized version control system that Google uses internally to manage their vast codebase.
-It is a monorepo, 
-and a monolithic which mean is a single repository that contains all the source code for Google's software.
-It is designed to manage large-scale codebases, streamline development, and foster collaboration.
-It is built on top of Google's internal infrastructure and is designed to be highly scalable and efficient.
-More information on the [Why Google Stores Billions of Lines of Code in a Single Repository](https://cacm.acm.org/magazines/2016/7/204032-why-google-stores-billions-of-lines-of-code-in-a-single-repository/fulltext).
+Google Piper is a massive, centralized version control system that Google uses internally to manage their vast codebase. It is a monorepo, and a monolithic which mean is a single repository that contains all the source code for Google's software. It is designed to manage large-scale codebases, streamline development, and foster collaboration. It is built on top of Google's internal infrastructure and is designed to be highly scalable and efficient. More information on the [Why Google Stores Billions of Lines of Code in a Single Repository](https://cacm.acm.org/magazines/2016/7/204032-why-google-stores-billions-of-lines-of-code-in-a-single-repository/fulltext).
 
 :heavy_exclamation_mark: **Google Piper is not open source**
 
@@ -32,13 +25,11 @@ More trunk-based Development information on the [Trunk-Based Development](https:
 
 ### Conventional Commits
 
-Mega supports conventional commits, which are a set of rules for creating clear and concise commit messages. 
-More information on the [Conventional Commits](https://www.conventionalcommits.org/).
+Mega will  supports conventional commits, which are a set of rules for creating clear and concise commit messages.  More information on the [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## Quick Start
 
-For now, we are developing on the macOS and Arch Linux. 
-And quick start manuel in the [Quick start manuel to developing or testing](docs/development.md#quick-start-manuel-to-developing-or-testing).
+For now, we are developing on the macOS and Arch Linux. And quick start manuel in the [Quick start manuel to developing or testing](docs/development.md#quick-start-manuel-to-developing-or-testing).
 
 ## Contributing
 
