@@ -35,6 +35,8 @@ enum Commands {
     Restore(command::restore::RestoreArgs),
     #[command(about = "Switch branches")]
     Switch(command::switch::SwitchArgs),
+    #[command(about = "Clone a repository into a new directory")]
+    Clone(command::clone::CloneArgs),
 }
 
 #[tokio::main]
@@ -51,6 +53,7 @@ async fn main() {
         Commands::Log(args) => command::log::execute(args).await,
         Commands::Restore(args) => command::restore::execute(args).await,
         Commands::Switch(args) => command::switch::execute(args).await,
+        Commands::Clone(args) => command::clone::execute(args).await,
     }
 }
 
