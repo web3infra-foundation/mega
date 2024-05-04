@@ -1,12 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
-use std::str::FromStr;
 use clap::Parser;
 use venus::hash::SHA1;
 use venus::internal::object::blob::Blob;
 use venus::internal::object::commit::Commit;
-use venus::internal::object::ObjectTrait;
 use venus::internal::object::tree::Tree;
 use venus::internal::object::types::ObjectType;
 use crate::internal::branch::Branch;
@@ -55,19 +53,19 @@ pub async fn execute(args: RestoreArgs) {
     let storage = util::objects_storage();
     let target_commit: Option<SHA1> = match source {
         None => {
-            assert_eq!(staged, false); // pre-processed ↑
+            assert!(!staged); // pre-processed ↑
             None // Index
         }
         Some(ref src) => { // ref: prevent moving `source`
             if src == HEAD {
                 // Default Source
                 Head::current_commit().await
-            } else if Branch::exists(&src).await {
+            } else if Branch::exists(src).await {
                 // Branch Name, e.g. master
-                Branch::current_commit(&src).await
+                Branch::current_commit(src).await
             } else {
                 // [Commit Hash, e.g. a1b2c3d4] || [Wrong Branch Name]
-                let objs = storage.search(&src);
+                let objs = storage.search(src);
                 // TODO hash can be `commit` or `tree`
                 if objs.len() != 1 || !storage.is_object_type(&objs[0], ObjectType::Commit) {
                     None // Wrong Commit Hash
@@ -83,7 +81,7 @@ pub async fn execute(args: RestoreArgs) {
         // `source` has been pre-process before ↑
         if source.is_none() {
             // only this situation, restore from [Index]
-            assert_eq!(staged, false);
+            assert!(!staged);
             let index = Index::load().unwrap();
             index.tracked_entries(0).into_iter()
                 .map(|entry| (PathBuf::from(&entry.name), entry.hash))
@@ -119,8 +117,8 @@ pub async fn execute(args: RestoreArgs) {
 
 /// to HashMap
 /// - `blobs`: to workdir
-fn preprocess_blobs(blobs: &Vec<(PathBuf, SHA1)>) -> HashMap<PathBuf, SHA1> { // TODO maybe can be HashMap<&PathBuf, &SHA1>
-    blobs.iter().map(|(path, hash)| (path.clone(), hash.clone())).collect()
+fn preprocess_blobs(blobs: &[(PathBuf, SHA1)]) -> HashMap<PathBuf, SHA1> { // TODO maybe can be HashMap<&PathBuf, &SHA1>
+    blobs.iter().map(|(path, hash)| (path.clone(), *hash)).collect()
 }
 
 /// restore a blob to file
@@ -151,7 +149,7 @@ fn get_worktree_deleted_files_in_filters(
 /// Restore the worktree
 /// - `filter`: abs or relative to current (user input)
 /// - `target_blobs`: to workdir path
-pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1)>) {
+pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
     let target_blobs = preprocess_blobs(target_blobs);
     let deleted_files = get_worktree_deleted_files_in_filters(filter, &target_blobs);
 
@@ -178,7 +176,7 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1
             // file not exist, deleted or illegal
             if target_blobs.contains_key(path_wd) {
                 // file in target_blobs (deleted), need to restore
-                restore_to_file(&target_blobs[path_wd], &path_wd);
+                restore_to_file(&target_blobs[path_wd], path_wd);
             } else {
                 // not in target_commit and workdir (illegal path), user input
                 unreachable!("It should be checked before");
@@ -191,7 +189,7 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1
                 // both in target & worktree: 1. modified 2. same
                 if hash != target_blobs[path_wd] {
                     // modified
-                    restore_to_file(&target_blobs[path_wd], &path_wd);
+                    restore_to_file(&target_blobs[path_wd], path_wd);
                 } // else: same, keep
             } else {
                 // not in target but in worktree: New file
@@ -221,7 +219,7 @@ fn get_index_deleted_files_in_filters(
         .collect() // HashSet auto deduplication
 }
 
-pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &Vec<(PathBuf, SHA1)>) {
+pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
     let target_blobs = preprocess_blobs(target_blobs);
 
     let mut index = Index::load().unwrap();
