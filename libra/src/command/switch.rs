@@ -18,7 +18,7 @@ pub struct SwitchArgs {
     create: Option<String>,
 
     //available only with create
-    #[clap(long, short, requires = "create")]
+    #[clap(requires = "create")]
     create_base: Option<String>,
 
     #[clap(long, short, action, default_value = "false", group = "sub")]
