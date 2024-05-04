@@ -4,12 +4,12 @@ use std::{collections::HashSet, path::PathBuf};
 use crate::db::get_db_conn;
 use crate::model::reference;
 use crate::model::reference::ActiveModel;
+use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::{internal::index::Index, utils::util};
 use clap::Parser;
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{ActiveModelTrait, Set};
-use crate::utils::client_storage::ClientStorage;
 use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
@@ -46,11 +46,7 @@ pub async fn execute(args: CommitArgs) {
     // TODO  default signature created in `from_tree_id`, wait `git config` to set correct user info
 
     storage
-        .put(
-            &commit.id,
-            &commit.to_data().unwrap(),
-            commit.get_type()
-        )
+        .put(&commit.id, &commit.to_data().unwrap(), commit.get_type())
         .unwrap();
 
     /* update HEAD */
@@ -236,7 +232,8 @@ mod test {
             let db = get_db_conn().await.unwrap();
             // check head branch exists
             let head = reference::Model::current_head(&db).await.unwrap();
-            let branch = reference::Model::find_branch_by_name(&db, &head.name.unwrap())
+            let branch_name = head.name.unwrap();
+            let branch = reference::Model::find_branch_by_name(&db, &branch_name)
                 .await
                 .unwrap();
             assert!(branch.is_some());
@@ -244,6 +241,11 @@ mod test {
             let commit: Commit = load_object(&SHA1::from_str(&commit_id).unwrap()).unwrap();
 
             assert!(commit.message == "init");
+            let branch = reference::Model::find_branch_by_name(&db, &branch_name)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(branch.commit.unwrap() == commit.id.to_plain_str());
             db.close().await.unwrap();
         }
         // create a new commit

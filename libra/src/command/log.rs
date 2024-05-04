@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::HashSet;
 
 use crate::command::load_object;
@@ -80,11 +81,15 @@ pub async fn execute(args: LogArgs) {
         .unwrap();
     let mut reachable_commits = get_reachable_commits(commit_hash.clone()).await;
     // default sort with signature time
-    reachable_commits.sort_by(|a, b| a.committer.timestamp.cmp(&b.committer.timestamp));
+    reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
+    let max_output_number = min(
+        args.number.unwrap_or(usize::MAX),
+        reachable_commits.len(),
+    );
     let mut output_number = 0;
     for commit in reachable_commits {
-        if args.number.is_some() && output_number >= args.number.unwrap() {
+        if output_number >= max_output_number {
             break;
         }
         output_number += 1;
@@ -157,7 +162,7 @@ mod tests {
         test::setup_with_new_libra().await;
         let _ = create_test_commit_tree().await;
 
-        let args = LogArgs { number: None };
+        let args = LogArgs { number: Some(2) };
         execute(args).await;
     }
 
