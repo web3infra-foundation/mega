@@ -1,12 +1,23 @@
+use std::str::FromStr;
+
 use clap::Parser;
 use sea_orm::{ActiveModelTrait, DbConn, Set};
-use venus::{hash::SHA1, internal::object::types::ObjectType};
+use venus::{
+    hash::SHA1,
+    internal::object::{commit::Commit, tree::Tree, types::ObjectType},
+};
 
 use crate::{
     command::branch,
     db,
     model::reference::{self, ActiveModel},
-    utils::util,
+    utils::{object_ext::TreeExt, util},
+};
+
+use super::{
+    load_object,
+    restore::{restore_index, restore_worktree},
+    status,
 };
 
 #[derive(Parser, Debug)]
@@ -42,6 +53,18 @@ fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
 }
 
 pub async fn execute(args: SwitchArgs) {
+    // check status
+    let unstaged = status::changes_to_be_staged();
+    if !unstaged.deleted.is_empty() || !unstaged.modified.is_empty() {
+        status::execute().await;
+        eprintln!("fatal: uncommitted changes, can't switch branch");
+        return;
+    } else if !status::changes_to_be_committed().await.is_empty() {
+        status::execute().await;
+        eprintln!("fatal: unstaged changes, can't switch branch");
+        return;
+    }
+
     let db = db::get_db_conn().await.unwrap();
     match args.create {
         Some(new_branch_name) => {
@@ -66,9 +89,7 @@ pub async fn execute(args: SwitchArgs) {
 
 /// change the working directory to the version of commit_hash
 async fn switch_to_commit(db: &DbConn, commit_hash: SHA1) {
-    // TODO use restore to change the working directory
-    unimplemented!("restore to change the working directory");
-
+    restore_to_commit(commit_hash).await;
     // update HEAD
     let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
     head.name = Set(None);
@@ -84,12 +105,22 @@ async fn switch_to_branch(db: &DbConn, branch_name: String) {
         eprintln!("fatal: branch '{}' not found", &branch_name);
         return;
     }
-    // TODO use restore to change the working directory
-    unimplemented!("restore to change the working directory");
+    let commit_id = target_branch.unwrap().commit.unwrap();
+    let commit_id = SHA1::from_str(&commit_id).unwrap();
+    restore_to_commit(commit_id).await;
     // update HEAD
     let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
 
     head.name = Set(Some(branch_name));
     head.commit = Set(None);
     head.save(db).await.unwrap();
+}
+
+async fn restore_to_commit(commit_id: SHA1) {
+    let commit = load_object::<Commit>(&commit_id).unwrap();
+    let tree_id = commit.tree_id;
+    let tree = load_object::<Tree>(&tree_id).unwrap();
+    let target_blobs = tree.get_plain_items();
+    restore_index(&vec![], &target_blobs);
+    restore_worktree(&vec![], &target_blobs);
 }
