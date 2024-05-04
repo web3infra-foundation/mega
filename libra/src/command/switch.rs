@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     load_object,
-    restore::{restore_index, restore_worktree},
+    restore::{self, restore_index, restore_worktree, RestoreArgs},
     status,
 };
 
@@ -117,10 +117,13 @@ async fn switch_to_branch(db: &DbConn, branch_name: String) {
 }
 
 async fn restore_to_commit(commit_id: SHA1) {
-    let commit = load_object::<Commit>(&commit_id).unwrap();
-    let tree_id = commit.tree_id;
-    let tree = load_object::<Tree>(&tree_id).unwrap();
-    let target_blobs = tree.get_plain_items();
-    restore_index(&vec![], &target_blobs);
-    restore_worktree(&vec![], &target_blobs);
+    // TODO may wrong
+    let restore_args = RestoreArgs::parse_from([
+        "--worktree",
+        "--staged",
+        "--source",
+        &commit_id.to_plain_str(),
+        util::working_dir().to_str().unwrap(),
+    ]);
+    restore::execute(restore_args).await;
 }
