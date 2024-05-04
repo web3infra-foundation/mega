@@ -1,5 +1,7 @@
 use clap::Parser;
 
+use crate::utils::util;
+
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
     /// The remote repository location to clone from, usually a URL with HTTPS or SSH
@@ -8,13 +10,14 @@ pub struct CloneArgs {
 
     /// The local path to clone the repository to
     #[clap(long, short)]
-    pub local_path: String,
+    pub local_path: Option<String>,
 }
 
 pub async fn execute(args: CloneArgs) {
-    println!(
-        "Cloning repository from {} to {}",
-        args.remote_repo, args.local_path
-    );
-    println!("Not implemented yet")
+    let remote_repo = args.remote_repo;
+    let local_path = args
+        .local_path
+        .unwrap_or_else(|| util::cur_dir().to_str().unwrap().to_string());
+
+    let url = url::Url::parse(&remote_repo).unwrap();
 }
