@@ -42,6 +42,14 @@ enum Commands {
 #[tokio::main]
 async fn main() {
     let args = Cli::parse();
+    // check repo existence, except for `init` and `clone`
+    // TODO: try check repo before parsing
+    if let Commands::Init = args.command {
+    } else if let Commands::Clone(_) = args.command {
+    } else if !utils::util::check_repo_exist() {
+        return;
+    }
+
     // parse the command and execute the corresponding function with it's args
     match args.command {
         Commands::Init => command::init::execute().await,
