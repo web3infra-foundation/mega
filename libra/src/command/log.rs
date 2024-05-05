@@ -83,10 +83,7 @@ pub async fn execute(args: LogArgs) {
     // default sort with signature time
     reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
 
-    let max_output_number = min(
-        args.number.unwrap_or(usize::MAX),
-        reachable_commits.len(),
-    );
+    let max_output_number = min(args.number.unwrap_or(usize::MAX), reachable_commits.len());
     let mut output_number = 0;
     for commit in reachable_commits {
         if output_number >= max_output_number {
@@ -113,8 +110,8 @@ pub async fn execute(args: LogArgs) {
                         head.name.as_ref().unwrap().green()
                     );
                 }
+                message = format!("{}{}", message, ")".yellow());
             }
-            message = format!("{}{}", message, ")".yellow());
             message
         };
         message.push_str(&format!("\nAuthor: {}", commit.author));
