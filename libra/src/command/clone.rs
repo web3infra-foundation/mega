@@ -13,6 +13,7 @@ pub struct CloneArgs {
     pub local_path: Option<String>,
 }
 
+#[allow(unused_variables)] // todo unimplemented
 pub async fn execute(args: CloneArgs) {
     let remote_repo = args.remote_repo;
     let local_path = args

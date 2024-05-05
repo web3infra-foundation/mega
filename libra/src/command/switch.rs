@@ -123,13 +123,12 @@ async fn restore_to_commit(commit_id: SHA1) {
     restore::execute(restore_args).await;
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use crate::command::restore::RestoreArgs;
-    use crate::utils::{test, util};
     use super::*;
+    use crate::command::restore::RestoreArgs;
+    use crate::utils::util;
+    use std::env;
     #[test]
     fn test_parse_from() {
         env::set_current_dir("./libra_test_repo").unwrap();
@@ -144,5 +143,4 @@ mod tests {
         ]);
         println!("{:?}", restore_args);
     }
-
 }
