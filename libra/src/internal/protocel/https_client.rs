@@ -43,11 +43,7 @@ impl HttpsClient {
             .join("info/refs?service=git-upload-pack")
             .unwrap();
         let client = Client::builder().http1_only().build().unwrap();
-        let res = client
-            .get(url)
-            .send()
-            .await
-            .unwrap();
+        let res = client.get(url).send().await.unwrap();
         tracing::debug!("{:?}", res);
 
         // check Content-Type MUST be application/x-$servicename-advertisement
@@ -73,9 +69,6 @@ impl HttpsClient {
                 "Error Response format, didn't start with `# service=git-upload-pack`".into(),
             );
         }
-
-        // ignore first line, should be supported option list
-        let (_, _) = read_pkt_line(&mut response_content);
 
         let mut ref_list = vec![];
         let mut read_first_line = false;
