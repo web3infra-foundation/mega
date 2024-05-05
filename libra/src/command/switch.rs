@@ -74,7 +74,7 @@ async fn switch_to_commit(db: &DbConn, commit_hash: SHA1) {
     // update HEAD
     let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
     head.name = Set(None);
-    head.commit = Set(Some(commit_hash.to_string()));
+    head.commit = Set(Some(commit_hash.to_plain_str()));
     head.save(db).await.unwrap();
 }
 
