@@ -1,7 +1,6 @@
 use super::ProtocolClient;
 use ceres::protocol::smart::read_pkt_line;
 use reqwest::Client;
-use std::io::{BufRead, Read};
 use url::Url;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
@@ -140,9 +139,47 @@ mod tests {
             println!("example: {:?}", refs[1]);
         }
     }
+
+    #[tokio::test]
+    async fn tets_post_git_upload_pack() {
+        init_loger();
+
+        // POST $GIT_URL/git-upload-pack HTTP/1.0
         let test_repo = "https://github.com/web3infra-foundation/mega.git/";
+
+        let url = Url::parse(test_repo)
+            .unwrap()
+            .join("git-upload-pack")
+            .unwrap();
+
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
         let refs = client.discovery_reference().await.unwrap();
+        let refs: Vec<DiscoveredReference> = refs
+            .iter()
+            .filter(|r| r.refs.starts_with("refs/heads"))
+            .cloned()
+            .collect();
         println!("{:?}", refs);
+
+        let client = Client::builder().http1_only().build().unwrap();
+        let mut body = String::new();
+        // body += format!("0032want {}\n", refs[0].hash).as_str();
+        for r in refs {
+            body += format!("0032want {}\n", r.hash).as_str();
+        }
+        body += "00000009done";
+        println!("body:\n{}\n", body);
+        let res = client
+            .post(url)
+            .header("Content-Type", "application/x-git-upload-pack-request")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        println!("{:?}", res.status());
+
+        println!("{:?}", res.bytes().await.unwrap());
+
+        // todo: status code 200 but response body is empty
     }
 }

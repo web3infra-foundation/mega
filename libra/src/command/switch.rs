@@ -2,21 +2,17 @@ use std::str::FromStr;
 
 use clap::Parser;
 use sea_orm::{ActiveModelTrait, DbConn, Set};
-use venus::{
-    hash::SHA1,
-    internal::object::{commit::Commit, tree::Tree, types::ObjectType},
-};
+use venus::{hash::SHA1, internal::object::types::ObjectType};
 
 use crate::{
     command::branch,
     db,
     model::reference::{self, ActiveModel},
-    utils::{object_ext::TreeExt, util},
+    utils::util,
 };
 
 use super::{
-    load_object,
-    restore::{self, restore_index, restore_worktree, RestoreArgs},
+    restore::{self, RestoreArgs},
     status,
 };
 
