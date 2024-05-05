@@ -26,7 +26,7 @@ impl ProtocolClient for HttpsClient {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiscoveredReference {
     hash: String,
-    refs: String,
+    refs: String, // TODO rename to ref
 }
 
 #[allow(dead_code)] // todo: unimplemented
@@ -37,11 +37,7 @@ impl HttpsClient {
     pub async fn discovery_reference(
         &self,
     ) -> Result<Vec<DiscoveredReference>, Box<dyn std::error::Error>> {
-        let url = self
-            .url
-            .clone()
-            .join("info/refs?service=git-upload-pack")
-            .unwrap();
+        let url = self.url.join("info/refs?service=git-upload-pack").unwrap();
         let client = Client::builder().http1_only().build().unwrap();
         let res = client.get(url).send().await.unwrap();
         tracing::debug!("{:?}", res);
@@ -81,11 +77,8 @@ impl HttpsClient {
                     continue;
                 }
             }
-            let pkt_line = String::from_utf8(pkt_line.to_vec())
-                .unwrap()
-                .trim()
-                .to_string();
-            let (hash, mut refs) = pkt_line.split_at(40);
+            let pkt_line = String::from_utf8(pkt_line.to_vec()).unwrap();
+            let (hash, mut refs) = pkt_line.split_at(40); // hex SHA1 string is 40 bytes
             refs = refs.trim();
             if !read_first_line {
                 // ..default ref named HEAD as the first ref. The stream MUST include capability declarations behind a NUL on the first ref.
@@ -93,11 +86,15 @@ impl HttpsClient {
                     hash: hash.to_string(),
                     refs: "HEAD".to_string(),
                 });
-                // TODO
-                tracing::warn!(
-                    "temporary ignore capability declarations:[ {:?} ]",
-                    refs[4..].to_string()
-                );
+                let (head, caps) = refs.split_once('\0').unwrap();
+                assert_eq!(head, "HEAD");
+                let caps = caps.split(' ').collect::<Vec<&str>>();
+                // TODO why println will output after all tracing::debug!?
+                tracing::debug!("capability declarations: {:?}", caps);
+                // tracing::warn!(
+                //     "temporary ignore capability declarations:[ {:?} ]",
+                //     refs[4..].to_string()
+                // );
                 read_first_line = true;
             } else {
                 ref_list.push(DiscoveredReference {
@@ -120,6 +117,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_git_upload_pack() {
         init_debug_loger();
+        // GitHub may be harder to connect than Gitee
         let test_repo = "https://github.com/web3infra-foundation/mega.git/";
 
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
