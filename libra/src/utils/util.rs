@@ -6,6 +6,7 @@ use path_abs::{PathAbs, PathInfo};
 use path_abs::PathType::File;
 use sha1::{Digest, Sha1};
 use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::path_ext::PathExt;
@@ -162,22 +163,12 @@ pub fn workdir_to_current<P>(path: P) -> PathBuf
     workdir_to_relative(path, cur_dir())
 }
 
-pub fn calc_file_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
+pub fn calc_file_blob_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
     let file = fs::File::open(path)?;
     let mut reader = BufReader::new(file);
-    let mut hasher = Sha1::new();
-
-    let mut buffer = [0; 8192]; // 8K buffer
-    loop {
-        let count = reader.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        hasher.update(&buffer[..count]);
-    }
-
-    let hash:[u8; 20] = hasher.finalize().into();
-    Ok(SHA1(hash))
+    let mut data = Vec::new();
+    reader.read_to_end(&mut data)?;
+    Ok(SHA1::from_type_and_data(ObjectType::Blob, &data))
 }
 
 /// List all files in the given dir and its subdir, except `.libra`
