@@ -3,9 +3,8 @@ use clap::Parser;
 use colored::Colorize;
 use sea_orm::{ActiveModelTrait, Set};
 use std::str::FromStr;
-use storage::utils;
+use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
-use venus::{hash::SHA1, internal::object::types::ObjectType};
 
 use crate::{
     command::load_object,
@@ -83,7 +82,6 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
             }
         }
     };
-
     // check if commit_hash exists
     let _ = load_object::<Commit>(&SHA1::from_str(&commit_hash).unwrap())
         .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{}'", commit_hash));
@@ -122,7 +120,7 @@ async fn show_current_branch() {
     let db = db::get_db_conn().await.unwrap();
     let head = reference::Model::current_head(&db).await.unwrap();
     if head.name.is_none() {
-        println!("HEAD detached at {}", head.commit.unwrap());
+        println!("HEAD detached at {}", &head.commit.unwrap()[..8]);
     } else {
         println!("{}", head.name.unwrap());
     }
@@ -136,7 +134,7 @@ async fn list_branches() {
     let head = reference::Model::current_head(&db).await.unwrap();
     let is_detached = head.name.is_none();
     if is_detached {
-        let s = "HEAD detached at  ".to_string() + &head.commit.unwrap();
+        let s = "HEAD detached at  ".to_string() + &head.commit.unwrap()[..8];
         let s = s.green();
         println!("{}", s);
     };

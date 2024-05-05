@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use clap::Parser;
 use sea_orm::{ActiveModelTrait, DbConn, Set};
-use venus::{hash::SHA1, internal::object::types::ObjectType};
+use venus::hash::SHA1;
 
 use crate::{
     command::branch,
@@ -24,14 +24,9 @@ pub struct SwitchArgs {
     #[clap(long, short, group = "sub")]
     create: Option<String>,
 
-    //available only with create
-    #[clap(requires = "create")]
-    create_base: Option<String>,
-
     #[clap(long, short, action, default_value = "false", group = "sub")]
     detach: bool,
 }
-
 
 pub async fn execute(args: SwitchArgs) {
     // check status
@@ -49,7 +44,7 @@ pub async fn execute(args: SwitchArgs) {
     let db = db::get_db_conn().await.unwrap();
     match args.create {
         Some(new_branch_name) => {
-            branch::create_branch(new_branch_name.clone(), args.create_base).await;
+            branch::create_branch(new_branch_name.clone(), args.branch).await;
             switch_to_branch(&db, new_branch_name).await;
         }
         None => match args.detach {
