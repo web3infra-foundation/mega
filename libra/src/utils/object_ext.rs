@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use storage::driver::file_storage::FileStorage;
 use venus::hash::SHA1;
 use venus::internal::object::blob::Blob;
 use venus::internal::object::commit::Commit;
@@ -27,7 +26,7 @@ pub trait BlobExt {
 impl TreeExt for Tree {
     fn load(hash: &SHA1) -> Tree {
         let storage = util::objects_storage();
-        let tree_data = storage.get(&hash).unwrap();
+        let tree_data = storage.get(hash).unwrap();
         Tree::from_bytes(tree_data.to_vec(), *hash).unwrap()
     }
 
@@ -57,7 +56,7 @@ impl TreeExt for Tree {
 impl CommitExt for Commit {
     fn load(hash: &SHA1) -> Commit {
         let storage = util::objects_storage();
-        let commit_data = storage.get(&hash).unwrap();
+        let commit_data = storage.get(hash).unwrap();
         Commit::from_bytes(commit_data.to_vec(), *hash).unwrap()
     }
 }
@@ -65,7 +64,7 @@ impl CommitExt for Commit {
 impl BlobExt for Blob {
     fn load(hash: &SHA1) -> Blob {
         let storage = util::objects_storage();
-        let blob_data = storage.get(&hash).unwrap();
+        let blob_data = storage.get(hash).unwrap();
         Blob::from_bytes(blob_data, *hash).unwrap()
     }
 

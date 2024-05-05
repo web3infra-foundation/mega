@@ -167,7 +167,7 @@ impl IndexEntry {
     }
 
     pub fn new_from_blob(name: String, hash: SHA1, size: u32) -> Self {
-        let mut entry = IndexEntry {
+        IndexEntry {
             ctime: Time { seconds: 0, nanos: 0 },
             mtime: Time { seconds: 0, nanos: 0 },
             dev: 0,
@@ -179,8 +179,7 @@ impl IndexEntry {
             hash,
             flags: Flags::new(name.len() as u16),
             name,
-        };
-        entry
+        }
     }
 }
 

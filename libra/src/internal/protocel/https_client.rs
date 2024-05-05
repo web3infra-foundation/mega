@@ -95,7 +95,7 @@ impl HttpsClient {
                 });
                 // TODO
                 tracing::warn!(
-                    "temproray ignore capability declarations:[ {:?} ]",
+                    "temporary ignore capability declarations:[ {:?} ]",
                     refs[4..].to_string()
                 );
                 read_first_line = true;
@@ -135,7 +135,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tets_post_git_upload_pack() {
+    async fn test_post_git_upload_pack() {
         init_loger();
 
         // POST $GIT_URL/git-upload-pack HTTP/1.0

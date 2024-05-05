@@ -16,6 +16,7 @@ async fn get_db_conn() -> &'static DbConn {
 pub struct Branch;
 
 impl Branch {
+    #[allow(dead_code)]
     /// list all local branches
     pub async fn list_local() -> Vec<String> {
         let db_conn = get_db_conn().await;

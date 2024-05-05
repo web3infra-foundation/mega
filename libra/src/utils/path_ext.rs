@@ -6,7 +6,7 @@ pub trait PathExt {
     fn to_string_or_panic(&self) -> String;
     fn workdir_to_absolute(&self) -> PathBuf;
     fn workdir_to_current(&self) -> PathBuf;
-    fn sub_of(&self, parent: &PathBuf) -> bool;
+    fn sub_of(&self, parent: &Path) -> bool;
     fn sub_of_paths<P, U>(&self, paths: U) -> bool
         where
             P: AsRef<Path>,
@@ -32,7 +32,7 @@ impl PathExt for PathBuf {
         util::workdir_to_current(self)
     }
 
-    fn sub_of(&self, parent: &PathBuf) -> bool {
+    fn sub_of(&self, parent: &Path) -> bool {
         util::is_sub_path(self, parent)
     }
 
