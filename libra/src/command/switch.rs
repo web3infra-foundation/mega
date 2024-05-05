@@ -118,12 +118,35 @@ async fn switch_to_branch(db: &DbConn, branch_name: String) {
 
 async fn restore_to_commit(commit_id: SHA1) {
     // TODO may wrong
-    let restore_args = RestoreArgs::parse_from([
-        "--worktree",
-        "--staged",
-        "--source",
-        &commit_id.to_plain_str(),
-        util::working_dir().to_str().unwrap(),
-    ]);
+    let restore_args = RestoreArgs {
+        worktree: true,
+        staged: true,
+        source: Some(commit_id.to_plain_str()),
+        pathspec: vec![util::working_dir_string()],
+    };
     restore::execute(restore_args).await;
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+    use crate::command::restore::RestoreArgs;
+    use crate::utils::{test, util};
+    use super::*;
+    #[test]
+    fn test_parse_from() {
+        env::set_current_dir("./libra_test_repo").unwrap();
+        let commit_id = SHA1::from_str("0cb5eb6281e1c0df48a70716869686c694706189").unwrap();
+        let restore_args = RestoreArgs::parse_from([
+            "restore", // important, the first will be ignored
+            "--worktree",
+            "--staged",
+            "--source",
+            &commit_id.to_plain_str(),
+            util::working_dir().to_str().unwrap(),
+        ]);
+        println!("{:?}", restore_args);
+    }
+
 }
