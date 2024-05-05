@@ -184,7 +184,7 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)])
         } else {
             // file exists
             let path_wd_str = path_wd.to_string_or_panic();
-            let hash = util::calc_file_hash(&path_abs).unwrap();
+            let hash = util::calc_file_blob_hash(&path_abs).unwrap();
             if target_blobs.contains_key(path_wd) {
                 // both in target & worktree: 1. modified 2. same
                 if hash != target_blobs[path_wd] {
@@ -230,11 +230,11 @@ pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
 
     for path in &file_paths { // to workdir
         let path_str = path.to_string_or_panic();
-        let hash = target_blobs[path];
         if !index.tracked(&path_str, 0) {
             // file not exist in index
             if target_blobs.contains_key(path) {
                 // file in target_blobs (deleted), need to restore
+                let hash = target_blobs[path];
                 let blob = Blob::load(&hash);
                 index.add(IndexEntry::new_from_blob(path_str, hash, blob.data.len() as u32));
             } else {
@@ -244,6 +244,7 @@ pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
         } else {
             // file exists in index: 1. modified 2. same 3. need to deleted
             if target_blobs.contains_key(path) {
+                let hash = target_blobs[path];
                 if !index.verify_hash(&path_str, 0, &hash) {
                     // modified
                     let blob = Blob::load(&hash);

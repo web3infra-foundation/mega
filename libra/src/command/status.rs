@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
+
 use colored::Colorize;
 use path_abs::PathInfo;
+
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::Tree;
+
 use crate::internal::head::Head;
 use crate::internal::index::Index;
 use crate::utils::object_ext::{CommitExt, TreeExt};
@@ -155,7 +158,7 @@ pub fn changes_to_be_staged() -> Changes {
             changes.deleted.push(file.clone());
         } else if index.is_modified(file_str, 0) {
             // only calc the hash if the file is modified (metadata), for optimization
-            let file_hash = util::calc_file_hash(&file_abs).unwrap();
+            let file_hash = util::calc_file_blob_hash(&file_abs).unwrap();
             if !index.verify_hash(file_str, 0, &file_hash) {
                 changes.modified.push(file.clone());
             }
