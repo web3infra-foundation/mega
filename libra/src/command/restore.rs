@@ -18,16 +18,16 @@ use crate::utils::util;
 pub struct RestoreArgs {
     /// files or dir to restore
     #[clap(required = true)]
-    pathspec: Vec<String>,
+    pub pathspec: Vec<String>,
     /// source
     #[clap(long, short)]
-    source: Option<String>,
+    pub source: Option<String>,
     /// worktree
     #[clap(long, short = 'W')]
-    worktree: bool,
+    pub worktree: bool,
     /// staged
     #[clap(long, short = 'S')]
-    staged: bool,
+    pub staged: bool,
 }
 
 pub async fn execute(args: RestoreArgs) {

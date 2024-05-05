@@ -343,8 +343,8 @@ impl Index {
         self.entries.insert((entry.name.clone(), entry.flags.stage), entry);
     }
 
-    pub fn remove(&mut self, name: &str, stage: u8) {
-        self.entries.remove(&(name.to_string(), stage));
+    pub fn remove(&mut self, name: &str, stage: u8) -> Option<IndexEntry> {
+        self.entries.remove(&(name.to_string(), stage))
     }
 
     pub fn get(&self, name: &str, stage: u8) -> Option<&IndexEntry> {
