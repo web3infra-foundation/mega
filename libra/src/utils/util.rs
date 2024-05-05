@@ -1,9 +1,7 @@
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::path_ext::PathExt;
-use path_abs::PathType::File;
 use path_abs::{PathAbs, PathInfo};
-use sha1::{Digest, Sha1};
 use std::collections::HashSet;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -18,7 +16,7 @@ pub fn cur_dir() -> PathBuf {
     env::current_dir().unwrap()
 }
 
-/// Try get the storage path of the repository, which is the path of the `.libra` directory
+/// Try to get the storage path of the repository, which is the path of the `.libra` directory
 /// - if the current directory is not a repository, return an error
 pub fn try_get_storage_path() -> Result<PathBuf, io::Error> {
     /*递归获取储存库 */
@@ -83,7 +81,9 @@ pub fn workdir_to_absolute(path: impl AsRef<Path>) -> PathBuf {
 /// Judge if the path is a sub path of the parent path
 /// - Not check existence
 /// - `true` if path == parent
-pub fn is_sub_path<P: AsRef<Path>>(path: P, parent: P) -> bool {
+pub fn is_sub_path<P, B>(path: P, parent: B) -> bool
+where P: AsRef<Path>, B: AsRef<Path>
+{
     let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
     let parent_abs = PathAbs::new(parent.as_ref()).unwrap();
     path_abs.starts_with(parent_abs)
@@ -118,7 +118,7 @@ where
         .iter()
         .filter(|p| {
             let p = workdir_to_absolute(p.as_ref());
-            is_sub_of_paths(&p, fit_paths)
+            is_sub_of_paths(p, fit_paths)
         })
         .cloned()
         .collect()
@@ -150,6 +150,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 /// Convert a path to relative path to the current directory
 /// - `path` must be absolute or relative (to current dir)
 pub fn to_current_dir<P>(path: P) -> PathBuf
@@ -222,7 +223,7 @@ pub fn integrate_pathspec(paths: &Vec<PathBuf>) -> HashSet<PathBuf> {
     let mut workdir_paths = HashSet::new();
     for path in paths {
         if path.is_dir() {
-            let files = list_files(&path).unwrap(); // to workdir
+            let files = list_files(path).unwrap(); // to workdir
             workdir_paths.extend(files);
         } else {
             workdir_paths.insert(path.to_workdir());
@@ -272,6 +273,7 @@ pub fn is_cur_dir(dir: &Path) -> bool {
     PathAbs::new(dir).unwrap() == PathAbs::new(cur_dir()).unwrap()
 }
 
+#[allow(dead_code)]
 /// clean up the path
 /// didn't use `canonicalize` because path may not exist in file system but in the repository
 fn simplify_path(path: &Path) -> PathBuf {
@@ -296,6 +298,7 @@ fn simplify_path(path: &Path) -> PathBuf {
     result
 }
 
+#[allow(dead_code)]
 /// unify user input paths to relative paths with the repository root
 /// panic if the path is not valid or not in the repository
 pub fn pathspec_to_workpath(pathspec: Vec<String>) -> Vec<PathBuf> {

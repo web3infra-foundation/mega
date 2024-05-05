@@ -107,6 +107,8 @@ pub async fn execute(args: RestoreArgs) {
     // String to PathBuf
     let paths = args.pathspec.iter().map(PathBuf::from).collect::<Vec<PathBuf>>();
     // restore worktree and staged respectively
+    // The order is very important
+    // `restore_worktree` will decide whether to delete the file based on whether it is tracked in the index.
     if worktree {
         restore_worktree(&paths, &target_blobs);
     }
@@ -156,7 +158,7 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)])
     { // validate input pathspec(filter)
         for path in filter { // abs or relative to cur
             if !path.exists() { //TODO bug problem: 路径设计大问题，全部统一为to workdir
-                if !target_blobs.iter().any(|(p, _)| util::is_sub_path(&p.workdir_to_absolute(), path)) {
+                if !target_blobs.iter().any(|(p, _)| util::is_sub_path(p.workdir_to_absolute(), path)) {
                     // not in target_blobs & worktree, illegal path
                     eprintln!("fatal: pathspec '{}' did not match any files", path.display());
                     return; // once fatal occurs, nothing should be done

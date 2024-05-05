@@ -52,7 +52,7 @@ pub async fn execute(args: AddArgs) {
     // filter paths to fit `pathspec` that user inputs
     changes.new = util::filter_to_fit_paths(&changes.new, &paths);
     // if `--all` & <pathspec> is given, it will update `index` as well, so no need to filter `deleted` & `modified`
-    if !(!args.pathspec.is_empty() && args.all) {
+    if args.pathspec.is_empty() || !args.all {
         changes.modified = util::filter_to_fit_paths(&changes.modified, &paths);
         changes.deleted = util::filter_to_fit_paths(&changes.deleted, &paths);
     }
@@ -80,7 +80,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         println!("fatal: '{}' is outside workdir at '{}'", file.display(), workdir.display());
         return;
     }
-    if util::is_sub_path(file, &util::storage_path()) {
+    if util::is_sub_path(file, util::storage_path()) {
         // file is in `.libra`
         // Git won't print this
         println!("warning: '{}' is inside '{}' repo, which will be ignored by `add`", file.display(), util::ROOT_DIR);
