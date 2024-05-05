@@ -21,6 +21,13 @@ The purpose of the B-link file is to store file index information, serving as a 
   storage_location /tmp/.mega/{{reponame}}/.objects/3a/73/9f77180d81aa45d9bd11eb6be7098bf1991f
  ```
 
+```bash
+version https://gitmega.dev/spec/v1
+{{objectType}} {{sha1}}
+storage_type {{type}}
+storage_locaton {{location}}
+```
+
 It includes the following records:
 - version: Represents the version information of the structure.
 - blob: Points to the hash value of the actual blob.
@@ -36,26 +43,28 @@ It includes the following records:
 
 ### Table Overall
 
-| Table Name    | Description                                                                                             | Mega Push | Mega Pull | Git Push | Git Repo |
-| ------------- | ------------------------------------------------------------------------------------------------------- | --------- | --------- | -------- | -------- |
-| mega_snapshot | Mainain the latest directory stucture in monorepo.                                                      | &#10003;  | &#10003;  |          |          |
-| mega_commit   | Store all commit objects related with mega directory, have mr status                                    | &#10003;  |           |          |          |
-| mega_tree     | Store all tree objects related with mega directory, together with mega_commit to find history directory | &#10003;  |           |          |          |
-| mega_blob     | Store all blob objects under mega directory.                                                            | &#10003;  | &#10003;  |          |          |
-| mega_tag      | Store all annotated tag with mega directory.                                                            | &#10003;  | &#10003;  |          |          |
-| mega_mr       | Merge request related to mega commits.                                                                  | &#10003;  |           |          |          |
-| mega_issue    | Manage mega's issue.                                                                                    |           |           |          |          |
-| git_repo      | Maintain Relations between impoprt_repo and repo_path.                                                  |           |           | &#10003; | &#10003; |
-| git_refs      | Obtains the latest commit_id through repo_id and ref_name, also storing the repo lightweight tags.      |           |           | &#10003; | &#10003; |
-| git_commit    | Store all parsed commit objects related with repo.                                                      |           |           | &#10003; | &#10003; |
-| git_tree      | Store all parsed tree objects related with repo.                                                        |           |           | &#10003; | &#10003; |
-| git_blob      | Store all parsed blob objects related with repo.                                                        |           |           | &#10003; | &#10003; |
-| git_tag       | Store all annotated tag related with repo.                                                              |           |           | &#10003; | &#10003; |
-| raw_objects   | Store all raw objects with both git repo and mega directory.                                            | &#10003;  | &#10003;  | &#10003; | &#10003; |
-| git_pr        | Pull request sync from third parties like GitHub.                                                       |           |           |          |          |
-| git_issue     | Issues sync from third parties like GitHub.                                                             |           |           |          |          |
-| lfs_objects   | Store objects related to LFS protocol.                                                                  |           |           |          |          |
-| lfs_locks     | Store locks for lfs files.                                                                              |           |           |          |          |
+| Table Name      | Description                                                                                             | Mega Push | Mega Pull | Git Push | Git Repo |
+|-----------------|---------------------------------------------------------------------------------------------------------|-----------|-----------|----------|----------|
+| mega_commit     | Store all commit objects related with mega directory, have mr status                                    | &#10003;  |           |          |          |
+| mega_tree       | Store all tree objects related with mega directory, together with mega_commit to find history directory | &#10003;  |           |          |          |
+| mega_blob       | Store all blob objects under mega directory.                                                            | &#10003;  | &#10003;  |          |          |
+| mega_tag        | Store all annotated tag with mega directory.                                                            | &#10003;  | &#10003;  |          |          |
+| mega_mr         | Merge request related to mega commits.                                                                  | &#10003;  |           |          |          |
+| mega_mr_conv    | MR conversation list                                                                                    | &#10003;  |           |          |          |
+| mega_mr_comment | MR Comment                                                                                              | &#10003;  |           |          |          |
+| mega_issue      | Manage mega's issue.                                                                                    |           |           |          |          |
+| mega_refs       | This table maintains refs information corresponding to each directory of mega                           | &#10003;  |           |          |          |
+| git_repo        | Maintain Relations between import_repo and repo_path.                                                   |           |           | &#10003; | &#10003; |
+| import_refs     | Obtains the latest commit_id through repo_id and ref_name, also storing the repo lightweight tags.      |           |           | &#10003; | &#10003; |
+| git_commit      | Store all parsed commit objects related with repo.                                                      |           |           | &#10003; | &#10003; |
+| git_tree        | Store all parsed tree objects related with repo.                                                        |           |           | &#10003; | &#10003; |
+| git_blob        | Store all parsed blob objects related with repo.                                                        |           |           | &#10003; | &#10003; |
+| git_tag         | Store all annotated tag related with repo.                                                              |           |           | &#10003; | &#10003; |
+| raw_blob        | Store all raw objects with both git repo and mega directory.                                            | &#10003;  | &#10003;  | &#10003; | &#10003; |
+| git_pr          | Pull request sync from third parties like GitHub.                                                       |           |           |          |          |
+| git_issue       | Issues sync from third parties like GitHub.                                                             |           |           |          |          |
+| lfs_objects     | Store objects related to LFS protocol.                                                                  |           |           |          |          |
+| lfs_locks       | Store locks for lfs files.                                                                              |           |           |          |          |
 
 ### ER Diagram
 
@@ -66,17 +75,17 @@ erDiagram
     MEGA-SNAPSHOT |o--|{ MEGA-COMMITS : "belong to"
     MEGA-SNAPSHOT |o--|{ GIT-TREE : contains
     MEGA-COMMITS ||--|| MEGA-TREE : points
-    MEGA-COMMITS ||--|| RAW-OBJETCS : points
+    MEGA-COMMITS ||--|| RAW-OBJECTS : points
     MEGA-COMMITS ||--|| MEGA-MR : "belong to"
     MEGA-TREE }|--o{ MEGA-BLOB : points
-    MEGA-TREE ||--|| RAW-OBJETCS : points
+    MEGA-TREE ||--|| RAW-OBJECTS : points
     MEGA-TREE }|--|| MEGA-MR : "belong to"
     MEGA-TREE }o..o{ GIT-TREE : points
-    MEGA-BLOB ||--|| RAW-OBJETCS : points
+    MEGA-BLOB ||--|| RAW-OBJECTS : points
     MEGA-BLOB }|--|| MEGA-MR : "belong to"
     MEGA-TAG |o--o| MEGA-COMMITS : points
-    MEGA-TAG ||--|| RAW-OBJETCS : points
-    RAW-OBJETCS ||--o| LFS-OBJECTS : points
+    MEGA-TAG ||--|| RAW-OBJECTS : points
+    RAW-OBJECTS ||--o| LFS-OBJECTS : points
     LFS-OBJECTS ||--o| LFS-LOCKS : points
     GIT-PR }o--|| GIT-REPO : "belong to"
     GIT-ISSUE }o--|| GIT-REPO : "belong to"
@@ -84,92 +93,63 @@ erDiagram
     GIT-REFS ||--|| GIT-TAG : points
     GIT-REFS }|--|| GIT-REPO : "belong to"
     GIT-COMMIT ||--|| GIT-TREE : has
-    GIT-COMMIT ||--|| RAW-OBJETCS : has
+    GIT-COMMIT ||--|| RAW-OBJECTS : has
     GIT-COMMIT }|--|| GIT-REPO : "belong to"
     GIT-TREE ||--o{ GIT-BLOB : has
-    GIT-TREE ||--|| RAW-OBJETCS : points
+    GIT-TREE ||--|| RAW-OBJECTS : points
     GIT-TREE }|--|| GIT-REPO : "belong to"
-    GIT-BLOB ||--|| RAW-OBJETCS : points
+    GIT-BLOB ||--|| RAW-OBJECTS : points
     GIT-BLOB }|--|| GIT-REPO : "belong to"
     GIT-TAG }o--|| GIT-REPO : "belong to"
     GIT-TAG |o--o| GIT-COMMIT : points
-    GIT-TAG ||--|| RAW-OBJETCS : points
+    GIT-TAG ||--|| RAW-OBJECTS : points
 
 ```
 
 ### Table Details
 
 
-#### mega_snapshot
-
-| Column     | Type        | Constraints | Description                                              |
-| ---------- | ----------- | ----------- | -------------------------------------------------------- |
-| id         | BIGINT      | PRIMARY KEY |                                                          |
-| path       | TEXT        | NOT NULL    |                                                          |
-| import_dir | BOOLEAN     | NOT NULL    | points to git_tree if is import_dir, else points to self |
-| tree_id    | VARCHAR(40) | NOT NULL    |                                                          |
-| sub_trees  | TEXT[]      |             | {name, sha1, mode, repo_id}                              |
-| commit_id  | VARCHAR(40) | NOT NULL    | the latest commit related to this directory              |
-| size       | INT         | NOT NULL    | used for count file size under directory                 |
-| created_at | TIMESTAMP   | NOT NULL    |                                                          |
-| updated_at | TIMESTAMP   | NOT NULL    |                                                          |
-
-
 #### mega_commit
 
-| Column     | Type        | Constraints | Description                                    |
-| ---------- | ----------- | ----------- | ---------------------------------------------- |
-| id         | BIGINT      | PRIMARY KEY |                                                |
-| commit_id  | VARCHAR(40) | NOT NULL    |                                                |
-| tree       | VARCHAR(40) | NOT NULL    |                                                |
-| parents_id | TEXT[]      | NOT NULL    |                                                |
-| author     | TEXT        |             |                                                |
-| committer  | TEXT        |             |                                                |
-| content    | TEXT        |             |                                                |
-| mr_id      | VARCHAR(20) |             |                                                |
-| status     | VARCHAR(20) | NOT NULL    | mr satus, can be 'Open', 'Merged' and 'Closed' |
-| size       | INT         | NOT NULL    | used for magic sort in pack process            |
-| full_path  | TEXT        | NOT NULL    | used for magic sort in pack process            |
-| created_at | TIMESTAMP   | NOT NULL    |                                                |
-| updated_at | TIMESTAMP   | NOT NULL    |                                                |
+| Column     | Type        | Constraints | Description |
+|------------|-------------|-------------|-------------|
+| id         | BIGINT      | PRIMARY KEY |             |
+| commit_id  | VARCHAR(40) | NOT NULL    |             |
+| tree       | VARCHAR(40) | NOT NULL    |             |
+| parents_id | TEXT[]      | NOT NULL    |             |
+| author     | TEXT        |             |             |
+| committer  | TEXT        |             |             |
+| content    | TEXT        |             |             |
+| created_at | TIMESTAMP   | NOT NULL    |             |
 
 
 #### mega_tree
 
-| Column     | Type        | Constraints | Description                          |
-| ---------- | ----------- | ----------- | ------------------------------------ |
-| id         | BIGINT      | PRIMARY KEY |                                      |
-| tree_id    | VARCHAR(40) | NOT NULL    |                                      |
-| sub_trees  | TEXT[]      | NOT NULL    | {name, sha1, mode, repo_id}          |
-| import_dir | BOOLEAN     | NOT NULL    | point to git_tree if it's import dir |
-| mr_id      | VARCHAR(20) | NOT NULL    |                                      |
-| status     | VARCHAR(20) | NOT NULL    |                                      |
-| size       | INT         | NOT NULL    |                                      |
-| full_path  | TEXT        | NOT NULL    |                                      |
-| created_at | TIMESTAMP   | NOT NULL    |                                      |
-| updated_at | TIMESTAMP   | NOT NULL    |                                      |
+| Column     | Type        | Constraints | Description                 |
+|------------|-------------|-------------|-----------------------------|
+| id         | BIGINT      | PRIMARY KEY |                             |
+| tree_id    | VARCHAR(40) | NOT NULL    |                             |
+| sub_trees  | TEXT[]      | NOT NULL    | {name, sha1, mode, repo_id} |
+| commit_id  | VARCHAR(40) | NOT NULL    |                             |
+| size       | INT         | NOT NULL    |                             |
+| created_at | TIMESTAMP   | NOT NULL    |                             |
 
 #### mega_blob
 
-| Column       | Type        | Constraints |
-| ------------ | ----------- | ----------- |
-| id           | BIGINT      | PRIMARY KEY |
-| blob_id      | VARCHAR(40) | NOT NULL    |
-| commit_id    | VARCHAR(40) | NOT NULL    |
-| mr_id        | VARCHAR(20) |             |
-| status       | VARCHAR(20) | NOT NULL    |
-| size         | INT         | NOT NULL    |
-| content      | TEXT        | NOT NULL    |
-| content_type | VARCHAR(20) |             |
-| full_path    | TEXT        | NOT NULL    |
-| created_at   | TIMESTAMP   | NOT NULL    |
-| updated_at   | TIMESTAMP   | NOT NULL    |
+| Column     | Type        | Constraints |
+|------------|-------------|-------------|
+| id         | BIGINT      | PRIMARY KEY |
+| blob_id    | VARCHAR(40) | NOT NULL    |
+| commit_id  | VARCHAR(40) | NOT NULL    |
+| name       | TEXT        | NOT NULL    |
+| size       | INT         | NOT NULL    |
+| created_at | TIMESTAMP   | NOT NULL    |
 
 
 #### mega_tag
 
 | Column      | Type        | Constraints | Description                                                 |
-| ----------- | ----------- | ----------- | ----------------------------------------------------------- |
+|-------------|-------------|-------------|-------------------------------------------------------------|
 | id          | BIGINT      | PRIMARY KEY |                                                             |
 | tag_id      | VARCHAR(40) | NOT NULL    |                                                             |
 | object_id   | VARCHAR(40) | NOT NULL    | point to the object's sha1                                  |
@@ -181,20 +161,42 @@ erDiagram
 
 #### mega_mr
 
-| Column     | Type         | Constraints | Description                                      |
-| ---------- | ------------ | ----------- | ------------------------------------------------ |
-| id         | BIGINT       | PRIMARY KEY |                                                  |
-| mr_link    | VARCHAR(40)  | NOT NULL    | A MR identifier with a length of 6-8 characters. |
-| mr_msg     | VARCHAR(255) | NOT NULL    |                                                  |
-| merge_date | TIMESTAMP    |             |                                                  |
-| status     | VARCHAR(20)  | NOT NULL    |                                                  |
-| created_at | TIMESTAMP    | NOT NULL    |                                                  |
-| updated_at | TIMESTAMP    | NOT NULL    |                                                  |
+| Column     | Type        | Constraints | Description                                      |
+|------------|-------------|-------------|--------------------------------------------------|
+| id         | BIGINT      | PRIMARY KEY |                                                  |
+| mr_link    | VARCHAR(40) | NOT NULL    | A MR identifier with a length of 6-8 characters. |
+| merge_date | TIMESTAMP   |             |                                                  |
+| status     | VARCHAR(20) | NOT NULL    |                                                  |
+| path       | TEXT        | NOT NULL    |                                                  |
+| from_hash  | VARCHAR(40) | NOT NULL    | merge from which commit                          |
+| to_hash    | VARCHAR(40) | NOT NULL    | merge to commit hash                             |
+| created_at | TIMESTAMP   | NOT NULL    |                                                  |
+| updated_at | TIMESTAMP   | NOT NULL    |                                                  |
+
+#### mega_mr_conv
+
+| Column     | Type        | Constraints | Description                                                      |
+|------------|-------------|-------------|------------------------------------------------------------------|
+| id         | BIGINT      | PRIMARY KEY |                                                                  |
+| mr_id      | BIGINT      | NOT NULL    |                                                                  |
+| user_id    | BIGINT      | NOT NULL    |                                                                  |
+| conv_type  | VARCHAR(20) | NOT NULL    | conversation type, can be comment, commit, force push, edit etc. |
+| created_at | TIMESTAMP   | NOT NULL    |                                                                  |
+| updated_at | TIMESTAMP   | NOT NULL    |                                                                  |
+
+#### mega_mr_comment
+
+| Column  | Type    | Constraints | Description                     |
+|---------|---------|-------------|---------------------------------|
+| id      | BIGINT  | PRIMARY KEY |                                 |
+| conv_id | BIGINT  | NOT NULL    | related table mega_mr_conv's id |
+| comment | TEXT    |             |                                 |
+| edited  | BOOLEAN | NOT NULL    |                                 |
 
 #### mega_issue
 
 | Column      | Type         | Constraints  |
-| ----------- | ------------ | ------------ |
+|-------------|--------------|--------------|
 | id          | BIGINT       | PRIMARY KEY  |
 | number      | BIGINT       | NOT NULL     |
 | title       | VARCHAR(255) | NOT NULL     |
@@ -205,32 +207,47 @@ erDiagram
 | updated_at  | TIMESTAMP    | NOT NULL     |
 | closed_at   | TIMESTAMP    | DEFAULT NULL |
 
-#### git_refs
 
-| Column     | Type        | Constraints | Description                           |
-| ---------- | ----------- | ----------- | ------------------------------------- |
-| id         | BIGINT      | PRIMARY KEY |                                       |
-| repo_id    | BIGINT      | NOT NULL    |                                       |
-| ref_name   | TEXT        | NOT NULL    | reference name, can be branch and tag |
-| ref_git_id | VARCHAR(40) | NOT NULL    | point to the commit or tag object     |
-| ref_type   | VARCHAR(20) | NOT NULL    | ref_type: can be 'tag' or 'branch'    |
-| created_at | TIMESTAMP   | NOT NULL    |                                       |
-| updated_at | TIMESTAMP   | NOT NULL    |                                       |
+#### mega_refs
+
+| Column          | Type        | Constraints | Description                       |
+|-----------------|-------------|-------------|-----------------------------------|
+| id              | BIGINT      | PRIMARY KEY |                                   |
+| path            | TEXT        | NOT NULL    | monorepo path refs                |
+| ref_commit_hash | VARCHAR(40) | NOT NULL    | point to the commit or tag object |
+| ref_tree_hash   | VARCHAR(40) | NOT NULL    | point to the tree object          |
+| created_at      | TIMESTAMP   | NOT NULL    |                                   |
+| updated_at      | TIMESTAMP   | NOT NULL    |                                   |
+
+
+#### import_refs
+
+| Column         | Type        | Constraints | Description                                      |
+|----------------|-------------|-------------|--------------------------------------------------|
+| id             | BIGINT      | PRIMARY KEY |                                                  |
+| repo_id        | BIGINT      | NOT NULL    |                                                  |
+| ref_name       | TEXT        | NOT NULL    | reference name, can be branch and tag            |
+| ref_git_id     | VARCHAR(40) | NOT NULL    | point to the commit or tag object                |
+| default_branch | BOOLEAN     | NOT NULL    | Indicates whether the branch is a default branch |
+| ref_type       | VARCHAR(20) | NOT NULL    | ref_type: can be 'tag' or 'branch'               |
+| created_at     | TIMESTAMP   | NOT NULL    |                                                  |
+| updated_at     | TIMESTAMP   | NOT NULL    |                                                  |
 
 
 #### git_repo
 
 | Column     | Type      | Constraints | Description                                   |
-| ---------- | --------- | ----------- | --------------------------------------------- |
+|------------|-----------|-------------|-----------------------------------------------|
 | id         | BIGINT    | PRIMARY KEY |                                               |
-| repo_path  | TEXT      | NOT NULL    | git repo's absulote path under mega directory |
+| repo_path  | TEXT      | NOT NULL    | git repo's absolute path under mega directory |
+| repo_name  | TEXT      | NOT NULL    |                                               |
 | created_at | TIMESTAMP | NOT NULL    |                                               |
 | updated_at | TIMESTAMP | NOT NULL    |                                               |
 
 #### git_commit
 
 | Column     | Type        | Constraints |
-| ---------- | ----------- | ----------- |
+|------------|-------------|-------------|
 | id         | BIGINT      | PRIMARY KEY |
 | repo_id    | BIGINT      | NOT NULL    |
 | commit_id  | VARCHAR(40) | NOT NULL    |
@@ -239,43 +256,36 @@ erDiagram
 | author     | TEXT        |             |
 | committer  | TEXT        |             |
 | content    | TEXT        |             |
-| size       | INT         | NOT NULL    |
-| full_path  | TEXT        | NOT NULL    |
 | created_at | TIMESTAMP   | NOT NULL    |
 
 #### git_tree
 
 | Column     | Type         | Constraints |
-| ---------- | ------------ | ----------- |
+|------------|--------------|-------------|
 | id         | BIGINT       | PRIMARY KEY |
 | repo_id    | BIGINT       | NOT NULL    |
 | tree_id    | VARCHAR(40)  | NOT NULL    |
 | sub_trees  | TEXT[]       |             |
-| name       | VARCHAR(128) |             |
 | size       | INT          | NOT NULL    |
-| full_path  | TEXT         | NOT NULL    |
 | commit_id  | VARCHAR(40)  | NOT NULL    |
 | created_at | TIMESTAMP    | NOT NULL    |
 
 #### git_blob
 
 | Column       | Type         | Constraints |
-| ------------ | ------------ | ----------- |
+|--------------|--------------|-------------|
 | id           | BIGINT       | PRIMARY KEY |
 | repo_id      | BIGINT       | NOT NULL    |
 | blob_id      | VARCHAR(40)  | NOT NULL    |
 | name         | VARCHAR(128) |             |
 | size         | INT          | NOT NULL    |
-| content      | TEXT         | NOT NULL    |
-| content_type | VARCHAR(20)  |             |
-| full_path    | TEXT         | NOT NULL    |
 | commit_id    | VARCHAR(40)  | NOT NULL    |
 | created_at   | TIMESTAMP    | NOT NULL    |
 
 #### git_tag
 
 | Column      | Type        | Constraints |
-| ----------- | ----------- | ----------- |
+|-------------|-------------|-------------|
 | id          | BIGINT      | PRIMARY KEY |
 | repo_id     | BIGINT      | NOT NULL    |
 | tag_id      | VARCHAR(40) | NOT NULL    |
@@ -286,23 +296,24 @@ erDiagram
 | message     | TEXT        | NOT NULL    |
 | created_at  | TIMESTAMP   | NOT NULL    |
 
-#### raw_objects
+#### raw_blob
 
-| Column             | Type        | Constraints | Description                                                       |
-| ------------------ | ----------- | ----------- | ----------------------------------------------------------------- |
-| id                 | BIGINT      | PRIMARY KEY |                                                                   |
-| sha1               | VARCHAR(40) | NOT NULL    | git object's sha1 hash                                            |
-| object_type        | VARCHAR(20) | NOT NULL    |                                                                   |
-| storage_type       | INT         | NOT NULL    | data storage type, can be 'database', 'local-fs' and 'remote_url' |
-| data               | BYTEA       |             |                                                                   |
-| local_storage_path | TEXT        |             |                                                                   |
-| remote_url         | TEXT        |             |                                                                   |
-
+| Column       | Type        | Constraints | Description                                                       |
+|--------------|-------------|-------------|-------------------------------------------------------------------|
+| id           | BIGINT      | PRIMARY KEY |                                                                   |
+| sha1         | VARCHAR(40) | NOT NULL    | git object's sha1 hash                                            |
+| content      | TEXT        |             |
+| file_type    | VARCHAR(20) |             |
+| storage_type | VARCHAR(20) | NOT NULL    | data storage type, can be 'database', 'local-fs' and 'remote_url' |
+| data         | BYTEA       |             |                                                                   |
+| local_path   | TEXT        |             |                                                                   |
+| remote_url   | TEXT        |             |                                                                   |
+| created_at   | TIMESTAMP   | NOT NULL    |
 
 #### git_pr
 
 | Column           | Type         | Constraints  |
-| ---------------- | ------------ | ------------ |
+|------------------|--------------|--------------|
 | id               | BIGINT       | PRIMARY KEY  |
 | number           | BIGINT       | NOT NULL     |
 | title            | VARCHAR(255) | NOT NULL     |
@@ -328,7 +339,7 @@ erDiagram
 #### git_issue
 
 | Column      | Type         | Constraints  |
-| ----------- | ------------ | ------------ |
+|-------------|--------------|--------------|
 | id          | BIGINT       | PRIMARY KEY  |
 | number      | BIGINT       | NOT NULL     |
 | title       | VARCHAR(255) | NOT NULL     |
@@ -344,7 +355,7 @@ erDiagram
 #### lfs_locks
 
 | Column | Type        | Constraints |
-| ------ | ----------- | ----------- |
+|--------|-------------|-------------|
 | id     | VARCHAR(40) | PRIMARY KEY |
 | data   | TEXT        |             |
 
@@ -352,134 +363,23 @@ erDiagram
 #### lfs_objects
 
 | Column | Type        | Constraints |
-| ------ | ----------- | ----------- |
+|--------|-------------|-------------|
 | oid    | VARCHAR(64) | PRIMARY KEY |
 | size   | BIGINT      |             |
 | exist  | BOOLEAN     |             |
 
 
-## 3. Sql execution for each process.
-
-
-#### Use mega init command to initialize mega directory: 
-
-- Init commit points to tree:
-    ```sql
-    insert into mega_commit values (...);
-    ```
-- Build directory and tree objs:
-    ```sql
-    insert into mega_snapshot values ('/root', false, ...);
-    insert into mega_snapshot values ('/root/projects', false, ...);
-    insert into mega_snapshot values ('/root/import', true, ...);
-    insert into mega_snapshot values ('/root/projects/rust', false, ...);
-    insert into mega_tree values (...);
-    ```
-- Generate ReadMe.md file and insert to raw_objects:
-    ```sql
-    insert into mega_blob values (id, blob_id, 1024, 0, 'Merged');
-    insert into raw_objects values (...);
-    ```
-
-
-#### Clone mega directory
-
-- Check path is import directory
-    ```sql
-    select * from mega_snapshot where path = '/path/to/directory';
-    ```
-- If it's a mega directory
-
-  - Check clone object size exceed the threshold:
-    ```sql
-    <!-- get all files under path -->
-    select * from mega_snapshot where tree_id in (...);
-    <!-- calculate objects size with all blob ids -->
-    select * from mega_blob where blob_id in (...);
-    ```
-  - Construct new commit
-    ```sql
-    <!-- get related commit -->
-    select * from mega_commit where commit_id = ?;
-    ```
-  - Pack file with new commit and raw tree and objects;
-    ```sql
-    <!-- get related trees and objects -->
-    select * from raw_objects where sha1 in (...);
-    ```
-
-- Or a import directory(see clone a repo)
-
-#### Push back mega directory
-- Parse packfile get trees and objs
-  ```sql
-  select * from mega_snapshot where path = '/path/to/directory';
-  ```
-- Open new merge request
-  ```sql
-  insert into raw_objects values(...);
-  insert into merge_request values(...);
-  insert into mega_tree values(..., 'Open');
-  insert into mega_commit values(..., 'Open');
-  insert into mega_blob values(..., 'Open');
-  ```
-- Merge Request
-  ```sql
-  update merge_request set status = 'Merged';
-  update mega_tree set status = 'Merged';
-  update mega_commit set status = 'Merged';
-  update mega_blob set status = 'Merged';
-  update mega_snapshot set (commit_id, sub_trees) where path = ?;
-  ```
-
-#### Clone repo 
-  - Find related objects
-    ```sql
-    select * from git_repo where repo_path = '/path/to/repo'
-    select commmit_id from git_commit where repo_id = ?;
-    select tree_id from git_tree where repo_id = ?;
-    select blob_id from git_blob where repo_id = ?;
-    ```
-  - Find raw objects by id
-  ```sql
-  select * from raw_objects where repo_id =? and sha1 in (...);
-  ```  
-  - Pack file with raw_objetcs
-
-
-#### Push back repo
-- Check server refs by path
-  ```sql
-  select * from git_repo where repo_path = '/path/to/repo'
-  select * from git_refs where repo_id = ...;
-  ```
-- Parse pack file and save objects
-  ```sql
-  insert into raw_objectss values(...);
-  <!-- convert raw_obj to objects -->
-  ```
-- If under import directory
-  ```sql
-  insert into git_commit values (c1),(c2),(c3);
-  insert into git_tree values (T1)...(T4);
-  insert into git_blob values (B1)...(B5);
-  ```
-- Update refs
-  ```sql
-  update git_refs set ref_git_id = ? where repo_id =?;
-  ```
-
-## 4. Prerequisites
+## 3. Prerequisites
 
 - You need to execute SQL files in a specific order to init the database.
 
     For example using `PostgreSQL`, execute the files under `sql\postgres`:
 
-        pg_20230803__init.sql
+        pg_20240205__init.sql
 
-    or if your are using `Mysql`, execute scripts:
+    or if you are using `Mysql`, execute the files under `sql\mysql`:
 
-        mysql_20230523__init.sql
+        mysql_20231106__init.sql
 
 
 

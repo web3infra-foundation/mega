@@ -3,10 +3,10 @@
 //!
 use std::collections::HashMap;
 use std::env;
-use std::fs::File;
+use std::fs::{create_dir_all, File};
 use std::io::{Read, Write};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -103,6 +103,12 @@ pub async fn start_server(command: &SshOptions) {
 pub fn load_key() -> Result<KeyPair> {
     let key_root = env::var("MEGA_SSH_KEY").expect("MEGA_SSH_KEY is not set in .env file");
     let key_path = PathBuf::from(&key_root).join("id_rsa");
+
+    if !Path::new(&key_root).exists() {
+        // create ssh directory if not exists
+        create_dir_all(&key_root).unwrap();
+    }
+
     if !key_path.exists() {
         // generate a keypair if not exists
         let keys = KeyPair::generate_ed25519().unwrap();
