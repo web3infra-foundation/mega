@@ -32,8 +32,8 @@ async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
 
     while !queue.is_empty() {
         let commit_id = queue.pop_front().unwrap();
-
-        let commit = load_object::<Commit>(&SHA1::from_str(&commit_id).unwrap())
+        let commit_id_hash = SHA1::from_str(&commit_id).unwrap();
+        let commit = load_object::<Commit>(&commit_id_hash)
             .expect("fatal: storage broken, object not found");
         if commit_set.contains(&commit_id) {
             continue;
