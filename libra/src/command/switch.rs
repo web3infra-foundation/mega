@@ -8,7 +8,7 @@ use crate::{
     command::branch,
     db,
     model::reference::{self, ActiveModel},
-    utils::util,
+    utils::util::{self, get_commit_base},
 };
 
 use super::{
@@ -32,21 +32,6 @@ pub struct SwitchArgs {
     detach: bool,
 }
 
-fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
-    let storage = util::objects_storage();
-
-    let commits = storage.search(commit_base);
-    if commits.is_empty() {
-        return Err(format!("fatal: invalid reference: {}", commit_base));
-    } else if commits.len() > 1 {
-        return Err(format!("fatal: ambiguous argument: {}", commit_base));
-    }
-    if storage.is_object_type(&commits[0], ObjectType::Commit) {
-        Err(format!("fatal: reference is not a commit: {}", commit_base))
-    } else {
-        Ok(commits[0])
-    }
-}
 
 pub async fn execute(args: SwitchArgs) {
     // check status

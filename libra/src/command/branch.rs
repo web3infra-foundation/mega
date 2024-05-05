@@ -1,9 +1,11 @@
+use crate::utils::util;
 use clap::Parser;
 use colored::Colorize;
 use sea_orm::{ActiveModelTrait, Set};
 use std::str::FromStr;
-use venus::hash::SHA1;
+use storage::utils;
 use venus::internal::object::commit::Commit;
+use venus::{hash::SHA1, internal::object::types::ObjectType};
 
 use crate::{
     command::load_object,
@@ -58,7 +60,10 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
                 .unwrap();
             match branch {
                 Some(branch) => branch.commit.unwrap(),
-                None => branch_or_commit,
+                None => {
+                    let commit_base = util::get_commit_base(&branch_or_commit).unwrap();
+                    commit_base.to_plain_str()
+                }
             }
         }
         None => {
@@ -70,7 +75,9 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
                     let branch = reference::Model::find_branch_by_name(&db, &current_branch_name)
                         .await
                         .unwrap()
-                        .unwrap_or_else(|| panic!("fatal: no branch named '{}'", current_branch_name));
+                        .unwrap_or_else(|| {
+                            panic!("fatal: no branch named '{}'", current_branch_name)
+                        });
                     branch.commit.unwrap()
                 }
             }
