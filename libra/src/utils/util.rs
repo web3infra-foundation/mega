@@ -1,15 +1,15 @@
-use std::path::{Path, PathBuf};
-use std::{env, fs, io};
-use std::collections::HashSet;
-use std::io::{BufReader, Read, Write};
-use path_abs::{PathAbs, PathInfo};
-use path_abs::PathType::File;
-use sha1::{Digest, Sha1};
-use venus::hash::SHA1;
-use venus::internal::object::types::ObjectType;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::path_ext::PathExt;
+use path_abs::PathType::File;
+use path_abs::{PathAbs, PathInfo};
+use sha1::{Digest, Sha1};
+use std::collections::HashSet;
+use std::io::{BufReader, Read, Write};
+use std::path::{Path, PathBuf};
+use std::{env, fs, io};
+use venus::hash::SHA1;
+use venus::internal::object::types::ObjectType;
 
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
@@ -93,9 +93,9 @@ pub fn is_sub_path<P: AsRef<Path>>(path: P, parent: P) -> bool {
 /// - absolute path or relative path to the current dir
 /// - Not check existence
 pub fn is_sub_of_paths<P, U>(path: impl AsRef<Path>, paths: U) -> bool
-    where
-        P: AsRef<Path>,
-        U: IntoIterator<Item = P>,
+where
+    P: AsRef<Path>,
+    U: IntoIterator<Item = P>,
 {
     for p in paths {
         if is_sub_path(path.as_ref(), p.as_ref()) {
@@ -114,20 +114,27 @@ pub fn filter_to_fit_paths<P>(paths: &[P], fit_paths: &Vec<P>) -> Vec<P>
 where
     P: AsRef<Path> + Clone,
 {
-    paths.iter().filter(|p| {
-        let p = workdir_to_absolute(p.as_ref());
-        is_sub_of_paths(&p, fit_paths)
-    }).cloned().collect()
+    paths
+        .iter()
+        .filter(|p| {
+            let p = workdir_to_absolute(p.as_ref());
+            is_sub_of_paths(&p, fit_paths)
+        })
+        .cloned()
+        .collect()
 }
 
 /// `path` & `base` must be absolute or relative (to current dir)
 pub fn to_relative<P, B>(path: P, base: B) -> PathBuf
-    where P: AsRef<Path>, B: AsRef<Path>
+where
+    P: AsRef<Path>,
+    B: AsRef<Path>,
 {
     let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
     let base_abs = PathAbs::new(base.as_ref()).unwrap();
     if cfg!(windows) {
-        assert_eq!( // just little check
+        assert_eq!(
+            // just little check
             path_abs.to_str().unwrap().starts_with(r"\\?\"),
             base_abs.to_str().unwrap().starts_with(r"\\?\")
         )
@@ -135,14 +142,19 @@ pub fn to_relative<P, B>(path: P, base: B) -> PathBuf
     if let Some(rel_path) = pathdiff::diff_paths(path_abs, base_abs) {
         rel_path
     } else {
-        panic!("fatal: path {:?} cannot convert to relative based on {:?}", path.as_ref(), base.as_ref());
+        panic!(
+            "fatal: path {:?} cannot convert to relative based on {:?}",
+            path.as_ref(),
+            base.as_ref()
+        );
     }
 }
 
 /// Convert a path to relative path to the current directory
 /// - `path` must be absolute or relative (to current dir)
 pub fn to_current_dir<P>(path: P) -> PathBuf
-    where P: AsRef<Path>
+where
+    P: AsRef<Path>,
 {
     to_relative(path, cur_dir())
 }
@@ -150,7 +162,9 @@ pub fn to_current_dir<P>(path: P) -> PathBuf
 /// Convert a workdir path to relative path
 /// - `base` must be absolute or relative (to current dir)
 pub fn workdir_to_relative<P, B>(path: P, base: B) -> PathBuf
-    where P: AsRef<Path>, B: AsRef<Path>
+where
+    P: AsRef<Path>,
+    B: AsRef<Path>,
 {
     let path_abs = workdir_to_absolute(path);
     to_relative(path_abs, base)
@@ -158,7 +172,8 @@ pub fn workdir_to_relative<P, B>(path: P, base: B) -> PathBuf
 
 /// Convert a workdir path to relative path to the current directory
 pub fn workdir_to_current<P>(path: P) -> PathBuf
-    where P: AsRef<Path>
+where
+    P: AsRef<Path>,
 {
     workdir_to_relative(path, cur_dir())
 }
@@ -268,11 +283,11 @@ fn simplify_path(path: &Path) -> PathBuf {
             std::path::Component::ParentDir => {
                 // 对于 `..`，尝试移除最后一个路径组件
                 result.pop();
-            },
+            }
             std::path::Component::CurDir => {
                 // 对于 `.`，不做任何操作，继续
                 continue;
-            },
+            }
             // 直接添加其它类型的组件到结果路径中
             _ => result.push(component.as_os_str()),
         }
@@ -296,7 +311,7 @@ pub fn pathspec_to_workpath(pathspec: Vec<String>) -> Vec<PathBuf> {
 
             // clean up the path
             path = simplify_path(&path);
-            
+
             // absolute path to relative path
             if let Ok(rel_path) = path.strip_prefix(&working_dir) {
                 path = PathBuf::from(rel_path);
@@ -311,7 +326,28 @@ pub fn pathspec_to_workpath(pathspec: Vec<String>) -> Vec<PathBuf> {
 /// transform path to string, use '/' as separator even on windows
 pub fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string() // TODO: test on windows
-    // TODO maybe 'into_os_string().into_string().unwrap()' is good
+                                       // TODO maybe 'into_os_string().into_string().unwrap()' is good
+}
+
+/// extend hash, panic if not valid or ambiguous
+pub fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
+    let storage = objects_storage();
+
+    let commits = storage.search(commit_base);
+    if commits.is_empty() {
+        return Err(format!("fatal: invalid reference: {}", commit_base));
+    } else if commits.len() > 1 {
+        return Err(format!("fatal: ambiguous argument: {}", commit_base));
+    }
+    if !storage.is_object_type(&commits[0], ObjectType::Commit) {
+        Err(format!(
+            "fatal: reference is not a commit: {}, is {}",
+            commit_base,
+            storage.get_object_type(&commits[0]).unwrap()
+        ))
+    } else {
+        Ok(commits[0])
+    }
 }
 
 #[cfg(test)]
