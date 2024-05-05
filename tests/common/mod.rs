@@ -20,8 +20,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::ToSocketAddrs;
 use tokio_util::io::ReaderStream;
 
+use ceres::protocol::TransportProtocol;
 use gateway::ssh_server::load_key;
-use git::{internal::pack::counter::GitTypeCounter, protocol::Protocol};
 
 #[derive(Clone)]
 pub struct P2pTestConfig {
@@ -32,9 +32,9 @@ pub struct P2pTestConfig {
     pub repo_path: String,
     pub commit_id: String,
     pub sub_commit_id: String,
-    pub counter: GitTypeCounter,
+    // pub counter: GitTypeCounter,
     pub clone_path: PathBuf,
-    pub protocol: Protocol,
+    pub protocol: TransportProtocol,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -95,7 +95,7 @@ pub async fn init_by_pack(config: &P2pTestConfig) {
     let f = tokio::fs::File::open(&config.pack_path).await.unwrap();
 
     match config.protocol {
-        Protocol::Http | Protocol::P2p => {
+        TransportProtocol::Http | TransportProtocol::P2p => {
             let stream =
                 ReaderStream::new(Cursor::new(Bytes::from(pkt_line))).chain(ReaderStream::new(f));
 
@@ -110,7 +110,7 @@ pub async fn init_by_pack(config: &P2pTestConfig) {
             assert_eq!(resp.status(), 200);
             println!("resp: {:?}", resp.bytes().await);
         }
-        Protocol::Ssh => {
+        TransportProtocol::Ssh => {
             // Create an asynchronous stream from the pkt_line string
             let pkt_line_stream = Cursor::new(pkt_line);
             // Combine the pkt_line and file streams
@@ -133,11 +133,11 @@ pub async fn init_by_pack(config: &P2pTestConfig) {
 
 pub fn clone_by_type(config: &P2pTestConfig, url: &str, into_path: &Path) -> Repository {
     match config.protocol {
-        Protocol::Http => match Repository::clone(url, into_path) {
+        TransportProtocol::Http => match Repository::clone(url, into_path) {
             Ok(repo) => repo,
             Err(e) => panic!("failed to clone: {}", e),
         },
-        Protocol::Ssh => {
+        TransportProtocol::Ssh => {
             // Create callbacks for SSH authentication
             let mut callbacks = RemoteCallbacks::new();
 
@@ -167,7 +167,7 @@ pub fn push_by_type(config: &P2pTestConfig, repo: &Repository) {
     let mut remote = repo.find_remote("origin").unwrap();
     let refspecs = ["refs/heads/master:refs/heads/master"];
 
-    let mut op = if config.protocol == Protocol::Ssh {
+    let mut op = if config.protocol == TransportProtocol::Ssh {
         let mut callbacks = RemoteCallbacks::new();
         callbacks.credentials(|_url, username_from_url, _allowed_types| {
             Cred::ssh_key(

@@ -75,45 +75,51 @@
 5. Config environment variables for local test. For local testing, Mega uses the .env file to configure the required parameters. However, before starting the project, you also need to configure the environment variables such as `DB_USERNAME`, `DB_PASSWORD`, and `DB_HOST`.
 
    ```ini
-   ## Fillin the following environment variables with values you set
-   DB = "postgres" # {postgres, mysql}
-   DB_USERNAME = "mega"
-   DB_PASSWORD = "mega"
-   DB_HOST = "localhost"
+    # Fillin the following environment variables with values you set
 
-   MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
-   MEGA_DB_MYSQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
-   MEGA_DB_MAX_CONNECTIONS = 32
-   MEGA_DB_MIN_CONNECTIONS = 16
+    ## Database Configuration
+    DB = "postgres" # {postgres}
+    DB_USERNAME = "mega"
+    DB_PASSWORD = "mega"
+    DB_HOST = "localhost"
 
-   ## Whether to disabling SQLx Log
-   MEGA_DB_SQLX_LOGGING = false
+    MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
+    MEGA_DB_MAX_CONNECTIONS = 32
+    MEGA_DB_MIN_CONNECTIONS = 16
 
-   ## Mega SSH key path
-   MEGA_SSH_KEY = "/tmp/.mega/ssh"
+    MEGA_DB_SQLX_LOGGING = false # Whether to disabling SQLx Log
+    ## End Database Configuration
 
-   ## file storage configuration
-   MEGA_RAW_STORAGE = "LOCAL" # LOCAL or REMOTE
 
-   ## This configuration is used to set the local path of the project storage
-   MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects"
+    ## SSH/HTTPS Key Configruation
+    MEGA_SSH_KEY = "/tmp/.mega/ssh"
+    MEGA_HTTPS_PUBLIC_KEY = ""
+    MEGA_HTTPS_PRIVATE_KEY = ""
+    ## End SSH/HTTPS Key Configruation
 
-   ## Remote cloud storage region
-   MEGA_OBS_ACCESS_KEY = ""
-   MEGA_OBS_SECRET_KEY = ""
-   MEGA_OBJ_REMOTE_REGION = ""
-   MEGA_OBJ_REMOTE_ENDPOINT = ""
+    ## File Storage Configuration
+    MEGA_RAW_STORAGE = "LOCAL" # LOCAL or REMOTE
 
-   ## Unit KB. If the object file size exceeds the threshold value, it will be handled by file storage instead of the database
-   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024
+    ### This configuration is used to set the local path of the project storage
+    MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects"
+    MEGA_LFS_OBJ_LOCAL_PATH = "/tmp/.mega/lfs"
 
-   ## Init directory configuration
-   ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
-   MEGA_IMPORT_DIRS = "/third-part"
+    ### This configuration is used to set the object storage service like S3
+    MEGA_OBS_ACCESS_KEY = ""
+    MEGA_OBS_SECRET_KEY = ""
+    MEGA_OBJ_REMOTE_REGION = "cn-east-3" # Remote cloud storage region
+    MEGA_OBJ_REMOTE_ENDPOINT = "https://obs.cn-east-3.myhuaweicloud.com" # Override the endpoint URL used for remote storage services
 
-   ## Decode cache configuration
-   MEGA_PACK_DECODE_MEM_SIZE = 4 # Unit GB.
-   MEGA_PACK_DECODE_CACHE_PATH = "/tmp/.mega/cache"
+    ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database
+    MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB.
+
+    ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+    MEGA_IMPORT_DIRS = "/third-part"
+
+    ## Decode cache configuration
+    MEGA_PACK_DECODE_MEM_SIZE = 4 # Unit GB.
+    MEGA_PACK_DECODE_CACHE_PATH = "/tmp/.mega/cache"
+    CLEAN_CACHE_AFTER_DECODE = true
 
    ```
 
@@ -218,45 +224,52 @@
 5. Config `.env`.
 
    ```ini
-   ## Fillin the following environment variables with values you set
-   DB = "postgres" # {postgres, mysql}
-   DB_USERNAME = "mega"
-   DB_PASSWORD = "mega"
-   DB_HOST = "localhost"
+    # Fillin the following environment variables with values you set
 
-   MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
-   MEGA_DB_MYSQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
-   MEGA_DB_MAX_CONNECTIONS = 32
-   MEGA_DB_MIN_CONNECTIONS = 16
+    ## Database Configuration
+    DB = "postgres" # {postgres}
+    DB_USERNAME = "mega"
+    DB_PASSWORD = "mega"
+    DB_HOST = "localhost"
 
-   ## Whether to disabling SQLx Log
-   MEGA_DB_SQLX_LOGGING = false
+    MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
+    MEGA_DB_MAX_CONNECTIONS = 32
+    MEGA_DB_MIN_CONNECTIONS = 16
 
-   ## Mega SSH key path
-   MEGA_SSH_KEY = "/tmp/.mega/ssh"
+    MEGA_DB_SQLX_LOGGING = false # Whether to disabling SQLx Log
+    ## End Database Configuration
 
-   ## file storage configuration
-   MEGA_RAW_STORAGE = "LOCAL" # LOCAL or REMOTE
 
-   ## This configuration is used to set the local path of the project storage
-   MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects"
+    ## SSH/HTTPS Key Configruation
+    MEGA_SSH_KEY = "/tmp/.mega/ssh"
+    MEGA_HTTPS_PUBLIC_KEY = ""
+    MEGA_HTTPS_PRIVATE_KEY = ""
+    ## End SSH/HTTPS Key Configruation
 
-   ## Remote cloud storage region
-   MEGA_OBS_ACCESS_KEY = ""
-   MEGA_OBS_SECRET_KEY = ""
-   MEGA_OBJ_REMOTE_REGION = ""
-   MEGA_OBJ_REMOTE_ENDPOINT = ""
+    ## File Storage Configuration
+    MEGA_RAW_STORAGE = "LOCAL" # LOCAL or REMOTE
 
-   ## Unit KB. If the object file size exceeds the threshold value, it will be handled by file storage instead of the database
-   MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024
+    ### This configuration is used to set the local path of the project storage
+    MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects"
+    MEGA_LFS_OBJ_LOCAL_PATH = "/tmp/.mega/lfs"
 
-   ## Init directory configuration
-   ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
-   MEGA_IMPORT_DIRS = "/third-part"
+    ### This configuration is used to set the object storage service like S3
+    MEGA_OBS_ACCESS_KEY = ""
+    MEGA_OBS_SECRET_KEY = ""
+    MEGA_OBJ_REMOTE_REGION = "cn-east-3" # Remote cloud storage region
+    MEGA_OBJ_REMOTE_ENDPOINT = "https://obs.cn-east-3.myhuaweicloud.com" # Override the endpoint URL used for remote storage services
 
-   ## Decode cache configuration
-   MEGA_PACK_DECODE_MEM_SIZE = 4 # Unit GB.
-   MEGA_PACK_DECODE_CACHE_PATH = "/tmp/.mega/cache"
+    ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database
+    MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB.
+
+    ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+    MEGA_IMPORT_DIRS = "/third-part"
+
+    ## Decode cache configuration
+    MEGA_PACK_DECODE_MEM_SIZE = 4 # Unit GB.
+    MEGA_PACK_DECODE_CACHE_PATH = "/tmp/.mega/cache"
+    CLEAN_CACHE_AFTER_DECODE = true
+
    ```
 
 6. Init Mega.

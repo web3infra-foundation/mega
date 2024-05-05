@@ -7,11 +7,7 @@ edition = "2021"
 members = [
     ".",
     "gateway",
-    "git",
     "common",
-    "storage",
-    "p2p",
-    "kvcache",
     "delta",
     "mercury",
     "jupiter",
@@ -21,13 +17,12 @@ members = [
     "ceres",
     "libra",
 ]
-exclude = ["craft", "fuse"]
+exclude = ["craft"]
 
 [dependencies]
 gateway = { path = "gateway" }
 common = { path = "common" }
-p2p = { path = "p2p" }
-git = { path = "git" }
+ceres = { path = "ceres" }
 config = "0.14"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
