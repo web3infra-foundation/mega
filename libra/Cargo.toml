@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 venus = { path = "../venus" }
 mercury = { path = "../mercury" }
-storage = { path = "../storage" }
 ceres = { path = "../ceres" }
 sea-orm = { workspace = true, features = [
     "sqlx-sqlite",
@@ -29,7 +28,6 @@ tracing = { workspace = true }
 tracing-subscriber ={ workspace = true }
 url = "2.5.0"
 reqwest = "0.12.4"
-base64 = "0.22.1"
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
