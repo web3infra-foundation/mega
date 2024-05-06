@@ -1,11 +1,11 @@
-use std::io;
 use crate::model::*;
+use crate::utils::path;
 use sea_orm::{ConnectionTrait, DbErr, Schema, Statement, TransactionError, TransactionTrait};
 use sea_orm::{Database, DatabaseConnection};
+use std::io;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 use std::path::Path;
-use crate::utils::path;
 
 /// Establish a connection to the database.
 ///  - `db_path` is the path to the SQLite database file.
@@ -296,5 +296,28 @@ mod tests {
             result.is_err(),
             "reference check `remote` must be None for tag failed"
         );
+
+        // test (`name`, `type`) can't be duplicated when `remote` is None
+        let entry = reference::ActiveModel {
+            name: Set(Some("test_branch".to_string())),
+            kind: Set(ConfigKind::Branch),
+            ..Default::default()
+        };
+        let result = entry.clone().save(&conn).await;
+        assert!(result.is_ok());
+        let result = entry.save(&conn).await;
+        assert!(result.is_err(), "reference check duplicated failed");
+
+        // test (`name`, `type`) can't be duplicated when `remote` is not None
+        let entry = reference::ActiveModel {
+            name: Set(Some("test_branch".to_string())),
+            kind: Set(ConfigKind::Branch),
+            remote: Set(Some("origin".to_string())),
+            ..Default::default()
+        };
+        let result = entry.clone().save(&conn).await;
+        assert!(result.is_ok()); // not duplicated because remote is different
+        let result = entry.save(&conn).await;
+        assert!(result.is_err(), "reference check duplicated failed");
     }
 }
