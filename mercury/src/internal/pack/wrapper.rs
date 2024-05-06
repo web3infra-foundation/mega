@@ -1,8 +1,3 @@
-//!
-//! 
-//! 
-//! 
-//! 
 use std::io::{self, Read, BufRead};
 
 use sha1::{Sha1, Digest};

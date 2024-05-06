@@ -48,8 +48,6 @@ pub trait GitStorageProvider: Send + Sync {
 /// The results of each insertion are collected into a vector of futures.
 ///
 /// Note: Currently, SQLx does not support packets larger than 16MB.
-///
-///
 /// # Arguments
 ///
 /// * `save_models` - A vector of models to be saved.

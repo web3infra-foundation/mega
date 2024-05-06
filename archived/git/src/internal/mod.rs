@@ -1,8 +1,3 @@
-//!
-//!
-//!
-//!
-//!
 use std::fmt::Display;
 
 use crate::errors::GitError;

@@ -1,16 +1,9 @@
-//!
-//!
-//!
-//!
-//!
 use thiserror::Error;
 
 use anyhow::Result;
 
 pub type MegaResult = Result<(), MegaError>;
 
-///
-///
 #[derive(Debug)]
 pub struct MegaError {
     pub error: Option<anyhow::Error>,

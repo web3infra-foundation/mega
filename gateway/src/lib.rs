@@ -1,8 +1,3 @@
-//!
-//!
-//!
-//!
-//!
 
 mod api_service;
 mod git_protocol;

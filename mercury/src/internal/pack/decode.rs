@@ -1,9 +1,3 @@
-//!
-//!
-//!
-//!
-//!
-//!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -97,7 +91,7 @@ impl Pack {
     /// * If the pack file does not start with the "PACK" magic identifier.
     /// * If the pack file's version number is not 2.
     /// * If there are any issues reading from the provided `pack` source.
-    pub fn check_header(pack: &mut (impl Read + BufRead)) -> Result<(u32, Vec<u8>), GitError> {
+    pub fn check_header(pack: &mut impl BufRead) -> Result<(u32, Vec<u8>), GitError> {
         // A vector to store the header data for hashing later
         let mut header_data = Vec::new();
 
@@ -191,7 +185,7 @@ impl Pack {
     ///   and the total number of input bytes processed,
     /// * Or a `GitError` in case of a mismatch in expected size or any other reading error.
     ///
-    pub fn decompress_data(&mut self, pack: &mut (impl Read + BufRead + Send), expected_size: usize, ) -> Result<(Vec<u8>, usize), GitError> {
+    pub fn decompress_data(&mut self, pack: &mut (impl BufRead + Send), expected_size: usize, ) -> Result<(Vec<u8>, usize), GitError> {
         // Create a buffer with the expected size for the decompressed data
         let mut buf = Vec::with_capacity(expected_size);
         // Create a new Zlib decoder with the original data
@@ -231,7 +225,7 @@ impl Pack {
     /// * A tuple of the next offset in the pack and the original compressed data as `Vec<u8>`,
     /// * Or a `GitError` in case of any reading or decompression error.
     ///
-    pub fn decode_pack_object(&mut self, pack: &mut (impl Read + BufRead + Send), offset: &mut usize) -> Result<CacheObject, GitError> {
+    pub fn decode_pack_object(&mut self, pack: &mut (impl BufRead + Send), offset: &mut usize) -> Result<CacheObject, GitError> {
         let init_offset = *offset;
 
         // Attempt to read the type and size, handle potential errors
@@ -318,7 +312,7 @@ impl Pack {
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
     ///
     ///
-    pub fn decode<F>(&mut self, pack: &mut (impl Read + BufRead + Seek + Send), callback: F) -> Result<(), GitError>
+    pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Seek + Send), callback: F) -> Result<(), GitError>
     where
         F: Fn(Entry) + Sync + Send + 'static
     {
@@ -457,7 +451,7 @@ impl Pack {
 
     /// Decode Pack in a new thread and send the CacheObjects while decoding.
     /// <br> Attention: It will consume the `pack` and return in JoinHandle
-    pub fn decode_async(mut self, mut pack: (impl Read + BufRead + Seek + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
+    pub fn decode_async(mut self, mut pack: (impl BufRead + Seek + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry| {
                 sender.send(entry).unwrap();
@@ -638,7 +632,7 @@ mod tests {
         let compressed_data = encoder.finish().unwrap();
         let compressed_size = compressed_data.len();
 
-        // Create a cursor for the compressed data to simulate a Read + BufRead source
+        // Create a cursor for the compressed data to simulate a BufRead source
         let mut cursor: Cursor<Vec<u8>> = Cursor::new(compressed_data);
         let expected_size = data.len();
 
