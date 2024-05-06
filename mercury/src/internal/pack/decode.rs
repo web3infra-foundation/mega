@@ -1,9 +1,3 @@
-//!
-//!
-//!
-//!
-//!
-//!
 use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};

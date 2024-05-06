@@ -11,9 +11,6 @@
 //! - A commit message that describes the changes made in the commit.
 //! - A reference to the parent commit or commits (in the case of a merge commit) that the new commit is based on.
 //! - The contents of the files in the repository at the time the commit was made.
-//!
-//!
-//!
 use std::fmt::Display;
 use std::str::FromStr;
 

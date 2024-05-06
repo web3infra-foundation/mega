@@ -1,8 +1,3 @@
-//!
-//!
-//!
-//!
-//!
 use std::{env, path::PathBuf, str::FromStr};
 
 use callisto::db_enums::RefType;

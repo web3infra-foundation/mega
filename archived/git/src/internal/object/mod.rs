@@ -3,9 +3,6 @@
 //!
 //! - **Null** bytes are used as separators between the different fields to allow for efficient parsing
 //! of the object.
-//!
-//!
-//!
 use std::{
     fmt::Display,
     io::{BufRead, Read},
