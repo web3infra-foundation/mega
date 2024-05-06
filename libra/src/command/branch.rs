@@ -52,6 +52,14 @@ pub async fn execute(args: BranchArgs) {
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
     // commit hash maybe a branch name
     let db = db::get_db_conn().await.unwrap();
+    // check if branch exists
+    let branch = reference::Model::find_branch_by_name(&db, &new_branch)
+        .await
+        .unwrap();
+    if branch.is_some() {
+        panic!("fatal: A branch named '{}' already exists.", new_branch);
+    }
+
     let commit_hash = match branch_or_commit {
         Some(branch_or_commit) => {
             let branch = reference::Model::find_branch_by_name(&db, &branch_or_commit)
