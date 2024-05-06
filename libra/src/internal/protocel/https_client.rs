@@ -25,8 +25,8 @@ impl ProtocolClient for HttpsClient {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiscoveredReference {
-    hash: String,
-    refs: String, // TODO rename to ref
+    pub(crate) hash: String,
+    pub(crate) _ref: String, // TODO rename to ref
 }
 
 #[allow(dead_code)] // todo: unimplemented
@@ -84,7 +84,7 @@ impl HttpsClient {
                 // ..default ref named HEAD as the first ref. The stream MUST include capability declarations behind a NUL on the first ref.
                 ref_list.push(DiscoveredReference {
                     hash: hash.to_string(),
-                    refs: "HEAD".to_string(),
+                    _ref: "HEAD".to_string(),
                 });
                 let (head, caps) = refs.split_once('\0').unwrap();
                 assert_eq!(head, "HEAD");
@@ -99,7 +99,7 @@ impl HttpsClient {
             } else {
                 ref_list.push(DiscoveredReference {
                     hash: hash.to_string(),
-                    refs: refs.to_string(),
+                    _ref: refs.to_string(),
                 });
             }
         }
@@ -109,8 +109,13 @@ impl HttpsClient {
 
 #[cfg(test)]
 mod tests {
-
+    use std::io::Write;
+    use tokio::io::AsyncReadExt;
     use crate::internal::protocel::test::{init_debug_loger, init_loger};
+
+    use tokio_util::io::StreamReader;
+    use tokio::io::AsyncBufReadExt;
+    use futures_util::TryStreamExt;
 
     use super::*;
 
@@ -137,7 +142,7 @@ mod tests {
         init_loger();
 
         // POST $GIT_URL/git-upload-pack HTTP/1.0
-        let test_repo = "https://github.com/web3infra-foundation/mega.git/";
+        let test_repo = "https://gitee.com/caiqihang2024/image-viewer2.0.git/";
 
         let url = Url::parse(test_repo)
             .unwrap()
@@ -148,7 +153,7 @@ mod tests {
         let refs = client.discovery_reference().await.unwrap();
         let refs: Vec<DiscoveredReference> = refs
             .iter()
-            .filter(|r| r.refs.starts_with("refs/heads"))
+            .filter(|r| r._ref.starts_with("refs/heads"))
             .cloned()
             .collect();
         println!("{:?}", refs);
@@ -159,7 +164,7 @@ mod tests {
         for r in refs {
             body += format!("0032want {}\n", r.hash).as_str();
         }
-        body += "00000009done";
+        body += "00000009done\n"; // '\n' is important or no response!
         println!("body:\n{}\n", body);
         let res = client
             .post(url)
@@ -170,8 +175,39 @@ mod tests {
             .unwrap();
         println!("{:?}", res.status());
 
-        println!("{:?}", res.bytes().await.unwrap());
+        // let b = &res.bytes().await.unwrap()[0..100];
+        // println!("{:?}", b.to_vec());
+        // println!("{:?}", res.bytes().await.unwrap()[0..100]);
 
         // todo: status code 200 but response body is empty
+
+        if res.status().is_success() {
+            let stream = res.bytes_stream().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+            let mut reader = StreamReader::new(stream);
+            let mut line = String::new();
+
+            reader.read_line(&mut line).await.unwrap();
+            assert_eq!(line, "0008NAK\n");
+            println!("First line: {}", line);
+
+            // 创建一个文件并获取写入器
+            let mut file = std::fs::File::create("/tmp/pack").unwrap();
+
+            // 将 StreamReader 包装成 Vec<u8> 以便写入文件
+            let mut buffer: Vec<u8> = Vec::new();
+            loop {
+                let mut temp_buffer = [0; 1024];
+                let n = match reader.read(&mut temp_buffer).await {
+                    Ok(0) => break, // EOF
+                    Ok(n) => n,
+                    Err(e) => panic!("error reading from socket; error = {:?}", e)
+                };
+
+                buffer.extend_from_slice(&temp_buffer[..n]);
+            }
+
+            // 将剩余的数据写入文件
+            file.write_all(&buffer).expect("write failed");
+        }
     }
 }
