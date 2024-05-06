@@ -19,9 +19,6 @@ use crate::internal::pack::waitlist::Waitlist;
 
 use self::cache::Caches;
 
-///
-/// 
-/// 
 #[allow(unused)]
 pub struct Pack {
     pub number: usize,

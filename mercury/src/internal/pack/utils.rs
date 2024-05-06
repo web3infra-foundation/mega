@@ -1,7 +1,3 @@
-//!
-//! 
-//! 
-//!
 use std::fs;
 use std::io::{self, Read};
 use std::path::Path;

@@ -1,8 +1,3 @@
-//!
-//!
-//!
-//!
-//!
 
 use anyhow::{Ok, Result};
 use clap::{Parser, Subcommand};

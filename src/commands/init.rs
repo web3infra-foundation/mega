@@ -1,8 +1,3 @@
-//!
-//!
-//!
-//!
-//!
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
 use common::errors::MegaResult;

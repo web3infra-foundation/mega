@@ -152,7 +152,6 @@ impl Signature {
         })
     }
 
-    ///
     #[allow(unused)]
     pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
         // Create a new empty vector to store the encoded data.
