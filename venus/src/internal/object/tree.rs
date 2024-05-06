@@ -261,17 +261,6 @@ impl Tree {
             tree_items,
         })
     }
-
-    pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
-        let mut data: Vec<u8> = Vec::new();
-
-        for item in &self.tree_items {
-            data.extend_from_slice(item.to_data().as_slice());
-            //data.push(b'\0');
-        }
-
-        Ok(data)
-    }
 }
 
 impl ObjectTrait for Tree {
@@ -301,6 +290,17 @@ impl ObjectTrait for Tree {
 
     fn get_size(&self) -> usize {
         todo!()
+    }
+
+    fn to_data(&self) -> Result<Vec<u8>, GitError> {
+        let mut data: Vec<u8> = Vec::new();
+
+        for item in &self.tree_items {
+            data.extend_from_slice(item.to_data().as_slice());
+            //data.push(b'\0');
+        }
+
+        Ok(data)
     }
 }
 

@@ -43,8 +43,9 @@ pub trait ObjectTrait: Send + Sync + Display {
     /// Returns the type of the object.
     fn get_type(&self) -> ObjectType;
 
-    ///
     fn get_size(&self) -> usize;
+
+    fn to_data(&self) -> Result<Vec<u8>, GitError>;
 }
 
 #[derive(PartialEq, Debug, Clone)]

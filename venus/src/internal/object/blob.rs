@@ -28,14 +28,11 @@
 //! objects to form a version history of the repository.
 //!
 use std::fmt::Display;
-use std::io::Cursor;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
-use crate::internal::object::utils;
 use crate::internal::object::ObjectTrait;
-use crate::internal::zlib::stream::inflate::ReadBoxed;
 
 /// **The Blob Object**
 ///
@@ -80,12 +77,35 @@ impl ObjectTrait for Blob {
     fn get_size(&self) -> usize {
         self.data.len()
     }
+
+    fn to_data(&self) -> Result<Vec<u8>, GitError> {
+        Ok(self.data.clone())
+    }
 }
 
 impl Blob {
     pub fn from_content(content: &str) -> Self {
-        let blob_content = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
-        let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, content.len());
-        Blob::from_buf_read(&mut buf, content.len())
+        // let blob_content = Cursor::new(utils::compress_zlib(content.as_bytes()).unwrap());
+        // let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, content.len());
+        // Blob::from_buf_read(&mut buf, content.len())
+        let content = content.as_bytes().to_vec();
+        Blob {
+            id: SHA1::from_type_and_data(ObjectType::Blob, &content),
+            data: content,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_blob_from_content() {
+        let content = "Hello, world!";
+        let blob = Blob::from_content(content);
+        assert_eq!(
+            blob.id.to_string(),
+            "5dd01c177f5d7d1be5346a5bc18a569a7410c2ef"
+        );
     }
 }

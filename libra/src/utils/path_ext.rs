@@ -1,0 +1,48 @@
+use std::path::{Path, PathBuf};
+use crate::utils::util;
+
+pub trait PathExt {
+    fn to_workdir(&self) -> PathBuf;
+    fn to_string_or_panic(&self) -> String;
+    fn workdir_to_absolute(&self) -> PathBuf;
+    #[allow(dead_code)] // @Qihang Cai
+    fn workdir_to_current(&self) -> PathBuf;
+    #[allow(dead_code)] // @Qihang Cai
+    fn sub_of(&self, parent: &Path) -> bool;
+    fn sub_of_paths<P, U>(&self, paths: U) -> bool
+        where
+            P: AsRef<Path>,
+            U: IntoIterator<Item = P>;
+}
+
+impl PathExt for PathBuf {
+    fn to_workdir(&self) -> PathBuf {
+        util::to_workdir_path(self)
+    }
+
+    /// `PathBuf` to `String`, may panic
+    /// - aka: `into_os_string().into_string().unwrap()`
+    fn to_string_or_panic(&self) -> String {
+        self.clone().into_os_string().into_string().unwrap()
+    }
+
+    fn workdir_to_absolute(&self) -> PathBuf {
+        util::workdir_to_absolute(self)
+    }
+
+    fn workdir_to_current(&self) -> PathBuf {
+        util::workdir_to_current(self)
+    }
+
+    fn sub_of(&self, parent: &Path) -> bool {
+        util::is_sub_path(self, parent)
+    }
+
+    fn sub_of_paths<P, U>(&self, paths: U) -> bool
+        where
+            P: AsRef<Path>,
+            U: IntoIterator<Item=P>
+    {  // TODO 接口都改成 to workdir好了
+        util::is_sub_of_paths(self, paths)
+    }
+}

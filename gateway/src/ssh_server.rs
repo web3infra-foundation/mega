@@ -1,6 +1,3 @@
-//!
-//!
-//!
 use std::collections::HashMap;
 use std::env;
 use std::fs::{create_dir_all, File};

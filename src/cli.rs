@@ -1,8 +1,3 @@
-//!
-//!
-//!
-//!
-//!
 use clap::{Arg, ArgMatches, Command};
 use config as c;
 use serde::Deserialize;

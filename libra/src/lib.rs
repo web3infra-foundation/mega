@@ -1,2 +1,0 @@
-mod db;
-mod model;

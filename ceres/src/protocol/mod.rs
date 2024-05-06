@@ -1,8 +1,4 @@
-//!
-//!
-//!
-//!
-//!
+use core::fmt;
 use std::{env, path::PathBuf, str::FromStr};
 
 use callisto::db_enums::RefType;
@@ -44,11 +40,11 @@ pub enum ServiceType {
     ReceivePack,
 }
 
-impl ToString for ServiceType {
-    fn to_string(&self) -> String {
+impl fmt::Display for ServiceType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ServiceType::UploadPack => "git-upload-pack".to_owned(),
-            ServiceType::ReceivePack => "git-receive-pack".to_owned(),
+            ServiceType::UploadPack => write!(f, "git-upload-pack"),
+            ServiceType::ReceivePack => write!(f, "git-receive-pack"),
         }
     }
 }

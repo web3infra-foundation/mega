@@ -88,7 +88,10 @@ pub struct Signature {
 impl Display for Signature {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "{} <{}>", self.name, self.email).unwrap();
-        writeln!(f, "Date: {}", self.timestamp)
+        // format the timestamp to a human-readable date format
+        let date =
+            chrono::DateTime::<chrono::Utc>::from_timestamp(self.timestamp as i64, 0).unwrap();
+        writeln!(f, "Date: {} {}", date, self.timezone)
     }
 }
 
@@ -149,7 +152,6 @@ impl Signature {
         })
     }
 
-    ///
     #[allow(unused)]
     pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
         // Create a new empty vector to store the encoded data.

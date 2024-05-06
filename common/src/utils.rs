@@ -1,6 +1,3 @@
-//!
-//!
-//!
 
 use idgenerator::IdInstance;
 
