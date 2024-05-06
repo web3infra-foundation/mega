@@ -369,7 +369,7 @@ async fn lfs_get_filtered_locks(
         size = min(size, locks.len() as i64);
 
         if size + 1 < locks.len() as i64 {
-            next = locks[size as usize].id.to_owned();
+            locks[size as usize].id.clone_into(&mut next);
         }
         let _ = locks.split_off(size as usize);
     }
@@ -416,7 +416,7 @@ async fn lfs_add_lock(
             });
             let d = serde_json::to_string(&locks_from_data).unwrap();
 
-            val.data = d.to_owned();
+            d.clone_into(&mut val.data);
             let res = storage.update_lock(val).await;
             match res.is_ok() {
                 true => Ok(()),
@@ -539,10 +539,10 @@ async fn delete_lock(
                     if Option::is_some(&lock.owner) && !force {
                         return Err(GitLFSError::GeneralError("".to_string()));
                     }
-                    lock_to_delete.id = lock.id.to_owned();
-                    lock_to_delete.path = lock.path.to_owned();
-                    lock_to_delete.owner = lock.owner.clone();
-                    lock_to_delete.locked_at = lock.locked_at.to_owned();
+                    lock.id.clone_into(&mut lock_to_delete.id);
+                    lock.path.clone_into(&mut lock_to_delete.path);
+                    lock_to_delete.owner.clone_from(&lock.owner);
+                    lock.locked_at.clone_into(&mut lock_to_delete.locked_at);
                 } else if !lock.id.is_empty() {
                     new_locks.push(Lock {
                         id: lock.id.to_owned(),
@@ -564,7 +564,7 @@ async fn delete_lock(
 
             // Update remaining locks.
             let data = serde_json::to_string(&new_locks).unwrap();
-            val.data = data.to_owned();
+            data.clone_into(&mut val.data);
             let res = storage.update_lock(val).await;
             match res.is_ok() {
                 true => Ok(lock_to_delete),
