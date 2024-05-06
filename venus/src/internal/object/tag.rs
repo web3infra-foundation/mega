@@ -77,39 +77,6 @@ impl Tag {
     //     let meta = Meta::new_from_file(path)?;
     //     Tag::new_from_meta(meta)
     // }
-
-    ///
-    /// ```bash
-    /// object <object_hash> 0x0a # The SHA-1 hash of the object that the annotated tag is attached to (usually a commit)
-    /// type <object_type> 0x0a #The type of Git object that the annotated tag is attached to (usually 'commit')
-    /// tag <tag_name> 0x0a # The name of the annotated tag(in UTF-8 encoding)
-    /// tagger <tagger> 0x0a # The name, email address, and date of the person who created the annotated tag
-    /// <message>
-    /// ```
-    pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
-        let mut data = Vec::new();
-
-        data.extend_from_slice("object".as_bytes());
-        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
-        data.extend_from_slice(self.object_hash.to_plain_str().as_bytes());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
-
-        data.extend_from_slice("type".as_bytes());
-        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
-        data.extend_from_slice(self.object_type.to_string().as_bytes());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
-
-        data.extend_from_slice("tag".as_bytes());
-        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
-        data.extend_from_slice(self.tag_name.as_bytes());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
-
-        data.extend_from_slice(self.tagger.to_data()?.as_ref());
-        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
-        data.extend_from_slice(self.message.as_bytes());
-
-        Ok(data)
-    }
 }
 
 impl ObjectTrait for Tag {
@@ -173,5 +140,38 @@ impl ObjectTrait for Tag {
 
     fn get_size(&self) -> usize {
         todo!()
+    }
+
+    ///
+    /// ```bash
+    /// object <object_hash> 0x0a # The SHA-1 hash of the object that the annotated tag is attached to (usually a commit)
+    /// type <object_type> 0x0a #The type of Git object that the annotated tag is attached to (usually 'commit')
+    /// tag <tag_name> 0x0a # The name of the annotated tag(in UTF-8 encoding)
+    /// tagger <tagger> 0x0a # The name, email address, and date of the person who created the annotated tag
+    /// <message>
+    /// ```
+    fn to_data(&self) -> Result<Vec<u8>, GitError> {
+        let mut data = Vec::new();
+
+        data.extend_from_slice("object".as_bytes());
+        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        data.extend_from_slice(self.object_hash.to_plain_str().as_bytes());
+        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+
+        data.extend_from_slice("type".as_bytes());
+        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        data.extend_from_slice(self.object_type.to_string().as_bytes());
+        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+
+        data.extend_from_slice("tag".as_bytes());
+        data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
+        data.extend_from_slice(self.tag_name.as_bytes());
+        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+
+        data.extend_from_slice(self.tagger.to_data()?.as_ref());
+        data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
+        data.extend_from_slice(self.message.as_bytes());
+
+        Ok(data)
     }
 }

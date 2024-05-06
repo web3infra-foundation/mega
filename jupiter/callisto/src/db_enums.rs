@@ -1,3 +1,5 @@
+use core::fmt;
+
 use sea_orm::{DeriveActiveEnum, EnumIter};
 
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
@@ -11,15 +13,16 @@ pub enum StorageType {
     RemoteUrl,
 }
 
-impl ToString for StorageType {
-    fn to_string(&self) -> String {
+impl fmt::Display for StorageType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            StorageType::Database => String::from("database"),
-            StorageType::LocalFs => String::from("local_fs"),
-            StorageType::RemoteUrl => String::from("remote_url"),
+            StorageType::Database => write!(f, "database"),
+            StorageType::LocalFs => write!(f, "local_fs"),
+            StorageType::RemoteUrl => write!(f, "remote_url"),
         }
     }
 }
+
 
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Copy)]
 #[sea_orm(rs_type = "String", db_type = "String(Some(1))")]

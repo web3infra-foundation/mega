@@ -1,7 +1,3 @@
-//!
-//!
-//!
-//!
 
 use std::{
     io::{self, Read, Seek, SeekFrom},
@@ -68,8 +64,6 @@ pub fn read_chars<R: Read>(input: &mut R, buf: &mut Vec<u8>, size: usize) -> io:
     Ok(())
 }
 /// Read a hash from the reader
-///
-///
 #[inline]
 pub fn read_hash<R: Read>(stream: &mut R) -> io::Result<Hash> {
     let bytes = read_bytes(stream)?;
@@ -121,8 +115,6 @@ pub fn read_size_encoding<R: Read>(stream: &mut R) -> io::Result<usize> {
     }
 }
 
-///
-///
 pub fn write_size_encoding(number: usize) -> Vec<u8> {
     let mut num = vec![];
     let mut number = number;
@@ -325,17 +317,11 @@ pub fn get_offset<R: Seek>(file: &mut R) -> io::Result<u64> {
 //     result
 // }
 
-///
-///
-///
 pub fn get_pack_raw_data(data: Vec<u8>) -> Vec<u8> {
     let result = &data[12..data.len() - 20];
     result.to_vec()
 }
 
-///
-///
-///
 fn get_hash_form_filename(filename: &str) -> String {
     String::from(&filename[5..45])
 }
