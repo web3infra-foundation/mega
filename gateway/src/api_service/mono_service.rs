@@ -146,11 +146,11 @@ impl MonorepoService {
                 }
             } else {
                 res.result = false;
-                res.err_message = "ref hash conflict".to_owned();
+                "ref hash conflict".clone_into(&mut res.err_message);
             }
         } else {
             res.result = false;
-            res.err_message = "Invalid mr id".to_owned();
+            "Invalid mr id".clone_into(&mut res.err_message);
         }
         Ok(res)
     }
@@ -248,7 +248,7 @@ impl MonorepoService {
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|mut x| {
-                x.commit_id = p_commit_id.to_owned();
+                p_commit_id.clone_into(&mut x.commit_id);
                 x.into()
             })
             .collect();
