@@ -12,5 +12,6 @@ pub mod router;
 pub trait ApiHandler: Send + Sync {
     async fn get_latest_commit(&self) -> Result<LatestCommitInfo, GitError>;
 
+    #[allow(dead_code)] // @benjamin.747
     async fn get_tree_commit_info(&self) -> Result<TreeCommitInfo, GitError>;
 }

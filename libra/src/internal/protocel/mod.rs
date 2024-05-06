@@ -1,6 +1,7 @@
 use url::Url;
 
 pub mod https_client;
+#[allow(dead_code)] // todo: unimplemented
 pub trait ProtocolClient {
     /// create client from url
     fn from_url(url: &Url) -> Self;
