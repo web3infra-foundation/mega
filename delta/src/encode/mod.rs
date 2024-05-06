@@ -1,9 +1,3 @@
-//!
-//!
-//!
-//!
-//!
-//!
 #[cfg(feature = "diff_mydrs")]
 use diffs::myers;
 use diffs::Diff;
@@ -71,8 +65,6 @@ impl<'a> DeltaDiff<'a> {
         delta_diff
     }
 
-    ///
-    ///
     pub fn encode(&self) -> Vec<u8> {
         let mut result: Vec<u8> = Vec::with_capacity(self.ops.len() * 30);
         result.append(&mut write_size_encoding(self.old_data.len()));
@@ -128,7 +120,6 @@ impl<'a> DeltaDiff<'a> {
         op_data
     }
 
-    ///
     pub fn get_ssam_rate(&self) -> f64 {
         self.ssam_r
     }
@@ -137,7 +128,6 @@ impl<'a> DeltaDiff<'a> {
 impl Diff for DeltaDiff<'_> {
     type Error = ();
 
-    ///
     fn equal(&mut self, _old: usize, _new: usize, _len: usize) -> Result<(), Self::Error> {
         self.ssam += _len;
         if let Some(tail) = self.ops.last_mut() {
@@ -161,8 +151,6 @@ impl Diff for DeltaDiff<'_> {
         Ok(())
     }
 
-    ///
-    ///
     fn insert(&mut self, _old: usize, _new: usize, _len: usize) -> Result<(), ()> {
         let mut len = _len;
         let mut new = _new;

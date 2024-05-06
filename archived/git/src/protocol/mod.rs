@@ -1,8 +1,3 @@
-//!
-//!
-//!
-//!
-//!
 use std::{
     path::{Path, PathBuf},
     str::FromStr,

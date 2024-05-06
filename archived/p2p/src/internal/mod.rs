@@ -1,9 +1,3 @@
-//!
-//!
-//!
-//!
-//!
-//!
 
 pub mod dht_redis_store;
 

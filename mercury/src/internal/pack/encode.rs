@@ -1,6 +1,3 @@
-//!
-//!
-//!
 
 use flate2::write::ZlibEncoder;
 use sha1::{Digest, Sha1};

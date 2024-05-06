@@ -37,7 +37,7 @@ pub trait PackHandler: Send + Sync {
         let mut head_hash = ZERO_ID.to_string();
         for git_ref in refs.iter() {
             if git_ref.default_branch {
-                head_hash = git_ref.ref_hash.clone();
+                head_hash.clone_from(&git_ref.ref_hash);
             }
         }
         (head_hash, refs)

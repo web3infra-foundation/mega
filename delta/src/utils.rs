@@ -16,7 +16,6 @@ pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> std::io::Result<[u
 }
 
 // Read the type and size of the object
-///
 pub fn read_size_encoding<R: Read>(stream: &mut R) -> std::io::Result<usize> {
     let mut value = 0;
     let mut length = 0;

@@ -92,7 +92,7 @@ impl RefCommand {
     }
 
     pub fn failed(&mut self, msg: String) {
-        self.status = RefCommand::FAILED_STATUS.to_owned();
+        RefCommand::FAILED_STATUS.clone_into(&mut self.status);
         self.error_msg = msg;
     }
 }
