@@ -1,4 +1,6 @@
+use std::fs;
 use std::io::Write;
+use std::path::PathBuf;
 
 use clap::Parser;
 use futures_util::TryStreamExt;
@@ -9,25 +11,44 @@ use url::Url;
 
 use crate::internal::protocel::https_client::{DiscoveredReference, HttpsClient};
 use crate::internal::protocel::ProtocolClient;
+use crate::utils::path_ext::PathExt;
 use crate::utils::util;
 
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
     /// The remote repository location to clone from, usually a URL with HTTPS or SSH
-    #[clap(long, short)]
     pub remote_repo: String,
 
     /// The local path to clone the repository to
-    #[clap(long, short)]
     pub local_path: Option<String>,
 }
 
-#[allow(unused_variables)] // todo unimplemented
 pub async fn execute(args: CloneArgs) {
-    let remote_repo = args.remote_repo;
+    let mut remote_repo = args.remote_repo; // https://gitee.com/caiqihang2024/image-viewer2.0.git
+    // must end with '/' or Url::join will work incorrectly
+    if !remote_repo.ends_with('/') {
+        remote_repo.push('/');
+    }
     let local_path = args
         .local_path
-        .unwrap_or_else(|| util::cur_dir().to_str().unwrap().to_string());
+        .unwrap_or_else(|| {
+            let repo_name = util::get_repo_name_from_url(&remote_repo).unwrap();
+            util::cur_dir().join(repo_name).to_string_or_panic()
+        });
+
+    let local_path = PathBuf::from(local_path);
+    if local_path.exists() && !util::is_empty_dir(&local_path) {
+        eprintln!("fatal: destination path '{}' already exists and is not an empty directory.", local_path.display());
+        return;
+    }
+
+    // make sure the directory exists
+    if let Err(e) = fs::create_dir_all(&local_path) {
+        eprintln!("fatal: could not create directory '{}': {}", local_path.display(), e);
+        return;
+    }
+    let repo_name = local_path.file_name().unwrap().to_str().unwrap();
+    println!("Cloning into '{}'", repo_name);
 
     let repo_url = Url::parse(&remote_repo).unwrap();
     let url = repo_url.join("git-upload-pack").unwrap();
@@ -65,10 +86,8 @@ pub async fn execute(args: CloneArgs) {
         assert_eq!(line, "0008NAK\n");
         println!("First line: {}", line);
 
-        // 创建一个文件并获取写入器
-        let mut file = std::fs::File::create("/tmp/pack").unwrap();
+        let mut file = fs::File::create(local_path.join("tempPACK.pack")).unwrap();
 
-        // 将 StreamReader 包装成 Vec<u8> 以便写入文件
         let mut buffer: Vec<u8> = Vec::new();
         loop {
             let mut temp_buffer = [0; 1024];
@@ -81,7 +100,6 @@ pub async fn execute(args: CloneArgs) {
             buffer.extend_from_slice(&temp_buffer[..n]);
         }
 
-        // 将剩余的数据写入文件
         file.write_all(&buffer).expect("write failed");
     }
 
