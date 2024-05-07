@@ -117,7 +117,7 @@ impl HttpsClient {
     /// `have` is the list of objects' hashes that the client already has, and `want` is the list of objects that the client wants.
     /// Obtain the `want` references from the `discovery_reference` method.
     /// If the returned stream is empty, it may be due to incorrect refs or an incorrect format.
-    // TODO spport some necessary options
+    // TODO support some necessary options
     pub async fn fetch_objects(
         &self,
         have: &Vec<String>,
@@ -131,7 +131,7 @@ impl HttpsClient {
         for w in want {
             // body += format!("0032want {}\n", w).as_str();
             if !write_first_line {
-                add_pkt_line_string(&mut buf, format!("want {}\0multi_ack_detailed side-band-64k thin-pack ofs-delta agent=ceres\n", w).to_string());
+                add_pkt_line_string(&mut buf, format!("want {}\0multi_ack_detailed side-band-64k thin-pack ofs-delta agent=libra/0.1.0\n", w).to_string());
                 write_first_line = true;
             } else {
                 add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
@@ -157,7 +157,7 @@ impl HttpsClient {
             .unwrap();
 
         if res.status() != 200 && res.status() != 304 {
-            tracing::error!("request faild: {:?}", res);
+            tracing::error!("request failed: {:?}", res);
             return Err(IoError::new(
                 std::io::ErrorKind::Other,
                 format!("Error Response format, status code: {}", res.status()),
