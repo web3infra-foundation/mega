@@ -81,9 +81,10 @@ pub async fn execute(args: CloneArgs) {
 
     // todo consider unpacking the pack file directly
 
+    // todo how to get total bytes & add progress bar
     let mut buffer: Vec<u8> = Vec::new();
     loop {
-        let mut temp_buffer = [0; 1024];
+        let mut temp_buffer = [0; 4096];
         let n = match reader.read(&mut temp_buffer).await {
             Ok(0) => break, // EOF
             Ok(n) => n,
@@ -94,7 +95,11 @@ pub async fn execute(args: CloneArgs) {
     }
 
     // todo parse PACK & validate checksum
-    let checksum = SHA1::from_bytes(&buffer[buffer.len() - 20..]).to_plain_str();
+    let hash = SHA1::new(&buffer[..buffer.len() - 20].to_vec());
+
+    let checksum = SHA1::from_bytes(&buffer[buffer.len() - 20..]);
+    assert_eq!(hash, checksum);
+    let checksum = checksum.to_plain_str();
     println!("checksum: {}", checksum);
 
     let pack_file = path::objects().join("pack").join(format!("pack-{}.pack", checksum));
