@@ -1,12 +1,15 @@
 use super::ProtocolClient;
-use ceres::protocol::smart::read_pkt_line;
-use reqwest::Client;
+use bytes::Bytes;
+use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
+use futures_util::{StreamExt, TryStreamExt};
+use std::io::Error as IoError;
+use tokio_util::bytes::BytesMut;
 use url::Url;
-
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see https://www.git-scm.com/docs/http-protocol for protocol details.
 pub struct HttpsClient {
     url: url::Url,
+    client: reqwest::Client,
 }
 
 impl ProtocolClient for HttpsClient {
@@ -19,7 +22,8 @@ impl ProtocolClient for HttpsClient {
             url.set_path(&format!("{}/", url.path()));
             url
         };
-        Self { url }
+        let client = reqwest::Client::builder().http1_only().build().unwrap();
+        Self { url, client }
     }
 }
 
@@ -29,6 +33,9 @@ pub struct DiscoveredReference {
     pub(crate) _ref: String, // TODO rename to ref
 }
 
+/// Client communicates with the remote git repository over SMART protocol.
+/// protocol details: https://www.git-scm.com/docs/http-protocol
+/// capability declarations: https://www.git-scm.com/docs/protocol-capabilities
 #[allow(dead_code)] // todo: unimplemented
 impl HttpsClient {
     /// GET $GIT_URL/info/refs?service=git-upload-pack HTTP/1.0
@@ -38,8 +45,7 @@ impl HttpsClient {
         &self,
     ) -> Result<Vec<DiscoveredReference>, Box<dyn std::error::Error>> {
         let url = self.url.join("info/refs?service=git-upload-pack").unwrap();
-        let client = Client::builder().http1_only().build().unwrap();
-        let res = client.get(url).send().await.unwrap();
+        let res = self.client.get(url).send().await.unwrap();
         tracing::debug!("{:?}", res);
 
         // check Content-Type MUST be application/x-$servicename-advertisement
@@ -105,24 +111,80 @@ impl HttpsClient {
         }
         Ok(ref_list)
     }
+
+    /// POST $GIT_URL/git-upload-pack HTTP/1.0
+    /// Fetch the objects from the remote repository, which is specified by `have` and `want`.
+    /// `have` is the list of objects' hashes that the client already has, and `want` is the list of objects that the client wants.
+    /// Obtain the `want` references from the `discovery_reference` method.
+    /// If the returned stream is empty, it may be due to incorrect refs or an incorrect format.
+    // TODO spport some necessary options
+    pub async fn fetch_objects(
+        &self,
+        have: &Vec<String>,
+        want: &Vec<String>,
+    ) -> Result<impl StreamExt<Item = Result<Bytes, IoError>>, IoError> {
+        // POST $GIT_URL/git-upload-pack HTTP/1.0
+        let url = self.url.join("git-upload-pack").unwrap();
+        let mut buf = BytesMut::new();
+        let mut write_first_line = false;
+
+        for w in want {
+            // body += format!("0032want {}\n", w).as_str();
+            if !write_first_line {
+                add_pkt_line_string(&mut buf, format!("want {}\0multi_ack_detailed side-band-64k thin-pack ofs-delta agent=ceres\n", w).to_string());
+                write_first_line = true;
+            } else {
+                add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
+            }
+        }
+        for h in have {
+            add_pkt_line_string(&mut buf, format!("have {}\n", h).to_string());
+        }
+
+        buf.extend(b"0000"); // split pkt-lines with a flush-pkt
+        add_pkt_line_string(&mut buf, "done\n".to_string());
+
+        let body = buf.freeze();
+        tracing::debug!("fetch_objects with body:\n{:?}", body);
+
+        let res = self
+            .client
+            .post(url)
+            .header("Content-Type", "application/x-git-upload-pack-request")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+
+        if res.status() != 200 && res.status() != 304 {
+            tracing::error!("request faild: {:?}", res);
+            return Err(IoError::new(
+                std::io::ErrorKind::Other,
+                format!("Error Response format, status code: {}", res.status()),
+            ));
+        }
+        // return Ok(res.bytes_stream());
+        let result = res
+            .bytes_stream()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-    use tokio::io::AsyncReadExt;
     use crate::internal::protocel::test::{init_debug_loger, init_loger};
-
-    use tokio_util::io::StreamReader;
     use tokio::io::AsyncBufReadExt;
-    use futures_util::TryStreamExt;
+    use tokio::io::AsyncReadExt;
+    use tokio_util::io::StreamReader;
 
     use super::*;
 
     #[tokio::test]
     async fn test_get_git_upload_pack() {
         init_debug_loger();
-        // GitHub may be harder to connect than Gitee
+
         let test_repo = "https://github.com/web3infra-foundation/mega.git/";
 
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
@@ -141,13 +203,7 @@ mod tests {
     async fn test_post_git_upload_pack() {
         init_loger();
 
-        // POST $GIT_URL/git-upload-pack HTTP/1.0
         let test_repo = "https://gitee.com/caiqihang2024/image-viewer2.0.git/";
-
-        let url = Url::parse(test_repo)
-            .unwrap()
-            .join("git-upload-pack")
-            .unwrap();
 
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
         let refs = client.discovery_reference().await.unwrap();
@@ -158,56 +214,28 @@ mod tests {
             .collect();
         println!("{:?}", refs);
 
-        let client = Client::builder().http1_only().build().unwrap();
-        let mut body = String::new();
-        // body += format!("0032want {}\n", refs[0].hash).as_str();
-        for r in refs {
-            body += format!("0032want {}\n", r.hash).as_str();
+        let want = refs.iter().map(|r| r.hash.clone()).collect();
+        let result_stream = client.fetch_objects(&vec![], &want).await.unwrap();
+
+        let mut reader = StreamReader::new(result_stream);
+        let mut line = String::new();
+
+        reader.read_line(&mut line).await.unwrap();
+        assert_eq!(line, "0008NAK\n");
+        tracing::info!("First line: {}", line);
+
+        let mut buffer = Vec::new();
+        loop {
+            let mut temp_buffer = [0; 1024];
+            let n = match reader.read(&mut temp_buffer).await {
+                Ok(0) => break, // EOF
+                Ok(n) => n,
+                Err(e) => panic!("error reading from socket; error = {:?}", e),
+            };
+
+            buffer.extend_from_slice(&temp_buffer[..n]);
         }
-        body += "00000009done\n"; // '\n' is important or no response!
-        println!("body:\n{}\n", body);
-        let res = client
-            .post(url)
-            .header("Content-Type", "application/x-git-upload-pack-request")
-            .body(body)
-            .send()
-            .await
-            .unwrap();
-        println!("{:?}", res.status());
-
-        // let b = &res.bytes().await.unwrap()[0..100];
-        // println!("{:?}", b.to_vec());
-        // println!("{:?}", res.bytes().await.unwrap()[0..100]);
-
-        // todo: status code 200 but response body is empty
-
-        if res.status().is_success() {
-            let stream = res.bytes_stream().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
-            let mut reader = StreamReader::new(stream);
-            let mut line = String::new();
-
-            reader.read_line(&mut line).await.unwrap();
-            assert_eq!(line, "0008NAK\n");
-            println!("First line: {}", line);
-
-            // 创建一个文件并获取写入器
-            let mut file = std::fs::File::create("/tmp/pack").unwrap();
-
-            // 将 StreamReader 包装成 Vec<u8> 以便写入文件
-            let mut buffer: Vec<u8> = Vec::new();
-            loop {
-                let mut temp_buffer = [0; 1024];
-                let n = match reader.read(&mut temp_buffer).await {
-                    Ok(0) => break, // EOF
-                    Ok(n) => n,
-                    Err(e) => panic!("error reading from socket; error = {:?}", e)
-                };
-
-                buffer.extend_from_slice(&temp_buffer[..n]);
-            }
-
-            // 将剩余的数据写入文件
-            file.write_all(&buffer).expect("write failed");
-        }
+        tracing::info!("buffer len: {:?}", buffer.len());
+        assert!(!buffer.is_empty(), "buffer len is 0, fetch_objects failed");
     }
 }
