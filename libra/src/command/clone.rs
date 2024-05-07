@@ -1,4 +1,4 @@
-use std::fs;
+use std::{env, fs};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -6,11 +6,13 @@ use clap::Parser;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
+use venus::hash::SHA1;
+use crate::command;
 
 use crate::internal::protocel::https_client::HttpsClient;
 use crate::internal::protocel::ProtocolClient;
 use crate::utils::path_ext::PathExt;
-use crate::utils::util;
+use crate::utils::{path, util};
 
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
@@ -73,8 +75,11 @@ pub async fn execute(args: CloneArgs) {
     assert_eq!(line, "0008NAK\n");
     tracing::info!("First line: {}", line);
 
+    // CAUTION: change [current_dir] to the repo directory
+    env::set_current_dir(&local_path).unwrap();
+    command::init::execute().await;
+
     // todo consider unpacking the pack file directly
-    let mut file = fs::File::create(local_path.join("tempPACK.pack")).unwrap();
 
     let mut buffer: Vec<u8> = Vec::new();
     loop {
@@ -88,5 +93,11 @@ pub async fn execute(args: CloneArgs) {
         buffer.extend_from_slice(&temp_buffer[..n]);
     }
 
+    // todo parse PACK & validate checksum
+    let checksum = SHA1::from_bytes(&buffer[buffer.len() - 20..]).to_plain_str();
+    println!("checksum: {}", checksum);
+
+    let pack_file = path::objects().join("pack").join(format!("pack-{}.pack", checksum));
+    let mut file = fs::File::create(pack_file).unwrap();
     file.write_all(&buffer).expect("write failed");
 }
