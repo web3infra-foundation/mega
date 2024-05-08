@@ -1,5 +1,6 @@
 use std::str::FromStr;
-use sea_orm::DbConn;
+use sea_orm::ActiveValue::Set;
+use sea_orm::{ActiveModelTrait, DbConn};
 use tokio::sync::OnceCell;
 use venus::hash::SHA1;
 use crate::db;
@@ -43,6 +44,42 @@ impl Head {
             Head::Branch(name) => {
                 Branch::current_commit(&name).await
             },
+        }
+    }
+
+    // HEAD is unique, update if exists, insert if not
+    pub async fn update(branch_name: &str, remote: Option<&str>) {
+        let db_conn = get_db_conn().await;
+
+        let head = match remote {
+            Some(remote) => {
+                reference::Model::current_head_remote(db_conn, remote).await.unwrap()
+            },
+            None => {
+                Some(reference::Model::current_head(db_conn).await.unwrap())
+            }
+        };
+
+        match head {
+            Some(head) => {
+                // update
+                let mut head: reference::ActiveModel = head.into();
+                head.name = Set(Some(branch_name.to_owned()));
+                if remote.is_some() {
+                    head.remote = Set(remote.map(|s| s.to_owned()));
+                }
+                head.update(db_conn).await.unwrap();
+            },
+            None => {
+                // insert
+                let head = reference::ActiveModel {
+                    name: Set(Some(branch_name.to_owned())),
+                    kind: Set(reference::ConfigKind::Head),
+                    remote: Set(remote.map(|s| s.to_owned())),
+                    ..Default::default()
+                };
+                head.save(db_conn).await.unwrap();
+            }
         }
     }
 }

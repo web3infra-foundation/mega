@@ -29,12 +29,20 @@ pub enum ConfigKind {
 // some useful functions
 impl Model {
     pub async fn current_head(db: &DbConn) -> Result<Self, DbErr> {
-        Ok(self::Entity::find()
-            .filter(self::Column::Kind.eq(self::ConfigKind::Head))
-            .filter(self::Column::Remote.is_null())
+        Ok(Entity::find()
+            .filter(Column::Kind.eq(ConfigKind::Head))
+            .filter(Column::Remote.is_null())
             .one(db)
             .await?
             .expect("fatal: storage broken, HEAD not found"))
+    }
+
+    pub async fn current_head_remote(db: &DbConn, remote: &str) -> Result<Option<Self>, DbErr> {
+        Ok(Entity::find()
+            .filter(Column::Kind.eq(ConfigKind::Head))
+            .filter(Column::Remote.eq(remote))
+            .one(db)
+            .await?)
     }
 
     /// get current commit (Detached HEAD or branch HEAD)

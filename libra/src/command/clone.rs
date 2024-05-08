@@ -2,15 +2,15 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::{env, fs};
 
-use crate::model::config;
-use crate::model::reference::{self, ConfigKind};
-use crate::{command, db};
+use crate::command;
 use clap::Parser;
-use sea_orm::{ActiveModelTrait, Set};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 use venus::hash::SHA1;
+use crate::internal::config::Config;
+use crate::internal::head::Head;
+use crate::internal::branch::Branch;
 
 use crate::internal::protocol::https_client::{DiscoveredReference, HttpsClient};
 use crate::internal::protocol::ProtocolClient;
@@ -121,82 +121,48 @@ pub async fn execute(args: CloneArgs) {
 }
 
 async fn setup_reference_and_config(refs: Vec<DiscoveredReference>, remote_repo: String) {
-    let db = db::get_db_conn().await.unwrap();
-    // set remote refes
+    const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
+
     let branch_refs: Vec<DiscoveredReference> = refs
         .iter()
         .filter(|r| r._ref.starts_with("refs/heads"))
         .cloned()
         .collect();
 
+    // set remote refs
     for r in branch_refs.iter() {
         let branch_name = r._ref.replace("refs/heads/", "");
-        let origin_branch = reference::ActiveModel {
-            name: Set(Some(branch_name)),
-            kind: Set(ConfigKind::Branch),
-            commit: Set(Some(r._hash.to_owned())),
-            remote: Set(Some("origin".to_string())),
-            ..Default::default()
-        };
-        origin_branch.save(&db).await.unwrap();
+        Branch::insert(&branch_name, &r._hash, Some(ORIGIN)).await;
     }
 
     let head_ref = refs
         .iter()
         .find(|r| r._ref == "HEAD")
-        .expect("orogin HEAD not found");
+        .expect("origin HEAD not found");
 
     // TODO: git may use `refs/heads/branch_name` as branch directly, consider keep it
-    let origin_head_name = branch_refs
+    let origin_head = branch_refs
         .iter()
         .find(|r| r._hash == head_ref._hash)
         .expect("HEAD ref not found in origin refs")
         ._ref
-        .replace("refs/heads/", "");
+        .clone();
 
-    let origin_head = reference::ActiveModel {
-        name: Set(Some(origin_head_name.to_owned())),
-        kind: Set(ConfigKind::Head),
-        remote: Set(Some("origin".to_string())),
-        ..Default::default()
-    };
-    origin_head.save(&db).await.unwrap();
+    let origin_head_name = origin_head.replace("refs/heads/", "");
+
+    // update remote HEAD, default `origin`
+    Head::update(&origin_head_name, Some(ORIGIN)).await;
+    // update HEAD only, because default branch was not created after init
+    Head::update(&origin_head_name, None).await; // local HEAD
 
     // set config: remote.origin.url
-    let remote_origin_url = config::ActiveModel {
-        configuration: Set("remote".to_owned()),
-        name: Set(Some("origin".to_string())),
-        key: Set("url".to_owned()),
-        value: Set(remote_repo),
-        ..Default::default()
-    };
-    remote_origin_url.save(&db).await.unwrap();
+    Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
 
     // set config: remote.origin.fetch
     // todo: temporary ignore fetch option
 
     // set config: branch.master.remote
-    // update HEAD only, because default branch was not created after init
-    let mut head: reference::ActiveModel =
-        reference::Model::current_head(&db).await.unwrap().into();
-    head.name = Set(Some(origin_head_name.to_owned()));
-    head.update(&db).await.unwrap();
-
-    let branch_head_remote = config::ActiveModel {
-        configuration: Set("branch".to_owned()),
-        name: Set(Some(origin_head_name.to_owned())),
-        key: Set("remote".to_owned()),
-        value: Set("origin".to_owned()),
-        ..Default::default()
-    };
-    branch_head_remote.save(&db).await.unwrap();
-
-    let branch_head_merge = config::ActiveModel {
-        configuration: Set("branch".to_owned()),
-        name: Set(Some(origin_head_name.to_owned())),
-        key: Set("merge".to_owned()),
-        value: Set(format!("refs/heads/{}", origin_head_name)),
-        ..Default::default()
-    };
-    branch_head_merge.save(&db).await.unwrap();
+    Config::insert("branch", Some(&origin_head_name), "remote", ORIGIN).await;
+    // set config: branch.master.merge
+    Config::insert("branch", Some(&origin_head_name), "merge", &origin_head).await;
 }
