@@ -37,7 +37,7 @@ enum Commands {
     Switch(command::switch::SwitchArgs),
     #[command(about = "Clone a repository into a new directory")]
     Clone(command::clone::CloneArgs),
-    #[command(about = "Build pack index file for an existing packed archive")]
+    #[command(about = "Build pack index file for an existing packed archive", hide = true)]
     IndexPack(command::index_pack::IndexPackArgs),
 }
 
