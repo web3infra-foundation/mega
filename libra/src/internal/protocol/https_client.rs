@@ -29,14 +29,13 @@ impl ProtocolClient for HttpsClient {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiscoveredReference {
-    pub(crate) hash: String,
-    pub(crate) _ref: String, // TODO rename to ref
+    pub(crate) _hash: String,
+    pub(crate) _ref: String,
 }
 
 /// Client communicates with the remote git repository over SMART protocol.
 /// protocol details: https://www.git-scm.com/docs/http-protocol
 /// capability declarations: https://www.git-scm.com/docs/protocol-capabilities
-#[allow(dead_code)] // todo: unimplemented
 impl HttpsClient {
     /// GET $GIT_URL/info/refs?service=git-upload-pack HTTP/1.0
     /// discover the references of the remote repository before fetching the objects.
@@ -89,7 +88,7 @@ impl HttpsClient {
             if !read_first_line {
                 // ..default ref named HEAD as the first ref. The stream MUST include capability declarations behind a NUL on the first ref.
                 ref_list.push(DiscoveredReference {
-                    hash: hash.to_string(),
+                    _hash: hash.to_string(),
                     _ref: "HEAD".to_string(),
                 });
                 let (head, caps) = refs.split_once('\0').unwrap();
@@ -104,7 +103,7 @@ impl HttpsClient {
                 read_first_line = true;
             } else {
                 ref_list.push(DiscoveredReference {
-                    hash: hash.to_string(),
+                    _hash: hash.to_string(),
                     _ref: refs.to_string(),
                 });
             }
@@ -214,7 +213,7 @@ mod tests {
             .collect();
         println!("{:?}", refs);
 
-        let want = refs.iter().map(|r| r.hash.clone()).collect();
+        let want = refs.iter().map(|r| r._hash.clone()).collect();
         let result_stream = client.fetch_objects(&vec![], &want).await.unwrap();
 
         let mut reader = StreamReader::new(result_stream);
