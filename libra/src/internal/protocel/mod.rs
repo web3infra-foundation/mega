@@ -9,17 +9,4 @@ pub trait ProtocolClient {
 
 #[cfg(test)]
 mod test {
-
-    pub fn init_debug_loger() {
-        tracing::subscriber::set_global_default(
-            tracing_subscriber::fmt()
-                .with_max_level(tracing::Level::DEBUG)
-                .finish(),
-        )
-        .unwrap();
-    }
-
-    pub fn init_loger() {
-        tracing_subscriber::fmt().init();
-    }
 }
