@@ -8,6 +8,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 use venus::hash::SHA1;
+use crate::command::index_pack::IndexPackArgs;
 use crate::internal::config::Config;
 use crate::internal::head::Head;
 use crate::internal::branch::Branch;
@@ -87,7 +88,7 @@ pub async fn execute(args: CloneArgs) {
     command::init::execute().await;
 
     /* save pack file */
-    {
+    let pack_file = {
         // todo how to get total bytes & add progress bar
         let mut buffer: Vec<u8> = Vec::new();
         loop {
@@ -112,9 +113,18 @@ pub async fn execute(args: CloneArgs) {
         let pack_file = path::objects()
             .join("pack")
             .join(format!("pack-{}.pack", checksum));
-        let mut file = fs::File::create(pack_file).unwrap();
+        let mut file = fs::File::create(pack_file.clone()).unwrap();
         file.write_all(&buffer).expect("write failed");
-    }
+
+        pack_file.to_string_or_panic()
+    };
+
+    // build .idx file from PACK
+    command::index_pack::execute(IndexPackArgs {
+        pack_file,
+        index_file: None,
+        index_version: None
+    });
 
     /* setup table */
     setup_reference_and_config(refs, remote_repo).await;
