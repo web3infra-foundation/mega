@@ -9,8 +9,8 @@ use url::Url;
 use venus::hash::SHA1;
 use crate::command;
 
-use crate::internal::protocel::https_client::HttpsClient;
-use crate::internal::protocel::ProtocolClient;
+use crate::internal::protocol::https_client::HttpsClient;
+use crate::internal::protocol::ProtocolClient;
 use crate::utils::path_ext::PathExt;
 use crate::utils::{path, util};
 
