@@ -174,7 +174,7 @@ impl HttpsClient {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::protocel::test::{init_debug_loger, init_loger};
+    use crate::utils::test::{init_debug_logger, init_logger};
     use tokio::io::AsyncBufReadExt;
     use tokio::io::AsyncReadExt;
     use tokio_util::io::StreamReader;
@@ -183,7 +183,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_git_upload_pack() {
-        init_debug_loger();
+        init_debug_logger();
 
         let test_repo = "https://github.com/web3infra-foundation/mega.git/";
 
@@ -201,7 +201,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_git_upload_pack() {
-        init_loger();
+        init_logger();
 
         let test_repo = "https://gitee.com/caiqihang2024/image-viewer2.0.git/";
 
