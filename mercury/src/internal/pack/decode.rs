@@ -28,7 +28,7 @@ struct SharedParams {
     pub waitlist: Arc<Waitlist>,
     pub caches: Arc<Caches>,
     pub cache_objs_mem_size: Arc<AtomicUsize>,
-    pub callback: Arc<dyn Fn(Entry) + Sync + Send>
+    pub callback: Arc<dyn Fn(Entry, usize) + Sync + Send>
 }
 
 impl Pack {
@@ -314,7 +314,7 @@ impl Pack {
     ///
     pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Seek + Send), callback: F) -> Result<(), GitError>
     where
-        F: Fn(Entry) + Sync + Send + 'static
+        F: Fn(Entry, usize) + Sync + Send + 'static
     {
         let time = Instant::now();
         let mut last_update_time = time.elapsed().as_millis();
@@ -453,7 +453,7 @@ impl Pack {
     /// <br> Attention: It will consume the `pack` and return in JoinHandle
     pub fn decode_async(mut self, mut pack: (impl BufRead + Seek + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
         thread::spawn(move || {
-            self.decode(&mut pack, move |entry| {
+            self.decode(&mut pack, move |entry, _| {
                 sender.send(entry).unwrap();
             }).unwrap();
             self
@@ -483,7 +483,7 @@ impl Pack {
 
     /// Cache the new object & process the objects waiting for it (in multi-threading).
     fn cache_obj_and_process_waitlist(shared_params: Arc<SharedParams>, new_obj: CacheObject) {
-        (shared_params.callback)(new_obj.to_entry());
+        (shared_params.callback)(new_obj.to_entry(), new_obj.offset);
         let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.hash, new_obj);
         Self::process_waitlist(shared_params, new_obj);
     }
@@ -658,7 +658,7 @@ mod tests {
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
-        p.decode(&mut buffered, |_|{}).unwrap();
+        p.decode(&mut buffered, |_,_|{}).unwrap();
     }
 
     #[test]
@@ -674,7 +674,7 @@ mod tests {
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
-        p.decode(&mut buffered,|_|{}).unwrap();
+        p.decode(&mut buffered,|_,_|{}).unwrap();
     }
 
     #[test]
@@ -689,8 +689,8 @@ mod tests {
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
-        let rt = p.decode(&mut buffered, |_obj|{
-            // println!("{:?}", obj.hash);
+        let rt = p.decode(&mut buffered, |_obj, _offset|{
+            // println!("{:?} {}", obj.hash.to_plain_str(), offset);
         });
         if let Err(e) = rt {
             fs::remove_dir_all(tmp).unwrap();
@@ -728,7 +728,7 @@ mod tests {
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
-        p.decode(&mut buffered, |_|{}).unwrap();
+        p.decode(&mut buffered, |_,_|{}).unwrap();
     }
 
     #[test]

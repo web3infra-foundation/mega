@@ -251,7 +251,7 @@ mod tests {
                 true
             );
             let mut reader = Cursor::new(data);
-            p.decode(&mut reader, |_| {})
+            p.decode(&mut reader, |_,_| {})
                 .expect("pack file format error");
         }
         // without delta
