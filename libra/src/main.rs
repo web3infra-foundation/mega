@@ -37,6 +37,8 @@ enum Commands {
     Switch(command::switch::SwitchArgs),
     #[command(about = "Clone a repository into a new directory")]
     Clone(command::clone::CloneArgs),
+    #[command(about = "Build pack index file for an existing packed archive")]
+    IndexPack(command::index_pack::IndexPackArgs),
 }
 
 #[tokio::main]
@@ -62,6 +64,7 @@ async fn main() {
         Commands::Restore(args) => command::restore::execute(args).await,
         Commands::Switch(args) => command::switch::execute(args).await,
         Commands::Clone(args) => command::clone::execute(args).await,
+        Commands::IndexPack(args) => command::index_pack::execute(args),
     }
 }
 

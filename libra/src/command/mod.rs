@@ -8,6 +8,7 @@ pub mod restore;
 pub mod status;
 pub mod switch;
 pub mod clone;
+pub mod index_pack;
 
 use crate::utils::util;
 use venus::{hash::SHA1, internal::object::ObjectTrait};
