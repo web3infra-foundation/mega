@@ -1,4 +1,14 @@
+use std::collections::BTreeMap;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
+use byteorder::{BigEndian, WriteBytesExt};
 use clap::Parser;
+use sha1::{Digest, Sha1};
+
+use mercury::internal::pack::Pack;
+use venus::errors::GitError;
 
 #[derive(Parser, Debug)]
 pub struct IndexPackArgs {
@@ -9,6 +19,11 @@ pub struct IndexPackArgs {
     /// the name of packed archive file by replacing `.pack` with `.idx`
     #[clap(short = 'o', required = false)]
     index_file: Option<String>, // Option is must, or clap will require it
+
+    /// This is intended to be used by the test suite only.
+    /// It allows to force the version for the generated pack index
+    #[clap(long, required = false)]
+    index_version: Option<u8>,
 }
 
 pub fn execute(args: IndexPackArgs) {
@@ -28,9 +43,79 @@ pub fn execute(args: IndexPackArgs) {
         return;
     }
 
-    build_index(&pack_file, &index_file);
+    if let Some(version) = args.index_version {
+        match version {
+            1 => build_index_v1(&pack_file, &index_file).unwrap(),
+            2 => println!("support later"),
+            _ => eprintln!("fatal: unsupported index version"),
+        }
+        return;
+    }
 }
 
-fn build_index(pack_file: &str, index_file: &str) {
-    // TODO
+/// Build index file for pack file, version 1
+/// [pack-format](https://git-scm.com/docs/pack-format)
+fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError> {
+    let pack_path = PathBuf::from(pack_file);
+    let tmp_path = pack_path.parent().unwrap();
+    let pack_file = std::fs::File::open(pack_file)?;
+    let mut pack_reader = std::io::BufReader::new(pack_file);
+    let obj_map = Arc::new(Mutex::new(BTreeMap::new())); // sorted by hash
+    let obj_map_c = obj_map.clone();
+    let mut pack = Pack::new(Some(8), Some(1024 * 1024 * 1024 * 1), Some(tmp_path.to_path_buf()), true);
+    pack.decode(&mut pack_reader, move |entry, offset| {
+        obj_map_c.lock().unwrap().insert(entry.hash, offset);
+    })?;
+
+    let mut index_hash = Sha1::new();
+    let mut index_file = std::fs::File::create(index_file)?;
+    // fan-out table
+    // The header consists of 256 4-byte network byte order integers.
+    // N-th entry of this table records the number of objects in the corresponding pack,
+    // the first byte of whose object name is less than or equal to N.
+    // This is called the first-level fan-out table.
+    let mut i: u8 = 0;
+    let mut cnt: u32 = 0;
+    let mut fanout = Vec::with_capacity(256 * 4);
+    let obj_map = Arc::try_unwrap(obj_map).unwrap().into_inner().unwrap();
+    for (hash, _) in obj_map.iter() { // sorted
+        let first_byte = hash.0[0];
+        while first_byte > i { // `while` rather than `if` to fill the gap, e.g. 0, 1, 2, 2, 2, 6
+            fanout.write_u32::<BigEndian>(cnt)?;
+            i += 1;
+        }
+        cnt += 1;
+    }
+    // fill the rest
+    loop {
+        fanout.write_u32::<BigEndian>(cnt)?;
+        if i == 255 {
+            break;
+        }
+        i += 1;
+    }
+    index_hash.update(&fanout);
+    index_file.write_all(&fanout)?;
+
+    // 4-byte network byte order integer, recording where the
+    // object is stored in the pack-file as the offset from the beginning.
+    // one object name of the appropriate size (20 bytes).
+    for (hash, offset) in obj_map {
+        let mut buf = Vec::with_capacity(24);
+        buf.write_u32::<BigEndian>(offset as u32)?;
+        buf.write_all(&hash.0)?;
+
+        index_hash.update(&buf);
+        index_file.write_all(&buf)?;
+    }
+
+    index_hash.update(&pack.signature.0);
+    // A copy of the pack checksum at the end of the corresponding pack-file.
+    index_file.write_all(&pack.signature.0)?;
+    let index_hash:[u8; 20] = index_hash.finalize().into();
+    // Index checksum of all of the above.
+    index_file.write_all(&index_hash)?;
+
+    tracing::debug!("Index file is written to {:?}", index_file);
+    Ok(())
 }
