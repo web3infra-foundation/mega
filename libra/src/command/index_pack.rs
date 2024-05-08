@@ -13,17 +13,17 @@ use venus::errors::GitError;
 #[derive(Parser, Debug)]
 pub struct IndexPackArgs {
     /// Pack file path
-    pack_file: String,
+    pub pack_file: String,
     /// output index file path.
     /// Without this option the name of pack index file is constructed from
     /// the name of packed archive file by replacing `.pack` with `.idx`
     #[clap(short = 'o', required = false)]
-    index_file: Option<String>, // Option is must, or clap will require it
+    pub index_file: Option<String>, // Option is must, or clap will require it
 
     /// This is intended to be used by the test suite only.
     /// It allows to force the version for the generated pack index
     #[clap(long, required = false)]
-    index_version: Option<u8>,
+    pub index_version: Option<u8>,
 }
 
 pub fn execute(args: IndexPackArgs) {
@@ -49,7 +49,9 @@ pub fn execute(args: IndexPackArgs) {
             2 => println!("support later"),
             _ => eprintln!("fatal: unsupported index version"),
         }
-        return;
+    } else {
+        // default version = 1
+        build_index_v1(&pack_file, &index_file).unwrap();
     }
 }
 
