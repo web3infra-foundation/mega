@@ -31,6 +31,7 @@ impl Model {
     pub async fn current_head(db: &DbConn) -> Result<Self, DbErr> {
         Ok(self::Entity::find()
             .filter(self::Column::Kind.eq(self::ConfigKind::Head))
+            .filter(self::Column::Remote.is_null())
             .one(db)
             .await?
             .expect("fatal: storage broken, HEAD not found"))

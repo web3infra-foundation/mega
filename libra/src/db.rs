@@ -231,7 +231,7 @@ mod tests {
             (None, ConfigKind::Head, Some("2019"), None),       // detached head
             (Some("master"), ConfigKind::Branch, Some("2019"), None), // local branch
             (Some("release1"), ConfigKind::Tag, Some("2019"), None), // tag (remote tag store same as local tag)
-            (Some("main"), ConfigKind::Head, Some("a"), Some("origin".to_string())), // remote head
+            (Some("main"), ConfigKind::Head, None, Some("origin".to_string())), // remote head
             (Some("main"), ConfigKind::Branch, Some("a"), Some("origin".to_string())),
         ];
         for (name, kind, commit, remote) in entries.iter() {
