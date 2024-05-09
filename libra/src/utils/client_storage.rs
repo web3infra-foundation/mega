@@ -2,13 +2,20 @@ use std::{fs, io};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
+
+use byteorder::{BigEndian, ReadBytesExt};
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use venus::errors::GitError;
 
+use mercury::internal::pack::cache_object::CacheObject;
+use mercury::internal::pack::Pack;
+use venus::errors::GitError;
 use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
+
+use crate::command;
 
 #[derive(Default)]
 pub struct ClientStorage {
@@ -31,6 +38,11 @@ impl ClientStorage {
             .into_os_string()
             .into_string()
             .unwrap()
+    }
+
+    /// join `base_path` and `obj_id` to get the full path of the object
+    fn get_obj_path(&self, obj_id: &SHA1) -> PathBuf {
+        Path::new(&self.base_path).join(self.transform_path(obj_id))
     }
 
     pub fn get_object_type(&self, obj_id: &SHA1) -> Result<ObjectType, GitError> {
@@ -110,8 +122,8 @@ impl ClientStorage {
         (obj_type, size, end_of_header)
     }
 
-    fn read_raw_data(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
-        let path = Path::new(&self.base_path).join(self.transform_path(object_id));
+    fn read_raw_data(&self, obj_id: &SHA1) -> Result<Vec<u8>, io::Error> {
+        let path = self.get_obj_path(obj_id);
         let mut file = fs::File::open(path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
@@ -119,17 +131,21 @@ impl ClientStorage {
     }
 
     pub fn get(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
-        let raw_data = self.read_raw_data(object_id)?;
-        let data = Self::decompress_zlib(&raw_data)?;
+        if self.exist_loosely(object_id) {
+            let raw_data = self.read_raw_data(object_id)?;
+            let data = Self::decompress_zlib(&raw_data)?;
 
-        // skip & check header
-        let (_, _, end_of_header) = Self::parse_header(&data);
-        Ok(data[end_of_header + 1..].to_vec())
+            // skip & check header
+            let (_, _, end_of_header) = Self::parse_header(&data);
+            Ok(data[end_of_header + 1..].to_vec())
+        } else {
+            Ok(self.get_from_pack(object_id).unwrap().unwrap())
+        }
     }
 
     /// Save content to `objects`
     pub fn put(&self, obj_id: &SHA1, content: &[u8], obj_type: ObjectType) -> Result<String, io::Error> {
-        let path = Path::new(&self.base_path).join(self.transform_path(obj_id));
+        let path = self.get_obj_path(obj_id);
         let dir = path.parent().unwrap();
         fs::create_dir_all(dir)?;
 
@@ -141,9 +157,120 @@ impl ClientStorage {
         Ok(path.to_str().unwrap().to_string())
     }
 
+    /// Check if the object with `obj_id` exists in `objects` or PACKs
     pub fn exist(&self, obj_id: &SHA1) -> bool {
-        let path = Path::new(&self.base_path).join(self.transform_path(obj_id));
+        let path = self.get_obj_path(obj_id);
+        Path::exists(&path) || self.get_from_pack(obj_id).unwrap().is_some()
+    }
+
+    /// Check if the object with `obj_id` exists in `objects`
+    fn exist_loosely(&self, obj_id: &SHA1) -> bool {
+        let path = self.get_obj_path(obj_id);
         Path::exists(&path)
+    }
+}
+
+impl ClientStorage {
+    /// Get object from PACKs by hash, if not found, return None
+    fn get_from_pack(&self, obj_id: &SHA1) -> Result<Option<Vec<u8>>, GitError> {
+        let pack_dir = self.base_path.join("pack");
+
+        let mut packs = Vec::new();
+        for entry in fs::read_dir(&pack_dir)? {
+            let path = entry?.path();
+            if path.is_file() && path.extension().unwrap() == "pack" {
+                packs.push(path);
+            }
+        }
+
+        for pack in packs {
+            let idx = pack.with_extension("idx");
+            if !idx.exists() {
+                command::index_pack::build_index_v1(&pack.to_str().unwrap(), &idx.to_str().unwrap())?;
+            }
+            let res = Self::read_pack_by_idx(&idx, obj_id)?;
+            if let Some(data) = res {
+                return Ok(Some(data));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn read_idx(idx_file: &Path, obj_id: &SHA1) -> Result<Option<u64>, io::Error> {
+        let mut idx_file = fs::File::open(idx_file)?;
+        const FANOUT: usize = 256 * 4;
+        let mut fanout: [u32; 256] = [0; 256]; // 256 * 4 bytes
+        let mut buf = [0; 4];
+        for i in 0..256 {
+            idx_file.read_exact(&mut buf)?;
+            fanout[i] = u32::from_be_bytes(buf);
+        }
+
+        let first_byte = obj_id.0[0];
+        let start = if first_byte == 0 {
+            0
+        } else {
+            fanout[first_byte as usize - 1] as usize
+        };
+        let end = fanout[first_byte as usize] as usize;
+
+        idx_file.seek(io::SeekFrom::Start((FANOUT + 24 * start) as u64))?;
+        for _ in start..end {
+            let offset = idx_file.read_u32::<BigEndian>()?;
+            let mut hash = [0u8; 20];
+            idx_file.read_exact(&mut hash)?;
+            let hash = SHA1::from_bytes(&hash);
+
+            if &hash == obj_id {
+                return Ok(Some(offset as u64));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Get object from pack by .idx file
+    fn read_pack_by_idx(idx_file: &Path, obj_id: &SHA1) -> Result<Option<Vec<u8>>, GitError> {
+        let pack_file = idx_file.with_extension("pack");
+        let res = Self::read_idx(idx_file, obj_id)?;
+        match res {
+            None => Ok(None),
+            Some(offset) => {
+                let res = Self::read_pack_obj(&pack_file, offset)?;
+                return Ok(Some(res.data_decompress.clone()));
+            }
+        }
+    }
+
+    /// Read object from pack file, with offset
+    fn read_pack_obj(pack_file: &Path, offset: u64) -> Result<CacheObject, GitError> {
+        let file = fs::File::open(pack_file)?;
+        let mut pack_reader = io::BufReader::new(&file);
+        pack_reader.seek(io::SeekFrom::Start(offset))?;
+        let mut pack = Pack::new(None, None, None, false);
+        let mut offset = offset as usize;
+        let obj = pack.decode_pack_object(&mut pack_reader, &mut offset)?;
+        match obj.obj_type {
+            ObjectType::OffsetDelta => {
+                let base_offset = obj.base_offset;
+                let base_obj = Self::read_pack_obj(pack_file, base_offset as u64)?;
+                let base_obj = Arc::new(base_obj);
+                let new_obj = Pack::rebuild_delta(obj, base_obj);
+                Ok(new_obj)
+            }
+            ObjectType::HashDelta => {
+                let base_hash = obj.base_ref;
+                let idx_file = pack_file.with_extension("idx");
+                let base_offset = Self::read_idx(&idx_file, &base_hash)?.unwrap();
+
+                let base_obj = Self::read_pack_obj(pack_file, base_offset)?;
+                let base_obj = Arc::new(base_obj);
+                let new_obj = Pack::rebuild_delta(obj, base_obj);
+                Ok(new_obj)
+            },
+            _ => Ok(obj),
+        }
     }
 }
 
@@ -225,5 +352,10 @@ mod tests {
         let compressed_data = ClientStorage::compress_zlib(data).unwrap();
         let decompressed_data = ClientStorage::decompress_zlib(&compressed_data).unwrap();
         assert_eq!(decompressed_data, data);
+    }
+
+    #[test]
+    fn test_get_from_pack() {
+        !unimplemented!();
     }
 }
