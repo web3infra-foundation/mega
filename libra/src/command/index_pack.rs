@@ -57,7 +57,7 @@ pub fn execute(args: IndexPackArgs) {
 
 /// Build index file for pack file, version 1
 /// [pack-format](https://git-scm.com/docs/pack-format)
-fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError> {
+pub fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError> {
     let pack_path = PathBuf::from(pack_file);
     let tmp_path = pack_path.parent().unwrap();
     let pack_file = std::fs::File::open(pack_file)?;
