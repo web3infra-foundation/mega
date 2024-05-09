@@ -112,7 +112,9 @@ impl Caches {
     /// remove the tmp dir
     pub fn remove_tmp_dir(&self) {
         time_it!("Remove tmp dir", {
-            fs::remove_dir_all(&self.tmp_path).unwrap(); //very slow
+            if self.tmp_path.exists() {
+                fs::remove_dir_all(&self.tmp_path).unwrap(); //very slow
+            }
         });
     }
 }
@@ -124,7 +126,10 @@ impl _Cache for Caches {
     where
         Self: Sized,
     {
-        fs::create_dir_all(&tmp_path).unwrap();
+        // `None` means no limit, so no need to create the tmp dir
+        if mem_size.is_some() {
+            fs::create_dir_all(&tmp_path).unwrap();
+        }
 
         Caches {
             map_offset: DashMap::new(),

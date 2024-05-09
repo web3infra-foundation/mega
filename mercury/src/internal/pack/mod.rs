@@ -19,7 +19,7 @@ use crate::internal::pack::waitlist::Waitlist;
 
 use self::cache::Caches;
 
-#[allow(unused)]
+const DEFAULT_TMP_DIR: &str = "./.cache_temp";
 pub struct Pack {
     pub number: usize,
     pub signature: SHA1,

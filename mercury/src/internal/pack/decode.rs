@@ -18,7 +18,7 @@ use crate::internal::pack::cache::Caches;
 use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
-use crate::internal::pack::{utils, Pack};
+use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
 use uuid::Uuid;
 use venus::internal::pack::entry::Entry;
 
@@ -29,6 +29,14 @@ struct SharedParams {
     pub caches: Arc<Caches>,
     pub cache_objs_mem_size: Arc<AtomicUsize>,
     pub callback: Arc<dyn Fn(Entry, usize) + Sync + Send>
+}
+
+impl Drop for Pack {
+    fn drop(&mut self) {
+        if self.clean_tmp {
+            self.caches.remove_tmp_dir();
+        }
+    }
 }
 
 impl Pack {
@@ -43,7 +51,7 @@ impl Pack {
     /// - `clean_tmp`: whether to remove temp dir
     ///
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>, clean_tmp: bool) -> Self {
-        let mut temp_path = temp_path.unwrap_or(PathBuf::from("./.cache_temp"));
+        let mut temp_path = temp_path.unwrap_or(PathBuf::from(DEFAULT_TMP_DIR));
         // add 8 random characters as subdirectory, check if the directory exists
         loop {
             let sub_dir = Uuid::new_v4().to_string()[..8].to_string();
@@ -442,9 +450,10 @@ impl Pack {
         self.caches.clear(); // clear cached objects & stop threads
         assert_eq!(self.cache_objs_mem_used(), 0); // all the objs should be dropped until here
 
-        if self.clean_tmp {
-            self.caches.remove_tmp_dir();
-        }
+        // impl in Drop Trait
+        // if self.clean_tmp {
+        //     self.caches.remove_tmp_dir();
+        // }
         
         Ok(())
     }
