@@ -9,6 +9,7 @@ use tokio_util::io::StreamReader;
 use url::Url;
 use venus::hash::SHA1;
 use crate::command::index_pack::IndexPackArgs;
+use crate::command::restore::RestoreArgs;
 use crate::internal::config::Config;
 use crate::internal::head::Head;
 use crate::internal::branch::Branch;
@@ -128,6 +129,14 @@ pub async fn execute(args: CloneArgs) {
 
     /* setup table */
     setup_reference_and_config(refs, remote_repo).await;
+
+    // restore all files to worktree from HEAD
+    command::restore::execute(RestoreArgs {
+        worktree: true,
+        staged: true,
+        source: None,
+        pathspec: vec![util::working_dir_string()],
+    }).await;
 }
 
 async fn setup_reference_and_config(refs: Vec<DiscoveredReference>, remote_repo: String) {
