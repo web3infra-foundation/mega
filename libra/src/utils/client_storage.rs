@@ -176,7 +176,7 @@ impl ClientStorage {
         let pack_dir = self.base_path.join("pack");
 
         let mut packs = Vec::new();
-        for entry in fs::read_dir(&pack_dir)? {
+        for entry in fs::read_dir(pack_dir)? {
             let path = entry?.path();
             if path.is_file() && path.extension().unwrap() == "pack" {
                 packs.push(path);
@@ -186,7 +186,7 @@ impl ClientStorage {
         for pack in packs {
             let idx = pack.with_extension("idx");
             if !idx.exists() {
-                command::index_pack::build_index_v1(&pack.to_str().unwrap(), &idx.to_str().unwrap())?;
+                command::index_pack::build_index_v1(pack.to_str().unwrap(), idx.to_str().unwrap())?;
             }
             let res = Self::read_pack_by_idx(&idx, obj_id)?;
             if let Some(data) = res {
@@ -202,10 +202,10 @@ impl ClientStorage {
         const FANOUT: usize = 256 * 4;
         let mut fanout: [u32; 256] = [0; 256]; // 256 * 4 bytes
         let mut buf = [0; 4];
-        for i in 0..256 {
-            idx_file.read_exact(&mut buf)?;
-            fanout[i] = u32::from_be_bytes(buf);
-        }
+        fanout.iter_mut().for_each(|x| {
+            idx_file.read_exact(&mut buf).unwrap();
+            *x = u32::from_be_bytes(buf);
+        });
 
         let first_byte = obj_id.0[0];
         let start = if first_byte == 0 {
@@ -238,7 +238,7 @@ impl ClientStorage {
             None => Ok(None),
             Some(offset) => {
                 let res = Self::read_pack_obj(&pack_file, offset)?;
-                return Ok(Some(res.data_decompress.clone()));
+                Ok(Some(res.data_decompress.clone()))
             }
         }
     }
@@ -356,6 +356,6 @@ mod tests {
 
     #[test]
     fn test_get_from_pack() {
-        !unimplemented!();
+        unimplemented!();
     }
 }

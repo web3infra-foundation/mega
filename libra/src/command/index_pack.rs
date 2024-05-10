@@ -64,7 +64,7 @@ pub fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError>
     let mut pack_reader = std::io::BufReader::new(pack_file);
     let obj_map = Arc::new(Mutex::new(BTreeMap::new())); // sorted by hash
     let obj_map_c = obj_map.clone();
-    let mut pack = Pack::new(Some(8), Some(1024 * 1024 * 1024 * 1), Some(tmp_path.to_path_buf()), true);
+    let mut pack = Pack::new(Some(8), Some(1024 * 1024 * 1024), Some(tmp_path.to_path_buf()), true);
     pack.decode(&mut pack_reader, move |entry, offset| {
         obj_map_c.lock().unwrap().insert(entry.hash, offset);
     })?;
@@ -111,7 +111,7 @@ pub fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError>
         index_file.write_all(&buf)?;
     }
 
-    index_hash.update(&pack.signature.0);
+    index_hash.update(pack.signature.0);
     // A copy of the pack checksum at the end of the corresponding pack-file.
     index_file.write_all(&pack.signature.0)?;
     let index_hash:[u8; 20] = index_hash.finalize().into();
