@@ -3,7 +3,10 @@ use std::str::FromStr;
 use callisto::{git_tag, mega_tag};
 use common::utils::generate_id;
 
-use crate::{hash::SHA1, internal::object::{signature::Signature, tag::Tag, types::ObjectType}};
+use crate::{
+    hash::SHA1,
+    internal::object::{signature::Signature, tag::Tag, types::ObjectType},
+};
 
 impl From<Tag> for mega_tag::Model {
     fn from(value: Tag) -> Self {
@@ -13,7 +16,7 @@ impl From<Tag> for mega_tag::Model {
             object_id: value.object_hash.to_plain_str(),
             object_type: value.object_type.to_string(),
             tag_name: value.tag_name,
-            tagger: value.tagger.to_string(),
+            tagger: String::from_utf8_lossy(&value.tagger.to_data().unwrap()).to_string(),
             message: value.message,
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -29,7 +32,7 @@ impl From<Tag> for git_tag::Model {
             object_id: value.object_hash.to_plain_str(),
             object_type: value.object_type.to_string(),
             tag_name: value.tag_name,
-            tagger: value.tagger.to_string(),
+            tagger: String::from_utf8_lossy(&value.tagger.to_data().unwrap()).to_string(),
             message: value.message,
             created_at: chrono::Utc::now().naive_utc(),
         }
@@ -48,7 +51,6 @@ impl From<mega_tag::Model> for Tag {
         }
     }
 }
-
 
 impl From<git_tag::Model> for Tag {
     fn from(value: git_tag::Model) -> Self {
