@@ -38,11 +38,11 @@ impl Model {
     }
 
     pub async fn current_head_remote(db: &DbConn, remote: &str) -> Result<Option<Self>, DbErr> {
-        Ok(Entity::find()
+        Entity::find()
             .filter(Column::Kind.eq(ConfigKind::Head))
             .filter(Column::Remote.eq(remote))
             .one(db)
-            .await?)
+            .await
     }
 
     /// get current commit (Detached HEAD or branch HEAD)
