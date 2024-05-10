@@ -55,7 +55,7 @@ impl ApiHandler for MonorepoService {
                 let mut items = Vec::new();
                 for item in tree.tree_items {
                     let mut info: TreeBriefItem = item.clone().into();
-                    info.path = path.join(item.name).to_str().unwrap().to_owned();
+                    path.join(item.name).to_str().unwrap().clone_into(&mut info.path);
                     items.push(info);
                 }
                 Ok(TreeBriefInfo {
