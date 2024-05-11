@@ -1,5 +1,5 @@
 use crate::{
-    internal::{branch::Branch, head::Head},
+    internal::{branch::Branch, config::Config, head::Head},
     utils::util,
 };
 use clap::Parser;
@@ -31,7 +31,7 @@ pub struct BranchArgs {
     show_curren: bool,
 
     /// show remote branches
-    #[clap(long, requires = "list")]
+    #[clap(short, long, requires = "list")]
     remotes: bool,
 }
 pub async fn execute(args: BranchArgs) {
@@ -107,10 +107,19 @@ async fn show_current_branch() {
 }
 
 async fn list_branches(remotes: bool) {
-    let branches = if remotes {
-        Branch::list_remotes().await
-    } else {
-        Branch::list_local().await
+    // TODO didn't test remote branch
+    let branches = match remotes {
+        true => {
+            // list all remote branches
+            let remote_configs = Config::remote_configs().await;
+            let mut branches = vec![];
+            for remote in remote_configs {
+                let remote_branches = Branch::lsit_branches(Some(&remote.name)).await;
+                branches.extend(remote_branches);
+            }
+            branches
+        }
+        false => Branch::lsit_branches(None).await,
     };
 
     let head = Head::current().await;

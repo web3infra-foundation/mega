@@ -23,53 +23,40 @@ pub struct Branch {
 }
 
 impl Branch {
-    #[allow(dead_code)]
-    /// list all local branches
-    pub async fn list_local() -> Vec<Self> {
+    async fn query_branch(branch_name: &str, remote: Option<&str>) -> Option<reference::Model> {
         let db_conn = get_db_conn().await;
-
-        let branches = reference::Entity::find()
+        reference::Entity::find()
+            .filter(reference::Column::Name.eq(branch_name))
             .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-            .filter(reference::Column::Remote.is_null())
-            .all(db_conn)
-            .await
-            .unwrap();
-
-        branches
-            .iter()
-            .map(|branch| {
-                let commit_hash = branch.commit.as_ref().unwrap();
-                let commit_hash = SHA1::from_str(commit_hash).unwrap();
-                Branch {
-                    name: branch.name.as_ref().unwrap().clone(),
-                    commit: commit_hash,
-                    remote: branch.remote.clone(),
-                }
+            .filter(match remote {
+                Some(remote) => reference::Column::Remote.eq(remote),
+                None => reference::Column::Remote.is_null(),
             })
-            .collect()
+            .one(db_conn)
+            .await
+            .unwrap()
     }
 
     /// list all remote branches
-    pub async fn list_remotes() -> Vec<Self> {
+    pub async fn lsit_branches(remote: Option<&str>) -> Vec<Self> {
         let db_conn = get_db_conn().await;
 
         let branches = reference::Entity::find()
             .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-            .filter(reference::Column::Remote.is_not_null())
+            .filter(match remote {
+                Some(remote) => reference::Column::Remote.eq(remote),
+                None => reference::Column::Remote.is_null(),
+            })
             .all(db_conn)
             .await
             .unwrap();
 
         branches
             .iter()
-            .map(|branch| {
-                let commit_hash = branch.commit.as_ref().unwrap();
-                let commit_hash = SHA1::from_str(commit_hash).unwrap();
-                Branch {
-                    name: branch.name.as_ref().unwrap().clone(),
-                    commit: commit_hash,
-                    remote: branch.remote.clone(),
-                }
+            .map(|branch| Branch {
+                name: branch.name.as_ref().unwrap().clone(),
+                commit: SHA1::from_str(branch.commit.as_ref().unwrap()).unwrap(),
+                remote: branch.remote.clone(),
             })
             .collect()
     }
@@ -82,17 +69,7 @@ impl Branch {
 
     /// get the branch by name
     pub async fn find_branch(branch_name: &str, remote: Option<&str>) -> Option<Self> {
-        let db = get_db_conn().await;
-        let branch = reference::Entity::find()
-            .filter(reference::Column::Name.eq(branch_name))
-            .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-            .filter(match remote {
-                Some(remote) => reference::Column::Remote.eq(remote),
-                None => reference::Column::Remote.is_null(),
-            })
-            .one(db)
-            .await
-            .unwrap();
+        let branch = Self::query_branch(branch_name, remote).await;
         match branch {
             Some(branch) => Some(Branch {
                 name: branch.name.as_ref().unwrap().clone(),
@@ -106,16 +83,7 @@ impl Branch {
     pub async fn update_branch(branch_name: &str, commit_hash: &str, remote: Option<&str>) {
         let db_conn = get_db_conn().await;
         // check if branch exists
-        let branch = reference::Entity::find()
-            .filter(reference::Column::Name.eq(branch_name))
-            .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-            .filter(match remote {
-                Some(remote) => reference::Column::Remote.eq(remote),
-                None => reference::Column::Remote.is_null(),
-            })
-            .one(db_conn)
-            .await
-            .unwrap();
+        let branch = Self::query_branch(branch_name, remote).await;
 
         match branch {
             Some(branch) => {
