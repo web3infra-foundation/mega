@@ -152,7 +152,7 @@ async fn setup_reference_and_config(refs: Vec<DiscoveredReference>, remote_repo:
     // set remote refs
     for r in branch_refs.iter() {
         let branch_name = r._ref.replace("refs/heads/", "");
-        Branch::insert(&branch_name, &r._hash, Some(ORIGIN)).await;
+        Branch::update_branch(&branch_name, &r._hash, Some(ORIGIN)).await;
     }
 
     let head_ref = refs

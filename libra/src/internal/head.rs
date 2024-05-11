@@ -58,7 +58,10 @@ impl Head {
     pub async fn current_commit() -> Option<SHA1> {
         match Self::current().await {
             Head::Detached(commit_hash) => Some(commit_hash),
-            Head::Branch(name) => Branch::current_commit(&name).await,
+            Head::Branch(name) => {
+                let branch = Branch::find_branch(&name, None).await;
+                branch.map(|b| b.commit)
+            }
         }
     }
 

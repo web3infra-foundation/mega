@@ -1,16 +1,12 @@
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
-use crate::db::get_db_conn;
+use crate::internal::branch::Branch;
 use crate::internal::head::Head;
-use crate::model::reference;
-use crate::model::reference::ActiveModel;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::{internal::index::Index, utils::util};
 use clap::Parser;
-use sea_orm::ActiveValue::NotSet;
-use sea_orm::{ActiveModelTrait, Set};
 use venus::hash::SHA1;
 use venus::internal::object::commit::Commit;
 use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
@@ -38,7 +34,6 @@ pub async fn execute(args: CommitArgs) {
 
     /* Create tree */
     let tree = create_tree(&index, &storage, "".into()).await;
-    let db = get_db_conn().await.unwrap();
 
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids().await;
@@ -51,7 +46,7 @@ pub async fn execute(args: CommitArgs) {
         .unwrap();
 
     /* update HEAD */
-    update_head(&db, &commit.id.to_plain_str()).await;
+    update_head(&commit.id.to_plain_str()).await;
 }
 
 /// recursively create tree from index's tracked entries
@@ -139,32 +134,12 @@ async fn get_parents_ids() -> Vec<SHA1> {
 }
 
 /// update HEAD to new commit, if in branch, update branch's commit id, if detached head, update head's commit id
-async fn update_head(db: &sea_orm::DbConn, commit_id: &str) {
+async fn update_head(commit_id: &str) {
     // let head = reference::Model::current_head(db).await.unwrap();
     match Head::current().await {
         Head::Branch(name) => {
             // in branch
-            let branch = reference::Model::find_branch_by_name(db, name.as_str())
-                .await
-                .unwrap();
-            match branch {
-                Some(branch) => {
-                    let mut branch: ActiveModel = branch.into();
-                    branch.commit = Set(Some(commit_id.to_string()));
-                    branch.update(db).await.unwrap();
-                }
-                None => {
-                    // branch not found, create new branch
-                    let new_branch = reference::ActiveModel {
-                        id: NotSet,
-                        name: Set(Some(name.clone())),
-                        kind: Set(reference::ConfigKind::Branch),
-                        commit: Set(Some(commit_id.to_string())),
-                        remote: Set(None),
-                    };
-                    new_branch.save(db).await.unwrap();
-                }
-            }
+            Branch::update_branch(&name, commit_id, None).await;
         }
         // None => {
         Head::Detached(_) => {
@@ -229,29 +204,20 @@ mod test {
             };
             execute(args).await;
 
-            let db = get_db_conn().await.unwrap();
             // check head branch exists
-            // let head = reference::Model::current_head(&db).await.unwrap();
             let head = Head::current().await;
             let branch_name = match head {
                 Head::Branch(name) => name,
                 _ => panic!("head not in branch"),
             };
-            let branch = reference::Model::find_branch_by_name(&db, &branch_name)
-                .await
-                .unwrap();
-            assert!(branch.is_some());
-            let commit_id = branch.unwrap().commit.unwrap();
-            let commit: Commit = load_object(&SHA1::from_str(&commit_id).unwrap()).unwrap();
+            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
+            let commit: Commit = load_object(&branch.commit).unwrap();
 
             assert!(commit.message == "init");
-            let branch = reference::Model::find_branch_by_name(&db, &branch_name)
-                .await
-                .unwrap()
-                .unwrap();
-            assert!(branch.commit.unwrap() == commit.id.to_plain_str());
-            db.close().await.unwrap();
+            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
+            assert!(branch.commit == commit.id);
         }
+        
         // create a new commit
         {
             // create `a.txt` `bb/b.txt` `bb/c.txt`
@@ -276,7 +242,7 @@ mod test {
 
             let commit_id = Head::current_commit().await.unwrap();
             let commit: Commit = load_object(&commit_id).unwrap();
-            assert!(commit.message == "add some files");
+            assert!(commit.message == "add some files", "{}", commit.message);
 
             let pre_commit_id = commit.parent_commit_ids[0];
             let pre_commit: Commit = load_object(&pre_commit_id).unwrap();

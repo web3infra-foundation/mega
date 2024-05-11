@@ -1,14 +1,9 @@
-use std::str::FromStr;
-
 use clap::Parser;
-use sea_orm::DbConn;
 use venus::hash::SHA1;
 
 use crate::{
     command::branch,
-    db,
-    internal::head::Head,
-    model::reference::{self},
+    internal::{branch::Branch, head::Head},
     utils::util::{self, get_commit_base},
 };
 
@@ -42,11 +37,10 @@ pub async fn execute(args: SwitchArgs) {
         return;
     }
 
-    let db = db::get_db_conn().await.unwrap();
     match args.create {
         Some(new_branch_name) => {
             branch::create_branch(new_branch_name.clone(), args.branch).await;
-            switch_to_branch(&db, new_branch_name).await;
+            switch_to_branch(new_branch_name).await;
         }
         None => match args.detach {
             true => {
@@ -58,7 +52,7 @@ pub async fn execute(args: SwitchArgs) {
                 switch_to_commit(commit_base.unwrap()).await;
             }
             false => {
-                switch_to_branch(&db, args.branch.unwrap()).await;
+                switch_to_branch(args.branch.unwrap()).await;
             }
         },
     }
@@ -72,16 +66,13 @@ async fn switch_to_commit(commit_hash: SHA1) {
     Head::update(head, None).await;
 }
 
-async fn switch_to_branch(db: &DbConn, branch_name: String) {
-    let target_branch = reference::Model::find_branch_by_name(db, &branch_name)
-        .await
-        .unwrap();
+async fn switch_to_branch(branch_name: String) {
+    let target_branch = Branch::find_branch(&branch_name, None).await;
     if target_branch.is_none() {
         eprintln!("fatal: branch '{}' not found", &branch_name);
         return;
     }
-    let commit_id = target_branch.unwrap().commit.unwrap();
-    let commit_id = SHA1::from_str(&commit_id).unwrap();
+    let commit_id = target_branch.unwrap().commit;
     restore_to_commit(commit_id).await;
     // update HEAD
     // let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
@@ -106,6 +97,7 @@ mod tests {
     use crate::command::restore::RestoreArgs;
     use crate::utils::util;
     use std::env;
+    use std::str::FromStr;
     #[test]
     fn test_parse_from() {
         env::set_current_dir("./libra_test_repo").unwrap();
