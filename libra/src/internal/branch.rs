@@ -22,21 +22,21 @@ pub struct Branch {
     pub remote: Option<String>,
 }
 
-impl Branch {
-    async fn query_branch(branch_name: &str, remote: Option<&str>) -> Option<reference::Model> {
-        let db_conn = get_db_conn().await;
-        reference::Entity::find()
-            .filter(reference::Column::Name.eq(branch_name))
-            .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-            .filter(match remote {
-                Some(remote) => reference::Column::Remote.eq(remote),
-                None => reference::Column::Remote.is_null(),
-            })
-            .one(db_conn)
-            .await
-            .unwrap()
-    }
+async fn query_reference(branch_name: &str, remote: Option<&str>) -> Option<reference::Model> {
+    let db_conn = get_db_conn().await;
+    reference::Entity::find()
+        .filter(reference::Column::Name.eq(branch_name))
+        .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
+        .filter(match remote {
+            Some(remote) => reference::Column::Remote.eq(remote),
+            None => reference::Column::Remote.is_null(),
+        })
+        .one(db_conn)
+        .await
+        .unwrap()
+}
 
+impl Branch {
     /// list all remote branches
     pub async fn lsit_branches(remote: Option<&str>) -> Vec<Self> {
         let db_conn = get_db_conn().await;
@@ -69,7 +69,7 @@ impl Branch {
 
     /// get the branch by name
     pub async fn find_branch(branch_name: &str, remote: Option<&str>) -> Option<Self> {
-        let branch = Self::query_branch(branch_name, remote).await;
+        let branch = query_reference(branch_name, remote).await;
         match branch {
             Some(branch) => Some(Branch {
                 name: branch.name.as_ref().unwrap().clone(),
@@ -83,7 +83,7 @@ impl Branch {
     pub async fn update_branch(branch_name: &str, commit_hash: &str, remote: Option<&str>) {
         let db_conn = get_db_conn().await;
         // check if branch exists
-        let branch = Self::query_branch(branch_name, remote).await;
+        let branch = query_reference(branch_name, remote).await;
 
         match branch {
             Some(branch) => {
@@ -108,18 +108,8 @@ impl Branch {
 
     pub async fn delete_branch(branch_name: &str, remote: Option<&str>) {
         let db_conn = get_db_conn().await;
-        let branch: reference::ActiveModel = reference::Entity::find()
-            .filter(reference::Column::Name.eq(branch_name))
-            .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
-            .filter(match remote {
-                Some(remote) => reference::Column::Remote.eq(remote),
-                None => reference::Column::Remote.is_null(),
-            })
-            .one(db_conn)
-            .await
-            .unwrap()
-            .unwrap()
-            .into();
+        let branch: reference::ActiveModel =
+            query_reference(branch_name, remote).await.unwrap().into();
         branch.delete(db_conn).await.unwrap();
     }
 }
