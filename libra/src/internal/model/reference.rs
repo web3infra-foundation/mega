@@ -24,28 +24,3 @@ pub enum ConfigKind {
     #[sea_orm(string_value = "Head")]
     Head, // .git/HEAD
 }
-
-// some useful functions
-impl Model {
-    // pub async fn find_branch_by_name(db: &DbConn, name: &str) -> Result<Option<Self>, DbErr> {
-    //     Entity::find()
-    //         .filter(Column::Name.eq(name))
-    //         .filter(Column::Kind.eq(ConfigKind::Branch))
-    //         .one(db)
-    //         .await
-    // }
-
-    // pub async fn find_all_branches(db: &DbConn, remote: Option<&str>) -> Result<Vec<Self>, DbErr> {
-    //     let mut query = Entity::find().filter(Column::Kind.eq(ConfigKind::Branch));
-
-    //     if let Some(remote_value) = remote {
-    //         query = query.filter(Column::Remote.eq(remote_value));
-    //     } else {
-    //         query = query.filter(Column::Remote.is_null());
-    //     }
-
-    //     let branches = query.all(db).await?;
-
-    //     Ok(branches)
-    // }
-}

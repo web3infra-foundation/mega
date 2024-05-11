@@ -128,8 +128,7 @@ pub async fn execute(args: LogArgs) {
 mod tests {
 
     use super::*;
-    use crate::{command::save_object, internal::db, internal::model::reference, utils::test};
-    use sea_orm::{ActiveModelTrait, Set};
+    use crate::{command::save_object, utils::test};
     use venus::{hash::SHA1, internal::object::commit::Commit};
 
     #[tokio::test]
@@ -146,7 +145,7 @@ mod tests {
         test::setup_with_new_libra().await;
         let _ = create_test_commit_tree().await;
 
-        let args = LogArgs { number: Some(2) };
+        let args = LogArgs { number: Some(6) };
         execute(args).await;
     }
 
@@ -200,20 +199,13 @@ mod tests {
         save_object(&commit_7, &commit_7.id).unwrap();
 
         // set current branch head to commit 6
-        let db = db::get_db_conn().await.unwrap();
         let head = Head::current().await;
         let branch_name = match head {
             Head::Branch(name) => name,
             _ => panic!("should be branch"),
         };
-        // set current branch head to commit 6
-        let branch = reference::ActiveModel {
-            name: Set(Some(branch_name.clone())),
-            commit: Set(Some(commit_6.id.to_plain_str())),
-            kind: Set(reference::ConfigKind::Branch),
-            ..Default::default()
-        };
-        branch.save(&db).await.unwrap();
+
+        Branch::update_branch(&branch_name, &commit_6.id.to_plain_str(), None).await;
 
         commit_6.id.to_plain_str()
     }
