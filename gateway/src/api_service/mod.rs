@@ -4,16 +4,20 @@ use axum::async_trait;
 
 use venus::{errors::GitError, internal::object::commit::Commit};
 
-use crate::model::objects::{LatestCommitInfo, TreeCommitInfo, TreeBriefInfo, UserInfo};
+use crate::model::objects::{
+    BlobObjects, LatestCommitInfo, TreeBriefInfo, TreeCommitInfo, UserInfo,
+};
 
-pub mod mono_service;
 pub mod import_service;
+pub mod mono_service;
 pub mod router;
 
 const SIGNATURE_END: &str = "-----END PGP SIGNATURE-----";
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
+    async fn get_blob_as_string(&self, object_id: &str) -> Result<BlobObjects, GitError>;
+
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError>;
 
     async fn get_tree_info(&self, path: PathBuf) -> Result<TreeBriefInfo, GitError>;

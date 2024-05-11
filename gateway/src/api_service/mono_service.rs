@@ -21,7 +21,7 @@ use venus::monorepo::mr::{MergeOperation, MergeResult};
 
 use crate::api_service::{ApiHandler, SIGNATURE_END};
 use crate::model::objects::{
-    LatestCommitInfo, TreeBriefInfo, TreeBriefItem, TreeCommitInfo, TreeCommitItem,
+    BlobObjects, LatestCommitInfo, TreeBriefInfo, TreeBriefItem, TreeCommitInfo, TreeCommitItem,
 };
 
 #[derive(Clone)]
@@ -31,6 +31,14 @@ pub struct MonorepoService {
 
 #[async_trait]
 impl ApiHandler for MonorepoService {
+    async fn get_blob_as_string(&self, object_id: &str) -> Result<BlobObjects, GitError> {
+        let plain_text = match self.storage.get_raw_blob_by_hash(object_id).await {
+            Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
+            _ => String::new(),
+        };
+        Ok(BlobObjects { plain_text })
+    }
+
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError> {
         let (_, tree) = self.search_tree_by_path(&path).await.unwrap();
         let tree_info = self
@@ -265,7 +273,6 @@ impl MonorepoService {
     async fn search_tree_by_path(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
         let refs = self.storage.get_ref("/").await.unwrap().unwrap();
 
-        // let path_parent = path.parent().unwrap().to_owned();
         let root_tree: Tree = self
             .storage
             .get_tree_by_hash(&refs.ref_tree_hash)
@@ -276,7 +283,7 @@ impl MonorepoService {
         let mut search_tree = root_tree.clone();
         let mut update_tree = vec![root_tree];
 
-        let comp_num = path.components().count();
+        let component_num = path.components().count();
 
         for (index, component) in path.components().enumerate() {
             // root tree already found
@@ -297,7 +304,8 @@ impl MonorepoService {
                         .unwrap()
                         .into();
                     search_tree = res.clone();
-                    if index != comp_num - 1 {
+                    // skip last component
+                    if index != component_num - 1 {
                         update_tree.push(res);
                     }
                 } else {

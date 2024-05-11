@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, env, path::PathBuf, sync::Arc};
 
 use axum::{
     extract::{Query, State},
@@ -8,16 +8,18 @@ use axum::{
     Json, Router,
 };
 
-
 use ganymede::model::create_file::CreateFileInfo;
 use jupiter::storage::{git_db_storage::GitDbStorage, mega_storage::MegaStorage};
-use venus::monorepo::mr::{MergeOperation, MergeResult};
+use venus::{
+    monorepo::mr::{MergeOperation, MergeResult},
+    repo::Repo,
+};
 
+use crate::{api_service::import_service::ImportRepoService, model::query::CodePreviewQuery};
 use crate::{
     api_service::mono_service::MonorepoService,
-    model::objects::{LatestCommitInfo, TreeCommitInfo},
+    model::objects::{BlobObjects, LatestCommitInfo, TreeCommitInfo},
 };
-use crate::{api_service::import_service::ImportRepoService, model::query::CodePreviewQuery};
 use crate::{api_service::ApiHandler, model::objects::TreeBriefInfo};
 
 #[derive(Clone)]
@@ -33,11 +35,20 @@ impl ApiServiceState {
         }
     }
 
-    pub fn api_handler(&self, path: PathBuf) -> Box<dyn ApiHandler> {
+    pub async fn api_handler(&self, path: PathBuf) -> Box<dyn ApiHandler> {
         let import_dir = PathBuf::from(env::var("MEGA_IMPORT_DIRS").unwrap());
         if path.starts_with(import_dir.clone()) && path != import_dir {
+            let repo: Repo = self
+                .git_db_storage
+                .find_git_repo(path.to_str().unwrap())
+                .await
+                .unwrap()
+                .unwrap()
+                .into();
+
             Box::new(ImportRepoService {
                 storage: self.git_db_storage.clone(),
+                repo,
             })
         } else {
             Box::new(MonorepoService {
@@ -49,11 +60,8 @@ impl ApiServiceState {
 
 pub fn routers() -> Router<ApiServiceState> {
     let router_v1 = Router::new()
-        // .route("/blob", get(get_blob_object))
-        // .route("/tree", get(get_directories))
-        // .route("/object", get(get_origin_object))
+        .route("/blob", get(get_blob_object))
         .route("/status", get(life_cycle_check))
-        // .route("/count-objs", get(get_count_nums))
         .route("/init", get(init))
         .route("/create-file", post(create_file))
         .route("/merge", post(merge));
@@ -66,20 +74,18 @@ pub fn routers() -> Router<ApiServiceState> {
     Router::new().merge(router_v1).merge(preview_code)
 }
 
-// async fn get_blob_object(
-//     Query(query): Query<HashMap<String, String>>,
-//     state: State<ApiServiceState>,
-// ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
-//     let object_id = query.get("object_id").unwrap();
-//     state.object_service.get_blob_objects(object_id).await
-// }
-
-// async fn get_directories(
-//     Query(query): Query<DirectoryQuery>,
-//     state: State<ApiServiceState>,
-// ) -> Result<Json<Directories>, (StatusCode, String)> {
-//     state.object_service.get_directories(query).await
-// }
+async fn get_blob_object(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<ApiServiceState>,
+) -> Result<Json<BlobObjects>, (StatusCode, String)> {
+    let object_id = query.get("object_id").unwrap();
+    let res = state
+        .monorepo()
+        .get_blob_as_string(object_id)
+        .await
+        .unwrap();
+    Ok(Json(res))
+}
 
 // async fn get_origin_object(
 //     Query(query): Query<HashMap<String, String>>,
@@ -134,7 +140,7 @@ async fn get_latest_commit(
     state: State<ApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, (StatusCode, String)> {
     let res = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.clone().into()).await
         .get_latest_commit(query.path.into())
         .await
         .unwrap();
@@ -146,7 +152,7 @@ async fn get_tree_info(
     state: State<ApiServiceState>,
 ) -> Result<Json<TreeBriefInfo>, (StatusCode, String)> {
     let res = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.clone().into()).await
         .get_tree_info(query.path.into())
         .await
         .unwrap();
@@ -158,7 +164,7 @@ async fn get_tree_commit_info(
     state: State<ApiServiceState>,
 ) -> Result<Json<TreeCommitInfo>, (StatusCode, String)> {
     let res = state
-        .api_handler(query.path.clone().into())
+        .api_handler(query.path.clone().into()).await
         .get_tree_commit_info(query.path.into())
         .await
         .unwrap();
