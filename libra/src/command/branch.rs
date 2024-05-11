@@ -1,4 +1,4 @@
-use crate::utils::util;
+use crate::{internal, utils::util};
 use clap::Parser;
 use colored::Colorize;
 use sea_orm::{ActiveModelTrait, Set};
@@ -23,7 +23,7 @@ pub struct BranchArgs {
     commit_hash: Option<String>,
 
     /// list all branches
-    #[clap(short, long, action, group = "sub", default_value = "true")]
+    #[clap(short, long, group = "sub", default_value = "true")]
     list: bool,
 
     /// force delete branch
@@ -31,8 +31,12 @@ pub struct BranchArgs {
     delete: Option<String>,
 
     /// show current branch
-    #[clap(long, action, group = "sub")]
+    #[clap(long, group = "sub")]
     show_curren: bool,
+
+    /// show remote branches
+    #[clap(long, requires = "list")]
+    remotes: bool,
 }
 pub async fn execute(args: BranchArgs) {
     if args.new_branch.is_some() {
@@ -74,11 +78,13 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
             }
         }
         None => {
-            let head = reference::Model::current_head(&db).await.unwrap();
-            match head.commit {
-                Some(commit) => commit,
-                None => {
-                    let current_branch_name = head.name.unwrap();
+            let head = internal::head::Head::current().await;
+            match head {
+                // Some(commit) => commit,
+                internal::head::Head::Detached(commit) => commit.to_plain_str(),
+                //  => {
+                internal::head::Head::Branch(name) => {
+                    let current_branch_name = name;
                     let branch = reference::Model::find_branch_by_name(&db, &current_branch_name)
                         .await
                         .unwrap()
@@ -110,14 +116,15 @@ async fn delete_branch(branch_name: String) {
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("fatal: branch '{}' not found", branch_name));
-    let head = reference::Model::current_head(&db).await.unwrap();
+    let head = internal::head::Head::current().await;
 
-    // can't delete current branch
-    if head.name.is_some() && head.name.unwrap() == branch_name {
-        panic!(
-            "fatal: Cannot delete the branch '{}' which you are currently on",
-            branch_name
-        );
+    if let internal::head::Head::Branch(name) = head {
+        if name == branch_name {
+            panic!(
+                "fatal: Cannot delete the branch '{}' which you are currently on",
+                branch_name
+            );
+        }
     }
 
     let branch: reference::ActiveModel = branch.into();
@@ -125,12 +132,15 @@ async fn delete_branch(branch_name: String) {
 }
 
 async fn show_current_branch() {
-    let db = db::get_db_conn().await.unwrap();
-    let head = reference::Model::current_head(&db).await.unwrap();
-    if head.name.is_none() {
-        println!("HEAD detached at {}", &head.commit.unwrap()[..8]);
-    } else {
-        println!("{}", head.name.unwrap());
+    // let head = reference::Model::current_head(&db).await.unwrap();
+    let head = internal::head::Head::current().await;
+    match head {
+        internal::head::Head::Detached(commit_hash) => {
+            println!("HEAD detached at {}", &commit_hash.to_plain_str()[..8]);
+        }
+        internal::head::Head::Branch(name) => {
+            println!("{}", name);
+        }
     }
 }
 
@@ -139,14 +149,16 @@ async fn list_branches() {
     let branches = reference::Model::find_all_branches(&db, None)
         .await
         .unwrap();
-    let head = reference::Model::current_head(&db).await.unwrap();
-    let is_detached = head.name.is_none();
-    if is_detached {
-        let s = "HEAD detached at  ".to_string() + &head.commit.unwrap()[..8];
+    let head = internal::head::Head::current().await;
+    if let internal::head::Head::Detached(commit) = head {
+        let s = "HEAD detached at  ".to_string() + &commit.to_plain_str()[..8];
         let s = s.green();
         println!("{}", s);
     };
-    let head_name = head.name.unwrap_or_default();
+    let head_name = match head {
+        internal::head::Head::Branch(name) => name,
+        internal::head::Head::Detached(_) => "".to_string(),
+    };
     for branch in branches {
         let name = branch.name.unwrap();
         if head_name == name {
@@ -205,16 +217,24 @@ mod tests {
                 list: false,
                 delete: None,
                 show_curren: false,
+                remotes: false,
             };
             execute(args).await;
 
             // check branch exist
-            let current_branch = reference::Model::current_head(&db)
-                .await
-                .unwrap()
-                .name
-                .unwrap();
-            assert_ne!(current_branch, first_branch_name);
+            // let current_branch = reference::Model::current_head(&db)
+            //     .await
+            //     .unwrap()
+            //     .name
+            //     .unwrap();
+
+            match internal::head::Head::current().await {
+                internal::head::Head::Branch(current_branch) => {
+                    assert_ne!(current_branch, first_branch_name)
+                }
+                _ => panic!("should be branch"),
+            };
+
             let first_branch = reference::Model::find_branch_by_name(&db, &first_branch_name)
                 .await
                 .unwrap()
@@ -232,6 +252,7 @@ mod tests {
                 list: false,
                 delete: None,
                 show_curren: false,
+                remotes: false,
             };
             execute(args).await;
             let second_branch = reference::Model::find_branch_by_name(&db, &second_branch_name)
@@ -250,6 +271,7 @@ mod tests {
             list: false,
             delete: None,
             show_curren: true,
+            remotes: false,
         };
         execute(args).await;
 

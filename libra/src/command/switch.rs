@@ -1,13 +1,14 @@
 use std::str::FromStr;
 
 use clap::Parser;
-use sea_orm::{ActiveModelTrait, DbConn, Set};
+use sea_orm::DbConn;
 use venus::hash::SHA1;
 
 use crate::{
     command::branch,
     db,
-    model::reference::{self, ActiveModel},
+    internal::head::Head,
+    model::reference::{self},
     utils::util::{self, get_commit_base},
 };
 
@@ -54,7 +55,7 @@ pub async fn execute(args: SwitchArgs) {
                     eprintln!("{}", commit_base.unwrap());
                     return;
                 }
-                switch_to_commit(&db, commit_base.unwrap()).await;
+                switch_to_commit(commit_base.unwrap()).await;
             }
             false => {
                 switch_to_branch(&db, args.branch.unwrap()).await;
@@ -64,13 +65,11 @@ pub async fn execute(args: SwitchArgs) {
 }
 
 /// change the working directory to the version of commit_hash
-async fn switch_to_commit(db: &DbConn, commit_hash: SHA1) {
+async fn switch_to_commit(commit_hash: SHA1) {
     restore_to_commit(commit_hash).await;
     // update HEAD
-    let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
-    head.name = Set(None);
-    head.commit = Set(Some(commit_hash.to_plain_str()));
-    head.save(db).await.unwrap();
+    let head = Head::Detached(commit_hash);
+    Head::update(head, None).await;
 }
 
 async fn switch_to_branch(db: &DbConn, branch_name: String) {
@@ -85,11 +84,9 @@ async fn switch_to_branch(db: &DbConn, branch_name: String) {
     let commit_id = SHA1::from_str(&commit_id).unwrap();
     restore_to_commit(commit_id).await;
     // update HEAD
-    let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
-
-    head.name = Set(Some(branch_name));
-    head.commit = Set(None);
-    head.save(db).await.unwrap();
+    // let mut head: ActiveModel = reference::Model::current_head(db).await.unwrap().into();
+    let head = Head::Branch(branch_name);
+    Head::update(head, None).await;
 }
 
 async fn restore_to_commit(commit_id: SHA1) {

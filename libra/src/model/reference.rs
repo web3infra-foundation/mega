@@ -28,43 +28,6 @@ pub enum ConfigKind {
 
 // some useful functions
 impl Model {
-    pub async fn current_head(db: &DbConn) -> Result<Self, DbErr> {
-        Ok(Entity::find()
-            .filter(Column::Kind.eq(ConfigKind::Head))
-            .filter(Column::Remote.is_null())
-            .one(db)
-            .await?
-            .expect("fatal: storage broken, HEAD not found"))
-    }
-
-    pub async fn current_head_remote(db: &DbConn, remote: &str) -> Result<Option<Self>, DbErr> {
-        Entity::find()
-            .filter(Column::Kind.eq(ConfigKind::Head))
-            .filter(Column::Remote.eq(remote))
-            .one(db)
-            .await
-    }
-
-    /// get current commit (Detached HEAD or branch HEAD)
-    /// only return None if there is no commit
-    pub async fn current_commit_hash(db: &DbConn) -> Result<Option<String>, DbErr> {
-        let head = Self::current_head(db).await?;
-        match head.name {
-            Some(name) => {
-                let branch = self::Entity::find()
-                    .filter(self::Column::Name.eq(&name))
-                    .filter(self::Column::Kind.eq(self::ConfigKind::Branch))
-                    .one(db)
-                    .await?;
-                match branch {
-                    Some(branch) => Ok(branch.commit),
-                    None => Ok(head.commit),
-                }
-            }
-            None => Ok(head.commit),
-        }
-    }
-
     pub async fn find_branch_by_name(db: &DbConn, name: &str) -> Result<Option<Self>, DbErr> {
         Entity::find()
             .filter(Column::Name.eq(name))
