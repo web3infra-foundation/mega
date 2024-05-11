@@ -1,11 +1,12 @@
 use crate::internal::model::*;
 use crate::utils::path;
-use sea_orm::{ConnectionTrait, DbErr, Schema, Statement, TransactionError, TransactionTrait};
+use sea_orm::{ConnectionTrait, DbConn, DbErr, Schema, Statement, TransactionError, TransactionTrait};
 use sea_orm::{Database, DatabaseConnection};
 use std::io;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 use std::path::Path;
+use tokio::sync::OnceCell;
 
 /// Establish a connection to the database.
 ///  - `db_path` is the path to the SQLite database file.
@@ -29,12 +30,19 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
         })
 }
 
-/// Get a connection to the database of current repo: `.libra/libra.db`
-pub async fn get_db_conn() -> io::Result<DatabaseConnection> {
+static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
+/// Get global database connection instance (singleton)
+pub async fn get_db_conn_instance() -> &'static DbConn {
+    DB_CONN
+        .get_or_init(|| async { get_db_conn().await.unwrap() })
+        .await
+}
+
+/// Create a connection to the database of current repo: `.libra/libra.db`
+async fn get_db_conn() -> io::Result<DatabaseConnection> {
     let db_path = path::database(); // for longer lifetime
     let db_path = db_path.to_str().unwrap();
     establish_connection(db_path).await
-    // TODO singleton
 }
 
 /// create table according to the Model

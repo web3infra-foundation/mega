@@ -1,20 +1,13 @@
-// use crate::internal::db
-use crate::internal::db;
-use crate::internal::model::reference;
-use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, DbConn};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::str::FromStr;
-use tokio::sync::OnceCell;
+
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::ActiveModelTrait;
+use sea_orm::ActiveValue::Set;
+
 use venus::hash::SHA1;
 
-// singleton pattern
-static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
-async fn get_db_conn() -> &'static DbConn {
-    DB_CONN
-        .get_or_init(|| async { db::get_db_conn().await.unwrap() })
-        .await
-}
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::model::reference;
 
 pub struct Branch {
     pub name: String,
@@ -23,7 +16,7 @@ pub struct Branch {
 }
 
 async fn query_reference(branch_name: &str, remote: Option<&str>) -> Option<reference::Model> {
-    let db_conn = get_db_conn().await;
+    let db_conn = get_db_conn_instance().await;
     reference::Entity::find()
         .filter(reference::Column::Name.eq(branch_name))
         .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
@@ -39,7 +32,7 @@ async fn query_reference(branch_name: &str, remote: Option<&str>) -> Option<refe
 impl Branch {
     /// list all remote branches
     pub async fn list_branches(remote: Option<&str>) -> Vec<Self> {
-        let db_conn = get_db_conn().await;
+        let db_conn = get_db_conn_instance().await;
 
         let branches = reference::Entity::find()
             .filter(reference::Column::Kind.eq(reference::ConfigKind::Branch))
@@ -81,7 +74,7 @@ impl Branch {
     }
 
     pub async fn update_branch(branch_name: &str, commit_hash: &str, remote: Option<&str>) {
-        let db_conn = get_db_conn().await;
+        let db_conn = get_db_conn_instance().await;
         // check if branch exists
         let branch = query_reference(branch_name, remote).await;
 
@@ -107,7 +100,7 @@ impl Branch {
     }
 
     pub async fn delete_branch(branch_name: &str, remote: Option<&str>) {
-        let db_conn = get_db_conn().await;
+        let db_conn = get_db_conn_instance().await;
         let branch: reference::ActiveModel =
             query_reference(branch_name, remote).await.unwrap().into();
         branch.delete(db_conn).await.unwrap();

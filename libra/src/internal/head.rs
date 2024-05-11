@@ -1,19 +1,14 @@
-use crate::internal::db;
-use crate::internal::branch::Branch;
-use crate::internal::model::reference;
-use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DbConn, EntityTrait, QueryFilter};
 use std::str::FromStr;
-use tokio::sync::OnceCell;
+
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::ActiveValue::Set;
+
 use venus::hash::SHA1;
 
-// singleton pattern
-static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
-async fn get_db_conn() -> &'static DbConn {
-    DB_CONN
-        .get_or_init(|| async { db::get_db_conn().await.unwrap() })
-        .await
-}
+use crate::internal::branch::Branch;
+use crate::internal::db::get_db_conn_instance;
+use crate::internal::model::reference;
+
 #[derive(Debug, Clone)]
 pub enum Head {
     Detached(SHA1),
@@ -22,7 +17,7 @@ pub enum Head {
 
 impl Head {
     async fn query_local_head() -> reference::Model {
-        let db_conn = get_db_conn().await;
+        let db_conn = get_db_conn_instance().await;
         reference::Entity::find()
             .filter(reference::Column::Kind.eq(reference::ConfigKind::Head))
             .filter(reference::Column::Remote.is_null())
@@ -33,7 +28,7 @@ impl Head {
     }
 
     async fn query_remote_head(remote: &str) -> Option<reference::Model> {
-        let db_conn = get_db_conn().await;
+        let db_conn = get_db_conn_instance().await;
         reference::Entity::find()
             .filter(reference::Column::Kind.eq(reference::ConfigKind::Head))
             .filter(reference::Column::Remote.eq(remote))
@@ -67,7 +62,7 @@ impl Head {
 
     // HEAD is unique, update if exists, insert if not
     pub async fn update(new_head: Self, remote: Option<&str>) {
-        let db_conn = get_db_conn().await;
+        let db_conn = get_db_conn_instance().await;
 
         let head = match remote {
             Some(remote) => Self::query_remote_head(remote).await,
