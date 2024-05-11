@@ -128,7 +128,7 @@ pub async fn execute(args: LogArgs) {
 mod tests {
 
     use super::*;
-    use crate::{command::save_object, db, model::reference, utils::test};
+    use crate::{command::save_object, internal::db, internal::model::reference, utils::test};
     use sea_orm::{ActiveModelTrait, Set};
     use venus::{hash::SHA1, internal::object::commit::Commit};
 

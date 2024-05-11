@@ -1,9 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod command;
-mod db;
 mod internal;
-mod model;
 mod utils;
 
 #[derive(Parser, Debug)]

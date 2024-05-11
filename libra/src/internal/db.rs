@@ -1,4 +1,4 @@
-use crate::model::*;
+use crate::internal::model::*;
 use crate::utils::path;
 use sea_orm::{ConnectionTrait, DbErr, Schema, Statement, TransactionError, TransactionTrait};
 use sea_orm::{Database, DatabaseConnection};
@@ -68,8 +68,9 @@ async fn setup_database_sql(conn: &DatabaseConnection) -> Result<(), Transaction
             let backend = txn.get_database_backend();
 
             // `include_str!` will expand the file while compiling, so `.sql` is not needed after that
-            const SETUP_SQL: &str = include_str!("../sql/sqlite_20240331_init.sql");
-            txn.execute(Statement::from_string(backend, SETUP_SQL)).await?;
+            const SETUP_SQL: &str = include_str!("../../sql/sqlite_20240331_init.sql");
+            txn.execute(Statement::from_string(backend, SETUP_SQL))
+                .await?;
             Ok(())
         })
     })
@@ -228,11 +229,21 @@ mod tests {
         // test insert reference
         let entries = [
             (Some("master"), ConfigKind::Head, None, None), // attached head
-            (None, ConfigKind::Head, Some("2019"), None),       // detached head
+            (None, ConfigKind::Head, Some("2019"), None),   // detached head
             (Some("master"), ConfigKind::Branch, Some("2019"), None), // local branch
             (Some("release1"), ConfigKind::Tag, Some("2019"), None), // tag (remote tag store same as local tag)
-            (Some("main"), ConfigKind::Head, None, Some("origin".to_string())), // remote head
-            (Some("main"), ConfigKind::Branch, Some("a"), Some("origin".to_string())),
+            (
+                Some("main"),
+                ConfigKind::Head,
+                None,
+                Some("origin".to_string()),
+            ), // remote head
+            (
+                Some("main"),
+                ConfigKind::Branch,
+                Some("a"),
+                Some("origin".to_string()),
+            ),
         ];
         for (name, kind, commit, remote) in entries.iter() {
             let entry = reference::ActiveModel {
@@ -278,10 +289,7 @@ mod tests {
             ..Default::default()
         };
         let result = entry.save(&conn).await;
-        assert!(
-            result.is_err(),
-            "reference check `name` can't be '' failed"
-        );
+        assert!(result.is_err(), "reference check `name` can't be '' failed");
 
         // test `remote` must be None for tag
         let entry = reference::ActiveModel {

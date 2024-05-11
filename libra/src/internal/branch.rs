@@ -1,5 +1,6 @@
-use crate::db;
-use crate::model::reference;
+// use crate::internal::db
+use crate::internal::db;
+use crate::internal::model::reference;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, DbConn};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};

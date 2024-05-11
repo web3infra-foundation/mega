@@ -1,8 +1,8 @@
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, DbConn};
 use tokio::sync::OnceCell;
-use crate::db;
-use crate::model::config;
+use crate::internal::db;
+use crate::internal::model::config;
 
 // singleton pattern
 static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
