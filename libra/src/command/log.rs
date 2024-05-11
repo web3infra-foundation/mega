@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use crate::command::load_object;
 use crate::db;
+use crate::internal::head::Head;
 use crate::model::reference;
 use clap::Parser;
 use colored::Colorize;
@@ -59,12 +60,12 @@ pub async fn execute(args: LogArgs) {
         .expect("failed to execute process");
 
     let db = db::get_db_conn().await.unwrap();
-    let head = reference::Model::current_head(&db).await.unwrap();
-
+    // let head = reference::Model::current_head(&db).await.unwrap();
+    let head = Head::current().await;
     // check if the current branch has any commits
-    if head.name.is_some() {
-        let branch_name = head.name.as_ref().unwrap();
-        let branch = reference::Model::find_branch_by_name(&db, branch_name)
+    // if head.name.is_some() {
+    if let Head::Branch(branch_name) = head.to_owned() {
+        let branch = reference::Model::find_branch_by_name(&db, &branch_name)
             .await
             .unwrap();
         if branch.is_none() {
@@ -75,10 +76,8 @@ pub async fn execute(args: LogArgs) {
         }
     }
 
-    let commit_hash = reference::Model::current_commit_hash(&db)
-        .await
-        .unwrap()
-        .unwrap();
+    let commit_hash = Head::current_commit().await.unwrap().to_plain_str();
+
     let mut reachable_commits = get_reachable_commits(commit_hash.clone()).await;
     // default sort with signature time
     reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
@@ -100,15 +99,10 @@ pub async fn execute(args: LogArgs) {
             // TODO other branch's head should shown branch name
             if output_number == 1 {
                 message = format!("{} {}{}", message, "(".yellow(), "HEAD".blue());
-                if head.name.is_some() {
+                if let Head::Branch(name) = head.to_owned() {
                     // message += &"-> ".blue();
                     // message += &head.name.as_ref().unwrap().green();
-                    message = format!(
-                        "{}{}{}",
-                        message,
-                        " -> ".blue(),
-                        head.name.as_ref().unwrap().green()
-                    );
+                    message = format!("{}{}{}", message, " -> ".blue(), name.green());
                 }
                 message = format!("{}{}", message, ")".yellow());
             }
@@ -214,8 +208,11 @@ mod tests {
 
         // set current branch head to commit 6
         let db = db::get_db_conn().await.unwrap();
-        let head = reference::Model::current_head(&db).await.unwrap();
-        let branch_name = head.name.unwrap();
+        let head = Head::current().await;
+        let branch_name = match head {
+            Head::Branch(name) => name,
+            _ => panic!("should be branch"),
+        };
         // set current branch head to commit 6
         let branch = ActiveModel {
             name: Set(Some(branch_name.clone())),

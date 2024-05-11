@@ -3,16 +3,16 @@ use std::path::PathBuf;
 use std::{env, fs};
 
 use crate::command;
+use crate::command::index_pack::IndexPackArgs;
+use crate::command::restore::RestoreArgs;
+use crate::internal::branch::Branch;
+use crate::internal::config::Config;
+use crate::internal::head::Head;
 use clap::Parser;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 use venus::hash::SHA1;
-use crate::command::index_pack::IndexPackArgs;
-use crate::command::restore::RestoreArgs;
-use crate::internal::config::Config;
-use crate::internal::head::Head;
-use crate::internal::branch::Branch;
 
 use crate::internal::protocol::https_client::{DiscoveredReference, HttpsClient};
 use crate::internal::protocol::ProtocolClient;
@@ -124,7 +124,7 @@ pub async fn execute(args: CloneArgs) {
     command::index_pack::execute(IndexPackArgs {
         pack_file,
         index_file: None,
-        index_version: None
+        index_version: None,
     });
 
     /* setup table */
@@ -136,7 +136,8 @@ pub async fn execute(args: CloneArgs) {
         staged: true,
         source: None,
         pathspec: vec![util::working_dir_string()],
-    }).await;
+    })
+    .await;
 }
 
 async fn setup_reference_and_config(refs: Vec<DiscoveredReference>, remote_repo: String) {
@@ -169,11 +170,13 @@ async fn setup_reference_and_config(refs: Vec<DiscoveredReference>, remote_repo:
 
     let origin_head_name = origin_head.replace("refs/heads/", "");
 
-    // update remote HEAD, default `origin`
-    Head::update(&origin_head_name, Some(ORIGIN)).await;
-    // update HEAD only, because default branch was not created after init
-    Head::update(&origin_head_name, None).await; // local HEAD
-
+    {
+        let _origin_head = Head::Branch(origin_head_name.clone());
+        // update remote HEAD, default `origin`
+        Head::update(_origin_head.to_owned(), Some(ORIGIN)).await;
+        // update HEAD only, because default branch was not created after init
+        Head::update(_origin_head, None).await; // local HEAD
+    }
     // set config: remote.origin.url
     Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
 
