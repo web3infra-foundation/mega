@@ -379,6 +379,17 @@ impl MegaStorage {
             .await
             .unwrap())
     }
+
+    pub async fn get_raw_blob_by_hash(
+        &self,
+        hash: &str,
+    ) -> Result<Option<raw_blob::Model>, MegaError> {
+        Ok(raw_blob::Entity::find()
+            .filter(raw_blob::Column::Sha1.eq(hash))
+            .one(self.get_connection())
+            .await
+            .unwrap())
+    }
 }
 
 #[cfg(test)]

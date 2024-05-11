@@ -105,7 +105,7 @@ impl Signature {
 
         // Parse the author name from the bytes up to the first space byte.
         // If the parsing fails, unwrap will panic.
-        let signature_type = SignatureType::from_data(sign[..name_start].to_vec()).unwrap();
+        let signature_type = SignatureType::from_data(sign[..name_start].to_vec())?;
 
         let (name, email) = {
             let email_start = sign.find_byte(0x3C).unwrap();

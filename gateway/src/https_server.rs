@@ -16,6 +16,7 @@ use clap::Args;
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
@@ -111,6 +112,7 @@ pub async fn start_server(options: &HttpOptions) {
         )
         .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
         .layer(TraceLayer::new_for_http())
+        .layer(RequestDecompressionLayer::new())
         .with_state(state);
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
