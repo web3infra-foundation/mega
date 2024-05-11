@@ -1,6 +1,6 @@
-use crate::db;
+use crate::internal::db;
 use crate::internal::branch::Branch;
-use crate::model::reference;
+use crate::internal::model::reference;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DbConn, EntityTrait, QueryFilter};
 use std::str::FromStr;
