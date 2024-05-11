@@ -38,7 +38,7 @@ async fn query_reference(branch_name: &str, remote: Option<&str>) -> Option<refe
 
 impl Branch {
     /// list all remote branches
-    pub async fn lsit_branches(remote: Option<&str>) -> Vec<Self> {
+    pub async fn list_branches(remote: Option<&str>) -> Vec<Self> {
         let db_conn = get_db_conn().await;
 
         let branches = reference::Entity::find()
