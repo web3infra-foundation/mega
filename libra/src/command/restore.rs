@@ -1,18 +1,18 @@
-use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::path::PathBuf;
-use clap::Parser;
-use venus::hash::SHA1;
-use venus::internal::object::blob::Blob;
-use venus::internal::object::commit::Commit;
-use venus::internal::object::tree::Tree;
-use venus::internal::object::types::ObjectType;
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
 use crate::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 use crate::utils::path_ext::PathExt;
 use crate::utils::util;
+use clap::Parser;
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::PathBuf;
+use venus::hash::SHA1;
+use venus::internal::object::blob::Blob;
+use venus::internal::object::commit::Commit;
+use venus::internal::object::tree::Tree;
+use venus::internal::object::types::ObjectType;
 
 #[derive(Parser, Debug)]
 pub struct RestoreArgs {
@@ -56,13 +56,14 @@ pub async fn execute(args: RestoreArgs) {
             assert!(!staged); // pre-processed ↑
             None // Index
         }
-        Some(ref src) => { // ref: prevent moving `source`
+        Some(ref src) => {
+            // ref: prevent moving `source`
             if src == HEAD {
                 // Default Source
                 Head::current_commit().await
             } else if Branch::exists(src).await {
                 // Branch Name, e.g. master
-                Branch::current_commit(src).await
+                Some(Branch::find_branch(src, None).await.unwrap().commit)
             } else {
                 // [Commit Hash, e.g. a1b2c3d4] || [Wrong Branch Name]
                 let objs = storage.search(src);
@@ -83,11 +84,13 @@ pub async fn execute(args: RestoreArgs) {
             // only this situation, restore from [Index]
             assert!(!staged);
             let index = Index::load().unwrap();
-            index.tracked_entries(0).into_iter()
+            index
+                .tracked_entries(0)
+                .into_iter()
                 .map(|entry| (PathBuf::from(&entry.name), entry.hash))
                 .collect()
         } else {
-             // restore from commit hash
+            // restore from commit hash
             if let Some(commit) = target_commit {
                 let tree_id = Commit::load(&commit).tree_id;
                 let tree = Tree::load(&tree_id);
@@ -105,7 +108,11 @@ pub async fn execute(args: RestoreArgs) {
     };
 
     // String to PathBuf
-    let paths = args.pathspec.iter().map(PathBuf::from).collect::<Vec<PathBuf>>();
+    let paths = args
+        .pathspec
+        .iter()
+        .map(PathBuf::from)
+        .collect::<Vec<PathBuf>>();
     // restore worktree and staged respectively
     // The order is very important
     // `restore_worktree` will decide whether to delete the file based on whether it is tracked in the index.
@@ -119,8 +126,12 @@ pub async fn execute(args: RestoreArgs) {
 
 /// to HashMap
 /// - `blobs`: to workdir
-fn preprocess_blobs(blobs: &[(PathBuf, SHA1)]) -> HashMap<PathBuf, SHA1> { // TODO maybe can be HashMap<&PathBuf, &SHA1>
-    blobs.iter().map(|(path, hash)| (path.clone(), *hash)).collect()
+fn preprocess_blobs(blobs: &[(PathBuf, SHA1)]) -> HashMap<PathBuf, SHA1> {
+    // TODO maybe can be HashMap<&PathBuf, &SHA1>
+    blobs
+        .iter()
+        .map(|(path, hash)| (path.clone(), *hash))
+        .collect()
 }
 
 /// restore a blob to file
@@ -155,12 +166,21 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)])
     let target_blobs = preprocess_blobs(target_blobs);
     let deleted_files = get_worktree_deleted_files_in_filters(filter, &target_blobs);
 
-    { // validate input pathspec(filter)
-        for path in filter { // abs or relative to cur
-            if !path.exists() { //TODO bug problem: 路径设计大问题，全部统一为to workdir
-                if !target_blobs.iter().any(|(p, _)| util::is_sub_path(p.workdir_to_absolute(), path)) {
+    {
+        // validate input pathspec(filter)
+        for path in filter {
+            // abs or relative to cur
+            if !path.exists() {
+                //TODO bug problem: 路径设计大问题，全部统一为to workdir
+                if !target_blobs
+                    .iter()
+                    .any(|(p, _)| util::is_sub_path(p.workdir_to_absolute(), path))
+                {
                     // not in target_blobs & worktree, illegal path
-                    eprintln!("fatal: pathspec '{}' did not match any files", path.display());
+                    eprintln!(
+                        "fatal: pathspec '{}' did not match any files",
+                        path.display()
+                    );
                     return; // once fatal occurs, nothing should be done
                 }
             }
@@ -213,9 +233,11 @@ fn get_index_deleted_files_in_filters(
 ) -> HashSet<PathBuf> {
     target_blobs
         .iter()
-        .filter(|(path_wd, _)| { // to workdir
+        .filter(|(path_wd, _)| {
+            // to workdir
             let path_abs = util::workdir_to_absolute(path_wd); // to absolute path
-            !index.tracked(&path_wd.to_string_or_panic(), 0) && util::is_sub_of_paths(path_abs, filters)
+            !index.tracked(&path_wd.to_string_or_panic(), 0)
+                && util::is_sub_of_paths(path_abs, filters)
         })
         .map(|(path, _)| path.clone())
         .collect() // HashSet auto deduplication
@@ -230,7 +252,8 @@ pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
     let mut file_paths = util::filter_to_fit_paths(&index.tracked_files(), filter);
     file_paths.extend(deleted_files_index); // maybe we should not integrate them rater than deal separately
 
-    for path in &file_paths { // to workdir
+    for path in &file_paths {
+        // to workdir
         let path_str = path.to_string_or_panic();
         if !index.tracked(&path_str, 0) {
             // file not exist in index
@@ -238,9 +261,16 @@ pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
                 // file in target_blobs (deleted), need to restore
                 let hash = target_blobs[path];
                 let blob = Blob::load(&hash);
-                index.add(IndexEntry::new_from_blob(path_str, hash, blob.data.len() as u32));
+                index.add(IndexEntry::new_from_blob(
+                    path_str,
+                    hash,
+                    blob.data.len() as u32,
+                ));
             } else {
-                eprintln!("fatal: pathspec '{}' did not match any files", path.display());
+                eprintln!(
+                    "fatal: pathspec '{}' did not match any files",
+                    path.display()
+                );
                 continue; // TODO once fatal occurs, nothing should be done
             }
         } else {
@@ -250,7 +280,11 @@ pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
                 if !index.verify_hash(&path_str, 0, &hash) {
                     // modified
                     let blob = Blob::load(&hash);
-                    index.update(IndexEntry::new_from_blob(path_str, hash, blob.data.len() as u32));
+                    index.update(IndexEntry::new_from_blob(
+                        path_str,
+                        hash,
+                        blob.data.len() as u32,
+                    ));
                 } // else: same, keep
             } else {
                 // not in target but in index: need to delete

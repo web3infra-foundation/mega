@@ -2,9 +2,8 @@ use std::cmp::min;
 use std::collections::HashSet;
 
 use crate::command::load_object;
-use crate::db;
+use crate::internal::branch::Branch;
 use crate::internal::head::Head;
-use crate::model::reference;
 use clap::Parser;
 use colored::Colorize;
 #[cfg(unix)]
@@ -59,15 +58,10 @@ pub async fn execute(args: LogArgs) {
         .spawn()
         .expect("failed to execute process");
 
-    let db = db::get_db_conn().await.unwrap();
-    // let head = reference::Model::current_head(&db).await.unwrap();
     let head = Head::current().await;
     // check if the current branch has any commits
-    // if head.name.is_some() {
     if let Head::Branch(branch_name) = head.to_owned() {
-        let branch = reference::Model::find_branch_by_name(&db, &branch_name)
-            .await
-            .unwrap();
+        let branch = Branch::find_branch(&branch_name, None).await;
         if branch.is_none() {
             panic!(
                 "fatal: your current branch '{}' does not have any commits yet ",
@@ -134,9 +128,8 @@ pub async fn execute(args: LogArgs) {
 mod tests {
 
     use super::*;
-    use crate::{command::save_object, utils::test};
+    use crate::{command::save_object, db, model::reference, utils::test};
     use sea_orm::{ActiveModelTrait, Set};
-    use tests::reference::ActiveModel;
     use venus::{hash::SHA1, internal::object::commit::Commit};
 
     #[tokio::test]
@@ -214,7 +207,7 @@ mod tests {
             _ => panic!("should be branch"),
         };
         // set current branch head to commit 6
-        let branch = ActiveModel {
+        let branch = reference::ActiveModel {
             name: Set(Some(branch_name.clone())),
             commit: Set(Some(commit_6.id.to_plain_str())),
             kind: Set(reference::ConfigKind::Branch),
