@@ -114,12 +114,12 @@ async fn list_branches(remotes: bool) {
             let remote_configs = Config::remote_configs().await;
             let mut branches = vec![];
             for remote in remote_configs {
-                let remote_branches = Branch::lsit_branches(Some(&remote.name)).await;
+                let remote_branches = Branch::list_branches(Some(&remote.name)).await;
                 branches.extend(remote_branches);
             }
             branches
         }
-        false => Branch::lsit_branches(None).await,
+        false => Branch::list_branches(None).await,
     };
 
     let head = Head::current().await;
