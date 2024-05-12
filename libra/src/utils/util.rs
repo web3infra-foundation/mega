@@ -312,6 +312,12 @@ pub fn get_repo_name_from_url(mut url: &str) -> Option<&str> {
     Some(&url[repo_start..repo_end])
 }
 
+pub fn read_sha1(file: &mut impl Read) -> io::Result<SHA1> {
+    let mut buf = [0; 20];
+    file.read_exact(&mut buf)?;
+    Ok(SHA1::from_bytes(&buf))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
