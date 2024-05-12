@@ -10,6 +10,8 @@ pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
+pub mod push;
+
 use crate::utils::util;
 use venus::{hash::SHA1, internal::object::ObjectTrait};
 

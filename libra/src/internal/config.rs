@@ -5,6 +5,7 @@ use sea_orm::ActiveValue::Set;
 
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::config;
+use crate::internal::model::config::Model;
 
 pub struct Config;
 
@@ -25,6 +26,22 @@ impl Config {
             ..Default::default()
         };
         config.save(db).await.unwrap();
+    }
+
+    async fn query(configuration: &str, name: Option<&str>, key: &str) -> Option<Model> {
+        let db = get_db_conn_instance().await;
+        config::Entity::find()
+            .filter(config::Column::Configuration.eq(configuration))
+            .filter(config::Column::Name.eq(name))
+            .filter(config::Column::Key.eq(key))
+            .one(db)
+            .await
+            .unwrap()
+    }
+
+    pub async fn get(configuration: &str, name: Option<&str>, key: &str) -> Option<String> {
+        let config = Self::query(configuration, name, key).await;
+        config.map(|c| c.value)
     }
 
     pub async fn remote_configs() -> Vec<RemoteConfig> {
