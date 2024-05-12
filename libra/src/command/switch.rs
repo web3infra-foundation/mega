@@ -67,6 +67,7 @@ async fn switch_to_commit(commit_hash: SHA1) {
 }
 
 async fn switch_to_branch(branch_name: String) {
+    // TODO check remote branch, and give a different message, e.g. "fatal: a branch is expected, got remote branch origin/main"
     let target_branch = Branch::find_branch(&branch_name, None).await;
     if target_branch.is_none() {
         eprintln!("fatal: branch '{}' not found", &branch_name);

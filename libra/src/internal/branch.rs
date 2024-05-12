@@ -1,14 +1,15 @@
 use std::str::FromStr;
 
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm::ActiveModelTrait;
 use sea_orm::ActiveValue::Set;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use venus::hash::SHA1;
 
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::reference;
 
+#[derive(Debug)]
 pub struct Branch {
     pub name: String,
     pub commit: SHA1,
@@ -73,6 +74,32 @@ impl Branch {
         }
     }
 
+    /// search branch with full name, return vec of branches
+    /// e.g. `origin/sub/master/feature` may means `origin/sub/master` + `feature` or `origin/sub` + `master/feature`
+    /// so we need to search all possible branches
+    pub async fn search_branch(branch_name: &str) -> Vec<Self> {
+        let mut branch_name = branch_name.to_string();
+        let mut remote = String::new();
+
+        let mut branches = vec![];
+        if let Some(branch) = Self::find_branch(&branch_name, None).await {
+            branches.push(branch)
+        }
+
+        while let Some(index) = branch_name.find('/') {
+            if !remote.is_empty() {
+                remote += "/";
+            }
+            remote += branch_name.get(..index).unwrap();
+            branch_name = branch_name.get(index + 1..).unwrap().to_string();
+            let branch = Self::find_branch(&branch_name, Some(&remote)).await;
+            if let Some(branch) = branch {
+                branches.push(branch);
+            }
+        }
+        branches
+    }
+
     pub async fn update_branch(branch_name: &str, commit_hash: &str, remote: Option<&str>) {
         let db_conn = get_db_conn_instance().await;
         // check if branch exists
@@ -104,5 +131,26 @@ impl Branch {
         let branch: reference::ActiveModel =
             query_reference(branch_name, remote).await.unwrap().into();
         branch.delete(db_conn).await.unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::test;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_search_branch() {
+        test::setup_with_new_libra().await;
+
+        let commit_hash = SHA1::default().to_plain_str();
+        Branch::update_branch("upstream/origin/master", &commit_hash, None).await; // should match
+        Branch::update_branch("origin/master", &commit_hash, Some("upstream")).await; // should match
+        Branch::update_branch("master", &commit_hash, Some("upstream/origin")).await; // should match
+        Branch::update_branch("feature", &commit_hash, Some("upstream/origin/master")).await; // should not match
+
+        let branches = Branch::search_branch("upstream/origin/master").await;
+        assert_eq!(branches.len(), 3);
     }
 }
