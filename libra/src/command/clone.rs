@@ -170,6 +170,8 @@ async fn setup_reference_and_config(refs: Vec<DiscoveredReference>, remote_repo:
 
     let origin_head_name = origin_head.replace("refs/heads/", "");
 
+    Branch::update_branch(&origin_head_name, &head_ref._hash, None).await;
+
     {
         let _origin_head = Head::Branch(origin_head_name.clone());
         // update remote HEAD, default `origin`
