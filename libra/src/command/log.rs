@@ -24,7 +24,7 @@ pub struct LogArgs {
 
 ///  Get all reachable commits from the given commit hash
 ///  **didn't consider the order of the commits**
-async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
+pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
     let mut queue = VecDeque::new();
     let mut commit_set: HashSet<String> = HashSet::new(); // to avoid duplicate commits because of circular reference
     let mut reachable_commits: Vec<Commit> = Vec::new();
