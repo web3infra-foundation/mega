@@ -74,6 +74,9 @@ pub enum GitError {
 
     #[error("Can't encode entries to pack: {0}")]
     PackEncodeError(String),
+
+    #[error("Can't find specific object: {0}")]
+    ObjectNotFound(String),
 }
 
 impl From<FromUtf8Error> for GitError {
