@@ -48,10 +48,16 @@ impl ClientStorage {
     }
 
     pub fn get_object_type(&self, obj_id: &SHA1) -> Result<ObjectType, GitError> {
-        let raw_data = self.read_raw_data(obj_id)?;
-        let data = Self::decompress_zlib(&raw_data)?;
-        let (obj_type, _, _) = Self::parse_header(&data);
-        ObjectType::from_string(&obj_type)
+        if self.exist_loosely(obj_id) {
+            let raw_data = self.read_raw_data(obj_id)?;
+            let data = Self::decompress_zlib(&raw_data)?;
+            let (obj_type, _, _) = Self::parse_header(&data);
+            ObjectType::from_string(&obj_type)
+        } else {
+            self.get_from_pack(obj_id).unwrap()
+                .map(|x| x.1)
+                .ok_or(GitError::ObjectNotFound(obj_id.to_plain_str()))
+        }
     }
 
     /// Check if the object with `obj_id` is of type `obj_type`
@@ -63,7 +69,7 @@ impl ClientStorage {
     }
 
     /// Search objects that start with `obj_id`, loose & pack
-    pub fn search(&self, obj_id: &str) -> Vec<SHA1> { // TODO pack!
+    pub fn search(&self, obj_id: &str) -> Vec<SHA1> {
         let mut objs = self.list_objects_pack();
         objs.extend(self.list_objects_loose());
 
@@ -73,7 +79,7 @@ impl ClientStorage {
     }
 
     /// list all objects' hash in `objects`
-    pub fn list_objects_loose(&self) -> Vec<SHA1> {
+    fn list_objects_loose(&self) -> Vec<SHA1> {
         let mut objects = Vec::new();
         let paths = fs::read_dir(&self.base_path).unwrap();
         for path in paths {
@@ -156,7 +162,7 @@ impl ClientStorage {
             let (_, _, end_of_header) = Self::parse_header(&data);
             Ok(data[end_of_header + 1..].to_vec())
         } else {
-            Ok(self.get_from_pack(object_id).unwrap().unwrap())
+            Ok(self.get_from_pack(object_id).unwrap().unwrap().0)
         }
     }
 
@@ -218,12 +224,12 @@ impl ClientStorage {
     }
 
     /// Get object from PACKs by hash, if not found, return None
-    fn get_from_pack(&self, obj_id: &SHA1) -> Result<Option<Vec<u8>>, GitError> {
+    fn get_from_pack(&self, obj_id: &SHA1) -> Result<Option<(Vec<u8>, ObjectType)>, GitError> {
         let idxes = self.list_all_idx(); // list or build
         for idx in idxes {
             let res = Self::read_pack_by_idx(&idx, obj_id)?;
             if let Some(data) = res {
-                return Ok(Some(data));
+                return Ok(Some((data.data_decompress.clone(), data.obj_type)));
             }
         }
 
@@ -285,14 +291,14 @@ impl ClientStorage {
     }
 
     /// Get object from pack by .idx file
-    fn read_pack_by_idx(idx_file: &Path, obj_id: &SHA1) -> Result<Option<Vec<u8>>, GitError> {
+    fn read_pack_by_idx(idx_file: &Path, obj_id: &SHA1) -> Result<Option<CacheObject>, GitError> {
         let pack_file = idx_file.with_extension("pack");
         let res = Self::read_idx(idx_file, obj_id)?;
         match res {
             None => Ok(None),
             Some(offset) => {
                 let res = Self::read_pack_obj(&pack_file, offset)?;
-                Ok(Some(res.data_decompress.clone()))
+                Ok(Some(res))
             }
         }
     }
