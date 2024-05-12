@@ -47,8 +47,10 @@ enum Commands {
 
     // collaborate
     // todo: implement in the future
+    #[command(about = "Update remote refs along with associated objects")]
+    Push(command::push::PushArgs),
 
-    // other hiden commands
+    // other hidden commands
     #[command(
         about = "Build pack index file for an existing packed archive",
         hide = true
@@ -80,6 +82,7 @@ async fn main() {
         Commands::Commit(args) => command::commit::execute(args).await,
         Commands::Switch(args) => command::switch::execute(args).await,
         Commands::Merge(args) => command::merge::execute(args).await,
+        Commands::Push(args) => command::push::execute(args).await,
         Commands::IndexPack(args) => command::index_pack::execute(args),
     }
 }
