@@ -1,4 +1,5 @@
 use std::{fs, io};
+use std::collections::HashSet;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -16,6 +17,7 @@ use venus::hash::SHA1;
 use venus::internal::object::types::ObjectType;
 
 use crate::command;
+use crate::utils::util;
 
 #[derive(Default)]
 pub struct ClientStorage {
@@ -60,16 +62,18 @@ impl ClientStorage {
         }
     }
 
-    /// Search objects that start with `obj_id`
-    pub fn search(&self, obj_id: &str) -> Vec<SHA1> {
-        self.list_objects()
-            .into_iter()
+    /// Search objects that start with `obj_id`, loose & pack
+    pub fn search(&self, obj_id: &str) -> Vec<SHA1> { // TODO pack!
+        let mut objs = self.list_objects_pack();
+        objs.extend(self.list_objects_loose());
+
+        objs.into_iter()
             .filter(|x| x.to_plain_str().starts_with(obj_id))
             .collect()
     }
 
     /// list all objects' hash in `objects`
-    pub fn list_objects(&self) -> Vec<SHA1> {
+    pub fn list_objects_loose(&self) -> Vec<SHA1> {
         let mut objects = Vec::new();
         let paths = fs::read_dir(&self.base_path).unwrap();
         for path in paths {
@@ -88,6 +92,19 @@ impl ClientStorage {
             }
         }
         objects
+    }
+
+    /// List all objects' hash in PACKs
+    fn list_objects_pack(&self) -> HashSet<SHA1> {
+        let idxes = self.list_all_idx();
+        let mut objs = HashSet::new();
+        for idx in idxes {
+            let res = Self::list_idx_objects(&idx).unwrap();
+            for obj in res {
+                objs.insert(obj);
+            }
+        }
+        objs
     }
 }
 
@@ -170,24 +187,40 @@ impl ClientStorage {
     }
 }
 
+// TODO refactor to `PackReader`
 impl ClientStorage {
-    /// Get object from PACKs by hash, if not found, return None
-    fn get_from_pack(&self, obj_id: &SHA1) -> Result<Option<Vec<u8>>, GitError> {
+    /// List all .pack files in `pack` directory
+    fn list_all_packs(&self) -> Vec<PathBuf> {
         let pack_dir = self.base_path.join("pack");
-
         let mut packs = Vec::new();
-        for entry in fs::read_dir(pack_dir)? {
-            let path = entry?.path();
+        for entry in fs::read_dir(pack_dir).unwrap() {
+            let path = entry.unwrap().path();
             if path.is_file() && path.extension().unwrap() == "pack" {
                 packs.push(path);
             }
         }
+        packs
+    }
 
+    /// List all .idx files in `pack` directory
+    /// - If .idx file not exists, build it
+    fn list_all_idx(&self) -> Vec<PathBuf> {
+        let packs = self.list_all_packs();
+        let mut idxs = Vec::new();
         for pack in packs {
             let idx = pack.with_extension("idx");
             if !idx.exists() {
-                command::index_pack::build_index_v1(pack.to_str().unwrap(), idx.to_str().unwrap())?;
+                command::index_pack::build_index_v1(pack.to_str().unwrap(), idx.to_str().unwrap()).unwrap();
             }
+            idxs.push(idx);
+        }
+        idxs
+    }
+
+    /// Get object from PACKs by hash, if not found, return None
+    fn get_from_pack(&self, obj_id: &SHA1) -> Result<Option<Vec<u8>>, GitError> {
+        let idxes = self.list_all_idx(); // list or build
+        for idx in idxes {
             let res = Self::read_pack_by_idx(&idx, obj_id)?;
             if let Some(data) = res {
                 return Ok(Some(data));
@@ -197,15 +230,37 @@ impl ClientStorage {
         Ok(None)
     }
 
-    fn read_idx(idx_file: &Path, obj_id: &SHA1) -> Result<Option<u64>, io::Error> {
+    fn read_idx_fanout(idx_file: &Path) -> Result<[u32; 256], io::Error> {
         let mut idx_file = fs::File::open(idx_file)?;
-        const FANOUT: usize = 256 * 4;
+        // const FANOUT: usize = 256 * 4;
         let mut fanout: [u32; 256] = [0; 256]; // 256 * 4 bytes
         let mut buf = [0; 4];
         fanout.iter_mut().for_each(|x| {
             idx_file.read_exact(&mut buf).unwrap();
             *x = u32::from_be_bytes(buf);
         });
+        Ok(fanout)
+    }
+
+    /// List all objects hash in .idx file
+    fn list_idx_objects(idx_file: &Path) -> Result<Vec<SHA1>, io::Error> {
+        let fanout: [u32; 256] = Self::read_idx_fanout(idx_file)?;
+        let mut idx_file = fs::File::open(idx_file)?;
+
+        let mut objs = Vec::new();
+        for _ in 0..fanout[255] {
+            let _offset = idx_file.read_u32::<BigEndian>()?;
+            let hash = util::read_sha1(&mut idx_file)?;
+
+            objs.push(hash);
+        }
+        Ok(objs)
+    }
+
+    /// Read object `offset` from .idx file by `hash`
+    fn read_idx(idx_file: &Path, obj_id: &SHA1) -> Result<Option<u64>, io::Error> {
+        let fanout: [u32; 256] = Self::read_idx_fanout(idx_file)?;
+        let mut idx_file = fs::File::open(idx_file)?;
 
         let first_byte = obj_id.0[0];
         let start = if first_byte == 0 {
@@ -215,12 +270,11 @@ impl ClientStorage {
         };
         let end = fanout[first_byte as usize] as usize;
 
+        const FANOUT: usize = 256 * 4;
         idx_file.seek(io::SeekFrom::Start((FANOUT + 24 * start) as u64))?;
         for _ in start..end {
             let offset = idx_file.read_u32::<BigEndian>()?;
-            let mut hash = [0u8; 20];
-            idx_file.read_exact(&mut hash)?;
-            let hash = SHA1::from_bytes(&hash);
+            let hash = util::read_sha1(&mut idx_file)?;
 
             if &hash == obj_id {
                 return Ok(Some(offset as u64));
@@ -326,7 +380,7 @@ mod tests {
             return;
         }
         let client_storage = ClientStorage::init(source);
-        let objs = client_storage.list_objects();
+        let objs = client_storage.list_objects_loose();
         for obj in objs {
             println!("{}", obj);
         }
