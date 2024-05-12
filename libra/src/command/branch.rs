@@ -51,6 +51,7 @@ pub async fn execute(args: BranchArgs) {
 
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
     // check if branch exists
+    // TODO could be a remote branch
     let branch = Branch::find_branch(&new_branch, None).await;
     if branch.is_some() {
         panic!("fatal: A branch named '{}' already exists.", new_branch);
