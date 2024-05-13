@@ -4,6 +4,7 @@ use clap::Parser;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
+use ceres::protocol::ServiceType::UploadPack;
 use venus::hash::SHA1;
 
 use crate::{
@@ -57,7 +58,7 @@ async fn fetch_repository(remote: &str) {
     };
     let http_client = HttpsClient::from_url(&url);
 
-    let refs = match http_client.discovery_reference().await {
+    let refs = match http_client.discovery_reference(UploadPack, None).await {
         Ok(refs) => refs,
         Err(e) => {
             eprintln!("fatal: unable to fetch refs from '{}'", remote);

@@ -158,7 +158,7 @@ async fn list_branches(remotes: bool) {
 }
 
 pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn std::error::Error>> {
-    let posible_branchs = Branch::search_branch(&branch_or_commit).await;
+    let posible_branchs = Branch::search_branch(branch_or_commit).await;
     if posible_branchs.len() > 1 {
         return Err("fatal: Ambiguous branch name".into());
         // TODO: git have a priority list of branches to use, continue with ambiguity, we didn't implement it yet
@@ -166,7 +166,7 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
 
     if posible_branchs.is_empty() {
         let storage = ClientStorage::init(utils::path::objects());
-        let posible_commits = storage.search(&branch_or_commit);
+        let posible_commits = storage.search(branch_or_commit);
         if posible_commits.len() > 1 || posible_commits.is_empty() {
             return Err(
                 format!("fatal: {} is not something we can merge", branch_or_commit).into(),
