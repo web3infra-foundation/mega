@@ -1,10 +1,10 @@
 use crate::{
     internal::{branch::Branch, config::Config, head::Head},
-    utils::util,
+    utils::{self, client_storage::ClientStorage},
 };
 use clap::Parser;
 use colored::Colorize;
-use venus::internal::object::commit::Commit;
+use venus::{hash::SHA1, internal::object::commit::Commit};
 
 use crate::command::load_object;
 
@@ -50,6 +50,7 @@ pub async fn execute(args: BranchArgs) {
 }
 
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
+    tracing::debug!("create branch: {} from {:?}", new_branch, branch_or_commit);
     // check if branch exists
     // TODO could be a remote branch
     let branch = Branch::find_branch(&new_branch, None).await;
@@ -57,17 +58,21 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
         panic!("fatal: A branch named '{}' already exists.", new_branch);
     }
 
-    // commit hash maybe a branch name
     let commit_id = match branch_or_commit {
         Some(branch_or_commit) => {
-            let branch = Branch::find_branch(&branch_or_commit, None).await;
-            match branch {
-                Some(branch) => branch.commit,
-                None => util::get_commit_base(&branch_or_commit).unwrap(),
+            let commit = get_target_commit(&branch_or_commit).await;
+            match commit {
+                Ok(commit) => commit,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return;
+                }
             }
         }
         None => Head::current_commit().await.unwrap(),
     };
+    tracing::debug!("base commit_id: {}", commit_id);
+
     // check if commit_hash exists
     let _ = load_object::<Commit>(&commit_id)
         .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{}'", commit_id));
@@ -144,6 +149,27 @@ async fn list_branches(remotes: bool) {
         } else {
             println!("  {}", name);
         };
+    }
+}
+
+pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn std::error::Error>> {
+    let posible_branchs = Branch::search_branch(&branch_or_commit).await;
+    if posible_branchs.len() > 1 {
+        return Err("fatal: Ambiguous branch name".into());
+        // TODO: git have a priority list of branches to use, continue with ambiguity, we didn't implement it yet
+    }
+
+    if posible_branchs.is_empty() {
+        let storage = ClientStorage::init(utils::path::objects());
+        let posible_commits = storage.search(&branch_or_commit);
+        if posible_commits.len() > 1 || posible_commits.is_empty() {
+            return Err(
+                format!("fatal: {} is not something we can merge", branch_or_commit).into(),
+            );
+        }
+        Ok(posible_commits[0])
+    } else {
+        Ok(posible_branchs[0].commit)
     }
 }
 

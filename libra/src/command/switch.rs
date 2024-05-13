@@ -82,7 +82,6 @@ async fn switch_to_branch(branch_name: String) {
 }
 
 async fn restore_to_commit(commit_id: SHA1) {
-    // TODO may wrong
     let restore_args = RestoreArgs {
         worktree: true,
         staged: true,
