@@ -329,7 +329,7 @@ async fn lfs_get_filtered_locks(
         Err(_) => vec![],
     };
 
-    println!("Locks retrieved: {:?}", locks);
+    tracing::debug!("Locks retrieved: {:?}", locks);
 
     if !cursor.is_empty() {
         let mut last_seen = -1;

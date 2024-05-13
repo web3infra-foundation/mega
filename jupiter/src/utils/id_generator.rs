@@ -10,6 +10,6 @@ pub fn set_up_options() -> Result<(), OptionError> {
 
     // Get the option from the id generator instance.
     let options = IdInstance::get_options();
-    println!("First setting: {:?}", options);
+    tracing::debug!("First setting: {:?}", options);
     Ok(())
 }
