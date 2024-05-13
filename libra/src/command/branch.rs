@@ -122,7 +122,7 @@ async fn list_branches(remotes: bool) {
     let branches = match remotes {
         true => {
             // list all remote branches
-            let remote_configs = Config::remote_configs().await;
+            let remote_configs = Config::all_remote_configs().await;
             let mut branches = vec![];
             for remote in remote_configs {
                 let remote_branches = Branch::list_branches(Some(&remote.name)).await;
