@@ -153,7 +153,7 @@ impl ClientStorage {
         Ok(buffer)
     }
 
-    pub fn get(&self, object_id: &SHA1) -> Result<Vec<u8>, io::Error> {
+    pub fn get(&self, object_id: &SHA1) -> Result<Vec<u8>, GitError> {
         if self.exist_loosely(object_id) {
             let raw_data = self.read_raw_data(object_id)?;
             let data = Self::decompress_zlib(&raw_data)?;
@@ -162,7 +162,10 @@ impl ClientStorage {
             let (_, _, end_of_header) = Self::parse_header(&data);
             Ok(data[end_of_header + 1..].to_vec())
         } else {
-            Ok(self.get_from_pack(object_id).unwrap().unwrap().0)
+            // Ok(self.get_from_pack(object_id)?.unwrap().0)
+            self.get_from_pack(object_id).unwrap()
+                .map(|x| x.0)
+                .ok_or(GitError::ObjectNotFound(object_id.to_plain_str()))
         }
     }
 
