@@ -31,7 +31,7 @@ pub struct BranchArgs {
     show_curren: bool,
 
     /// show remote branches
-    #[clap(short, long, requires = "list")]
+    #[clap(short, long)] // TODO limit to required `list` option, even in default
     remotes: bool,
 }
 pub async fn execute(args: BranchArgs) {
@@ -118,7 +118,6 @@ async fn show_current_branch() {
 }
 
 async fn list_branches(remotes: bool) {
-    // TODO didn't test remote branch
     let branches = match remotes {
         true => {
             // list all remote branches

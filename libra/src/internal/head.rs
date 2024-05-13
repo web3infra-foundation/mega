@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm::ActiveValue::Set;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use venus::hash::SHA1;
 
@@ -46,6 +46,21 @@ impl Head {
                 let commit_hash = head.commit.expect("detached head without commit");
                 Head::Detached(SHA1::from_str(commit_hash.as_str()).unwrap())
             }
+        }
+    }
+
+    pub async fn remote_current(remote: &str) -> Option<Head> {
+        match Self::query_remote_head(remote).await {
+            Some(head) => match head.name {
+                Some(name) => Some(Head::Branch(name)),
+                None => {
+                    let commit_hash = head.commit.expect("detached head without commit");
+                    Some(Head::Detached(
+                        SHA1::from_str(commit_hash.as_str()).unwrap(),
+                    ))
+                }
+            },
+            None => None,
         }
     }
 

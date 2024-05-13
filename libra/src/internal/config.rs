@@ -73,14 +73,6 @@ impl Config {
             .collect()
     }
 
-    pub async fn all_remote_names() -> HashSet<String> {
-        Self::all_remote_configs()
-            .await
-            .iter()
-            .map(|r| r.name.clone())
-            .collect()
-    }
-
     pub async fn remote_config(name: &str) -> Option<RemoteConfig> {
         let db = get_db_conn_instance().await;
         let remote = config::Entity::find()
