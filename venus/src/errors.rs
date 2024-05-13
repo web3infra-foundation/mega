@@ -77,6 +77,12 @@ pub enum GitError {
 
     #[error("Can't find specific object: {0}")]
     ObjectNotFound(String),
+
+    #[error("UnAuthorized: {0}")]
+    UnAuthorized(String),
+
+    #[error("Network Error: {0}")]
+    NetworkError(String),
 }
 
 impl From<FromUtf8Error> for GitError {

@@ -12,6 +12,7 @@ use clap::Parser;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
+use ceres::protocol::ServiceType::UploadPack;
 use venus::hash::SHA1;
 
 use crate::internal::protocol::https_client::{DiscoveredReference, HttpsClient};
@@ -66,7 +67,7 @@ pub async fn execute(args: CloneArgs) {
     /* fetch remote */
     let repo_url = Url::parse(&remote_repo).unwrap();
     let client = HttpsClient::from_url(&repo_url);
-    let refs = client.discovery_reference().await.unwrap();
+    let refs = client.discovery_reference(UploadPack, None).await.unwrap();
     tracing::info!("refs count: {:?}", refs.len());
     tracing::debug!("discovered references: {:?}", refs);
 

@@ -5,10 +5,14 @@ use futures_util::{StreamExt, TryStreamExt};
 use std::io::Error as IoError;
 use tokio_util::bytes::BytesMut;
 use url::Url;
+use ceres::protocol::ServiceType;
+use ceres::protocol::ServiceType::UploadPack;
+use venus::errors::GitError;
+
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see https://www.git-scm.com/docs/http-protocol for protocol details.
 pub struct HttpsClient {
-    url: url::Url,
+    url: Url,
     client: reqwest::Client,
 }
 
@@ -33,30 +37,45 @@ pub struct DiscoveredReference {
     pub(crate) _ref: String,
 }
 
-/// Client communicates with the remote git repository over SMART protocol.
-/// protocol details: https://www.git-scm.com/docs/http-protocol
-/// capability declarations: https://www.git-scm.com/docs/protocol-capabilities
+type DiscRef = DiscoveredReference;
+
+// Client communicates with the remote git repository over SMART protocol.
+// protocol details: https://www.git-scm.com/docs/http-protocol
+// capability declarations: https://www.git-scm.com/docs/protocol-capabilities
 impl HttpsClient {
     /// GET $GIT_URL/info/refs?service=git-upload-pack HTTP/1.0
     /// discover the references of the remote repository before fetching the objects.
     /// the first ref named HEAD as default ref.
+    /// ## Args
+    /// - auth: (username, password)
     pub async fn discovery_reference(
-        &self,
-    ) -> Result<Vec<DiscoveredReference>, Box<dyn std::error::Error>> {
-        let url = self.url.join("info/refs?service=git-upload-pack").unwrap();
-        let res = self.client.get(url).send().await.unwrap();
+        &self, service: ServiceType, auth: Option<(String, Option<String>)>
+    ) -> Result<Vec<DiscRef>, GitError> {
+        let service: &str = &service.to_string();
+        let url = self.url.join(&format!("info/refs?service={}", service)).unwrap();
+        let mut request = self.client.get(url);
+        if let Some(auth) = auth {
+            request = request.basic_auth(auth.0, auth.1);
+        }
+        let res = request.send().await.unwrap();
         tracing::debug!("{:?}", res);
 
-        // check Content-Type MUST be application/x-$servicename-advertisement
-        let content_type = res.headers().get("Content-Type").unwrap();
-        if content_type.to_str().unwrap() != "application/x-git-upload-pack-advertisement" {
-            return Err("Error Response format, content_type didn't match `application/x-git-upload-pack-advertisement`".into());
+        if res.status() == 401 {
+            return Err(GitError::UnAuthorized("May need to provide username and password".to_string()));
+        }
+        // check status code MUST be 200 or 304
+        if res.status() != 200 && res.status() != 304 {
+            return Err(GitError::NetworkError(format!(
+                "Error Response format, status code: {}",
+                res.status()
+            )));
         }
 
-        // check status code MUST be 200 or 304
-        // assert!(res.status() == 200 || res.status() == 304);
-        if res.status() != 200 && res.status() != 304 {
-            return Err(format!("Error Response format, status code: {}", res.status()).into());
+        // check Content-Type MUST be application/x-$servicename-advertisement
+        let content_type = res.headers().get("Content-Type").unwrap().to_str().unwrap();
+        if content_type != format!("application/x-{}-advertisement", service) {
+            return Err(GitError::NetworkError(
+                format!("Content-type must be `application/x-{}-advertisement`, but got: {}", service, content_type)));
         }
 
         let mut response_content = res.bytes().await.unwrap();
@@ -65,10 +84,9 @@ impl HttpsClient {
         // the first five bytes of the response entity matches the regex ^[0-9a-f]{4}#.
         // verify the first pkt-line is # service=$servicename, and ignore LF
         let (_, first_line) = read_pkt_line(&mut response_content);
-        if first_line[..].ne(b"# service=git-upload-pack\n") {
-            return Err(
-                "Error Response format, didn't start with `# service=git-upload-pack`".into(),
-            );
+        if first_line[..].ne(format!("# service={}\n", service).as_bytes()) {
+            return Err(GitError::NetworkError(
+                format!("Error Response format, didn't start with `# service={}`", service)));
         }
 
         let mut ref_list = vec![];
@@ -86,15 +104,17 @@ impl HttpsClient {
             let (hash, mut refs) = pkt_line.split_at(40); // hex SHA1 string is 40 bytes
             refs = refs.trim();
             if !read_first_line {
+                let (head, caps) = refs.split_once('\0').unwrap();
+                if service == UploadPack.to_string() {
+                    // for git-upload-pack, the first line is HEAD
+                    assert_eq!(head, "HEAD");
+                }
                 // ..default ref named HEAD as the first ref. The stream MUST include capability declarations behind a NUL on the first ref.
                 ref_list.push(DiscoveredReference {
                     _hash: hash.to_string(),
-                    _ref: "HEAD".to_string(),
+                    _ref: head.to_string(),
                 });
-                let (head, caps) = refs.split_once('\0').unwrap();
-                assert_eq!(head, "HEAD");
                 let caps = caps.split(' ').collect::<Vec<&str>>();
-                // TODO why println will output after all tracing::debug!?
                 tracing::debug!("capability declarations: {:?}", caps);
                 // tracing::warn!(
                 //     "temporary ignore capability declarations:[ {:?} ]",
@@ -173,10 +193,13 @@ impl HttpsClient {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use crate::utils::test::{init_debug_logger, init_logger};
     use tokio::io::AsyncBufReadExt;
     use tokio::io::AsyncReadExt;
     use tokio_util::io::StreamReader;
+    use venus::hash::SHA1;
+    use crate::command::ask_username_password;
 
     use super::*;
 
@@ -187,7 +210,7 @@ mod tests {
         let test_repo = "https://github.com/web3infra-foundation/mega.git/";
 
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
-        let refs = client.discovery_reference().await;
+        let refs = client.discovery_reference(UploadPack, None).await;
         if refs.is_err() {
             tracing::error!("{:?}", refs.err().unwrap());
             panic!();
@@ -205,7 +228,7 @@ mod tests {
         let test_repo = "https://gitee.com/caiqihang2024/image-viewer2.0.git/";
 
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
-        let refs = client.discovery_reference().await.unwrap();
+        let refs = client.discovery_reference(UploadPack, None).await.unwrap();
         let refs: Vec<DiscoveredReference> = refs
             .iter()
             .filter(|r| r._ref.starts_with("refs/heads"))
@@ -236,5 +259,38 @@ mod tests {
         }
         tracing::info!("buffer len: {:?}", buffer.len());
         assert!(!buffer.is_empty(), "buffer len is 0, fetch_objects failed");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_push_empty_repo() {
+        init_logger();
+
+        let test_repo = "https://gitee.com/caiqihang2024/test-git-remote.git/";
+        let pack_file = r"xxx.pack";
+
+        let mut buf = BytesMut::new();
+        add_pkt_line_string(&mut buf, format!("{} {} {}\n", //\0 report-status
+                            SHA1::default().to_plain_str(),
+                            "d8bd0a95f4fb431e64fcd91098d47a008d7eec4c",
+                            "refs/heads/master"));
+
+        buf.extend(b"0000");
+        let pack_content = fs::read(pack_file).unwrap();
+        buf.extend(pack_content);
+        println!("{:?}", buf);
+
+        let (username, password) = ask_username_password();
+        let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
+        let res = client
+            .client
+            .post(client.url.join("git-receive-pack").unwrap())
+            .header("Content-Type", "application/x-git-receive-pack-request")
+            .basic_auth(username, Some(password))
+            .body(buf.freeze())
+            .send()
+            .await
+            .unwrap();
+        println!("{:?}", res);
     }
 }
