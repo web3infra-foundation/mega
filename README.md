@@ -37,8 +37,10 @@ For now, we are developing on the macOS and Arch Linux. And quick start manuel i
 ### Quick Review of Architecture
 
 
-1. **Gateway Module** - The Gateway module is responsible for handling `git`, `git-lfs` and web UI requests througth the HTTP and SSH protocol. More information on the [Gateway Module](gateway/README.md).
-2. **Mercury Module** - The Mercury module is core module of Mega which rewrite Git internal object. More information on the [Mercury Module](mercury/README.md).
+1. **Gateway** - The Gateway module is responsible for handling `git`, `git-lfs` and web UI requests througth the HTTP and SSH protocol. More information on the [Gateway](gateway/README.md).
+2. **Libra** - The Libra is a `git` program that rewrite in Rust. More information on the [Libra](libra/README.md).
+3. **Craft** - The Craft is `git` filters inculde `git-lfs` and `encrypt`/`decrypt` filer. More information on the [Craft](craft/README.md).
+4. **Mercury** - The Mercury module is core module of Mega which rewrite Git internal object. More information on the [Mercury Module](mercury/README.md).
 
 ## Contributing
 
