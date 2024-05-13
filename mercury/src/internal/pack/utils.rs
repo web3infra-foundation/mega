@@ -287,7 +287,8 @@ macro_rules! time_it {
             let start = std::time::Instant::now();
             let result = $block;
             let elapsed = start.elapsed();
-            println!("{}: {:?}", $msg, elapsed);
+            // println!("{}: {:?}", $msg, elapsed);
+            tracing::info!("{}: {:?}", $msg, elapsed);
             result
         }
     };

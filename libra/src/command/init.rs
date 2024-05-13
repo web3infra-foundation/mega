@@ -1,10 +1,10 @@
-use std::{env, fs, io};
-use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
-use crate::db;
-use crate::model::{config, reference};
+use crate::internal::db;
+use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
+use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
+use std::{env, fs, io};
 
-pub async fn execute() { 
+pub async fn execute() {
     init().await.unwrap();
 }
 
@@ -25,9 +25,15 @@ pub async fn init() -> io::Result<()> {
     }
     // create info/exclude
     // `include_str!` includes the file content while compiling
-    fs::write(root_dir.join("info/exclude"), include_str!("../../template/exclude"))?;
+    fs::write(
+        root_dir.join("info/exclude"),
+        include_str!("../../template/exclude"),
+    )?;
     // create .libra/description
-    fs::write(root_dir.join("description"), include_str!("../../template/description"))?;
+    fs::write(
+        root_dir.join("description"),
+        include_str!("../../template/description"),
+    )?;
 
     // create database: .libra/libra.db
     let database = root_dir.join(DATABASE);
@@ -41,11 +47,17 @@ pub async fn init() -> io::Result<()> {
         name: Set(Some("master".to_owned())),
         kind: Set(reference::ConfigKind::Head),
         ..Default::default() // all others are `NotSet`
-    }.insert(&conn).await.unwrap();
+    }
+    .insert(&conn)
+    .await
+    .unwrap();
 
     // set .libra as hidden
     set_dir_hidden(root_dir.to_str().unwrap())?;
-    println!("Initializing empty Libra repository in {}", root_dir.display());
+    println!(
+        "Initializing empty Libra repository in {}",
+        root_dir.display()
+    );
     Ok(())
 }
 
@@ -66,8 +78,8 @@ async fn init_config(conn: &DbConn) -> Result<(), DbErr> {
         ("filemode", "false"), // no filemode on windows
         ("bare", "false"),
         ("logallrefupdates", "true"),
-        ("symlinks", "false"), // no symlinks on windows
-        ("ignorecase", "true") // ignorecase on windows
+        ("symlinks", "false"),  // no symlinks on windows
+        ("ignorecase", "true"), // ignorecase on windows
     ];
 
     for (key, value) in entries {
