@@ -1,33 +1,118 @@
-use std::sync::Arc;
+use std::path::{Component, Path};
+use std::{path::PathBuf, sync::Arc};
 
 use axum::async_trait;
 
 use jupiter::storage::git_db_storage::GitDbStorage;
 use venus::errors::GitError;
+use venus::internal::object::commit::Commit;
+use venus::internal::object::tree::Tree;
+use venus::repo::Repo;
 
-use crate::model::objects::{LatestCommitInfo, TreeCommitInfo};
+use crate::api_service::ApiHandler;
+use crate::model::objects::{BlobObjects, LatestCommitInfo, TreeBriefInfo, TreeCommitInfo};
 
-use super::ApiHandler;
 
 #[derive(Clone)]
-pub struct ObjectService {
+pub struct ImportRepoService {
     pub storage: Arc<GitDbStorage>,
+    pub repo: Repo,
 }
 
 #[async_trait]
-impl ApiHandler for ObjectService {
-    async fn get_latest_commit(&self) -> Result<LatestCommitInfo, GitError> {
-        todo!()
+impl ApiHandler for ImportRepoService {
+    async fn get_blob_as_string(&self, _object_id: &str) -> Result<BlobObjects, GitError> {
+        unreachable!()
     }
 
-    async fn get_tree_commit_info(&self) -> Result<TreeCommitInfo, GitError> {
+    async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError> {
+        let (_, tree) = self.search_tree_by_path(&path).await.unwrap();
+        let tree_info = self
+            .storage
+            .get_tree_by_hash(&self.repo, &tree.id.to_plain_str())
+            .await
+            .unwrap()
+            .unwrap();
+        let commit: Commit = self
+            .storage
+            .get_commit_by_hash(&self.repo, &tree_info.commit_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+        self.convert_commit_to_info(commit)
+    }
+
+    async fn get_tree_info(&self, _path: PathBuf) -> Result<TreeBriefInfo, GitError> {
+        unimplemented!()
+    }
+
+    async fn get_tree_commit_info(&self, _path: PathBuf) -> Result<TreeCommitInfo, GitError> {
         unimplemented!()
     }
 }
 
-// const SIGNATURE_END: &str = "-----END PGP SIGNATURE-----";
+impl ImportRepoService {
+    /// Searches for a tree and affected parent by path.
+    ///
+    /// This function asynchronously searches for a tree by the provided path.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - A reference to the path to search.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple containing a vector of parent trees to be updated and
+    /// the target tree if found, or an error of type `GitError`.
+    async fn search_tree_by_path(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
+        let refs = self.storage.get_default_ref(&self.repo).await.unwrap().unwrap();
 
-impl ObjectService {
+        let root_commit = self.storage.get_commit_by_hash(&self.repo, &refs.ref_hash).await.unwrap().unwrap();
+        let root_tree: Tree = self
+            .storage
+            .get_tree_by_hash(&self.repo, &root_commit.tree)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+        let mut search_tree = root_tree.clone();
+        let mut update_tree = vec![root_tree];
+
+        let component_num = path.components().count();
+
+        for (index, component) in path.components().enumerate() {
+            // root tree already found
+            if component != Component::RootDir {
+                let target_name = component.as_os_str().to_str().unwrap();
+                let search_res = search_tree
+                    .tree_items
+                    .iter()
+                    .find(|x| x.name == target_name);
+
+                if let Some(search_res) = search_res {
+                    let hash = search_res.id.to_plain_str();
+                    let res: Tree = self
+                        .storage
+                        .get_tree_by_hash(&self.repo, &hash)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .into();
+                    search_tree = res.clone();
+                    if index != component_num - 1 {
+                        update_tree.push(res);
+                    }
+                } else {
+                    return Err(GitError::ConversionError(
+                        "can't find target parent tree under latest commit".to_string(),
+                    ));
+                }
+            }
+        }
+        Ok((update_tree, search_tree))
+    }
+
     // pub async fn get_blob_objects(
     //     &self,
     //     object_id: &str,
@@ -222,15 +307,3 @@ impl ObjectService {
     //     Ok(Json(counter))
     // }
 }
-
-// pub mod utils {
-//     pub(crate) fn remove_useless_str(content: String, remove_str: String) -> String {
-//         if let Some(index) = content.find(&remove_str) {
-//             let filtered_text = &content[index + remove_str.len()..].replace('\n', "");
-//             let truncated_text = filtered_text.chars().take(50).collect::<String>();
-//             truncated_text.to_owned()
-//         } else {
-//             "".to_owned()
-//         }
-//     }
-// }

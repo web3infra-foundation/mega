@@ -1,7 +1,7 @@
 use std::{env, sync::Arc};
 
 use async_trait::async_trait;
-use sea_orm::PaginatorTrait;
+use sea_orm::{PaginatorTrait, QueryOrder};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
     Set,
@@ -54,6 +54,7 @@ impl GitStorageProvider for GitDbStorage {
     async fn get_ref(&self, repo: &Repo) -> Result<Vec<Refs>, MegaError> {
         let result = import_refs::Entity::find()
             .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .order_by_asc(import_refs::Column::RefName)
             .all(self.get_connection())
             .await?;
         let res: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
@@ -103,6 +104,21 @@ impl GitDbStorage {
         }
     }
 
+
+    pub async fn get_default_ref(&self, repo: &Repo) -> Result<Option<Refs>, MegaError> {
+        let result = import_refs::Entity::find()
+            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::DefaultBranch.eq(true))
+            .one(self.get_connection())
+            .await?;
+        if let Some(model) = result {
+            let refs: Refs = model.into();
+            Ok(Some(refs))
+        } else {
+            Ok(None)
+        }
+    }   
+    
     pub async fn default_branch_exist(&self, repo: &Repo) -> Result<bool, MegaError> {
         let result = import_refs::Entity::find()
             .filter(import_refs::Column::RepoId.eq(repo.repo_id))
@@ -235,6 +251,19 @@ impl GitDbStorage {
             .filter(git_tree::Column::RepoId.eq(repo.repo_id))
             .filter(git_tree::Column::TreeId.is_in(hashes))
             .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_tree_by_hash(
+        &self,
+        repo: &Repo,
+        hash: &str,
+    ) -> Result<Option<git_tree::Model>, MegaError> {
+        Ok(git_tree::Entity::find()
+            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tree::Column::TreeId.eq(hash))
+            .one(self.get_connection())
             .await
             .unwrap())
     }
