@@ -64,6 +64,19 @@ pub fn setup_without_libra() {
     }
 }
 
+pub fn init_debug_logger() {
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .finish(),
+    )
+        .unwrap();
+}
+
+pub fn init_logger() {
+    tracing_subscriber::fmt().init();
+}
+
 // pub fn ensure_files<T: AsRef<str>>(paths: &Vec<T>) {
 //     for path in paths {
 //         ensure_file(path.as_ref().as_ref(), None);
