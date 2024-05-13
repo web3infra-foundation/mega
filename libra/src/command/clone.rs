@@ -116,7 +116,6 @@ async fn setup_head_and_config(remote_repo: String) {
         }
         Head::Detached(_) => {
             eprintln!("fatal: remote HEAD points to a detached commit");
-            return;
         }
     }
 }

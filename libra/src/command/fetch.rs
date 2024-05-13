@@ -46,7 +46,6 @@ pub async fn execute(args: FetchArgs) {
                     "fatal: '{}' does not appear to be a git repository",
                     args.repository
                 );
-                return;
             }
         }
     }
@@ -154,7 +153,6 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
             tracing::error!("remote HEAD points to an unknown branch");
             let hash = SHA1::from_str(&remote_head._hash).unwrap();
             Head::update(Head::Detached(hash), Some(&remote_config.name)).await;
-            return;
         }
     }
 }
