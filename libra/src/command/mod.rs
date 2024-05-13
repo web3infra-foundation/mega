@@ -2,15 +2,16 @@ pub mod add;
 pub mod branch;
 pub mod clone;
 pub mod commit;
+pub mod fetch;
 pub mod index_pack;
 pub mod init;
 pub mod log;
 pub mod merge;
+pub mod push;
 pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
-pub mod push;
 
 use crate::utils::util;
 use venus::{hash::SHA1, internal::object::ObjectTrait};
