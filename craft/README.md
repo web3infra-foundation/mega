@@ -1,10 +1,10 @@
-# Craft - Git Extension of Mega
+# Craft - Git Filters
 
 Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption and decryption of code, and generation of AI/LLM training data or model data, among other functionalities. As an integral part of the Mega service, it is installed locally in the developers' environment and incorporated with the server to enhance developer experiences.
 
-## Quick Started for developing and testing craft on MacOS
+## Quick Started for developing and testing craft on macOS
 
-1. Install Rust on your MacOS.
+1. Install Rust on your macOS.
 
    ```bash
    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -56,14 +56,9 @@ Craft is a Git plugin for Mega, a Large File Storage (LFS) client, encryption an
 
 ### Usage
 
-1. `git-craft vault new-key [primary_id] [key_path]`
-  - git-craft will generate key with primary id and key name you entered to default file path
-2. `git-craft vault encrypt [key_path]`
-  - git-craft will get the file content and encrypt it, it should be used without public key path now, because I set a default key path
-3. `git-craft vault decrypt [key_path]`
-  - git-craft will decrypt blob data read from git's standard input stream, it should be used without secret key path now, because I set a default key path
-4. `git-craft vault list`
-  - git-craft will list keys name, key's fingerprint and id, it should be used without key path now, because I set a default key path
-5. `git-craft vault delete [key_path]`
-  - git-craft will show you what keys you have now, then remove keys by key name you entered, it should be used without key path now, because I set a default key path
+1. `git-craft vault new-key [primary_id] [key_path]` - git-craft will generate key with primary id and key name you entered to default file path
+2. `git-craft vault encrypt [key_path]` - git-craft will get the file content and encrypt it, it should be used without public key path now, because I set a default key path
+3. `git-craft vault decrypt [key_path]` - git-craft will decrypt blob data read from git's standard input stream, it should be used without secret key path now, because I set a default key path
+4. `git-craft vault list` - git-craft will list keys name, key's fingerprint and id, it should be used without key path now, because I set a default key path
+5. `git-craft vault delete [key_path]` - git-craft will show you what keys you have now, then remove keys by key name you entered, it should be used without key path now, because I set a default key path
 
