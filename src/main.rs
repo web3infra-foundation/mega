@@ -11,6 +11,7 @@ mod utils;
 
 fn main() {
     dotenvy::dotenv().ok();
+
     let file_appender =
         tracing_appender::rolling::hourly(env::var("MEGA_LOG_PATH").unwrap(), "mega-logs");
     let stdout = std::io::stdout;
@@ -23,6 +24,7 @@ fn main() {
         "ERROR" => tracing::Level::ERROR,
         _ => unreachable!("Invalid log level"),
     };
+
     tracing_subscriber::fmt()
         .with_writer(stdout.and(file_appender))
         .with_max_level(log_level)
