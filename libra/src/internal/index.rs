@@ -237,7 +237,7 @@ impl Index {
                 uid: file.read_u32::<BigEndian>()?,
                 gid: file.read_u32::<BigEndian>()?,
                 size: file.read_u32::<BigEndian>()?,
-                hash: utils::read_sha1(file)?,
+                hash: util::read_sha1(file)?,
                 flags: Flags::from_u16(file.read_u16::<BigEndian>()?),
                 name: String::new(),
             };
@@ -274,7 +274,7 @@ impl Index {
 
         // check sum
         let file_hash = file.final_hash();
-        let check_sum = utils::read_sha1(file)?;
+        let check_sum = util::read_sha1(file)?;
         if file_hash != check_sum {
             return Err(GitError::InvalidIndexFile("Check sum failed".to_string()));
         }
@@ -433,7 +433,6 @@ impl Index {
 mod utils {
     use std::io;
     use std::io::Read;
-    use venus::hash::SHA1;
 
     pub const SHA1_SIZE: usize = 20;
 
@@ -441,12 +440,6 @@ mod utils {
         let mut buf = vec![0; len];
         file.read_exact(&mut buf)?;
         Ok(buf)
-    }
-
-    pub fn read_sha1(file: &mut impl Read) -> io::Result<SHA1> {
-        let mut buf = [0; 20];
-        file.read_exact(&mut buf)?;
-        Ok(SHA1::from_bytes(&buf))
     }
 }
 

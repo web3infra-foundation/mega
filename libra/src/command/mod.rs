@@ -1,14 +1,21 @@
 pub mod add;
 pub mod branch;
+pub mod clone;
 pub mod commit;
+pub mod fetch;
+pub mod index_pack;
 pub mod init;
 pub mod log;
+pub mod merge;
+pub mod push;
 pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
-pub mod clone;
 
+use std::io;
+use std::io::Write;
+use rpassword::read_password;
 use crate::utils::util;
 use venus::{hash::SHA1, internal::object::ObjectTrait};
 
@@ -31,6 +38,22 @@ where
     let data = object.to_data()?;
     storage.put(ojb_id, &data, object.get_type())?;
     Ok(())
+}
+
+/// Ask for username and password (CLI interaction)
+pub fn ask_username_password() -> (String, String) {
+    print!("username: ");
+    // Normally your OS will buffer output by line when it's connected to a terminal,
+    // which is why it usually flushes when a newline is written to stdout.
+    io::stdout().flush().unwrap(); // ensure the prompt is shown
+    let mut username = String::new();
+    io::stdin().read_line(&mut username).unwrap();
+    username = username.trim().to_string();
+
+    print!("password: ");
+    io::stdout().flush().unwrap();
+    let password = read_password().unwrap(); // hide password
+    (username, password)
 }
 
 #[cfg(test)]
