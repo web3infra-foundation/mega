@@ -13,7 +13,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
     let server_matchers = peer::P2pOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();
-    println!("{server_matchers:#?}");
+    trace::info!("{server_matchers:#?}");
     peer::run(&server_matchers).await.unwrap();
     Ok(())
 }

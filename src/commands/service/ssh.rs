@@ -15,7 +15,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
     let server_matchers = SshOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();
-    println!("{server_matchers:#?}");
+    tracing::info!("{server_matchers:#?}");
     ssh::start_server(&server_matchers).await;
     Ok(())
 }

@@ -14,7 +14,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
         .map_err(|err| err.exit())
         .unwrap();
 
-    println!("{server_matchers:#?}");
+    tracing::info!("{server_matchers:#?}");
     https_server::start_server(&server_matchers).await;
     Ok(())
 }

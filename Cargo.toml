@@ -28,7 +28,9 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 dotenvy = { workspace = true }
+tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true}
 thiserror = { workspace = true }
 rand = { workspace = true }
 smallvec = { workspace = true }
@@ -56,6 +58,7 @@ serde_json = "1.0.117"
 dotenvy = "0.15.7"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+tracing-appender = "0.2"
 thiserror = "1.0.60"
 rand = "0.8.5"
 smallvec = "1.13.2"
