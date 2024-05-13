@@ -62,7 +62,7 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() { // TODO init tracing or will not output
     let args = Cli::parse();
     // check repo existence, except for `init` and `clone`
     // TODO: try check repo before parsing
