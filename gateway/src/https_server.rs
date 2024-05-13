@@ -99,6 +99,9 @@ pub async fn start_server(options: &HttpOptions) {
         git_db_storage: state.context.services.git_db_storage.clone(),
     };
 
+    // add RequestDecompressionLayer for handle gzip encode
+    // add TraceLayer for log record
+    // add CorsLayer to add cors header
     let app = Router::new()
         .nest(
             "/api/v1",
