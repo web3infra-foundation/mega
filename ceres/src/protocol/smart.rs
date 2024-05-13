@@ -315,7 +315,7 @@ fn read_until_white_space(bytes: &mut Bytes) -> String {
     String::from_utf8(buf).unwrap()
 }
 
-fn add_pkt_line_string(pkt_line_stream: &mut BytesMut, buf_str: String) {
+pub fn add_pkt_line_string(pkt_line_stream: &mut BytesMut, buf_str: String) {
     let buf_str_length = buf_str.len() + 4;
     pkt_line_stream.put(Bytes::from(format!("{buf_str_length:04x}")));
     pkt_line_stream.put(buf_str.as_bytes());
