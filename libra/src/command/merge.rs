@@ -1,12 +1,13 @@
 use clap::Parser;
-use venus::{hash::SHA1, internal::object::commit::Commit};
+use venus::internal::object::commit::Commit;
 
 use crate::{
     internal::{branch::Branch, head::Head},
-    utils::{self, client_storage::ClientStorage, util},
+    utils::util,
 };
 
 use super::{
+    branch::get_target_commit,
     load_object, log,
     restore::{self, RestoreArgs},
 };
@@ -49,25 +50,6 @@ pub async fn execute(args: MergeArgs) {
     } else {
         // didn't support yet
         eprintln!("fatal: Not possible to fast-forward merge, try merge manually");
-    }
-}
-
-async fn get_target_commit(branch: &str) -> Result<SHA1, Box<dyn std::error::Error>> {
-    let posible_branchs = Branch::search_branch(&branch).await;
-    if posible_branchs.len() > 1 {
-        return Err("fatal: Ambiguous branch name".into());
-        // TODO: git have a priority list of branches to merge, continue with ambiguity, we didn't implement it yet
-    }
-
-    if posible_branchs.is_empty() {
-        let storage = ClientStorage::init(utils::path::objects());
-        let posible_commits = storage.search(&branch);
-        if posible_commits.len() > 1 || posible_commits.is_empty() {
-            return Err(format!("fatal: {} is not something we can merge", branch).into());
-        }
-        Ok(posible_commits[0])
-    } else {
-        Ok(posible_branchs[0].commit)
     }
 }
 
