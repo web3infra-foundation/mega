@@ -51,8 +51,13 @@ pub async fn execute(args: BranchArgs) {
 
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
     tracing::debug!("create branch: {} from {:?}", new_branch, branch_or_commit);
+
+    if !is_valid_git_branch_name(&new_branch) {
+        eprintln!("fatal: invalid branch name: {}", new_branch);
+        return;
+    }
+
     // check if branch exists
-    // TODO could be a remote branch
     let branch = Branch::find_branch(&new_branch, None).await;
     if branch.is_some() {
         panic!("fatal: A branch named '{}' already exists.", new_branch);
@@ -173,6 +178,37 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
     }
 }
 
+fn is_valid_git_branch_name(name: &str) -> bool {
+    // 检查是否包含不允许的字符
+    if name.contains(&[' ', '\t', '\\', ':', '"', '?', '*', '['][..])
+        || name.chars().any(|c| c.is_ascii_control())
+    {
+        return false;
+    }
+
+    // 检查其他Git规则
+    if name.starts_with('/')
+        || name.ends_with('/')
+        || name.ends_with('.')
+        || name.contains("//")
+        || name.contains("..")
+    {
+        return false;
+    }
+
+    // 检查特殊的Git保留字
+    if name == "HEAD" || name.contains("@{") {
+        return false;
+    }
+
+    // 检查是否是空字符串或只包含点
+    if name.trim().is_empty() || name.trim() == "." {
+        return false;
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -261,5 +297,60 @@ mod tests {
         // list branches
         println!("list branches");
         execute(BranchArgs::parse_from([""])).await; // default list
+    }
+
+    #[tokio::test]
+    async fn test_create_branch_from_remote() {
+        test::setup_with_new_libra().await;
+        test::init_debug_logger();
+
+        let args = CommitArgs {
+            message: "first".to_string(),
+            allow_empty: true,
+        };
+        commit::execute(args).await;
+        let hash = Head::current_commit().await.unwrap();
+        Branch::update_branch("master", &hash.to_plain_str(), Some("origin")).await; // create remote branch
+        assert!(get_target_commit("origin/master").await.is_ok());
+
+        let args = BranchArgs {
+            new_branch: Some("test_new".to_string()),
+            commit_hash: Some("origin/master".into()),
+            list: false,
+            delete: None,
+            show_curren: false,
+            remotes: false,
+        };
+        execute(args).await;
+
+        let branch = Branch::find_branch("test_new", None)
+            .await
+            .expect("branch create failed found");
+        assert_eq!(branch.commit, hash);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_branch_name() {
+        test::setup_with_new_libra().await;
+        test::init_debug_logger();
+
+        let args = CommitArgs {
+            message: "first".to_string(),
+            allow_empty: true,
+        };
+        commit::execute(args).await;
+
+        let args = BranchArgs {
+            new_branch: Some("@{mega}".to_string()),
+            commit_hash: None,
+            list: false,
+            delete: None,
+            show_curren: false,
+            remotes: false,
+        };
+        execute(args).await;
+
+        let branch = Branch::find_branch("new", None).await;
+        assert!(branch.is_none(), "invalid branch should not be created");
     }
 }
