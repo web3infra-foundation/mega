@@ -50,6 +50,9 @@ enum Commands {
     #[command(about = "Update remote refs along with associated objects")]
     Push(command::push::PushArgs),
 
+    #[command(about = "Fetch from and integrate with another repository or a local branch")]
+    Fetch(command::fetch::FetchArgs),
+
     // other hidden commands
     #[command(
         about = "Build pack index file for an existing packed archive",
@@ -84,6 +87,7 @@ async fn main() {
         Commands::Merge(args) => command::merge::execute(args).await,
         Commands::Push(args) => command::push::execute(args).await,
         Commands::IndexPack(args) => command::index_pack::execute(args),
+        Commands::Fetch(args) => command::fetch::execute(args).await,
     }
 }
 
