@@ -14,28 +14,41 @@ Mega is an unofficial open source implementation of Google Piper. And it has the
 
 ### Git compatible
 
-Mega offers the ability to utilize Git with a monorepo. 
-This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, 
-and seamless pushing of changes back. 
+Mega offers the ability to utilize Git with a monorepo. This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, and seamless pushing of changes back. 
 
 ### Trunk-based Development
 
-When it comes to managing large codebases in a centralized manner, trunk-based development is the way to go. 
-More trunk-based Development information on the [Trunk-Based Development](https://trunkbaseddevelopment.com/).
+When it comes to managing large codebases in a centralized manner, trunk-based development is the way to go. More trunk-based Development information on the [Trunk-Based Development](https://trunkbaseddevelopment.com/).
 
 ### Conventional Commits
 
 Mega will  supports conventional commits, which are a set of rules for creating clear and concise commit messages.  More information on the [Conventional Commits](https://www.conventionalcommits.org/).
 
+### Decentralized Open Source Collaboration
+
+For now, the entire open source community base on Git and GitHub. It's centralized model and it's not suitable for growing speed of open source world. Mega is working on build a decentralized open source collaboration model with [ZTM](https://github.com/flomesh-io/ztm)(Zero Trust Model) and decentralized social network like [Nostr](https://nostr.com), [Matrix](https://matrix.org) and [Mastodon](https://joinmastodon.org).
+
 ## Quick Start
 
+### Quick Try
+
 For now, we are developing on the macOS and Arch Linux. And quick start manuel in the [Quick start manuel to developing or testing](docs/development.md#quick-start-manuel-to-developing-or-testing).
+
+### Quick Review of Architecture
+
+
+1. **Gateway Module** - The Gateway module is responsible for handling `git`, `git-lfs` and web UI requests througth the HTTP and SSH protocol. More information on the [Gateway Module](gateway/README.md).
+2. **Mercury Module** - The Mercury module is core module of Mega which rewrite Git internal object. More information on the [Mercury Module](mercury/README.md).
 
 ## Contributing
 
 The mega project relies on community contributions and aims to simplify getting started. To develop Mega, clone the repository, then install all dependencies and initialize the database schema, run the test suite and try it out locally. Pick an issue, make changes, and submit a pull request for community review.
 
 More information on contributing to Mega is available in the [Contributing Guide](docs/contributing.md).
+
+## Talk and Share
+
+If you interested in Mega, you can make an appointment with us on [Google Calenader](https://calendar.app.google/QuBf2sdmf68wVYWL7) to disscuss your ideas, questions or problems and we will share our vision and roadmap with you.
 
 ## License
 
