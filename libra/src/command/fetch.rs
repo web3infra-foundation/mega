@@ -1,4 +1,4 @@
-use std::{fs, io::Write};
+use std::{fs, io::Write, str::FromStr};
 
 use clap::Parser;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
@@ -11,7 +11,8 @@ use crate::{
     command::index_pack::{self, IndexPackArgs},
     internal::{
         branch::Branch,
-        config::Config,
+        config::{Config, RemoteConfig},
+        head::Head,
         protocol::{https_client::HttpsClient, ProtocolClient},
     },
     utils::{self, path_ext::PathExt},
@@ -27,26 +28,32 @@ pub struct FetchArgs {
 }
 
 pub async fn execute(args: FetchArgs) {
-    println!("fetching from {}", args.repository);
+    tracing::debug!("`fetch` args: {:?}", args);
+    tracing::warn!("didn't test yet");
     if args.all {
-        let remotes = Config::all_remote_names().await;
+        let remotes = Config::all_remote_configs().await;
         let tasks = remotes.into_iter().map(|remote| async move {
             fetch_repository(&remote).await;
         });
         futures::future::join_all(tasks).await;
     } else {
-        fetch_repository(&args.repository).await;
+        let remote_config = Config::remote_config(&args.repository).await;
+        match remote_config {
+            Some(remote_config) => fetch_repository(&remote_config).await,
+            None => {
+                tracing::error!("remote config '{}' not found", args.repository);
+                eprintln!(
+                    "fatal: '{}' does not appear to be a git repository",
+                    args.repository
+                );
+                return;
+            }
+        }
     }
 }
 
-async fn fetch_repository(remote: &str) {
-    println!("fetching from {}", remote);
-    let remote_config = Config::remote_config(remote).await;
-    if remote_config.is_none() {
-        eprintln!("fatal: '{}' does not appear to be a git repository", remote);
-        return;
-    }
-    let remote_config = remote_config.unwrap();
+pub async fn fetch_repository(remote_config: &RemoteConfig) {
+    println!("fetching from {}", remote_config.name);
 
     // fetch remote
     let url = match Url::parse(&remote_config.url) {
@@ -61,8 +68,12 @@ async fn fetch_repository(remote: &str) {
     let refs = match http_client.discovery_reference(UploadPack, None).await {
         Ok(refs) => refs,
         Err(e) => {
-            eprintln!("fatal: unable to fetch refs from '{}'", remote);
-            tracing::error!("unable to fetch refs from '{}': {:?}", remote, e);
+            eprintln!("fatal: unable to fetch refs from '{}'", remote_config.name);
+            tracing::error!(
+                "unable to fetch refs from '{}': {:?}",
+                remote_config.name,
+                e
+            );
             return;
         }
     };
@@ -122,11 +133,29 @@ async fn fetch_repository(remote: &str) {
     });
 
     /* update reference  */
-
-    for reference in refs {
+    for reference in refs.iter().filter(|r| r._ref.starts_with("refs/heads")) {
         let branch_name = reference._ref.replace("refs/heads/", "");
-        let remote = Some(remote);
+        let remote = Some(remote_config.name.as_str());
         Branch::update_branch(&branch_name, &reference._hash, remote).await;
+    }
+    let remote_head = refs.iter().find(|r| r._ref == "HEAD").unwrap();
+
+    let remote_head_name = refs
+        .iter()
+        .find(|r| r._ref.starts_with("refs/heads") && r._hash == remote_head._hash);
+
+    match remote_head_name {
+        Some(remote_head_name) => {
+            let remote_head_name = remote_head_name._ref.replace("refs/heads/", "");
+            Head::update(Head::Branch(remote_head_name), Some(&remote_config.name)).await;
+        }
+        None => {
+            // TODO: didn't know how to handle this case
+            tracing::error!("remote HEAD points to an unknown branch");
+            let hash = SHA1::from_str(&remote_head._hash).unwrap();
+            Head::update(Head::Detached(hash), Some(&remote_config.name)).await;
+            return;
+        }
     }
 }
 
