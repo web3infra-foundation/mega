@@ -1,3 +1,3 @@
-# Mercury - Decode/Encode Git Pack
+## Mercury Module
 
-Mercury is a library to decode and encode Git pack files.
+Mercury module is core module of Mega. 
