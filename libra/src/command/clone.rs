@@ -80,6 +80,7 @@ pub async fn execute(args: CloneArgs) {
     let mut reader = StreamReader::new(result_stream);
     let mut line = String::new();
 
+    
     reader.read_line(&mut line).await.unwrap();
     assert_eq!(line, "0008NAK\n");
     tracing::info!("First line: {}", line);

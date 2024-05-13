@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm::ActiveValue::Set;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::config;
@@ -44,7 +44,7 @@ impl Config {
         config.map(|c| c.value)
     }
 
-    pub async fn remote_configs() -> Vec<RemoteConfig> {
+    pub async fn all_remote_configs() -> Vec<RemoteConfig> {
         let db = get_db_conn_instance().await;
         let remotes = config::Entity::find()
             .filter(config::Column::Configuration.eq("remote"))
@@ -56,14 +56,6 @@ impl Config {
             .map(|remote| remote.name.as_ref().unwrap().clone())
             .collect::<HashSet<String>>();
 
-        // for remote_name in remote_names {
-        //     let url = remotes
-        //         .iter()
-        //         .find(|remote| remote.name.as_ref().unwrap() == &remote_name)
-        //         .unwrap()
-        //         .value.to_owned();
-        //     println!("{} {}", remote_name, url);
-        // }
         remote_names
             .iter()
             .map(|name| {
@@ -79,5 +71,27 @@ impl Config {
                 }
             })
             .collect()
+    }
+
+    pub async fn all_remote_names() -> HashSet<String> {
+        Self::all_remote_configs()
+            .await
+            .iter()
+            .map(|r| r.name.clone())
+            .collect()
+    }
+
+    pub async fn remote_config(name: &str) -> Option<RemoteConfig> {
+        let db = get_db_conn_instance().await;
+        let remote = config::Entity::find()
+            .filter(config::Column::Configuration.eq("remote"))
+            .filter(config::Column::Name.eq(name))
+            .one(db)
+            .await
+            .unwrap();
+        remote.map(|r| RemoteConfig {
+            name: r.name.unwrap(),
+            url: r.value,
+        })
     }
 }
