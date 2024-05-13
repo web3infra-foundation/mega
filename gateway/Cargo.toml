@@ -18,14 +18,14 @@ ganymede = { path = "../ganymede" }
 ceres = { path = "../ceres" }
 venus = { path = "../venus" }
 
-tower = "0.4.13"
-tower-http = { version = "0.5.1", features = ["cors", "trace"] }
 regex = "1.10.3"
 ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
 
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 axum = { workspace = true }
+tower-http = { workspace = true, features = ["cors", "trace", "decompression-full"] }
+tower = { workspace = true }
 tracing = { workspace = true }
 russh = { workspace = true, features = ["openssl"] }
 russh-keys = { workspace = true }
