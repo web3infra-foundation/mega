@@ -117,7 +117,7 @@ impl server::Handler for SshServer {
                 };
                 session.data(channel, serde_json::to_vec(&link).unwrap().into());
             }
-            command => println!("Not Supported command! {}", command),
+            command => tracing::error!("Not Supported command! {}", command),
         }
         Ok(())
     }
