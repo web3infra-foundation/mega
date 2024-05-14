@@ -5,7 +5,8 @@ use crate::internal::branch::Branch;
 use crate::internal::head::Head;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
-use crate::{internal::index::Index, utils::util};
+use crate::utils::util;
+use mercury::internal::index::Index;
 use clap::Parser;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
@@ -25,7 +26,7 @@ pub struct CommitArgs {
 
 pub async fn execute(args: CommitArgs) {
     /* check args */
-    let index = Index::load(&path::index()).unwrap();
+    let index = Index::load(path::index()).unwrap();
     let storage = ClientStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
