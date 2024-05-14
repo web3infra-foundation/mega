@@ -8,9 +8,9 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 
 use crate::internal::head::Head;
-use crate::internal::index::Index;
+use mercury::internal::index::Index;
 use crate::utils::object_ext::{CommitExt, TreeExt};
-use crate::utils::util;
+use crate::utils::{path, util};
 
 /// path: to workdir
 #[derive(Debug, Default, Clone)]
@@ -112,7 +112,7 @@ pub async fn execute() {
  */
 pub async fn changes_to_be_committed() -> Changes {
     let mut changes = Changes::default();
-    let index = Index::load().unwrap();
+    let index = Index::load(path::index()).unwrap();
     let head_commit = Head::current_commit().await;
     let tracked_files = index.tracked_files();
 
@@ -149,14 +149,15 @@ pub async fn changes_to_be_committed() -> Changes {
 /// Compare the difference between `index` and the `workdir`
 pub fn changes_to_be_staged() -> Changes {
     let mut changes = Changes::default();
-    let index = Index::load().unwrap();
+    let workdir = util::working_dir();
+    let index = Index::load(path::index()).unwrap();
     let tracked_files = index.tracked_files();
     for file in tracked_files.iter() {
         let file_str = file.to_str().unwrap();
         let file_abs = util::workdir_to_absolute(file);
         if !file_abs.exists() {
             changes.deleted.push(file.clone());
-        } else if index.is_modified(file_str, 0) {
+        } else if index.is_modified(file_str, 0, &workdir) {
             // only calc the hash if the file is modified (metadata), for optimization
             let file_hash = util::calc_file_blob_hash(&file_abs).unwrap();
             if !index.verify_hash(file_str, 0, &file_hash) {
