@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use venus::hash::SHA1;
-use venus::internal::object::blob::Blob;
-use venus::internal::object::tree::{Tree, TreeItemMode};
+use mercury::hash::SHA1;
+use mercury::internal::object::blob::Blob;
+use mercury::internal::object::tree::{Tree, TreeItemMode};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MegaNode {

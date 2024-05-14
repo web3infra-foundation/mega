@@ -4,7 +4,7 @@ use crate::{
 };
 use clap::Parser;
 use colored::Colorize;
-use venus::{hash::SHA1, internal::object::commit::Commit};
+use mercury::{hash::SHA1, internal::object::commit::Commit};
 
 use crate::command::load_object;
 

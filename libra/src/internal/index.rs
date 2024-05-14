@@ -10,8 +10,8 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use venus::errors::GitError;
-use venus::hash::SHA1;
+use mercury::errors::GitError;
+use mercury::hash::SHA1;
 use mercury::internal::pack::wrapper::Wrapper;
 use crate::utils::{path, util};
 

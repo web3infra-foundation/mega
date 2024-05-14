@@ -17,10 +17,10 @@ use std::io;
 use std::io::Write;
 use rpassword::read_password;
 use crate::utils::util;
-use venus::{hash::SHA1, internal::object::ObjectTrait};
+use mercury::{errors::GitError, hash::SHA1, internal::object::ObjectTrait};
 
 // impl load for all objects
-fn load_object<T>(hash: &SHA1) -> Result<T, venus::errors::GitError>
+fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
 where
     T: ObjectTrait,
 {
@@ -30,7 +30,7 @@ where
 }
 
 // impl save for all objects
-fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), venus::errors::GitError>
+fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), GitError>
 where
     T: ObjectTrait,
 {
@@ -58,17 +58,19 @@ pub fn ask_username_password() -> (String, String) {
 
 #[cfg(test)]
 mod test {
+    use mercury::internal::object::commit::Commit;
+
     use super::*;
     use crate::utils::test;
     #[tokio::test]
     async fn test_save_load_object() {
         test::setup_with_new_libra().await;
-        let object = venus::internal::object::commit::Commit::from_tree_id(
-            venus::hash::SHA1::new(&vec![1; 20]),
+        let object = Commit::from_tree_id(
+            SHA1::new(&vec![1; 20]),
             vec![],
             "Commit_1",
         );
         save_object(&object, &object.id).unwrap();
-        let _ = load_object::<venus::internal::object::commit::Commit>(&object.id).unwrap();
+        let _ = load_object::<Commit>(&object.id).unwrap();
     }
 }

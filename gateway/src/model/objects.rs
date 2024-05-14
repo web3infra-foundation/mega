@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use venus::internal::object::tree::{TreeItem, TreeItemMode};
+use mercury::internal::object::tree::{TreeItem, TreeItemMode};
 
 #[derive(Serialize, Deserialize)]
 pub struct LatestCommitInfo {

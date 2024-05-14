@@ -7,7 +7,7 @@ use common::{
     utils::{generate_id, ZERO_ID},
 };
 use jupiter::context::Context;
-use venus::{internal::pack::reference::RefCommand, repo::Repo};
+use venus::{import_repo::import_refs::RefCommand, import_repo::repo::Repo};
 
 use crate::pack::{handler::PackHandler, import_repo::ImportRepo, monorepo::MonoRepo};
 

@@ -14,9 +14,9 @@ path = "src/lib.rs"
 common = { path = "../common" }
 jupiter = { path = "../jupiter" }
 callisto = { path = "../jupiter/callisto" }
-ganymede = { path = "../ganymede" }
 ceres = { path = "../ceres" }
 venus = { path = "../venus" }
+mercury = { path = "../mercury" }
 
 regex = "1.10.3"
 ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
