@@ -9,11 +9,14 @@ This projects in archive folder has been officially archived. Please note the fo
 
 ## Background & Alternatives
 
-1. *ui* - The ui project will be replaced by a new project named [moon](moon/REAdME.md).
-2. *sync* - The sync project will be replaced by a new project named [moon-sync](moon-sync/REAdME.md).
-3. *build-bazel-tool* - The build-bazel-tool project will be replaced by a new project named [building](building/REAdME.md) in the feature.
-4. *website* - The website project will be replaced by a new project named [moon-website](moon-website/REAdME.md) in the feature.
-5. *mda* - The mda project still not have a replacement project.
+1. *ui* - The ui project will be replaced by a new project named [moon](../moon/README.md).
+2. *sync* - There are no replaced plan for the sync project.
+3. *build-bazel-tool* - The project will be replaced, but still not have a new project plan.
+4. *website* - The website project will be replaced by a new project named [Mars](../mars/README.md) in the feature.
+5. *mda* - The mda project still not have a replacement project. For now, we are working on decentralized LLM development.
+6. *fuse* - There are an alternate project plan to rewrite the **fuse** within [OSPP](https://summer-ospp.ac.cn) 2024 program, will be named [Scorpion](../scorpio/README.md).
+7. *kvcache* - The kvcache project still does not have a replacement project.
+8. *p2p* - The p2p project will be replaced by a new project named [Gemini](../gemini/README.md).
 
 [Optional: Suggest any alternative tools, libraries, or projects that users can consider as a replacement for this project.]
 

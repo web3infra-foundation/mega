@@ -18,7 +18,7 @@ HTTP implement for git transfer data between two repositories
     GET **/git-receive-pack
     ```
 
-3. When one Git repository wants to get data that a second repository has, the first can fetch from the second. This operation determines what data the server has that the client does not then streams that data down to the client in packfile format.
+3. When one Git repository wants to get data that a second repository has, the first can fetch from the second. This operation determines what data the server has that the client does not then streams that data down to the client in Pack file format.
 
     ```bash
     GET **/git-upload-pack
@@ -58,7 +58,7 @@ The Git LFS client uses an HTTPS server to coordinate fetching and storing large
     POST **/locks
     ```
 
-6. Delect Lock: The client can delete a lock, given its ID, by sending a POST to /locks/:id/unlock
+6. Delete Lock: The client can delete a lock, given its ID, by sending a POST to /locks/:id/unlock
 
     ```bash
     POST **/locks/:id/unlock

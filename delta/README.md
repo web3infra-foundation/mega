@@ -4,6 +4,7 @@ In Git, delta refers to the differences or changes between files or data objects
 ## Example
 
 This module exposes three functions to the outside world:
+
 ```rust
 pub fn delta_decode(mut stream : &mut impl Read,base_info: &Vec<u8>) -> Result<Vec<u8>, GitDeltaError>
 
@@ -20,9 +21,11 @@ let delta_result:Result<Vec<u8>, GitDeltaError> = delta::delta_decode(stream, ba
 ```
 
 On the contrary, if you want to compress another object in delta form based on it, use the encode function
+
 ```rust
 use delta;
 
 let delta_data:Vec<u8> = delta::delta_encode(old_data, new_data) ;
 ```
+
 In addition, the `delta::delta_encode_rate` function can represent the compression rate of delta
