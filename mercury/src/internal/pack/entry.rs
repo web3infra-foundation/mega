@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use serde::{Deserialize, Serialize};
 
 use crate::hash::SHA1;
@@ -16,6 +17,21 @@ pub struct Entry {
     pub obj_type: ObjectType,
     pub data: Vec<u8>,
     pub hash: SHA1,
+}
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Self) -> bool { // hash is enough to compare, right?
+        self.obj_type == other.obj_type && self.hash == other.hash
+    }
+}
+
+impl Eq for Entry {}
+
+impl Hash for Entry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.obj_type.hash(state);
+        self.hash.hash(state);
+    }
 }
 
 impl Entry {

@@ -12,8 +12,8 @@ use mercury::errors::GitError;
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see https://www.git-scm.com/docs/http-protocol for protocol details.
 pub struct HttpsClient {
-    url: Url,
-    client: reqwest::Client,
+    pub(crate) url: Url,
+    pub(crate) client: reqwest::Client,
 }
 
 impl ProtocolClient for HttpsClient {
