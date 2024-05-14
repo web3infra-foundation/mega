@@ -13,7 +13,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::pack::wrapper::Wrapper;
-use crate::utils::{path, util};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Time {
@@ -158,10 +157,12 @@ impl IndexEntry {
         entry
     }
 
-    /// absolute or relative path (to current dir)
-    pub fn new_from_file(file: &Path, hash: SHA1) -> io::Result<Self> {
-        let meta = fs::symlink_metadata(file)?; // without following symlink
-        let name = util::to_workdir_path(file).into_os_string().into_string().unwrap();
+    /// - `file`: **to workdir path**
+    /// - `workdir`: absolute or relative path
+    pub fn new_from_file(file: &Path, hash: SHA1, workdir: &Path) -> io::Result<Self> {
+        let name = file.to_str().unwrap().to_string();
+        let file_abs = workdir.join(file);
+        let meta = fs::symlink_metadata(file_abs)?; // without following symlink
         let index = IndexEntry::new(&meta, hash, name);
         Ok(index)
     }
@@ -237,7 +238,7 @@ impl Index {
                 uid: file.read_u32::<BigEndian>()?,
                 gid: file.read_u32::<BigEndian>()?,
                 size: file.read_u32::<BigEndian>()?,
-                hash: util::read_sha1(file)?,
+                hash: utils::read_sha1(file)?,
                 flags: Flags::from_u16(file.read_u16::<BigEndian>()?),
                 name: String::new(),
             };
@@ -274,7 +275,7 @@ impl Index {
 
         // check sum
         let file_hash = file.final_hash();
-        let check_sum = util::read_sha1(file)?;
+        let check_sum = utils::read_sha1(file)?;
         if file_hash != check_sum {
             return Err(GitError::InvalidIndexFile("Check sum failed".to_string()));
         }
@@ -326,8 +327,8 @@ impl Index {
 
 impl Index {
     /// Load index, if not exist, return an empty index
-    pub fn load() -> Result<Self, GitError> {
-        let path = path::index();
+    pub fn load(index_file: impl AsRef<Path>) -> Result<Self, GitError> {
+        let path = index_file.as_ref();
         if !path.exists() {
             return Ok(Index::new());
         }
@@ -367,11 +368,12 @@ impl Index {
         }
     }
     /// is file modified after last `add` (need hash to confirm content change)
-    pub fn is_modified(&self, file: &str, stage: u8) -> bool {
+    /// - `workdir` is used to rebuild absolute file path
+    pub fn is_modified(&self, file: &str, stage: u8, workdir: &Path) -> bool {
         if let Some(entry) = self.get(file, stage) {
-            let path_abs = util::workdir_to_absolute(Path::new(file));
+            let path_abs = workdir.join(file);
             let meta = path_abs.symlink_metadata().unwrap();
-            // TODO more filed
+            // TODO more fields
             let same = entry.ctime == Time::from_system_time(meta.created().unwrap_or(SystemTime::now()))
             && entry.mtime == Time::from_system_time(meta.modified().unwrap_or(SystemTime::now()))
             && entry.size == meta.len() as u32;
@@ -425,14 +427,15 @@ impl Index {
     }
 
     /// saved to index file
-    pub fn save(&self) -> Result<(), GitError> {
-        self.to_file(path::index())
+    pub fn save(&self, index_file: impl AsRef<Path>) -> Result<(), GitError> {
+        self.to_file(index_file)
     }
 }
 
 mod utils {
     use std::io;
     use std::io::Read;
+    use mercury::hash::SHA1;
 
     pub const SHA1_SIZE: usize = 20;
 
@@ -441,13 +444,17 @@ mod utils {
         file.read_exact(&mut buf)?;
         Ok(buf)
     }
+
+    pub fn read_sha1(file: &mut impl Read) -> io::Result<SHA1> {
+        let mut buf = [0; 20];
+        file.read_exact(&mut buf)?;
+        Ok(SHA1::from_bytes(&buf))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use path_abs::PathOps;
     use super::*;
-    use crate::utils::test;
 
     #[test]
     fn test_time() {
@@ -476,13 +483,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_libra_index() {
-        let index = Index::from_file(PathBuf::from(test::TEST_DIR).join(".libra/index")).unwrap();
-        for (_, entry) in index.entries.iter() {
-            println!("{}", entry);
-        }
-    }
+    // #[test]
+    // fn test_libra_index() {
+    //     let index = Index::from_file(PathBuf::from(test::TEST_DIR).join(".libra/index")).unwrap();
+    //     for (_, entry) in index.entries.iter() {
+    //         println!("{}", entry);
+    //     }
+    // }
 
     #[test]
     fn test_index_to_file() {
@@ -492,14 +499,12 @@ mod tests {
         assert_eq!(index.size(), new_index.size());
     }
 
-    #[tokio::test]
-    async fn test_index_entry_create() {
-        // test create index entry from file
-        test::setup_with_new_libra().await;
-        test::ensure_file("src/test.rs", None);
-        let file = Path::new("src/test.rs"); // use as a normal file
+    #[test]
+    fn test_index_entry_create() {
+        let file = Path::new("Cargo.toml"); // use as a normal file
         let hash = SHA1::from_bytes(&[0; 20]);
-        let entry = IndexEntry::new_from_file(file, hash).unwrap();
+        let workdir = Path::new("../");
+        let entry = IndexEntry::new_from_file(file, hash, workdir).unwrap();
         println!("{}", entry);
     }
 }

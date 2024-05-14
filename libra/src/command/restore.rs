@@ -3,7 +3,7 @@ use crate::internal::head::Head;
 use crate::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 use crate::utils::path_ext::PathExt;
-use crate::utils::util;
+use crate::utils::{path, util};
 use clap::Parser;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -83,7 +83,7 @@ pub async fn execute(args: RestoreArgs) {
         if source.is_none() {
             // only this situation, restore from [Index]
             assert!(!staged);
-            let index = Index::load().unwrap();
+            let index = Index::load(&path::index()).unwrap();
             index
                 .tracked_entries(0)
                 .into_iter()
@@ -191,7 +191,7 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)])
     let mut file_paths = util::integrate_pathspec(filter);
     file_paths.extend(deleted_files);
 
-    let index = Index::load().unwrap();
+    let index = Index::load(path::index()).unwrap();
     for path_wd in &file_paths {
         let path_abs = util::workdir_to_absolute(path_wd);
         if !path_abs.exists() {
@@ -246,7 +246,8 @@ fn get_index_deleted_files_in_filters(
 pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
     let target_blobs = preprocess_blobs(target_blobs);
 
-    let mut index = Index::load().unwrap();
+    let idx_file = path::index();
+    let mut index = Index::load(&idx_file).unwrap();
     let deleted_files_index = get_index_deleted_files_in_filters(&index, filter, &target_blobs);
 
     let mut file_paths = util::filter_to_fit_paths(&index.tracked_files(), filter);
@@ -292,5 +293,5 @@ pub fn restore_index(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
             }
         }
     }
-    index.save().unwrap(); // DO NOT forget to save
+    index.save(&idx_file).unwrap(); // DO NOT forget to save
 }

@@ -5,7 +5,7 @@ use crate::command::status;
 use crate::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::BlobExt;
 
-use crate::utils::util;
+use crate::utils::{path, util};
 
 #[derive(Parser, Debug)]
 pub struct AddArgs {
@@ -64,11 +64,12 @@ pub async fn execute(args: AddArgs) {
         files.extend(changes.new);
     }
 
-    let mut index = Index::load().unwrap();
+    let index_file = path::index();
+    let mut index = Index::load(&index_file).unwrap();
     for file in &files {
         add_a_file(file, &mut index, args.verbose).await;
     }
-    index.save().unwrap();
+    index.save(&index_file).unwrap();
 }
 
 /// `file` path must relative to the working directory
@@ -107,19 +108,19 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
             // file is not tracked
             let blob = Blob::from_file(&file_abs);
             blob.save();
-            index.add(IndexEntry::new_from_file(&file_abs, blob.id).unwrap());
+            index.add(IndexEntry::new_from_file(file, blob.id, &workdir).unwrap());
             if verbose {
                 println!("add(new): {}", file.display());
             }
         } else {
             // file is tracked, maybe modified
-            if index.is_modified(file_str, 0) {
+            if index.is_modified(file_str, 0, &workdir) {
                 // file is modified(meta), but content may not change
                 let blob = Blob::from_file(&file_abs);
                 if !index.verify_hash(file_str, 0, &blob.id) {
                     // content is changed
                     blob.save();
-                    index.update(IndexEntry::new_from_file(&file_abs, blob.id).unwrap());
+                    index.update(IndexEntry::new_from_file(file, blob.id, &workdir).unwrap());
                     if verbose {
                         println!("add(modified): {}", file.display());
                     }
