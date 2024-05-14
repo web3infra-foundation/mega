@@ -244,10 +244,10 @@ mod tests {
     #[test]
     fn test_delta_fn() {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("../../../../tests/diff/16ecdcc8f663777896bd39ca025a041b7f005e");
+        source.push("../tests/diff/16ecdcc8f663777896bd39ca025a041b7f005e");
         let old_data = read_zlib_data(&source).unwrap();
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("../../../../tests/diff/bee0d45f981adf7c2926a0dc04deb7f006bcc3");
+        source.push("../tests/diff/bee0d45f981adf7c2926a0dc04deb7f006bcc3");
         let new_data = read_zlib_data(&source).unwrap();
 
         let d = DeltaDiff::new(&old_data, &new_data);
