@@ -7,10 +7,10 @@ use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::{internal::index::Index, utils::util};
 use clap::Parser;
-use venus::hash::SHA1;
-use venus::internal::object::commit::Commit;
-use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use venus::internal::object::ObjectTrait;
+use mercury::hash::SHA1;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use mercury::internal::object::ObjectTrait;
 
 use super::save_object;
 
@@ -151,7 +151,7 @@ async fn update_head(commit_id: &str) {
 
 #[cfg(test)]
 mod test {
-    use venus::internal::object::ObjectTrait;
+    use mercury::internal::object::ObjectTrait;
 
     use crate::{
         command::{add::AddArgs, load_object},

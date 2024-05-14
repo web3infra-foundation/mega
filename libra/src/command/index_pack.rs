@@ -8,7 +8,7 @@ use clap::Parser;
 use sha1::{Digest, Sha1};
 
 use mercury::internal::pack::Pack;
-use venus::errors::GitError;
+use mercury::errors::GitError;
 
 #[derive(Parser, Debug)]
 pub struct IndexPackArgs {

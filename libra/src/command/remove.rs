@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use colored::Colorize;
 
-use venus::errors::GitError;
+use mercury::errors::GitError;
 
 use crate::internal::index::Index;
 use crate::utils::path_ext::PathExt;

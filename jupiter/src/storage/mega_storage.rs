@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-use std::rc::Rc;
 use std::{env, sync::Arc};
 
 use sea_orm::ActiveValue::NotSet;
@@ -14,11 +12,9 @@ use callisto::{
 };
 use common::errors::MegaError;
 use common::utils::generate_id;
-use ganymede::mega_node::MegaNode;
-use ganymede::model::converter::MegaModelConverter;
-use ganymede::model::create_file::CreateFileInfo;
-use venus::internal::object::MegaObjectModel;
-use venus::internal::{object::commit::Commit, pack::entry::Entry};
+use mercury::internal::object::MegaObjectModel;
+use mercury::internal::{object::commit::Commit, pack::entry::Entry};
+use venus::monorepo::converter::MegaModelConverter;
 use venus::monorepo::mega_refs::MegaRefs;
 use venus::monorepo::mr::MergeRequest;
 
@@ -262,47 +258,6 @@ impl MegaStorage {
             .unwrap();
     }
 
-    #[allow(unused)]
-    fn mega_node_tree(&self, file_infos: Vec<CreateFileInfo>) -> Result<Rc<MegaNode>, MegaError> {
-        let mut stack: VecDeque<CreateFileInfo> = VecDeque::new();
-        let mut root: Option<Rc<MegaNode>> = None;
-
-        for f_info in file_infos {
-            if f_info.path == "/" && f_info.is_directory {
-                root = Some(Rc::new(f_info.into()));
-            } else {
-                stack.push_back(f_info);
-            }
-        }
-
-        let root = if let Some(info) = root {
-            info
-        } else {
-            unreachable!("can not create files without root directory!")
-        };
-        let mut parents = VecDeque::new();
-        parents.push_back(Rc::clone(&root));
-
-        while !parents.is_empty() {
-            let parent = parents.pop_front().unwrap();
-            let mut index = 0;
-            while index < stack.len() {
-                let element = &stack[index];
-                if element.path == parent.path.join(parent.name.clone()).to_str().unwrap() {
-                    let node: Rc<MegaNode> = Rc::new(element.clone().into());
-                    if node.is_directory {
-                        parents.push_back(Rc::clone(&node))
-                    }
-                    parent.add_child(&Rc::clone(&node));
-                    stack.remove(index);
-                } else {
-                    index += 1;
-                }
-            }
-        }
-        Ok(root)
-    }
-
     pub async fn save_mega_commits(&self, commits: Vec<Commit>) -> Result<(), MegaError> {
         let mega_commits: Vec<mega_commit::Model> =
             commits.into_iter().map(mega_commit::Model::from).collect();
@@ -396,55 +351,9 @@ impl MegaStorage {
 mod test {
     use std::rc::Rc;
 
-    use ganymede::mega_node::MegaNode;
-    use ganymede::model::create_file::CreateFileInfo;
+    use venus::monorepo::mega_node::MegaNode;
 
-    use crate::storage::mega_storage::MegaStorage;
-
-    #[test]
-    pub fn test_node_tree() {
-        let cf1 = CreateFileInfo {
-            is_directory: true,
-            name: String::from("root"),
-            path: String::from("/"),
-            content: None,
-        };
-        let cf2 = CreateFileInfo {
-            is_directory: true,
-            name: String::from("projects"),
-            path: String::from("/root"),
-            content: None,
-        };
-        let cf3 = CreateFileInfo {
-            is_directory: true,
-            name: String::from("mega"),
-            path: String::from("/root/projects"),
-            content: None,
-        };
-        let cf4 = CreateFileInfo {
-            is_directory: false,
-            name: String::from("readme"),
-            path: String::from("/root"),
-            content: Some(String::from("readme")),
-        };
-        let cf5 = CreateFileInfo {
-            is_directory: true,
-            name: String::from("import"),
-            path: String::from("/root"),
-            content: None,
-        };
-        let cf6 = CreateFileInfo {
-            is_directory: true,
-            name: String::from("linux"),
-            path: String::from("/root/import"),
-            content: None,
-        };
-        let cfs: Vec<CreateFileInfo> = vec![cf1, cf2, cf3, cf4, cf5, cf6];
-        let storage = MegaStorage::mock();
-        let root = storage.mega_node_tree(cfs).unwrap();
-        print_tree(root, 0);
-    }
-
+    #[allow(unused)]
     pub fn print_tree(root: Rc<MegaNode>, depth: i32) {
         println!(
             "{:indent$}└── {}",

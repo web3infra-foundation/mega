@@ -1,5 +1,5 @@
 use clap::Parser;
-use venus::hash::SHA1;
+use mercury::hash::SHA1;
 
 use crate::{
     command::branch,

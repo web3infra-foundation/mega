@@ -13,8 +13,8 @@ use std::process::{Command, Stdio};
 
 use std::collections::VecDeque;
 use std::str::FromStr;
-use venus::hash::SHA1;
-use venus::internal::object::commit::Commit;
+use mercury::hash::SHA1;
+use mercury::internal::object::commit::Commit;
 #[derive(Parser, Debug)]
 pub struct LogArgs {
     /// Limit the number of output
@@ -129,7 +129,7 @@ mod tests {
 
     use super::*;
     use crate::{command::save_object, utils::test};
-    use venus::{hash::SHA1, internal::object::commit::Commit};
+    use mercury::{hash::SHA1, internal::object::commit::Commit};
 
     #[tokio::test]
     async fn test_get_reachable_commits() {

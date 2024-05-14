@@ -11,7 +11,7 @@ use crate::time_it;
 use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
-use venus::hash::SHA1;
+use crate::hash::SHA1;
 
 use super::cache_object::FileLoadStore;
 
@@ -222,7 +222,7 @@ mod test {
     use std::env;
 
     use super::*;
-    use venus::hash::SHA1;
+    use crate::hash::SHA1;
 
     #[test]
     fn test_cach_single_thread() {

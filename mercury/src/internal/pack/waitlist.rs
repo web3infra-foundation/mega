@@ -1,5 +1,5 @@
 use dashmap::DashMap;
-use venus::hash::SHA1;
+use crate::hash::SHA1;
 use crate::internal::pack::cache_object::CacheObject;
 
 /// Waitlist for Delta objects while the Base object is not ready.

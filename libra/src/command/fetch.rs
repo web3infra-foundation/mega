@@ -5,7 +5,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 use ceres::protocol::ServiceType::UploadPack;
-use venus::hash::SHA1;
+use mercury::hash::SHA1;
 
 use crate::{
     command::index_pack::{self, IndexPackArgs},
