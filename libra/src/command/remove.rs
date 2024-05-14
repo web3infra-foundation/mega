@@ -6,7 +6,7 @@ use colored::Colorize;
 
 use mercury::errors::GitError;
 
-use crate::internal::index::Index;
+use mercury::internal::index::Index;
 use crate::utils::path_ext::PathExt;
 use crate::utils::{path, util};
 

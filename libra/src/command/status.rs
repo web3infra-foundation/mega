@@ -8,7 +8,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 
 use crate::internal::head::Head;
-use crate::internal::index::Index;
+use mercury::internal::index::Index;
 use crate::utils::object_ext::{CommitExt, TreeExt};
 use crate::utils::{path, util};
 
@@ -112,7 +112,7 @@ pub async fn execute() {
  */
 pub async fn changes_to_be_committed() -> Changes {
     let mut changes = Changes::default();
-    let index = Index::load(&path::index()).unwrap();
+    let index = Index::load(path::index()).unwrap();
     let head_commit = Head::current_commit().await;
     let tracked_files = index.tracked_files();
 

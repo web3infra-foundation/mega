@@ -1,6 +1,6 @@
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
-use crate::internal::index::{Index, IndexEntry};
+use mercury::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 use crate::utils::path_ext::PathExt;
 use crate::utils::{path, util};
@@ -83,7 +83,7 @@ pub async fn execute(args: RestoreArgs) {
         if source.is_none() {
             // only this situation, restore from [Index]
             assert!(!staged);
-            let index = Index::load(&path::index()).unwrap();
+            let index = Index::load(path::index()).unwrap();
             index
                 .tracked_entries(0)
                 .into_iter()

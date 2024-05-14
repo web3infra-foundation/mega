@@ -10,9 +10,9 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use mercury::errors::GitError;
-use mercury::hash::SHA1;
-use mercury::internal::pack::wrapper::Wrapper;
+use crate::errors::GitError;
+use crate::hash::SHA1;
+use crate::internal::pack::wrapper::Wrapper;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Time {
@@ -435,7 +435,7 @@ impl Index {
 mod utils {
     use std::io;
     use std::io::Read;
-    use mercury::hash::SHA1;
+    use crate::hash::SHA1;
 
     pub const SHA1_SIZE: usize = 20;
 

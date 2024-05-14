@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use mercury::internal::object::blob::Blob;
 use crate::command::status;
-use crate::internal::index::{Index, IndexEntry};
+use mercury::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::BlobExt;
 
 use crate::utils::{path, util};
