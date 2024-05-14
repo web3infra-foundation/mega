@@ -14,7 +14,7 @@ path = "src/lib.rs"
 callisto = { path = "./callisto" }
 common = { path = "../common" }
 venus = { path = "../venus" }
-ganymede = { path = "../ganymede" }
+mercury = { path = "../mercury" }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",

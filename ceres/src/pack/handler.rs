@@ -15,19 +15,17 @@ use bytes::Bytes;
 use callisto::raw_blob;
 use common::{errors::MegaError, utils::ZERO_ID};
 use mercury::internal::pack::Pack;
-use venus::{
+use mercury::{
     errors::GitError,
     internal::{
         object::{
             blob::Blob,
             tree::{Tree, TreeItemMode},
         },
-        pack::{
-            entry::Entry,
-            reference::{RefCommand, Refs},
-        },
+        pack::entry::Entry,
     },
 };
+use venus::import_repo::import_refs::{RefCommand, Refs};
 
 #[async_trait]
 pub trait PackHandler: Send + Sync {

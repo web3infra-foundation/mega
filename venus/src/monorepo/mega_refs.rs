@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use callisto::mega_refs;
+
 use common::utils::MEGA_BRANCH_NAME;
 
-use crate::internal::pack::reference::Refs;
+use crate::import_repo::import_refs::Refs;
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct MegaRefs {

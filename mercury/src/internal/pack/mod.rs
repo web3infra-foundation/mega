@@ -9,12 +9,13 @@ pub mod utils;
 pub mod cache;
 pub mod waitlist;
 pub mod cache_object;
+pub mod entry;
 
-use venus::hash::SHA1;
+use crate::hash::SHA1;
 use threadpool::ThreadPool;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
-use venus::internal::object::ObjectTrait;
+use crate::internal::object::ObjectTrait;
 use crate::internal::pack::waitlist::Waitlist;
 
 use self::cache::Caches;

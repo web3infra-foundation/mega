@@ -13,7 +13,6 @@ members = [
     "jupiter",
     "jupiter/callisto",
     "venus",
-    "ganymede",
     "ceres",
     "libra",
 ]

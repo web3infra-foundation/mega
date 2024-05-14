@@ -1,7 +1,7 @@
 use clap::Parser;
 use url::Url;
 use ceres::protocol::ServiceType::ReceivePack;
-use venus::errors::GitError;
+use mercury::errors::GitError;
 use crate::command::ask_username_password;
 use crate::internal::branch::Branch;
 use crate::internal::config::Config;

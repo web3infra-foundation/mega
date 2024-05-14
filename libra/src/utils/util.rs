@@ -6,8 +6,8 @@ use std::collections::HashSet;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
-use venus::hash::SHA1;
-use venus::internal::object::types::ObjectType;
+use mercury::hash::SHA1;
+use mercury::internal::object::types::ObjectType;
 
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";

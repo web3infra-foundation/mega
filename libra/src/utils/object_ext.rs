@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use venus::hash::SHA1;
-use venus::internal::object::blob::Blob;
-use venus::internal::object::commit::Commit;
-use venus::internal::object::ObjectTrait;
-use venus::internal::object::tree::{Tree, TreeItemMode};
+use mercury::hash::SHA1;
+use mercury::internal::object::blob::Blob;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::ObjectTrait;
+use mercury::internal::object::tree::{Tree, TreeItemMode};
 
 use crate::utils::util;
 

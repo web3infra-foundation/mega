@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use colored::Colorize;
 use path_abs::PathInfo;
 
-use venus::internal::object::commit::Commit;
-use venus::internal::object::tree::Tree;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::tree::Tree;
 
 use crate::internal::head::Head;
 use crate::internal::index::Index;

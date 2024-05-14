@@ -7,7 +7,7 @@ use tokio_util::bytes::BytesMut;
 use url::Url;
 use ceres::protocol::ServiceType;
 use ceres::protocol::ServiceType::UploadPack;
-use venus::errors::GitError;
+use mercury::errors::GitError;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see https://www.git-scm.com/docs/http-protocol for protocol details.
@@ -198,7 +198,7 @@ mod tests {
     use tokio::io::AsyncBufReadExt;
     use tokio::io::AsyncReadExt;
     use tokio_util::io::StreamReader;
-    use venus::hash::SHA1;
+    use mercury::hash::SHA1;
     use crate::command::ask_username_password;
 
     use super::*;

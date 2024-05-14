@@ -12,9 +12,9 @@ use flate2::write::ZlibEncoder;
 
 use mercury::internal::pack::cache_object::CacheObject;
 use mercury::internal::pack::Pack;
-use venus::errors::GitError;
-use venus::hash::SHA1;
-use venus::internal::object::types::ObjectType;
+use mercury::errors::GitError;
+use mercury::hash::SHA1;
+use mercury::internal::object::types::ObjectType;
 
 use crate::command;
 use crate::utils::util;
@@ -342,9 +342,9 @@ mod tests {
     use std::env;
     use std::path::PathBuf;
 
-    use venus::internal::object::blob::Blob;
-    use venus::internal::object::ObjectTrait;
-    use venus::internal::object::types::ObjectType;
+    use mercury::internal::object::blob::Blob;
+    use mercury::internal::object::ObjectTrait;
+    use mercury::internal::object::types::ObjectType;
 
     use crate::utils::{test, util};
 

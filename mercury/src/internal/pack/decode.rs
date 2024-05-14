@@ -9,9 +9,9 @@ use std::time::Instant;
 use flate2::bufread::ZlibDecoder;
 use threadpool::ThreadPool;
 
-use venus::errors::GitError;
-use venus::hash::SHA1;
-use venus::internal::object::types::ObjectType;
+use crate::errors::GitError;
+use crate::hash::SHA1;
+use crate::internal::object::types::ObjectType;
 
 use super::cache::_Cache;
 use crate::internal::pack::cache::Caches;
@@ -20,7 +20,7 @@ use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
 use uuid::Uuid;
-use venus::internal::pack::entry::Entry;
+use crate::internal::pack::entry::Entry;
 
 /// For Convenient to pass Params
 struct SharedParams {

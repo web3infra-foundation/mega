@@ -4,8 +4,8 @@ use sha1::{Digest, Sha1};
 use std::collections::VecDeque;
 use std::{mem, thread};
 use std::{io::Write, sync::mpsc};
-use venus::internal::object::types::ObjectType;
-use venus::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
+use crate::internal::object::types::ObjectType;
+use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
 
@@ -221,7 +221,7 @@ impl PackEncoder {
 #[cfg(test)]
 mod tests {
     use std::{io::Cursor, path::PathBuf,  usize};
-    use venus::internal::object::blob::Blob;
+    use crate::internal::object::blob::Blob;
     use crate::internal::pack::Pack;
 
     use super::*;
