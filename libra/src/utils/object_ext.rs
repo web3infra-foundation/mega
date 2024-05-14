@@ -34,7 +34,7 @@ impl TreeExt for Tree {
     fn get_plain_items(&self) -> Vec<(PathBuf, SHA1)> {
         let mut items = Vec::new();
         for item in self.tree_items.iter() {
-            if item.mode == TreeItemMode::Blob {
+            if item.mode != TreeItemMode::Tree { // Not Tree, maybe Blob, link, etc.
                 items.push((PathBuf::from(item.name.clone()), item.id));
             } else {
                 let sub_tree = Tree::load(&item.id);
