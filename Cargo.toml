@@ -8,7 +8,7 @@ members = [
     ".",
     "gateway",
     "common",
-    "delta",
+    "mercury/delta",
     "mercury",
     "jupiter",
     "jupiter/callisto",
