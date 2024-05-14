@@ -1,5 +1,5 @@
 //! Mega is an engine for managing a monorepo. It functions similarly to Google's Piper and helps to streamline Git
-//! and trunk-based development for large-scale projects.
+//! and trunk-based development for large-scale projects. And this is the main entry point for the application.
 
 use std::env;
 
@@ -7,7 +7,6 @@ use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 mod cli;
 mod commands;
-mod utils;
 
 fn main() {
     dotenvy::dotenv().ok();
