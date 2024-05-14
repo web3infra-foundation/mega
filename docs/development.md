@@ -2,7 +2,7 @@
 
 ## Architect
 
-![Mega Architect](images/mega-architect.png)
+![Mega Architect](images/architect.svg)
 
 ## Quick start manuel to developing or testing
 
