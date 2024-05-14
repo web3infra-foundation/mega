@@ -373,7 +373,7 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 pub mod test {
     use bytes::{Bytes, BytesMut};
     use callisto::db_enums::RefType;
-    use venus::internal::pack::reference::{CommandType, RefCommand};
+    use venus::import_repo::import_refs::{CommandType, RefCommand};
 
     use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
     use crate::protocol::{Capability, SmartProtocol};

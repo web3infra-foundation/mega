@@ -8,11 +8,11 @@ use clap::Parser;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
-use venus::hash::SHA1;
-use venus::internal::object::blob::Blob;
-use venus::internal::object::commit::Commit;
-use venus::internal::object::tree::Tree;
-use venus::internal::object::types::ObjectType;
+use mercury::hash::SHA1;
+use mercury::internal::object::blob::Blob;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::tree::Tree;
+use mercury::internal::object::types::ObjectType;
 
 #[derive(Parser, Debug)]
 pub struct RestoreArgs {

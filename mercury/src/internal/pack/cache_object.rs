@@ -9,7 +9,8 @@ use crate::internal::pack::utils;
 use lru_mem::{HeapSize, MemSize};
 use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
-use venus::{hash::SHA1, internal::object::types::ObjectType};
+use crate::{hash::SHA1, internal::object::types::ObjectType};
+use crate::internal::pack::entry::Entry;
 
 /// record heap-size of all CacheObjects, used for memory limit.
 // static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
@@ -157,10 +158,10 @@ impl CacheObject {
     }
 
     /// transform the CacheObject to venus::internal::pack::entry::Entry
-    pub fn to_entry(&self) -> venus::internal::pack::entry::Entry {
+    pub fn to_entry(&self) -> Entry {
         match self.obj_type {
             ObjectType::Blob | ObjectType::Tree | ObjectType::Commit | ObjectType::Tag => {
-                venus::internal::pack::entry::Entry {
+                Entry {
                     obj_type: self.obj_type,
                     data: self.data_decompress.clone(),
                     hash: self.hash,

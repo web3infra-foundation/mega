@@ -3,11 +3,16 @@ use std::{env, io::Cursor, sync::Arc};
 use async_trait::async_trait;
 
 use common::errors::MegaError;
-use venus::{
-    hash::SHA1, internal::{
+use mercury::{
+    hash::SHA1,
+    internal::{
         object::{types::ObjectType, utils},
-        pack::{entry::Entry, reference::{RefCommand, Refs}},
-    }, repo::Repo
+        pack::entry::Entry,
+    },
+};
+use venus::{
+    import_repo::import_refs::{RefCommand, Refs},
+    import_repo::repo::Repo,
 };
 
 use crate::{
@@ -44,7 +49,6 @@ impl GitStorageProvider for GitFsStorage {
             .update_ref(&repo.repo_name, ref_name, new_id)
             .await
     }
-
 }
 
 impl GitFsStorage {
@@ -58,19 +62,14 @@ impl GitFsStorage {
 
     pub fn mock() -> Self {
         Self {
-            raw_storage: raw_storage::mock()
+            raw_storage: raw_storage::mock(),
         }
     }
-
 
     pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         for entry in entry_list {
             self.raw_storage
-                .put_object(
-                    &repo.repo_name,
-                    &entry.hash.to_plain_str(),
-                    &entry.data,
-                )
+                .put_object(&repo.repo_name, &entry.hash.to_plain_str(), &entry.data)
                 .await
                 .unwrap();
         }

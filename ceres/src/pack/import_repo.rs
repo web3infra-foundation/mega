@@ -10,17 +10,14 @@ use jupiter::{
     storage::{batch_query_by_columns, GitStorageProvider},
 };
 use mercury::internal::pack::encode::PackEncoder;
-use venus::{
+use mercury::{
     errors::GitError,
     internal::{
         object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree},
-        pack::{
-            entry::Entry,
-            reference::{CommandType, RefCommand, Refs},
-        },
+        pack::entry::Entry,
     },
-    repo::Repo,
 };
+use venus::import_repo::{import_refs::{CommandType, RefCommand, Refs}, repo::Repo};
 
 use crate::pack::handler::PackHandler;
 
@@ -160,7 +157,7 @@ impl PackHandler for ImportRepo {
             .get_raw_blobs_by_hashes(hashes)
             .await
     }
-    
+
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {

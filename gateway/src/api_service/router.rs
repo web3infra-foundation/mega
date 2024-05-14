@@ -8,14 +8,13 @@ use axum::{
     Json, Router,
 };
 
-use ganymede::model::create_file::CreateFileInfo;
 use jupiter::storage::{git_db_storage::GitDbStorage, mega_storage::MegaStorage};
 use venus::{
     monorepo::mr::{MergeOperation, MergeResult},
-    repo::Repo,
+    import_repo::repo::Repo,
 };
 
-use crate::{api_service::import_service::ImportRepoService, model::query::CodePreviewQuery};
+use crate::{api_service::import_service::ImportRepoService, model::{create_file::CreateFileInfo, query::CodePreviewQuery}};
 use crate::{
     api_service::mono_service::MonorepoService,
     model::objects::{BlobObjects, LatestCommitInfo, TreeCommitInfo},

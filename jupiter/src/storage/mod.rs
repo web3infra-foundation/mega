@@ -12,13 +12,13 @@ use sea_orm::{
     EntityTrait, QueryFilter,
 };
 use venus::{
-    internal::pack::reference::{RefCommand, Refs},
-    repo::Repo,
+    import_repo::import_refs::{RefCommand, Refs},
+    import_repo::repo::Repo,
 };
 
 ///
-/// This interface is designed to handle the commonalities between the git storage
-/// and the mega monerepo storage.
+/// This interface is designed to handle the commonalities between the database storage and
+/// file system storage.
 ///
 #[async_trait]
 pub trait GitStorageProvider: Send + Sync {

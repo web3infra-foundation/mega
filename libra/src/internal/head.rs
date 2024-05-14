@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
-use venus::hash::SHA1;
+use mercury::hash::SHA1;
 
 use crate::internal::branch::Branch;
 use crate::internal::db::get_db_conn_instance;

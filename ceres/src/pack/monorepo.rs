@@ -16,16 +16,16 @@ use callisto::raw_blob;
 use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
 use jupiter::context::Context;
 use mercury::internal::pack::encode::PackEncoder;
-use venus::{
+use mercury::{
     errors::GitError,
     hash::SHA1,
     internal::{
         object::{commit::Commit, tree::Tree, types::ObjectType},
-        pack::{
-            entry::Entry,
-            reference::{RefCommand, Refs},
-        },
+        pack::entry::Entry,
     },
+};
+use venus::{
+    import_repo::import_refs::{RefCommand, Refs},
     monorepo::mr::MergeRequest,
 };
 
@@ -313,7 +313,7 @@ impl PackHandler for MonoRepo {
     }
 
     async fn update_refs(&self, _: &RefCommand) -> Result<(), GitError> {
-        //do nothing in monorepo because need mr to handle refs
+        //do nothing in monorepo because we use mr to handle refs update
         Ok(())
     }
 

@@ -3,10 +3,10 @@ use std::collections::HashMap;
 
 use callisto::{mega_blob, mega_refs, mega_tree, raw_blob};
 use common::utils::generate_id;
-use venus::hash::SHA1;
-use venus::internal::object::blob::Blob;
-use venus::internal::object::commit::Commit;
-use venus::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use mercury::hash::SHA1;
+use mercury::internal::object::blob::Blob;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 pub fn generate_git_keep() -> Blob {
     let git_keep_content = String::from("This file was used to maintain the git tree");
@@ -130,9 +130,9 @@ mod test {
 
     use std::str::FromStr;
 
-    use venus::{hash::SHA1, internal::object::commit::Commit};
+    use mercury::{hash::SHA1, internal::object::commit::Commit};
 
-    use crate::model::converter::MegaModelConverter;
+    use crate::monorepo::converter::MegaModelConverter;
 
     #[test]
     pub fn test_init_mega_dir() {

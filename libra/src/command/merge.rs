@@ -1,5 +1,5 @@
 use clap::Parser;
-use venus::internal::object::commit::Commit;
+use mercury::internal::object::commit::Commit;
 
 use crate::{
     internal::{branch::Branch, head::Head},
