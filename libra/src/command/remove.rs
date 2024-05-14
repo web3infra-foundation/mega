@@ -8,7 +8,7 @@ use mercury::errors::GitError;
 
 use crate::internal::index::Index;
 use crate::utils::path_ext::PathExt;
-use crate::utils::util;
+use crate::utils::{path, util};
 
 #[derive(Parser, Debug)]
 pub struct RemoveArgs {
@@ -26,7 +26,8 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     if !util::check_repo_exist() {
         return Ok(());
     }
-    let mut index = Index::load()?;
+    let idx_file = path::index();
+    let mut index = Index::load(&idx_file)?;
     // check if pathspec is all in index
     if !validate_pathspec(&args.pathspec, &index) {
         return Ok(());
@@ -58,7 +59,7 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
             }
         }
     }
-    index.save()?;
+    index.save(&idx_file)?;
     Ok(())
 }
 

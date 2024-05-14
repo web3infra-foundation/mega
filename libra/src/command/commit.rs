@@ -25,7 +25,7 @@ pub struct CommitArgs {
 
 pub async fn execute(args: CommitArgs) {
     /* check args */
-    let index = Index::load().unwrap();
+    let index = Index::load(&path::index()).unwrap();
     let storage = ClientStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
