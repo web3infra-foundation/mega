@@ -212,13 +212,12 @@ async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) ->
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt;
 
     use crate::utils::test::init_debug_logger;
     use crate::utils::test::init_logger;
     use tokio::io::AsyncBufReadExt;
     use tokio::io::AsyncReadExt;
+    use tokio::io::AsyncWriteExt;
     use tokio_util::io::StreamReader;
 
     use super::*;
@@ -280,5 +279,38 @@ mod tests {
         }
         tracing::info!("buffer len: {:?}", buffer.len());
         assert!(!buffer.is_empty(), "buffer len is 0, fetch_objects failed");
+    }
+
+    #[tokio::test]
+    async fn test_upload_pack() {
+        // use /usr/bin/git-upload-pack as a test server. if no /usr/bin/git-upload-pack, skip this test
+        if !std::path::Path::new("/usr/bin/git-upload-pack").exists() {
+            return;
+        }
+        init_debug_logger();
+
+        let have = vec!["1c05d7f7dd70e38150bfd2d5fb8fb969e2eb9851".to_string()];
+        let want = vec!["d89e87f91228ea1f2bb1a9cc27abdc97db1a637c".to_string()]; // MUST be current refs
+        let body = generate_upload_pack_content(&have, &want).await;
+        tracing::info!("upload-pack content: {:?}", body);
+        let mut cmd = tokio::process::Command::new("/usr/bin/git-upload-pack");
+        cmd.arg("..");
+
+        // set up the pipe otherwise the `take` will get None
+        cmd.stdin(std::process::Stdio::piped());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        let mut child = cmd.spawn().unwrap();
+
+        // write the body to the stdin of the child process
+        let mut stdin = child.stdin.take().unwrap();
+        stdin.write_all(&body).await.unwrap();
+
+        // check the stderr of the child process
+        let mut output = child.stderr.take().unwrap();
+        let mut stderr = String::new();
+        output.read_to_string(&mut stderr).await.unwrap();
+        tracing::info!("stderr: {}", stderr);
+        assert!(!stderr.contains("protocol error"), "{}", stderr);
     }
 }
