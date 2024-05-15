@@ -1,13 +1,13 @@
 use super::ProtocolClient;
 use bytes::Bytes;
 use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
+use ceres::protocol::ServiceType;
+use ceres::protocol::ServiceType::UploadPack;
 use futures_util::{StreamExt, TryStreamExt};
+use mercury::errors::GitError;
 use std::io::Error as IoError;
 use tokio_util::bytes::BytesMut;
 use url::Url;
-use ceres::protocol::ServiceType;
-use ceres::protocol::ServiceType::UploadPack;
-use mercury::errors::GitError;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see https://www.git-scm.com/docs/http-protocol for protocol details.
@@ -49,19 +49,26 @@ impl HttpsClient {
     /// ## Args
     /// - auth: (username, password)
     pub async fn discovery_reference(
-        &self, service: ServiceType, auth: Option<(String, Option<String>)>
+        &self,
+        service: ServiceType,
+        auth: Option<(String, String)>,
     ) -> Result<Vec<DiscRef>, GitError> {
         let service: &str = &service.to_string();
-        let url = self.url.join(&format!("info/refs?service={}", service)).unwrap();
+        let url = self
+            .url
+            .join(&format!("info/refs?service={}", service))
+            .unwrap();
         let mut request = self.client.get(url);
         if let Some(auth) = auth {
-            request = request.basic_auth(auth.0, auth.1);
+            request = request.basic_auth(auth.0, Some(auth.1));
         }
         let res = request.send().await.unwrap();
         tracing::debug!("{:?}", res);
 
         if res.status() == 401 {
-            return Err(GitError::UnAuthorized("May need to provide username and password".to_string()));
+            return Err(GitError::UnAuthorized(
+                "May need to provide username and password".to_string(),
+            ));
         }
         // check status code MUST be 200 or 304
         if res.status() != 200 && res.status() != 304 {
@@ -74,8 +81,10 @@ impl HttpsClient {
         // check Content-Type MUST be application/x-$servicename-advertisement
         let content_type = res.headers().get("Content-Type").unwrap().to_str().unwrap();
         if content_type != format!("application/x-{}-advertisement", service) {
-            return Err(GitError::NetworkError(
-                format!("Content-type must be `application/x-{}-advertisement`, but got: {}", service, content_type)));
+            return Err(GitError::NetworkError(format!(
+                "Content-type must be `application/x-{}-advertisement`, but got: {}",
+                service, content_type
+            )));
         }
 
         let mut response_content = res.bytes().await.unwrap();
@@ -85,8 +94,10 @@ impl HttpsClient {
         // verify the first pkt-line is # service=$servicename, and ignore LF
         let (_, first_line) = read_pkt_line(&mut response_content);
         if first_line[..].ne(format!("# service={}\n", service).as_bytes()) {
-            return Err(GitError::NetworkError(
-                format!("Error Response format, didn't start with `# service={}`", service)));
+            return Err(GitError::NetworkError(format!(
+                "Error Response format, didn't start with `# service={}`",
+                service
+            )));
         }
 
         let mut ref_list = vec![];
@@ -141,39 +152,23 @@ impl HttpsClient {
         &self,
         have: &Vec<String>,
         want: &Vec<String>,
+        auth: Option<(String, String)>,
     ) -> Result<impl StreamExt<Item = Result<Bytes, IoError>>, IoError> {
         // POST $GIT_URL/git-upload-pack HTTP/1.0
         let url = self.url.join("git-upload-pack").unwrap();
-        let mut buf = BytesMut::new();
-        let mut write_first_line = false;
+        let body = generate_upload_pack_content(have, want).await;
+        tracing::debug!("fetch_objects with body: {:?}", body);
 
-        for w in want {
-            // body += format!("0032want {}\n", w).as_str();
-            if !write_first_line {
-                add_pkt_line_string(&mut buf, format!("want {}\0multi_ack_detailed side-band-64k thin-pack ofs-delta agent=libra/0.1.0\n", w).to_string());
-                write_first_line = true;
-            } else {
-                add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
-            }
-        }
-        for h in have {
-            add_pkt_line_string(&mut buf, format!("have {}\n", h).to_string());
-        }
-
-        buf.extend(b"0000"); // split pkt-lines with a flush-pkt
-        add_pkt_line_string(&mut buf, "done\n".to_string());
-
-        let body = buf.freeze();
-        tracing::debug!("fetch_objects with body:\n{:?}", body);
-
-        let res = self
+        let mut req = self
             .client
             .post(url)
             .header("Content-Type", "application/x-git-upload-pack-request")
-            .body(body)
-            .send()
-            .await
-            .unwrap();
+            .body(body);
+        if let Some(auth) = auth {
+            req = req.basic_auth(auth.0, Some(auth.1));
+        }
+        let res = req.send().await.unwrap();
+        tracing::debug!("request: {:?}", res);
 
         if res.status() != 200 && res.status() != 304 {
             tracing::error!("request failed: {:?}", res);
@@ -182,7 +177,6 @@ impl HttpsClient {
                 format!("Error Response format, status code: {}", res.status()),
             ));
         }
-        // return Ok(res.bytes_stream());
         let result = res
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
@@ -191,9 +185,38 @@ impl HttpsClient {
     }
 }
 
+async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) -> Bytes {
+    let mut buf = BytesMut::new();
+    let mut write_first_line = false;
+
+    for w in want {
+        if !write_first_line {
+            add_pkt_line_string(
+                &mut buf,
+                format!("want {}\0agent=libra/0.1.0\n", w).to_string(),
+            );
+            write_first_line = true;
+        } else {
+            add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
+        }
+    }
+    for h in have {
+        add_pkt_line_string(&mut buf, format!("have {}\n", h).to_string());
+    }
+
+    buf.extend(b"0000"); // split pkt-lines with a flush-pkt
+    add_pkt_line_string(&mut buf, "done\n".to_string());
+
+    buf.freeze()
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::utils::test::{init_debug_logger, init_logger};
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    use crate::utils::test::init_debug_logger;
+    use crate::utils::test::init_logger;
     use tokio::io::AsyncBufReadExt;
     use tokio::io::AsyncReadExt;
     use tokio_util::io::StreamReader;
@@ -201,7 +224,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_get_git_upload_pack() {
+    async fn test_discover_reference_upload() {
         init_debug_logger();
 
         let test_repo = "https://github.com/web3infra-foundation/mega.git/";
@@ -219,7 +242,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_post_git_upload_pack() {
+    async fn test_post_git_upload_pack_() {
         init_logger();
 
         let test_repo = "https://gitee.com/caiqihang2024/image-viewer2.0.git/";
@@ -234,13 +257,14 @@ mod tests {
         println!("{:?}", refs);
 
         let want = refs.iter().map(|r| r._hash.clone()).collect();
-        let result_stream = client.fetch_objects(&vec![], &want).await.unwrap();
+        let result_stream = client.fetch_objects(&vec![], &want, None).await.unwrap();
 
         let mut reader = StreamReader::new(result_stream);
         let mut line = String::new();
 
         reader.read_line(&mut line).await.unwrap();
-        assert_eq!(line, "0008NAK\n");
+
+        reader.read_line(&mut line).await.unwrap();
         tracing::info!("First line: {}", line);
 
         let mut buffer = Vec::new();

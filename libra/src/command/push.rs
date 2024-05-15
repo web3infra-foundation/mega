@@ -54,12 +54,11 @@ pub async fn execute(args: PushArgs) {
     let url = Url::parse(&repo_url).unwrap();
     let client = HttpsClient::from_url(&url);
     let mut refs = client.discovery_reference(ReceivePack, None).await;
-    let mut auth: Option<(String, String)> = None;
+    let auth: Option<(String, String)> = None;
     while let Err(e) = refs { // retry if unauthorized
         if let GitError::UnAuthorized(_) = e {
-            let (username, password) = ask_username_password();
-            auth = Some((username.clone(), password.clone()));
-            refs = client.discovery_reference(ReceivePack, Some((username, Some(password)))).await;
+            let auth = Some(ask_username_password());
+            refs = client.discovery_reference(ReceivePack, auth.to_owned()).await;
         } else {
             eprintln!("fatal: {}", e);
             return;
@@ -106,7 +105,6 @@ pub async fn execute(args: PushArgs) {
     data.extend_from_slice(&pack_data);
 
     let (username, password) = auth.unwrap();
-
     let res = client
         .client
         .post(client.url.join("git-receive-pack").unwrap())

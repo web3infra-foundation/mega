@@ -1,14 +1,17 @@
-use std::{fs, io::Write, str::FromStr};
+use std::{collections::HashSet, fs, io::Write, str::FromStr};
 
+use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
+use mercury::{errors::GitError, hash::SHA1};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
-use ceres::protocol::ServiceType::UploadPack;
-use mercury::hash::SHA1;
 
 use crate::{
-    command::index_pack::{self, IndexPackArgs},
+    command::{
+        ask_username_password,
+        index_pack::{self, IndexPackArgs},
+    },
     internal::{
         branch::Branch,
         config::{Config, RemoteConfig},
@@ -21,7 +24,7 @@ use crate::{
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
     #[clap(long, short, group = "sub")]
-    repository: String,
+    repository: Option<String>,
 
     #[clap(long, short, group = "sub")]
     all: bool,
@@ -37,15 +40,16 @@ pub async fn execute(args: FetchArgs) {
         });
         futures::future::join_all(tasks).await;
     } else {
-        let remote_config = Config::remote_config(&args.repository).await;
+        let remote = match args.repository {
+            Some(remote) => remote,
+            None => "origin".to_string(), // todo: get default remote
+        };
+        let remote_config = Config::remote_config(&remote).await;
         match remote_config {
             Some(remote_config) => fetch_repository(&remote_config).await,
             None => {
-                tracing::error!("remote config '{}' not found", args.repository);
-                eprintln!(
-                    "fatal: '{}' does not appear to be a git repository",
-                    args.repository
-                );
+                tracing::error!("remote config '{}' not found", remote);
+                eprintln!("fatal: '{}' does not appear to be a git repository", remote);
             }
         }
     }
@@ -64,18 +68,20 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
     };
     let http_client = HttpsClient::from_url(&url);
 
-    let refs = match http_client.discovery_reference(UploadPack, None).await {
-        Ok(refs) => refs,
-        Err(e) => {
-            eprintln!("fatal: unable to fetch refs from '{}'", remote_config.name);
-            tracing::error!(
-                "unable to fetch refs from '{}': {:?}",
-                remote_config.name,
-                e
-            );
+    let mut refs = http_client.discovery_reference(UploadPack, None).await;
+    let mut auth = None;
+    while let Err(e) = refs {
+        if let GitError::UnAuthorized(_) = e {
+            auth = Some(ask_username_password());
+            refs = http_client
+                .discovery_reference(UploadPack, auth.to_owned())
+                .await;
+        } else {
+            eprintln!("fatal: {}", e);
             return;
         }
-    };
+    }
+    let refs = refs.unwrap();
 
     let want = refs
         .iter()
@@ -83,14 +89,18 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         .map(|r| r._hash.clone())
         .collect();
     let have = current_have().await;
-    let result_stream = http_client.fetch_objects(&have, &want).await.unwrap();
+
+    let result_stream = http_client
+        .fetch_objects(&have, &want, auth.to_owned())
+        .await
+        .unwrap();
 
     let mut reader = StreamReader::new(result_stream);
     let mut line = String::new();
 
     reader.read_line(&mut line).await.unwrap();
-    assert_eq!(line, "0008NAK\n");
     tracing::info!("First line: {}", line);
+    assert_eq!(line, "0008NAK\n");
 
     /* save pack file */
     let pack_file = {
@@ -158,18 +168,21 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
 }
 
 async fn current_have() -> Vec<String> {
-    let mut have = vec![];
+    // TODO use stand method to generate have list
+    let mut have = HashSet::new();
     let branchs = Branch::list_branches(None).await;
     for branch in branchs {
-        have.push(branch.commit.to_plain_str());
+        have.insert(branch.commit.to_plain_str());
     }
 
     for remote in Config::all_remote_configs().await {
         let branchs = Branch::list_branches(Some(&remote.name)).await;
         for branch in branchs {
-            have.push(branch.commit.to_plain_str());
+            have.insert(branch.commit.to_plain_str());
         }
     }
 
-    have
+    have.iter().cloned().collect()
 }
+
+
