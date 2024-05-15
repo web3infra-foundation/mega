@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_upload_pack() {
+    async fn test_upload_pack_local() {
         // use /usr/bin/git-upload-pack as a test server. if no /usr/bin/git-upload-pack, skip this test
         if !std::path::Path::new("/usr/bin/git-upload-pack").exists() {
             return;
@@ -291,7 +291,8 @@ mod tests {
         init_debug_logger();
 
         let have = vec!["1c05d7f7dd70e38150bfd2d5fb8fb969e2eb9851".to_string()];
-        let want = vec!["d89e87f91228ea1f2bb1a9cc27abdc97db1a637c".to_string()]; // MUST be current refs
+        // **want MUST change to one of the refs in the remote repo, such as `refs/heads/main` before running the test**
+        let want = vec!["363fd94c8b0abc7b6be8f9f44267a44da40044c0".to_string()];
         let body = generate_upload_pack_content(&have, &want).await;
         tracing::info!("upload-pack content: {:?}", body);
         let mut cmd = tokio::process::Command::new("/usr/bin/git-upload-pack");
@@ -313,5 +314,12 @@ mod tests {
         output.read_to_string(&mut stderr).await.unwrap();
         tracing::info!("stderr: {}", stderr);
         assert!(!stderr.contains("protocol error"), "{}", stderr);
+        assert!(!stderr.contains("not our refs"), "{}", stderr);
+
+        let mut output = child.stdout.take().unwrap();
+        let mut stdout = vec![];
+        output.read_to_end(&mut stdout).await.unwrap();
+        assert!(stdout.len() > 100, "stdout is empty");
+        tracing::info!("stdout len: {}", stdout.len());
     }
 }
