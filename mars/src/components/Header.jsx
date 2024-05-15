@@ -51,12 +51,15 @@ export function Header() {
       <nav>
         <Container className="relative z-50 flex justify-between py-8">
           <div className="relative z-10 flex items-center gap-16">
-            {/*<Link href="/" aria-label="Home">*/}
-            {/*  <Logo className="h-10 w-auto" />*/}
-            {/*</Link>*/}
-            {/*<div className="hidden lg:flex lg:gap-10">*/}
+            <Link href="/" aria-label="Home" className="flex items-center">
+              <Logo/>
+                <div className="ml-4 text-4xl font-medium tracking-tight text-gray-900">Mega</div>
+            </Link>
+
+            {/*  <div className="hidden lg:flex lg:gap-10">*/}
             {/*  <NavLinks />*/}
             {/*</div>*/}
+
           </div>
           {/*<div className="flex items-center gap-6">*/}
           {/*  <Popover className="lg:hidden">*/}
@@ -122,12 +125,12 @@ export function Header() {
           {/*      </>*/}
           {/*    )}*/}
           {/*  </Popover>*/}
-          {/*  /!*<Button href="/login" variant="outline" className="hidden lg:block">*!/*/}
-          {/*  /!*  Log in*!/*/}
-          {/*  /!*</Button>*!/*/}
-          {/*  /!*<Button href="#" className="hidden lg:block">*!/*/}
-          {/*  /!*  Download*!/*/}
-          {/*  /!*</Button>*!/*/}
+          {/*  <Button href="/login" variant="outline" className="hidden lg:block">*/}
+          {/*    Log in*/}
+          {/*  </Button>*/}
+          {/*  <Button href="#" className="hidden lg:block">*/}
+          {/*    Download*/}
+          {/*  </Button>*/}
           {/*</div>*/}
         </Container>
       </nav>
