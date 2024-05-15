@@ -1,6 +1,5 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
-use std::hash::Hash;
 use std::io::Write;
 use std::str::FromStr;
 use std::sync::mpsc;
@@ -14,7 +13,6 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
-use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::encode::PackEncoder;
 use mercury::internal::pack::entry::Entry;
 use crate::command::ask_username_password;
@@ -47,7 +45,8 @@ pub async fn execute(args: PushArgs) {
             Config::get("branch", Some(&branch), "remote").await.unwrap()
         }
     };
-    let repo_url = Config::get("remote", Some(&repository), "url").await.unwrap();
+    let repo_url = Config::get("remote", Some(&repository), "url").await
+        .unwrap_or("https://gitee.com/caiqihang2024/test-git-remote-2.git".to_string());
 
     let branch = args.refspec.unwrap_or(branch);
     let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_plain_str();
@@ -95,7 +94,7 @@ pub async fn execute(args: PushArgs) {
         SHA1::from_str(&remote_hash).unwrap()
     );
 
-    let mut encoder = PackEncoder::new(objs.len(), 5);
+    let mut encoder = PackEncoder::new(objs.len(), 3);
     let (tx, rx) = mpsc::channel::<Entry>();
     for entry in objs {
         println!("{:?}", entry.hash.to_plain_str());
@@ -123,28 +122,63 @@ pub async fn execute(args: PushArgs) {
     println!("{:?}", res.bytes().await.unwrap());
 }
 
-fn objs_between_commits(local_commit: SHA1, remote_commit: SHA1) -> HashSet<Entry> {
-    let mut objs = HashSet::new();
+/// return commit paths from old_commit to new_commit
+fn find_commit_paths(old_commit: &SHA1, new_commit: &SHA1) -> Vec<SHA1> {
+    let mut child = HashMap::new();
+    let mut visited = HashSet::new();
     let mut queue = VecDeque::new();
-    queue.push_back(local_commit.clone());
+    queue.push_back(*new_commit);
+    visited.insert(*new_commit);
 
-    let mut last_commit = local_commit.clone();
+    let mut last_commit = new_commit.clone();
     while let Some(commit) = queue.pop_front() {
-        if commit != last_commit {
-            let old_commit = Commit::load(&commit);
-            let new_commit = Commit::load(&last_commit);
-            objs.extend(diff_tree_objs(Some(&old_commit.tree_id), &new_commit.tree_id));
-            objs.insert(new_commit.into()); // commit itself
-        }
         last_commit = commit.clone();
-        if commit == remote_commit {
+        if commit == *old_commit {
             break;
         }
 
         let commit = Commit::load(&commit);
         for parent in commit.parent_commit_ids.iter() {
-            queue.push_back(*parent);
+            if !visited.contains(parent) {
+                child.insert(*parent, commit.id);
+                queue.push_back(*parent);
+                visited.insert(*parent);
+            }
         }
+    }
+
+    // found old_commit or got root commit(assume there is only one root commit)
+    assert!(last_commit == *old_commit || Commit::load(&last_commit).parent_commit_ids.is_empty());
+
+    let mut paths = Vec::new();
+    let mut commit = last_commit;
+    while commit != *new_commit {
+        paths.push(commit);
+        commit = child[&commit];
+    }
+    assert_eq!(commit, *new_commit);
+    paths.push(commit);
+
+    paths
+}
+
+fn objs_between_commits(local_commit: SHA1, remote_commit: SHA1) -> HashSet<Entry> {
+    let mut objs = HashSet::new();
+    let commits = find_commit_paths(&remote_commit, &local_commit);
+    assert!(commits.len() > 0);
+    if commits[0] != remote_commit {
+        let root_commit = Commit::load(&commits[0]);
+        objs.extend(diff_tree_objs(None, &root_commit.tree_id));
+        objs.insert(root_commit.into());
+    }
+
+    for i in 0..commits.len() - 1 {
+        let old_commit = commits[i];
+        let new_commit = commits[i + 1];
+        let old_tree = Commit::load(&old_commit).tree_id;
+        let new_commit = Commit::load(&new_commit);
+        objs.extend(diff_tree_objs(Some(&old_tree), &new_commit.tree_id));
+        objs.insert(new_commit.into());
     }
     objs
 }
