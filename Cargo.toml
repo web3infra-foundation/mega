@@ -19,6 +19,10 @@ members = [
 
 exclude = ["craft"]
 
+[[bin]]
+name = "mega"
+path = "mega/src/main.rs"
+
 [dependencies]
 gateway = { path = "gateway" }
 common = { path = "common" }
@@ -44,11 +48,11 @@ russh-keys = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 go-defer = { workspace = true }
-env_logger = "0.11.0"
+env_logger = "0.11.3"
 futures-util = "0.3.30"
-tokio-util = "0.7.10"
-git2 = "0.18.2"
-toml = "0.8.8"
+tokio-util = "0.7.11"
+git2 = "0.18.3"
+toml = "0.8.12"
 
 
 [workspace.dependencies]
@@ -79,11 +83,10 @@ tower-http = "0.5.2"
 tower = "0.4.13"
 hex = "0.4.3"
 sea-orm = "0.12.15"
-redis = "0.24.0"
 flate2 = "1.0.28"
 bstr = "1.9.1"
 colored = "2.1.0"
 idgenerator = "2.0.0"
 
 [build-dependencies]
-shadow-rs = "0.27.0"
+shadow-rs = "0.27.1"
