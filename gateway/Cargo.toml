@@ -9,30 +9,27 @@ edition = "2021"
 name = "gateway"
 path = "src/lib.rs"
 
-
 [dependencies]
-common = { path = "../common" }
-jupiter = { path = "../jupiter" }
-callisto = { path = "../jupiter/callisto" }
-ceres = { path = "../ceres" }
-venus = { path = "../venus" }
-mercury = { path = "../mercury" }
-
-regex = "1.10.3"
-ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
-
+common = { workspace = true }
+jupiter = { workspace = true }
+callisto = { workspace = true }
+ceres = { workspace = true }
+venus = { workspace = true }
+mercury = { workspace = true }
 anyhow = { workspace = true }
-tokio = { workspace = true, features = ["net"] }
 axum = { workspace = true }
-tower-http = { workspace = true, features = ["cors", "trace", "decompression-full"] }
 tower = { workspace = true }
 tracing = { workspace = true }
-russh = { workspace = true, features = ["openssl"] }
 russh-keys = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 chrono = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 async-trait = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+russh = { workspace = true, features = ["openssl"] }
+tower-http = { workspace = true, features = ["cors", "trace", "decompression-full"] }
+tokio = { workspace = true, features = ["net"] }
+regex = "1.10.4"
+ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }

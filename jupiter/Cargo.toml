@@ -11,11 +11,10 @@ path = "src/lib.rs"
 
 
 [dependencies]
-callisto = { path = "./callisto" }
-common = { path = "../common" }
-venus = { path = "../venus" }
-mercury = { path = "../mercury" }
-
+callisto = { workspace = true }
+common = { workspace = true }
+venus = { workspace = true }
+mercury = { workspace = true }
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
     "sqlx-mysql",
@@ -29,8 +28,7 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 idgenerator = { workspace = true }
-
-handlebars = "5.1.0"
+handlebars = "5.1.2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }

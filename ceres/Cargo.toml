@@ -11,12 +11,11 @@ path = "src/lib.rs"
 
 
 [dependencies]
-common = { path = "../common" }
-jupiter = { path = "../jupiter" }
-callisto = { path = "../jupiter/callisto" }
-mercury = { path = "../mercury" }
-venus = { path = "../venus" }
-
+common = { workspace = true }
+jupiter = { workspace = true }
+callisto = { workspace = true }
+mercury = { workspace = true }
+venus = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 axum = { workspace = true }
