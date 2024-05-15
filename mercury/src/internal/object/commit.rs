@@ -57,7 +57,7 @@ impl Display for Commit {
         }
         writeln!(f, "author {}", self.author)?;
         writeln!(f, "committer {}", self.committer)?;
-        writeln!(f, "{}", self.message)
+        writeln!(f, "\n{}", self.message)
     }
 }
 
@@ -141,7 +141,8 @@ impl ObjectTrait for Commit {
 
         // The rest is the message
         let message = unsafe {
-            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
+            // + 2: skip the blank line between committer and message
+            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 2..].to_vec())
         };
 
         Ok(Commit {
@@ -162,6 +163,7 @@ impl ObjectTrait for Commit {
         0
     }
 
+    /// [Git-Internals-Git-Objects](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects)
     fn to_data(&self) -> Result<Vec<u8>, GitError> {
         let mut data = Vec::new();
 
@@ -179,6 +181,7 @@ impl ObjectTrait for Commit {
         data.extend(&[0x0a]);
         data.extend(self.committer.to_data()?);
         data.extend(&[0x0a]);
+        data.extend(&[0x0a]); // Important! or Git Server can't parse & reply: unpack-objects abnormal exit
         data.extend(self.message.as_bytes());
 
         Ok(data)

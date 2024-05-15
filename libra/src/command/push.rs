@@ -1,13 +1,11 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fs;
-use std::io::Write;
 use std::str::FromStr;
 use std::sync::mpsc;
 use bytes::BytesMut;
 use clap::Parser;
 use url::Url;
 use ceres::protocol::ServiceType::ReceivePack;
-use ceres::protocol::smart::add_pkt_line_string;
+use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
@@ -46,7 +44,7 @@ pub async fn execute(args: PushArgs) {
         }
     };
     let repo_url = Config::get("remote", Some(&repository), "url").await
-        .unwrap_or("https://gitee.com/caiqihang2024/test-git-remote-2.git".to_string());
+        .unwrap_or("https://gitee.com/caiqihang2024/test-git-remote-2.git".to_string()); // TODO remote command
 
     let branch = args.refspec.unwrap_or(branch);
     let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_plain_str();
@@ -93,17 +91,17 @@ pub async fn execute(args: PushArgs) {
         SHA1::from_str(&commit_hash).unwrap(),
         SHA1::from_str(&remote_hash).unwrap()
     );
+    println!("Counting objects: {}", objs.len());
 
-    let mut encoder = PackEncoder::new(objs.len(), 3);
+    let mut encoder = PackEncoder::new(objs.len(), 5);
     let (tx, rx) = mpsc::channel::<Entry>();
     for entry in objs {
-        println!("{:?}", entry.hash.to_plain_str());
+        // TODO progress bar
         tx.send(entry).unwrap();
     }
     drop(tx);
     let pack_data = encoder.encode(rx).unwrap();
-    println!("pack data len: {:?}", pack_data.len());
-    fs::File::create("/tmp/tmpPack.pack").unwrap().write_all(&pack_data).unwrap();
+    println!("Delta compression done.");
 
     data.extend_from_slice(&pack_data);
 
@@ -118,8 +116,25 @@ pub async fn execute(args: PushArgs) {
         .send()
         .await
         .unwrap();
-    println!("{:?}", res);
-    println!("{:?}", res.bytes().await.unwrap());
+
+    if res.status() != 200 {
+        eprintln!("status code: {}", res.status());
+    }
+    let mut data = res.bytes().await.unwrap();
+    let (_, pkt_line) = read_pkt_line(&mut data);
+    if pkt_line != "unpack ok\n" {
+        eprintln!("fatal: unpack failed");
+        return;
+    }
+    let (_, pkt_line) = read_pkt_line(&mut data);
+    if !pkt_line.starts_with("ok".as_ref()) {
+        eprintln!("fatal: ref update failed [{:?}]", pkt_line);
+        return;
+    }
+    let (len, _) = read_pkt_line(&mut data);
+    assert_eq!(len, 0);
+
+    println!("Push success");
 }
 
 /// return commit paths from old_commit to new_commit

@@ -193,13 +193,10 @@ impl HttpsClient {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
     use crate::utils::test::{init_debug_logger, init_logger};
     use tokio::io::AsyncBufReadExt;
     use tokio::io::AsyncReadExt;
     use tokio_util::io::StreamReader;
-    use mercury::hash::SHA1;
-    use crate::command::ask_username_password;
 
     use super::*;
 
@@ -259,38 +256,5 @@ mod tests {
         }
         tracing::info!("buffer len: {:?}", buffer.len());
         assert!(!buffer.is_empty(), "buffer len is 0, fetch_objects failed");
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_push_empty_repo() {
-        init_logger();
-
-        let test_repo = "https://gitee.com/caiqihang2024/test-git-remote.git/";
-        let pack_file = r"xxx.pack";
-
-        let mut buf = BytesMut::new();
-        add_pkt_line_string(&mut buf, format!("{} {} {}\n", //\0 report-status
-                            SHA1::default().to_plain_str(),
-                            "d8bd0a95f4fb431e64fcd91098d47a008d7eec4c",
-                            "refs/heads/master"));
-
-        buf.extend(b"0000");
-        let pack_content = fs::read(pack_file).unwrap();
-        buf.extend(pack_content);
-        println!("{:?}", buf);
-
-        let (username, password) = ask_username_password();
-        let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
-        let res = client
-            .client
-            .post(client.url.join("git-receive-pack").unwrap())
-            .header("Content-Type", "application/x-git-receive-pack-request")
-            .basic_auth(username, Some(password))
-            .body(buf.freeze())
-            .send()
-            .await
-            .unwrap();
-        println!("{:?}", res);
     }
 }
