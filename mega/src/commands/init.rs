@@ -1,22 +1,15 @@
-use clap::{ArgMatches, Args, Command, FromArgMatches};
+use clap::{ArgMatches, Command};
 
-use common::errors::MegaResult;
-use gateway::init::{init_monorepo, InitOptions};
-
-use crate::cli::Config;
+use common::{config::Config, errors::MegaResult};
+use gateway::init::init_monorepo;
 
 pub fn cli() -> Command {
-    InitOptions::augment_args_for_update(
-        Command::new("init").about("Initialize the mega monorepo structure"),
-    )
+    Command::new("init").about("Initialize the mega monorepo structure")
 }
 
 #[tokio::main]
-pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
-    let server_matchers = InitOptions::from_arg_matches(args)
-        .map_err(|err| err.exit())
-        .unwrap();
-    init_monorepo(&server_matchers).await.unwrap();
+pub(crate) async fn exec(config: Config, _: &ArgMatches) -> MegaResult {
+    init_monorepo(config).await.unwrap();
     Ok(())
 }
 
