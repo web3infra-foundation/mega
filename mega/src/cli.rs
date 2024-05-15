@@ -1,40 +1,30 @@
 //! Cli module is responsible for parsing command line arguments and executing the appropriate.
 
+use std::env;
 
 use clap::{Arg, ArgMatches, Command};
-use config as c;
-use serde::Deserialize;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
+
+use common::{
+    config::{Config, LogConfig},
+    errors::{MegaError, MegaResult},
+};
 
 use crate::commands::{builtin, builtin_exec};
-use common::errors::{MegaError, MegaResult};
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct Config {}
-
-impl Config {
-    pub fn new(path: &str) -> Result<Self, c::ConfigError> {
-        let builder = c::Config::builder().add_source(c::File::new(path, c::FileFormat::Toml));
-        let config = builder.build().unwrap();
-
-        Config::from_config(&config)
-    }
-
-    pub fn from_config(config: &c::Config) -> Result<Self, c::ConfigError> {
-        config.get::<Self>(env!("CARGO_PKG_NAME"))
-    }
-
-    pub fn default() -> Self {
-        Config {}
-    }
-}
 
 pub fn parse() -> MegaResult {
     let matches = cli().try_get_matches().unwrap_or_else(|e| e.exit());
-    let mut config = Config::default();
+    // let mut config = Config::default();
 
-    if let Some(c) = matches.get_one::<String>("config").cloned() {
-        config = Config::new(c.as_str()).unwrap()
-    }
+    let config = if let Some(c) = matches.get_one::<String>("config").cloned() {
+        Config::new(c.as_str()).unwrap()
+    } else if env::current_dir().unwrap().join("./config.toml").exists() {
+        Config::new("./config.toml").unwrap()
+    } else {
+        Config::default()
+    };
+
+    init_log(&config.log);
 
     let (cmd, subcommand_args) = match matches.subcommand() {
         Some((cmd, args)) => (cmd, args),
@@ -45,6 +35,32 @@ pub fn parse() -> MegaResult {
     };
 
     exec_subcommand(config, cmd, subcommand_args)
+}
+
+fn init_log(config: &LogConfig) {
+    let log_level = match config.level.as_str() {
+        "TRACE" => tracing::Level::TRACE,
+        "DEBUG" => tracing::Level::DEBUG,
+        "INFO" => tracing::Level::INFO,
+        "WARN" => tracing::Level::WARN,
+        "ERROR" => tracing::Level::ERROR,
+        _ => tracing::Level::INFO,
+    };
+
+    let file_appender = tracing_appender::rolling::hourly(config.log_path.clone(), "mega-logs");
+
+    if config.print_std {
+        let stdout = std::io::stdout;
+        tracing_subscriber::fmt()
+            .with_writer(stdout.and(file_appender))
+            .with_max_level(log_level)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_writer(file_appender)
+            .with_max_level(log_level)
+            .init();
+    }
 }
 
 fn cli() -> Command {

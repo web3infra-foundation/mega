@@ -17,7 +17,10 @@ use mercury::{
         pack::entry::Entry,
     },
 };
-use venus::import_repo::{import_refs::{CommandType, RefCommand, Refs}, repo::Repo};
+use venus::import_repo::{
+    import_refs::{CommandType, RefCommand, Refs},
+    repo::Repo,
+};
 
 use crate::pack::handler::PackHandler;
 
@@ -41,7 +44,7 @@ impl PackHandler for ImportRepo {
     }
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = self.pack_decoder(pack_file).unwrap();
+        let receiver = self.pack_decoder(&self.context.config.monorepo, pack_file).unwrap();
 
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = Vec::new();

@@ -11,6 +11,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use common::config::SshConfig;
 use futures_util::StreamExt;
 use git2::{build::RepoBuilder, Cred, FetchOptions, PushOptions, RemoteCallbacks, Repository};
 use russh::{client, ChannelMsg};
@@ -222,7 +223,8 @@ pub struct Session {
 
 impl Session {
     pub async fn connect<A: ToSocketAddrs>(user: impl Into<String>, addrs: A) -> Result<Self> {
-        let key_pair = load_key()?;
+        let ssh_config = SshConfig::default();
+        let key_pair = load_key(ssh_config.ssh_key_path)?;
         let config = client::Config {
             inactivity_timeout: Some(Duration::from_secs(5)),
             ..<_>::default()

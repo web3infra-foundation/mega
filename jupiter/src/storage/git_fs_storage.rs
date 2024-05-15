@@ -1,8 +1,8 @@
-use std::{env, io::Cursor, sync::Arc};
+use std::{io::Cursor, sync::Arc};
 
 use async_trait::async_trait;
 
-use common::errors::MegaError;
+use common::{config::StorageConfig, errors::MegaError};
 use mercury::{
     hash::SHA1,
     internal::{
@@ -52,11 +52,10 @@ impl GitStorageProvider for GitFsStorage {
 }
 
 impl GitFsStorage {
-    pub async fn new() -> Self {
-        let storage_type = env::var("MEGA_RAW_STORAGE").unwrap();
-        let path = env::var("MEGA_OBJ_LOCAL_PATH").unwrap();
+    pub async fn new(config: StorageConfig) -> Self {
         GitFsStorage {
-            raw_storage: raw_storage::init(storage_type, path).await,
+            raw_storage: raw_storage::init(config.raw_obj_storage_type, config.raw_obj_local_path)
+                .await,
         }
     }
 

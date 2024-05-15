@@ -21,7 +21,7 @@ sha1 = { workspace = true }
 colored = { workspace = true }
 chrono = { workspace = true }
 threadpool = "1.8.1"
-num_cpus = "1.16.0"
+num_cpus.workspace = true
 dashmap = "5.5.3"
 tokio.workspace = true
 lru-mem = "0.3.0"
