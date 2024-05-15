@@ -200,6 +200,7 @@ async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) ->
             add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
         }
     }
+    buf.extend(b"0000"); // split pkt-lines with a flush-pkt
     for h in have {
         add_pkt_line_string(&mut buf, format!("have {}\n", h).to_string());
     }
