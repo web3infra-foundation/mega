@@ -13,7 +13,6 @@ pub enum StartCommand {
     Http,
     Https,
     Ssh,
-    P2p,
 }
 
 #[derive(Args, Clone, Debug)]
