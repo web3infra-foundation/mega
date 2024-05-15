@@ -47,8 +47,9 @@ For now, we are developing on the macOS and Arch Linux. And quick start manuel i
 7. **Ceres** - The Ceres implement translate protocol for Mega. More information on the [Ceres](ceres/README.md).
 8. **Jupiter** - The Jupiter is storage engine for Mega. More information on the [Jupiter](jupiter/README.md).
 9. **Venus** - The Venus is a monorepo engine for Mega. More information on the [Venus](venus/README.md).
-10. **Mars** - The Mars is website for Mega. More information on the [Mars](mars/README.md).
-11. **Moon** - The Moon is a web UI for Mega. More information on the [Moon](moon/README.md).
+10. **Moon** - The Moon is a web UI for Mega. More information on the [Moon](moon/README.md).
+11. **Mars** - The Mars is website for Mega. More information on the [Mars](mars/README.md).
+
 
 
 ## Contributing

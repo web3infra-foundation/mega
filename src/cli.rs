@@ -1,3 +1,6 @@
+//! Cli module is responsible for parsing command line arguments and executing the appropriate.
+
+
 use clap::{Arg, ArgMatches, Command};
 use config as c;
 use serde::Deserialize;
