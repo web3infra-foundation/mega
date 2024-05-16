@@ -1,14 +1,6 @@
-[package]
-name = "mega"
-version = "0.1.0"
-edition = "2021"
-keywords = ["git", "monorepo", "decentralized"]
-license = "MIT OR Apache-2.0"
-readme = "README.md"
-
 [workspace]
 members = [
-    ".",
+    "mega",
     "gateway",
     "common",
     "mercury",
@@ -17,43 +9,8 @@ members = [
     "ceres",
     "libra",
 ]
-
 exclude = ["craft"]
-
-[[bin]]
-name = "mega"
-path = "mega/src/main.rs"
-
-[dependencies]
-gateway = { workspace = true }
-common = { workspace = true }
-ceres = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true, features = ["macros"] }
-clap = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-anyhow = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-tracing-appender = { workspace = true }
-thiserror = { workspace = true }
-rand = { workspace = true }
-smallvec = { workspace = true }
-config = { workspace = true }
-
-[dev-dependencies]
-reqwest = { version = "0.12.4", features = ["stream", "json"] }
-russh = { workspace = true }
-russh-keys = { workspace = true }
-async-trait = { workspace = true }
-bytes = { workspace = true }
-go-defer = { workspace = true }
-env_logger = "0.11.3"
-futures-util = "0.3.30"
-tokio-util = "0.7.11"
-git2 = "0.18.3"
-toml = "0.8.12"
-
+resolver = "1"
 
 [workspace.dependencies]
 gateway = { path = "gateway" }
@@ -95,7 +52,3 @@ colored = "2.1.0"
 idgenerator = "2.0.0"
 num_cpus = "1.16.0"
 config = "0.14.0"
-
-
-[build-dependencies]
-shadow-rs = "0.27.1"
