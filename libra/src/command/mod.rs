@@ -18,6 +18,7 @@ use std::io::Write;
 use rpassword::read_password;
 use crate::utils::util;
 use mercury::{errors::GitError, hash::SHA1, internal::object::ObjectTrait};
+use crate::internal::protocol::https_client::BasicAuth;
 
 // impl load for all objects
 fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
@@ -41,7 +42,7 @@ where
 }
 
 /// Ask for username and password (CLI interaction)
-pub fn ask_username_password() -> (String, String) {
+fn ask_username_password() -> (String, String) {
     print!("username: ");
     // Normally your OS will buffer output by line when it's connected to a terminal,
     // which is why it usually flushes when a newline is written to stdout.
@@ -54,6 +55,12 @@ pub fn ask_username_password() -> (String, String) {
     io::stdout().flush().unwrap();
     let password = read_password().unwrap(); // hide password
     (username, password)
+}
+
+/// same as ask_username_password, but return BasicAuth
+pub fn ask_basic_auth() -> BasicAuth {
+    let (username, password) = ask_username_password();
+    BasicAuth { username, password}
 }
 
 #[cfg(test)]

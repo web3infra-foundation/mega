@@ -6,6 +6,8 @@ use ceres::protocol::ServiceType::UploadPack;
 use futures_util::{StreamExt, TryStreamExt};
 use mercury::errors::GitError;
 use std::io::Error as IoError;
+use reqwest::{Body, Response};
+use reqwest::header::CONTENT_TYPE;
 use tokio_util::bytes::BytesMut;
 use url::Url;
 
@@ -31,6 +33,13 @@ impl ProtocolClient for HttpsClient {
     }
 }
 
+/// simply authentication: `username` and `password`
+#[derive(Debug, Clone, PartialEq)]
+pub struct BasicAuth {
+    pub(crate) username: String,
+    pub(crate) password: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiscoveredReference {
     pub(crate) _hash: String,
@@ -51,7 +60,7 @@ impl HttpsClient {
     pub async fn discovery_reference(
         &self,
         service: ServiceType,
-        auth: Option<(String, String)>,
+        auth: Option<BasicAuth>,
     ) -> Result<Vec<DiscRef>, GitError> {
         let service: &str = &service.to_string();
         let url = self
@@ -60,7 +69,7 @@ impl HttpsClient {
             .unwrap();
         let mut request = self.client.get(url);
         if let Some(auth) = auth {
-            request = request.basic_auth(auth.0, Some(auth.1));
+            request = request.basic_auth(auth.username, Some(auth.password));
         }
         let res = request.send().await.unwrap();
         tracing::debug!("{:?}", res);
@@ -152,7 +161,7 @@ impl HttpsClient {
         &self,
         have: &Vec<String>,
         want: &Vec<String>,
-        auth: Option<(String, String)>,
+        auth: Option<BasicAuth>,
     ) -> Result<impl StreamExt<Item = Result<Bytes, IoError>>, IoError> {
         // POST $GIT_URL/git-upload-pack HTTP/1.0
         let url = self.url.join("git-upload-pack").unwrap();
@@ -165,7 +174,7 @@ impl HttpsClient {
             .header("Content-Type", "application/x-git-upload-pack-request")
             .body(body);
         if let Some(auth) = auth {
-            req = req.basic_auth(auth.0, Some(auth.1));
+            req = req.basic_auth(auth.username, Some(auth.password));
         }
         let res = req.send().await.unwrap();
         tracing::debug!("request: {:?}", res);
@@ -182,6 +191,20 @@ impl HttpsClient {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
 
         Ok(result)
+    }
+
+    pub async fn send_pack<T: Into<Body>>(&self, data: T, auth: Option<BasicAuth>) -> Result<Response, reqwest::Error>{
+        let mut request = self
+            .client
+            .post(self.url.join("git-receive-pack").unwrap())
+            .header(CONTENT_TYPE, "application/x-git-receive-pack-request")
+            .body(data);
+
+        if let Some(auth) = auth {
+            request = request.basic_auth(auth.username, Some(auth.password));
+        }
+
+        request.send().await
     }
 }
 
