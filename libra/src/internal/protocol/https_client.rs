@@ -227,14 +227,11 @@ async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) ->
             add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
         }
     }
-    if !have.is_empty() {
-        buf.extend(b"0000"); // split pkt-lines with a flush-pkt
-    }
+    buf.extend(b"0000"); // split pkt-lines with a flush-pkt
     for h in have {
         add_pkt_line_string(&mut buf, format!("have {}\n", h).to_string());
     }
 
-    buf.extend(b"0000"); // split pkt-lines with a flush-pkt
     add_pkt_line_string(&mut buf, "done\n".to_string());
 
     buf.freeze()
@@ -270,7 +267,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_git_upload_pack_() {
-        // init_logger();
         init_debug_logger();
 
         let test_repo = "https://github.com/web3infra-foundation/mega/";
