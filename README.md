@@ -38,17 +38,18 @@ For now, we are developing on the macOS and Arch Linux. And quick start manuel i
 
 ![Mega Architect](docs/images/architect.svg)
 
-1. **Gateway** - The Gateway module is responsible for handling `git`, `git-lfs` and web UI requests through the HTTP and SSH protocol. More information on the [Gateway](gateway/README.md).
-2. **Libra** - The Libra is a `git` program that rewrite in Rust. More information on the [Libra](libra/README.md).
-3. **Craft** - The Craft is `git` filters include `git-lfs` and `encrypt`/`decrypt` filer. More information on the [Craft](craft/README.md).
-4. **Gemini** - The Gemini is a decentralized module of Mega. More information on the [Gemini](gemini/README.md).
-5. **Scorpio** - The Scorpio is a FUSE filesystem that allow you to mount a Mega repository as a local filesystem. More information on the [Scorpio](scorpio/README.md).
-6. **Mercury** - The Mercury module is the core module of Mega, which rewrites Git internal object like Blob, Tree, etc. More information on the [Mercury Module](mercury/README.md).
-7. **Ceres** - The Ceres implement translate protocol for Mega. More information on the [Ceres](ceres/README.md).
-8. **Jupiter** - The Jupiter is storage engine for Mega. More information on the [Jupiter](jupiter/README.md).
-9. **Venus** - The Venus is a monorepo engine for Mega. More information on the [Venus](venus/README.md).
-10. **Moon** - The Moon is a web UI for Mega. More information on the [Moon](moon/README.md).
-11. **Mars** - The Mars is website for Mega. More information on the [Mars](mars/README.md).
+1. **mega** - The main entry of Mega.
+2. **gateway** - The Gateway module is responsible for handling `git`, `git-lfs` and web UI requests through the HTTP and SSH protocol. More information on the [Gateway](gateway/README.md).
+3. **libra** - The Libra is a `git` program that rewrite in Rust. More information on the [Libra](libra/README.md).
+4. **craft** - The Craft is `git` filters include `git-lfs` and `encrypt`/`decrypt` filer. More information on the [Craft](craft/README.md).
+5. **gemini** - The Gemini is a decentralized module of Mega. More information on the [Gemini](gemini/README.md).
+6. **scorpio** - The Scorpio is a FUSE filesystem that allow you to mount a Mega repository as a local filesystem. More information on the [Scorpio](scorpio/README.md).
+7. **mercury** - The Mercury module is the core module of Mega, which rewrites Git internal object like Blob, Tree, etc. More information on the [Mercury Module](mercury/README.md).
+8. **ceres** - The Ceres implement translate protocol for Mega. More information on the [Ceres](ceres/README.md).
+9. **jupiter** - The Jupiter is storage engine for Mega. More information on the [Jupiter](jupiter/README.md).
+10. **venus** - The Venus is a monorepo engine for Mega. More information on the [Venus](venus/README.md).
+11. **moon** - The Moon is a web UI for Mega. More information on the [Moon](moon/README.md).
+12. **mars** - The Mars is website for Mega. More information on the [Mars](mars/README.md).
 
 
 
