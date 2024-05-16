@@ -2,16 +2,17 @@
 name = "mega"
 version = "0.1.0"
 edition = "2021"
+keywords = ["git", "monorepo", "decentralized"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 
 [workspace]
 members = [
     ".",
     "gateway",
     "common",
-    "mercury/delta",
     "mercury",
     "jupiter",
-    "jupiter/callisto",
     "venus",
     "ceres",
     "libra",
@@ -24,10 +25,12 @@ name = "mega"
 path = "mega/src/main.rs"
 
 [dependencies]
-gateway = { path = "gateway" }
-common = { path = "common" }
-ceres = { path = "ceres" }
+gateway = { workspace = true }
+common = { workspace = true }
+ceres = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["macros"] }
+clap = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
@@ -36,9 +39,7 @@ tracing-appender = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true }
 smallvec = { workspace = true }
-tokio = { workspace = true, features = ["macros"] }
-clap = { workspace = true, features = ["derive"] }
-num_cpus = { workspace = true }
+config = { workspace = true }
 
 [dev-dependencies]
 reqwest = { version = "0.12.4", features = ["stream", "json"] }
@@ -56,6 +57,13 @@ dotenvy = { workspace = true }
 
 
 [workspace.dependencies]
+gateway = { path = "gateway" }
+common = { path = "common" }
+mercury = { path = "mercury" }
+jupiter = { path = "jupiter" }
+venus = { path = "venus" }
+ceres = { path = "ceres" }
+callisto = { path = "jupiter/callisto" }
 anyhow = "1.0.83"
 serde = "1.0.201"
 serde_json = "1.0.117"
@@ -89,6 +97,8 @@ bstr = "1.9.1"
 colored = "2.1.0"
 idgenerator = "2.0.0"
 num_cpus = "1.16.0"
+config = "0.14.0"
+
 
 [build-dependencies]
 shadow-rs = "0.27.1"
