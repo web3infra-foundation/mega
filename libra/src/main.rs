@@ -48,9 +48,10 @@ enum Commands {
     // todo: implement in the future
     #[command(about = "Update remote refs along with associated objects")]
     Push(command::push::PushArgs),
-
-    #[command(about = "Fetch from and integrate with another repository or a local branch")]
+    #[command(about = "Download objects and refs from another repository")]
     Fetch(command::fetch::FetchArgs),
+    #[command(about = "Fetch from and integrate with another repository or a local branch")]
+    Pull(command::pull::PullArgs),
 
     #[command(subcommand, about = "Manage set of tracked repositories")]
     Remote(command::remote::RemoteCmds),
@@ -99,6 +100,7 @@ async fn main() {
         Commands::IndexPack(args) => command::index_pack::execute(args),
         Commands::Fetch(args) => command::fetch::execute(args).await,
         Commands::Remote(cmd) => command::remote::execute(cmd).await,
+        Commands::Pull(args) => command::pull::execute(args).await,
     }
 }
 
