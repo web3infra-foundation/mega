@@ -20,6 +20,7 @@ pub fn parse() -> MegaResult {
     } else if env::current_dir().unwrap().join("./config.toml").exists() {
         Config::new("./config.toml").unwrap()
     } else {
+        eprintln!("can't find config.toml under {:?}, you can manually set config.toml path with --config parameter", env::current_dir().unwrap());
         Config::default()
     };
 
