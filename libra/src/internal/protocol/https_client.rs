@@ -223,7 +223,9 @@ async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) ->
             add_pkt_line_string(&mut buf, format!("want {}\n", w).to_string());
         }
     }
-    buf.extend(b"0000"); // split pkt-lines with a flush-pkt
+    if !have.is_empty() {
+        buf.extend(b"0000"); // split pkt-lines with a flush-pkt
+    }
     for h in have {
         add_pkt_line_string(&mut buf, format!("have {}\n", h).to_string());
     }
@@ -239,10 +241,8 @@ mod tests {
 
     use crate::utils::test::init_debug_logger;
     use crate::utils::test::init_logger;
-    use tokio::io::AsyncBufReadExt;
     use tokio::io::AsyncReadExt;
     use tokio::io::AsyncWriteExt;
-    use tokio_util::io::StreamReader;
 
     use super::*;
 
@@ -266,10 +266,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_git_upload_pack_() {
-        init_logger();
+        // init_logger();
+        init_debug_logger();
 
-        let test_repo = "https://gitee.com/caiqihang2024/image-viewer2.0.git/";
-
+        let test_repo = "https://github.com/web3infra-foundation/mega/";
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
         let refs = client.discovery_reference(UploadPack, None).await.unwrap();
         let refs: Vec<DiscoveredReference> = refs
@@ -277,32 +277,35 @@ mod tests {
             .filter(|r| r._ref.starts_with("refs/heads"))
             .cloned()
             .collect();
-        println!("{:?}", refs);
+        tracing::info!("refs: {:?}", refs);
 
         let want = refs.iter().map(|r| r._hash.clone()).collect();
-        let result_stream = client.fetch_objects(&vec![], &want, None).await.unwrap();
 
-        let mut reader = StreamReader::new(result_stream);
-        let mut line = String::new();
+        let mut have = vec![];
+        // have.push("2c5950b32564f13689b79e130dbfcedc82692f6f".to_string());
+        // have.push("527e6febccea3ed0ed7e5805a1fcf2efa0c779f1".to_string());
+        let mut result_stream = client.fetch_objects(&have, &want, None).await.unwrap();
 
-        reader.read_line(&mut line).await.unwrap();
-
-        reader.read_line(&mut line).await.unwrap();
-        tracing::info!("First line: {}", line);
-
-        let mut buffer = Vec::new();
-        loop {
-            let mut temp_buffer = [0; 1024];
-            let n = match reader.read(&mut temp_buffer).await {
-                Ok(0) => break, // EOF
-                Ok(n) => n,
-                Err(e) => panic!("error reading from socket; error = {:?}", e),
-            };
-
-            buffer.extend_from_slice(&temp_buffer[..n]);
+        let mut buffer = vec![];
+        while let Some(item) = result_stream.next().await {
+            let item = item.unwrap();
+            buffer.extend(item);
         }
-        tracing::info!("buffer len: {:?}", buffer.len());
-        assert!(!buffer.is_empty(), "buffer len is 0, fetch_objects failed");
+
+        // pase pkt line
+        if let Some(pack_pos) = buffer.windows(4).position(|w| w == b"PACK") {
+            tracing::info!("pack data found at: {}", pack_pos);
+            let readable_output = std::str::from_utf8(&buffer[..pack_pos]).unwrap();
+            tracing::debug!("stdout readable: \n{}", readable_output);
+            tracing::info!("pack length: {}", buffer.len() - pack_pos);
+            assert!(buffer[pack_pos..pack_pos + 4].eq(b"PACK"));
+        } else {
+            tracing::error!(
+                "no pack data found, stdout is {}",
+                std::str::from_utf8(&buffer).unwrap()
+            );
+            panic!("no pack data found");
+        }
     }
 
     #[tokio::test]
@@ -311,11 +314,12 @@ mod tests {
         if !std::path::Path::new("/usr/bin/git-upload-pack").exists() {
             return;
         }
-        init_debug_logger();
+        // init_debug_logger();
+        init_logger();
 
         let have = vec!["1c05d7f7dd70e38150bfd2d5fb8fb969e2eb9851".to_string()];
         // **want MUST change to one of the refs in the remote repo, such as `refs/heads/main` before running the test**
-        let want = vec!["363fd94c8b0abc7b6be8f9f44267a44da40044c0".to_string()];
+        let want = vec!["7ef152d43162e28b3177f6df380112f6412f5b42".to_string()];
         let body = generate_upload_pack_content(&have, &want).await;
         tracing::info!("upload-pack content: {:?}", body);
         let mut cmd = tokio::process::Command::new("/usr/bin/git-upload-pack");
@@ -337,12 +341,32 @@ mod tests {
         output.read_to_string(&mut stderr).await.unwrap();
         tracing::info!("stderr: {}", stderr);
         assert!(!stderr.contains("protocol error"), "{}", stderr);
-        assert!(!stderr.contains("not our refs"), "{}", stderr);
+        if stderr.contains("not our ref") {
+            tracing::error!(
+                "not our ref, please change the `want` to one of the refs in the target repo"
+            );
+            panic!();
+        }
 
         let mut output = child.stdout.take().unwrap();
         let mut stdout = vec![];
         output.read_to_end(&mut stdout).await.unwrap();
         assert!(stdout.len() > 100, "stdout is empty");
         tracing::info!("stdout len: {}", stdout.len());
+
+        if let Some(pack_pos) = stdout.windows(4).position(|w| w == b"PACK") {
+            tracing::info!("pack data found at: {}", pack_pos);
+            let readable_output = std::str::from_utf8(&stdout[..pack_pos]).unwrap();
+            tracing::debug!("stdout readable: \n{}", readable_output);
+            tracing::info!("pack length: {}", stdout.len() - pack_pos);
+            // assert!(stdout[..4].eq(b"PACK"));
+            assert!(stdout[pack_pos..pack_pos + 4].eq(b"PACK"));
+        } else {
+            tracing::error!(
+                "no pack data found, stdout is {}",
+                std::str::from_utf8(&stdout).unwrap()
+            );
+            panic!("no pack data found");
+        }
     }
 }
