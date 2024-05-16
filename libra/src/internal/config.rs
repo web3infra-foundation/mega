@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::mem::swap;
 
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
@@ -12,6 +13,12 @@ pub struct Config;
 pub struct RemoteConfig {
     pub name: String,
     pub url: String,
+}
+
+pub struct BranchConfig {
+    pub name: String,
+    pub merge: String,
+    pub remote: String,
 }
 
 impl Config {
@@ -96,5 +103,44 @@ impl Config {
             name: r.name.unwrap(),
             url: r.value,
         })
+    }
+
+    pub async fn branch_config(name: &str) -> Option<BranchConfig> {
+        let db = get_db_conn_instance().await;
+        let config_entries = config::Entity::find()
+            .filter(config::Column::Configuration.eq("branch"))
+            .filter(config::Column::Name.eq(name))
+            .all(db)
+            .await
+            .unwrap();
+        if config_entries.is_empty() {
+            None
+        } else {
+            assert!(config_entries.len() == 2);
+            // if branch_config[0].key == "merge" {
+            //     Some(BranchConfig {
+            //         name: name.to_owned(),
+            //         merge: branch_config[0].value.clone(),
+            //         remote: branch_config[1].value.clone(),
+            //     })
+            // } else {
+            //     Some(BranchConfig {
+            //         name: name.to_owned(),
+            //         merge: branch_config[1].value.clone(),
+            //         remote: branch_config[0].value.clone(),
+            //     })
+            // }
+            let mut branch_config = BranchConfig {
+                name: name.to_owned(),
+                merge: config_entries[0].value.clone(),
+                remote: config_entries[1].value.clone(),
+            };
+            if config_entries[0].key == "remote" {
+                swap(&mut branch_config.merge, &mut branch_config.remote);
+            }
+            branch_config.merge = branch_config.merge[11..].into(); // cut refs/heads/
+
+            Some(branch_config)
+        }
     }
 }
