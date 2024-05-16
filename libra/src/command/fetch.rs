@@ -2,15 +2,14 @@ use std::{collections::HashSet, fs, io::Write, str::FromStr};
 
 use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
+use futures::StreamExt;
+use mercury::internal::object::commit::Commit;
 use mercury::{errors::GitError, hash::SHA1};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt};
-use tokio_util::io::StreamReader;
 use url::Url;
 
+use crate::command::{ask_basic_auth, load_object};
 use crate::{
-    command::{
-        index_pack::{self, IndexPackArgs},
-    },
+    command::index_pack::{self, IndexPackArgs},
     internal::{
         branch::Branch,
         config::{Config, RemoteConfig},
@@ -19,7 +18,6 @@ use crate::{
     },
     utils::{self, path_ext::PathExt},
 };
-use crate::command::ask_basic_auth;
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
@@ -90,34 +88,34 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         .collect();
     let have = current_have().await;
 
-    let result_stream = http_client
+    let mut result_stream = http_client
         .fetch_objects(&have, &want, auth.to_owned())
         .await
         .unwrap();
 
-    let mut reader = StreamReader::new(result_stream);
-    let mut line = String::new();
+    let mut buffer = vec![];
+    while let Some(item) = result_stream.next().await {
+        let item = item.unwrap();
+        buffer.extend(item);
+    }
 
-    reader.read_line(&mut line).await.unwrap();
-    tracing::info!("First line: {}", line);
-    assert_eq!(line, "0008NAK\n");
+    // pase pkt line
+    if let Some(pack_pos) = buffer.windows(4).position(|w| w == b"PACK") {
+        tracing::info!("pack data found at: {}", pack_pos);
+        let readable_output = std::str::from_utf8(&buffer[..pack_pos]).unwrap();
+        tracing::debug!("stdout readable: \n{}", readable_output);
+        tracing::info!("pack length: {}", buffer.len() - pack_pos);
+        assert!(buffer[pack_pos..pack_pos + 4].eq(b"PACK"));
+    } else {
+        tracing::error!(
+            "no pack data found, stdout is: \n{}",
+            std::str::from_utf8(&buffer).unwrap()
+        );
+        panic!("no pack data found");
+    }
 
     /* save pack file */
     let pack_file = {
-        // todo how to get total bytes & add progress bar
-        let mut buffer: Vec<u8> = Vec::new();
-        loop {
-            let mut temp_buffer = [0; 4096];
-            let n = match reader.read(&mut temp_buffer).await {
-                Ok(0) => break, // EOF
-                Ok(n) => n,
-                Err(e) => panic!("error reading from socket; error = {:?}", e),
-            };
-
-            buffer.extend_from_slice(&temp_buffer[..n]);
-        }
-
-        // todo parse PACK & validate checksum
         let hash = SHA1::new(&buffer[..buffer.len() - 20].to_vec());
 
         let checksum = SHA1::from_bytes(&buffer[buffer.len() - 20..]);
@@ -159,7 +157,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
             Head::update(Head::Branch(remote_head_name), Some(&remote_config.name)).await;
         }
         None => {
-            // TODO: didn't know how to handle this case
+            // TODO: can't be detached, but clone empty repo could be None
             tracing::error!("remote HEAD points to an unknown branch");
             let hash = SHA1::from_str(&remote_head._hash).unwrap();
             Head::update(Head::Detached(hash), Some(&remote_config.name)).await;
@@ -168,21 +166,52 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
 }
 
 async fn current_have() -> Vec<String> {
-    // TODO use stand method to generate have list
-    let mut have = HashSet::new();
-    let branchs = Branch::list_branches(None).await;
-    for branch in branchs {
-        have.insert(branch.commit.to_plain_str());
+    // TODO: didn't pass test yet
+    #[derive(PartialEq, Eq, PartialOrd, Ord)]
+    struct QueueItem {
+        priority: usize,
+        commit: SHA1,
     }
+    let mut c_pending = std::collections::BinaryHeap::new();
+    let mut inserted = HashSet::new();
+    let check_and_insert =
+        |commit: &Commit,
+         inserted: &mut HashSet<String>,
+         c_pending: &mut std::collections::BinaryHeap<QueueItem>| {
+            if inserted.contains(&commit.id.to_plain_str()) {
+                return;
+            }
+            inserted.insert(commit.id.to_plain_str());
+            c_pending.push(QueueItem {
+                priority: commit.committer.timestamp,
+                commit: commit.id,
+            });
+        };
+    let mut remotes = Config::all_remote_configs()
+        .await
+        .iter()
+        .map(|r| Some(r.name.to_owned()))
+        .collect::<Vec<_>>();
+    remotes.push(None);
 
-    for remote in Config::all_remote_configs().await {
-        let branchs = Branch::list_branches(Some(&remote.name)).await;
+    for remote in remotes {
+        let branchs = Branch::list_branches(remote.as_deref()).await;
         for branch in branchs {
-            have.insert(branch.commit.to_plain_str());
+            let commit: Commit = load_object(&branch.commit).unwrap();
+            check_and_insert(&commit, &mut inserted, &mut c_pending);
+        }
+    }
+    let mut have = Vec::new();
+    while have.len() < 32 && !c_pending.is_empty() {
+        let item = c_pending.pop().unwrap();
+        have.push(item.commit.to_plain_str());
+
+        let commit: Commit = load_object(&item.commit).unwrap();
+        for parent in commit.parent_commit_ids {
+            let parent: Commit = load_object(&parent).unwrap();
+            check_and_insert(&parent, &mut inserted, &mut c_pending);
         }
     }
 
-    have.iter().cloned().collect()
+    have
 }
-
-

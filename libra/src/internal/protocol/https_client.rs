@@ -5,9 +5,9 @@ use ceres::protocol::ServiceType;
 use ceres::protocol::ServiceType::UploadPack;
 use futures_util::{StreamExt, TryStreamExt};
 use mercury::errors::GitError;
-use std::io::Error as IoError;
-use reqwest::{Body, Response};
 use reqwest::header::CONTENT_TYPE;
+use reqwest::{Body, Response};
+use std::io::Error as IoError;
 use tokio_util::bytes::BytesMut;
 use url::Url;
 
@@ -193,7 +193,11 @@ impl HttpsClient {
         Ok(result)
     }
 
-    pub async fn send_pack<T: Into<Body>>(&self, data: T, auth: Option<BasicAuth>) -> Result<Response, reqwest::Error>{
+    pub async fn send_pack<T: Into<Body>>(
+        &self,
+        data: T,
+        auth: Option<BasicAuth>,
+    ) -> Result<Response, reqwest::Error> {
         let mut request = self
             .client
             .post(self.url.join("git-receive-pack").unwrap())
@@ -282,8 +286,7 @@ mod tests {
         let want = refs.iter().map(|r| r._hash.clone()).collect();
 
         let mut have = vec![];
-        // have.push("2c5950b32564f13689b79e130dbfcedc82692f6f".to_string());
-        // have.push("527e6febccea3ed0ed7e5805a1fcf2efa0c779f1".to_string());
+        have.push("81a162e7b725bbad2adfe01879fd57e0119406b9".to_string());
         let mut result_stream = client.fetch_objects(&have, &want, None).await.unwrap();
 
         let mut buffer = vec![];
@@ -301,7 +304,7 @@ mod tests {
             assert!(buffer[pack_pos..pack_pos + 4].eq(b"PACK"));
         } else {
             tracing::error!(
-                "no pack data found, stdout is {}",
+                "no pack data found, stdout is :\n{}",
                 std::str::from_utf8(&buffer).unwrap()
             );
             panic!("no pack data found");
@@ -363,7 +366,7 @@ mod tests {
             assert!(stdout[pack_pos..pack_pos + 4].eq(b"PACK"));
         } else {
             tracing::error!(
-                "no pack data found, stdout is {}",
+                "no pack data found, stdout is {}\n",
                 std::str::from_utf8(&stdout).unwrap()
             );
             panic!("no pack data found");
