@@ -70,11 +70,16 @@ pub fn init_debug_logger() {
             .with_max_level(tracing::Level::DEBUG)
             .finish(),
     )
-        .unwrap();
+    .unwrap();
 }
 
 pub fn init_logger() {
-    tracing_subscriber::fmt().init();
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .finish(),
+    )
+    .unwrap();
 }
 
 // pub fn ensure_files<T: AsRef<str>>(paths: &Vec<T>) {

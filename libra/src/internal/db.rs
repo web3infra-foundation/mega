@@ -1,7 +1,9 @@
 use crate::internal::model::*;
 use crate::utils::path;
-use sea_orm::{ConnectionTrait, DbConn, DbErr, Schema, Statement, TransactionError, TransactionTrait};
-use sea_orm::{Database, DatabaseConnection};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use sea_orm::{
+    ConnectionTrait, DbConn, DbErr, Schema, Statement, TransactionError, TransactionTrait,
+};
 use std::io;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
@@ -20,14 +22,14 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
         ));
     }
 
-    Database::connect(format!("sqlite://{}", db_path))
-        .await
-        .map_err(|err| {
-            IOError::new(
-                ErrorKind::Other,
-                format!("Database connection error: {:?}", err),
-            )
-        })
+    let mut option = ConnectOptions::new(format!("sqlite://{}", db_path));
+    option.sqlx_logging(false); // TODO use better option
+    Database::connect(option).await.map_err(|err| {
+        IOError::new(
+            ErrorKind::Other,
+            format!("Database connection error: {:?}", err),
+        )
+    })
 }
 
 static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
