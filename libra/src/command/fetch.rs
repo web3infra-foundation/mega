@@ -106,6 +106,8 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         tracing::debug!("stdout readable: \n{}", readable_output);
         tracing::info!("pack length: {}", buffer.len() - pack_pos);
         assert!(buffer[pack_pos..pack_pos + 4].eq(b"PACK"));
+
+        buffer = buffer[pack_pos..].to_vec();
     } else {
         tracing::error!(
             "no pack data found, stdout is: \n{}",
@@ -166,7 +168,6 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
 }
 
 async fn current_have() -> Vec<String> {
-    // TODO: didn't pass test yet
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
     struct QueueItem {
         priority: usize,
