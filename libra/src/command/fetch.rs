@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs, io::Write, str::FromStr};
+use std::{collections::HashSet, fs, io::Write};
 
 use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
@@ -80,6 +80,10 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         }
     }
     let refs = refs.unwrap();
+    if refs.is_empty() {
+        tracing::warn!("fetch empty, no refs found");
+        return;
+    }
 
     let want = refs
         .iter()
@@ -147,22 +151,25 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         let remote = Some(remote_config.name.as_str());
         Branch::update_branch(&branch_name, &reference._hash, remote).await;
     }
-    let remote_head = refs.iter().find(|r| r._ref == "HEAD").unwrap();
+    let remote_head = refs.iter().find(|r| r._ref == "HEAD");
+    match remote_head {
+        Some(remote_head) => {
+            let remote_head_name = refs
+                .iter()
+                .find(|r| r._ref.starts_with("refs/heads") && r._hash == remote_head._hash);
 
-    let remote_head_name = refs
-        .iter()
-        .find(|r| r._ref.starts_with("refs/heads") && r._hash == remote_head._hash);
-
-    match remote_head_name {
-        Some(remote_head_name) => {
-            let remote_head_name = remote_head_name._ref.replace("refs/heads/", "");
-            Head::update(Head::Branch(remote_head_name), Some(&remote_config.name)).await;
+            match remote_head_name {
+                Some(remote_head_name) => {
+                    let remote_head_name = remote_head_name._ref.replace("refs/heads/", "");
+                    Head::update(Head::Branch(remote_head_name), Some(&remote_config.name)).await;
+                }
+                None => {
+                    panic!("remote HEAD not found")
+                }
+            }
         }
         None => {
-            // TODO: can't be detached, but clone empty repo could be None
-            tracing::error!("remote HEAD points to an unknown branch");
-            let hash = SHA1::from_str(&remote_head._hash).unwrap();
-            Head::update(Head::Detached(hash), Some(&remote_config.name)).await;
+            tracing::warn!("fetch empty, remote HEAD not found");
         }
     }
 }

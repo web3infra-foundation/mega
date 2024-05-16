@@ -124,6 +124,9 @@ impl HttpsClient {
             let (hash, mut refs) = pkt_line.split_at(40); // hex SHA1 string is 40 bytes
             refs = refs.trim();
             if !read_first_line {
+                if hash == "0000000000000000000000000000000000000000" {
+                    break; // empty repo, return empty list
+                }
                 let (head, caps) = refs.split_once('\0').unwrap();
                 if service == UploadPack.to_string() {
                     // for git-upload-pack, the first line is HEAD
