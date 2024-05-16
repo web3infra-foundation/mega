@@ -6,32 +6,33 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mercury = { path = "../mercury" }
-ceres = { path = "../ceres" }
+mercury = { workspace = true }
+ceres = { workspace = true }
 sea-orm = { workspace = true, features = [
     "sqlx-sqlite",
     "runtime-tokio-rustls",
     "macros",
 ] }
 tokio = { workspace = true, features = ["rt-multi-thread", "rt", "macros"] }
-sha1 = { workspace = true }
-byteorder = "1.5.0"
 clap = { workspace = true, features = ["derive"] }
-color-backtrace = "0.6.1"
-colored = "2.1.0"
-chrono.workspace = true
-path_abs = "0.5.1"
-pathdiff = "0.2.1"
 flate2 = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber ={ workspace = true }
-url = "2.5.0"
+sha1 = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
 reqwest = { version = "0.12.4", features = ["stream"] }
-tokio-util = { version = "0.7.10", features = ["io"] }
+tokio-util = { version = "0.7.11", features = ["io"] }
+color-backtrace = "0.6.1"
+colored = "2.1.0"
+byteorder = "1.5.0"
+path_abs = "0.5.1"
+pathdiff = "0.2.1"
+url = "2.5.0"
 futures-util = "0.3.30"
-bytes.workspace = true
 rpassword = "7.3.1"
-futures.workspace = true
+
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
