@@ -28,20 +28,31 @@ impl Config {
         config.save(db).await.unwrap();
     }
 
-    async fn query(configuration: &str, name: Option<&str>, key: &str) -> Option<Model> {
+    async fn query(configuration: &str, name: Option<&str>, key: &str) -> Vec<Model> {
         let db = get_db_conn_instance().await;
         config::Entity::find()
             .filter(config::Column::Configuration.eq(configuration))
             .filter(config::Column::Name.eq(name))
             .filter(config::Column::Key.eq(key))
-            .one(db)
+            .all(db)
             .await
             .unwrap()
     }
 
+    /// Get one configuration value
     pub async fn get(configuration: &str, name: Option<&str>, key: &str) -> Option<String> {
-        let config = Self::query(configuration, name, key).await;
-        config.map(|c| c.value)
+        let values = Self::query(configuration, name, key).await;
+        values.first().map(|c| c.value.to_owned())
+    }
+
+    /// Get all configuration values
+    /// - e.g. remote.origin.url can be multiple
+    pub async fn get_all(configuration: &str, name: Option<&str>, key: &str) -> Vec<String> {
+        Self::query(configuration, name, key)
+            .await
+            .iter()
+            .map(|c| c.value.to_owned())
+            .collect()
     }
 
     pub async fn all_remote_configs() -> Vec<RemoteConfig> {

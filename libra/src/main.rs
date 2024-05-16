@@ -52,6 +52,9 @@ enum Commands {
     #[command(about = "Fetch from and integrate with another repository or a local branch")]
     Fetch(command::fetch::FetchArgs),
 
+    #[command(subcommand, about = "Manage set of tracked repositories")]
+    Remote(command::remote::RemoteCmds),
+
     // other hidden commands
     #[command(
         about = "Build pack index file for an existing packed archive",
@@ -95,6 +98,7 @@ async fn main() {
         Commands::Push(args) => command::push::execute(args).await,
         Commands::IndexPack(args) => command::index_pack::execute(args),
         Commands::Fetch(args) => command::fetch::execute(args).await,
+        Commands::Remote(cmd) => command::remote::execute(cmd).await,
     }
 }
 
