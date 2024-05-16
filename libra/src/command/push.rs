@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::str::FromStr;
 use std::sync::mpsc;
 use bytes::BytesMut;
@@ -22,7 +22,7 @@ use crate::internal::protocol::ProtocolClient;
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 
 #[derive(Parser, Debug)]
-pub struct PushArgs {
+pub struct PushArgs { // TODO --force
     /// repository, e.g. origin
     repository: Option<String>,
     /// ref to push, e.g. master
@@ -86,7 +86,7 @@ pub async fn execute(args: PushArgs) {
     data.extend_from_slice(b"0000");
     println!("{:?}", data);
 
-    let objs = objs_between_commits(
+    let objs = objs_between_refs(
         SHA1::from_str(&commit_hash).unwrap(),
         SHA1::from_str(&remote_hash).unwrap()
     );
@@ -126,64 +126,76 @@ pub async fn execute(args: PushArgs) {
     println!("Push success");
 }
 
-/// return commit paths from old_commit to new_commit
-fn find_commit_paths(old_commit: &SHA1, new_commit: &SHA1) -> Vec<SHA1> {
-    let mut child = HashMap::new();
-    let mut visited = HashSet::new();
-    let mut queue = VecDeque::new();
-    queue.push_back(*new_commit);
-    visited.insert(*new_commit);
+/// collect all commits from `commit_id` to root commit
+fn collect_history_commits(commit_id: &SHA1) -> HashSet<SHA1> {
+    if commit_id == &SHA1::default() { // 0000...0000 means not exist
+        return HashSet::new();
+    }
 
-    let mut last_commit = new_commit.clone();
+    let mut commits = HashSet::new();
+    let mut queue = VecDeque::new();
+    queue.push_back(*commit_id);
     while let Some(commit) = queue.pop_front() {
-        last_commit = commit.clone();
-        if commit == *old_commit {
-            break;
-        }
+        commits.insert(commit);
 
         let commit = Commit::load(&commit);
         for parent in commit.parent_commit_ids.iter() {
-            if !visited.contains(parent) {
-                child.insert(*parent, commit.id);
-                queue.push_back(*parent);
-                visited.insert(*parent);
+            queue.push_back(*parent);
+        }
+    }
+    commits
+}
+
+fn objs_between_refs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
+    // just fast-forward optimization
+    if remote_ref != SHA1::default() { // remote exists
+        let mut commit = Commit::load(&local_ref);
+        let mut commits = Vec::new();
+        let mut ok = true;
+        loop {
+            commits.push(commit.id);
+            if commit.id == remote_ref {
+                break;
             }
+            if commit.parent_commit_ids.len() != 1 { // merge commit or root commit
+                ok = false;
+                break;
+            }
+            // update commit to it's only parent
+            commit = Commit::load(&commit.parent_commit_ids[0]);
+        }
+        if ok { // fast-forward
+            let mut objs = HashSet::new();
+            commits.reverse(); // from old to new
+            for i in 0..commits.len() - 1 {
+                let old_tree = Commit::load(&commits[i]).tree_id;
+                let new_commit = Commit::load(&commits[i + 1]);
+                objs.extend(diff_tree_objs(Some(&old_tree), &new_commit.tree_id));
+                objs.insert(new_commit.into());
+            }
+            return objs;
         }
     }
 
-    // found old_commit or got root commit(assume there is only one root commit)
-    assert!(last_commit == *old_commit || Commit::load(&last_commit).parent_commit_ids.is_empty());
 
-    let mut paths = Vec::new();
-    let mut commit = last_commit;
-    while commit != *new_commit {
-        paths.push(commit);
-        commit = child[&commit];
-    }
-    assert_eq!(commit, *new_commit);
-    paths.push(commit);
-
-    paths
-}
-
-fn objs_between_commits(local_commit: SHA1, remote_commit: SHA1) -> HashSet<Entry> {
     let mut objs = HashSet::new();
-    let commits = find_commit_paths(&remote_commit, &local_commit);
-    assert!(commits.len() > 0);
-    if commits[0] != remote_commit {
-        let root_commit = Commit::load(&commits[0]);
-        objs.extend(diff_tree_objs(None, &root_commit.tree_id));
-        objs.insert(root_commit.into());
+    let exist_commits = collect_history_commits(&remote_ref);
+    let mut queue = VecDeque::new();
+    if !exist_commits.contains(&local_ref) {
+        queue.push_back(local_ref);
     }
 
-    for i in 0..commits.len() - 1 {
-        let old_commit = commits[i];
-        let new_commit = commits[i + 1];
-        let old_tree = Commit::load(&old_commit).tree_id;
-        let new_commit = Commit::load(&new_commit);
-        objs.extend(diff_tree_objs(Some(&old_tree), &new_commit.tree_id));
-        objs.insert(new_commit.into());
+    while let Some(commit) = queue.pop_front() {
+        let commit = Commit::load(&commit);
+        for parent in commit.parent_commit_ids.iter() {
+            objs.extend(diff_tree_objs(Some(&parent), &commit.tree_id));
+            if !exist_commits.contains(parent) {
+                queue.push_back(*parent);
+            }
+        }
+        objs.insert(commit.into());
     }
+
     objs
 }
 
@@ -214,7 +226,7 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
         if !old_items.contains(&item.id) {
             match item.mode {
                 TreeItemMode::Tree => {
-                    objs.extend(diff_tree_objs(None, &item.id)); //TODO optimize
+                    objs.extend(diff_tree_objs(None, &item.id)); //TODO optimize, find same name tree
                 }
                 _ => {
                     let blob = Blob::load(&item.id);
