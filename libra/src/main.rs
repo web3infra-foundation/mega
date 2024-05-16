@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-
 mod command;
 mod internal;
 mod utils;
@@ -62,9 +61,8 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() { // TODO init tracing or will not output
+async fn main() {
     let args = Cli::parse();
-    // check repo existence, except for `init` and `clone`
     // TODO: try check repo before parsing
     if let Commands::Init = args.command {
     } else if let Commands::Clone(_) = args.command {
@@ -72,6 +70,15 @@ async fn main() { // TODO init tracing or will not output
         return;
     }
 
+    #[cfg(debug_assertions)]
+    {
+        tracing::subscriber::set_global_default(
+            tracing_subscriber::fmt()
+                .with_max_level(tracing::Level::DEBUG)
+                .finish(),
+        )
+        .unwrap();
+    }
     // parse the command and execute the corresponding function with it's args
     match args.command {
         Commands::Init => command::init::execute().await,
