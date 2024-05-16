@@ -99,7 +99,6 @@ async fn test_http() {
 #[tokio::test]
 #[ignore]
 async fn test_ssh() {
-    dotenvy::dotenv().ok();
     let init_config = P2pTestConfig {
         compose_path: "tests/compose/ssh/compose.yaml".to_string(),
         pack_path: "tests/data/packs/pack-f8bbb573cef7d851957caceb491c073ee8e8de41.pack"
