@@ -33,7 +33,6 @@ tokio = { workspace = true, features = ["macros"] }
 clap = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
-dotenvy = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
@@ -67,7 +66,6 @@ callisto = { path = "jupiter/callisto" }
 anyhow = "1.0.83"
 serde = "1.0.201"
 serde_json = "1.0.117"
-dotenvy = "0.15.7"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 tracing-appender = "0.2"
@@ -95,7 +93,9 @@ flate2 = "1.0.28"
 bstr = "1.9.1"
 colored = "2.1.0"
 idgenerator = "2.0.0"
+num_cpus = "1.16.0"
 config = "0.14.0"
+
 
 [build-dependencies]
 shadow-rs = "0.27.1"

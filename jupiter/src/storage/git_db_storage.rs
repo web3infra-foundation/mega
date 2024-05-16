@@ -1,6 +1,7 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use common::config::StorageConfig;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
     Set,
@@ -82,17 +83,12 @@ impl GitDbStorage {
         &self.connection
     }
 
-    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        let raw_obj_threshold = env::var("MEGA_BIG_OBJ_THRESHOLD_SIZE")
-            .expect("MEGA_BIG_OBJ_THRESHOLD_SIZE not configured")
-            .parse::<usize>()
-            .unwrap();
-        let storage_type = env::var("MEGA_RAW_STORAGE").unwrap();
-        let path = env::var("MEGA_OBJ_LOCAL_PATH").unwrap();
+    pub async fn new(connection: Arc<DatabaseConnection>, config: StorageConfig) -> Self {
         GitDbStorage {
             connection,
-            raw_storage: raw_storage::init(storage_type, path).await,
-            raw_obj_threshold,
+            raw_storage: raw_storage::init(config.raw_obj_storage_type, config.raw_obj_local_path)
+                .await,
+            raw_obj_threshold: config.big_obj_threshold,
         }
     }
 
