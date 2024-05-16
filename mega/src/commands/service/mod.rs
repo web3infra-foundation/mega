@@ -1,8 +1,6 @@
 use clap::{ArgMatches, Command};
 
-use common::errors::MegaResult;
-
-use crate::cli::Config;
+use common::{config::Config, errors::MegaResult};
 
 mod https;
 mod ssh;
@@ -16,7 +14,7 @@ pub fn cli() -> Command {
 }
 
 #[tokio::main]
-pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
+pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     let (cmd, subcommand_args) = match args.subcommand() {
         Some((cmd, args)) => (cmd, args),
         _ => {
@@ -25,9 +23,9 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
         }
     };
     match cmd {
-        "https" => https::exec(_config, subcommand_args).await,
-        "ssh" => ssh::exec(_config, subcommand_args).await,
-        "start" => start::exec(_config, subcommand_args).await,
+        "https" => https::exec(config, subcommand_args).await,
+        "ssh" => ssh::exec(config, subcommand_args).await,
+        "start" => start::exec(config, subcommand_args).await,
         _ => Ok(()),
     }
 }

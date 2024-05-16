@@ -3,8 +3,7 @@ mod service;
 
 use clap::{ArgMatches, Command};
 
-use crate::cli::Config;
-use common::errors::MegaResult;
+use common::{config::Config, errors::MegaResult};
 
 pub fn builtin() -> Vec<Command> {
     vec![service::cli(), init::cli()]

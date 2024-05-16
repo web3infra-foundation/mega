@@ -1,12 +1,10 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 
-use common::{errors::MegaResult, model::CommonOptions};
+use common::{config::Config, errors::MegaResult, model::CommonOptions};
 use gateway::{
     https_server::{self, HttpCustom, HttpOptions},
     ssh_server::{self, SshCustom, SshOptions},
 };
-
-use crate::cli::Config;
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum StartCommand {
@@ -38,7 +36,7 @@ pub fn cli() -> Command {
     )
 }
 
-pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
+pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     let server_matchers = StartOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();
@@ -47,6 +45,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
 
     let service_type = server_matchers.service;
 
+    let config_clone = config.clone();
     let http_server = if service_type.contains(&StartCommand::Http)
         || service_type.contains(&StartCommand::Https)
     {
@@ -54,7 +53,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
             common: server_matchers.common.clone(),
             custom: server_matchers.http,
         };
-        tokio::spawn(async move { https_server::start_server(&http).await })
+        tokio::spawn(async move { https_server::start_server(config_clone, &http).await })
     } else {
         tokio::task::spawn(async {})
     };
@@ -64,7 +63,7 @@ pub(crate) async fn exec(_config: Config, args: &ArgMatches) -> MegaResult {
             common: server_matchers.common.clone(),
             custom: server_matchers.ssh,
         };
-        tokio::spawn(async move { ssh_server::start_server(&ssh).await })
+        tokio::spawn(async move { ssh_server::start_server(config, &ssh).await })
     } else {
         tokio::task::spawn(async {})
     };

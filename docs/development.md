@@ -72,7 +72,7 @@
    $ brew services start redis
    ```
 
-5. Config environment variables for local test. For local testing, Mega uses the .env file to configure the required parameters. However, before starting the project, you also need to configure the environment variables such as `DB_USERNAME`, `DB_PASSWORD`, and `DB_HOST`.
+5. Update config file for local test. For local testing, Mega uses the `confile.toml` file to configure the required parameters.
 
    ```ini
     # Fillin the following environment variables with values you set
@@ -199,7 +199,7 @@
    $ sudo -u postgres psql mega < pg_20240205__init.sql
    ```
 
-   4. Craeate user and grant privileges.
+   4. Create user and grant privileges.
 
    ```sql
    $ sudo -u postgres psql postgres
@@ -221,54 +221,76 @@
    $ systemctl enable --now redis
    ```
 
-5. Config `.env`.
+5. Config `confile.toml`.
 
    ```ini
     # Fillin the following environment variables with values you set
 
-    ## Database Configuration
-    DB = "postgres" # {postgres}
-    DB_USERNAME = "mega"
-    DB_PASSWORD = "mega"
-    DB_HOST = "localhost"
+      ## Logging Configuration
+      [log]
+      # The path which log file is saved
+      log_path = "/tmp/.mega/logs"
 
-    MEGA_DB_POSTGRESQL_URL = "${DB}://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}/mega"
-    MEGA_DB_MAX_CONNECTIONS = 32
-    MEGA_DB_MIN_CONNECTIONS = 16
+      # log level
+      level = "debug"
 
-    MEGA_DB_SQLX_LOGGING = false # Whether to disabling SQLx Log
-    ## End Database Configuration
+      # print std log in console, disable it on production for performance
+      print_std = true
 
 
-    ## SSH/HTTPS Key Configruation
-    MEGA_SSH_KEY = "/tmp/.mega/ssh"
-    MEGA_HTTPS_PUBLIC_KEY = ""
-    MEGA_HTTPS_PRIVATE_KEY = ""
-    ## End SSH/HTTPS Key Configruation
+      [database]
+      # database connection url
+      db_url = "postgres://postgres:postgres@localhost:5432/mega"
 
-    ## File Storage Configuration
-    MEGA_RAW_STORAGE = "LOCAL" # LOCAL or REMOTE
+      # db max connection, setting it to twice the number of CPU cores would be appropriate.
+      max_connection = 32
 
-    ### This configuration is used to set the local path of the project storage
-    MEGA_OBJ_LOCAL_PATH = "/tmp/.mega/objects"
-    MEGA_LFS_OBJ_LOCAL_PATH = "/tmp/.mega/lfs"
+      # db min connection, setting it to the number of CPU cores would be appropriate.
+      min_connection = 16
 
-    ### This configuration is used to set the object storage service like S3
-    MEGA_OBS_ACCESS_KEY = ""
-    MEGA_OBS_SECRET_KEY = ""
-    MEGA_OBJ_REMOTE_REGION = "cn-east-3" # Remote cloud storage region
-    MEGA_OBJ_REMOTE_ENDPOINT = "https://obs.cn-east-3.myhuaweicloud.com" # Override the endpoint URL used for remote storage services
+      # Whether to disabling SQLx Log
+      sqlx_logging = false
 
-    ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database
-    MEGA_BIG_OBJ_THRESHOLD_SIZE = 1024 # Unit KB.
 
-    ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
-    MEGA_IMPORT_DIRS = "/third-part"
+      [ssh]
+      ssh_key_path = "/tmp/.mega/ssh"
 
-    ## Decode cache configuration
-    MEGA_PACK_DECODE_MEM_SIZE = 4 # Unit GB.
-    MEGA_PACK_DECODE_CACHE_PATH = "/tmp/.mega/cache"
-    CLEAN_CACHE_AFTER_DECODE = true
+      [storage]
+      # raw object stroage type, can be `local` or `remote`
+      raw_obj_storage_type = "LOCAL"
+
+      ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
+      big_obj_threshold = 1024
+
+      # set the local path of the project storage
+      raw_obj_local_path = "/tmp/.mega/objects"
+
+      lfs_obj_local_path = "/tmp/.mega/lfs"
+
+      obs_access_key = ""
+      obs_secret_key = ""
+
+      # cloud storage region
+      obs_region = "cn-east-3"
+
+      # Override the endpoint URL used for remote storage services
+      obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
+
+
+      [monorepo]
+      ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+      ## Mega treats files in that directory as import repo and other directories as monorepo
+      import_dir = "/third-part"
+
+
+      # The maximum memory used by decode, Unit is GB
+      pack_decode_mem_size = 4
+
+      # The location where the object stored when the memory used by decode exceeds the limit
+      pack_decode_cache_path = "/tmp/.mega/cache"
+
+      clean_cache_after_decode = true
+
 
    ```
 

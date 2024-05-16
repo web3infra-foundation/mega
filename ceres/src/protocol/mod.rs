@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{env, path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
 use callisto::db_enums::RefType;
 use common::{
@@ -146,7 +146,7 @@ impl SmartProtocol {
     }
 
     pub async fn pack_handler(&self) -> Box<dyn PackHandler> {
-        let import_dir = PathBuf::from(env::var("MEGA_IMPORT_DIRS").unwrap());
+        let import_dir = self.context.config.monorepo.import_dir.clone();
         if self.path.starts_with(import_dir.clone()) && self.path != import_dir {
             let storage = self.context.services.git_db_storage.clone();
 

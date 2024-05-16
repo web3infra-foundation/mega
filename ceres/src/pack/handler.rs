@@ -1,8 +1,6 @@
 use std::{
     collections::HashSet,
-    env,
     io::Cursor,
-    path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc::{self, Receiver, Sender},
@@ -13,7 +11,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use callisto::raw_blob;
-use common::{errors::MegaError, utils::ZERO_ID};
+use common::{config::MonoConfig, errors::MegaError, utils::ZERO_ID};
 use mercury::internal::pack::Pack;
 use mercury::{
     errors::GitError,
@@ -135,7 +133,7 @@ pub trait PackHandler: Send + Sync {
 
     async fn check_default_branch(&self) -> bool;
 
-    fn pack_decoder(&self, pack_file: Bytes) -> Result<Receiver<Entry>, GitError> {
+    fn pack_decoder(&self, mono_config: &MonoConfig, pack_file: Bytes) -> Result<Receiver<Entry>, GitError> {
         // #[cfg(debug_assertions)]
         // {
         //     let datetime = chrono::Utc::now().naive_utc();
@@ -143,23 +141,12 @@ pub trait PackHandler: Send + Sync {
         //     let mut output = std::fs::File::create(path).unwrap();
         //     output.write_all(&pack_file).unwrap();
         // }
-
-        let cache_size: usize = env::var("MEGA_PACK_DECODE_MEM_SIZE")
-            .unwrap()
-            .parse::<usize>()
-            .unwrap();
-
         let (sender, receiver) = mpsc::channel();
-        let tmp = PathBuf::from(env::var("MEGA_PACK_DECODE_CACHE_PATH").unwrap());
-        let clean_tmp: bool = env::var("CLEAN_CACHE_AFTER_DECODE")
-            .unwrap()
-            .parse::<bool>()
-            .unwrap();
         let p = Pack::new(
             None,
-            Some(1024 * 1024 * 1024 * cache_size),
-            Some(tmp.clone()),
-            clean_tmp,
+            Some(1024 * 1024 * 1024 * mono_config.pack_decode_mem_size),
+            Some(mono_config.pack_decode_cache_path.clone()),
+            mono_config.clean_cache_after_decode,
         );
         p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
         Ok(receiver)

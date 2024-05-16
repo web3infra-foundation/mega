@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
     extract::{Query, State},
@@ -8,13 +8,16 @@ use axum::{
     Json, Router,
 };
 
-use jupiter::storage::{git_db_storage::GitDbStorage, mega_storage::MegaStorage};
+use jupiter::context::Context;
 use venus::{
-    monorepo::mr::{MergeOperation, MergeResult},
     import_repo::repo::Repo,
+    monorepo::mr::{MergeOperation, MergeResult},
 };
 
-use crate::{api_service::import_service::ImportRepoService, model::{create_file::CreateFileInfo, query::CodePreviewQuery}};
+use crate::{
+    api_service::import_service::ImportRepoService,
+    model::{create_file::CreateFileInfo, query::CodePreviewQuery},
+};
 use crate::{
     api_service::mono_service::MonorepoService,
     model::objects::{BlobObjects, LatestCommitInfo, TreeCommitInfo},
@@ -23,21 +26,24 @@ use crate::{api_service::ApiHandler, model::objects::TreeBriefInfo};
 
 #[derive(Clone)]
 pub struct ApiServiceState {
-    pub mega_storage: Arc<MegaStorage>,
-    pub git_db_storage: Arc<GitDbStorage>,
+    // pub mega_storage: Arc<MegaStorage>,
+    // pub git_db_storage: Arc<GitDbStorage>,
+    pub context: Context,
 }
 
 impl ApiServiceState {
     pub fn monorepo(&self) -> MonorepoService {
         MonorepoService {
-            storage: self.mega_storage.clone(),
+            storage: self.context.services.mega_storage.clone(),
         }
     }
 
     pub async fn api_handler(&self, path: PathBuf) -> Box<dyn ApiHandler> {
-        let import_dir = PathBuf::from(env::var("MEGA_IMPORT_DIRS").unwrap());
-        if path.starts_with(import_dir.clone()) && path != import_dir {
+        let import_dir = self.context.config.monorepo.import_dir.clone();
+        if path.starts_with(&import_dir) && path != import_dir {
             let repo: Repo = self
+                .context
+                .services
                 .git_db_storage
                 .find_git_repo(path.to_str().unwrap())
                 .await
@@ -46,12 +52,12 @@ impl ApiServiceState {
                 .into();
 
             Box::new(ImportRepoService {
-                storage: self.git_db_storage.clone(),
+                storage: self.context.services.git_db_storage.clone(),
                 repo,
             })
         } else {
             Box::new(MonorepoService {
-                storage: self.mega_storage.clone(),
+                storage: self.context.services.mega_storage.clone(),
             })
         }
     }
@@ -139,7 +145,8 @@ async fn get_latest_commit(
     state: State<ApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, (StatusCode, String)> {
     let res = state
-        .api_handler(query.path.clone().into()).await
+        .api_handler(query.path.clone().into())
+        .await
         .get_latest_commit(query.path.into())
         .await
         .unwrap();
@@ -151,7 +158,8 @@ async fn get_tree_info(
     state: State<ApiServiceState>,
 ) -> Result<Json<TreeBriefInfo>, (StatusCode, String)> {
     let res = state
-        .api_handler(query.path.clone().into()).await
+        .api_handler(query.path.clone().into())
+        .await
         .get_tree_info(query.path.into())
         .await
         .unwrap();
@@ -163,7 +171,8 @@ async fn get_tree_commit_info(
     state: State<ApiServiceState>,
 ) -> Result<Json<TreeCommitInfo>, (StatusCode, String)> {
     let res = state
-        .api_handler(query.path.clone().into()).await
+        .api_handler(query.path.clone().into())
+        .await
         .get_tree_commit_info(query.path.into())
         .await
         .unwrap();
