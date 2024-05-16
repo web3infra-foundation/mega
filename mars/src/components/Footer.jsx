@@ -71,7 +71,7 @@ export function Footer() {
           {/*  </Button>*/}
           {/*</form>*/}
           <p className="mt-6 text-sm text-gray-500 md:mt-0">
-            &copy; Copyright 2013 - {new Date().getFullYear()}. Web3 Infrastructure Foundation all rights reserved.
+            &copy; Copyright 2023 - {new Date().getFullYear()}. Web3 Infrastructure Foundation all rights reserved.
           </p>
         </div>
       </Container>
