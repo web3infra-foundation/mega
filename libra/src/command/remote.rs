@@ -1,5 +1,5 @@
-use clap::Subcommand;
 use crate::internal::config::Config;
+use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum RemoteCmds {
@@ -28,7 +28,9 @@ pub async fn execute(command: RemoteCmds) {
             Config::insert("remote", Some(&name), "url", &url).await;
         }
         RemoteCmds::Remove { name } => {
-            println!("todo..."); // TODO
+            if let Err(e) = Config::remove_remote(&name).await {
+                eprintln!("{}", e);
+            }
         }
         RemoteCmds::List => {
             let remotes = Config::all_remote_configs().await;

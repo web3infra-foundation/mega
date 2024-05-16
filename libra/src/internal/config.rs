@@ -8,6 +8,8 @@ use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::config;
 use crate::internal::model::config::Model;
 
+use super::model::config::ActiveModel;
+
 pub struct Config;
 
 pub struct RemoteConfig {
@@ -60,6 +62,24 @@ impl Config {
             .iter()
             .map(|c| c.value.to_owned())
             .collect()
+    }
+
+    pub async fn remove_remote(name: &str) -> Result<(), String> {
+        let db = get_db_conn_instance().await;
+        let remote = config::Entity::find()
+            .filter(config::Column::Configuration.eq("remote"))
+            .filter(config::Column::Name.eq(name))
+            .all(db)
+            .await
+            .unwrap();
+        if remote.is_empty() {
+            return Err(format!("fatal: No such remote: {}", name));
+        }
+        for r in remote {
+            let r: ActiveModel = r.into();
+            r.delete(db).await.unwrap();
+        }
+        Ok(())
     }
 
     pub async fn all_remote_configs() -> Vec<RemoteConfig> {
