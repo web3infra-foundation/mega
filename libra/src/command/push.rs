@@ -40,11 +40,21 @@ pub async fn execute(args: PushArgs) {
         Some(repo) => repo,
         None => {
             // e.g. [branch "master"].remote = origin
-            Config::get("branch", Some(&branch), "remote").await.unwrap()
+            let remote = Config::get("branch", Some(&branch), "remote").await;
+            if let Some(remote) = remote {
+                remote
+            } else {
+                eprintln!("fatal: no remote configured for branch '{}'", branch);
+                return;
+            }
         }
     };
-    let repo_url = Config::get("remote", Some(&repository), "url").await
-        .unwrap_or("https://gitee.com/caiqihang2024/test-git-remote-2.git".to_string()); // TODO remote command
+    let repo_url = Config::get("remote", Some(&repository), "url").await;
+    if repo_url.is_none() {
+        eprintln!("fatal: remote '{}' not found, please use 'libra remote add'", repository);
+        return;
+    }
+    let repo_url = repo_url.unwrap();
 
     let branch = args.refspec.unwrap_or(branch);
     let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_plain_str();
@@ -86,7 +96,8 @@ pub async fn execute(args: PushArgs) {
     data.extend_from_slice(b"0000");
     println!("{:?}", data);
 
-    let objs = objs_between_refs(
+    // TODO 考虑remote有多个refs，可以少发一点commits
+    let objs = incremental_objs(
         SHA1::from_str(&commit_hash).unwrap(),
         SHA1::from_str(&remote_hash).unwrap()
     );
@@ -146,7 +157,7 @@ fn collect_history_commits(commit_id: &SHA1) -> HashSet<SHA1> {
     commits
 }
 
-fn objs_between_refs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
+fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
     // just fast-forward optimization
     if remote_ref != SHA1::default() { // remote exists
         let mut commit = Commit::load(&local_ref);

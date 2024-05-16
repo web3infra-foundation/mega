@@ -12,6 +12,7 @@ pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
+pub mod remote;
 
 use std::io;
 use std::io::Write;
