@@ -14,7 +14,6 @@ use crate::commands::{builtin, builtin_exec};
 
 pub fn parse() -> MegaResult {
     let matches = cli().try_get_matches().unwrap_or_else(|e| e.exit());
-    // let mut config = Config::default();
 
     let config = if let Some(c) = matches.get_one::<String>("config").cloned() {
         Config::new(c.as_str()).unwrap()
@@ -39,11 +38,11 @@ pub fn parse() -> MegaResult {
 
 fn init_log(config: &LogConfig) {
     let log_level = match config.level.as_str() {
-        "TRACE" => tracing::Level::TRACE,
-        "DEBUG" => tracing::Level::DEBUG,
-        "INFO" => tracing::Level::INFO,
-        "WARN" => tracing::Level::WARN,
-        "ERROR" => tracing::Level::ERROR,
+        "trace" => tracing::Level::TRACE,
+        "debug" => tracing::Level::DEBUG,
+        "info" => tracing::Level::INFO,
+        "warn" => tracing::Level::WARN,
+        "error" => tracing::Level::ERROR,
         _ => tracing::Level::INFO,
     };
 
