@@ -9,7 +9,7 @@ mod start;
 pub fn cli() -> Command {
     let subcommands = vec![https::cli(), ssh::cli(), start::cli()];
     Command::new("service")
-        .about("Start different kinds of server: for example https, ssh, p2p")
+        .about("Start different kinds of server: for example https or ssh")
         .subcommands(subcommands)
 }
 
@@ -25,7 +25,6 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     match cmd {
         "https" => https::exec(config, subcommand_args).await,
         "ssh" => ssh::exec(config, subcommand_args).await,
-        // "p2p" => p2p::exec(_config, subcommand_args).await,
         "start" => start::exec(config, subcommand_args).await,
         _ => Ok(()),
     }
