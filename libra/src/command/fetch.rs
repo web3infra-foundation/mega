@@ -9,7 +9,6 @@ use url::Url;
 
 use crate::{
     command::{
-        ask_username_password,
         index_pack::{self, IndexPackArgs},
     },
     internal::{
@@ -20,6 +19,7 @@ use crate::{
     },
     utils::{self, path_ext::PathExt},
 };
+use crate::command::ask_basic_auth;
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
@@ -72,9 +72,9 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
     let mut auth = None;
     while let Err(e) = refs {
         if let GitError::UnAuthorized(_) = e {
-            auth = Some(ask_username_password());
+            auth = Some(ask_basic_auth());
             refs = http_client
-                .discovery_reference(UploadPack, auth.to_owned())
+                .discovery_reference(UploadPack, auth.clone())
                 .await;
         } else {
             eprintln!("fatal: {}", e);
