@@ -1,4 +1,3 @@
-use std::env;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -21,6 +20,7 @@ use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
+use common::config::Config;
 use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
@@ -64,9 +64,9 @@ impl From<AppState> for LfsConfig {
             host: value.options.common.host,
             port: value.options.custom.http_port,
             context: value.context.clone(),
-            lfs_storage: Arc::new(LocalStorage::init(PathBuf::from(
-                env::var("MEGA_LFS_OBJ_LOCAL_PATH").unwrap(),
-            ))),
+            lfs_storage: Arc::new(LocalStorage::init(
+                value.context.config.storage.lfs_obj_local_path,
+            )),
             repo_name: String::from("repo_name"),
         }
     }
@@ -76,9 +76,9 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn start_server(options: &HttpOptions) {
+pub async fn start_server(config: Config, options: &HttpOptions) {
     let HttpOptions {
-        common: CommonOptions { host, data_source },
+        common: CommonOptions { host },
         custom:
             HttpCustom {
                 https_key_path: _,
@@ -91,12 +91,11 @@ pub async fn start_server(options: &HttpOptions) {
 
     let state = AppState {
         options: options.to_owned(),
-        context: Context::new(data_source).await,
+        context: Context::new(config.clone()).await,
     };
 
     let api_state = ApiServiceState {
-        mega_storage: state.context.services.mega_storage.clone(),
-        git_db_storage: state.context.services.git_db_storage.clone(),
+        context: Context::new(config).await,
     };
 
     // add RequestDecompressionLayer for handle gzip encode

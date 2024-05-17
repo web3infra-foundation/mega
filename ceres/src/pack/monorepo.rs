@@ -114,7 +114,9 @@ impl PackHandler for MonoRepo {
     }
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = self.pack_decoder(pack_file).unwrap();
+        let receiver = self
+            .pack_decoder(&self.context.config.monorepo, pack_file)
+            .unwrap();
 
         let storage = self.context.services.mega_storage.clone();
 

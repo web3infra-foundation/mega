@@ -119,10 +119,9 @@ pub trait RawStorage: Sync + Send {
     }
 }
 
-pub async fn init(storage_type: String, path: String) -> Arc<dyn RawStorage> {
+pub async fn init(storage_type: String, base_path: PathBuf) -> Arc<dyn RawStorage> {
     match storage_type.as_str() {
         "LOCAL" => {
-            let base_path = PathBuf::from(path);
             Arc::new(LocalStorage::init(base_path))
         }
         // "REMOTE" => Arc::new(RemoteStorage::init(path).await),
