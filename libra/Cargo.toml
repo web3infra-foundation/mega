@@ -17,7 +17,7 @@ sea-orm = { workspace = true, features = [
 ] }
 tokio = { workspace = true, features = ["rt-multi-thread", "rt", "macros"] }
 clap = { workspace = true, features = ["derive"] }
-flate2 = { workspace = true }
+flate2 = { workspace = true } # add features = ["zlib"] if slow
 tracing = { workspace = true }
 tracing-subscriber ={ workspace = true }
 sha1 = { workspace = true }
@@ -35,10 +35,9 @@ url = "2.5.0"
 futures-util = "0.3.30"
 rpassword = "7.3.1"
 
-
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros"] }
+tokio = { workspace = true, features = ["macros", "process"] }
 tracing-test = "0.2.4"

@@ -339,7 +339,7 @@ impl ClientStorage {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
+    use std::{env, fs};
     use std::path::PathBuf;
 
     use mercury::internal::object::blob::Blob;
@@ -415,6 +415,14 @@ mod tests {
         let compressed_data = ClientStorage::compress_zlib(data).unwrap();
         let decompressed_data = ClientStorage::decompress_zlib(&compressed_data).unwrap();
         assert_eq!(decompressed_data, data);
+    }
+
+    #[test]
+    fn test_decompress_2() {
+        let pack_file = "../tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa";
+        let pack_content = fs::read(pack_file).unwrap();
+        let decompressed_data = ClientStorage::decompress_zlib(&pack_content).unwrap();
+        println!("{:?}", String::from_utf8(decompressed_data).unwrap());
     }
 
     #[test]

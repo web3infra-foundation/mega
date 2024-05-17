@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::mem::swap;
 
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
@@ -7,11 +8,19 @@ use crate::internal::db::get_db_conn_instance;
 use crate::internal::model::config;
 use crate::internal::model::config::Model;
 
+use super::model::config::ActiveModel;
+
 pub struct Config;
 
 pub struct RemoteConfig {
     pub name: String,
     pub url: String,
+}
+
+pub struct BranchConfig {
+    pub name: String,
+    pub merge: String,
+    pub remote: String,
 }
 
 impl Config {
@@ -28,20 +37,49 @@ impl Config {
         config.save(db).await.unwrap();
     }
 
-    async fn query(configuration: &str, name: Option<&str>, key: &str) -> Option<Model> {
+    async fn query(configuration: &str, name: Option<&str>, key: &str) -> Vec<Model> {
         let db = get_db_conn_instance().await;
         config::Entity::find()
             .filter(config::Column::Configuration.eq(configuration))
             .filter(config::Column::Name.eq(name))
             .filter(config::Column::Key.eq(key))
-            .one(db)
+            .all(db)
             .await
             .unwrap()
     }
 
+    /// Get one configuration value
     pub async fn get(configuration: &str, name: Option<&str>, key: &str) -> Option<String> {
-        let config = Self::query(configuration, name, key).await;
-        config.map(|c| c.value)
+        let values = Self::query(configuration, name, key).await;
+        values.first().map(|c| c.value.to_owned())
+    }
+
+    /// Get all configuration values
+    /// - e.g. remote.origin.url can be multiple
+    pub async fn get_all(configuration: &str, name: Option<&str>, key: &str) -> Vec<String> {
+        Self::query(configuration, name, key)
+            .await
+            .iter()
+            .map(|c| c.value.to_owned())
+            .collect()
+    }
+
+    pub async fn remove_remote(name: &str) -> Result<(), String> {
+        let db = get_db_conn_instance().await;
+        let remote = config::Entity::find()
+            .filter(config::Column::Configuration.eq("remote"))
+            .filter(config::Column::Name.eq(name))
+            .all(db)
+            .await
+            .unwrap();
+        if remote.is_empty() {
+            return Err(format!("fatal: No such remote: {}", name));
+        }
+        for r in remote {
+            let r: ActiveModel = r.into();
+            r.delete(db).await.unwrap();
+        }
+        Ok(())
     }
 
     pub async fn all_remote_configs() -> Vec<RemoteConfig> {
@@ -85,5 +123,44 @@ impl Config {
             name: r.name.unwrap(),
             url: r.value,
         })
+    }
+
+    pub async fn branch_config(name: &str) -> Option<BranchConfig> {
+        let db = get_db_conn_instance().await;
+        let config_entries = config::Entity::find()
+            .filter(config::Column::Configuration.eq("branch"))
+            .filter(config::Column::Name.eq(name))
+            .all(db)
+            .await
+            .unwrap();
+        if config_entries.is_empty() {
+            None
+        } else {
+            assert!(config_entries.len() == 2);
+            // if branch_config[0].key == "merge" {
+            //     Some(BranchConfig {
+            //         name: name.to_owned(),
+            //         merge: branch_config[0].value.clone(),
+            //         remote: branch_config[1].value.clone(),
+            //     })
+            // } else {
+            //     Some(BranchConfig {
+            //         name: name.to_owned(),
+            //         merge: branch_config[1].value.clone(),
+            //         remote: branch_config[0].value.clone(),
+            //     })
+            // }
+            let mut branch_config = BranchConfig {
+                name: name.to_owned(),
+                merge: config_entries[0].value.clone(),
+                remote: config_entries[1].value.clone(),
+            };
+            if config_entries[0].key == "remote" {
+                swap(&mut branch_config.merge, &mut branch_config.remote);
+            }
+            branch_config.merge = branch_config.merge[11..].into(); // cut refs/heads/
+
+            Some(branch_config)
+        }
     }
 }

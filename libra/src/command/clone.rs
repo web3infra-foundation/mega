@@ -13,6 +13,8 @@ use crate::utils::util;
 
 use super::fetch::{self};
 
+const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
+
 #[derive(Parser, Debug)]
 pub struct CloneArgs {
     /// The remote repository location to clone from, usually a URL with HTTPS or SSH
@@ -68,34 +70,16 @@ pub async fn execute(args: CloneArgs) {
     };
     fetch::fetch_repository(&remote_config).await;
 
-    /* setup table */
-    setup_head_and_config(remote_repo.clone()).await;
-
-    // restore all files to worktree from HEAD
-    command::restore::execute(RestoreArgs {
-        worktree: true,
-        staged: true,
-        source: None,
-        pathspec: vec![util::working_dir_string()],
-    })
-    .await;
+    /* setup */
+    setup(remote_repo.clone()).await;
 }
 
-async fn setup_head_and_config(remote_repo: String) {
-    const ORIGIN: &str = "origin"; // default remote name, prevent spelling mistakes
-
-    // let origin_head = Branch::find_branch("HEAD", Some(ORIGIN))
-    //     .await
-    //     .expect("origin HEAD not found");
-
-    // Branch::update_branch(&origin_head_name, &head_ref._hash, None).await;
+async fn setup(remote_repo: String) {
     // look for remote head and set local HEAD&branch
-    let remote_head = Head::remote_current(ORIGIN)
-        .await
-        .expect("origin HEAD not found");
+    let remote_head = Head::remote_current(ORIGIN).await;
 
     match remote_head {
-        Head::Branch(name) => {
+        Some(Head::Branch(name)) => {
             let origin_head_branch = Branch::find_branch(&name, Some(ORIGIN))
                 .await
                 .expect("origin HEAD branch not found");
@@ -113,9 +97,32 @@ async fn setup_head_and_config(remote_repo: String) {
             Config::insert("branch", Some(&name), "merge", &merge).await;
             // set config: branch.$name.remote
             Config::insert("branch", Some(&name), "remote", ORIGIN).await;
+
+            // restore all files to worktree from HEAD
+            command::restore::execute(RestoreArgs {
+                worktree: true,
+                staged: true,
+                source: None,
+                pathspec: vec![util::working_dir_string()],
+            })
+            .await;
         }
-        Head::Detached(_) => {
+        Some(Head::Detached(_)) => {
             eprintln!("fatal: remote HEAD points to a detached commit");
+        }
+        None => {
+            println!("warning: You appear to have cloned an empty repository.");
+
+            // set config: remote.origin.url
+            Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
+            // set config: remote.origin.fetch
+            // todo: temporary ignore fetch option
+
+            // set config: branch.$name.merge, e.g.
+            let merge = "refs/heads/master".to_owned();
+            Config::insert("branch", Some("master"), "merge", &merge).await;
+            // set config: branch.$name.remote
+            Config::insert("branch", Some("master"), "remote", ORIGIN).await;
         }
     }
 }
