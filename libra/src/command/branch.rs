@@ -26,6 +26,10 @@ pub struct BranchArgs {
     #[clap(short = 'D', long, group = "sub")]
     delete: Option<String>,
 
+    /// Set up <current branch>'s tracking information
+    #[clap(short = 'u', long, group = "sub")]
+    set_upstream_to: Option<String>,
+
     /// show current branch
     #[clap(long, group = "sub")]
     show_curren: bool,
@@ -41,12 +45,38 @@ pub async fn execute(args: BranchArgs) {
         delete_branch(args.delete.unwrap()).await;
     } else if args.show_curren {
         show_current_branch().await;
+    } else if args.set_upstream_to.is_some() {
+        match Head::current().await {
+            Head::Branch(name) => set_upstream(&name, &args.set_upstream_to.unwrap()).await,
+            Head::Detached(_) => {
+                eprintln!("fatal: HEAD is detached");
+                return;
+            }
+        };
     } else if args.list {
         // 兜底list
         list_branches(args.remotes).await;
     } else {
         panic!("should not reach here")
     }
+}
+
+pub async fn set_upstream(branch: &str, upstream: &str) {
+    let branch_config = Config::branch_config(branch).await;
+    if branch_config.is_none() {
+        let (remote, remote_branch) = match upstream.split_once('/') {
+            Some((remote, branch)) => (remote, branch),
+            None => {
+                eprintln!("fatal: invalid upstream '{}'", upstream);
+                return;
+            }
+        };
+        Config::insert("branch", Some(branch), "remote", remote).await;
+        // set upstream branch (tracking branch)
+        Config::insert("branch", Some(branch), "merge",
+                       &format!("refs/heads/{}", remote_branch)).await;
+    }
+    println!("Branch '{}' set up to track remote branch '{}'", branch, upstream);
 }
 
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
@@ -244,6 +274,7 @@ mod tests {
                 commit_hash: Some(first_commit_id.to_plain_str()),
                 list: false,
                 delete: None,
+                set_upstream_to: None,
                 show_curren: false,
                 remotes: false,
             };
@@ -270,6 +301,7 @@ mod tests {
                 commit_hash: None,
                 list: false,
                 delete: None,
+                set_upstream_to: None,
                 show_curren: false,
                 remotes: false,
             };
@@ -288,6 +320,7 @@ mod tests {
             commit_hash: None,
             list: false,
             delete: None,
+            set_upstream_to: None,
             show_curren: true,
             remotes: false,
         };
@@ -317,6 +350,7 @@ mod tests {
             commit_hash: Some("origin/master".into()),
             list: false,
             delete: None,
+            set_upstream_to: None,
             show_curren: false,
             remotes: false,
         };
@@ -344,6 +378,7 @@ mod tests {
             commit_hash: None,
             list: false,
             delete: None,
+            set_upstream_to: None,
             show_curren: false,
             remotes: false,
         };

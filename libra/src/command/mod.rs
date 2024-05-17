@@ -7,17 +7,20 @@ pub mod index_pack;
 pub mod init;
 pub mod log;
 pub mod merge;
+pub mod pull;
 pub mod push;
 pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
+pub mod remote;
 
-use std::io;
-use std::io::Write;
-use rpassword::read_password;
+use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils::util;
 use mercury::{errors::GitError, hash::SHA1, internal::object::ObjectTrait};
+use rpassword::read_password;
+use std::io;
+use std::io::Write;
 
 // impl load for all objects
 fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
@@ -41,7 +44,7 @@ where
 }
 
 /// Ask for username and password (CLI interaction)
-pub fn ask_username_password() -> (String, String) {
+fn ask_username_password() -> (String, String) {
     print!("username: ");
     // Normally your OS will buffer output by line when it's connected to a terminal,
     // which is why it usually flushes when a newline is written to stdout.
@@ -56,6 +59,12 @@ pub fn ask_username_password() -> (String, String) {
     (username, password)
 }
 
+/// same as ask_username_password, but return BasicAuth
+pub fn ask_basic_auth() -> BasicAuth {
+    let (username, password) = ask_username_password();
+    BasicAuth { username, password }
+}
+
 #[cfg(test)]
 mod test {
     use mercury::internal::object::commit::Commit;
@@ -65,11 +74,7 @@ mod test {
     #[tokio::test]
     async fn test_save_load_object() {
         test::setup_with_new_libra().await;
-        let object = Commit::from_tree_id(
-            SHA1::new(&vec![1; 20]),
-            vec![],
-            "Commit_1",
-        );
+        let object = Commit::from_tree_id(SHA1::new(&vec![1; 20]), vec![], "Commit_1");
         save_object(&object, &object.id).unwrap();
         let _ = load_object::<Commit>(&object.id).unwrap();
     }

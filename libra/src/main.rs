@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-
 mod command;
 mod internal;
 mod utils;
@@ -49,9 +48,13 @@ enum Commands {
     // todo: implement in the future
     #[command(about = "Update remote refs along with associated objects")]
     Push(command::push::PushArgs),
-
-    #[command(about = "Fetch from and integrate with another repository or a local branch")]
+    #[command(about = "Download objects and refs from another repository")]
     Fetch(command::fetch::FetchArgs),
+    #[command(about = "Fetch from and integrate with another repository or a local branch")]
+    Pull(command::pull::PullArgs),
+
+    #[command(subcommand, about = "Manage set of tracked repositories")]
+    Remote(command::remote::RemoteCmds),
 
     // other hidden commands
     #[command(
@@ -62,9 +65,8 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() { // TODO init tracing or will not output
+async fn main() {
     let args = Cli::parse();
-    // check repo existence, except for `init` and `clone`
     // TODO: try check repo before parsing
     if let Commands::Init = args.command {
     } else if let Commands::Clone(_) = args.command {
@@ -72,6 +74,15 @@ async fn main() { // TODO init tracing or will not output
         return;
     }
 
+    #[cfg(debug_assertions)]
+    {
+        tracing::subscriber::set_global_default(
+            tracing_subscriber::fmt()
+                .with_max_level(tracing::Level::DEBUG)
+                .finish(),
+        )
+        .unwrap();
+    }
     // parse the command and execute the corresponding function with it's args
     match args.command {
         Commands::Init => command::init::execute().await,
@@ -88,6 +99,8 @@ async fn main() { // TODO init tracing or will not output
         Commands::Push(args) => command::push::execute(args).await,
         Commands::IndexPack(args) => command::index_pack::execute(args),
         Commands::Fetch(args) => command::fetch::execute(args).await,
+        Commands::Remote(cmd) => command::remote::execute(cmd).await,
+        Commands::Pull(args) => command::pull::execute(args).await,
     }
 }
 
