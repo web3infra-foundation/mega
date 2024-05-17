@@ -11,6 +11,7 @@ use axum::http::{Request, StatusCode, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
+use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 use regex::Regex;
 use tower::ServiceBuilder;
@@ -33,36 +34,37 @@ pub struct HttpOptions {
     #[clap(flatten)]
     pub common: CommonOptions,
 
-    #[clap(flatten)]
-    pub custom: HttpCustom,
+    #[arg(long, default_value_t = 8000)]
+    pub http_port: u16,
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct HttpCustom {
-    #[arg(long, default_value_t = 8000)]
-    pub http_port: u16,
+pub struct HttpsOptions {
+    #[clap(flatten)]
+    pub common: CommonOptions,
 
     #[arg(long, default_value_t = 443)]
     pub https_port: u16,
 
     #[arg(long, value_name = "FILE")]
-    https_key_path: Option<PathBuf>,
+    pub https_key_path: PathBuf,
 
     #[arg(long, value_name = "FILE")]
-    https_cert_path: Option<PathBuf>,
+    pub https_cert_path: PathBuf,
 }
 
 #[derive(Clone)]
 pub struct AppState {
     pub context: Context,
-    pub options: HttpOptions,
+    pub host: String,
+    pub port: u16,
 }
 
 impl From<AppState> for LfsConfig {
     fn from(value: AppState) -> Self {
         Self {
-            host: value.options.common.host,
-            port: value.options.custom.http_port,
+            host: value.host,
+            port: value.port,
             context: value.context.clone(),
             lfs_storage: Arc::new(LocalStorage::init(
                 value.context.config.storage.lfs_obj_local_path,
@@ -76,21 +78,48 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn start_server(config: Config, options: &HttpOptions) {
+pub async fn https_server(config: Config, options: HttpsOptions) {
+    let HttpsOptions {
+        common: CommonOptions { host },
+        https_key_path,
+        https_cert_path,
+        https_port,
+    } = options;
+
+    let app = app(config, host.clone(), https_port).await;
+
+    let server_url = format!("{}:{}", host, https_port);
+    let addr = SocketAddr::from_str(&server_url).unwrap();
+    let config = RustlsConfig::from_pem_file(https_cert_path.to_owned(), https_key_path.to_owned())
+        .await
+        .unwrap();
+    axum_server::bind_rustls(addr, config)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
+}
+
+pub async fn http_server(config: Config, options: HttpOptions) {
     let HttpOptions {
         common: CommonOptions { host },
-        custom:
-            HttpCustom {
-                https_key_path: _,
-                https_cert_path: _,
-                http_port,
-                https_port: _,
-            },
+        http_port,
     } = options;
+
+    let app = app(config, host.clone(), http_port).await;
+
     let server_url = format!("{}:{}", host, http_port);
 
+    let addr = SocketAddr::from_str(&server_url).unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
+}
+
+pub async fn app(config: Config, host: String, port: u16) -> Router {
     let state = AppState {
-        options: options.to_owned(),
+        host,
+        port,
         context: Context::new(config.clone()).await,
     };
 
@@ -101,7 +130,7 @@ pub async fn start_server(config: Config, options: &HttpOptions) {
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
-    let app = Router::new()
+    Router::new()
         .nest(
             "/api/v1",
             api_service::router::routers().with_state(api_state),
@@ -115,13 +144,7 @@ pub async fn start_server(config: Config, options: &HttpOptions) {
         .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
-        .with_state(state);
-
-    let addr = SocketAddr::from_str(&server_url).unwrap();
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service())
-        .await
-        .unwrap();
+        .with_state(state)
 }
 
 async fn get_method_router(

@@ -1,8 +1,10 @@
+use std::path::PathBuf;
+
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 
 use common::{config::Config, errors::MegaResult, model::CommonOptions};
 use gateway::{
-    https_server::{self, HttpCustom, HttpOptions},
+    https_server::{self, HttpOptions, HttpsOptions},
     ssh_server::{self, SshCustom, SshOptions},
 };
 
@@ -20,19 +22,25 @@ pub struct StartOptions {
     #[clap(flatten)]
     pub common: CommonOptions,
 
-    #[clap(flatten)]
-    pub http: HttpCustom,
+    #[arg(long, default_value_t = 8000)]
+    pub http_port: u16,
+
+    #[arg(long, default_value_t = 443)]
+    pub https_port: u16,
+
+    #[arg(long, value_name = "FILE")]
+    https_key_path: Option<PathBuf>,
+
+    #[arg(long, value_name = "FILE")]
+    https_cert_path: Option<PathBuf>,
 
     #[clap(flatten)]
     pub ssh: SshCustom,
-
-    // #[clap(flatten)]
-    // pub p2p: P2pCustom,
 }
 
 pub fn cli() -> Command {
     StartOptions::augment_args_for_update(
-        Command::new("start").about("Start multiple server by given params"),
+        Command::new("multi").about("Start multiple server by given params"),
     )
 }
 
@@ -46,14 +54,21 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     let service_type = server_matchers.service;
 
     let config_clone = config.clone();
-    let http_server = if service_type.contains(&StartCommand::Http)
-        || service_type.contains(&StartCommand::Https)
-    {
+    let http_server = if service_type.contains(&StartCommand::Http) {
         let http = HttpOptions {
             common: server_matchers.common.clone(),
-            custom: server_matchers.http,
+            http_port: server_matchers.http_port,
         };
-        tokio::spawn(async move { https_server::start_server(config_clone, &http).await })
+        tokio::spawn(async move { https_server::http_server(config_clone, http).await })
+
+    } else if service_type.contains(&StartCommand::Https) {
+        let https = HttpsOptions {
+            common: server_matchers.common.clone(),
+            https_port: server_matchers.https_port,
+            https_key_path: server_matchers.https_key_path.unwrap(),
+            https_cert_path: server_matchers.https_cert_path.unwrap(),
+        };
+        tokio::spawn(async move { https_server::https_server(config_clone, https).await })
     } else {
         tokio::task::spawn(async {})
     };
@@ -67,18 +82,6 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     } else {
         tokio::task::spawn(async {})
     };
-
-    // let p2p_server = if service_type.contains(&StartCommand::P2p) {
-    //     let p2p = P2pOptions {
-    //         common: server_matchers.common.clone(),
-    //         custom: server_matchers.p2p,
-    //     };
-    //     tokio::spawn(async move {
-    //         peer::run(&p2p).await.unwrap();
-    //     })
-    // } else {
-    //     tokio::task::spawn(async {})
-    // };
 
     let _ = tokio::join!(http_server, ssh_server);
 
