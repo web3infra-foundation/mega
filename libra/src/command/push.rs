@@ -211,16 +211,31 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
     if !exist_commits.contains(&local_ref) {
         queue.push_back(local_ref);
     }
+    let mut root_commit = None;
 
     while let Some(commit) = queue.pop_front() {
         let commit = Commit::load(&commit);
-        for parent in commit.parent_commit_ids.iter() {
+        let parents = &commit.parent_commit_ids;
+        if parents.is_empty() {
+            if root_commit.is_none() {
+                root_commit = Some(commit.id);
+            } else {
+                eprintln!("fatal: multiple root commits");
+            }
+        }
+        for parent in parents.iter() {
             objs.extend(diff_tree_objs(Some(parent), &commit.tree_id));
             if !exist_commits.contains(parent) {
                 queue.push_back(*parent);
             }
         }
         objs.insert(commit.into());
+    }
+
+    // root commit has no parent
+    if let Some(root_commit) = root_commit {
+        let root_tree = Commit::load(&root_commit).tree_id;
+        objs.extend(diff_tree_objs(None, &root_tree));
     }
 
     objs
