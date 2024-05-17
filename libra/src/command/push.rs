@@ -24,11 +24,13 @@ use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 #[derive(Parser, Debug)]
 pub struct PushArgs { // TODO --force
     /// repository, e.g. origin
+    #[clap(requires("refspec"))]
     repository: Option<String>,
     /// ref to push, e.g. master
+    #[clap(requires("repository"))]
     refspec: Option<String>,
 
-    #[clap(long, short = 'u')]
+    #[clap(long, short = 'u', requires("refspec"), requires("repository"))]
     set_upstream: bool,
 }
 
@@ -279,4 +281,49 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
     }
 
     objs
+}
+
+#[cfg(test)]
+mod test{
+    use super::*;
+    #[test]
+    fn test_parse_args_success() {
+        let args = vec!["push"];
+        let args = PushArgs::parse_from(args);
+        assert_eq!(args.repository, None);
+        assert_eq!(args.refspec, None);
+        assert_eq!(args.set_upstream, false);
+
+        let args = vec!["push", "origin", "master"];
+        let args = PushArgs::parse_from(args);
+        assert_eq!(args.repository, Some("origin".to_string()));
+        assert_eq!(args.refspec, Some("master".to_string()));
+        assert_eq!(args.set_upstream, false);
+
+        let args = vec!["push", "-u", "origin", "master"];
+        let args = PushArgs::parse_from(args);
+        assert_eq!(args.repository, Some("origin".to_string()));
+        assert_eq!(args.refspec, Some("master".to_string()));
+        assert_eq!(args.set_upstream, true);
+    }
+
+    #[test]
+    fn test_parse_args_fail() {
+        let args = vec!["push", "-u"];
+        let args = PushArgs::try_parse_from(args);
+        assert!(args.is_err());
+
+        let args = vec!["push", "-u", "origin"];
+        let args = PushArgs::try_parse_from(args);
+        assert!(args.is_err());
+
+        let args = vec!["push", "-u", "master"];
+        let args = PushArgs::try_parse_from(args);
+        assert!(args.is_err());
+
+        let args = vec!["push", "origin"];
+        let args = PushArgs::try_parse_from(args);
+        assert!(args.is_err());
+    }
+
 }
