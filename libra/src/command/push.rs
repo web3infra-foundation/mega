@@ -13,7 +13,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 use mercury::internal::pack::encode::PackEncoder;
 use mercury::internal::pack::entry::Entry;
-use crate::command::ask_basic_auth;
+use crate::command::{ask_basic_auth, branch};
 use crate::internal::branch::Branch;
 use crate::internal::config::Config;
 use crate::internal::head::Head;
@@ -27,10 +27,21 @@ pub struct PushArgs { // TODO --force
     repository: Option<String>,
     /// ref to push, e.g. master
     refspec: Option<String>,
+
+    #[clap(long, short = 'u')]
+    set_upstream: bool,
 }
 
-#[allow(unused_variables)]
 pub async fn execute(args: PushArgs) {
+    if args.repository.is_some() ^ args.refspec.is_some() { // must provide both or none
+        eprintln!("fatal: both repository and refspec should be provided");
+        return;
+    }
+    if args.set_upstream && args.refspec.is_none() {
+        eprintln!("fatal: --set-upstream requires a branch name");
+        return;
+    }
+
     let branch = match Head::current().await {
         Head::Branch(name) => name,
         Head::Detached(_) => panic!("fatal: HEAD is detached while pushing"),
@@ -94,7 +105,7 @@ pub async fn execute(args: PushArgs) {
                                            commit_hash,
                                            tracked_branch));
     data.extend_from_slice(b"0000");
-    println!("{:?}", data);
+    tracing::debug!("{:?}", data);
 
     // TODO 考虑remote有多个refs，可以少发一点commits
     let objs = incremental_objs(
@@ -135,6 +146,11 @@ pub async fn execute(args: PushArgs) {
     assert_eq!(len, 0);
 
     println!("Push success");
+
+    // set after push success
+    if args.set_upstream {
+        branch::set_upstream(&branch, &format!("{}/{}", repository, branch)).await;
+    }
 }
 
 /// collect all commits from `commit_id` to root commit
