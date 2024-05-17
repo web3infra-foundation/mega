@@ -1,0 +1,46 @@
+[package]
+name = "mega"
+version = "0.1.0"
+edition = "2021"
+authors = ["Quanyi Ma <genedna@gmail.com>"]
+keywords = ["git", "monorepo", "decentralized"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+
+[[bin]]
+name = "mega"
+path = "src/main.rs"
+
+[dependencies]
+gateway = { workspace = true }
+common = { workspace = true }
+ceres = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["macros"] }
+clap = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+thiserror = { workspace = true }
+rand = { workspace = true }
+smallvec = { workspace = true }
+config = { workspace = true }
+
+[dev-dependencies]
+reqwest = { version = "0.12.4", features = ["stream", "json"] }
+russh = { workspace = true }
+russh-keys = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+go-defer = { workspace = true }
+env_logger = "0.11.3"
+futures-util = "0.3.30"
+tokio-util = "0.7.11"
+git2 = "0.18.3"
+toml = "0.8.13"
+
+[build-dependencies]
+shadow-rs = "0.27.1"
