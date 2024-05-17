@@ -47,7 +47,7 @@ pub async fn execute(args: BranchArgs) {
         show_current_branch().await;
     } else if args.set_upstream_to.is_some() {
         match Head::current().await {
-            Head::Branch(name) => set_upstream(name, args.set_upstream_to.unwrap()).await,
+            Head::Branch(name) => set_upstream(&name, &args.set_upstream_to.unwrap()).await,
             Head::Detached(_) => {
                 eprintln!("fatal: HEAD is detached");
                 return;
@@ -61,8 +61,8 @@ pub async fn execute(args: BranchArgs) {
     }
 }
 
-pub async fn set_upstream(branch: String, upstream: String) {
-    let branch_config = Config::branch_config(&branch).await;
+pub async fn set_upstream(branch: &str, upstream: &str) {
+    let branch_config = Config::branch_config(branch).await;
     if branch_config.is_none() {
         let (remote, remote_branch) = match upstream.split_once('/') {
             Some((remote, branch)) => (remote, branch),
@@ -71,9 +71,9 @@ pub async fn set_upstream(branch: String, upstream: String) {
                 return;
             }
         };
-        Config::insert("branch", Some(&branch), "remote", remote).await;
+        Config::insert("branch", Some(branch), "remote", remote).await;
         // set upstream branch (tracking branch)
-        Config::insert("branch", Some(&branch), "merge",
+        Config::insert("branch", Some(branch), "merge",
                        &format!("refs/heads/{}", remote_branch)).await;
     }
     println!("Branch '{}' set up to track remote branch '{}'", branch, upstream);
