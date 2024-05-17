@@ -215,7 +215,7 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
     while let Some(commit) = queue.pop_front() {
         let commit = Commit::load(&commit);
         for parent in commit.parent_commit_ids.iter() {
-            objs.extend(diff_tree_objs(Some(&parent), &commit.tree_id));
+            objs.extend(diff_tree_objs(Some(parent), &commit.tree_id));
             if !exist_commits.contains(parent) {
                 queue.push_back(*parent);
             }
@@ -236,14 +236,14 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
         }
     }
 
-    let new_tree = Tree::load(&new_tree);
+    let new_tree = Tree::load(new_tree);
     objs.insert(new_tree.clone().into()); // tree itself
 
     let old_items = match old_tree {
         Some(tree) => {
             let tree = Tree::load(tree);
             tree.tree_items.iter()
-                .map(|item| item.id.clone())
+                .map(|item| item.id)
                 .collect::<HashSet<_>>()
         }
         None => HashSet::new()

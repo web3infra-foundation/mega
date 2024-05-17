@@ -274,6 +274,7 @@ mod tests {
                 commit_hash: Some(first_commit_id.to_plain_str()),
                 list: false,
                 delete: None,
+                set_upstream_to: None,
                 show_curren: false,
                 remotes: false,
             };
@@ -300,6 +301,7 @@ mod tests {
                 commit_hash: None,
                 list: false,
                 delete: None,
+                set_upstream_to: None,
                 show_curren: false,
                 remotes: false,
             };
@@ -318,6 +320,7 @@ mod tests {
             commit_hash: None,
             list: false,
             delete: None,
+            set_upstream_to: None,
             show_curren: true,
             remotes: false,
         };
@@ -347,6 +350,7 @@ mod tests {
             commit_hash: Some("origin/master".into()),
             list: false,
             delete: None,
+            set_upstream_to: None,
             show_curren: false,
             remotes: false,
         };
@@ -374,6 +378,7 @@ mod tests {
             commit_hash: None,
             list: false,
             delete: None,
+            set_upstream_to: None,
             show_curren: false,
             remotes: false,
         };

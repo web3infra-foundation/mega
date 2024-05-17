@@ -7,7 +7,7 @@ pub struct PullArgs;
 
 pub async fn execute(args: PullArgs) {
     let _ = args;
-    let fetch_args = fetch::FetchArgs::parse_from(&Vec::<String>::new());
+    let fetch_args = fetch::FetchArgs::parse_from(Vec::<String>::new());
     fetch::execute(fetch_args).await;
 
     let head = Head::current().await;

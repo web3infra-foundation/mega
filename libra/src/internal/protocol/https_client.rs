@@ -10,6 +10,7 @@ use reqwest::{Body, Response};
 use std::io::Error as IoError;
 use tokio_util::bytes::BytesMut;
 use url::Url;
+use mercury::hash::SHA1;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see https://www.git-scm.com/docs/http-protocol for protocol details.
@@ -124,7 +125,7 @@ impl HttpsClient {
             let (hash, mut refs) = pkt_line.split_at(40); // hex SHA1 string is 40 bytes
             refs = refs.trim();
             if !read_first_line {
-                if hash == "0000000000000000000000000000000000000000" {
+                if hash == SHA1::default().to_plain_str() {
                     break; // empty repo, return empty list
                 }
                 let (head, caps) = refs.split_once('\0').unwrap();
@@ -284,8 +285,7 @@ mod tests {
 
         let want = refs.iter().map(|r| r._hash.clone()).collect();
 
-        let mut have = vec![];
-        have.push("81a162e7b725bbad2adfe01879fd57e0119406b9".to_string());
+        let have = vec!["81a162e7b725bbad2adfe01879fd57e0119406b9".to_string()];
         let mut result_stream = client.fetch_objects(&have, &want, None).await.unwrap();
 
         let mut buffer = vec![];
