@@ -292,19 +292,19 @@ mod test{
         let args = PushArgs::parse_from(args);
         assert_eq!(args.repository, None);
         assert_eq!(args.refspec, None);
-        assert_eq!(args.set_upstream, false);
+        assert!(!args.set_upstream);
 
         let args = vec!["push", "origin", "master"];
         let args = PushArgs::parse_from(args);
         assert_eq!(args.repository, Some("origin".to_string()));
         assert_eq!(args.refspec, Some("master".to_string()));
-        assert_eq!(args.set_upstream, false);
+        assert!(!args.set_upstream);
 
         let args = vec!["push", "-u", "origin", "master"];
         let args = PushArgs::parse_from(args);
         assert_eq!(args.repository, Some("origin".to_string()));
         assert_eq!(args.refspec, Some("master".to_string()));
-        assert_eq!(args.set_upstream, true);
+        assert!(args.set_upstream);
     }
 
     #[test]
