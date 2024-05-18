@@ -29,11 +29,13 @@ pub fn parse() -> MegaResult {
     let (cmd, subcommand_args) = match matches.subcommand() {
         Some((cmd, args)) => (cmd, args),
         _ => {
-            // No subcommand provided.
+            // No subcommand provided
+            // TODO: print some helping message to developer
             return Ok(());
         }
     };
 
+    // TODO: match subcommand_args for `MegaResult`
     exec_subcommand(config, cmd, subcommand_args)
 }
 
