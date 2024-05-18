@@ -1,3 +1,8 @@
+//!
+//!
+//!
+//!
+
 use clap::{ArgMatches, Command};
 
 use common::{config::Config, errors::MegaResult};
