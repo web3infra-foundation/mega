@@ -15,10 +15,13 @@ use crate::commands::{builtin, builtin_exec};
 pub fn parse() -> MegaResult {
     let matches = cli().try_get_matches().unwrap_or_else(|e| e.exit());
 
-    let config = if let Some(c) = matches.get_one::<String>("config").cloned() {
-        Config::new(c.as_str()).unwrap()
-    } else if env::current_dir().unwrap().join("./config.toml").exists() {
-        Config::new("./config.toml").unwrap()
+    let current_dir = env::current_dir()?;
+    let config_path = current_dir.join("config.toml");
+
+    let config = if let Some(path) = matches.get_one::<String>("config").cloned() {
+        Config::new(path.as_str()).unwrap()
+    } else if config_path.exists() {
+        Config::new(config_path.to_str().unwrap()).unwrap()
     } else {
         eprintln!("can't find config.toml under {:?}, you can manually set config.toml path with --config parameter", env::current_dir().unwrap());
         Config::default()
