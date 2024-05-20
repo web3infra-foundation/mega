@@ -6,7 +6,7 @@ authors = ["Quanyi Ma <genedna@gmail.com>"]
 keywords = ["git", "monorepo", "decentralized"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-
+build = "src/build.rs"
 
 [[bin]]
 name = "mega"
@@ -28,6 +28,7 @@ thiserror = { workspace = true }
 rand = { workspace = true }
 smallvec = { workspace = true }
 config = { workspace = true }
+shadow-rs = { workspace = true }
 
 [dev-dependencies]
 reqwest = { version = "0.12.4", features = ["stream", "json"] }
@@ -43,4 +44,4 @@ git2 = "0.18.3"
 toml = "0.8.13"
 
 [build-dependencies]
-shadow-rs = "0.27.1"
+shadow-rs = { workspace = true }

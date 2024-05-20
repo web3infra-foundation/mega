@@ -1,4 +1,4 @@
-//!
+//! Using shadow_rs to build-time information stored in Mega.
 //! 
 //! 
 //! 
