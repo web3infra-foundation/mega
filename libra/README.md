@@ -26,6 +26,7 @@ achieving unified management.
 ### Commands
 - [x] `init`
 - [x] `add`
+- [x] `rm`
 - [x] `status`
 - [x] `commit`
 - [x] `log`
