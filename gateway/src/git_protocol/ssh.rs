@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Duration, Utc};
+use futures::StreamExt;
 use russh::server::{self, Auth, Msg, Response, Session};
 use russh::{Channel, ChannelId};
 use russh_keys::key;
@@ -141,6 +142,7 @@ impl server::Handler for SshServer {
         Ok(Auth::Accept)
     }
 
+    // TODO! disable password auth
     async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
         tracing::info!("auth_password: {} / {}", user, password);
         // in this example implementation, any username/password combination is accepted
@@ -197,7 +199,7 @@ impl SshServer {
     async fn handle_upload_pack(&mut self, channel: ChannelId, data: &[u8], session: &mut Session) {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
 
-        let (send_pack_data, buf) = smart_protocol
+        let (mut send_pack_data, buf) = smart_protocol
             .git_upload_pack(&mut Bytes::copy_from_slice(data))
             .await
             .unwrap();
@@ -205,18 +207,20 @@ impl SshServer {
         tracing::info!("buf is {:?}", buf);
         session.data(channel, String::from_utf8(buf.to_vec()).unwrap().into());
 
-        let mut reader = send_pack_data.as_slice();
-        loop {
-            let mut temp = BytesMut::new();
-            temp.reserve(65500);
-            let length = reader.read_buf(&mut temp).await.unwrap();
-            if temp.is_empty() {
-                session.data(channel, smart::PKT_LINE_END_MARKER.to_vec().into());
-                return;
+        while let Some(chunk) = send_pack_data.next().await {
+            let mut reader = chunk.as_slice();
+            loop {
+                let mut temp = BytesMut::new();
+                temp.reserve(65500);
+                let length = reader.read_buf(&mut temp).await.unwrap();
+                if length == 0 {
+                    break;
+                }
+                let bytes_out = smart_protocol.build_side_band_format(temp, length);
+                session.data(channel, bytes_out.to_vec().into());
             }
-            let bytes_out = smart_protocol.build_side_band_format(temp, length);
-            session.data(channel, bytes_out.to_vec().into());
         }
+        session.data(channel, smart::PKT_LINE_END_MARKER.to_vec().into());
     }
 
     async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
