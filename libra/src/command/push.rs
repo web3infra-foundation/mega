@@ -1,8 +1,8 @@
 use std::collections::{HashSet, VecDeque};
 use std::str::FromStr;
-use std::sync::mpsc;
 use bytes::BytesMut;
 use clap::Parser;
+use tokio::sync::mpsc;
 use url::Url;
 use ceres::protocol::ServiceType::ReceivePack;
 use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
@@ -116,16 +116,24 @@ pub async fn execute(args: PushArgs) {
     );
     println!("Counting objects: {}", objs.len());
 
-    let mut encoder = PackEncoder::new(objs.len(), 5);
-    let (tx, rx) = mpsc::channel::<Entry>();
+    // let (tx, rx) = mpsc::channel::<Entry>();
+    let (entry_tx, entry_rx) = mpsc::channel(1_000_000);
+    let (stream_tx, mut stream_rx) = mpsc::channel(1_000_000);
+    
+    let encoder = PackEncoder::new(objs.len(), 5, stream_tx);
+    encoder.encode_async(entry_rx).await.unwrap();
+
     for entry in objs {
         // TODO progress bar
-        tx.send(entry).unwrap();
+        entry_tx.send(entry).await.unwrap();
     }
-    drop(tx);
-    let pack_data = encoder.encode(rx).unwrap();
+    drop(entry_tx);
     println!("Delta compression done.");
 
+    let mut pack_data = Vec::new();
+    while let Some(chunk) = stream_rx.recv().await {
+        pack_data.extend(chunk);
+    }
     data.extend_from_slice(&pack_data);
 
     let res = client.send_pack(data.freeze(), auth).await.unwrap();

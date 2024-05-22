@@ -1,7 +1,7 @@
-use std::sync::mpsc;
-
 use async_trait::async_trait;
 use bytes::Bytes;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
@@ -17,6 +17,7 @@ use mercury::{
         pack::entry::Entry,
     },
 };
+
 use venus::import_repo::{
     import_refs::{CommandType, RefCommand, Refs},
     repo::Repo,
@@ -44,7 +45,9 @@ impl PackHandler for ImportRepo {
     }
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = self.pack_decoder(&self.context.config.monorepo, pack_file).unwrap();
+        let receiver = self
+            .pack_decoder(&self.context.config.pack, pack_file)
+            .unwrap();
 
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = Vec::new();
@@ -59,35 +62,17 @@ impl PackHandler for ImportRepo {
         Ok(())
     }
 
-    async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
-        let (sender, receiver) = mpsc::channel();
+    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+        let pack_config = &self.context.config.pack;
+        let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
+        let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
         let storage = self.context.services.git_db_storage.clone();
         let total = storage.get_obj_count_by_repo_id(&self.repo).await;
-        let mut encoder = PackEncoder::new(total, 0);
+        let encoder = PackEncoder::new(total, 0, stream_tx);
 
-        for m in storage
-            .get_commits_by_repo_id(&self.repo)
-            .await
-            .unwrap()
-            .into_iter()
-        {
-            let c: Commit = m.into();
-            let entry: Entry = c.into();
-            sender.send(entry).unwrap();
-        }
-
-        for m in storage
-            .get_trees_by_repo_id(&self.repo)
-            .await
-            .unwrap()
-            .into_iter()
-        {
-            let c: Tree = m.into();
-            let entry: Entry = c.into();
-            sender.send(entry).unwrap();
-        }
-
+        let commits = storage.get_commits_by_repo_id(&self.repo).await.unwrap();
+        let trees = storage.get_trees_by_repo_id(&self.repo).await.unwrap();
         let bids: Vec<String> = storage
             .get_blobs_by_repo_id(&self.repo)
             .await
@@ -95,7 +80,6 @@ impl PackHandler for ImportRepo {
             .into_iter()
             .map(|b| b.blob_id)
             .collect();
-
         let raw_blobs = batch_query_by_columns::<raw_blob::Entity, raw_blob::Column>(
             storage.get_connection(),
             raw_blob::Column::Sha1,
@@ -105,35 +89,39 @@ impl PackHandler for ImportRepo {
         )
         .await
         .unwrap();
+        let tags = storage.get_tags_by_repo_id(&self.repo).await.unwrap();
 
+        encoder.encode_async(entry_rx).await.unwrap();
+        for m in commits.into_iter() {
+            let c: Commit = m.into();
+            let entry: Entry = c.into();
+            entry_tx.send(entry).await.unwrap();
+        }
+        for m in trees.into_iter() {
+            let c: Tree = m.into();
+            let entry: Entry = c.into();
+            entry_tx.send(entry).await.unwrap();
+        }
         for m in raw_blobs {
             // todo handle storage type
             let c: Blob = m.into();
             let entry: Entry = c.into();
-            sender.send(entry).unwrap();
+            entry_tx.send(entry).await.unwrap();
         }
-
-        for m in storage
-            .get_tags_by_repo_id(&self.repo)
-            .await
-            .unwrap()
-            .into_iter()
-        {
+        for m in tags.into_iter() {
             let c: Tag = m.into();
             let entry: Entry = c.into();
-            sender.send(entry).unwrap();
+            entry_tx.send(entry).await.unwrap();
         }
-        drop(sender);
-        let data = encoder.encode(receiver).unwrap();
-
-        Ok(data)
+        drop(entry_tx);
+        Ok(ReceiverStream::new(stream_rx))
     }
 
     async fn incremental_pack(
         &self,
         _want: Vec<String>,
         _have: Vec<String>,
-    ) -> Result<Vec<u8>, GitError> {
+    ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         unimplemented!()
     }
 

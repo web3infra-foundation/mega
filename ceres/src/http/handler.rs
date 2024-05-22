@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::convert::Infallible;
 
 use anyhow::Result;
 use axum::body::Body;
@@ -7,10 +8,11 @@ use axum::http::{Request, Response, StatusCode};
 use bytes::{Bytes, BytesMut};
 use futures::TryStreamExt;
 use tokio::io::AsyncReadExt;
+use tokio_stream::StreamExt;
 
 use common::model::GetParams;
 
-use crate::protocol::{smart, SmartProtocol, ServiceType};
+use crate::protocol::{smart, ServiceType, SmartProtocol};
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
@@ -64,35 +66,39 @@ pub async fn git_upload_pack(
         .await
         .unwrap();
     tracing::debug!("bytes from client: {:?}", upload_request);
-    let (send_pack_data, buf) = pack_protocol
+    let (mut send_pack_data, protocol_buf) = pack_protocol
         .git_upload_pack(&mut upload_request.freeze())
         .await
         .unwrap();
-    tracing::info!("send ack/nak message buf: {:?}", buf);
+    tracing::info!("send ack/nak message buf: {:?}", protocol_buf);
     let mut res_bytes = BytesMut::new();
-    res_bytes.extend(buf);
+    res_bytes.extend(protocol_buf);
 
     let resp = build_res_header("application/x-git-upload-pack-result".to_owned());
 
     tracing::info!("send response");
 
-    let mut reader = send_pack_data.as_slice();
-    loop {
-        let mut temp = BytesMut::new();
-        temp.reserve(65500);
-        let length = reader.read_buf(&mut temp).await.unwrap();
-        if length == 0 {
-            let bytes_out = Bytes::from_static(smart::PKT_LINE_END_MARKER);
-            tracing::info!("send back pkt-flush line '0000', actually: {:?}", bytes_out);
-            res_bytes.extend(bytes_out);
-            break;
+    let body_stream = async_stream::stream! {
+        yield Ok::<_, Infallible>(Bytes::copy_from_slice(&res_bytes));
+        while let Some(chunk) = send_pack_data.next().await {
+            let mut reader = chunk.as_slice();
+            loop {
+                let mut temp = BytesMut::new();
+                temp.reserve(65500);
+                let length = reader.read_buf(&mut temp).await.unwrap();
+                if length == 0 {
+                    break;
+                }
+                let bytes_out = pack_protocol.build_side_band_format(temp, length);
+                // tracing::info!("send pack file: length: {:?}", bytes_out.len());
+                yield Ok::<_, Infallible>(bytes_out.freeze());
+            }
         }
-        let bytes_out = pack_protocol.build_side_band_format(temp, length);
-        tracing::info!("send pack file: length: {:?}", bytes_out.len());
-        res_bytes.extend(bytes_out);
-    }
-    let body = Body::from(res_bytes.freeze());
-    let resp = resp.body(body).unwrap();
+        let bytes_out = Bytes::from_static(smart::PKT_LINE_END_MARKER);
+        tracing::info!("send back pkt-flush line '0000', actually: {:?}", bytes_out);
+        yield Ok::<_, Infallible>(bytes_out);
+    };
+    let resp = resp.body(Body::from_stream(body_stream)).unwrap();
     Ok(resp)
 }
 
