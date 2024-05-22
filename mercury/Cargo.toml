@@ -9,7 +9,9 @@ edition = "2021"
 delta = { path = "delta" }
 common = { workspace = true }
 callisto = { workspace = true }
-flate2 = { workspace = true, features = ["zlib"] } # enable linking against the libz(C lib); better performance
+flate2 = { workspace = true, features = [
+    "zlib",
+] } # enable linking against the libz(C lib); better performance
 serde = { workspace = true, features = ["derive"] }
 bstr = { workspace = true }
 hex = { workspace = true }
@@ -19,7 +21,7 @@ sha1 = { workspace = true }
 colored = { workspace = true }
 chrono = { workspace = true }
 tracing-subscriber = { workspace = true }
-uuid = { version = "1.7.0", features = ["v4"]}
+uuid = { version = "1.7.0", features = ["v4"] }
 sha1_smol = "1.0.0"
 threadpool = "1.8.1"
 num_cpus.workspace = true
@@ -34,3 +36,4 @@ mimalloc = "0.1.39" # avoid sticking on dropping on Windows
 
 [dev-dependencies]
 tracing-test = "0.2.4"
+tokio = { workspace = true, features = ["full"] }
