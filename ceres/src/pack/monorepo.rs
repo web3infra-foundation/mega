@@ -4,7 +4,7 @@ use std::{
     str::FromStr,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        mpsc::{self, Receiver},
+        mpsc::Receiver,
     },
     vec,
 };
@@ -24,6 +24,8 @@ use mercury::{
         pack::entry::Entry,
     },
 };
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use venus::{
     import_repo::import_refs::{RefCommand, Refs},
     monorepo::mr::MergeRequest,
@@ -115,7 +117,7 @@ impl PackHandler for MonoRepo {
 
     async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
         let receiver = self
-            .pack_decoder(&self.context.config.monorepo, pack_file)
+            .pack_decoder(&self.context.config.pack, pack_file)
             .unwrap();
 
         let storage = self.context.services.mega_storage.clone();
@@ -164,7 +166,8 @@ impl PackHandler for MonoRepo {
     }
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
-    async fn full_pack(&self) -> Result<Vec<u8>, GitError> {
+    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+        let pack_config = &self.context.config.pack;
         let storage = self.context.services.mega_storage.clone();
         let obj_num = AtomicUsize::new(0);
 
@@ -190,22 +193,24 @@ impl PackHandler for MonoRepo {
 
         obj_num.fetch_add(1, Ordering::SeqCst);
 
-        let (sender, receiver) = mpsc::channel();
-        let encoder = PackEncoder::new(obj_num.into_inner(), 0);
-        let data = encoder.encode_async(receiver).unwrap();
+        let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
+        let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
-        self.traverse(tree, &mut HashSet::new(), Some(&sender))
+        let encoder = PackEncoder::new(obj_num.into_inner(), 0, stream_tx);
+        encoder.encode_async(entry_rx).await.unwrap();
+        self.traverse(tree, &mut HashSet::new(), Some(&entry_tx))
             .await;
-        sender.send(commit.into()).unwrap();
-        drop(sender);
-        Ok(data.join().unwrap())
+        entry_tx.send(commit.into()).await.unwrap();
+        drop(entry_tx);
+        Ok(ReceiverStream::new(stream_rx))
     }
 
     async fn incremental_pack(
         &self,
         mut want: Vec<String>,
         have: Vec<String>,
-    ) -> Result<Vec<u8>, GitError> {
+    ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+        let pack_config = &self.context.config.pack;
         let storage = self.context.services.mega_storage.clone();
         let obj_num = AtomicUsize::new(0);
 
@@ -271,23 +276,23 @@ impl PackHandler for MonoRepo {
             )
             .await;
         }
-
-        let (sender, receiver) = mpsc::channel();
-        let encoder = PackEncoder::new(obj_num.into_inner(), 0);
-        let data = encoder.encode_async(receiver).unwrap();
+        let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
+        let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
+        let encoder = PackEncoder::new(obj_num.into_inner(), 0, stream_tx);
+        encoder.encode_async(entry_rx).await.unwrap();
 
         for c in want_commits {
             self.traverse(
                 want_trees.get(&c.tree_id).unwrap().clone(),
                 &mut exist_objs,
-                Some(&sender),
+                Some(&entry_tx),
             )
             .await;
-            sender.send(c.into()).unwrap();
+            entry_tx.send(c.into()).await.unwrap();
         }
-        drop(sender);
+        drop(entry_tx);
 
-        Ok(data.join().unwrap())
+        Ok(ReceiverStream::new(stream_rx))
     }
 
     async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError> {

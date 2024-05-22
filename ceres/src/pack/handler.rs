@@ -3,15 +3,16 @@ use std::{
     io::Cursor,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Receiver},
     },
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::raw_blob;
-use common::{config::MonoConfig, errors::MegaError, utils::ZERO_ID};
+use common::{config::PackConfig, errors::MegaError, utils::ZERO_ID};
 use mercury::internal::pack::Pack;
 use mercury::{
     errors::GitError,
@@ -49,13 +50,13 @@ pub trait PackHandler: Send + Sync {
     /// # Returns
     /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
     ///
-    async fn full_pack(&self) -> Result<Vec<u8>, GitError>;
+    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError>;
 
     async fn incremental_pack(
         &self,
         want: Vec<String>,
         have: Vec<String>,
-    ) -> Result<Vec<u8>, GitError>;
+    ) -> Result<ReceiverStream<Vec<u8>>, GitError>;
 
     async fn traverse_for_count(
         &self,
@@ -87,7 +88,7 @@ pub trait PackHandler: Send + Sync {
         &self,
         tree: Tree,
         exist_objs: &mut HashSet<String>,
-        sender: Option<&Sender<Entry>>,
+        sender: Option<&tokio::sync::mpsc::Sender<Entry>>,
     ) {
         exist_objs.insert(tree.id.to_plain_str());
         let mut search_tree_ids = vec![];
@@ -108,7 +109,7 @@ pub trait PackHandler: Send + Sync {
             let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
             for b in blobs {
                 let blob: Blob = b.into();
-                sender.send(blob.into()).unwrap();
+                sender.send(blob.into()).await.unwrap();
             }
         }
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
@@ -116,7 +117,7 @@ pub trait PackHandler: Send + Sync {
             self.traverse(t, exist_objs, sender).await;
         }
         if let Some(sender) = sender {
-            sender.send(tree.into()).unwrap();
+            sender.send(tree.into()).await.unwrap();
         }
     }
 
@@ -133,7 +134,11 @@ pub trait PackHandler: Send + Sync {
 
     async fn check_default_branch(&self) -> bool;
 
-    fn pack_decoder(&self, mono_config: &MonoConfig, pack_file: Bytes) -> Result<Receiver<Entry>, GitError> {
+    fn pack_decoder(
+        &self,
+        pack_config: &PackConfig,
+        pack_file: Bytes,
+    ) -> Result<Receiver<Entry>, GitError> {
         // #[cfg(debug_assertions)]
         // {
         //     let datetime = chrono::Utc::now().naive_utc();
@@ -144,9 +149,9 @@ pub trait PackHandler: Send + Sync {
         let (sender, receiver) = mpsc::channel();
         let p = Pack::new(
             None,
-            Some(1024 * 1024 * 1024 * mono_config.pack_decode_mem_size),
-            Some(mono_config.pack_decode_cache_path.clone()),
-            mono_config.clean_cache_after_decode,
+            Some(1024 * 1024 * 1024 * pack_config.pack_decode_mem_size),
+            Some(pack_config.pack_decode_cache_path.clone()),
+            pack_config.clean_cache_after_decode,
         );
         p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
         Ok(receiver)
