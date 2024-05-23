@@ -120,7 +120,10 @@ impl PackEncoder {
                 }
                 None => {
                     if self.process_index != self.object_number {
-                        panic!("not all objects are encoded");
+                        panic!(
+                            "not all objects are encoded, process:{}, total:{}",
+                            self.process_index, self.object_number
+                        );
                     }
                     break;
                 }
@@ -296,5 +299,4 @@ mod tests {
         assert_eq!(data[0], 0b_1101_0101);
         assert_eq!(data[1], 0b_0000_0101);
     }
-
 }
