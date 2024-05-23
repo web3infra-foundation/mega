@@ -188,7 +188,7 @@ impl PackHandler for MonoRepo {
             .unwrap()
             .unwrap()
             .into();
-        self.traverse_for_count(tree.clone(), &HashSet::new(), &obj_num)
+        self.traverse_for_count(tree.clone(), &HashSet::new(), &mut HashSet::new(), &obj_num)
             .await;
 
         obj_num.fetch_add(1, Ordering::SeqCst);
@@ -267,11 +267,13 @@ impl PackHandler for MonoRepo {
             self.traverse(have_tree.into(), &mut exist_objs, None).await;
         }
 
+        let mut counted_obj = HashSet::new();
         // traverse for get obj nums
         for c in want_commits.clone() {
             self.traverse_for_count(
                 want_trees.get(&c.tree_id).unwrap().clone(),
                 &exist_objs,
+                &mut counted_obj,
                 &obj_num,
             )
             .await;
