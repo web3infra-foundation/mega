@@ -62,13 +62,14 @@ pub trait PackHandler: Send + Sync {
         &self,
         tree: Tree,
         exist_objs: &HashSet<String>,
+        counted_obj: &mut HashSet<String>,
         obj_num: &AtomicUsize,
     ) {
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
         for item in &tree.tree_items {
             let hash = item.id.to_plain_str();
-            if !exist_objs.contains(&hash) {
+            if !exist_objs.contains(&hash) && counted_obj.insert(hash.clone()) {
                 if item.mode == TreeItemMode::Tree {
                     search_tree_ids.push(hash.clone())
                 } else {
@@ -79,29 +80,47 @@ pub trait PackHandler: Send + Sync {
         obj_num.fetch_add(search_blob_ids.len(), Ordering::SeqCst);
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
-            self.traverse_for_count(t, exist_objs, obj_num).await;
+            self.traverse_for_count(t, exist_objs, counted_obj, obj_num)
+                .await;
         }
         obj_num.fetch_add(1, Ordering::SeqCst);
     }
 
+    /// Traverse a tree structure asynchronously.
+    ///
+    /// This function traverses a given tree, keeps track of processed objects, and optionally sends
+    /// traversal data to a provided sender. The function will:
+    /// 1. Traverse the tree and calculate the quantities of tree and blob items.
+    /// 2. If a sender is provided, send blob and tree data via the sender.
+    ///
+    /// # Parameters
+    /// - `tree`: The tree structure to traverse.
+    /// - `exist_objs`: A mutable reference to a set containing already processed object IDs.
+    /// - `sender`: An optional sender for sending traversal data.
+    ///
+    /// # Details
+    /// - The function processes tree items, distinguishing between tree and blob items.
+    /// - It collects IDs of items that have not been processed yet.
+    /// - It retrieves and sends blob data if a sender is provided.
+    /// - It recursively traverses sub-trees.
+    /// - It sends the entire tree data if a sender is provided.
     async fn traverse(
         &self,
         tree: Tree,
         exist_objs: &mut HashSet<String>,
         sender: Option<&tokio::sync::mpsc::Sender<Entry>>,
     ) {
-        exist_objs.insert(tree.id.to_plain_str());
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
+
         for item in &tree.tree_items {
             let hash = item.id.to_plain_str();
-            if !exist_objs.contains(&hash) {
+            if exist_objs.insert(hash.clone()) {
                 if item.mode == TreeItemMode::Tree {
-                    search_tree_ids.push(hash.clone())
+                    search_tree_ids.push(hash);
                 } else {
-                    search_blob_ids.push(hash.clone());
+                    search_blob_ids.push(hash);
                 }
-                exist_objs.insert(hash);
             }
         }
 
@@ -112,10 +131,12 @@ pub trait PackHandler: Send + Sync {
                 sender.send(blob.into()).await.unwrap();
             }
         }
+
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
             self.traverse(t, exist_objs, sender).await;
         }
+
         if let Some(sender) = sender {
             sender.send(tree.into()).await.unwrap();
         }
