@@ -15,6 +15,8 @@ use std::collections::VecDeque;
 use std::str::FromStr;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
+
+use super::parse_commit_msg;
 #[derive(Parser, Debug)]
 pub struct LogArgs {
     /// Limit the number of output
@@ -103,7 +105,8 @@ pub async fn execute(args: LogArgs) {
             message
         };
         message.push_str(&format!("\nAuthor: {}", commit.author));
-        message.push_str(&format!("\n{}\n", commit.message));
+        let (msg, _) = parse_commit_msg(&commit.message);
+        message.push_str(&format!("\n{}\n", msg));
 
         #[cfg(unix)]
         {
