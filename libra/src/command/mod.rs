@@ -81,23 +81,32 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
 }
 /// parse commit message
 pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
-    let parse_pos = msg_gpg.find("\n\n");
-    match parse_pos {
-        // if parse_pos < msg_gpg.len() {
-        Some(parse_pos) => {
-            let gpg_sig = msg_gpg[..parse_pos].trim().to_string();
-            // TODO: support ssh signature
-            if gpg_sig.starts_with("gpgsig -----BEGIN PGP SIGNATURE-----")
-                && gpg_sig.ends_with("-----END PGP SIGNATURE-----")
-            {
-                (msg_gpg[parse_pos + 2..].to_string(), Some(gpg_sig))
+    const GPG_SIG_START: &str = "gpgsig -----BEGIN PGP SIGNATURE-----";
+    const GPG_SIG_END: &str = "-----END PGP SIGNATURE-----";
+    let gpg_start = msg_gpg.find(GPG_SIG_START);
+    let gpg_end = msg_gpg.find(GPG_SIG_END).map(|end| end + GPG_SIG_END.len());
+    let gpg_sig = match (gpg_start, gpg_end) {
+        (Some(start), Some(end)) => {
+            if start < end {
+                Some(msg_gpg[start..end].to_string())
             } else {
-                (msg_gpg[1..].to_string(), None)
+                None
             }
+        }
+        _ => None,
+    };
+    match gpg_sig {
+        Some(gpg) => {
+            // skip the leading '\n\n' (blank line)
+            let msg = msg_gpg[gpg_end.unwrap()..].to_string();
+            assert!(msg.starts_with("\n\n"), "commit message format error");
+            let msg = msg[2..].to_string();
+            (msg, Some(gpg))
         }
         None => {
             assert!(msg_gpg.starts_with('\n'), "commit message format error");
-            (msg_gpg[1..].to_string(), None)
+            let msg = msg_gpg[1..].to_string(); // skip the leading '\n' (blank line)
+            (msg, None)
         }
     }
 }
