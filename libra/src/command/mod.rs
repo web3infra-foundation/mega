@@ -81,19 +81,24 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
 }
 /// parse commit message
 pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
-    let parse_pos = msg_gpg.find("\n\n").unwrap_or(msg_gpg.len());
-    if parse_pos < msg_gpg.len() {
-        let gpg_sig = msg_gpg[..parse_pos].trim().to_string();
-        // TODO: support ssh signature
-        if gpg_sig.starts_with("gpgsig -----BEGIN PGP SIGNATURE-----")
-            && gpg_sig.ends_with("-----END PGP SIGNATURE-----")
-        {
-            (msg_gpg[parse_pos + 2..].to_string(), Some(gpg_sig))
-        } else {
+    let parse_pos = msg_gpg.find("\n\n");
+    match parse_pos {
+        // if parse_pos < msg_gpg.len() {
+        Some(parse_pos) => {
+            let gpg_sig = msg_gpg[..parse_pos].trim().to_string();
+            // TODO: support ssh signature
+            if gpg_sig.starts_with("gpgsig -----BEGIN PGP SIGNATURE-----")
+                && gpg_sig.ends_with("-----END PGP SIGNATURE-----")
+            {
+                (msg_gpg[parse_pos + 2..].to_string(), Some(gpg_sig))
+            } else {
+                (msg_gpg[1..].to_string(), None)
+            }
+        }
+        None => {
+            assert!(msg_gpg.starts_with('\n'), "commit message format error");
             (msg_gpg[1..].to_string(), None)
         }
-    } else {
-        (msg_gpg[1..].to_string(), None)
     }
 }
 
