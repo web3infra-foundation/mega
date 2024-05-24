@@ -9,11 +9,11 @@ pub mod log;
 pub mod merge;
 pub mod pull;
 pub mod push;
+pub mod remote;
 pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
-pub mod remote;
 
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils::util;
@@ -79,6 +79,23 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
         }
     }
 }
+/// parse commit message
+pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
+    let parse_pos = msg_gpg.find("\n\n").unwrap_or(msg_gpg.len());
+    if parse_pos < msg_gpg.len() {
+        let gpg_sig = msg_gpg[..parse_pos].trim().to_string();
+        // TODO: support ssh signature
+        if gpg_sig.starts_with("gpgsig -----BEGIN PGP SIGNATURE-----")
+            && gpg_sig.ends_with("-----END PGP SIGNATURE-----")
+        {
+            (msg_gpg[parse_pos + 2..].to_string(), Some(gpg_sig))
+        } else {
+            (msg_gpg[1..].to_string(), None)
+        }
+    } else {
+        (msg_gpg[1..].to_string(), None)
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -92,5 +109,20 @@ mod test {
         let object = Commit::from_tree_id(SHA1::new(&vec![1; 20]), vec![], "Commit_1");
         save_object(&object, &object.id).unwrap();
         let _ = load_object::<Commit>(&object.id).unwrap();
+    }
+
+    #[test]
+    fn test_format_and_parse_commit_msg() {
+        let msg = "commit message";
+        let gpg_sig = "gpgsig -----BEGIN PGP SIGNATURE-----\ncontent\n-----END PGP SIGNATURE-----";
+        let msg_gpg = format_commit_msg(msg, Some(gpg_sig));
+        let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
+        assert_eq!(msg, msg_);
+        assert_eq!(gpg_sig, gpg_sig_.unwrap());
+
+        let msg_gpg = format_commit_msg(msg, None);
+        let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
+        assert_eq!(msg, msg_);
+        assert_eq!(None, gpg_sig_);
     }
 }
