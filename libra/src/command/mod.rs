@@ -65,6 +65,21 @@ pub fn ask_basic_auth() -> BasicAuth {
     BasicAuth { username, password }
 }
 
+/// Format commit message with GPG signature<br>
+/// There must be a `blank line`(\n) before `message`, or remote unpack failed.<br>
+/// If there is `GPG signature`,
+/// `blank line` should be placed between `signature` and `message`
+pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
+    match gpg_sig {
+        None => {
+            format!("\n{}", msg)
+        }
+        Some(gpg) => {
+            format!("{}\n\n{}", gpg, msg)
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use mercury::internal::object::commit::Commit;
