@@ -1,1 +1,82 @@
 ## Libra
+`libra` is a `Git` Client in `Rust`.
+
+## Example
+```
+$ libra --help
+Simulates git commands
+
+Usage: libra <COMMAND>
+
+Commands:
+  init     Initialize a new repository
+  clone    Clone a repository into a new directory
+  add      Add file contents to the index
+  rm       Remove files from the working tree and from the index
+  restore  Restore working tree files
+  status   Show the working tree status
+  log      Show commit logs
+  branch   List, create, or delete branches
+  commit   Record changes to the repository
+  switch   Switch branches
+  merge    Merge changes
+  push     Update remote refs along with associated objects
+  fetch    Download objects and refs from another repository
+  pull     Fetch from and integrate with another repository or a local branch
+  remote   Manage set of tracked repositories
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+## Features
+### Clean Code
+Our code is designed to be clean and easy to read, 
+ensuring that it is both maintainable and understandable for developers of all skill levels.
+
+### Cross-Platform
+- [x] Windows
+- [x] Linux
+- [x] MacOS
+
+### Compatibility with Git
+Our implementation is essentially fully compatible with `Git` 
+(developed with reference to the `Git` documentation), 
+including formats such as `objects`, `index`, `pack`, and `pack-index`. 
+Therefore, it can interact seamlessly with `Git` servers (like `push` and `pull`).
+
+### Differences from Git:
+While maintaining compatibility with `Git`, we have made some innovations and changes:
+we use an `SQLite` database to manage loosely structured files such as `config`, `HEAD`, and `refs`, 
+achieving unified management.
+
+## Functions
+### Commands
+- [x] `init`
+- [x] `add`
+- [x] `rm`
+- [x] `status`
+- [x] `commit`
+- [x] `log`
+- [ ] `tag`
+- [x] `switch`
+- [x] `restore`
+- [ ] `reset`
+- [x] `branch`
+- [ ] `diff`
+- [x] `merge`
+- [ ] `rebase`
+- [x] `index-pack`
+- [x] `remote`
+- [ ] `config`
+#### Remote
+- [x] `push`
+- [x] `pull`
+- [x] `clone`
+- [x] `fetch`
+
+### Others
+- [ ] `.gitignore` and `.gitattributes`
+- [ ] `lfs`
+- [ ] `ssh`
