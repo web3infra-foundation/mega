@@ -70,6 +70,7 @@ achieving unified management.
 - [x] `index-pack`
 - [x] `remote`
 - [ ] `config`
+#### Remote
 - [x] `push`
 - [x] `pull`
 - [x] `clone`
@@ -78,4 +79,4 @@ achieving unified management.
 ### Others
 - [ ] `.gitignore` and `.gitattributes`
 - [ ] `lfs`
-- [ ] `submodule`
+- [ ] `ssh`
