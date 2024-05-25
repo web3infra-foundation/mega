@@ -1,6 +1,6 @@
-
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::db_enums::RefType;
 
@@ -85,7 +85,7 @@ impl SmartProtocol {
     pub async fn git_upload_pack(
         &mut self,
         upload_request: &mut Bytes,
-    ) -> Result<(Vec<u8>, BytesMut)> {
+    ) -> Result<(ReceiverStream<Vec<u8>>, BytesMut)> {
         let pack_handler = self.pack_handler().await;
 
         let mut want: Vec<String> = Vec::new();
@@ -135,29 +135,31 @@ impl SmartProtocol {
             self.capabilities
         );
 
-        let mut pack_data = vec![];
-        let mut buf = BytesMut::new();
+        // init a empty receiverstream
+        let (tx, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
+        let mut pack_data = ReceiverStream::new(rx);
+        let mut protocol_buf = BytesMut::new();
 
         if have.is_empty() {
             pack_data = pack_handler.full_pack().await.unwrap();
-            add_pkt_line_string(&mut buf, String::from("NAK\n"));
+            add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
         } else {
             if self.capabilities.contains(&Capability::MultiAckDetailed) {
                 // multi_ack_detailed mode, the server will differentiate the ACKs where it is signaling that
                 // it is ready to send data with ACK obj-id ready lines,
                 // and signals the identified common commits with ACK obj-id common lines
-                
+
                 for hash in &have {
-                    if pack_handler.check_commit_exist(hash).await
-                    {
-                        add_pkt_line_string(&mut buf, format!("ACK {} common\n", hash));
+                    if pack_handler.check_commit_exist(hash).await {
+                        add_pkt_line_string(&mut protocol_buf, format!("ACK {} common\n", hash));
                         if last_common_commit.is_empty() {
                             last_common_commit = hash.to_string();
                         }
                     } else {
                         //send NAK if missing common commit
-                        add_pkt_line_string(&mut buf, String::from("NAK\n"));
-                        return Ok((pack_data, buf));
+                        add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
+                        drop(tx);
+                        return Ok((pack_data, protocol_buf));
                     }
                 }
 
@@ -165,7 +167,7 @@ impl SmartProtocol {
                     if self.capabilities.contains(&Capability::NoDone) {
                         // If multi_ack_detailed and no-done are both present, then the sender is free to immediately send a pack
                         // following its first "ACK obj-id ready" message.
-                        add_pkt_line_string(&mut buf, format!("ACK {} ready\n", hash));
+                        add_pkt_line_string(&mut protocol_buf, format!("ACK {} ready\n", hash));
                     }
                 }
 
@@ -173,9 +175,9 @@ impl SmartProtocol {
             } else {
                 tracing::error!("capability unsupported");
             }
-            add_pkt_line_string(&mut buf, format!("ACK {} \n", last_common_commit));
+            add_pkt_line_string(&mut protocol_buf, format!("ACK {} \n", last_common_commit));
         }
-        Ok((pack_data, buf))
+        Ok((pack_data, protocol_buf))
     }
 
     pub async fn git_receive_pack(&mut self, mut body_bytes: Bytes) -> Result<Bytes> {
@@ -440,7 +442,7 @@ pub mod test {
             error_msg: String::new(),
             command_type: CommandType::Create,
             ref_type: RefType::Branch,
-            default_branch: false
+            default_branch: false,
         };
         assert_eq!(result, command);
     }

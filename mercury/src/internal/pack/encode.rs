@@ -1,9 +1,11 @@
+use std::collections::VecDeque;
+use std::io::Write;
 
 use flate2::write::ZlibEncoder;
 use sha1::{Digest, Sha1};
-use std::collections::VecDeque;
-use std::{mem, thread};
-use std::{io::Write, sync::mpsc};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+
 use crate::internal::object::types::ObjectType;
 use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
@@ -15,7 +17,7 @@ pub struct PackEncoder {
     process_index: usize,
     window_size: usize,
     window: VecDeque<(Entry, usize)>, // entry and offset
-    writer: Vec<u8>,
+    sender: Option<mpsc::Sender<Vec<u8>>>,
     inner_offset: usize, // offset of current entry
     inner_hash: Sha1,    // Not SHA1 because need update trait
     final_hash: Option<SHA1>,
@@ -57,22 +59,27 @@ fn encode_offset(mut value: usize) -> Vec<u8> {
 }
 
 impl PackEncoder {
-    pub fn new(object_number: usize, window_size: usize) -> Self {
-        let head = encode_header(object_number);
-        let mut writer = Vec::new();
-        writer.write_all(&head).unwrap();
-        let mut hash = Sha1::new();
-        hash.update(&head);
+    pub fn new(object_number: usize, window_size: usize, sender: mpsc::Sender<Vec<u8>>) -> Self {
         PackEncoder {
             object_number,
             window_size,
             process_index: 0,
             window: VecDeque::with_capacity(window_size),
-            writer,
+            sender: Some(sender),
             inner_offset: 12, // 12 bytes header
-            inner_hash: hash,
+            inner_hash: Sha1::new(),
             final_hash: None,
             start_encoding: false,
+        }
+    }
+
+    pub fn drop_sender(&mut self) {
+        self.sender.take(); // Take the sender out, dropping it
+    }
+
+    pub async fn send_data(&mut self, data: Vec<u8>) {
+        if let Some(sender) = &self.sender {
+            sender.send(data).await.unwrap();
         }
     }
 
@@ -88,7 +95,11 @@ impl PackEncoder {
     /// Returns `Ok(())` if encoding is successful, or a `GitError` in case of failure.
     /// - Returns a `GitError` if there is a failure during the encoding process.
     /// - Returns `PackEncodeError` if an encoding operation is already in progress.
-    pub fn encode(&mut self, rx: mpsc::Receiver<Entry>) -> Result<Vec<u8>, GitError> {
+    pub async fn encode(&mut self, mut entry_rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
+        let head = encode_header(self.object_number);
+        self.send_data(head.clone()).await;
+        self.inner_hash.update(&head);
+
         // ensure only one decode can only invoke once
         if self.start_encoding {
             return Err(GitError::PackEncodeError(
@@ -96,20 +107,23 @@ impl PackEncoder {
             ));
         }
         loop {
-            match rx.recv() {
-                Ok(entry) => {
+            match entry_rx.recv().await {
+                Some(entry) => {
                     self.process_index += 1;
                     // push window after encode to void diff by self
                     let offset = self.inner_offset;
-                    self.encode_one_object(&entry)?;
+                    self.encode_one_object(&entry).await?;
                     self.window.push_back((entry, offset));
                     if self.window.len() > self.window_size {
                         self.window.pop_front();
                     }
                 }
-                Err(_) => {
+                None => {
                     if self.process_index != self.object_number {
-                        panic!("not all objects are encoded");
+                        panic!(
+                            "not all objects are encoded, process:{}, total:{}",
+                            self.process_index, self.object_number
+                        );
                     }
                     break;
                 }
@@ -119,8 +133,9 @@ impl PackEncoder {
         // hash signature
         let hash_result = self.inner_hash.clone().finalize();
         self.final_hash = Some(SHA1::from_bytes(&hash_result));
-        self.writer.write_all(&hash_result).unwrap();
-        Ok(mem::take(&mut self.writer))
+        self.send_data((hash_result).to_vec()).await;
+        self.drop_sender();
+        Ok(())
     }
 
     /// Try to encode as delta using objects in window
@@ -158,14 +173,14 @@ impl PackEncoder {
     }
 
     /// Write data to writer and update hash & offset
-    fn write_all_and_update(&mut self, data: &[u8]) {
+    async fn write_all_and_update(&mut self, data: &[u8]) {
         self.inner_hash.update(data);
         self.inner_offset += data.len();
-        self.writer.write_all(data).unwrap();
+        self.send_data(data.to_vec()).await;
     }
 
     /// Encode one object, and update the hash
-    fn encode_one_object(&mut self, entry: &Entry) -> Result<(), GitError> {
+    async fn encode_one_object(&mut self, entry: &Entry) -> Result<(), GitError> {
         // try encode as delta
         let (entry, offset) = self.try_as_offset_delta(entry);
         let obj_data = entry.data;
@@ -188,12 +203,12 @@ impl PackEncoder {
         } else {
             header_data.push(0);
         }
-        self.write_all_and_update(&header_data);
+        self.write_all_and_update(&header_data).await;
 
         // **offset** encoding
         if entry.obj_type == ObjectType::OffsetDelta {
             let offset_data = encode_offset(offset.unwrap());
-            self.write_all_and_update(&offset_data);
+            self.write_all_and_update(&offset_data).await;
         } else if entry.obj_type == ObjectType::HashDelta {
             unreachable!("unsupported type")
         }
@@ -205,62 +220,72 @@ impl PackEncoder {
             .expect("zlib compress should never failed");
         inflate.flush().expect("zlib flush should never failed");
         let compressed_data = inflate.finish().expect("zlib compress should never failed");
-        self.write_all_and_update(&compressed_data);
+        self.write_all_and_update(&compressed_data).await;
         Ok(())
     }
 
     /// async version of encode, result data will be returned by JoinHandle.
     /// It will consume PackEncoder, so you can't use it after calling this function.
-    pub fn encode_async(mut self, rx: mpsc::Receiver<Entry>) -> Result<thread::JoinHandle<Vec<u8>>, GitError> {
-        Ok(thread::spawn(move || {
-            self.encode(rx).unwrap()
-        }))
+    pub async fn encode_async(
+        mut self,
+        rx: mpsc::Receiver<Entry>,
+    ) -> Result<JoinHandle<()>, GitError> {
+        Ok(tokio::spawn(async move { self.encode(rx).await.unwrap() }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, path::PathBuf,  usize};
+    use std::{io::Cursor, path::PathBuf, usize};
+
     use crate::internal::object::blob::Blob;
     use crate::internal::pack::Pack;
 
     use super::*;
-    #[test]
-    fn test_pack_encoder() {
 
-        fn encode_once(window_size: usize) -> Vec<u8> {
+    #[tokio::test]
+    async fn test_pack_encoder() {
+        async fn encode_once(window_size: usize) -> Vec<u8> {
+            let (tx, mut rx) = mpsc::channel(100);
+            let (entry_tx, entry_rx) = mpsc::channel::<Entry>(1);
+
             // make some different objects, or decode will fail
             let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
-            let mut encoder = PackEncoder::new(str_vec.len(), window_size);
-            let (tx, rx) = mpsc::channel::<Entry>();
+            let encoder = PackEncoder::new(str_vec.len(), window_size, tx);
+            encoder.encode_async(entry_rx).await.unwrap();
+
             for str in str_vec {
                 let blob = Blob::from_content(str);
                 let entry: Entry = blob.into();
-                tx.send(entry).unwrap();
+                entry_tx.send(entry).await.unwrap();
             }
-            drop(tx);
-            let res = encoder.encode(rx).unwrap();
-            assert!(encoder.get_hash().is_some());
-            res
+            drop(entry_tx);
+            // assert!(encoder.get_hash().is_some());
+            let mut result = Vec::new();
+            while let Some(chunk) = rx.recv().await {
+                result.extend(chunk);
+            }
+            result
         }
+
         fn check_format(data: Vec<u8>) {
             let mut p = Pack::new(
                 None,
                 Some(1024 * 20),
                 Some(PathBuf::from("/tmp/.cache_temp")),
-                true
+                true,
             );
             let mut reader = Cursor::new(data);
-            p.decode(&mut reader, |_,_| {})
+            p.decode(&mut reader, |_, _| {})
                 .expect("pack file format error");
         }
         // without delta
-        let pack_without_delta = encode_once(0);
+        let pack_without_delta = encode_once(0).await;
         let pack_without_delta_size = pack_without_delta.len();
         check_format(pack_without_delta);
 
         // with delta
-        let pack_with_delta = encode_once(3);
+        let pack_with_delta = encode_once(3).await;
         assert_ne!(pack_with_delta.len(), pack_without_delta_size);
         check_format(pack_with_delta);
     }
@@ -273,39 +298,5 @@ mod tests {
         assert_eq!(data.len(), 2);
         assert_eq!(data[0], 0b_1101_0101);
         assert_eq!(data[1], 0b_0000_0101);
-    }
-
-    #[test]
-    fn test_async_pack_encoder() {
-        let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
-        let encoder = PackEncoder::new(str_vec.len(), 3);
-        let (tx, rx) = mpsc::channel::<Entry>();
-        let handle = encoder.encode_async(rx).unwrap();
-
-        for str in str_vec {
-            let blob = Blob::from_content(str);
-            let entry: Entry = blob.into();
-            tx.send(entry).unwrap();
-        }
-        drop(tx);
-
-        let data = handle.join().unwrap();
-
-        let correct_hash = {
-            let str_vec = vec!["hello, code,", "hello, world.", "!", "123141251251"];
-            let mut encoder = PackEncoder::new(str_vec.len(), 3);
-            let (tx, rx) = mpsc::channel::<Entry>();
-            for str in str_vec {
-                let blob = Blob::from_content(str);
-                let entry: Entry = blob.into();
-                tx.send(entry).unwrap();
-            }
-            drop(tx);
-            let _data = encoder.encode(rx).unwrap();
-            assert!(encoder.get_hash().is_some());
-            encoder.get_hash().unwrap()
-        };
-        let hash = SHA1::from_bytes(&data[data.len().saturating_sub(20)..]);
-        assert_eq!(hash, correct_hash);
     }
 }

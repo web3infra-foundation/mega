@@ -13,7 +13,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
 
-use super::save_object;
+use super::{format_commit_msg, save_object};
 
 #[derive(Parser, Debug)]
 pub struct CommitArgs {
@@ -38,7 +38,8 @@ pub async fn execute(args: CommitArgs) {
 
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids().await;
-    let commit = Commit::from_tree_id(tree.id, parents_commit_ids, args.message.as_str());
+    // There must be a `blank line`(\n) before `message`, or remote unpack failed
+    let commit = Commit::from_tree_id(tree.id, parents_commit_ids, &format_commit_msg(&args.message, None));
 
     // TODO  default signature created in `from_tree_id`, wait `git config` to set correct user info
 
