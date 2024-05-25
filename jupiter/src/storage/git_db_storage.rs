@@ -215,6 +215,19 @@ impl GitDbStorage {
             .unwrap())
     }
 
+    pub async fn get_commits_by_hashes(
+        &self,
+        repo: &Repo,
+        hashes: &Vec<String>,
+    ) -> Result<Vec<git_commit::Model>, MegaError> {
+        Ok(git_commit::Entity::find()
+            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(git_commit::Column::CommitId.is_in(hashes))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
     pub async fn get_commits_by_repo_id(
         &self,
         repo: &Repo,

@@ -3,15 +3,16 @@ use std::{
     io::Cursor,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Receiver},
     },
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::raw_blob;
-use common::{config::MonoConfig, errors::MegaError, utils::ZERO_ID};
+use common::{config::PackConfig, errors::MegaError, utils::ZERO_ID};
 use mercury::internal::pack::Pack;
 use mercury::{
     errors::GitError,
@@ -49,25 +50,26 @@ pub trait PackHandler: Send + Sync {
     /// # Returns
     /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
     ///
-    async fn full_pack(&self) -> Result<Vec<u8>, GitError>;
+    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError>;
 
     async fn incremental_pack(
         &self,
         want: Vec<String>,
         have: Vec<String>,
-    ) -> Result<Vec<u8>, GitError>;
+    ) -> Result<ReceiverStream<Vec<u8>>, GitError>;
 
     async fn traverse_for_count(
         &self,
         tree: Tree,
         exist_objs: &HashSet<String>,
+        counted_obj: &mut HashSet<String>,
         obj_num: &AtomicUsize,
     ) {
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
         for item in &tree.tree_items {
             let hash = item.id.to_plain_str();
-            if !exist_objs.contains(&hash) {
+            if !exist_objs.contains(&hash) && counted_obj.insert(hash.clone()) {
                 if item.mode == TreeItemMode::Tree {
                     search_tree_ids.push(hash.clone())
                 } else {
@@ -78,29 +80,47 @@ pub trait PackHandler: Send + Sync {
         obj_num.fetch_add(search_blob_ids.len(), Ordering::SeqCst);
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
-            self.traverse_for_count(t, exist_objs, obj_num).await;
+            self.traverse_for_count(t, exist_objs, counted_obj, obj_num)
+                .await;
         }
         obj_num.fetch_add(1, Ordering::SeqCst);
     }
 
+    /// Traverse a tree structure asynchronously.
+    ///
+    /// This function traverses a given tree, keeps track of processed objects, and optionally sends
+    /// traversal data to a provided sender. The function will:
+    /// 1. Traverse the tree and calculate the quantities of tree and blob items.
+    /// 2. If a sender is provided, send blob and tree data via the sender.
+    ///
+    /// # Parameters
+    /// - `tree`: The tree structure to traverse.
+    /// - `exist_objs`: A mutable reference to a set containing already processed object IDs.
+    /// - `sender`: An optional sender for sending traversal data.
+    ///
+    /// # Details
+    /// - The function processes tree items, distinguishing between tree and blob items.
+    /// - It collects IDs of items that have not been processed yet.
+    /// - It retrieves and sends blob data if a sender is provided.
+    /// - It recursively traverses sub-trees.
+    /// - It sends the entire tree data if a sender is provided.
     async fn traverse(
         &self,
         tree: Tree,
         exist_objs: &mut HashSet<String>,
-        sender: Option<&Sender<Entry>>,
+        sender: Option<&tokio::sync::mpsc::Sender<Entry>>,
     ) {
-        exist_objs.insert(tree.id.to_plain_str());
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
+
         for item in &tree.tree_items {
             let hash = item.id.to_plain_str();
-            if !exist_objs.contains(&hash) {
+            if exist_objs.insert(hash.clone()) {
                 if item.mode == TreeItemMode::Tree {
-                    search_tree_ids.push(hash.clone())
+                    search_tree_ids.push(hash);
                 } else {
-                    search_blob_ids.push(hash.clone());
+                    search_blob_ids.push(hash);
                 }
-                exist_objs.insert(hash);
             }
         }
 
@@ -108,15 +128,17 @@ pub trait PackHandler: Send + Sync {
             let blobs = self.get_blobs_by_hashes(search_blob_ids).await.unwrap();
             for b in blobs {
                 let blob: Blob = b.into();
-                sender.send(blob.into()).unwrap();
+                sender.send(blob.into()).await.unwrap();
             }
         }
+
         let trees = self.get_trees_by_hashes(search_tree_ids).await.unwrap();
         for t in trees {
             self.traverse(t, exist_objs, sender).await;
         }
+
         if let Some(sender) = sender {
-            sender.send(tree.into()).unwrap();
+            sender.send(tree.into()).await.unwrap();
         }
     }
 
@@ -133,7 +155,11 @@ pub trait PackHandler: Send + Sync {
 
     async fn check_default_branch(&self) -> bool;
 
-    fn pack_decoder(&self, mono_config: &MonoConfig, pack_file: Bytes) -> Result<Receiver<Entry>, GitError> {
+    fn pack_decoder(
+        &self,
+        pack_config: &PackConfig,
+        pack_file: Bytes,
+    ) -> Result<Receiver<Entry>, GitError> {
         // #[cfg(debug_assertions)]
         // {
         //     let datetime = chrono::Utc::now().naive_utc();
@@ -144,9 +170,9 @@ pub trait PackHandler: Send + Sync {
         let (sender, receiver) = mpsc::channel();
         let p = Pack::new(
             None,
-            Some(1024 * 1024 * 1024 * mono_config.pack_decode_mem_size),
-            Some(mono_config.pack_decode_cache_path.clone()),
-            mono_config.clean_cache_after_decode,
+            Some(1024 * 1024 * 1024 * pack_config.pack_decode_mem_size),
+            Some(pack_config.pack_decode_cache_path.clone()),
+            pack_config.clean_cache_after_decode,
         );
         p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
         Ok(receiver)

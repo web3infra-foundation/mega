@@ -57,13 +57,18 @@ impl Display for Commit {
         }
         writeln!(f, "author {}", self.author)?;
         writeln!(f, "committer {}", self.committer)?;
-        writeln!(f, "\n{}", self.message)
+        writeln!(f, "{}", self.message)
     }
 }
 
 impl Commit {
-
-    pub fn new(author: Signature, committer: Signature, tree_id: SHA1, parent_commit_ids: Vec<SHA1>, message: &str) -> Commit  {
+    pub fn new(
+        author: Signature,
+        committer: Signature,
+        tree_id: SHA1,
+        parent_commit_ids: Vec<SHA1>,
+        message: &str,
+    ) -> Commit {
         let mut commit = Commit {
             id: SHA1::default(),
             tree_id,
@@ -142,7 +147,7 @@ impl ObjectTrait for Commit {
         // The rest is the message
         let message = unsafe {
             // + 2: skip the blank line between committer and message
-            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 2..].to_vec())
+            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
         };
 
         Ok(Commit {
@@ -181,7 +186,9 @@ impl ObjectTrait for Commit {
         data.extend(&[0x0a]);
         data.extend(self.committer.to_data()?);
         data.extend(&[0x0a]);
-        data.extend(&[0x0a]); // Important! or Git Server can't parse & reply: unpack-objects abnormal exit
+        // Important! or Git Server can't parse & reply: unpack-objects abnormal exit
+        // We can move [0x0a] to message instead here.
+        // data.extend(&[0x0a]);
         data.extend(self.message.as_bytes());
 
         Ok(data)

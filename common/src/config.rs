@@ -11,6 +11,7 @@ pub struct Config {
     pub ssh: SshConfig,
     pub storage: StorageConfig,
     pub monorepo: MonoConfig,
+    pub pack: PackConfig,
 }
 
 impl Config {
@@ -109,18 +110,32 @@ impl Default for StorageConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
     pub import_dir: PathBuf,
-    pub pack_decode_mem_size: usize,
-    pub pack_decode_cache_path: PathBuf,
-    pub clean_cache_after_decode: bool,
 }
 
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
             import_dir: PathBuf::from("/third-part"),
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PackConfig {
+    pub pack_decode_mem_size: usize,
+    pub pack_decode_cache_path: PathBuf,
+    pub clean_cache_after_decode: bool,
+    pub channel_message_size: usize,
+}
+
+impl Default for PackConfig {
+    fn default() -> Self {
+        Self {
             pack_decode_mem_size: 4,
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
+            channel_message_size: 1_000_000,
         }
     }
 }
