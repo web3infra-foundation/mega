@@ -90,10 +90,10 @@ async fn get_method_router(
     if Regex::new(r"/hello$").unwrap().is_match(uri.path()) {
         return gemini::http::handler::hello_gemini(params).await;
     }
-    return Err((
+    Err((
         StatusCode::NOT_FOUND,
         String::from("Operation not supported\n"),
-    ));
+    ))
 }
 
 #[cfg(test)]
