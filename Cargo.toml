@@ -20,6 +20,7 @@ jupiter = { path = "jupiter" }
 venus = { path = "venus" }
 ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
+gemini = { path = "gemini" }
 anyhow = "1.0.83"
 serde = "1.0.201"
 serde_json = "1.0.117"
