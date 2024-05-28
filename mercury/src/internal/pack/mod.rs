@@ -10,6 +10,7 @@ pub mod cache;
 pub mod waitlist;
 pub mod cache_object;
 pub mod entry;
+pub mod channel_reader;
 
 use crate::hash::SHA1;
 use threadpool::ThreadPool;
