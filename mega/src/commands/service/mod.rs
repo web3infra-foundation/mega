@@ -10,12 +10,19 @@ use common::{config::Config, errors::MegaResult};
 mod http;
 mod https;
 mod multi;
+mod relay;
 mod ssh;
 
 // This function generates the CLI for the 'service' command.
 // It includes subcommands for each server type.
 pub fn cli() -> Command {
-    let subcommands = vec![http::cli(), https::cli(), ssh::cli(), multi::cli()];
+    let subcommands = vec![
+        http::cli(),
+        https::cli(),
+        ssh::cli(),
+        multi::cli(),
+        relay::cli(),
+    ];
     Command::new("service")
         .about("Start different kinds of server: for example https or ssh")
         .subcommands(subcommands)
@@ -37,6 +44,7 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         "https" => https::exec(config, subcommand_args).await,
         "ssh" => ssh::exec(config, subcommand_args).await,
         "multi" => multi::exec(config, subcommand_args).await,
+        "relay" => relay::exec(config, subcommand_args).await,
         _ => Ok(()),
     }
 }
