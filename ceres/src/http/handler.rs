@@ -70,15 +70,13 @@ pub async fn git_upload_pack(
         .git_upload_pack(&mut upload_request.freeze())
         .await
         .unwrap();
-    tracing::info!("send ack/nak message buf: {:?}", protocol_buf);
     let mut res_bytes = BytesMut::new();
     res_bytes.extend(protocol_buf);
 
     let resp = build_res_header("application/x-git-upload-pack-result".to_owned());
 
-    tracing::info!("send response");
-
     let body_stream = async_stream::stream! {
+        tracing::info!("send ack/nak message buf: {:?}", &res_bytes);
         yield Ok::<_, Infallible>(Bytes::copy_from_slice(&res_bytes));
         while let Some(chunk) = send_pack_data.next().await {
             let mut reader = chunk.as_slice();

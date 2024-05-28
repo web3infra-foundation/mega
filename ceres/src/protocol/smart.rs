@@ -135,9 +135,7 @@ impl SmartProtocol {
             self.capabilities
         );
 
-        // init a empty receiverstream
-        let (tx, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
-        let mut pack_data = ReceiverStream::new(rx);
+        let pack_data;
         let mut protocol_buf = BytesMut::new();
 
         if have.is_empty() {
@@ -155,12 +153,15 @@ impl SmartProtocol {
                         if last_common_commit.is_empty() {
                             last_common_commit = hash.to_string();
                         }
-                    } else {
-                        //send NAK if missing common commit
-                        add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
-                        drop(tx);
-                        return Ok((pack_data, protocol_buf));
                     }
+                }
+                pack_data = pack_handler.incremental_pack(&want, have).await.unwrap();
+
+                if last_common_commit.is_empty() {
+                    //send NAK if missing common commit
+                    add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
+                    // need to handle rebase option, still need pack data when has no common commit
+                    return Ok((pack_data, protocol_buf));
                 }
 
                 for hash in &want {
@@ -170,10 +171,11 @@ impl SmartProtocol {
                         add_pkt_line_string(&mut protocol_buf, format!("ACK {} ready\n", hash));
                     }
                 }
-
-                pack_data = pack_handler.incremental_pack(want, have).await.unwrap();
             } else {
                 tracing::error!("capability unsupported");
+                // init a empty receiverstream
+                let (_, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
+                pack_data = ReceiverStream::new(rx);
             }
             add_pkt_line_string(&mut protocol_buf, format!("ACK {} \n", last_common_commit));
         }

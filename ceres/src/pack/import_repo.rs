@@ -1,4 +1,8 @@
-use std::{collections::{HashMap, HashSet}, str::FromStr, sync::atomic::{AtomicUsize, Ordering}};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -11,7 +15,6 @@ use jupiter::{
     context::Context,
     storage::{batch_query_by_columns, GitStorageProvider},
 };
-use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
 use mercury::{
     errors::GitError,
     internal::{
@@ -19,7 +22,7 @@ use mercury::{
         pack::entry::Entry,
     },
 };
-
+use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
 use venus::import_repo::{
     import_refs::{CommandType, RefCommand, Refs},
     repo::Repo,
@@ -121,9 +124,10 @@ impl PackHandler for ImportRepo {
 
     async fn incremental_pack(
         &self,
-        mut want: Vec<String>,
+        want: &Vec<String>,
         have: Vec<String>,
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+        let mut want_clone = want.clone();
         let pack_config = &self.context.config.pack;
         let storage = self.context.services.git_db_storage.clone();
         let obj_num = AtomicUsize::new(0);
@@ -131,7 +135,7 @@ impl PackHandler for ImportRepo {
         let mut exist_objs = HashSet::new();
 
         let mut want_commits: Vec<Commit> = storage
-            .get_commits_by_hashes(&self.repo, &want)
+            .get_commits_by_hashes(&self.repo, &want_clone)
             .await
             .unwrap()
             .into_iter()
@@ -144,7 +148,7 @@ impl PackHandler for ImportRepo {
             for p_commit_id in temp.parent_commit_ids {
                 let p_commit_id = p_commit_id.to_plain_str();
 
-                if !have.contains(&p_commit_id) && !want.contains(&p_commit_id) {
+                if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
                         .get_commit_by_hash(&self.repo, &p_commit_id)
                         .await
@@ -152,7 +156,7 @@ impl PackHandler for ImportRepo {
                         .unwrap()
                         .into();
                     want_commits.push(parent.clone());
-                    want.push(p_commit_id);
+                    want_clone.push(p_commit_id);
                     traversal_list.push(parent);
                 }
             }
@@ -172,9 +176,15 @@ impl PackHandler for ImportRepo {
 
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
 
-        let have_commits = storage.get_commits_by_hashes(&self.repo, &have).await.unwrap();
+        let have_commits = storage
+            .get_commits_by_hashes(&self.repo, &have)
+            .await
+            .unwrap();
         let have_trees = storage
-            .get_trees_by_hashes(&self.repo, have_commits.iter().map(|x| x.tree.clone()).collect())
+            .get_trees_by_hashes(
+                &self.repo,
+                have_commits.iter().map(|x| x.tree.clone()).collect(),
+            )
             .await
             .unwrap();
         // traverse to get exist_objs
