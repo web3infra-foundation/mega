@@ -1,12 +1,15 @@
-use std::io::{self, BufRead, Cursor, ErrorKind, Read, Seek};
+use std::io::{self, BufRead, Cursor, ErrorKind, Read};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::sync::mpsc::Sender;
+use std::sync::{Arc, mpsc};
+use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
+use axum::Error;
+use bytes::Bytes;
 
 use flate2::bufread::ZlibDecoder;
+use futures_util::{Stream, StreamExt};
 use threadpool::ThreadPool;
 
 use crate::errors::GitError;
@@ -20,6 +23,7 @@ use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
 use uuid::Uuid;
+use crate::internal::pack::channel_reader::ChannelReader;
 use crate::internal::pack::entry::Entry;
 
 /// For Convenient to pass Params
@@ -320,7 +324,7 @@ impl Pack {
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
     ///
     ///
-    pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Seek + Send), callback: F) -> Result<(), GitError>
+    pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Send), callback: F) -> Result<(), GitError>
     where
         F: Fn(Entry, usize) + Sync + Send + 'static
     {
@@ -460,13 +464,38 @@ impl Pack {
 
     /// Decode Pack in a new thread and send the CacheObjects while decoding.
     /// <br> Attention: It will consume the `pack` and return in JoinHandle
-    pub fn decode_async(mut self, mut pack: (impl BufRead + Seek + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
+    pub fn decode_async(mut self, mut pack: (impl BufRead + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
                 sender.send(entry).unwrap();
             }).unwrap();
             self
         })
+    }
+
+    /// Decode `Pack` with inputting a `Stream` of `Bytes`, and send the `Entry` while decoding.
+    pub async fn decode_stream(mut self,
+                               mut stream: impl Stream<Item = Result<Bytes, Error>> + Unpin + Send + 'static,
+                               sender: Sender<Entry>)
+        -> Self
+    {
+        let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
+        let mut reader = ChannelReader::new(rx);
+        tokio::spawn(async move {
+            // use Channel to connect `async` & `sync`
+            while let Some(chunk) = stream.next().await {
+                let data = chunk.unwrap().to_vec();
+                tx.send(data).unwrap();
+            }
+        });
+        // CPU-bound task, so use spawn_blocking
+        // DO NOT use thread::spawn, because it will block tokio runtime (if single-threaded runtime, like in tests)
+        tokio::task::spawn_blocking(move || {
+            self.decode(&mut reader, move |entry, _| {
+                sender.send(entry).unwrap();
+            }).unwrap();
+            self
+        }).await.unwrap()
     }
 
     /// CacheObjects + Index size of Caches
@@ -598,12 +627,16 @@ mod tests {
     use std::io::BufReader;
     use std::io::Cursor;
     use std::{env, path::PathBuf};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
+    use tokio_util::io::ReaderStream;
     use tracing_subscriber::util::SubscriberInitExt;
 
     use crate::internal::pack::Pack;
+    use futures_util::TryStreamExt;
 
     fn init_logger() {
         let _ = tracing_subscriber::fmt::Subscriber::builder()
@@ -706,6 +739,39 @@ mod tests {
             panic!("Error: {:?}", e);
         }
     } // it will be stuck on dropping `Pack` on Windows if `mem_size` is None, so we need `mimalloc`
+
+    #[tokio::test]
+    async fn test_decode_large_file_stream() {
+        init_logger();
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let f = tokio::fs::File::open(source).await.unwrap();
+        let stream = ReaderStream::new(f).map_err(|e| {
+            axum::Error::new(e)
+        });
+        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = tokio::spawn(async move {
+            p.decode_stream(stream, tx).await
+        });
+
+        let count = Arc::new(AtomicUsize::new(0));
+        let count_c = count.clone();
+        // in tests, RUNTIME is single-threaded, so `sync code` will block the tokio runtime
+        tokio::task::spawn_blocking(move || {
+            let mut cnt = 0;
+            for _entry in rx {
+                cnt += 1; //use entry here
+            }
+            tracing::info!("Received: {}", cnt);
+            count_c.store(cnt, Ordering::Relaxed);
+        }).await.unwrap();
+        let p = handle.await.unwrap();
+        assert_eq!(count.load(Ordering::Relaxed), p.number);
+    }
 
     #[test]
     fn test_decode_large_file_async() {
