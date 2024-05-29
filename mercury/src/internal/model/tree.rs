@@ -36,13 +36,13 @@ impl From<Tree> for git_tree::Model {
 
 impl From<mega_tree::Model> for Tree {
     fn from(value: mega_tree::Model) -> Self {
-        Tree::from_bytes(value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
+        Tree::from_bytes(&value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
     }
 }
 
 
 impl From<git_tree::Model> for Tree {
     fn from(value: git_tree::Model) -> Self {
-        Tree::from_bytes(value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
+        Tree::from_bytes(&value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
     }
 }
