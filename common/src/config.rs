@@ -1,8 +1,7 @@
-use std::path::PathBuf;
 use c::{ConfigError, FileFormat};
 use config as c;
 use serde::{Deserialize, Serialize};
-
+use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Config {
@@ -12,6 +11,7 @@ pub struct Config {
     pub storage: StorageConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
+    pub relay: RelayConfig,
 }
 
 impl Config {
@@ -26,10 +26,7 @@ impl Config {
         // config.get::<Self>(env!("CARGO_PKG_NAME"))
         config.try_deserialize::<Config>()
     }
-
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LogConfig {
@@ -120,7 +117,6 @@ impl Default for MonoConfig {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PackConfig {
     pub pack_decode_mem_size: usize,
@@ -136,6 +132,21 @@ impl Default for PackConfig {
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RelayConfig {
+    pub ca: String,
+    pub hub: String,
+}
+
+impl Default for RelayConfig {
+    fn default() -> Self {
+        Self {
+            ca: String::from("127.0.0.1:9999"),
+            hub: String::from("127.0.0.1:8888"),
         }
     }
 }
