@@ -8,7 +8,8 @@ use axum::routing::get;
 use axum::Router;
 use clap::Args;
 use common::config::Config;
-use common::model::{CommonOptions, GetParams};
+use common::model::CommonOptions;
+use gemini::RelayGetParams;
 use jupiter::context::Context;
 use regex::Regex;
 use tower::ServiceBuilder;
@@ -83,12 +84,15 @@ pub async fn app(config: Config, host: String, port: u16) -> Router {
 }
 
 async fn get_method_router(
-    _state: State<AppState>,
-    Query(params): Query<GetParams>,
+    state: State<AppState>,
+    Query(params): Query<RelayGetParams>,
     uri: Uri,
 ) -> Result<Response<Body>, (StatusCode, String)> {
+    let relay_config = state.context.config.relay.clone();
     if Regex::new(r"/hello$").unwrap().is_match(uri.path()) {
         return gemini::http::handler::hello_gemini(params).await;
+    } else if Regex::new(r"/certificate$").unwrap().is_match(uri.path()) {
+        return gemini::ztm::handler::get_ztm_certificate(relay_config, params).await;
     }
     Err((
         StatusCode::NOT_FOUND,
