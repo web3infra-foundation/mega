@@ -38,16 +38,16 @@ impl Entry {
     pub fn process_entry(&self) -> GitObject {
         match self.obj_type {
             ObjectType::Commit => {
-                GitObject::Commit(Commit::from_bytes(self.data.clone(), self.hash).unwrap())
+                GitObject::Commit(Commit::from_bytes(&self.data, self.hash).unwrap())
             }
             ObjectType::Tree => {
-                GitObject::Tree(Tree::from_bytes(self.data.clone(), self.hash).unwrap())
+                GitObject::Tree(Tree::from_bytes(&self.data, self.hash).unwrap())
             }
             ObjectType::Blob => {
-                GitObject::Blob(Blob::from_bytes(self.data.clone(), self.hash).unwrap())
+                GitObject::Blob(Blob::from_bytes(&self.data, self.hash).unwrap())
             }
             ObjectType::Tag => {
-                GitObject::Tag(Tag::from_bytes(self.data.clone(), self.hash).unwrap())
+                GitObject::Tag(Tag::from_bytes(&self.data, self.hash).unwrap())
             }
             _ => unreachable!("can not parse delta!"),
         }

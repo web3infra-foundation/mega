@@ -22,7 +22,7 @@ use crate::{errors::GitError, hash::SHA1};
 
 pub trait ObjectTrait: Send + Sync + Display {
     /// Creates a new object from a byte slice.
-    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
+    fn from_bytes(data: &[u8], hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized;
 
@@ -37,7 +37,7 @@ pub trait ObjectTrait: Send + Sync + Display {
         read.read_to_end(&mut content).unwrap();
         let h = read.hash.clone();
         let hash_str = h.finalize();
-        Self::from_bytes(content, SHA1::from_str(&format!("{:x}", hash_str)).unwrap()).unwrap()
+        Self::from_bytes(&content, SHA1::from_str(&format!("{:x}", hash_str)).unwrap()).unwrap()
     }
 
     /// Returns the type of the object.
@@ -105,7 +105,7 @@ impl GitObject {
                 GitObjectModel::Tree(tree)
             }
             GitObject::Blob(blob) => {
-                let git_blob: git_blob::Model = blob.clone().into();
+                let git_blob: git_blob::Model = (&blob).into();
                 let raw_blob: raw_blob::Model = blob.into();
                 GitObjectModel::Blob(git_blob, raw_blob)
             }

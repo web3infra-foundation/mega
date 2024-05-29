@@ -207,7 +207,7 @@ impl PackHandler for MonoRepo {
 
     async fn incremental_pack(
         &self,
-        want: &Vec<String>,
+        want: Vec<String>,
         have: Vec<String>,
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let mut want_clone = want.clone();

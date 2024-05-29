@@ -75,56 +75,63 @@ impl PackHandler for ImportRepo {
         let storage = self.context.services.git_db_storage.clone();
         let total = storage.get_obj_count_by_repo_id(&self.repo).await;
         let encoder = PackEncoder::new(total, 0, stream_tx);
-
-        let commits = storage.get_commits_by_repo_id(&self.repo).await.unwrap();
-        let trees = storage.get_trees_by_repo_id(&self.repo).await.unwrap();
-        let bids: Vec<String> = storage
-            .get_blobs_by_repo_id(&self.repo)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|b| b.blob_id)
-            .collect();
-        let raw_blobs = batch_query_by_columns::<raw_blob::Entity, raw_blob::Column>(
-            storage.get_connection(),
-            raw_blob::Column::Sha1,
-            bids,
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-        let tags = storage.get_tags_by_repo_id(&self.repo).await.unwrap();
-
         encoder.encode_async(entry_rx).await.unwrap();
-        for m in commits.into_iter() {
-            let c: Commit = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        for m in trees.into_iter() {
-            let c: Tree = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        for m in raw_blobs {
-            // todo handle storage type
-            let c: Blob = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        for m in tags.into_iter() {
-            let c: Tag = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        drop(entry_tx);
+
+        let repo = self.repo.clone();
+        tokio::spawn(async move {
+            let commits = storage.get_commits_by_repo_id(&repo).await.unwrap();
+            for m in commits.into_iter() {
+                let c: Commit = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+
+            let trees: Vec<callisto::git_tree::Model> =
+                storage.get_trees_by_repo_id(&repo).await.unwrap();
+            for m in trees.into_iter() {
+                let c: Tree = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+
+            let bids: Vec<String> = storage
+                .get_blobs_by_repo_id(&repo)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|b| b.blob_id)
+                .collect();
+            let raw_blobs = batch_query_by_columns::<raw_blob::Entity, raw_blob::Column>(
+                storage.get_connection(),
+                raw_blob::Column::Sha1,
+                bids,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+            for m in raw_blobs {
+                // todo handle storage type
+                let c: Blob = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+
+            let tags = storage.get_tags_by_repo_id(&repo).await.unwrap();
+            for m in tags.into_iter() {
+                let c: Tag = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+            drop(entry_tx);
+        });
+
         Ok(ReceiverStream::new(stream_rx))
     }
 
     async fn incremental_pack(
         &self,
-        want: &Vec<String>,
+        want: Vec<String>,
         have: Vec<String>,
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let mut want_clone = want.clone();

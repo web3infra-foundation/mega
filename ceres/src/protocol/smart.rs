@@ -155,7 +155,7 @@ impl SmartProtocol {
                         }
                     }
                 }
-                pack_data = pack_handler.incremental_pack(&want, have).await.unwrap();
+                pack_data = pack_handler.incremental_pack(want.clone(), have).await.unwrap();
 
                 if last_common_commit.is_empty() {
                     //send NAK if missing common commit
@@ -164,7 +164,7 @@ impl SmartProtocol {
                     return Ok((pack_data, protocol_buf));
                 }
 
-                for hash in &want {
+                for hash in want {
                     if self.capabilities.contains(&Capability::NoDone) {
                         // If multi_ack_detailed and no-done are both present, then the sender is free to immediately send a pack
                         // following its first "ACK obj-id ready" message.
