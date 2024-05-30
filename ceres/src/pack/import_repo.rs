@@ -5,6 +5,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use futures::future::join_all;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -50,14 +51,21 @@ impl PackHandler for ImportRepo {
 
     async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
-        let mut entry_list = Vec::new();
+        let mut entry_list = vec![];
+        let mut join_tasks =  vec![];
         for entry in receiver {
             entry_list.push(entry);
             if entry_list.len() >= 1000 {
-                storage.save_entry(&self.repo, entry_list).await.unwrap();
-                entry_list = Vec::new();
+                let stg_clone = storage.clone();
+                let repo_clone = self.repo.clone();
+                let handle = tokio::spawn(async move {
+                    stg_clone.save_entry(&repo_clone, entry_list).await.unwrap();
+                });
+                join_tasks.push(handle);
+                entry_list = vec![];
             }
         }
+        join_all(join_tasks).await;
         storage.save_entry(&self.repo, entry_list).await.unwrap();
         Ok(())
     }
