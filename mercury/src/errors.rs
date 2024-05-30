@@ -12,8 +12,8 @@ pub enum GitError {
     #[error("The `{0}` is not a valid git blob object.")]
     InvalidBlobObject(String),
 
-    #[error("The `{0}` is not a valid git tree object.")]
-    InvalidTreeObject(String),
+    #[error("Not a valid git tree object.")]
+    InvalidTreeObject,
 
     #[error("The `{0}` is not a valid git tree item.")]
     InvalidTreeItem(String),
@@ -24,11 +24,11 @@ pub enum GitError {
     #[error("The `{0}` is not a valid git commit signature.")]
     InvalidSignatureType(String),
 
-    #[error("The `{0}` is not a valid git commit object.")]
-    InvalidCommitObject(String),
+    #[error("Not a valid git commit object.")]
+    InvalidCommitObject,
 
-    #[error("The `{0}` is not a valid git tag object.")]
-    InvalidTagObject(String),
+    #[error("Not a valid git tag object.")]
+    InvalidTagObject,
 
     #[error("The `{0}` is not a valid idx file.")]
     InvalidIdxFile(String),

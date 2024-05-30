@@ -1,5 +1,8 @@
+use std::pin::Pin;
+
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use futures::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::db_enums::RefType;
@@ -135,9 +138,7 @@ impl SmartProtocol {
             self.capabilities
         );
 
-        // init a empty receiverstream
-        let (tx, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
-        let mut pack_data = ReceiverStream::new(rx);
+        let pack_data;
         let mut protocol_buf = BytesMut::new();
 
         if have.is_empty() {
@@ -155,55 +156,74 @@ impl SmartProtocol {
                         if last_common_commit.is_empty() {
                             last_common_commit = hash.to_string();
                         }
-                    } else {
-                        //send NAK if missing common commit
-                        add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
-                        drop(tx);
-                        return Ok((pack_data, protocol_buf));
                     }
                 }
+                pack_data = pack_handler
+                    .incremental_pack(want.clone(), have)
+                    .await
+                    .unwrap();
 
-                for hash in &want {
+                if last_common_commit.is_empty() {
+                    //send NAK if missing common commit
+                    add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
+                    // need to handle rebase option, still need pack data when has no common commit
+                    return Ok((pack_data, protocol_buf));
+                }
+
+                for hash in want {
                     if self.capabilities.contains(&Capability::NoDone) {
                         // If multi_ack_detailed and no-done are both present, then the sender is free to immediately send a pack
                         // following its first "ACK obj-id ready" message.
                         add_pkt_line_string(&mut protocol_buf, format!("ACK {} ready\n", hash));
                     }
                 }
-
-                pack_data = pack_handler.incremental_pack(want, have).await.unwrap();
             } else {
                 tracing::error!("capability unsupported");
+                // init a empty receiverstream
+                let (_, rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
+                pack_data = ReceiverStream::new(rx);
             }
             add_pkt_line_string(&mut protocol_buf, format!("ACK {} \n", last_common_commit));
         }
         Ok((pack_data, protocol_buf))
     }
 
-    pub async fn git_receive_pack(&mut self, mut body_bytes: Bytes) -> Result<Bytes> {
-        if body_bytes.len() < 1_000 {
-            tracing::debug!("bytes from client: {:?}", body_bytes);
-        } else {
-            tracing::debug!("{} bytes from client", body_bytes.len())
-        }
-        while !body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) && !body_bytes.is_empty() {
-            let (bytes_take, mut pkt_line) = read_pkt_line(&mut body_bytes);
+    pub fn git_receive_pack_protocol(&mut self, mut protocol_bytes: Bytes) {
+        while !protocol_bytes.is_empty() {
+            let (bytes_take, mut pkt_line) = read_pkt_line(&mut protocol_bytes);
             if bytes_take != 0 {
                 let command = self.parse_ref_command(&mut pkt_line);
                 self.parse_capabilities(&String::from_utf8(pkt_line.to_vec()).unwrap());
-                tracing::debug!("init command: {:?}, caps:{:?}", command, self.capabilities);
+                tracing::debug!(
+                    "parse ref_command: {:?}, with caps:{:?}",
+                    command,
+                    self.capabilities
+                );
                 self.command_list.push(command);
             }
         }
-        // handles situation when client send b"0000"
-        if body_bytes.is_empty() {
-            return Ok(body_bytes);
-        }
+    }
+
+    pub async fn git_receive_pack_stream(
+        &mut self,
+        data_stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
+    ) -> Result<Bytes> {
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
         let pack_handler = self.pack_handler().await;
         //1. unpack progress
-        let unpack_success = pack_handler.unpack(body_bytes).await.is_ok();
+        let receiver = pack_handler
+            .unpack_stream(&self.context.config.pack, data_stream)
+            .await
+            .unwrap();
+
+        let ph_clone = pack_handler.clone();
+        let unpack_success = tokio::task::spawn_blocking(move || {
+            let handle = tokio::runtime::Handle::current();
+            handle.block_on(async { ph_clone.save_entry(receiver).await })
+        })
+        .await
+        .is_ok();
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
@@ -227,7 +247,74 @@ impl SmartProtocol {
                     }
                     pack_handler.update_refs(&command).await.unwrap();
                 } else {
-                    command.failed(String::from("parse commit tree from obj failed"));
+                    command.failed(String::from("unpack failed"));
+                }
+            }
+            add_pkt_line_string(&mut report_status, command.get_status());
+        }
+        report_status.put(&PKT_LINE_END_MARKER[..]);
+        let length = report_status.len();
+        let mut buf = self.build_side_band_format(report_status, length);
+        buf.put(&PKT_LINE_END_MARKER[..]);
+        Ok(buf.into())
+    }
+
+    // preserve for ssh server
+    pub async fn git_receive_pack(&mut self, mut body_bytes: Bytes) -> Result<Bytes> {
+        if body_bytes.len() < 1_000 {
+            tracing::debug!("bytes from client: {:?}", body_bytes);
+        } else {
+            tracing::debug!("{} bytes from client", body_bytes.len())
+        }
+        while !body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) && !body_bytes.is_empty() {
+            let (bytes_take, mut pkt_line) = read_pkt_line(&mut body_bytes);
+            if bytes_take != 0 {
+                let command = self.parse_ref_command(&mut pkt_line);
+                self.parse_capabilities(&String::from_utf8(pkt_line.to_vec()).unwrap());
+                tracing::debug!(
+                    "parse ref_command: {:?}, with caps:{:?}",
+                    command,
+                    self.capabilities
+                );
+                self.command_list.push(command);
+            }
+        }
+        // handles situation when client send b"0000"
+        if body_bytes.is_empty() {
+            return Ok(body_bytes);
+        }
+        // After receiving the pack data from the sender, the receiver sends a report
+        let mut report_status = BytesMut::new();
+        let pack_handler = self.pack_handler().await;
+        //1. unpack progress
+        let unpack_success = pack_handler
+            .unpack(&self.context.config.pack, body_bytes)
+            .await
+            .is_ok();
+
+        // write "unpack ok\n to report"
+        add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
+
+        let mut default_exist = pack_handler.check_default_branch().await;
+
+        //2. update each refs and build report
+        for mut command in self.command_list.clone() {
+            if command.ref_type == RefType::Tag {
+                // just update if refs type is tag
+                pack_handler.update_refs(&command).await.unwrap();
+            } else {
+                // Updates can be unsuccessful for a number of reasons.
+                // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
+                // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
+                // c.Also, some references can be updated while others can be rejected.
+                if unpack_success {
+                    if !default_exist {
+                        command.default_branch = true;
+                        default_exist = true;
+                    }
+                    pack_handler.update_refs(&command).await.unwrap();
+                } else {
+                    command.failed(String::from("unpack failed"));
                 }
             }
             add_pkt_line_string(&mut report_status, command.get_status());

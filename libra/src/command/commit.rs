@@ -115,7 +115,7 @@ async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathB
         // `from_tree_items` can't create empty tree, so use `from_bytes` instead
         if tree_items.is_empty() {
             // git create a no zero hash for empty tree, didn't know method. use default SHA1 temporarily
-            Tree::from_bytes(vec![], SHA1::default()).unwrap()
+            Tree::from_bytes(&[], SHA1::default()).unwrap()
         } else {
             Tree::from_tree_items(tree_items).unwrap()
         }
@@ -177,7 +177,7 @@ mod test {
                 // println!("tree: {}", item.name);
                 if item.name == "DeveloperExperience" {
                     let sub_tree = storage.get(&item.id).unwrap();
-                    let tree = Tree::from_bytes(sub_tree.to_vec(), item.id).unwrap();
+                    let tree = Tree::from_bytes(&sub_tree, item.id).unwrap();
                     assert!(tree.tree_items.len() == 4); // 4 sub tree according to the test data
                 }
             }
