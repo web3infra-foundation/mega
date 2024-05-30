@@ -31,7 +31,7 @@ config = { workspace = true }
 shadow-rs = { workspace = true }
 
 [dev-dependencies]
-reqwest = { version = "0.12.4", features = ["stream", "json"] }
+reqwest = { workspace = true , features = ["stream", "json"] }
 russh = { workspace = true }
 russh-keys = { workspace = true }
 async-trait = { workspace = true }

@@ -6,7 +6,7 @@ use axum::body::Body;
 use axum::http::response::Builder;
 use axum::http::{Request, Response, StatusCode};
 use bytes::{Bytes, BytesMut};
-use futures::TryStreamExt;
+use futures::{stream, TryStreamExt};
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 
@@ -100,48 +100,54 @@ pub async fn git_upload_pack(
     Ok(resp)
 }
 
-/// # Handles a Git receive pack request and prepares the response.
+/// Handles the Git receive-pack protocol for receiving and processing data from a client.
 ///
-/// The function takes a `req` parameter representing the HTTP request received and a `pack_protocol`
-/// parameter containing the configuration for the Git pack protocol.
+/// This asynchronous function processes an HTTP request to handle the Git "receive-pack" service,
+/// which is used for receiving data when pushing changes to a Git repository. The function reads
+/// data from the request body, processes it according to the Git smart protocol, and sends back
+/// a response indicating the status of the operation.
 ///
-/// The function extracts the request body into a vector of bytes, `combined_body_bytes`, by iterating over the
-/// chunks of the request body using `body.next().await`. The chunks are appended to the `combined_body_bytes`.
+/// # Parameters
+/// - `req`: The incoming HTTP request containing the body stream with the Git data.
+/// - `pack_protocol`: A mutable instance of `SmartProtocol` used to process the Git receive-pack protocol.
 ///
-/// The `pack_protocol` is then used to process the `combined_body_bytes` using the `git_receive_pack` method.
-/// It returns the `pack_data` containing the response data.
-///
-/// The `pack_data` is passed to the `git_receive_pack` method again to obtain the final response data as a `buf`.
-///
-/// The `buf` is converted into a `Body` using `Body::from()` and assigned to `body`.
-/// Tracing information is logged regarding the status of the response body.
-///
-/// A response header is constructed using the `build_res_header` function with a content type of
-/// "application/x-git-receive-pack-result". The response body is set to `body`.
-///
-/// Finally, the constructed response is returned.
+/// # Returns
+/// A `Result` containing either:
+/// - `Response<Body>`: The HTTP response with the result of the receive-pack operation.
+/// - `(StatusCode, String)`: A tuple with an HTTP status code and an error message in case of failure.
 pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let combined_body_bytes: BytesMut = req
-        .into_body()
-        .into_data_stream()
-        .try_fold(BytesMut::new(), |mut acc, chunk| async move {
-            acc.extend_from_slice(&chunk);
-            Ok(acc)
-        })
-        .await
-        .unwrap();
+    // Convert the request body into a data stream.
+    let mut data_stream = req.into_body().into_data_stream();
+    let mut report_status = Bytes::new();
 
-    let parse_report = pack_protocol
-        .git_receive_pack(combined_body_bytes.freeze())
-        .await
-        .unwrap();
-    tracing::info!("report status:{:?}", parse_report);
+    // Process the data stream to handle the Git receive-pack protocol.
+    while let Some(chunk) = data_stream.next().await {
+        let chunk = chunk.unwrap();
+        // Process the data up to the "PACK" subsequence.
+        if let Some(pos) = search_subsequence(&chunk, b"PACK") {
+            pack_protocol.git_receive_pack_protocol(Bytes::copy_from_slice(&chunk[0..pos]));
+            // Create a new stream from the remaining bytes and the rest of the data stream.
+            let remaining_bytes = Bytes::copy_from_slice(&chunk[pos..]);
+            let remaining_stream = stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
+            report_status = pack_protocol
+                .git_receive_pack_stream(Box::pin(remaining_stream))
+                .await
+                .unwrap();
+            break;
+        }
+    }
+    tracing::info!("report status:{:?}", report_status);
     let resp = build_res_header("application/x-git-receive-pack-result".to_owned());
-    let resp = resp.body(Body::from(parse_report)).unwrap();
+    let resp = resp.body(Body::from(report_status)).unwrap();
     Ok(resp)
+}
+
+// Function to find the subsequence in a slice
+fn search_subsequence(chunk: &[u8], search: &[u8]) -> Option<usize> {
+    chunk.windows(search.len()).position(|s| s == search)
 }
 
 /// # Build Response headers for Smart Server.

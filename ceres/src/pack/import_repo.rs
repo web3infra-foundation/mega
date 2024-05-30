@@ -1,11 +1,10 @@
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{atomic::{AtomicUsize, Ordering}, mpsc::Receiver},
 };
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -49,11 +48,7 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = self
-            .pack_decoder(&self.context.config.pack, pack_file)
-            .unwrap();
-
+    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = Vec::new();
         for entry in receiver {
