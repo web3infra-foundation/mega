@@ -2,9 +2,10 @@ use axum::{
     body::Body,
     http::{Response, StatusCode},
 };
-use common::model::GetParams;
 
-pub async fn hello_gemini(_params: GetParams) -> Result<Response<Body>, (StatusCode, String)> {
+use crate::RelayGetParams;
+
+pub async fn hello_gemini(_params: RelayGetParams) -> Result<Response<Body>, (StatusCode, String)> {
     Ok(Response::builder()
         .body(Body::from("hello gemini"))
         .unwrap())

@@ -67,3 +67,8 @@ clean_cache_after_decode = true
 
 # The maximum meesage size in channel buffer while decode
 channel_message_size = 1_000_000
+
+
+[relay]
+ca = "127.0.0.1:9999"
+hub = "127.0.0.1:8888"
