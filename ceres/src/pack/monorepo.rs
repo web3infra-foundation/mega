@@ -10,7 +10,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use callisto::raw_blob;
 use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
@@ -115,11 +114,7 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = self
-            .pack_decoder(&self.context.config.pack, pack_file)
-            .unwrap();
-
+    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.mega_storage.clone();
 
         let (mut mr, mr_exist) = self.get_mr().await;
@@ -207,9 +202,10 @@ impl PackHandler for MonoRepo {
 
     async fn incremental_pack(
         &self,
-        mut want: Vec<String>,
+        want: Vec<String>,
         have: Vec<String>,
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+        let mut want_clone = want.clone();
         let pack_config = &self.context.config.pack;
         let storage = self.context.services.mega_storage.clone();
         let obj_num = AtomicUsize::new(0);
@@ -217,7 +213,7 @@ impl PackHandler for MonoRepo {
         let mut exist_objs = HashSet::new();
 
         let mut want_commits: Vec<Commit> = storage
-            .get_commits_by_hashes(&want)
+            .get_commits_by_hashes(&want_clone)
             .await
             .unwrap()
             .into_iter()
@@ -230,7 +226,7 @@ impl PackHandler for MonoRepo {
             for p_commit_id in temp.parent_commit_ids {
                 let p_commit_id = p_commit_id.to_plain_str();
 
-                if !have.contains(&p_commit_id) && !want.contains(&p_commit_id) {
+                if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
                         .get_commit_by_hash(&p_commit_id)
                         .await
@@ -238,7 +234,7 @@ impl PackHandler for MonoRepo {
                         .unwrap()
                         .into();
                     want_commits.push(parent.clone());
-                    want.push(p_commit_id);
+                    want_clone.push(p_commit_id);
                     traversal_list.push(parent);
                 }
             }

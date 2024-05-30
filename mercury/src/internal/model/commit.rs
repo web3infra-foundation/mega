@@ -87,6 +87,6 @@ impl From<Commit> for git_commit::Model {
 
 impl From<Entry> for Commit {
     fn from(value: Entry) -> Self {
-        Commit::from_bytes(value.data, value.hash).unwrap()
+        Commit::from_bytes(&value.data, value.hash).unwrap()
     }
 }

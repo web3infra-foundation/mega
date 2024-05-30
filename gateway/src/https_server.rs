@@ -117,14 +117,15 @@ pub async fn http_server(config: Config, options: HttpOptions) {
 }
 
 pub async fn app(config: Config, host: String, port: u16) -> Router {
+    let context = Context::new(config.clone()).await;
     let state = AppState {
         host,
         port,
-        context: Context::new(config.clone()).await,
+        context: context.clone(),
     };
 
     let api_state = ApiServiceState {
-        context: Context::new(config).await,
+        context,
     };
 
     // add RequestDecompressionLayer for handle gzip encode
