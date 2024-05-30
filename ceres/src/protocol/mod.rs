@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use callisto::db_enums::RefType;
 use common::{
@@ -145,7 +145,7 @@ impl SmartProtocol {
         }
     }
 
-    pub async fn pack_handler(&self) -> Box<dyn PackHandler> {
+    pub async fn pack_handler(&self) -> Arc<dyn PackHandler> {
         let import_dir = self.context.config.monorepo.import_dir.clone();
         if self.path.starts_with(import_dir.clone()) && self.path != import_dir {
             let storage = self.context.services.git_db_storage.clone();
@@ -164,17 +164,17 @@ impl SmartProtocol {
                 storage.save_git_repo(repo.clone()).await.unwrap();
                 repo
             };
-            Box::new(ImportRepo {
+            Arc::new(ImportRepo {
                 context: self.context.clone(),
                 repo,
             })
         } else {
-            let mut res = Box::new(MonoRepo {
+            let mut res = MonoRepo {
                 context: self.context.clone(),
                 path: self.path.clone(),
                 from_hash: None,
                 to_hash: None,
-            });
+            };
             if let Some(command) = self
                 .command_list
                 .iter()
@@ -183,7 +183,7 @@ impl SmartProtocol {
                 res.from_hash = Some(command.old_id.clone());
                 res.to_hash = Some(command.new_id.clone());
             }
-            res
+            Arc::new(res)
         }
     }
 }

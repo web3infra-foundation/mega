@@ -10,7 +10,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use callisto::raw_blob;
 use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
@@ -115,11 +114,7 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = self
-            .pack_decoder(&self.context.config.pack, pack_file)
-            .unwrap();
-
+    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.mega_storage.clone();
 
         let (mut mr, mr_exist) = self.get_mr().await;
