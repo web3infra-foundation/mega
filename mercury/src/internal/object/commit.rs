@@ -14,6 +14,8 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
+use bstr::ByteSlice;
+
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::signature::Signature;
@@ -108,64 +110,48 @@ impl ObjectTrait for Commit {
     where
         Self: Sized,
     {
-        let commit = data;
-
-        // Find the tree id
-        let tree_end = commit
-            .iter()
-            .position(|&b| b == 0x0a)
-            .ok_or(GitError::InvalidCommitObject)?;
-        let tree_id = SHA1::from_str(
-            std::str::from_utf8(&commit[5..tree_end]).map_err(|_| GitError::InvalidCommitObject)?,
+        let mut commit = data;
+        // Find the tree id and remove it from the data
+        let tree_end = commit.find_byte(0x0a).unwrap();
+        let tree_id: SHA1 = SHA1::from_str(
+            String::from_utf8(commit[5..tree_end].to_owned())
+                .unwrap()
+                .as_str(),
         )
         .unwrap();
+        let binding = commit[tree_end + 1..].to_vec();
+        commit = &binding;
 
-        // Find the parent commit ids
-        let author_begin = commit
-            .windows(6)
-            .position(|window| window == b"author")
-            .ok_or(GitError::InvalidCommitObject)?;
-        let parent_commit_ids = commit[..author_begin]
-            .windows(6)
-            .enumerate()
-            .filter_map(|(i, window)| {
-                if window == b"parent" {
-                    let parent_end = commit[i + 7..].iter().position(|&b| b == 0x0a)?;
-                    Some(
-                        SHA1::from_str(
-                            std::str::from_utf8(&commit[i + 7..i + 7 + parent_end]).ok()?,
-                        )
-                        .ok(),
-                    )
-                } else {
-                    None
-                }
+        // Find the parent commit ids and remove them from the data
+        let author_begin = commit.find("author").unwrap();
+        let parent_commit_ids: Vec<SHA1> = commit[..author_begin]
+            .find_iter("parent")
+            .map(|parent| {
+                let parent_end = commit[parent..].find_byte(0x0a).unwrap();
+                SHA1::from_str(
+                    String::from_utf8(commit[parent + 7..parent + parent_end].to_owned())
+                        .unwrap()
+                        .as_str(),
+                )
+                .unwrap()
             })
-            .collect::<Option<Vec<SHA1>>>()
-            .ok_or(GitError::InvalidCommitObject)?;
+            .collect();
+        let binding = commit[author_begin..].to_vec();
+        commit = &binding;
 
-        // Extract author
-        let author_end = commit[author_begin..]
-            .iter()
-            .position(|&b| b == 0x0a)
-            .ok_or(GitError::InvalidCommitObject)?
-            + author_begin;
-        let author = Signature::from_data(commit[author_begin..author_end].to_vec())?;
-
-        // Extract committer
-        let committer_begin = author_end + 1;
-        let committer_end = commit[committer_begin..]
-            .iter()
-            .position(|&b| b == 0x0a)
-            .ok_or(GitError::InvalidCommitObject)?
-            + committer_begin;
-        let committer = Signature::from_data(commit[committer_begin..committer_end].to_vec())?;
+        // Find the author and committer and remove them from the data
+        let author =
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
+        let binding = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
+        commit = &binding;
+        let committer =
+            Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
 
         // The rest is the message
-        let message = std::str::from_utf8(&commit[committer_end + 1..])
-            .map_err(|_| GitError::InvalidCommitObject)?
-            .to_string();
-
+        let message = unsafe {
+            String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
+        };
+        
         Ok(Commit {
             id: hash,
             tree_id,

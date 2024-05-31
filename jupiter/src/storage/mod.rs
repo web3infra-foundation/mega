@@ -7,10 +7,7 @@ pub mod mega_storage;
 use async_trait::async_trait;
 
 use common::errors::MegaError;
-use sea_orm::{
-    sea_query::OnConflict, ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection,
-    EntityTrait, QueryFilter,
-};
+use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, EntityTrait};
 use venus::{
     import_repo::import_refs::{RefCommand, Refs},
     import_repo::repo::Repo,
@@ -95,31 +92,4 @@ where
     }
     futures::future::join_all(results).await;
     Ok(())
-}
-
-#[allow(unused)]
-pub async fn batch_query_by_columns<T, C>(
-    connection: &DatabaseConnection,
-    column: C,
-    ids: Vec<String>,
-    filter_column: Option<C>,
-    value: Option<String>,
-) -> Result<Vec<T::Model>, MegaError>
-where
-    T: EntityTrait,
-    C: ColumnTrait,
-{
-    let mut result = Vec::<T::Model>::new();
-    for chunk in ids.chunks(1000) {
-        let query_builder = T::find().filter(column.is_in(chunk));
-
-        // Conditionally add the filter based on the value parameter
-        let query_builder = match value {
-            Some(ref v) => query_builder.filter(filter_column.unwrap().eq(v)),
-            None => query_builder,
-        };
-
-        result.extend(query_builder.all(connection).await?);
-    }
-    Ok(result)
 }
