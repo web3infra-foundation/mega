@@ -1,20 +1,20 @@
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
-    sync::{atomic::{AtomicUsize, Ordering}, mpsc::Receiver},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::Receiver,
+    },
 };
 
 use async_trait::async_trait;
-use futures::future::join_all;
+use futures::{future::join_all, StreamExt};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use jupiter::{
-    context::Context,
-    storage::{batch_query_by_columns, GitStorageProvider},
-};
+use jupiter::{context::Context, storage::GitStorageProvider};
 use mercury::{
     errors::GitError,
     internal::{
@@ -52,7 +52,7 @@ impl PackHandler for ImportRepo {
     async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
-        let mut join_tasks =  vec![];
+        let mut join_tasks = vec![];
         for entry in receiver {
             entry_list.push(entry);
             if entry_list.len() >= 1000 {
@@ -82,43 +82,65 @@ impl PackHandler for ImportRepo {
 
         let repo = self.repo.clone();
         tokio::spawn(async move {
-            let commits = storage.get_commits_by_repo_id(&repo).await.unwrap();
-            for m in commits.into_iter() {
-                let c: Commit = m.into();
-                let entry: Entry = c.into();
-                entry_tx.send(entry).await.unwrap();
+            let mut commit_stream = storage.get_commits_by_repo_id(&repo).await.unwrap();
+
+            while let Some(model) = commit_stream.next().await {
+                match model {
+                    Ok(m) => {
+                        let c: Commit = m.into();
+                        let entry = c.into();
+                        entry_tx.send(entry).await.unwrap();
+                    }
+                    Err(err) => eprintln!("Error: {:?}", err),
+                }
+            }
+            tracing::info!("send commits end");
+
+            let mut tree_stream = storage.get_trees_by_repo_id(&repo).await.unwrap();
+            while let Some(model) = tree_stream.next().await {
+                match model {
+                    Ok(m) => {
+                        let t: Tree = m.into();
+                        let entry = t.into();
+                        entry_tx.send(entry).await.unwrap();
+                    }
+                    Err(err) => eprintln!("Error: {:?}", err),
+                }
+            }
+            tracing::info!("send trees end");
+
+            let mut bid_stream = storage.get_blobs_by_repo_id(&repo).await.unwrap();
+            let mut bids = vec![];
+            while let Some(model) = bid_stream.next().await {
+                match model {
+                    Ok(m) => bids.push(m.blob_id),
+                    Err(err) => eprintln!("Error: {:?}", err),
+                }
             }
 
-            let trees: Vec<callisto::git_tree::Model> =
-                storage.get_trees_by_repo_id(&repo).await.unwrap();
-            for m in trees.into_iter() {
-                let c: Tree = m.into();
-                let entry: Entry = c.into();
-                entry_tx.send(entry).await.unwrap();
+            let mut blob_handler = vec![];
+            for chunk in bids.chunks(10000) {
+                let stg_clone = storage.clone();
+                let sender_clone = entry_tx.clone();
+                let chunk_clone = chunk.to_vec();
+                let handler = tokio::spawn(async move {
+                    let mut blob_stream = stg_clone.get_raw_blobs(chunk_clone).await.unwrap();
+                    while let Some(model) = blob_stream.next().await {
+                        match model {
+                            Ok(m) => {
+                                // todo handle storage type
+                                let b: Blob = m.into();
+                                let entry: Entry = b.into();
+                                sender_clone.send(entry).await.unwrap();
+                            }
+                            Err(err) => eprintln!("Error: {:?}", err),
+                        }
+                    }
+                });
+                blob_handler.push(handler);
             }
-
-            let bids: Vec<String> = storage
-                .get_blobs_by_repo_id(&repo)
-                .await
-                .unwrap()
-                .into_iter()
-                .map(|b| b.blob_id)
-                .collect();
-            let raw_blobs = batch_query_by_columns::<raw_blob::Entity, raw_blob::Column>(
-                storage.get_connection(),
-                raw_blob::Column::Sha1,
-                bids,
-                None,
-                None,
-            )
-            .await
-            .unwrap();
-            for m in raw_blobs {
-                // todo handle storage type
-                let c: Blob = m.into();
-                let entry: Entry = c.into();
-                entry_tx.send(entry).await.unwrap();
-            }
+            join_all(blob_handler).await;
+            tracing::info!("send blobs end");
 
             let tags = storage.get_tags_by_repo_id(&repo).await.unwrap();
             for m in tags.into_iter() {
@@ -127,6 +149,7 @@ impl PackHandler for ImportRepo {
                 entry_tx.send(entry).await.unwrap();
             }
             drop(entry_tx);
+            tracing::info!("sending all object end...");
         });
 
         Ok(ReceiverStream::new(stream_rx))
