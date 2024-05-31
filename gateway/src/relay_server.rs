@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use axum::body::Body;
 use axum::extract::{Query, State};
-use axum::http::{Response, StatusCode, Uri};
+use axum::http::{Request, Response, StatusCode, Uri};
 use axum::routing::get;
 use axum::Router;
 use clap::Args;
@@ -74,8 +74,8 @@ pub async fn app(config: Config, host: String, port: u16) -> Router {
         )
         .route(
             "/*path",
-            get(get_method_router), // .post(post_method_router)
-                                    // .put(put_method_router),
+            get(get_method_router).post(post_method_router),
+            // .put(put_method_router),
         )
         .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
         .layer(TraceLayer::new_for_http())
@@ -88,11 +88,26 @@ async fn get_method_router(
     Query(params): Query<RelayGetParams>,
     uri: Uri,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let relay_config = state.context.config.relay.clone();
+    let ztm_config = state.context.config.ztm.clone();
     if Regex::new(r"/hello$").unwrap().is_match(uri.path()) {
         return gemini::http::handler::hello_gemini(params).await;
     } else if Regex::new(r"/certificate$").unwrap().is_match(uri.path()) {
-        return gemini::ztm::handler::get_ztm_certificate(relay_config, params).await;
+        return gemini::http::handler::certificate(ztm_config, params).await;
+    }
+    Err((
+        StatusCode::NOT_FOUND,
+        String::from("Operation not supported\n"),
+    ))
+}
+
+async fn post_method_router(
+    state: State<AppState>,
+    uri: Uri,
+    req: Request<Body>,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    let ztm_config = state.context.config.ztm.clone();
+    if Regex::new(r"/relay_init$").unwrap().is_match(uri.path()) {
+        return gemini::http::handler::init(ztm_config, req, state.0.port).await;
     }
     Err((
         StatusCode::NOT_FOUND,
