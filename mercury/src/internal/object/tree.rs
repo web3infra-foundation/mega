@@ -16,7 +16,6 @@
 //!
 use std::fmt::Display;
 
-use bstr::ByteSlice;
 use colored::Colorize;
 
 use crate::errors::GitError;
@@ -264,18 +263,29 @@ impl Tree {
 }
 
 impl ObjectTrait for Tree {
-    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
+    fn from_bytes(data: &[u8], hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
         let mut tree_items = Vec::new();
         let mut i = 0;
         while i < data.len() {
-            let index = data[i..].find_byte(0x00).unwrap();
-            let next = i + index + 21;
+            // Find the position of the null byte (0x00)
+            if let Some(index) = memchr::memchr(0x00, &data[i..]) {
+                // Calculate the next position
+                let next = i + index + 21;
 
-            tree_items.push(TreeItem::from_bytes(&data[i..next]).unwrap());
-            i = next
+                // Extract the bytes and create a TreeItem
+                let item_data = &data[i..next];
+                let tree_item = TreeItem::from_bytes(item_data)?;
+
+                tree_items.push(tree_item);
+
+                i = next;
+            } else {
+                // If no null byte is found, return an error
+                return Err(GitError::InvalidTreeObject);
+            }
         }
 
         Ok(Tree {
