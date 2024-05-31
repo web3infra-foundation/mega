@@ -11,7 +11,7 @@ pub struct Config {
     pub storage: StorageConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
-    pub relay: RelayConfig,
+    pub ztm: ZTMConfig,
 }
 
 impl Config {
@@ -137,16 +137,18 @@ impl Default for PackConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RelayConfig {
+pub struct ZTMConfig {
     pub ca: String,
     pub hub: String,
+    pub agent: String,
 }
 
-impl Default for RelayConfig {
+impl Default for ZTMConfig {
     fn default() -> Self {
         Self {
             ca: String::from("127.0.0.1:9999"),
             hub: String::from("127.0.0.1:8888"),
+            agent: String::from("127.0.0.1:7777"),
         }
     }
 }
