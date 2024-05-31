@@ -89,7 +89,7 @@ impl ObjectTrait for Tag {
     /// tagger <tagger> 0x0a # The name, email address, and date of the person who created the annotated tag
     /// <message>
     /// ```
-    fn from_bytes(row_data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
+    fn from_bytes(row_data: &[u8], hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
@@ -98,24 +98,24 @@ impl ObjectTrait for Tag {
         let hash_begin = data.find_byte(0x20).unwrap();
         let hash_end = data.find_byte(0x0a).unwrap();
         let object_hash = SHA1::from_str(data[hash_begin + 1..hash_end].to_str().unwrap()).unwrap();
-        data = data[hash_end + 1..].to_vec();
+        data = &data[hash_end + 1..];
 
         let type_begin = data.find_byte(0x20).unwrap();
         let type_end = data.find_byte(0x0a).unwrap();
         let object_type =
             ObjectType::from_string(data[type_begin + 1..type_end].to_str().unwrap()).unwrap();
-        data = data[type_end + 1..].to_vec();
+        data = &data[type_end + 1..];
 
         let tag_begin = data.find_byte(0x20).unwrap();
         let tag_end = data.find_byte(0x0a).unwrap();
         let tag_name = String::from_utf8(data[tag_begin + 1..tag_end].to_vec()).unwrap();
-        data = data[tag_end + 1..].to_vec();
+        data = &data[tag_end + 1..];
 
         let tagger_begin = data.find("tagger").unwrap();
         let tagger_end = data.find_byte(0x0a).unwrap();
         let tagger_data = data[tagger_begin..tagger_end].to_vec();
         let tagger = Signature::from_data(tagger_data).unwrap();
-        data = data[data.find_byte(0x0a).unwrap() + 1..].to_vec();
+        data = &data[data.find_byte(0x0a).unwrap() + 1..];
 
         let message = unsafe {
             data[data.find_byte(0x0a).unwrap()..]

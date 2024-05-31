@@ -18,8 +18,8 @@ impl From<Blob> for mega_blob::Model {
     }
 }
 
-impl From<Blob> for git_blob::Model {
-    fn from(value: Blob) -> Self {
+impl From<&Blob> for git_blob::Model {
+    fn from(value: &Blob) -> Self {
         git_blob::Model {
             id: generate_id(),
             repo_id: 0,

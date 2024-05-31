@@ -1,7 +1,10 @@
-use std::{collections::{HashMap, HashSet}, str::FromStr, sync::atomic::{AtomicUsize, Ordering}};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::{atomic::{AtomicUsize, Ordering}, mpsc::Receiver},
+};
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -11,7 +14,6 @@ use jupiter::{
     context::Context,
     storage::{batch_query_by_columns, GitStorageProvider},
 };
-use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
 use mercury::{
     errors::GitError,
     internal::{
@@ -19,7 +21,7 @@ use mercury::{
         pack::entry::Entry,
     },
 };
-
+use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
 use venus::import_repo::{
     import_refs::{CommandType, RefCommand, Refs},
     repo::Repo,
@@ -46,11 +48,7 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn unpack(&self, pack_file: Bytes) -> Result<(), GitError> {
-        let receiver = self
-            .pack_decoder(&self.context.config.pack, pack_file)
-            .unwrap();
-
+    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = Vec::new();
         for entry in receiver {
@@ -72,58 +70,66 @@ impl PackHandler for ImportRepo {
         let storage = self.context.services.git_db_storage.clone();
         let total = storage.get_obj_count_by_repo_id(&self.repo).await;
         let encoder = PackEncoder::new(total, 0, stream_tx);
-
-        let commits = storage.get_commits_by_repo_id(&self.repo).await.unwrap();
-        let trees = storage.get_trees_by_repo_id(&self.repo).await.unwrap();
-        let bids: Vec<String> = storage
-            .get_blobs_by_repo_id(&self.repo)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|b| b.blob_id)
-            .collect();
-        let raw_blobs = batch_query_by_columns::<raw_blob::Entity, raw_blob::Column>(
-            storage.get_connection(),
-            raw_blob::Column::Sha1,
-            bids,
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-        let tags = storage.get_tags_by_repo_id(&self.repo).await.unwrap();
-
         encoder.encode_async(entry_rx).await.unwrap();
-        for m in commits.into_iter() {
-            let c: Commit = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        for m in trees.into_iter() {
-            let c: Tree = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        for m in raw_blobs {
-            // todo handle storage type
-            let c: Blob = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        for m in tags.into_iter() {
-            let c: Tag = m.into();
-            let entry: Entry = c.into();
-            entry_tx.send(entry).await.unwrap();
-        }
-        drop(entry_tx);
+
+        let repo = self.repo.clone();
+        tokio::spawn(async move {
+            let commits = storage.get_commits_by_repo_id(&repo).await.unwrap();
+            for m in commits.into_iter() {
+                let c: Commit = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+
+            let trees: Vec<callisto::git_tree::Model> =
+                storage.get_trees_by_repo_id(&repo).await.unwrap();
+            for m in trees.into_iter() {
+                let c: Tree = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+
+            let bids: Vec<String> = storage
+                .get_blobs_by_repo_id(&repo)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|b| b.blob_id)
+                .collect();
+            let raw_blobs = batch_query_by_columns::<raw_blob::Entity, raw_blob::Column>(
+                storage.get_connection(),
+                raw_blob::Column::Sha1,
+                bids,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+            for m in raw_blobs {
+                // todo handle storage type
+                let c: Blob = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+
+            let tags = storage.get_tags_by_repo_id(&repo).await.unwrap();
+            for m in tags.into_iter() {
+                let c: Tag = m.into();
+                let entry: Entry = c.into();
+                entry_tx.send(entry).await.unwrap();
+            }
+            drop(entry_tx);
+        });
+
         Ok(ReceiverStream::new(stream_rx))
     }
 
     async fn incremental_pack(
         &self,
-        mut want: Vec<String>,
+        want: Vec<String>,
         have: Vec<String>,
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+        let mut want_clone = want.clone();
         let pack_config = &self.context.config.pack;
         let storage = self.context.services.git_db_storage.clone();
         let obj_num = AtomicUsize::new(0);
@@ -131,7 +137,7 @@ impl PackHandler for ImportRepo {
         let mut exist_objs = HashSet::new();
 
         let mut want_commits: Vec<Commit> = storage
-            .get_commits_by_hashes(&self.repo, &want)
+            .get_commits_by_hashes(&self.repo, &want_clone)
             .await
             .unwrap()
             .into_iter()
@@ -144,7 +150,7 @@ impl PackHandler for ImportRepo {
             for p_commit_id in temp.parent_commit_ids {
                 let p_commit_id = p_commit_id.to_plain_str();
 
-                if !have.contains(&p_commit_id) && !want.contains(&p_commit_id) {
+                if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
                         .get_commit_by_hash(&self.repo, &p_commit_id)
                         .await
@@ -152,7 +158,7 @@ impl PackHandler for ImportRepo {
                         .unwrap()
                         .into();
                     want_commits.push(parent.clone());
-                    want.push(p_commit_id);
+                    want_clone.push(p_commit_id);
                     traversal_list.push(parent);
                 }
             }
@@ -172,9 +178,15 @@ impl PackHandler for ImportRepo {
 
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
 
-        let have_commits = storage.get_commits_by_hashes(&self.repo, &have).await.unwrap();
+        let have_commits = storage
+            .get_commits_by_hashes(&self.repo, &have)
+            .await
+            .unwrap();
         let have_trees = storage
-            .get_trees_by_hashes(&self.repo, have_commits.iter().map(|x| x.tree.clone()).collect())
+            .get_trees_by_hashes(
+                &self.repo,
+                have_commits.iter().map(|x| x.tree.clone()).collect(),
+            )
             .await
             .unwrap();
         // traverse to get exist_objs
