@@ -69,6 +69,7 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 
-[relay]
-ca = "127.0.0.1:9999"
-hub = "127.0.0.1:8888"
+[ztm]
+ca = "http://127.0.0.1:9999"
+hub = "http://127.0.0.1:8888"
+agent = "http://127.0.0.1:7777"
