@@ -73,6 +73,7 @@ pub async fn init() -> io::Result<()> {
         "Initializing empty Libra repository in {}",
         root_dir.display()
     );
+
     Ok(())
 }
 
@@ -144,8 +145,8 @@ mod tests {
     /// Test the init function
     #[tokio::test]
     async fn test_init() {
-        // Setup the test environment without a Libra repository
-        test::setup_without_libra();
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
 
         // Run the init function
         init().await.unwrap();
