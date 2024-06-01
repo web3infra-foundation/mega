@@ -1,40 +1,46 @@
+//! This is the main entry point for the Libra.
+//! It includes the definition of the CLI and the main function.
+//!
+//!
 use clap::{Parser, Subcommand};
+
 mod command;
 mod internal;
 mod utils;
 
+// The Cli struct represents the root of the command line interface.
 #[derive(Parser, Debug)]
-#[command(about = "Simulates git commands", version = "1.0")]
+#[command(about = "Libra: A partial Git implemented in Rust", version = "0.1.0-pre")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
 
-/// Libra sub commands, similar to git
-/// subcommands's excute and args are defined in `command` module
+/// THe Commands enum represents the subcommands that can be used with the CLI.
+/// subcommand's execute and args are defined in `command` module
 #[derive(Subcommand, Debug)]
 enum Commands {
-    // start a working area
+    // Each variant of the enum represents a subcommand.
+    // The about attribute provides a brief description of the subcommand.
+    // The arguments of the subcommand are defined in the command module.
+
+    // Init and Clone are the only commands that can be executed without a repository
     #[command(about = "Initialize a new repository")]
     Init,
     #[command(about = "Clone a repository into a new directory")]
     Clone(command::clone::CloneArgs),
 
-    // work on the current change
+    // The rest of the commands require a repository to be present
     #[command(about = "Add file contents to the index")]
     Add(command::add::AddArgs),
     #[command(about = "Remove files from the working tree and from the index")]
     Rm(command::remove::RemoveArgs),
     #[command(about = "Restore working tree files")]
     Restore(command::restore::RestoreArgs),
-
-    // examine the history and state
     #[command(about = "Show the working tree status")]
     Status,
     #[command(about = "Show commit logs")]
     Log(command::log::LogArgs),
-
-    // grow, mark and tweak your common history
     #[command(about = "List, create, or delete branches")]
     Branch(command::branch::BranchArgs),
     #[command(about = "Record changes to the repository")]
@@ -43,9 +49,6 @@ enum Commands {
     Switch(command::switch::SwitchArgs),
     #[command(about = "Merge changes")]
     Merge(command::merge::MergeArgs),
-
-    // collaborate
-    // todo: implement in the future
     #[command(about = "Update remote refs along with associated objects")]
     Push(command::push::PushArgs),
     #[command(about = "Download objects and refs from another repository")]
@@ -64,6 +67,8 @@ enum Commands {
     IndexPack(command::index_pack::IndexPackArgs),
 }
 
+// The main function is the entry point of the Libra application.
+// It parses the command-line arguments and executes the corresponding function.
 #[tokio::main]
 async fn main() {
     let args = Cli::parse();
@@ -109,5 +114,6 @@ async fn main() {
 #[test]
 fn verify_cli() {
     use clap::CommandFactory;
+
     Cli::command().debug_assert()
 }
