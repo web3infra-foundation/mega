@@ -1,5 +1,6 @@
 ## Libra
-`libra` is a `Git` Client in `Rust`.
+
+`Libra` is a partial implementation of a **Git** client, developed using **Rust**. Our goal is not to create a 100% replica of Git (for those interested in such a project, please refer to the [gitoxide](https://github.com/Byron/gitoxide)). Instead, `libra` focus on implementing the basic functionalities of Git for learning **Git** and **Rust**. A key feature of `libra` is the replacement of the original **Git** internal storage architecture with **SQLite**.
 
 ## Example
 ```

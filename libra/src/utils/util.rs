@@ -1,17 +1,29 @@
-use crate::utils::client_storage::ClientStorage;
-use crate::utils::path;
-use crate::utils::path_ext::PathExt;
 use path_abs::{PathAbs, PathInfo};
 use std::collections::HashSet;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
+
 use mercury::hash::SHA1;
 use mercury::internal::object::types::ObjectType;
+
+use crate::utils::client_storage::ClientStorage;
+use crate::utils::path;
+use crate::utils::path_ext::PathExt;
 
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
 
+/// Returns the current working directory as a `PathBuf`.
+///
+/// This function wraps the `std::env::current_dir()` function and unwraps the result.
+/// If the current directory value is not available for any reason, this function will panic.
+///
+/// TODO - Add additional check result from `std::env::current_dir()` to handle the panic
+///
+/// # Returns
+///
+/// A `PathBuf` representing the current working directory.
 pub fn cur_dir() -> PathBuf {
     env::current_dir().unwrap()
 }
@@ -35,6 +47,7 @@ pub fn try_get_storage_path() -> Result<PathBuf, io::Error> {
         }
     }
 }
+
 /// Get the storage path of the repository, aka `.libra`
 /// - panics if the current directory is not a repository
 pub fn storage_path() -> PathBuf {
@@ -274,9 +287,10 @@ pub fn is_cur_dir(dir: &Path) -> bool {
 }
 
 /// transform path to string, use '/' as separator even on windows
+/// TODO test on windows
+/// TODO maybe 'into_os_string().into_string().unwrap()' is good
 pub fn path_to_string(path: &Path) -> String {
-    path.to_string_lossy().to_string() // TODO: test on windows
-                                       // TODO maybe 'into_os_string().into_string().unwrap()' is good
+    path.to_string_lossy().to_string()
 }
 
 /// extend hash, panic if not valid or ambiguous
@@ -322,6 +336,15 @@ pub fn read_sha1(file: &mut impl Read) -> io::Result<SHA1> {
 mod test {
     use super::*;
     use crate::utils::test;
+    use std::env;
+    use std::path::PathBuf;
+
+    #[test]
+    fn cur_dir_returns_current_directory() {
+        let expected = env::current_dir().unwrap();
+        let actual = cur_dir();
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_is_sub_path() {

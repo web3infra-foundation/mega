@@ -1,67 +1,98 @@
+//! This module contains the tests util functions for the Libra.
+//!
+//!
+//!
 #![cfg(test)]
 
 use std::io::Write;
 use std::path::Path;
 use std::{env, fs, path::PathBuf};
 
-use super::util;
+use crate::utils::util;
 use crate::command;
 
 pub const TEST_DIR: &str = "libra_test_repo";
-/* tools for test */
+
 fn find_cargo_dir() -> PathBuf {
     let cargo_path = env::var("CARGO_MANIFEST_DIR");
+
     match cargo_path {
         Ok(path) => PathBuf::from(path),
         Err(_) => {
-            // vscode DEBUG test没有CARGO_MANIFEST_DIR宏，手动尝试查找cargo.toml
+            // vscode DEBUG test does not have the CARGO_MANIFEST_DIR macro, manually try to find cargo.toml
             println!("CARGO_MANIFEST_DIR not found, try to find Cargo.toml manually");
             let mut path = util::cur_dir();
+
             loop {
                 path.push("Cargo.toml");
                 if path.exists() {
                     break;
                 }
                 if !path.pop() {
-                    panic!("找不到CARGO_MANIFEST_DIR");
+                    panic!("Could not find CARGO_MANIFEST_DIR");
                 }
             }
+
             path.pop();
+
             path
         }
     }
 }
 
-/// switch cur_dir to test_dir
-fn setup_env() {
-    color_backtrace::install(); // colorize backtrace
 
+/// Sets up the environment for testing.
+///
+/// This function performs the following steps:
+/// 1. Installs the color_backtrace crate to provide colored backtraces.
+/// 2. Finds the directory where the Cargo.toml file is located.
+/// 3. Appends the test directory to the Cargo directory.
+/// 4. If the test directory does not exist, it creates it.
+/// 5. Sets the current directory to the test directory.
+fn setup_env() {
+    // Install the color_backtrace crate to provide colored backtraces
+    color_backtrace::install();
+
+    // Find the directory where the Cargo.toml file is located
     let mut path = find_cargo_dir();
+
+    // Append the test directory to the Cargo directory
     path.push(TEST_DIR);
+
+    // If the test directory does not exist, create it
     if !path.exists() {
         fs::create_dir(&path).unwrap();
     }
-    env::set_current_dir(&path).unwrap(); // 将执行目录切换到测试目录
+
+    // Set the current directory to the test directory
+    env::set_current_dir(&path).unwrap();
 }
 
-// pub async fn init_repo() {
-//     crate::command::init().await.unwrap();
-// }
-
-/// switch to test dir and create a new .libra
-pub async fn setup_with_new_libra() {
-    setup_without_libra();
-    command::init::init().await.unwrap();
-}
-
-/// switch to test dir and clean .libra
-pub fn setup_without_libra() {
+/// Sets up a clean environment for testing.
+///
+/// This function first calls `setup_env()` to switch the current directory to the test directory.
+/// Then, it checks if the Libra root directory (`.libra`) exists in the current directory.
+/// If it does, the function removes the entire `.libra` directory.
+pub fn setup_clean_testing_env() {
+    // Switch the current directory to the test directory
     setup_env();
+
+    // Get the current directory
     let mut path = util::cur_dir();
+
+    // Append the Libra root directory to the current directory
     path.push(util::ROOT_DIR);
+
+    // If the Libra root directory exists, remove it
     if path.exists() {
         fs::remove_dir_all(&path).unwrap();
     }
+}
+
+/// switch to test dir and create a new .libra
+pub async fn setup_with_new_libra() {
+    setup_clean_testing_env();
+    command::init::init().await.unwrap();
 }
 
 pub fn init_debug_logger() {
