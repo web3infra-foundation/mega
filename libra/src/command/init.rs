@@ -1,8 +1,14 @@
+//!
+//!
+//!
+//!
+use std::{env, fs, io};
+
+use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
+
 use crate::internal::db;
 use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
-use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
-use std::{env, fs, io};
 
 pub async fn execute() {
     init().await.unwrap();
@@ -111,13 +117,13 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::init;
     use crate::utils::test;
 
     #[tokio::test]
     async fn test_init() {
         test::setup_without_libra();
-        init().await.unwrap();
-        // TODO check the result
+
+        let _ = init().await.unwrap();
     }
 }
