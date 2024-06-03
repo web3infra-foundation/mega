@@ -8,7 +8,7 @@ members = [
     "venus",
     "ceres",
     "libra",
-    "replay",
+    "relay",
 ]
 exclude = ["craft"]
 resolver = "1"
