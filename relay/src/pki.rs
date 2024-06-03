@@ -1,5 +1,215 @@
+use std::collections::HashMap;
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
+
+use lazy_static::lazy_static;
+use rusty_vault::core::{Core, SealConfig};
+use rusty_vault::errors::RvError;
+use rusty_vault::logical::{Operation, Request, Response};
+use rusty_vault::storage::{barrier_aes_gcm, physical};
+use serde_json::{json, Map, Value};
+
+const ROLE: &str = "test";
+
+lazy_static! {
+    static ref CA: CAInfo = {
+        let dir = PathBuf::from("/tmp/rusty_vault_pki_module");
+        // let dir = env::temp_dir().join("rusty_vault_pki_module"); // TODO: 1. 能否复用文件 2. 改成数据库？
+
+        if dir.exists() {
+            fs::remove_dir_all(&dir).unwrap();
+        }
+        assert!(fs::create_dir(&dir).is_ok());
+        let mut root_token = String::new();
+
+        let mut conf: HashMap<String, Value> = HashMap::new();
+        conf.insert("path".to_string(), Value::String(dir.to_string_lossy().into_owned()));
+
+        let backend = physical::new_backend("file", &conf).unwrap(); // file or database
+        let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
+
+        let c = Arc::new(RwLock::new(Core { physical: backend, barrier: Arc::new(barrier), ..Default::default() }));
+
+        {
+            let mut core = c.write().unwrap();
+            assert!(core.config(Arc::clone(&c), None).is_ok());
+
+            let seal_config = SealConfig { secret_shares: 10, secret_threshold: 5 };
+
+            let result = core.init(&seal_config);
+            assert!(result.is_ok());
+            let init_result = result.unwrap();
+            println!("init_result: {:?}", init_result);
+
+            let mut unsealed = false;
+            for i in 0..seal_config.secret_threshold {
+                let key = &init_result.secret_shares[i as usize];
+                let unseal = core.unseal(key);
+                assert!(unseal.is_ok());
+                unsealed = unseal.unwrap();
+            }
+
+            root_token = init_result.root_token;
+            println!("root_token: {:?}", root_token);
+
+            assert!(unsealed);
+        }
+
+        config_ca(Arc::clone(&c), &root_token);
+        generate_root(Arc::clone(&c), &root_token, false, true);
+        config_role(Arc::clone(&c), &root_token);
+
+        CAInfo { core: c, token: root_token }
+    };
+}
+
+struct CAInfo {
+    core: Arc<RwLock<Core>>,
+    token: String,
+}
+#[allow(dead_code)]
+fn read_api(core: &Core, token: &str, path: &str, is_ok: bool) -> Result<Option<Response>, RvError> {
+    let mut req = Request::new(path);
+    req.operation = Operation::Read;
+    req.client_token = token.to_string();
+    let resp = core.handle_request(&mut req);
+    assert_eq!(resp.is_ok(), is_ok);
+    resp
+}
+
+fn write_api(
+    core: &Core,
+    token: &str,
+    path: &str,
+    is_ok: bool,
+    data: Option<Map<String, Value>>,
+) -> Result<Option<Response>, RvError> {
+    let mut req = Request::new(path);
+    req.operation = Operation::Write;
+    req.client_token = token.to_string();
+    req.body = data;
+
+    let resp = core.handle_request(&mut req);
+    println!("path: {}, req.body: {:?}", path, req.body);
+    assert_eq!(resp.is_ok(), is_ok);
+    resp
+}
+
+fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
+    let core = core.read().unwrap();
+
+    // mount pki backend to path: pki/
+    let mount_data = json!({
+            "type": "pki",
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+    let resp = write_api(&core, token, "sys/mounts/pki/", true, Some(mount_data));
+    assert!(resp.is_ok());
+}
+
+fn config_role(core: Arc<RwLock<Core>>, token: &str) {
+    let core = core.read().unwrap();
+
+    let role_data = json!({
+            "ttl": "60d",
+            "max_ttl": "365d",
+            "key_type": "rsa",
+            "key_bits": 4096,
+            "country": "CN",
+            "province": "Beijing",
+            "locality": "Beijing",
+            "organization": "OpenAtom",
+            "no_store": false,
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+    // config role
+    let result = write_api(&core, token, &format!("pki/roles/{}", ROLE), true, Some(role_data));
+    assert!(result.is_ok());
+}
+
+/// generate root cert, so that you can read from `pki/ca/pem`
+/// - if `exported` is true, then the response will contain `private key`
+fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool, is_ok: bool) {
+    let core = core.read().unwrap();
+
+    let key_type = "rsa";
+    let key_bits = 4096;
+    let common_name = "test-ca";
+    let req_data = json!({
+            "common_name": common_name,
+            "ttl": "365d",
+            "country": "cn",
+            "key_type": key_type,
+            "key_bits": key_bits,
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+    let resp = write_api(
+        &core,
+        token,
+        format!("pki/root/generate/{}", if exported { "exported" } else { "internal" }).as_str(),
+        is_ok,
+        Some(req_data),
+    );
+    assert!(resp.is_ok());
+    // let resp_body = resp.unwrap();
+    // let data = resp_body.unwrap().data;
+    // let key_data = data.unwrap();
+    // println!("generate root result: {:?}", key_data);
+
+    // let resp_ca_pem = read_api(&core, token, "pki/ca/pem", true);
+    // let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
+    //
+    // println!("resp_ca_pem_cert_data: {:?}", resp_ca_pem_cert_data);
+}
+
+pub fn issue_cert(core: Arc<RwLock<Core>>, token: &str) {
+    let core = core.read().unwrap();
+
+    // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
+    let issue_data = json!({
+            "ttl": "10d",
+            "common_name": "test.com",
+            "alt_names": "a.test.com,b.test.com",
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+    // issue cert
+    let resp = write_api(&core, token, &format!("pki/issue/{}", ROLE), true, Some(issue_data));
+    assert!(resp.is_ok());
+    let resp_body = resp.unwrap();
+    let cert_data = resp_body.unwrap().data.unwrap();
+    println!("issue cert result: {:?}", cert_data["certificate"]);
+
+    let mut file = fs::File::create("/tmp/cert.crt").unwrap();
+    file.write_all(cert_data["certificate"].as_str().unwrap().as_ref()).unwrap();
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pki() {
+        issue_cert(Arc::clone(&CA.core), &CA.token);
+        issue_cert(Arc::clone(&CA.core), &CA.token);
+    }
+}
+
+#[cfg(test)]
+mod tests_raw {
     use std::{
         collections::HashMap,
         default::Default,
