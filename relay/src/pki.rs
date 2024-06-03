@@ -58,8 +58,7 @@ lazy_static! {
         }
 
         config_ca(Arc::clone(&c), &root_token);
-        generate_root(Arc::clone(&c), &root_token, false, true);
-        config_role(Arc::clone(&c), &root_token);
+        generate_root(Arc::clone(&c), &root_token, false);
 
         CAInfo { core: c, token: root_token }
     };
@@ -70,12 +69,12 @@ struct CAInfo {
     token: String,
 }
 #[allow(dead_code)]
-fn read_api(core: &Core, token: &str, path: &str, is_ok: bool) -> Result<Option<Response>, RvError> {
+fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
     let mut req = Request::new(path);
     req.operation = Operation::Read;
     req.client_token = token.to_string();
     let resp = core.handle_request(&mut req);
-    assert_eq!(resp.is_ok(), is_ok);
+    assert!(resp.is_ok());
     resp
 }
 
@@ -83,7 +82,6 @@ fn write_api(
     core: &Core,
     token: &str,
     path: &str,
-    is_ok: bool,
     data: Option<Map<String, Value>>,
 ) -> Result<Option<Response>, RvError> {
     let mut req = Request::new(path);
@@ -93,7 +91,7 @@ fn write_api(
 
     let resp = core.handle_request(&mut req);
     println!("path: {}, req.body: {:?}", path, req.body);
-    assert_eq!(resp.is_ok(), is_ok);
+    assert!(resp.is_ok());
     resp
 }
 
@@ -102,47 +100,37 @@ fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
 
     // mount pki backend to path: pki/
     let mount_data = json!({
-            "type": "pki",
-        })
-        .as_object()
-        .unwrap()
-        .clone();
+        "type": "pki",
+    })
+    .as_object()
+    .unwrap()
+    .clone();
 
-    let resp = write_api(&core, token, "sys/mounts/pki/", true, Some(mount_data));
+    let resp = write_api(&core, token, "sys/mounts/pki/", Some(mount_data));
     assert!(resp.is_ok());
 }
 
-fn config_role(core: Arc<RwLock<Core>>, token: &str) {
+/// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
+fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
     let core = core.read().unwrap();
 
-    let role_data = json!({
-            "ttl": "60d",
-            "max_ttl": "365d",
-            "key_type": "rsa",
-            "key_bits": 4096,
-            "country": "CN",
-            "province": "Beijing",
-            "locality": "Beijing",
-            "organization": "OpenAtom",
-            "no_store": false,
-        })
-        .as_object()
-        .unwrap()
+    let role_data = data.as_object()
+        .expect("`data` must be a JSON object")
         .clone();
 
     // config role
-    let result = write_api(&core, token, &format!("pki/roles/{}", ROLE), true, Some(role_data));
+    let result = write_api(&core, token, &format!("pki/roles/{}", ROLE), Some(role_data));
     assert!(result.is_ok());
 }
 
 /// generate root cert, so that you can read from `pki/ca/pem`
 /// - if `exported` is true, then the response will contain `private key`
-fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool, is_ok: bool) {
+fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
     let core = core.read().unwrap();
 
     let key_type = "rsa";
     let key_bits = 4096;
-    let common_name = "test-ca";
+    let common_name = "mega-ca";
     let req_data = json!({
             "common_name": common_name,
             "ttl": "365d",
@@ -158,7 +146,6 @@ fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool, is_ok: bo
         &core,
         token,
         format!("pki/root/generate/{}", if exported { "exported" } else { "internal" }).as_str(),
-        is_ok,
         Some(req_data),
     );
     assert!(resp.is_ok());
@@ -167,34 +154,33 @@ fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool, is_ok: bo
     // let key_data = data.unwrap();
     // println!("generate root result: {:?}", key_data);
 
-    // let resp_ca_pem = read_api(&core, token, "pki/ca/pem", true);
+    // let resp_ca_pem = read_api(&core, token, "pki/ca/pem");
     // let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
     //
     // println!("resp_ca_pem_cert_data: {:?}", resp_ca_pem_cert_data);
 }
 
-pub fn issue_cert(core: Arc<RwLock<Core>>, token: &str) {
+/// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
+pub fn issue_cert(core: Arc<RwLock<Core>>, token: &str, data: Value) {
     let core = core.read().unwrap();
 
     // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
-    let issue_data = json!({
-            "ttl": "10d",
-            "common_name": "test.com",
-            "alt_names": "a.test.com,b.test.com",
-        })
-        .as_object()
-        .unwrap()
+    let issue_data = data.as_object()
+        .expect("`data` must be a JSON object")
         .clone();
 
     // issue cert
-    let resp = write_api(&core, token, &format!("pki/issue/{}", ROLE), true, Some(issue_data));
+    let resp = write_api(&core, token, &format!("pki/issue/{}", ROLE), Some(issue_data));
     assert!(resp.is_ok());
     let resp_body = resp.unwrap();
     let cert_data = resp_body.unwrap().data.unwrap();
     println!("issue cert result: {:?}", cert_data["certificate"]);
 
-    let mut file = fs::File::create("/tmp/cert.crt").unwrap();
-    file.write_all(cert_data["certificate"].as_str().unwrap().as_ref()).unwrap();
+    #[cfg(test)]
+    {
+        let mut file = fs::File::create("/tmp/cert.crt").unwrap(); // TODO add root cert in it
+        file.write_all(cert_data["certificate"].as_str().unwrap().as_ref()).unwrap();
+    }
 }
 
 #[cfg(test)]
@@ -202,9 +188,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pki() {
-        issue_cert(Arc::clone(&CA.core), &CA.token);
-        issue_cert(Arc::clone(&CA.core), &CA.token);
+    fn test_pki_issue() {
+        config_role(Arc::clone(&CA.core), &CA.token, json!({
+            "ttl": "60d",
+            "max_ttl": "365d",
+            "key_type": "rsa",
+            "key_bits": 4096,
+            "country": "CN",
+            "province": "Beijing",
+            "locality": "Beijing",
+            "organization": "OpenAtom-Mega",
+            "no_store": false,
+        }));
+
+        issue_cert(Arc::clone(&CA.core), &CA.token, json!({
+            "ttl": "10d",
+            "common_name": "test.com",
+            "alt_names": "a.test.com,b.test.com",
+        }));
     }
 }
 
