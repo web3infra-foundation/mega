@@ -13,6 +13,7 @@ use axum::routing::get;
 use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
+use common::enums::ZtmType;
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -27,6 +28,7 @@ use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
 use crate::api_service::router::ApiServiceState;
+use crate::relay_server::run_relay_server;
 use crate::{api_service, lfs};
 
 #[derive(Args, Clone, Debug)]
@@ -80,11 +82,13 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
 
 pub async fn https_server(config: Config, options: HttpsOptions) {
     let HttpsOptions {
-        common: CommonOptions { host },
+        common: CommonOptions { host, .. },
         https_key_path,
         https_cert_path,
         https_port,
-    } = options;
+    } = options.clone();
+
+    check_run_with_ztm(config.clone(), options.common);
 
     let app = app(config, host.clone(), https_port).await;
 
@@ -101,9 +105,11 @@ pub async fn https_server(config: Config, options: HttpsOptions) {
 
 pub async fn http_server(config: Config, options: HttpOptions) {
     let HttpOptions {
-        common: CommonOptions { host },
+        common: CommonOptions { host, .. },
         http_port,
-    } = options;
+    } = options.clone();
+
+    check_run_with_ztm(config.clone(), options.common);
 
     let app = app(config, host.clone(), http_port).await;
 
@@ -236,6 +242,29 @@ async fn put_method_router(
             StatusCode::NOT_FOUND,
             String::from("Operation not supported"),
         ))
+    }
+}
+
+pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
+    let ztm_type = match common.ztm {
+        Some(z) => z,
+        None => {
+            return;
+        }
+    };
+    match ztm_type {
+        ZtmType::Agent => {
+            //TODO Mega server join a ztm mesh
+        }
+        ZtmType::Relay => {
+            //Start a sub thread to run relay server
+            let config_clone = config.clone();
+            let host_clone = common.host.clone();
+            let relay_port = common.relay_port;
+            tokio::spawn(
+                async move { run_relay_server(config_clone, host_clone, relay_port).await },
+            );
+        }
     }
 }
 

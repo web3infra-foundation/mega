@@ -62,7 +62,7 @@ pub async fn start_server(config: Config, command: &SshOptions) {
     let ru_config = Arc::new(ru_config);
 
     let SshOptions {
-        common: CommonOptions { host },
+        common: CommonOptions { host, .. },
         custom:
             SshCustom {
                 ssh_port,
