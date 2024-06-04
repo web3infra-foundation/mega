@@ -21,6 +21,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -35,6 +36,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
@@ -51,6 +53,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - uses: actions-rs/cargo@v1
         with:
           command: doc
