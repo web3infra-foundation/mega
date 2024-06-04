@@ -12,6 +12,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 pub mod internal;
 pub mod hash;
 pub mod errors;
+pub mod utils;
 
 #[cfg(test)]
 mod tests {}
