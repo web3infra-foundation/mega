@@ -29,7 +29,7 @@ where
 {
     let storage = util::objects_storage();
     let data = storage.get(hash)?;
-    T::from_bytes(data.to_vec(), *hash)
+    T::from_bytes(&data.to_vec(), *hash)
 }
 
 // impl save for all objects

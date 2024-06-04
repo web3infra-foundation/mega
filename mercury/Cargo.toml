@@ -30,10 +30,10 @@ tokio.workspace = true
 lru-mem = "0.3.0"
 bincode = "1.3.3"
 byteorder = "1.5.0"
-tokio-util = { version = "0.7.11", features = ["io"] }
-futures-util = "0.3.30"
+futures-util = { workspace = true }
 bytes = { workspace = true }
 axum = { workspace = true }
+memchr = { workspace = true }
 
 [target.'cfg(windows)'.dependencies] # only on Windows
 mimalloc = "0.1.39" # avoid sticking on dropping on Windows
@@ -41,3 +41,4 @@ mimalloc = "0.1.39" # avoid sticking on dropping on Windows
 [dev-dependencies]
 tracing-test = "0.2.4"
 tokio = { workspace = true, features = ["full"] }
+tokio-util = { version = "0.7.11", features = ["io"] }

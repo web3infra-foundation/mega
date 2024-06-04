@@ -290,13 +290,6 @@ impl MegaStorage {
             .unwrap())
     }
 
-    pub async fn get_commits(&self) -> Result<Vec<mega_commit::Model>, MegaError> {
-        Ok(mega_commit::Entity::find()
-            .all(self.get_connection())
-            .await
-            .unwrap())
-    }
-
     pub async fn get_tree_by_hash(
         &self,
         hash: &str,

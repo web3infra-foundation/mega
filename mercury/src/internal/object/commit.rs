@@ -106,7 +106,7 @@ impl Commit {
 }
 
 impl ObjectTrait for Commit {
-    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
+    fn from_bytes(data: &[u8], hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {
@@ -119,7 +119,8 @@ impl ObjectTrait for Commit {
                 .as_str(),
         )
         .unwrap();
-        commit = commit[tree_end + 1..].to_vec();
+        let binding = commit[tree_end + 1..].to_vec();
+        commit = &binding;
 
         // Find the parent commit ids and remove them from the data
         let author_begin = commit.find("author").unwrap();
@@ -135,21 +136,22 @@ impl ObjectTrait for Commit {
                 .unwrap()
             })
             .collect();
-        commit = commit[author_begin..].to_vec();
+        let binding = commit[author_begin..].to_vec();
+        commit = &binding;
 
         // Find the author and committer and remove them from the data
         let author =
             Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
-        commit = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
+        let binding = commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec();
+        commit = &binding;
         let committer =
             Signature::from_data(commit[..commit.find_byte(0x0a).unwrap()].to_vec()).unwrap();
 
         // The rest is the message
         let message = unsafe {
-            // + 2: skip the blank line between committer and message
             String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
         };
-
+        
         Ok(Commit {
             id: hash,
             tree_id,
