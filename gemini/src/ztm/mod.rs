@@ -110,6 +110,30 @@ pub async fn create_ztm_certificate(
     Ok(permit)
 }
 
+/// delete ztm certificate
+/// ztm.ca  in config.toml are required
+/// # Arguments
+/// * `name` - String
+///
+/// # Returns
+/// *
+/// ```
+pub async fn delete_ztm_certificate(config: ZTMConfig, name: String) -> Result<String, String> {
+    let ca_address = config.ca;
+
+    //1. DELETE /api/certificates/${username}
+    let url = format!("{ca_address}/api/certificates/{name}");
+    let client = Client::new();
+    let request_result = client.delete(url).send().await;
+    let s: String = match handle_ztm_response(request_result).await {
+        Ok(s) => s,
+        Err(s) => {
+            return Err(s);
+        }
+    };
+    Ok(s)
+}
+
 /// connect to hub (join a mesh)
 /// ztm.agent in config.toml is required
 /// # Arguments
