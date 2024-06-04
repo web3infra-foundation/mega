@@ -1,14 +1,16 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use common::config::StorageConfig;
+use futures::Stream;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel,
+    QueryFilter, Set,
 };
 use sea_orm::{PaginatorTrait, QueryOrder};
 
 use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
+use common::config::StorageConfig;
 use common::errors::MegaError;
 use mercury::internal::object::GitObjectModel;
 use mercury::internal::pack::entry::Entry;
@@ -21,7 +23,7 @@ use crate::{
     storage::GitStorageProvider,
 };
 
-use super::batch_save_model;
+use crate::storage::batch_save_model;
 
 #[derive(Clone)]
 pub struct GitDbStorage {
@@ -124,49 +126,52 @@ impl GitDbStorage {
     }
 
     pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
-        let mut commits = Vec::new();
-        let mut trees = Vec::new();
-        let mut blobs = Vec::new();
-        let mut raw_blobs = Vec::new();
-        let mut tags = Vec::new();
-
-        for entry in entry_list {
+        let (commits, trees, blobs, raw_blobs, tags) = (
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+        );
+        entry_list.par_iter().for_each(|entry| {
             let raw_obj = entry.process_entry();
             let model = raw_obj.convert_to_git_model();
             match model {
                 GitObjectModel::Commit(mut commit) => {
                     commit.repo_id = repo.repo_id;
-                    commits.push(commit.into_active_model())
+                    commits.lock().unwrap().push(commit.into_active_model())
                 }
                 GitObjectModel::Tree(mut tree) => {
                     tree.repo_id = repo.repo_id;
-                    trees.push(tree.clone().into_active_model());
+                    trees.lock().unwrap().push(tree.clone().into_active_model());
                 }
                 GitObjectModel::Blob(mut blob, raw) => {
                     blob.repo_id = repo.repo_id;
-                    blobs.push(blob.clone().into_active_model());
-                    raw_blobs.push(raw.into_active_model());
+                    blobs.lock().unwrap().push(blob.clone().into_active_model());
+                    raw_blobs.lock().unwrap().push(raw.into_active_model());
                 }
                 GitObjectModel::Tag(mut tag) => {
                     tag.repo_id = repo.repo_id;
-                    tags.push(tag.into_active_model())
+                    tags.lock().unwrap().push(tag.into_active_model())
                 }
             }
-        }
+        });
 
-        batch_save_model(self.get_connection(), commits)
+        batch_save_model(self.get_connection(), commits.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), trees)
+        batch_save_model(self.get_connection(), trees.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), blobs)
+        batch_save_model(self.get_connection(), blobs.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), raw_blobs)
+        batch_save_model(self.get_connection(), raw_blobs.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), tags).await.unwrap();
+        batch_save_model(self.get_connection(), tags.into_inner().unwrap())
+            .await
+            .unwrap();
         Ok(())
     }
 
@@ -228,24 +233,25 @@ impl GitDbStorage {
             .unwrap())
     }
 
-    pub async fn get_commits_by_repo_id(
-        &self,
-        repo: &Repo,
-    ) -> Result<Vec<git_commit::Model>, MegaError> {
-        Ok(git_commit::Entity::find()
+    pub async fn get_commits_by_repo_id<'a>(
+        &'a self,
+        repo: &'a Repo,
+    ) -> Result<impl Stream<Item = Result<git_commit::Model, DbErr>> + 'a + Send, MegaError> {
+        let stream = git_commit::Entity::find()
             .filter(git_commit::Column::RepoId.eq(repo.repo_id))
-            .all(self.get_connection())
+            .stream(self.get_connection())
             .await
-            .unwrap())
+            .unwrap();
+        Ok(stream)
     }
 
-    pub async fn get_trees_by_repo_id(
-        &self,
-        repo: &Repo,
-    ) -> Result<Vec<git_tree::Model>, MegaError> {
+    pub async fn get_trees_by_repo_id<'a>(
+        &'a self,
+        repo: &'a Repo,
+    ) -> Result<impl Stream<Item = Result<git_tree::Model, DbErr>> + 'a + Send, MegaError> {
         Ok(git_tree::Entity::find()
             .filter(git_tree::Column::RepoId.eq(repo.repo_id))
-            .all(self.get_connection())
+            .stream(self.get_connection())
             .await
             .unwrap())
     }
@@ -276,13 +282,24 @@ impl GitDbStorage {
             .unwrap())
     }
 
-    pub async fn get_blobs_by_repo_id(
-        &self,
-        repo: &Repo,
-    ) -> Result<Vec<git_blob::Model>, MegaError> {
+    pub async fn get_blobs_by_repo_id<'a>(
+        &'a self,
+        repo: &'a Repo,
+    ) -> Result<impl Stream<Item = Result<git_blob::Model, DbErr>> + 'a + Send, MegaError> {
         Ok(git_blob::Entity::find()
             .filter(git_blob::Column::RepoId.eq(repo.repo_id))
-            .all(self.get_connection())
+            .stream(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_raw_blobs(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<impl Stream<Item = Result<raw_blob::Model, DbErr>> + '_ + Send, MegaError> {
+        Ok(raw_blob::Entity::find()
+            .filter(raw_blob::Column::Sha1.is_in(hashes))
+            .stream(self.get_connection())
             .await
             .unwrap())
     }
@@ -308,16 +325,8 @@ impl GitDbStorage {
             .await
             .unwrap();
 
-        let bids: Vec<String> = self
-            .get_blobs_by_repo_id(repo)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|b| b.blob_id)
-            .collect();
-
-        let b_count = raw_blob::Entity::find()
-            .filter(raw_blob::Column::Sha1.is_in(bids))
+        let b_count = git_blob::Entity::find()
+            .filter(git_blob::Column::RepoId.eq(repo.repo_id))
             .count(self.get_connection())
             .await
             .unwrap();

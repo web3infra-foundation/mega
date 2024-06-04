@@ -59,7 +59,7 @@ impl Display for Blob {
 
 impl ObjectTrait for Blob {
     /// Creates a new object from a byte slice.
-    fn from_bytes(data: Vec<u8>, hash: SHA1) -> Result<Self, GitError>
+    fn from_bytes(data: &[u8], hash: SHA1) -> Result<Self, GitError>
     where
         Self: Sized,
     {

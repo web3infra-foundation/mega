@@ -27,7 +27,7 @@ impl TreeExt for Tree {
     fn load(hash: &SHA1) -> Tree {
         let storage = util::objects_storage();
         let tree_data = storage.get(hash).unwrap();
-        Tree::from_bytes(tree_data.to_vec(), *hash).unwrap()
+        Tree::from_bytes(&tree_data, *hash).unwrap()
     }
 
     /// Get all the items in the tree recursively (to workdir path)
@@ -57,7 +57,7 @@ impl CommitExt for Commit {
     fn load(hash: &SHA1) -> Commit {
         let storage = util::objects_storage();
         let commit_data = storage.get(hash).unwrap();
-        Commit::from_bytes(commit_data.to_vec(), *hash).unwrap()
+        Commit::from_bytes(&commit_data, *hash).unwrap()
     }
 }
 
@@ -65,7 +65,7 @@ impl BlobExt for Blob {
     fn load(hash: &SHA1) -> Blob {
         let storage = util::objects_storage();
         let blob_data = storage.get(hash).unwrap();
-        Blob::from_bytes(blob_data, *hash).unwrap()
+        Blob::from_bytes(&blob_data, *hash).unwrap()
     }
 
     /// Create a blob from a file

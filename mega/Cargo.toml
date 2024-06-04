@@ -31,15 +31,12 @@ config = { workspace = true }
 shadow-rs = { workspace = true }
 
 [dev-dependencies]
-reqwest = { version = "0.12.4", features = ["stream", "json"] }
+reqwest = { workspace = true , features = ["stream", "json"] }
 russh = { workspace = true }
 russh-keys = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 go-defer = { workspace = true }
-env_logger = "0.11.3"
-futures-util = "0.3.30"
-tokio-util = "0.7.11"
 git2 = "0.18.3"
 toml = "0.8.13"
 
