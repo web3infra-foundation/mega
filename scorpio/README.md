@@ -1,8 +1,16 @@
-## Scorpio Module
+## Scorpio - FUSE Support for Mega/Monorepo Client
 
->**FUSE Support for Mega/Monorepo Client.♏**
+### What's the Fuse?
 
-🚧 Developing annd Coming Soon...
-
-## Fuse?
 FUSE is the abbreviation for "FileSystem in Userspace".
+
+### Why the Mega Need a FUSE?
+
+
+### How to Use?
+
+
+### How to Contribute?
+
+
+### Reference
