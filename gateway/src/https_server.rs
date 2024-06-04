@@ -13,7 +13,6 @@ use axum::routing::get;
 use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
-use common::enums::ZtmType;
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -22,6 +21,7 @@ use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
+use common::enums::ZtmType;
 use common::config::Config;
 use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;

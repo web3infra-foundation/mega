@@ -6,12 +6,6 @@ use axum::extract::{Query, State};
 use axum::http::{Request, Response, StatusCode, Uri};
 use axum::routing::get;
 use axum::Router;
-use common::config::{Config, ZTMConfig};
-use gemini::ztm::{
-    connect_ztm_hub, create_ztm_certificate, create_ztm_service, delete_ztm_certificate,
-};
-use gemini::RelayGetParams;
-use jupiter::context::Context;
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -20,6 +14,14 @@ use tower_http::trace::TraceLayer;
 
 use crate::api_service;
 use crate::api_service::router::ApiServiceState;
+
+use common::config::{Config, ZTMConfig};
+use gemini::RelayGetParams;
+use jupiter::context::Context;
+use gemini::ztm::{
+    connect_ztm_hub, create_ztm_certificate, create_ztm_service, delete_ztm_certificate,
+};
+
 
 pub async fn run_relay_server(config: Config, host: String, port: u16) {
     let app = app(config.clone(), host.clone(), port).await;

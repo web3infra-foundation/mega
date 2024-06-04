@@ -1,6 +1,7 @@
-use common::config::ZTMConfig;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
+
+use common::config::ZTMConfig;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ZTMUserPermit {

@@ -12,10 +12,20 @@ use common::{
 
 use crate::commands::{builtin, builtin_exec};
 
+/// This function is responsible for parsing command line arguments.
+/// It uses the `cli` function to get the matches for the command line arguments.
+/// If the matches are not found, it will exit the program.
+///
+/// # Returns
+///
+/// This function returns a `MegaResult`. If the parsing is successful, it will return the result.
+/// If there is an error during the parsing, it will return an error.
 pub fn parse() -> MegaResult {
     let matches = cli().try_get_matches().unwrap_or_else(|e| e.exit());
 
+    // Get the current directory
     let current_dir = env::current_dir()?;
+    // Get the path to the config file in the current directory
     let config_path = current_dir.join("config.toml");
 
     let config = if let Some(path) = matches.get_one::<String>("config").cloned() {
