@@ -13,6 +13,9 @@ pub struct CommonOptions {
 
     #[arg(long, default_value_t = 8001)]
     pub relay_port: u16,
+
+    #[arg(long)]
+    pub bootstrap_node: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]

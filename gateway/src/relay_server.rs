@@ -6,6 +6,10 @@ use axum::extract::{Query, State};
 use axum::http::{Request, Response, StatusCode, Uri};
 use axum::routing::get;
 use axum::Router;
+use common::config::{Config, ZTMConfig};
+use gemini::ztm::{RemoteZTM, ZTM};
+use gemini::RelayGetParams;
+use jupiter::context::Context;
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -14,14 +18,6 @@ use tower_http::trace::TraceLayer;
 
 use crate::api_service;
 use crate::api_service::router::ApiServiceState;
-
-use common::config::{Config, ZTMConfig};
-use gemini::RelayGetParams;
-use jupiter::context::Context;
-use gemini::ztm::{
-    connect_ztm_hub, create_ztm_certificate, create_ztm_service, delete_ztm_certificate,
-};
-
 
 pub async fn run_relay_server(config: Config, host: String, port: u16) {
     let app = app(config.clone(), host.clone(), port).await;
@@ -32,7 +28,7 @@ pub async fn run_relay_server(config: Config, host: String, port: u16) {
             tracing::info!("relay connect ztm success: {s}");
         }
         Err(e) => {
-            tracing::info!("relay connect ztm failed : {e}");
+            tracing::error!("relay connect ztm failed : {e}");
             return;
         }
     }
@@ -124,7 +120,9 @@ pub async fn certificate(
         return Err((StatusCode::BAD_REQUEST, "not enough paras".to_string()));
     }
     let name = params.name.unwrap();
-    let permit = match create_ztm_certificate(config, name.clone()).await {
+
+    let ztm: RemoteZTM = RemoteZTM { config };
+    let permit = match ztm.create_ztm_certificate(name.clone()).await {
         Ok(p) => p,
         Err(e) => {
             return Err((StatusCode::INTERNAL_SERVER_ERROR, e));
@@ -143,13 +141,14 @@ pub async fn certificate(
 pub async fn relay_connect_ztm(config: ZTMConfig, relay_port: u16) -> Result<String, String> {
     // 1. generate a permit for relay
     let name = "relay".to_string();
-    match delete_ztm_certificate(config.clone(), name.clone()).await {
+    let ztm: RemoteZTM = RemoteZTM { config };
+    match ztm.delete_ztm_certificate(name.clone()).await {
         Ok(_s) => (),
         Err(e) => {
             return Err(e);
         }
     }
-    let permit = match create_ztm_certificate(config.clone(), name).await {
+    let permit = match ztm.create_ztm_certificate(name).await {
         Ok(p) => p,
         Err(e) => {
             return Err(e);
@@ -157,7 +156,7 @@ pub async fn relay_connect_ztm(config: ZTMConfig, relay_port: u16) -> Result<Str
     };
 
     // 2. connect to ZTM hub (join a mesh)
-    let mesh = match connect_ztm_hub(config.clone(), permit).await {
+    let mesh = match ztm.connect_ztm_hub(permit).await {
         Ok(m) => m,
         Err(e) => {
             return Err(e);
@@ -165,13 +164,15 @@ pub async fn relay_connect_ztm(config: ZTMConfig, relay_port: u16) -> Result<Str
     };
 
     // 3. create a ZTM service
-    let response_text =
-        match create_ztm_service(config, mesh.agent.id, "relay".to_string(), relay_port).await {
-            Ok(m) => m,
-            Err(e) => {
-                return Err(e);
-            }
-        };
+    let response_text = match ztm
+        .create_ztm_service(mesh.agent.id, "relay".to_string(), relay_port)
+        .await
+    {
+        Ok(m) => m,
+        Err(e) => {
+            return Err(e);
+        }
+    };
 
     Ok(response_text)
 }
