@@ -178,7 +178,7 @@ mod test {
                 if item.name == "DeveloperExperience" {
                     let sub_tree = storage.get(&item.id).unwrap();
                     let tree = Tree::from_bytes(&sub_tree, item.id).unwrap();
-                    assert!(tree.tree_items.len() == 4); // 4 sub tree according to the test data
+                    assert_eq!(tree.tree_items.len(), 4); // 4 subtree according to the test data
                 }
             }
         }
@@ -186,7 +186,7 @@ mod test {
 
     #[tokio::test]
     #[should_panic]
-    async fn test_excute_commit_with_empty_index_fail() {
+    async fn test_execute_commit_with_empty_index_fail() {
         test::setup_with_new_libra().await;
         let args = CommitArgs {
             message: "init".to_string(),
@@ -215,9 +215,9 @@ mod test {
             let branch = Branch::find_branch(&branch_name, None).await.unwrap();
             let commit: Commit = load_object(&branch.commit).unwrap();
 
-            assert!(commit.message == "init");
+            assert_eq!(commit.message, "init");
             let branch = Branch::find_branch(&branch_name, None).await.unwrap();
-            assert!(branch.commit == commit.id);
+            assert_eq!(branch.commit, commit.id);
         }
         
         // create a new commit
@@ -244,15 +244,15 @@ mod test {
 
             let commit_id = Head::current_commit().await.unwrap();
             let commit: Commit = load_object(&commit_id).unwrap();
-            assert!(commit.message == "add some files", "{}", commit.message);
+            assert_eq!(commit.message, "add some files", "{}", commit.message);
 
             let pre_commit_id = commit.parent_commit_ids[0];
             let pre_commit: Commit = load_object(&pre_commit_id).unwrap();
-            assert!(pre_commit.message == "init");
+            assert_eq!(pre_commit.message, "init");
 
             let tree_id = commit.tree_id;
             let tree: Tree = load_object(&tree_id).unwrap();
-            assert!(tree.tree_items.len() == 2); // 2 sub tree according to the test data
+            assert_eq!(tree.tree_items.len(), 2); // 2 subtree according to the test data
         }
     }
 }

@@ -59,7 +59,7 @@ impl Caches {
                 match self.read_from_temp(hash) {
                     Ok(x) => break x,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                        sleep(std::time::Duration::from_millis(10)); //TODO 有没有更好办法
+                        sleep(std::time::Duration::from_millis(10));
                         continue;
                     }
                     Err(e) => return Err(e), // other error
