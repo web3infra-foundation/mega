@@ -187,23 +187,23 @@ async fn list_branches(remotes: bool) {
 }
 
 pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn std::error::Error>> {
-    let posible_branchs = Branch::search_branch(branch_or_commit).await;
-    if posible_branchs.len() > 1 {
+    let possible_branches = Branch::search_branch(branch_or_commit).await;
+    if possible_branches.len() > 1 {
         return Err("fatal: Ambiguous branch name".into());
         // TODO: git have a priority list of branches to use, continue with ambiguity, we didn't implement it yet
     }
 
-    if posible_branchs.is_empty() {
+    if possible_branches.is_empty() {
         let storage = ClientStorage::init(utils::path::objects());
-        let posible_commits = storage.search(branch_or_commit);
-        if posible_commits.len() > 1 || posible_commits.is_empty() {
+        let possible_commits = storage.search(branch_or_commit);
+        if possible_commits.len() > 1 || possible_commits.is_empty() {
             return Err(
                 format!("fatal: {} is not something we can merge", branch_or_commit).into(),
             );
         }
-        Ok(posible_commits[0])
+        Ok(possible_commits[0])
     } else {
-        Ok(posible_branchs[0].commit)
+        Ok(possible_branches[0].commit)
     }
 }
 
@@ -289,8 +289,8 @@ mod tests {
             };
 
             let first_branch = Branch::find_branch(&first_branch_name, None).await.unwrap();
-            assert!(first_branch.commit == first_commit_id);
-            assert!(first_branch.name == first_branch_name);
+            assert_eq!(first_branch.commit, first_commit_id);
+            assert_eq!(first_branch.name, first_branch_name);
         }
 
         {
@@ -309,8 +309,8 @@ mod tests {
             let second_branch = Branch::find_branch(&second_branch_name, None)
                 .await
                 .unwrap();
-            assert!(second_branch.commit == second_commit_id);
-            assert!(second_branch.name == second_branch_name);
+            assert_eq!(second_branch.commit, second_commit_id);
+            assert_eq!(second_branch.name, second_branch_name);
         }
 
         // show current branch
