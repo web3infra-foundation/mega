@@ -103,7 +103,7 @@ impl Caches {
         self.pool.queued_count()
     }
 
-    /// memory used by the index (exclude lru_cache which is contained in [CacheObject::get_mem_size()])
+    /// memory used by the index (exclude lru_cache which is contained in CacheObject::get_mem_size())
     pub fn memory_used_index(&self) -> usize {
         self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
         + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
