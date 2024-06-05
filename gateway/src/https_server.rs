@@ -13,6 +13,8 @@ use axum::routing::get;
 use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
+use common::enums::ZtmType;
+use gemini::ztm::run_ztm_client;
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -21,7 +23,6 @@ use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
-use common::enums::ZtmType;
 use common::config::Config;
 use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
@@ -130,9 +131,7 @@ pub async fn app(config: Config, host: String, port: u16) -> Router {
         context: context.clone(),
     };
 
-    let api_state = ApiServiceState {
-        context,
-    };
+    let api_state = ApiServiceState { context };
 
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
@@ -254,7 +253,17 @@ pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
     };
     match ztm_type {
         ZtmType::Agent => {
-            //TODO Mega server join a ztm mesh
+            //Mega server join a ztm mesh
+            let config = config.ztm;
+            let bootstrap_node = match common.bootstrap_node {
+                Some(n) => n,
+                None => {
+                    tracing::error!("bootstrap node is not provide");
+                    return;
+                }
+            };
+            let peer_id = "123".to_string();
+            tokio::spawn(async move { run_ztm_client(bootstrap_node, config, peer_id).await });
         }
         ZtmType::Relay => {
             //Start a sub thread to run relay server
