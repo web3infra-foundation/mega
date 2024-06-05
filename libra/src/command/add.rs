@@ -9,13 +9,13 @@ use crate::utils::{path, util};
 
 #[derive(Parser, Debug)]
 pub struct AddArgs {
-    /// <pathspec>... files & dir to add content from.
+    /// pathspec... files & dir to add content from.
     #[clap(required = false)]
     pub pathspec: Vec<String>,
 
-    /// Update the index not only where the working tree has a file matching <pathspec> but also where the index already has an entry. This adds, modifies, and removes index entries to match the working tree.
+    /// Update the index not only where the working tree has a file matching pathspec but also where the index already has an entry. This adds, modifies, and removes index entries to match the working tree.
     ///
-    /// If no <pathspec> is given when -A option is used, all files in the entire working tree are updated
+    /// If no pathspec is given when -A option is used, all files in the entire working tree are updated
     #[clap(short = 'A', long, group = "mode")]
     pub all: bool,
 

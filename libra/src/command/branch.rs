@@ -26,7 +26,7 @@ pub struct BranchArgs {
     #[clap(short = 'D', long, group = "sub")]
     delete: Option<String>,
 
-    /// Set up <current branch>'s tracking information
+    /// Set up current branch's tracking information
     #[clap(short = 'u', long, group = "sub")]
     set_upstream_to: Option<String>,
 
