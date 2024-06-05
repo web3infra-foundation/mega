@@ -200,7 +200,7 @@ pub fn calc_file_blob_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
     Ok(SHA1::from_type_and_data(ObjectType::Blob, &data))
 }
 
-/// List all files in the given dir and its subdir, except `.libra`
+/// List all files in the given dir and its sub_dir, except `.libra`
 /// - input `path`: absolute path or relative path to the current dir
 /// - output: to workdir path
 pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
@@ -214,7 +214,6 @@ pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                // subdir
                 files.extend(list_files(&path)?);
             } else {
                 files.push(to_workdir_path(&path));
@@ -224,7 +223,7 @@ pub fn list_files(path: &Path) -> io::Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// list all files in the working dir(include subdir)
+/// list all files in the working dir(include sub_dir)
 /// - output: to workdir path
 pub fn list_workdir_files() -> io::Result<Vec<PathBuf>> {
     list_files(&working_dir())
