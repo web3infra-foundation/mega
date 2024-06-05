@@ -225,7 +225,7 @@ mod test {
     use crate::hash::SHA1;
 
     #[test]
-    fn test_cach_single_thread() {
+    fn test_cache_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
         let a = CacheObject {
