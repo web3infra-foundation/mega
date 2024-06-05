@@ -243,6 +243,29 @@ mod tests {
 
         assert!(verify_cert(cert_pem.as_ref()));
     }
+
+    #[test]
+    fn test_secret() {
+        let core = CA.core.read().unwrap();
+
+        // create secret
+        let kv_data = json!({
+            "foo": "bar",
+            "id": "xxxID",
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        write_api(&core, &CA.token, "secret/goo", Some(kv_data.clone())).unwrap();
+
+        // get secret
+        let secret = read_api(&core, &CA.token, "secret/goo").unwrap().unwrap().data;
+        assert_eq!(secret, Some(kv_data));
+        println!("secret: {:?}", secret.unwrap());
+
+        assert!(read_api(&core, &CA.token, "secret/foo").unwrap().is_none());
+        assert!(read_api(&core, &CA.token, "secret1/foo").is_err());
+    }
 }
 
 #[cfg(test)]
