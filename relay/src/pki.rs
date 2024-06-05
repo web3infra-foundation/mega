@@ -1,10 +1,14 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use lazy_static::lazy_static;
+use openssl::asn1::Asn1Time;
+use openssl::x509::X509;
 use rusty_vault::core::{Core, SealConfig};
 use rusty_vault::errors::RvError;
 use rusty_vault::logical::{Operation, Request, Response};
@@ -68,13 +72,11 @@ struct CAInfo {
     core: Arc<RwLock<Core>>,
     token: String,
 }
-#[allow(dead_code)]
 fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
     let mut req = Request::new(path);
     req.operation = Operation::Read;
     req.client_token = token.to_string();
     let resp = core.handle_request(&mut req);
-    assert!(resp.is_ok());
     resp
 }
 
@@ -91,7 +93,6 @@ fn write_api(
 
     let resp = core.handle_request(&mut req);
     println!("path: {}, req.body: {:?}", path, req.body);
-    assert!(resp.is_ok());
     resp
 }
 
@@ -111,8 +112,9 @@ fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
 }
 
 /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
-fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
-    let core = core.read().unwrap();
+fn config_role(data: Value) {
+    let core = CA.core.read().unwrap();
+    let token = &CA.token;
 
     let role_data = data.as_object()
         .expect("`data` must be a JSON object")
@@ -161,8 +163,9 @@ fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
 }
 
 /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
-pub fn issue_cert(core: Arc<RwLock<Core>>, token: &str, data: Value) {
-    let core = core.read().unwrap();
+pub fn issue_cert(data: Value) -> String {
+    let core = CA.core.read().unwrap();
+    let token = &CA.token;
 
     // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
     let issue_data = data.as_object()
@@ -181,6 +184,37 @@ pub fn issue_cert(core: Arc<RwLock<Core>>, token: &str, data: Value) {
         let mut file = fs::File::create("/tmp/cert.crt").unwrap(); // TODO add root cert in it
         file.write_all(cert_data["certificate"].as_str().unwrap().as_ref()).unwrap();
     }
+
+    cert_data["certificate"].as_str().unwrap().to_owned()
+}
+
+pub fn verify_cert(cert_pem: &[u8]) -> bool {
+    let ca_cert = {
+        let core = CA.core.read().unwrap();
+
+        let resp_ca_pem = read_api(&core, &CA.token, "pki/ca/pem").unwrap().unwrap();
+        let ca_cert = resp_ca_pem.data.unwrap();
+        let ca_cert_pem = ca_cert["certificate"].as_str().unwrap();
+        X509::from_pem(ca_cert_pem.as_ref()).unwrap()
+    };
+
+    let cert = X509::from_pem(cert_pem).unwrap();
+    // verify time
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+    let now = Asn1Time::from_unix(now).unwrap();
+    let not_before = cert.not_before();
+    let not_after = cert.not_after();
+    match now.compare(not_before) {
+        Ok(Ordering::Less) | Err(_) => return false,
+        _ => {}
+    }
+    match now.compare(not_after) {
+        Ok(Ordering::Greater) | Err(_) => return false,
+        _ => {}
+    }
+
+    // verify signature
+    cert.verify(&ca_cert.public_key().unwrap()).unwrap()
 }
 
 #[cfg(test)]
@@ -189,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_pki_issue() {
-        config_role(Arc::clone(&CA.core), &CA.token, json!({
+        config_role(json!({
             "ttl": "60d",
             "max_ttl": "365d",
             "key_type": "rsa",
@@ -201,11 +235,13 @@ mod tests {
             "no_store": false,
         }));
 
-        issue_cert(Arc::clone(&CA.core), &CA.token, json!({
+        let cert_pem = issue_cert(json!({
             "ttl": "10d",
             "common_name": "test.com",
             "alt_names": "a.test.com,b.test.com",
         }));
+
+        assert!(verify_cert(cert_pem.as_ref()));
     }
 }
 
