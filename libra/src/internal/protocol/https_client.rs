@@ -133,7 +133,7 @@ impl HttpsClient {
                     // for git-upload-pack, the first line is HEAD
                     assert_eq!(head, "HEAD");
                 }
-                // ..default ref named HEAD as the first ref. The stream MUST include capability declarations behind a NUL on the first ref.
+                // default ref named HEAD as the first ref. The stream MUST include capability declarations behind a NUL on the first ref.
                 ref_list.push(DiscoveredReference {
                     _hash: hash.to_string(),
                     _ref: head.to_string(),
