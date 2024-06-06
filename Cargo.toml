@@ -8,7 +8,6 @@ members = [
     "venus",
     "ceres",
     "libra",
-    "scorpio",
 ]
 exclude = ["craft"]
 resolver = "1"

@@ -78,26 +78,26 @@ pub fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError>
     // This is called the first-level fan-out table.
     let mut i: u8 = 0;
     let mut cnt: u32 = 0;
-    let mut fanout = Vec::with_capacity(256 * 4);
+    let mut fan_out = Vec::with_capacity(256 * 4);
     let obj_map = Arc::try_unwrap(obj_map).unwrap().into_inner().unwrap();
     for (hash, _) in obj_map.iter() { // sorted
         let first_byte = hash.0[0];
         while first_byte > i { // `while` rather than `if` to fill the gap, e.g. 0, 1, 2, 2, 2, 6
-            fanout.write_u32::<BigEndian>(cnt)?;
+            fan_out.write_u32::<BigEndian>(cnt)?;
             i += 1;
         }
         cnt += 1;
     }
     // fill the rest
     loop {
-        fanout.write_u32::<BigEndian>(cnt)?;
+        fan_out.write_u32::<BigEndian>(cnt)?;
         if i == 255 {
             break;
         }
         i += 1;
     }
-    index_hash.update(&fanout);
-    index_file.write_all(&fanout)?;
+    index_hash.update(&fan_out);
+    index_file.write_all(&fan_out)?;
 
     // 4-byte network byte order integer, recording where the
     // object is stored in the pack-file as the offset from the beginning.

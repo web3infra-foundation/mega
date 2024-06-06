@@ -180,9 +180,9 @@ pub trait ArcWrapperBounds: HeapSize + Serialize + for<'a> Deserialize<'a> + Sen
 // Or, `T` will not satisfy `Alias Trait` even if it satisfies the Original traits
 impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds for T {}
 
-/// !Implementing encapsulation of Arc<T> to enable third-party Trait HeapSize implementation for the Arc type
-/// !Because of use Arc<T> in LruCache, the LruCache is not clear whether a pointer will drop the referenced
-/// ! content when it is ejected from the cache, the actual memory usage is not accurate
+/// Implementing encapsulation of Arc to enable third-party Trait HeapSize implementation for the Arc type
+/// Because of use Arc in LruCache, the LruCache is not clear whether a pointer will drop the referenced
+/// content when it is ejected from the cache, the actual memory usage is not accurate
 pub struct ArcWrapper<T: ArcWrapperBounds> {
     pub data: Arc<T>,
     complete_signal: Arc<AtomicBool>,
