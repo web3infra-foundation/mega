@@ -21,7 +21,6 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -36,7 +35,6 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
@@ -53,7 +51,22 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - uses: actions-rs/cargo@v1
         with:
           command: doc
+  fuse:
+    name: Fuse Lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+      - run: cd ./scorpio
+      - uses: actions-rs/cargo@v1
+        with:
+            command: clippy
+            args: --workspace --all-targets --all-features -- -D warnings
