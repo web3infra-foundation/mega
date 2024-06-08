@@ -24,6 +24,10 @@ When it comes to managing large codebases in a centralized manner, trunk-based d
 
 Mega will support conventional commits, which are a set of rules for creating clear and concise commit messages.  More information on the [Conventional Commits](https://www.conventionalcommits.org/).
 
+### Code Owners
+
+Mega will support code owners, which are a set of rules for defining who owns a particular piece of code. More information on the [Code Owners](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners).
+
 ### Decentralized Open Source Collaboration
 
 For now, the entire open source community base on Git and GitHub. It's centralized model, and it's not suitable for growing speed of open source world. Mega is working on build a decentralized open source collaboration model with [ZTM](https://github.com/flomesh-io/ztm)(Zero Trust Model) and decentralized social network like [Nostr](https://nostr.com), [Matrix](https://matrix.org) and [Mastodon](https://joinmastodon.org).
