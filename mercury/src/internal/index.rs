@@ -464,14 +464,6 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_libra_index() {
-    //     let index = Index::from_file(PathBuf::from(test::TEST_DIR).join(".libra/index")).unwrap();
-    //     for (_, entry) in index.entries.iter() {
-    //         println!("{}", entry);
-    //     }
-    // }
-
     #[test]
     fn test_index_to_file() {
         let index = Index::from_file("../tests/data/index/index-760").unwrap();
