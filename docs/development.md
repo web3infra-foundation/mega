@@ -343,6 +343,95 @@
    $ git clone http://localhost:8000/third-part/linux.git
    ```
 
+### GitHub Codespace
+
+If you are using GitHub codespaces, you can follow the steps below to set up the Mega project. When you create a new Codespace, the Mega project will be cloned automatically. You can then follow the steps below to set up the project.
+
+When the codespace is ready, the PostgreSQL will be installed and started automatically. You can then follow the steps below to set up the database with below steps.
+
+```bash
+## Start PostgreSQL
+/etc/init.d/postgresql start
+
+sudo -u postgres psql mega -c "CREATE DATABASE mega;"
+sudo -u postgres psql mega < /workspaces/mega/sql/pg_20240205__init.sql
+sudo -u postgres psql mega -c "CREATE USER mega WITH ENCRYPTED PASSWORD 'mega';"
+sudo -u postgres psql mega -c "GRANT ALL PRIVILEGES ON DATABASE mega TO mega;"
+sudo -u postgres psql mega -c "GRANT ALL ON ALL TABLES IN SCHEMA public to mega;"
+sudo -u postgres psql mega -c "GRANT ALL ON ALL TABLES IN SCHEMA public to mega;"
+sudo -u postgres psql mega -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public to mega;"
+sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
+```
+
+Config `confg.toml` file for the Mega project.
+
+```ini
+   # Fillin the following environment variables with values you set
+
+   ## Logging Configuration
+   [log]
+   # The path which log file is saved
+   log_path = "/tmp/.mega/logs"
+
+   # log level
+   level = "debug"
+
+   # print std log in console, disable it on production for performance
+   print_std = true
+
+
+   [database]
+   # database connection url
+   db_url = "postgres://postgres:postgres@localhost:5432/mega"
+
+   # db max connection, setting it to twice the number of CPU cores would be appropriate.
+   max_connection = 2
+
+   # db min connection, setting it to the number of CPU cores would be appropriate.
+   min_connection = 4
+
+   # Whether to disabling SQLx Log
+   sqlx_logging = false
+
+   [ssh]
+   ssh_key_path = "/tmp/.mega/ssh"
+
+   [storage]
+   # raw object stroage type, can be `local` or `remote`
+   raw_obj_storage_type = "LOCAL"
+
+   ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
+   big_obj_threshold = 1024
+
+   # set the local path of the project storage
+   raw_obj_local_path = "/tmp/.mega/objects"
+
+   lfs_obj_local_path = "/tmp/.mega/lfs"
+
+   obs_access_key = ""
+   obs_secret_key = ""
+
+   # cloud storage region
+   obs_region = "cn-east-3"
+
+   # Override the endpoint URL used for remote storage services
+   obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
+
+
+   [monorepo]
+   ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+   ## Mega treats files in that directory as import repo and other directories as monorepo
+   import_dir = "/third-part"
+
+   # The maximum memory used by decode, Unit is GB
+   pack_decode_mem_size = 4
+
+   # The location where the object stored when the memory used by decode exceeds the limit
+   pack_decode_cache_path = "/tmp/.mega/cache"
+
+   clean_cache_after_decode = true
+```
+
 ## Comment Guideline
 
 This guide outlines the recommended order for importing dependencies in Rust projects.
