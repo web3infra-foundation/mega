@@ -9,15 +9,15 @@ apt-get install -y \
   zsh \
   vim \
   build-essential \
-  openssl
+  openssl \
+  fuse3 \
+  libfuse3-dev
 
 ## Install rustup and common components
 curl https://sh.rustup.rs -sSf | sh -s -- -y 
-rustup install nightly
+rustup install default
 rustup component add rustfmt
-rustup component add rustfmt --toolchain nightly
-rustup component add clippy 
-rustup component add clippy --toolchain nightly
+rustup component add clippy
 
 cargo install cargo-expand
 cargo install cargo-edit
