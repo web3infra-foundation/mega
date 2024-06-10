@@ -8,7 +8,8 @@ The FUSE project consists of two components: the fuse kernel module (maintained 
 
 When VFS receives a file access request from the user process and this file belongs to a certain fuse file system, it will forward the request to a kernel module named "fuse". Then, "fuse" converts the request into the protocol format agreed upon with the daemon and transmits it to the daemon process.
 
-Currently, there have been many successful fuse based projects
+Currently, there have been many successful fuse based projects,
+
 - [s3fs](https://github.com/s3fs-fuse/s3fs-fuse)
  makes you operate files and directories in S3 bucket like a local file system
  ![Github stars](https://img.shields.io/github/stars/s3fs-fuse/s3fs-fuse.svg)
@@ -35,18 +36,13 @@ Because the code organization requirements are different from the existing popul
 
 7. Incremental repackage: Using multiple package indexes, repackage packaged Git data into fewer package files without interrupting parallel commands.
 
-### Some Related 
-#### [Vfs for Git](https://github.com/microsoft/VFSForGit) 
+### Some Related
+
+#### [VFS for Git](https://github.com/microsoft/VFSForGit) from Microsoft
 VFS For Git is a preliminary attempt by Microsoft on the Monorepo client, which implemented the FUSE system based on Sqlite and Mutli pack index, achieving on-demand partial pull functionality. The client will perceive the user's "open directory" operation before pulling the code content under the corresponding directory.
 
 #### [Sapling](https://sapling-scm.com/) from Meta 
 The structure of Sapling is achieved through a multi-layered architecture, with each checkout corresponding to a mount point, followed by an Overlay layer. At the same time, it provides third-party interfaces for other programs to use, so that some heavy IO and computational parts do not need to be consumed by the performance of the virtual layer.
-
-
-#### [Scalar](https://github.com/microsoft/git/blob/HEAD/contrib/scalar/docs/index.md)
-Scalar is a tool that helps Git scale to some of the largest Git repositories. Initially, it was a single standalone git plugin based on Vfs for git, inheriting GVFS. No longer using FUSE. It implements aware partial directory management. Users need to manage and register the required workspace directory on their own.
-
-Ease of use can be improved through the fuse mechanism.
 
 ### How to Use?
 
@@ -66,3 +62,5 @@ Ease of use can be improved through the fuse mechanism.
 [5] [sapling](https://github.com/facebook/sapling.git) : A cross-platform, highly scalable, Git-compatible source control system.
 
 [6] [fuser](https://github.com/cberner/fuser.git) : A Rust library crate for easy implementation of FUSE filesystems in userspace.
+
+[7] [Scalar](https://github.com/microsoft/git/blob/HEAD/contrib/scalar/docs/index.md) : Scalar is a tool that helps Git scale to some of the largest Git repositories. Initially, it was a single standalone git plugin based on Vfs for git, inheriting GVFS. No longer using FUSE. It implements aware partial directory management. Users need to manage and register the required workspace directory on their own. Ease of use can be improved through the fuse mechanism.
