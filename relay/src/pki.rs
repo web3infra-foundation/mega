@@ -1,118 +1,35 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::fs;
-use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::io::Write;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use lazy_static::lazy_static;
 use openssl::asn1::Asn1Time;
 use openssl::x509::X509;
-use rusty_vault::core::{Core, SealConfig};
+use rusty_vault::core::Core;
 use rusty_vault::errors::RvError;
 use rusty_vault::logical::{Operation, Request, Response};
-use rusty_vault::storage::{barrier_aes_gcm, physical};
 use serde_json::{json, Map, Value};
 
 use secp256k1::{rand, SecretKey};
-use libp2p::identity::PeerId;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-struct CoreKey {
-    secret_shares: Vec<Vec<u8>>,
-    root_token: String,
-}
+use super::vault::{CoreInfo, CORE};
 
 const ROLE: &str = "test";
 
-// coding in `lazy_static!` with copilot seems lagging, so using function `init` instead
 lazy_static! {
-    static ref CA: CAInfo = init();
-}
-
-/// Initialize the CA
-fn init() -> CAInfo {
-    const CORE_KEY_FILE: &str = "core_key.json";
-    let dir = PathBuf::from("/tmp/rusty_vault_pki_module");
-    let core_key_path = dir.join(CORE_KEY_FILE);
-    // let dir = env::temp_dir().join("rusty_vault_pki_module"); // TODO: 改成数据库？
-
-    let inited = dir.exists();
-    if !inited {
-        assert!(fs::create_dir(&dir).is_ok());
-    }
-
-    let mut root_token = String::new();
-
-    let mut conf: HashMap<String, Value> = HashMap::new();
-    conf.insert("path".to_string(), Value::String(dir.to_string_lossy().into_owned()));
-
-    let backend = physical::new_backend("file", &conf).unwrap(); // file or database
-    let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
-
-    let c = Arc::new(RwLock::new(Core { physical: backend, barrier: Arc::new(barrier), ..Default::default() }));
-
-    {
-        let mut core = c.write().unwrap();
-        assert!(core.config(Arc::clone(&c), None).is_ok());
-
-        let seal_config = SealConfig { secret_shares: 10, secret_threshold: 5 };
-
-        let mut unsealed = false;
-        if !inited {
-            let result = core.init(&seal_config);
-            assert!(result.is_ok());
-            let init_result = result.unwrap();
-            println!("init_result: {:?}", init_result);
-
-            for i in 0..seal_config.secret_threshold {
-                let key = &init_result.secret_shares[i as usize];
-                let unseal = core.unseal(key);
-                println!("unseal: {:?}", unseal);
-                assert!(unseal.is_ok());
-                unsealed = unseal.unwrap();
-            }
-
-            root_token = init_result.root_token;
-
-            let core_key = CoreKey {
-                secret_shares: Vec::from(&init_result.secret_shares[..]),
-                root_token: root_token.clone(),
-            };
-            let file = fs::File::create(core_key_path).unwrap();
-            serde_json::to_writer_pretty(file, &core_key).unwrap();
-        } else {
-            let file = fs::File::open(core_key_path).unwrap();
-            let core_key: CoreKey = serde_json::from_reader(file).unwrap();
-            root_token = core_key.root_token.clone();
-
-            for i in 0..seal_config.secret_threshold {
-                let key = &core_key.secret_shares[i as usize];
-                let unseal = core.unseal(&key);
-                println!("unseal: {:?}", unseal);
-                assert!(unseal.is_ok());
-                unsealed = unseal.unwrap();
-            }
+    static ref CA: CoreInfo = {
+        let c = CORE.clone();
+        // init CA if not
+        if let Err(_) = read_api(&c.core.read().unwrap(), &c.token, "pki/ca/pem") {
+            config_ca(c.core.clone(), &c.token);
+            generate_root(c.core.clone(), &c.token, false);
         }
-
-        assert!(unsealed);
-        println!("root_token: {:?}", root_token);
-    }
-
-    if !inited {
-        config_ca(Arc::clone(&c), &root_token);
-        generate_root(Arc::clone(&c), &root_token, false);
-    }
-
-    CAInfo { core: c, token: root_token }
+        c
+    };
 }
 
-struct CAInfo {
-    core: Arc<RwLock<Core>>,
-    token: String,
-}
 fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
     let mut req = Request::new(path);
     req.operation = Operation::Read;
@@ -260,7 +177,6 @@ pub fn verify_cert(cert_pem: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use libp2p::identity;
     use secp256k1::Secp256k1;
     use super::*;
 
@@ -312,20 +228,11 @@ mod tests {
 
     #[test]
     fn test_nostr() {
-        // let secp = Secp256k1::new();
+        let secp = Secp256k1::new();
         let secret_key = SecretKey::new(&mut rand::thread_rng());
+        let public_key = secret_key.public_key(&secp);
         // println!("secret_key: {}", secret_key.display_secret());
-        // println!("public_key: {:?}", secret_key.public_key(&secp));
-
-        // let secret_key = identity::secp256k1::SecretKey::generate();
-        // println!("{:?}", secret_key.to_bytes());
-
-        let libp2p_sk = identity::secp256k1::SecretKey::try_from_bytes(secret_key.secret_bytes()).unwrap();
-        let secp256k1_kp = identity::secp256k1::Keypair::from(libp2p_sk.clone());
-        let local_key = identity::Keypair::from(secp256k1_kp.clone()); // Just encapsulate
-        let local_peer_id = PeerId::from(local_key.public());
-        println!("peer_id: {:?}", local_peer_id);
-        // println!("{:?}", hex::encode(secret_key.public_key(&secp).serialize()));
+        println!("{}", bs58::encode(public_key.serialize()).into_string());
     }
 
 }
