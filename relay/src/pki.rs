@@ -8,13 +8,11 @@ use lazy_static::lazy_static;
 use openssl::asn1::Asn1Time;
 use openssl::x509::X509;
 use rusty_vault::core::Core;
-use rusty_vault::errors::RvError;
-use rusty_vault::logical::{Operation, Request, Response};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use secp256k1::{rand, SecretKey};
 
-use super::vault::{CoreInfo, CORE};
+use super::vault::{CoreInfo, CORE, read_api, write_api};
 
 const ROLE: &str = "test";
 
@@ -28,30 +26,6 @@ lazy_static! {
         }
         c
     };
-}
-
-fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
-    let mut req = Request::new(path);
-    req.operation = Operation::Read;
-    req.client_token = token.to_string();
-    let resp = core.handle_request(&mut req);
-    resp
-}
-
-fn write_api(
-    core: &Core,
-    token: &str,
-    path: &str,
-    data: Option<Map<String, Value>>,
-) -> Result<Option<Response>, RvError> {
-    let mut req = Request::new(path);
-    req.operation = Operation::Write;
-    req.client_token = token.to_string();
-    req.body = data;
-
-    let resp = core.handle_request(&mut req);
-    println!("path: {}, req.body: {:?}", path, req.body);
-    resp
 }
 
 fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
@@ -182,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_pki_issue() {
-        config_role(json!({
+        config_role(json!({ // TODO move to `init`
             "ttl": "60d",
             "max_ttl": "365d",
             "key_type": "rsa",
@@ -196,34 +170,11 @@ mod tests {
 
         let cert_pem = issue_cert(json!({
             "ttl": "10d",
-            "common_name": "16Uiu2HAmCMrtR11EPbekyX99VCuSiMsjgA1teXAVB1FdJjddKXTC", //nostr id
+            "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
             // "alt_names": "a.test.com,b.test.com",
         }));
 
         assert!(verify_cert(cert_pem.as_ref()));
-    }
-
-    #[test]
-    fn test_secret() {
-        let core = CA.core.read().unwrap();
-
-        // create secret
-        let kv_data = json!({
-            "foo": "bar",
-            "id": "xxxID",
-        })
-        .as_object()
-        .unwrap()
-        .clone();
-        write_api(&core, &CA.token, "secret/goo", Some(kv_data.clone())).unwrap();
-
-        // get secret
-        let secret = read_api(&core, &CA.token, "secret/goo").unwrap().unwrap().data;
-        assert_eq!(secret, Some(kv_data));
-        println!("secret: {:?}", secret.unwrap());
-
-        assert!(read_api(&core, &CA.token, "secret/foo").unwrap().is_none());
-        assert!(read_api(&core, &CA.token, "secret1/foo").is_err());
     }
 
     #[test]
