@@ -19,8 +19,20 @@ lazy_static! {
         let c = CORE.clone();
         // init CA if not
         if let Err(_) = read_api(&c.core.read().unwrap(), &c.token, "pki/ca/pem") {
-            config_ca(c.core.clone(), &c.token);
-            generate_root(c.core.clone(), &c.token, false);
+            let token = &c.token;
+            config_ca(c.core.clone(), token);
+            generate_root(c.core.clone(), token, false);
+            config_role(c.core.clone(), token, json!({
+                "ttl": "60d",
+                "max_ttl": "365d",
+                "key_type": "rsa",
+                "key_bits": 4096,
+                "country": "CN",
+                "province": "Beijing",
+                "locality": "Beijing",
+                "organization": "OpenAtom-Mega",
+                "no_store": false,
+            }));
         }
         c
     };
@@ -42,9 +54,8 @@ fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
 }
 
 /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
-fn config_role(data: Value) {
-    let core = CA.core.read().unwrap();
-    let token = &CA.token;
+fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
+    let core = core.read().unwrap();
 
     let role_data = data.as_object()
         .expect("`data` must be a JSON object")
@@ -119,14 +130,7 @@ pub fn issue_cert(data: Value) -> String {
 }
 
 pub fn verify_cert(cert_pem: &[u8]) -> bool {
-    let ca_cert = {
-        let core = CA.core.read().unwrap();
-
-        let resp_ca_pem = read_api(&core, &CA.token, "pki/ca/pem").unwrap().unwrap();
-        let ca_cert = resp_ca_pem.data.unwrap();
-        let ca_cert_pem = ca_cert["certificate"].as_str().unwrap();
-        X509::from_pem(ca_cert_pem.as_ref()).unwrap()
-    };
+    let ca_cert = X509::from_pem(get_root_cert().as_ref()).unwrap();
 
     let cert = X509::from_pem(cert_pem).unwrap();
     // verify time
@@ -147,24 +151,22 @@ pub fn verify_cert(cert_pem: &[u8]) -> bool {
     cert.verify(&ca_cert.public_key().unwrap()).unwrap()
 }
 
+/// get root certificate
+pub fn get_root_cert() -> String {
+    let core = CA.core.read().unwrap();
+
+    let resp_ca_pem = read_api(&core, &CA.token, "pki/ca/pem").unwrap().unwrap();
+    let ca_data = resp_ca_pem.data.unwrap();
+
+    ca_data["certificate"].as_str().unwrap().to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_pki_issue() {
-        config_role(json!({ // TODO move to `init`
-            "ttl": "60d",
-            "max_ttl": "365d",
-            "key_type": "rsa",
-            "key_bits": 4096,
-            "country": "CN",
-            "province": "Beijing",
-            "locality": "Beijing",
-            "organization": "OpenAtom-Mega",
-            "no_store": false,
-        }));
-
         let cert_pem = issue_cert(json!({
             "ttl": "10d",
             "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
