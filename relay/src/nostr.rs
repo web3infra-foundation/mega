@@ -11,6 +11,7 @@ pub fn generate_nostr_id() -> (String, (SecretKey, PublicKey)) {
 
 #[cfg(test)]
 mod tests {
+    use secp256k1::Message;
     use super::*;
 
     #[test]
@@ -18,5 +19,16 @@ mod tests {
         let (nostr, keypair) = generate_nostr_id();
         println!("nostr: {:?}", nostr);
         println!("keypair: {:?}", keypair);
+        let secret_key = keypair.0;
+        let public_key = keypair.1;
+
+        let nostr_decode = bs58::decode(&nostr).into_vec().unwrap();
+        assert_eq!(nostr_decode, public_key.serialize().to_vec());
+        assert_eq!(PublicKey::from_slice(&nostr_decode).unwrap(), public_key);
+        // verify
+        let secp = Secp256k1::new();
+        let message = Message::from_slice(&[0xab; 32]).expect("32 bytes");
+        let sig = secp.sign_ecdsa(&message, &secret_key);
+        assert_eq!(secp.verify_ecdsa(&message, &sig, &public_key), Ok(()));
     }
 }
