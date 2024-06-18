@@ -1,6 +1,4 @@
 use std::cmp::Ordering;
-use std::fs;
-use std::io::Write;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,7 +16,7 @@ lazy_static! {
     static ref CA: CoreInfo = {
         let c = CORE.clone();
         // init CA if not
-        if let Err(_) = read_api(&c.core.read().unwrap(), &c.token, "pki/ca/pem") {
+        if read_api(&c.core.read().unwrap(), &c.token, "pki/ca/pem").is_err() { // err = not found
             let token = &c.token;
             config_ca(c.core.clone(), token);
             generate_root(c.core.clone(), token, false);
@@ -163,6 +161,8 @@ pub fn get_root_cert() -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::io::Write;
     use super::*;
 
     #[test]
@@ -284,7 +284,7 @@ mod tests_raw {
         assert_eq!(role_data["province"].as_str().unwrap(), "Beijing");
         assert_eq!(role_data["locality"].as_str().unwrap(), "Beijing");
         assert_eq!(role_data["organization"].as_str().unwrap(), "OpenAtom");
-        assert_eq!(role_data["no_store"].as_bool().unwrap(), false);
+        assert!(!role_data["no_store"].as_bool().unwrap());
     }
 
     fn test_pki_generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool, is_ok: bool) {

@@ -83,7 +83,7 @@ fn init() -> CoreInfo {
 
             for i in 0..seal_config.secret_threshold {
                 let key = &core_key.secret_shares[i as usize];
-                let unseal = core.unseal(&key);
+                let unseal = core.unseal(key);
                 assert!(unseal.is_ok());
                 unsealed = unseal.unwrap();
             }
@@ -100,8 +100,7 @@ pub fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>
     let mut req = Request::new(path);
     req.operation = Operation::Read;
     req.client_token = token.to_string();
-    let resp = core.handle_request(&mut req);
-    resp
+    core.handle_request(&mut req)
 }
 
 pub fn write_api(
