@@ -19,7 +19,7 @@ use ceres::protocol::{SmartProtocol, TransportProtocol};
 use jupiter::context::Context;
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
-
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct SshServer {
     pub client_pubkey: Arc<russh_keys::key::PublicKey>,
