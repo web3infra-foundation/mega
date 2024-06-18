@@ -6,9 +6,8 @@ use axum::extract::{Query, State};
 use axum::http::{Request, Response, StatusCode, Uri};
 use axum::routing::get;
 use axum::Router;
-use clap::Args;
-use common::config::Config;
-use common::model::CommonOptions;
+use common::config::{Config, ZTMConfig};
+use gemini::ztm::{RemoteZTM, ZTM};
 use gemini::RelayGetParams;
 use jupiter::context::Context;
 use regex::Regex;
@@ -20,25 +19,22 @@ use tower_http::trace::TraceLayer;
 use crate::api_service;
 use crate::api_service::router::ApiServiceState;
 
-#[derive(Args, Clone, Debug)]
-pub struct RelayOptions {
-    #[clap(flatten)]
-    pub common: CommonOptions,
+pub async fn run_relay_server(config: Config, host: String, port: u16) {
+    let app = app(config.clone(), host.clone(), port).await;
 
-    #[arg(long, default_value_t = 8001)]
-    pub http_port: u16,
-}
+    let ztm_config = config.ztm;
+    match relay_connect_ztm(ztm_config, port).await {
+        Ok(s) => {
+            tracing::info!("relay connect ztm success: {s}");
+        }
+        Err(e) => {
+            tracing::error!("relay connect ztm failed : {e}");
+            return;
+        }
+    }
 
-pub async fn http_server(config: Config, options: RelayOptions) {
-    let RelayOptions {
-        common: CommonOptions { host },
-        http_port,
-    } = options;
-
-    let app = app(config, host.clone(), http_port).await;
-
-    let server_url = format!("{}:{}", host, http_port);
-
+    let server_url = format!("{}:{}", host, port);
+    tracing::info!("start relay server: {server_url}");
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
@@ -90,9 +86,9 @@ async fn get_method_router(
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let ztm_config = state.context.config.ztm.clone();
     if Regex::new(r"/hello$").unwrap().is_match(uri.path()) {
-        return gemini::http::handler::hello_gemini(params).await;
+        return hello_relay(params).await;
     } else if Regex::new(r"/certificate$").unwrap().is_match(uri.path()) {
-        return gemini::http::handler::certificate(ztm_config, params).await;
+        return certificate(ztm_config, params).await;
     }
     Err((
         StatusCode::NOT_FOUND,
@@ -102,17 +98,83 @@ async fn get_method_router(
 
 async fn post_method_router(
     state: State<AppState>,
-    uri: Uri,
-    req: Request<Body>,
+    _uri: Uri,
+    _req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let ztm_config = state.context.config.ztm.clone();
-    if Regex::new(r"/relay_init$").unwrap().is_match(uri.path()) {
-        return gemini::http::handler::init(ztm_config, req, state.0.port).await;
-    }
+    let _ztm_config = state.context.config.ztm.clone();
     Err((
         StatusCode::NOT_FOUND,
         String::from("Operation not supported\n"),
     ))
+}
+
+pub async fn hello_relay(_params: RelayGetParams) -> Result<Response<Body>, (StatusCode, String)> {
+    Ok(Response::builder().body(Body::from("hello relay")).unwrap())
+}
+
+pub async fn certificate(
+    config: ZTMConfig,
+    params: RelayGetParams,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    if params.name.is_none() {
+        return Err((StatusCode::BAD_REQUEST, "not enough paras".to_string()));
+    }
+    let name = params.name.unwrap();
+
+    let ztm: RemoteZTM = RemoteZTM { config };
+    let permit = match ztm.create_ztm_certificate(name.clone()).await {
+        Ok(p) => p,
+        Err(e) => {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, e));
+        }
+    };
+
+    let permit_json = serde_json::to_string(&permit).unwrap();
+    tracing::info!("new permit [{name}]: {permit_json}");
+
+    Ok(Response::builder()
+        .header("Content-Type", "application/json")
+        .body(Body::from(permit_json))
+        .unwrap())
+}
+
+pub async fn relay_connect_ztm(config: ZTMConfig, relay_port: u16) -> Result<String, String> {
+    // 1. generate a permit for relay
+    let name = "relay".to_string();
+    let ztm: RemoteZTM = RemoteZTM { config };
+    match ztm.delete_ztm_certificate(name.clone()).await {
+        Ok(_s) => (),
+        Err(e) => {
+            return Err(e);
+        }
+    }
+    let permit = match ztm.create_ztm_certificate(name).await {
+        Ok(p) => p,
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
+    // 2. connect to ZTM hub (join a mesh)
+    let mesh = match ztm.connect_ztm_hub(permit).await {
+        Ok(m) => m,
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
+    // 3. create a ZTM service
+    let response_text = match ztm
+        .create_ztm_service(mesh.agent.id, "relay".to_string(), relay_port)
+        .await
+    {
+        Ok(m) => m,
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
+    Ok(response_text)
 }
 
 #[cfg(test)]

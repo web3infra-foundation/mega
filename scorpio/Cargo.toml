@@ -1,0 +1,12 @@
+[package]
+name = "scorpio"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fuser = "0.14.0"
+libc = "0.2.155"
+tracing = "0.1.40"
+
+
+[workspace]

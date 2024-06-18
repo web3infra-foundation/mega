@@ -2,7 +2,7 @@
 #
 # History:
 #   1. 2023-02-14: Created at 2023-02-14T16:00:00Z by Quanyi Ma <eli@patch.sh>
-#
+#   2. 2024-05-07: Update the `fuse` job to install `fuse3` and `libfuse3-dev` at 2024-05-07T16:00:00Z by Xiaoyang Han <lux1an216@gmail.com>
 #
 #
 
@@ -11,6 +11,7 @@ on: [ push, pull_request ]
 name: Base GitHub Action for Check, Test and Lints
 
 jobs:
+  #
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -25,6 +26,7 @@ jobs:
         with:
           command: check
 
+  #
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -40,7 +42,8 @@ jobs:
         with:
           command: clippy
           args: --workspace --all-targets --all-features -- -D warnings
-  
+
+  #
   doc:
     name: Doc
     runs-on: ubuntu-latest
@@ -54,3 +57,17 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: doc
+
+  #
+  fuse:
+    name: Fuse Lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+      - run: cd ./scorpio && cargo clippy --all-targets --all-features -- -D warnings
