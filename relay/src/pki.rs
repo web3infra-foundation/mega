@@ -104,7 +104,8 @@ fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
 }
 
 /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
-pub fn issue_cert(data: Value) -> String {
+/// - return: (cert, private_key)
+pub fn issue_cert(data: Value) -> (String, String) {
     let core = CA.core.read().unwrap();
     let token = &CA.token;
 
@@ -118,15 +119,12 @@ pub fn issue_cert(data: Value) -> String {
     assert!(resp.is_ok());
     let resp_body = resp.unwrap();
     let cert_data = resp_body.unwrap().data.unwrap();
-    println!("issue cert result: {:?}", cert_data["certificate"]);
+    // println!("cert_data: {:?}", cert_data);
 
-    #[cfg(test)]
-    {
-        let mut file = fs::File::create("/tmp/cert.crt").unwrap(); // TODO add root cert in it
-        file.write_all(cert_data["certificate"].as_str().unwrap().as_ref()).unwrap();
-    }
-
-    cert_data["certificate"].as_str().unwrap().to_owned()
+    (
+        cert_data["certificate"].as_str().unwrap().to_owned(), // TODO may add root cert in it
+        cert_data["private_key"].as_str().unwrap().to_owned(),
+    )
 }
 
 pub fn verify_cert(cert_pem: &[u8]) -> bool {
@@ -167,13 +165,19 @@ mod tests {
 
     #[test]
     fn test_pki_issue() {
-        let cert_pem = issue_cert(json!({
+        let (cert_pem, private_key) = issue_cert(json!({
             "ttl": "10d",
             "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
             // "alt_names": "a.test.com,b.test.com",
         }));
 
+        println!("cert_pem: {}", cert_pem);
+        println!("private_key: {}", private_key);
+
         assert!(verify_cert(cert_pem.as_ref()));
+
+        let mut file = fs::File::create("/tmp/cert.crt").unwrap();
+        file.write_all(cert_pem.as_ref()).unwrap();
     }
 }
 
