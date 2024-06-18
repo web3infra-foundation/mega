@@ -83,7 +83,7 @@ impl MegaModelConverter {
                 self.traverse_for_update(child_tree);
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
-                let mut mega_blob: mega_blob::Model = blob.to_owned().into();
+                let mut mega_blob: mega_blob::Model = blob.into();
                 mega_blob.commit_id = self.commit.id.to_plain_str();
                 self.mega_blobs
                     .borrow_mut()

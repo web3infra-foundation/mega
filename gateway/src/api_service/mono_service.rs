@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 use axum::async_trait;
 
 use callisto::db_enums::ConvType;
-use callisto::{mega_blob, mega_tree, raw_blob};
+use callisto::{mega_blob, mega_commit, mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::storage::batch_save_model;
 use jupiter::storage::mega_storage::MegaStorage;
@@ -84,14 +84,15 @@ impl ApiHandler for MonorepoService {
     async fn get_tree_commit_info(&self, path: PathBuf) -> Result<TreeCommitInfo, GitError> {
         match self.search_tree_by_path(&path).await {
             Ok((_, tree)) => {
-                let mut commit_map = HashMap::new();
-                let mut tree_to_commit = HashMap::new();
+                // let mut commit_map = HashMap::new();
+                let mut item_to_commit = HashMap::new();
 
                 let trees = self
                     .storage
                     .get_trees_by_hashes(
                         tree.tree_items
                             .iter()
+                            .filter(|x| x.mode == TreeItemMode::Tree)
                             .map(|x| x.id.to_plain_str())
                             .collect(),
                     )
@@ -99,33 +100,47 @@ impl ApiHandler for MonorepoService {
                     .unwrap();
 
                 for tree in trees {
-                    let commit_id = tree.commit_id;
-                    tree_to_commit.insert(tree.tree_id, commit_id.clone());
+                    item_to_commit.insert(tree.tree_id, tree.commit_id);
+                }
 
-                    let commit = if commit_map.contains_key(&commit_id) {
-                        commit_map.get(&commit_id).cloned()
-                    } else {
-                        self.storage.get_commit_by_hash(&commit_id).await.unwrap()
-                    };
-                    if let Some(commit) = commit {
-                        commit_map.insert(commit.commit_id.clone(), commit);
-                    }
+                let blobs = self
+                    .storage
+                    .get_mega_blobs_by_hashes(
+                        tree.tree_items
+                            .iter()
+                            .filter(|x| x.mode == TreeItemMode::Blob)
+                            .map(|x| x.id.to_plain_str())
+                            .collect(),
+                    )
+                    .await
+                    .unwrap();
+
+                for blob in blobs {
+                    item_to_commit.insert(blob.blob_id, blob.commit_id);
                 }
 
                 let mut items = Vec::new();
+                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
+
+                let commits = self
+                    .storage
+                    .get_commits_by_hashes(&commit_ids.into_iter().collect())
+                    .await
+                    .unwrap();
+                let commit_map: HashMap<String, mega_commit::Model> = commits
+                    .into_iter()
+                    .map(|x| (x.commit_id.clone(), x))
+                    .collect();
+
                 for item in tree.tree_items {
                     let mut info: TreeCommitItem = item.clone().into();
-                    let commit: Commit = commit_map
-                        .get(tree_to_commit.get(&item.id.to_plain_str()).unwrap())
-                        .unwrap()
-                        .clone()
-                        .into();
-
-                    info.oid = commit.id.to_plain_str();
-                    info.message =
-                        self.remove_useless_str(commit.message.clone(), SIGNATURE_END.to_owned());
-                    info.date = commit.committer.timestamp.to_string();
-
+                    if let Some(commit_id) = item_to_commit.get(&item.id.to_plain_str()) {
+                        let commit: Commit = commit_map.get(commit_id).unwrap().clone().into();
+                        info.oid = commit.id.to_plain_str();
+                        info.message = self
+                            .remove_useless_str(commit.message.clone(), SIGNATURE_END.to_owned());
+                        info.date = commit.committer.timestamp.to_string();
+                    }
                     items.push(info);
                 }
                 Ok(TreeCommitInfo {
@@ -164,7 +179,7 @@ impl MonorepoService {
             }
         } else {
             let blob = Blob::from_content(&file_info.content.unwrap());
-            let mega_blob: mega_blob::Model = blob.clone().into();
+            let mega_blob: mega_blob::Model = (&blob).into();
             let mega_blob: mega_blob::ActiveModel = mega_blob.into();
             let raw_blob: raw_blob::Model = blob.clone().into();
             let raw_blob: raw_blob::ActiveModel = raw_blob.into();
@@ -237,8 +252,7 @@ impl MonorepoService {
                     .unwrap();
                 if mr.path != "/" {
                     let path = PathBuf::from(mr.path.clone());
-
-                    // beacuse only need parent tree so we skip current directory
+                    // beacuse only parent tree is needed so we skip current directory
                     let (tree_vec, _) = self
                         .search_tree_by_path(path.parent().unwrap())
                         .await
@@ -248,15 +262,15 @@ impl MonorepoService {
                         .unwrap();
                     // remove refs start with path
                     self.storage.remove_refs(&mr.path).await.unwrap();
-                    // todo: self.clean_dangling_commits().await;
+                    // TODO: self.clean_dangling_commits().await;
                 }
             } else {
                 res.result = false;
-                "ref hash conflict".clone_into(&mut res.err_message);
+                res.err_message = String::from_str("ref hash conflict").unwrap();
             }
         } else {
             res.result = false;
-            "Invalid mr id".clone_into(&mut res.err_message);
+            res.err_message = String::from_str("Invalid mr id").unwrap();
         }
         Ok(res)
     }

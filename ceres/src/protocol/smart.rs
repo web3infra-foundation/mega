@@ -218,12 +218,7 @@ impl SmartProtocol {
             .unwrap();
 
         let ph_clone = pack_handler.clone();
-        let unpack_success = tokio::task::spawn_blocking(move || {
-            let handle = tokio::runtime::Handle::current();
-            handle.block_on(async { ph_clone.save_entry(receiver).await })
-        })
-        .await
-        .is_ok();
+        let unpack_result = ph_clone.save_entry(receiver).await;
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
@@ -240,14 +235,17 @@ impl SmartProtocol {
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
-                if unpack_success {
-                    if !default_exist {
-                        command.default_branch = true;
-                        default_exist = true;
+                match unpack_result {
+                    Ok(_) => {
+                        if !default_exist {
+                            command.default_branch = true;
+                            default_exist = true;
+                        }
+                        pack_handler.update_refs(&command).await.unwrap();
                     }
-                    pack_handler.update_refs(&command).await.unwrap();
-                } else {
-                    command.failed(String::from("unpack failed"));
+                    Err(ref err) => {
+                        command.failed(err.to_string());
+                    }
                 }
             }
             add_pkt_line_string(&mut report_status, command.get_status());

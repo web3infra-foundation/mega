@@ -26,8 +26,6 @@ use crate::{api_service::ApiHandler, model::objects::TreeBriefInfo};
 
 #[derive(Clone)]
 pub struct ApiServiceState {
-    // pub mega_storage: Arc<MegaStorage>,
-    // pub git_db_storage: Arc<GitDbStorage>,
     pub context: Context,
 }
 
