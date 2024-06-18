@@ -4,7 +4,10 @@ pub mod pki;
 pub mod vault;
 pub mod nostr;
 
-pub fn init() {
+/// Initialize the Nostr ID if it's not found.
+/// - return: `(Nostr ID, secret_key)`
+/// - You can get `Public Key` by just `base58::decode(nostr)`
+pub fn init() -> (String, String) {
     let mut id = read_secret("id").unwrap();
     if id.is_none() {
         println!("Nostr ID not found, generating new one...");
@@ -21,7 +24,11 @@ pub fn init() {
         });
         id = read_secret("id").unwrap();
     }
-    println!("Nostr ID: {:?}", id.unwrap().data.unwrap());
+    let id_data = id.unwrap().data.unwrap();
+    (
+        id_data["nostr"].as_str().unwrap().to_string(),
+        id_data["secret_key"].as_str().unwrap().to_string(),
+    )
 }
 
 #[cfg(test)]
@@ -30,6 +37,8 @@ mod tests {
 
     #[test]
     fn test_init() {
-        init();
+        let id = init();
+        println!("Nostr ID: {:?}", id.0);
+        println!("Secret Key: {:?}", id.1); // private key
     }
 }

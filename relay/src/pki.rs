@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use super::vault::{CoreInfo, CORE, read_api, write_api};
 
 const ROLE: &str = "test";
-
+// Automatically initialize CA when you first use it
 lazy_static! {
     static ref CA: CoreInfo = {
         let c = CORE.clone();
@@ -22,7 +22,7 @@ lazy_static! {
             let token = &c.token;
             config_ca(c.core.clone(), token);
             generate_root(c.core.clone(), token, false);
-            config_role(c.core.clone(), token, json!({
+            config_role(c.core.clone(), token, json!({ // TODO You may want to customize this
                 "ttl": "60d",
                 "max_ttl": "365d",
                 "key_type": "rsa",
@@ -54,7 +54,7 @@ fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
 }
 
 /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
-fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
+pub fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
     let core = core.read().unwrap();
 
     let role_data = data.as_object()
@@ -103,8 +103,9 @@ fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
     // println!("resp_ca_pem_cert_data: {:?}", resp_ca_pem_cert_data);
 }
 
+/// issue certificate
 /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
-/// - return: (cert, private_key)
+/// - return: `(cert_pem, private_key)`
 pub fn issue_cert(data: Value) -> (String, String) {
     let core = CA.core.read().unwrap();
     let token = &CA.token;
@@ -122,11 +123,12 @@ pub fn issue_cert(data: Value) -> (String, String) {
     // println!("cert_data: {:?}", cert_data);
 
     (
-        cert_data["certificate"].as_str().unwrap().to_owned(), // TODO may add root cert in it
+        cert_data["certificate"].as_str().unwrap().to_owned(), // TODO may add root cert (chain) in it
         cert_data["private_key"].as_str().unwrap().to_owned(),
     )
 }
 
+/// Verify certificate: time & signature
 pub fn verify_cert(cert_pem: &[u8]) -> bool {
     let ca_cert = X509::from_pem(get_root_cert().as_ref()).unwrap();
 
@@ -149,7 +151,7 @@ pub fn verify_cert(cert_pem: &[u8]) -> bool {
     cert.verify(&ca_cert.public_key().unwrap()).unwrap()
 }
 
-/// get root certificate
+/// Get root certificate of CA
 pub fn get_root_cert() -> String {
     let core = CA.core.read().unwrap();
 
