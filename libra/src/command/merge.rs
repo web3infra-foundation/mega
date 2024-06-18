@@ -71,10 +71,10 @@ async fn lca_commit(lhs: &Commit, rhs: &Commit) -> Option<Commit> {
         }
     }
 
-    for lhs_parrent in lhs_reachable.iter() {
-        for rhs_parrent in rhs_reachable.iter() {
-            if lhs_parrent.id == rhs_parrent.id {
-                return Some(lhs_parrent.to_owned());
+    for lhs_parent in lhs_reachable.iter() {
+        for rhs_parent in rhs_reachable.iter() {
+            if lhs_parent.id == rhs_parent.id {
+                return Some(lhs_parent.to_owned());
             }
         }
     }

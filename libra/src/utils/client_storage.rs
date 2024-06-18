@@ -15,9 +15,9 @@ use mercury::internal::pack::Pack;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::types::ObjectType;
+use mercury::utils::read_sha1;
 
 use crate::command;
-use crate::utils::util;
 
 #[derive(Default)]
 pub struct ClientStorage {
@@ -259,7 +259,7 @@ impl ClientStorage {
         let mut objs = Vec::new();
         for _ in 0..fanout[255] {
             let _offset = idx_file.read_u32::<BigEndian>()?;
-            let hash = util::read_sha1(&mut idx_file)?;
+            let hash = read_sha1(&mut idx_file)?;
 
             objs.push(hash);
         }
@@ -283,7 +283,7 @@ impl ClientStorage {
         idx_file.seek(io::SeekFrom::Start((FANOUT + 24 * start) as u64))?;
         for _ in start..end {
             let offset = idx_file.read_u32::<BigEndian>()?;
-            let hash = util::read_sha1(&mut idx_file)?;
+            let hash = read_sha1(&mut idx_file)?;
 
             if &hash == obj_id {
                 return Ok(Some(offset as u64));

@@ -5,9 +5,9 @@ pub trait PathExt {
     fn to_workdir(&self) -> PathBuf;
     fn to_string_or_panic(&self) -> String;
     fn workdir_to_absolute(&self) -> PathBuf;
-    #[allow(dead_code)] // @Qihang Cai
+    #[allow(dead_code)]
     fn workdir_to_current(&self) -> PathBuf;
-    #[allow(dead_code)] // @Qihang Cai
+    #[allow(dead_code)]
     fn sub_of(&self, parent: &Path) -> bool;
     fn sub_of_paths<P, U>(&self, paths: U) -> bool
         where

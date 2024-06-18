@@ -9,20 +9,23 @@ apt-get install -y \
   zsh \
   vim \
   build-essential \
-  openssl
+  openssl \
+  libssl-dev \
+  fuse3 \
+  libfuse3-dev \
+  pkg-config \
+  postgresql
 
 ## Install rustup and common components
 curl https://sh.rustup.rs -sSf | sh -s -- -y 
-rustup install nightly
+rustup install default
 rustup component add rustfmt
-rustup component add rustfmt --toolchain nightly
-rustup component add clippy 
-rustup component add clippy --toolchain nightly
+rustup component add clippy
 
 cargo install cargo-expand
 cargo install cargo-edit
 
-## setup and install oh-my-zsh
+## Setup and install oh-my-zsh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 cp -R /root/.oh-my-zsh /home/$USERNAME
 cp /root/.zshrc /home/$USERNAME

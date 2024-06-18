@@ -59,7 +59,7 @@ impl Caches {
                 match self.read_from_temp(hash) {
                     Ok(x) => break x,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                        sleep(std::time::Duration::from_millis(10)); //TODO 有没有更好办法
+                        sleep(std::time::Duration::from_millis(10));
                         continue;
                     }
                     Err(e) => return Err(e), // other error
@@ -103,7 +103,7 @@ impl Caches {
         self.pool.queued_count()
     }
 
-    /// memory used by the index (exclude lru_cache which is contained in [CacheObject::get_mem_size()])
+    /// memory used by the index (exclude lru_cache which is contained in CacheObject::get_mem_size())
     pub fn memory_used_index(&self) -> usize {
         self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
         + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
@@ -225,7 +225,7 @@ mod test {
     use crate::hash::SHA1;
 
     #[test]
-    fn test_cach_single_thread() {
+    fn test_cache_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
         let a = CacheObject {

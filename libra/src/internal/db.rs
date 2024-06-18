@@ -90,7 +90,7 @@ async fn setup_database_sql(conn: &DatabaseConnection) -> Result<(), Transaction
 /// Create a new SQLite database file at the specified path.
 /// **should only be called in init or test**
 /// - `db_path` is the path to the SQLite database file.
-/// - Returns `Ok(())` if the database file was created and the schema was setup successfully.
+/// - Returns `Ok(())` if the database file was created and the schema was set up successfully.
 /// - Returns an `IOError` if the database file already exists, or if there was an error creating the file or setting up the schema.
 #[allow(dead_code)]
 pub async fn create_database(db_path: &str) -> io::Result<DatabaseConnection> {
@@ -108,7 +108,7 @@ pub async fn create_database(db_path: &str) -> io::Result<DatabaseConnection> {
         )
     })?;
 
-    // Connect to the new database and setup the schema.
+    // Connect to the new database and set up the schema.
     if let Ok(conn) = establish_connection(db_path).await {
         setup_database_sql(&conn).await.map_err(|err| {
             IOError::new(
@@ -146,7 +146,7 @@ mod tests {
     }
     impl TestDbPath {
         async fn new(name: &str) -> Self {
-            let mut db_path = PathBuf::from("/tmp/testdb");
+            let mut db_path = PathBuf::from("/tmp/test_db");
             if !db_path.exists() {
                 let _ = fs::create_dir(&db_path);
             }
