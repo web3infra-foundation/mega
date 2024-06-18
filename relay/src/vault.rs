@@ -27,10 +27,10 @@ lazy_static! {
     pub static ref CORE: CoreInfo = init();
 }
 
-/// Initialize the vault core
+/// Initialize the vault core, used in `lazy_static!`
 fn init() -> CoreInfo {
-    const CORE_KEY_FILE: &str = "core_key.json";
-    let dir = PathBuf::from("/tmp/rusty_vault_pki_module");
+    const CORE_KEY_FILE: &str = "core_key.json"; // where the core key is stored, like `root_token`
+    let dir = PathBuf::from("/tmp/rusty_vault_pki_module"); // RustyVault files TODO configurable
     let core_key_path = dir.join(CORE_KEY_FILE);
     // let dir = env::temp_dir().join("rusty_vault_pki_module"); // TODO: 改成数据库？
 
