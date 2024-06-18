@@ -51,7 +51,7 @@ obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
 
 
 [monorepo]
-## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
+## Only import directory support multi-branch commit and tag, monorepo only support main branch
 ## Mega treats files under this directory as import repo and other directories as monorepo
 import_dir = "/third-part"
 

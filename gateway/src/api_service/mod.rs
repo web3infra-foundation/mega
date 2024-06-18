@@ -52,7 +52,7 @@ pub trait ApiHandler: Send + Sync {
             let truncated_text = filtered_text.chars().take(50).collect::<String>();
             truncated_text.to_owned()
         } else {
-            "".to_owned()
+            content
         }
     }
 }

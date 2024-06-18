@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use common::config::StorageConfig;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
@@ -9,8 +9,9 @@ use sea_orm::{
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tree, raw_blob,
+    mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tree, raw_blob,
 };
+use common::config::StorageConfig;
 use common::errors::MegaError;
 use common::utils::generate_id;
 use mercury::internal::object::MegaObjectModel;
@@ -189,42 +190,54 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
-        let mut commits = Vec::new();
-        let mut trees = Vec::new();
-        let mut blobs = Vec::new();
-        let mut raw_blobs = Vec::new();
-        let mut tags = Vec::new();
+    pub async fn save_entry(
+        &self,
+        commit_id: &str,
+        entry_list: Vec<Entry>,
+    ) -> Result<(), MegaError> {
+        let (commits, trees, blobs, raw_blobs, tags) = (
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+            Mutex::new(Vec::new()),
+        );
 
-        for entry in entry_list {
+        entry_list.par_iter().for_each(|entry| {
             let raw_obj = entry.process_entry();
             let model = raw_obj.convert_to_mega_model();
             match model {
-                MegaObjectModel::Commit(commit) => commits.push(commit.into_active_model()),
-                MegaObjectModel::Tree(tree) => {
-                    trees.push(tree.clone().into_active_model());
+                MegaObjectModel::Commit(commit) => {
+                    commits.lock().unwrap().push(commit.into_active_model())
+                }
+                MegaObjectModel::Tree(mut tree) => {
+                    // tree.commit_id = commit_id.to_owned();
+                    commit_id.clone_into(&mut tree.commit_id);
+                    trees.lock().unwrap().push(tree.into_active_model());
                 }
                 MegaObjectModel::Blob(blob, raw) => {
-                    blobs.push(blob.clone().into_active_model());
-                    raw_blobs.push(raw.into_active_model());
+                    blobs.lock().unwrap().push(blob.clone().into_active_model());
+                    raw_blobs.lock().unwrap().push(raw.into_active_model());
                 }
-                MegaObjectModel::Tag(tag) => tags.push(tag.into_active_model()),
+                MegaObjectModel::Tag(tag) => tags.lock().unwrap().push(tag.into_active_model()),
             }
-        }
+        });
 
-        batch_save_model(self.get_connection(), commits)
+        batch_save_model(self.get_connection(), commits.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), trees)
+        batch_save_model(self.get_connection(), trees.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), blobs)
+        batch_save_model(self.get_connection(), blobs.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), raw_blobs)
+        batch_save_model(self.get_connection(), raw_blobs.into_inner().unwrap())
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), tags).await.unwrap();
+        batch_save_model(self.get_connection(), tags.into_inner().unwrap())
+            .await
+            .unwrap();
         Ok(())
     }
 
@@ -308,6 +321,17 @@ impl MegaStorage {
         Ok(mega_tree::Entity::find()
             .filter(mega_tree::Column::TreeId.is_in(hashes))
             .distinct()
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_mega_blobs_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<mega_blob::Model>, MegaError> {
+        Ok(mega_blob::Entity::find()
+            .filter(mega_blob::Column::BlobId.is_in(hashes))
             .all(self.get_connection())
             .await
             .unwrap())
