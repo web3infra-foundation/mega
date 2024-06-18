@@ -236,7 +236,7 @@ impl PackEncoder {
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Cursor, path::PathBuf, usize};
+    use std::{io::Cursor, path::PathBuf};
 
     use crate::internal::object::blob::Blob;
     use crate::internal::pack::Pack;

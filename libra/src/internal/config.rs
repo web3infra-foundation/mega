@@ -16,7 +16,7 @@ pub struct RemoteConfig {
     pub name: String,
     pub url: String,
 }
-
+#[allow(dead_code)]
 pub struct BranchConfig {
     pub name: String,
     pub merge: String,
