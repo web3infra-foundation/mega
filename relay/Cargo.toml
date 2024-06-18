@@ -1,0 +1,15 @@
+[package]
+name = "replay"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rusty_vault = "0.1.0"
+serde_json = "1.0.117"
+go-defer = "0.1.0"
+openssl = "0.10.63"
+hex = "0.4.3"
+lazy_static = "1.4.0"
+secp256k1 = { version = "0.27.0", features = ["serde", "bitcoin-hashes", "bitcoin-hashes-std", "rand"] }
+bs58 = "0.5.1"
+serde = { version = "1.0.117", features = ["derive"] }
