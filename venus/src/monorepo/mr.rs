@@ -78,7 +78,7 @@ pub struct MergeOperation {
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
 
-pub struct MergeResult {
+pub struct CommonResult {
     pub result: bool,
     pub err_message: String,
 }

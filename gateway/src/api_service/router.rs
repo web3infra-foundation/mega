@@ -11,7 +11,7 @@ use axum::{
 use jupiter::context::Context;
 use venus::{
     import_repo::repo::Repo,
-    monorepo::mr::{MergeOperation, MergeResult},
+    monorepo::mr::{CommonResult, MergeOperation},
 };
 
 use crate::{
@@ -42,25 +42,24 @@ impl ApiServiceState {
     pub async fn api_handler(&self, path: PathBuf) -> Box<dyn ApiHandler> {
         let import_dir = self.context.config.monorepo.import_dir.clone();
         if path.starts_with(&import_dir) && path != import_dir {
-            let repo: Repo = self
+            if let Some(model) = self
                 .context
                 .services
                 .git_db_storage
                 .find_git_repo(path.to_str().unwrap())
                 .await
                 .unwrap()
-                .unwrap()
-                .into();
-
-            Box::new(ImportRepoService {
-                storage: self.context.services.git_db_storage.clone(),
-                repo,
-            })
-        } else {
-            Box::new(MonorepoService {
-                storage: self.context.services.mega_storage.clone(),
-            })
+            {
+                let repo: Repo = model.into();
+                return Box::new(ImportRepoService {
+                    storage: self.context.services.git_db_storage.clone(),
+                    repo,
+                });
+            }
         }
+        Box::new(MonorepoService {
+            storage: self.context.services.mega_storage.clone(),
+        })
     }
 }
 
@@ -85,7 +84,8 @@ async fn get_blob_object(
     state: State<ApiServiceState>,
 ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
     let res = state
-        .monorepo()
+        .api_handler(query.path.clone().into())
+        .await
         .get_blob_as_string(query.path.into(), &query.name)
         .await
         .unwrap();
@@ -123,19 +123,19 @@ async fn init(state: State<ApiServiceState>) {
 async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
-) -> Result<Json<CreateFileInfo>, (StatusCode, String)> {
-    state
+) -> Result<Json<CommonResult>, (StatusCode, String)> {
+    let res = state
         .monorepo()
         .create_monorepo_file(json.clone())
         .await
         .unwrap();
-    Ok(Json(json))
+    Ok(Json(res))
 }
 
 async fn merge(
     state: State<ApiServiceState>,
     Json(json): Json<MergeOperation>,
-) -> Result<Json<MergeResult>, (StatusCode, String)> {
+) -> Result<Json<CommonResult>, (StatusCode, String)> {
     let res = state.monorepo().merge_mr(json.clone()).await.unwrap();
     Ok(Json(res))
 }
