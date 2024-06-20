@@ -16,7 +16,7 @@ const SIGNATURE_END: &str = "-----END PGP SIGNATURE-----";
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
-    async fn get_blob_as_string(&self, object_id: &str) -> Result<BlobObjects, GitError>;
+    async fn get_blob_as_string(&self, path: PathBuf, filename: &str) -> Result<BlobObjects, GitError>;
 
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError>;
 

@@ -211,11 +211,11 @@ impl MegaStorage {
                     commits.lock().unwrap().push(commit.into_active_model())
                 }
                 MegaObjectModel::Tree(mut tree) => {
-                    // tree.commit_id = commit_id.to_owned();
                     commit_id.clone_into(&mut tree.commit_id);
                     trees.lock().unwrap().push(tree.into_active_model());
                 }
-                MegaObjectModel::Blob(blob, raw) => {
+                MegaObjectModel::Blob(mut blob, raw) => {
+                    commit_id.clone_into(&mut blob.commit_id);
                     blobs.lock().unwrap().push(blob.clone().into_active_model());
                     raw_blobs.lock().unwrap().push(raw.into_active_model());
                 }

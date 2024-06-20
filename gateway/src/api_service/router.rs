@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use axum::{
     extract::{Query, State},
@@ -16,7 +16,10 @@ use venus::{
 
 use crate::{
     api_service::import_service::ImportRepoService,
-    model::{create_file::CreateFileInfo, query::CodePreviewQuery},
+    model::{
+        create_file::CreateFileInfo,
+        query::{BlobContentQuery, CodePreviewQuery},
+    },
 };
 use crate::{
     api_service::mono_service::MonorepoService,
@@ -78,13 +81,12 @@ pub fn routers() -> Router<ApiServiceState> {
 }
 
 async fn get_blob_object(
-    Query(query): Query<HashMap<String, String>>,
+    Query(query): Query<BlobContentQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
-    let object_id = query.get("object_id").unwrap();
     let res = state
         .monorepo()
-        .get_blob_as_string(object_id)
+        .get_blob_as_string(query.path.into(), &query.name)
         .await
         .unwrap();
     Ok(Json(res))

@@ -21,8 +21,8 @@ pub struct ImportRepoService {
 
 #[async_trait]
 impl ApiHandler for ImportRepoService {
-    async fn get_blob_as_string(&self, _object_id: &str) -> Result<BlobObjects, GitError> {
-        unreachable!()
+    async fn get_blob_as_string(&self, _path: PathBuf, _filename: &str) -> Result<BlobObjects, GitError> {
+        unimplemented!()
     }
 
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError> {
