@@ -31,11 +31,23 @@ pub struct MonorepoService {
 
 #[async_trait]
 impl ApiHandler for MonorepoService {
-    async fn get_blob_as_string(&self, object_id: &str) -> Result<BlobObjects, GitError> {
-        let plain_text = match self.storage.get_raw_blob_by_hash(object_id).await {
-            Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
-            _ => String::new(),
-        };
+    async fn get_blob_as_string(
+        &self,
+        path: PathBuf,
+        filename: &str,
+    ) -> Result<BlobObjects, GitError> {
+        let (_, tree) = self.search_tree_by_path(&path).await.unwrap();
+        let mut plain_text = String::new();
+        if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
+            plain_text = match self
+                .storage
+                .get_raw_blob_by_hash(&item.id.to_plain_str())
+                .await
+            {
+                Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
+                _ => String::new(),
+            };
+        }
         Ok(BlobObjects { plain_text })
     }
 

@@ -217,8 +217,7 @@ impl SmartProtocol {
             .await
             .unwrap();
 
-        let ph_clone = pack_handler.clone();
-        let unpack_result = ph_clone.save_entry(receiver).await;
+        let unpack_result = pack_handler.save_entry(receiver).await;
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());

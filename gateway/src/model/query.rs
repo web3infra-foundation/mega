@@ -7,6 +7,7 @@ pub struct DirectoryQuery {
     #[serde(default = "default_path")]
     pub repo_path: String,
 }
+
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CodePreviewQuery {
@@ -16,6 +17,13 @@ pub struct CodePreviewQuery {
     pub path: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct BlobContentQuery {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default = "default_path")]
+    pub path: String,
+}
 
 fn default_path() -> String {
     "/".to_string()

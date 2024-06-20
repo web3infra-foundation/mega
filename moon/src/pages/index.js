@@ -19,9 +19,9 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
     const currentProjectDir = directory.items || [];
     const [showEditor, setShowEditor] = useState(false);
     const [showTree, setShowTree] = useState(false);
-    const [treeData, setTreeData] = useState("freighter");
+    const [treeData, setTreeData] = useState("");
     const [updateTree, setUpdateTree] = useState(false);
-    const [currentPath, setCurrentPath] = useState(["freighter"]); // for breadcrumb
+    const [currentPath, setCurrentPath] = useState([]); // for breadcrumb
     const { DirectoryTree } = Tree;
     const [expandedKeys, setExpandedKeys] = useState([]);
     const fileCodeContainerStyle = showTree ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px', marginTop: '40px' };
@@ -59,15 +59,25 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
 
     const handleFileClick = (file) => {
         setShowTree(true);
-        router.push(`/?object_id=${file.id}`);
+        router.push({
+            query: { ...router.query, name: `${file.name}` }
+        });
     };
 
     const handleDirectoryClick = async (directory) => {
-        router.push(`/?repo_path=/projects/freighter&object_id=${directory.id}`);
+        const c_path = router.query.path || '';
+        const newPath = `${c_path}/${directory.name}`;
+
+        // router.push(`/?path=${directory.path}`);
+        router.push({
+            pathname: router.pathname,
+            query: { ...router.query, path: newPath },
+        });
+
         setShowTree(true);
 
         try {
-            const response = await fetch(`/api/tree?repo_path=/projects/freighter&object_id=${encodeURIComponent(directory.id)}`);
+            const response = await fetch(`/api/tree?path=${encodeURIComponent(directory.path)}`);
 
             if (!response.ok) {
                 throw new Error('Failed to fetch tree data');
@@ -162,10 +172,12 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
     const onExpand = async (keys, { expanded, node }) => {
         // push new url and query to router
         console.log("OnExpanded!");
-        router.push({ query: { repo_path: "/projects/freighter", object_id: node.key } });
+        console.log("keys", keys);
+        console.log("node", node.path);
+        // router.push({ query: { repo_path: "/projects/freighter", object_id: node.key } });
         var responseData = '';
         try {
-            const response = await fetch(`/api/tree?repo_path=/projects/freighter&object_id=${encodeURIComponent(node.key)}`);
+            const response = await fetch(`/api/tree?path=${encodeURIComponent(node.path)}`);
 
             if (!response.ok) {
                 throw new Error('Failed to fetch tree data');
@@ -196,15 +208,15 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
         if (index === 0) {
             console.log("clicked root path");
             setShowTree(false);
-            router.push(`/?repo_path=/projects/freighter`);
+            router.push(`/?path=/`);
         } else {
             setCurrentPath(currentPath.slice(0, index + 1));
-            router.push(`/?repo_path=/projects/freighter&object_id=${key}`);
+            router.push(`/?path=${key}`);
 
             // reRender the tree for back to clicked dir
             var responseData = '';
             try {
-                const response = await fetch(`/api/tree?repo_path=/projects/freighter&object_id=${encodeURIComponent(key)}`);
+                const response = await fetch(`/api/tree?path=${encodeURIComponent(key)}`);
 
                 if (!response.ok) {
                     throw new Error('Failed to fetch tree data');
@@ -298,8 +310,8 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
                                                 <span onClick={() => handleDirectoryClick(project)}>{project.name}</span>
                                             </td>
                                         )}
-                                        <td className="projectCommitMsg ">{project.commit_msg}</td>
-                                        <td className="projectCommitMsg">{project.commit_date}</td>
+                                        <td className="projectCommitMsg ">{project.message}</td>
+                                        <td className="projectCommitMsg">{project.date}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -356,13 +368,13 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
 export async function getServerSideProps(context) {
     const MEGA_URL = 'http://localhost:8000';
     // get the parameters form context
-    const { repo_path, object_id } = context.query;
-    const rootDirectory = (await axios.get(`${MEGA_URL}/api/v1/tree?repo_path=/projects/freighter`)).data;
+    const { path, name } = context.query;
+    const rootDirectory = (await axios.get(`${MEGA_URL}/api/v1/tree?path=/`)).data;
 
-    // obtain the current directory, the root directory only has the 'path' parameter without the 'id' parameter. Both parameters exist for non-root directories
-    const response = repo_path && object_id
-        ? await axios.get(`${MEGA_URL}/api/v1/tree?repo_path=/projects/freighter&object_id=${encodeURIComponent(object_id)}`)
-        : await axios.get(`${MEGA_URL}/api/v1/tree?repo_path=/projects/freighter`);
+    // obtain the current directory
+    const response = path
+        ? await axios.get(`${MEGA_URL}/api/v1/tree-commit-info?path=${encodeURIComponent(path)}`)
+        : await axios.get(`${MEGA_URL}/api/v1/tree-commit-info?path=/`);
 
     const directory = response.data;
     var readmeContent = '';
@@ -370,10 +382,10 @@ export async function getServerSideProps(context) {
     var TreeData = '';
 
     // get the file content
-    if (object_id) {
+    if (name) {
         try {
-            const fileResponse = await axios.get(`${MEGA_URL}/api/v1/blob?object_id=${object_id}`, { withCredentials: true });
-            fileContent = fileResponse.data.row_data;
+            const fileResponse = await axios.get(`${MEGA_URL}/api/v1/blob?path=${path}&name=${name}`, { withCredentials: true });
+            fileContent = fileResponse.data.plain_text;
         } catch (error) {
             console.error("Error fetching file content:", error);
         }
@@ -383,8 +395,8 @@ export async function getServerSideProps(context) {
     for (const project of directory.items || []) {
         if (project.name === 'README.md' && project.content_type === 'file') {
             try {
-                const response = await axios.get(`${MEGA_URL}/api/v1/blob?object_id=${project.id}`, { withCredentials: true });
-                readmeContent = response.data.row_data;
+                const response = await axios.get(`${MEGA_URL}/api/v1/blob?path=${path}&name=${project.name}`, { withCredentials: true });
+                readmeContent = response.data.plain_text;
                 break;
             } catch (error) {
                 console.error("Error fetching README content:", error);
