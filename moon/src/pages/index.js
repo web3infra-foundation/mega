@@ -277,10 +277,10 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
                                         Name
                                     </th>
                                     <th scope="col" className="dirShowTableTr">
-                                        commit
+                                        Message
                                     </th>
                                     <th scope="col" className="dirShowTableTr">
-                                        commitData
+                                        Date
                                     </th>
                                 </tr>
                             </thead>

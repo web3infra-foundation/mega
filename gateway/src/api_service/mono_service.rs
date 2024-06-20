@@ -16,7 +16,7 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::monorepo::converter;
-use venus::monorepo::mr::{MergeOperation, MergeResult};
+use venus::monorepo::mr::{CommonResult, MergeOperation};
 
 use crate::api_service::{ApiHandler, SIGNATURE_END};
 use crate::model::create_file::CreateFileInfo;
@@ -147,11 +147,17 @@ impl ApiHandler for MonorepoService {
                 for item in tree.tree_items {
                     let mut info: TreeCommitItem = item.clone().into();
                     if let Some(commit_id) = item_to_commit.get(&item.id.to_plain_str()) {
-                        let commit: Commit = commit_map.get(commit_id).unwrap().clone().into();
-                        info.oid = commit.id.to_plain_str();
-                        info.message = self
-                            .remove_useless_str(commit.message.clone(), SIGNATURE_END.to_owned());
-                        info.date = commit.committer.timestamp.to_string();
+                        if let Some(model) = commit_map.get(commit_id) {
+                            let commit: Commit = model.clone().into();
+                            info.oid = commit.id.to_plain_str();
+                            info.message = self.remove_useless_str(
+                                commit.message.clone(),
+                                SIGNATURE_END.to_owned(),
+                            );
+                            info.date = commit.committer.timestamp.to_string();
+                        } else {
+                            tracing::error!("failed fecth commit: {}", commit_id)
+                        }
                     }
                     items.push(info);
                 }
@@ -173,7 +179,14 @@ impl MonorepoService {
         self.storage.init_monorepo().await
     }
 
-    pub async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
+    pub async fn create_monorepo_file(
+        &self,
+        file_info: CreateFileInfo,
+    ) -> Result<CommonResult, GitError> {
+        let res = CommonResult {
+            result: true,
+            err_message: "".to_owned(),
+        };
         let path = PathBuf::from(file_info.path);
 
         let new_item = if file_info.is_directory {
@@ -222,22 +235,25 @@ impl MonorepoService {
             &format!("create file {} commit", file_info.name),
         );
 
-        let tree_model: mega_tree::Model = new_tree.into();
+
+        let commit_id = self.update_parent_tree(path, tree_vec, commit)
+            .await
+            .unwrap();
+
+        let mut tree_model: mega_tree::Model = new_tree.into();
+        tree_model.commit_id = commit_id;
         let tree_model: mega_tree::ActiveModel = tree_model.into();
 
         batch_save_model(self.storage.get_connection(), vec![tree_model])
             .await
             .unwrap();
 
-        self.update_parent_tree(path, tree_vec, commit)
-            .await
-            .unwrap();
 
-        Ok(())
+        Ok(res)
     }
 
-    pub async fn merge_mr(&self, op: MergeOperation) -> Result<MergeResult, MegaError> {
-        let mut res = MergeResult {
+    pub async fn merge_mr(&self, op: MergeOperation) -> Result<CommonResult, MegaError> {
+        let mut res = CommonResult {
             result: true,
             err_message: "".to_owned(),
         };
@@ -352,7 +368,7 @@ impl MonorepoService {
         mut path: PathBuf,
         mut tree_vec: Vec<Tree>,
         commit: Commit,
-    ) -> Result<(), GitError> {
+    ) -> Result<String, GitError> {
         let mut save_trees = Vec::new();
         let mut p_commit_id = String::new();
 
@@ -406,7 +422,7 @@ impl MonorepoService {
         batch_save_model(self.storage.get_connection(), save_trees)
             .await
             .unwrap();
-        Ok(())
+        Ok(p_commit_id)
     }
 }
 
