@@ -16,7 +16,7 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::monorepo::converter;
-use venus::monorepo::mr::{CommonResult, MergeOperation};
+use venus::monorepo::mr::MergeOperation;
 
 use crate::api_service::{ApiHandler, SIGNATURE_END};
 use crate::model::create_file::CreateFileInfo;
@@ -179,24 +179,28 @@ impl MonorepoService {
         self.storage.init_monorepo().await
     }
 
-    pub async fn create_monorepo_file(
-        &self,
-        file_info: CreateFileInfo,
-    ) -> Result<CommonResult, GitError> {
-        let res = CommonResult {
-            result: true,
-            err_message: "".to_owned(),
-        };
+    pub async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
         let path = PathBuf::from(file_info.path);
+        let mut save_trees = vec![];
+
+        let (update_trees, search_tree) = self.search_tree_by_path(&path).await.unwrap();
+        let mut t_items = search_tree.tree_items;
 
         let new_item = if file_info.is_directory {
-            let blob = converter::generate_git_keep();
+            if t_items
+                .iter()
+                .any(|x| x.mode == TreeItemMode::Tree && x.name == file_info.name)
+            {
+                return Err(GitError::CustomError("Duplicate name".to_string()));
+            }
+            let blob = converter::generate_git_keep_with_timestamp();
             let tree_item = TreeItem {
                 mode: TreeItemMode::Blob,
                 id: blob.id,
                 name: String::from(".gitkeep"),
             };
             let child_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+            save_trees.push(child_tree.clone());
             TreeItem {
                 mode: TreeItemMode::Tree,
                 id: child_tree.id,
@@ -220,43 +224,34 @@ impl MonorepoService {
                 name: file_info.name.clone(),
             }
         };
-
-        let (tree_vec, search_tree) = self.search_tree_by_path(&path).await.unwrap();
-
-        let mut t_items = search_tree.tree_items;
-        // todo: need check if file exist?
         t_items.push(new_item);
-        let new_tree = Tree::from_tree_items(t_items).unwrap();
+        let p_tree = Tree::from_tree_items(t_items).unwrap();
 
         let refs = self.storage.get_ref("/").await.unwrap().unwrap();
         let commit = Commit::from_tree_id(
-            new_tree.id,
+            p_tree.id,
             vec![SHA1::from_str(&refs.ref_commit_hash).unwrap()],
             &format!("create file {} commit", file_info.name),
         );
 
-
-        let commit_id = self.update_parent_tree(path, tree_vec, commit)
+        let commit_id = self
+            .update_parent_tree(path, update_trees, commit)
             .await
             .unwrap();
+        save_trees.push(p_tree);
 
-        let mut tree_model: mega_tree::Model = new_tree.into();
-        tree_model.commit_id = commit_id;
-        let tree_model: mega_tree::ActiveModel = tree_model.into();
-
-        batch_save_model(self.storage.get_connection(), vec![tree_model])
-            .await
-            .unwrap();
-
-
-        Ok(res)
+        for save_t in save_trees {
+            let mut tree_model: mega_tree::Model = save_t.into();
+            tree_model.commit_id.clone_from(&commit_id);
+            let tree_model: mega_tree::ActiveModel = tree_model.into();
+            batch_save_model(self.storage.get_connection(), vec![tree_model])
+                .await
+                .unwrap();
+        }
+        Ok(())
     }
 
-    pub async fn merge_mr(&self, op: MergeOperation) -> Result<CommonResult, MegaError> {
-        let mut res = CommonResult {
-            result: true,
-            err_message: "".to_owned(),
-        };
+    pub async fn merge_mr(&self, op: MergeOperation) -> Result<(), MegaError> {
         if let Some(mut mr) = self.storage.get_open_mr_by_id(op.mr_id).await.unwrap() {
             let refs = self.storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -293,14 +288,12 @@ impl MonorepoService {
                     // TODO: self.clean_dangling_commits().await;
                 }
             } else {
-                res.result = false;
-                res.err_message = String::from_str("ref hash conflict").unwrap();
+                return Err(MegaError::with_message("ref hash conflict"));
             }
         } else {
-            res.result = false;
-            res.err_message = String::from_str("Invalid mr id").unwrap();
+            return Err(MegaError::with_message("Invalid mr id"));
         }
-        Ok(res)
+        Ok(())
     }
 
     /// Searches for a tree and affected parent by path.

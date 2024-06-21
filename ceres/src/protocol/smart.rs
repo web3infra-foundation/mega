@@ -221,7 +221,7 @@ impl SmartProtocol {
         let ph_clone = pack_handler.clone();
         let unpack_result = tokio::task::spawn_blocking(move || {
             let handle = tokio::runtime::Handle::current();
-            handle.block_on(async { ph_clone.save_entry(receiver).await })
+            handle.block_on(async { ph_clone.handle_receiver(receiver).await })
         })
         .await.unwrap();
 

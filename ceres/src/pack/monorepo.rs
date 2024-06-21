@@ -115,7 +115,7 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
+    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.mega_storage.clone();
 
         let (mut mr, mr_exist) = self.get_mr().await;

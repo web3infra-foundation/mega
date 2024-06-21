@@ -13,6 +13,14 @@ pub fn generate_git_keep() -> Blob {
     Blob::from_content(&git_keep_content)
 }
 
+pub fn generate_git_keep_with_timestamp() -> Blob {
+    let git_keep_content = format!(
+        "This file was used to maintain the git tree, generate at:{}",
+        chrono::Utc::now().naive_utc()
+    );
+    Blob::from_content(&git_keep_content)
+}
+
 pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
     let tree_item = TreeItem {
         mode: TreeItemMode::Blob,
