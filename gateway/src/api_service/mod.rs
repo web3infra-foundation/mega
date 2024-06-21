@@ -16,7 +16,7 @@ const SIGNATURE_END: &str = "-----END PGP SIGNATURE-----";
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
-    async fn get_blob_as_string(&self, object_id: &str) -> Result<BlobObjects, GitError>;
+    async fn get_blob_as_string(&self, path: PathBuf, filename: &str) -> Result<BlobObjects, GitError>;
 
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError>;
 
@@ -52,7 +52,7 @@ pub trait ApiHandler: Send + Sync {
             let truncated_text = filtered_text.chars().take(50).collect::<String>();
             truncated_text.to_owned()
         } else {
-            "".to_owned()
+            content
         }
     }
 }

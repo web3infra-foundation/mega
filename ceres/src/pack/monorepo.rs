@@ -10,6 +10,9 @@ use std::{
 };
 
 use async_trait::async_trait;
+use futures::future::join_all;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::raw_blob;
 use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
@@ -23,8 +26,6 @@ use mercury::{
         pack::entry::Entry,
     },
 };
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use venus::{
     import_repo::import_refs::{RefCommand, Refs},
     monorepo::mr::MergeRequest,
@@ -114,12 +115,12 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
+    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.mega_storage.clone();
 
         let (mut mr, mr_exist) = self.get_mr().await;
 
-        let mut commit_size = 0;
+        let mut unpack_res = Ok(());
         if mr_exist {
             if mr.from_hash == self.from_hash.clone().unwrap() {
                 let to_hash = self.to_hash.clone().unwrap();
@@ -130,7 +131,20 @@ impl PackHandler for MonoRepo {
                         .add_mr_comment(mr.id, 0, Some(comment))
                         .await
                         .unwrap();
-                    commit_size = self.save_entry(receiver).await;
+                    unpack_res = self.save_entry(receiver).await;
+                    if unpack_res.is_err() {
+                        mr.close();
+                        storage
+                            .add_mr_comment(
+                                mr.id,
+                                0,
+                                Some("Mega closed MR due to multi commit detected".to_string()),
+                            )
+                            .await
+                            .unwrap();
+                    }
+                } else {
+                    tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
                 }
             } else {
                 mr.close();
@@ -141,23 +155,12 @@ impl PackHandler for MonoRepo {
             }
             storage.update_mr(mr.clone()).await.unwrap();
         } else {
-            commit_size = self.save_entry(receiver).await;
-
-            storage.save_mr(mr.clone()).await.unwrap();
+            unpack_res = self.save_entry(receiver).await;
+            if unpack_res.is_ok() {
+                storage.save_mr(mr.clone()).await.unwrap();
+            }
         };
-
-        if commit_size > 1 {
-            mr.close();
-            storage
-                .add_mr_comment(
-                    mr.id,
-                    0,
-                    Some("Mega closed MR due to multi commit detected".to_string()),
-                )
-                .await
-                .unwrap();
-        }
-        Ok(())
+        unpack_res
     }
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
@@ -366,22 +369,36 @@ impl MonoRepo {
         )
     }
 
-    async fn save_entry(&self, receiver: Receiver<Entry>) -> i32 {
+    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.mega_storage.clone();
         let mut entry_list = Vec::new();
-
-        let mut commit_size = 0;
+        let mut join_tasks = vec![];
+        let mut commit_id = String::new();
         for entry in receiver {
-            if entry.obj_type == ObjectType::Commit {
-                commit_size += 1;
+            if commit_id.is_empty() {
+                if entry.obj_type == ObjectType::Commit {
+                    commit_id = entry.hash.to_plain_str();
+                }
+            } else {
+                if entry.obj_type == ObjectType::Commit {
+                    return Err(GitError::CustomError(
+                        "only single commit support in each commit".to_string(),
+                    ));
+                }
+                if entry_list.len() >= 1000 {
+                    let stg_clone = storage.clone();
+                    let commit_id = commit_id.clone();
+                    let handle = tokio::spawn(async move {
+                        stg_clone.save_entry(&commit_id, entry_list).await.unwrap();
+                    });
+                    join_tasks.push(handle);
+                    entry_list = vec![];
+                }
             }
             entry_list.push(entry);
-            if entry_list.len() >= 1000 {
-                storage.save_entry(entry_list).await.unwrap();
-                entry_list = Vec::new();
-            }
         }
-        storage.save_entry(entry_list).await.unwrap();
-        commit_size
+        join_all(join_tasks).await;
+        storage.save_entry(&commit_id, entry_list).await.unwrap();
+        Ok(())
     }
 }

@@ -78,7 +78,22 @@ pub struct MergeOperation {
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
 
-pub struct MergeResult {
+pub struct CommonResult {
     pub result: bool,
     pub err_message: String,
+}
+
+impl CommonResult {
+    pub fn succrss() -> Self {
+        CommonResult {
+            result: true,
+            err_message: "".to_owned(),
+        }
+    }
+    pub fn failed(err_message: &str) -> Self {
+        CommonResult {
+            result: false,
+            err_message: err_message.to_string(),
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 use axum::async_trait;
 
 use callisto::db_enums::ConvType;
-use callisto::{mega_blob, mega_tree, raw_blob};
+use callisto::{mega_blob, mega_commit, mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::storage::batch_save_model;
 use jupiter::storage::mega_storage::MegaStorage;
@@ -16,7 +16,7 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::monorepo::converter;
-use venus::monorepo::mr::{MergeOperation, MergeResult};
+use venus::monorepo::mr::MergeOperation;
 
 use crate::api_service::{ApiHandler, SIGNATURE_END};
 use crate::model::create_file::CreateFileInfo;
@@ -31,11 +31,23 @@ pub struct MonorepoService {
 
 #[async_trait]
 impl ApiHandler for MonorepoService {
-    async fn get_blob_as_string(&self, object_id: &str) -> Result<BlobObjects, GitError> {
-        let plain_text = match self.storage.get_raw_blob_by_hash(object_id).await {
-            Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
-            _ => String::new(),
-        };
+    async fn get_blob_as_string(
+        &self,
+        path: PathBuf,
+        filename: &str,
+    ) -> Result<BlobObjects, GitError> {
+        let (_, tree) = self.search_tree_by_path(&path).await.unwrap();
+        let mut plain_text = String::new();
+        if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
+            plain_text = match self
+                .storage
+                .get_raw_blob_by_hash(&item.id.to_plain_str())
+                .await
+            {
+                Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
+                _ => String::new(),
+            };
+        }
         Ok(BlobObjects { plain_text })
     }
 
@@ -84,14 +96,15 @@ impl ApiHandler for MonorepoService {
     async fn get_tree_commit_info(&self, path: PathBuf) -> Result<TreeCommitInfo, GitError> {
         match self.search_tree_by_path(&path).await {
             Ok((_, tree)) => {
-                let mut commit_map = HashMap::new();
-                let mut tree_to_commit = HashMap::new();
+                // let mut commit_map = HashMap::new();
+                let mut item_to_commit = HashMap::new();
 
                 let trees = self
                     .storage
                     .get_trees_by_hashes(
                         tree.tree_items
                             .iter()
+                            .filter(|x| x.mode == TreeItemMode::Tree)
                             .map(|x| x.id.to_plain_str())
                             .collect(),
                     )
@@ -99,33 +112,53 @@ impl ApiHandler for MonorepoService {
                     .unwrap();
 
                 for tree in trees {
-                    let commit_id = tree.commit_id;
-                    tree_to_commit.insert(tree.tree_id, commit_id.clone());
+                    item_to_commit.insert(tree.tree_id, tree.commit_id);
+                }
 
-                    let commit = if commit_map.contains_key(&commit_id) {
-                        commit_map.get(&commit_id).cloned()
-                    } else {
-                        self.storage.get_commit_by_hash(&commit_id).await.unwrap()
-                    };
-                    if let Some(commit) = commit {
-                        commit_map.insert(commit.commit_id.clone(), commit);
-                    }
+                let blobs = self
+                    .storage
+                    .get_mega_blobs_by_hashes(
+                        tree.tree_items
+                            .iter()
+                            .filter(|x| x.mode == TreeItemMode::Blob)
+                            .map(|x| x.id.to_plain_str())
+                            .collect(),
+                    )
+                    .await
+                    .unwrap();
+
+                for blob in blobs {
+                    item_to_commit.insert(blob.blob_id, blob.commit_id);
                 }
 
                 let mut items = Vec::new();
+                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
+
+                let commits = self
+                    .storage
+                    .get_commits_by_hashes(&commit_ids.into_iter().collect())
+                    .await
+                    .unwrap();
+                let commit_map: HashMap<String, mega_commit::Model> = commits
+                    .into_iter()
+                    .map(|x| (x.commit_id.clone(), x))
+                    .collect();
+
                 for item in tree.tree_items {
                     let mut info: TreeCommitItem = item.clone().into();
-                    let commit: Commit = commit_map
-                        .get(tree_to_commit.get(&item.id.to_plain_str()).unwrap())
-                        .unwrap()
-                        .clone()
-                        .into();
-
-                    info.oid = commit.id.to_plain_str();
-                    info.message =
-                        self.remove_useless_str(commit.message.clone(), SIGNATURE_END.to_owned());
-                    info.date = commit.committer.timestamp.to_string();
-
+                    if let Some(commit_id) = item_to_commit.get(&item.id.to_plain_str()) {
+                        if let Some(model) = commit_map.get(commit_id) {
+                            let commit: Commit = model.clone().into();
+                            info.oid = commit.id.to_plain_str();
+                            info.message = self.remove_useless_str(
+                                commit.message.clone(),
+                                SIGNATURE_END.to_owned(),
+                            );
+                            info.date = commit.committer.timestamp.to_string();
+                        } else {
+                            tracing::error!("failed fecth commit: {}", commit_id)
+                        }
+                    }
                     items.push(info);
                 }
                 Ok(TreeCommitInfo {
@@ -148,15 +181,26 @@ impl MonorepoService {
 
     pub async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
         let path = PathBuf::from(file_info.path);
+        let mut save_trees = vec![];
+
+        let (update_trees, search_tree) = self.search_tree_by_path(&path).await.unwrap();
+        let mut t_items = search_tree.tree_items;
 
         let new_item = if file_info.is_directory {
-            let blob = converter::generate_git_keep();
+            if t_items
+                .iter()
+                .any(|x| x.mode == TreeItemMode::Tree && x.name == file_info.name)
+            {
+                return Err(GitError::CustomError("Duplicate name".to_string()));
+            }
+            let blob = converter::generate_git_keep_with_timestamp();
             let tree_item = TreeItem {
                 mode: TreeItemMode::Blob,
                 id: blob.id,
                 name: String::from(".gitkeep"),
             };
             let child_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+            save_trees.push(child_tree.clone());
             TreeItem {
                 mode: TreeItemMode::Tree,
                 id: child_tree.id,
@@ -164,7 +208,7 @@ impl MonorepoService {
             }
         } else {
             let blob = Blob::from_content(&file_info.content.unwrap());
-            let mega_blob: mega_blob::Model = blob.clone().into();
+            let mega_blob: mega_blob::Model = (&blob).into();
             let mega_blob: mega_blob::ActiveModel = mega_blob.into();
             let raw_blob: raw_blob::Model = blob.clone().into();
             let raw_blob: raw_blob::ActiveModel = raw_blob.into();
@@ -180,40 +224,34 @@ impl MonorepoService {
                 name: file_info.name.clone(),
             }
         };
-
-        let (tree_vec, search_tree) = self.search_tree_by_path(&path).await.unwrap();
-
-        let mut t_items = search_tree.tree_items;
-        // todo: need check if file exist?
         t_items.push(new_item);
-        let new_tree = Tree::from_tree_items(t_items).unwrap();
+        let p_tree = Tree::from_tree_items(t_items).unwrap();
 
         let refs = self.storage.get_ref("/").await.unwrap().unwrap();
         let commit = Commit::from_tree_id(
-            new_tree.id,
+            p_tree.id,
             vec![SHA1::from_str(&refs.ref_commit_hash).unwrap()],
             &format!("create file {} commit", file_info.name),
         );
 
-        let tree_model: mega_tree::Model = new_tree.into();
-        let tree_model: mega_tree::ActiveModel = tree_model.into();
-
-        batch_save_model(self.storage.get_connection(), vec![tree_model])
+        let commit_id = self
+            .update_parent_tree(path, update_trees, commit)
             .await
             .unwrap();
+        save_trees.push(p_tree);
 
-        self.update_parent_tree(path, tree_vec, commit)
-            .await
-            .unwrap();
-
+        for save_t in save_trees {
+            let mut tree_model: mega_tree::Model = save_t.into();
+            tree_model.commit_id.clone_from(&commit_id);
+            let tree_model: mega_tree::ActiveModel = tree_model.into();
+            batch_save_model(self.storage.get_connection(), vec![tree_model])
+                .await
+                .unwrap();
+        }
         Ok(())
     }
 
-    pub async fn merge_mr(&self, op: MergeOperation) -> Result<MergeResult, MegaError> {
-        let mut res = MergeResult {
-            result: true,
-            err_message: "".to_owned(),
-        };
+    pub async fn merge_mr(&self, op: MergeOperation) -> Result<(), MegaError> {
         if let Some(mut mr) = self.storage.get_open_mr_by_id(op.mr_id).await.unwrap() {
             let refs = self.storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -237,8 +275,7 @@ impl MonorepoService {
                     .unwrap();
                 if mr.path != "/" {
                     let path = PathBuf::from(mr.path.clone());
-
-                    // beacuse only need parent tree so we skip current directory
+                    // beacuse only parent tree is needed so we skip current directory
                     let (tree_vec, _) = self
                         .search_tree_by_path(path.parent().unwrap())
                         .await
@@ -248,17 +285,15 @@ impl MonorepoService {
                         .unwrap();
                     // remove refs start with path
                     self.storage.remove_refs(&mr.path).await.unwrap();
-                    // todo: self.clean_dangling_commits().await;
+                    // TODO: self.clean_dangling_commits().await;
                 }
             } else {
-                res.result = false;
-                "ref hash conflict".clone_into(&mut res.err_message);
+                return Err(MegaError::with_message("ref hash conflict"));
             }
         } else {
-            res.result = false;
-            "Invalid mr id".clone_into(&mut res.err_message);
+            return Err(MegaError::with_message("Invalid mr id"));
         }
-        Ok(res)
+        Ok(())
     }
 
     /// Searches for a tree and affected parent by path.
@@ -326,7 +361,7 @@ impl MonorepoService {
         mut path: PathBuf,
         mut tree_vec: Vec<Tree>,
         commit: Commit,
-    ) -> Result<(), GitError> {
+    ) -> Result<String, GitError> {
         let mut save_trees = Vec::new();
         let mut p_commit_id = String::new();
 
@@ -380,7 +415,7 @@ impl MonorepoService {
         batch_save_model(self.storage.get_connection(), save_trees)
             .await
             .unwrap();
-        Ok(())
+        Ok(p_commit_id)
     }
 }
 

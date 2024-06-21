@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use axum::{
     extract::{Query, State},
@@ -11,12 +11,15 @@ use axum::{
 use jupiter::context::Context;
 use venus::{
     import_repo::repo::Repo,
-    monorepo::mr::{MergeOperation, MergeResult},
+    monorepo::mr::{CommonResult, MergeOperation},
 };
 
 use crate::{
     api_service::import_service::ImportRepoService,
-    model::{create_file::CreateFileInfo, query::CodePreviewQuery},
+    model::{
+        create_file::CreateFileInfo,
+        query::{BlobContentQuery, CodePreviewQuery},
+    },
 };
 use crate::{
     api_service::mono_service::MonorepoService,
@@ -26,8 +29,6 @@ use crate::{api_service::ApiHandler, model::objects::TreeBriefInfo};
 
 #[derive(Clone)]
 pub struct ApiServiceState {
-    // pub mega_storage: Arc<MegaStorage>,
-    // pub git_db_storage: Arc<GitDbStorage>,
     pub context: Context,
 }
 
@@ -41,25 +42,24 @@ impl ApiServiceState {
     pub async fn api_handler(&self, path: PathBuf) -> Box<dyn ApiHandler> {
         let import_dir = self.context.config.monorepo.import_dir.clone();
         if path.starts_with(&import_dir) && path != import_dir {
-            let repo: Repo = self
+            if let Some(model) = self
                 .context
                 .services
                 .git_db_storage
                 .find_git_repo(path.to_str().unwrap())
                 .await
                 .unwrap()
-                .unwrap()
-                .into();
-
-            Box::new(ImportRepoService {
-                storage: self.context.services.git_db_storage.clone(),
-                repo,
-            })
-        } else {
-            Box::new(MonorepoService {
-                storage: self.context.services.mega_storage.clone(),
-            })
+            {
+                let repo: Repo = model.into();
+                return Box::new(ImportRepoService {
+                    storage: self.context.services.git_db_storage.clone(),
+                    repo,
+                });
+            }
         }
+        Box::new(MonorepoService {
+            storage: self.context.services.mega_storage.clone(),
+        })
     }
 }
 
@@ -80,13 +80,13 @@ pub fn routers() -> Router<ApiServiceState> {
 }
 
 async fn get_blob_object(
-    Query(query): Query<HashMap<String, String>>,
+    Query(query): Query<BlobContentQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<BlobObjects>, (StatusCode, String)> {
-    let object_id = query.get("object_id").unwrap();
     let res = state
-        .monorepo()
-        .get_blob_as_string(object_id)
+        .api_handler(query.path.clone().into())
+        .await
+        .get_blob_as_string(query.path.into(), &query.name)
         .await
         .unwrap();
     Ok(Json(res))
@@ -123,20 +123,29 @@ async fn init(state: State<ApiServiceState>) {
 async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
-) -> Result<Json<CreateFileInfo>, (StatusCode, String)> {
-    state
+) -> Result<Json<CommonResult>, (StatusCode, String)> {
+    let res = state
         .monorepo()
         .create_monorepo_file(json.clone())
-        .await
-        .unwrap();
-    Ok(Json(json))
+        .await;
+    let res = if res.is_err() {
+        CommonResult::failed(&res.err().unwrap().to_string())
+    } else {
+        CommonResult::succrss()
+    };
+    Ok(Json(res))
 }
 
 async fn merge(
     state: State<ApiServiceState>,
     Json(json): Json<MergeOperation>,
-) -> Result<Json<MergeResult>, (StatusCode, String)> {
-    let res = state.monorepo().merge_mr(json.clone()).await.unwrap();
+) -> Result<Json<CommonResult>, (StatusCode, String)> {
+    let res = state.monorepo().merge_mr(json.clone()).await;
+    let res = if res.is_err() {
+        CommonResult::failed(&res.err().unwrap().to_string())
+    } else {
+        CommonResult::succrss()
+    };
     Ok(Json(res))
 }
 

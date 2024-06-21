@@ -217,13 +217,13 @@ impl SmartProtocol {
             .await
             .unwrap();
 
+        // can not block main thread here.
         let ph_clone = pack_handler.clone();
-        let unpack_success = tokio::task::spawn_blocking(move || {
+        let unpack_result = tokio::task::spawn_blocking(move || {
             let handle = tokio::runtime::Handle::current();
-            handle.block_on(async { ph_clone.save_entry(receiver).await })
+            handle.block_on(async { ph_clone.handle_receiver(receiver).await })
         })
-        .await
-        .is_ok();
+        .await.unwrap();
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
@@ -240,81 +240,17 @@ impl SmartProtocol {
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
-                if unpack_success {
-                    if !default_exist {
-                        command.default_branch = true;
-                        default_exist = true;
+                match unpack_result {
+                    Ok(_) => {
+                        if !default_exist {
+                            command.default_branch = true;
+                            default_exist = true;
+                        }
+                        pack_handler.update_refs(&command).await.unwrap();
                     }
-                    pack_handler.update_refs(&command).await.unwrap();
-                } else {
-                    command.failed(String::from("unpack failed"));
-                }
-            }
-            add_pkt_line_string(&mut report_status, command.get_status());
-        }
-        report_status.put(&PKT_LINE_END_MARKER[..]);
-        let length = report_status.len();
-        let mut buf = self.build_side_band_format(report_status, length);
-        buf.put(&PKT_LINE_END_MARKER[..]);
-        Ok(buf.into())
-    }
-
-    // preserve for ssh server
-    pub async fn git_receive_pack(&mut self, mut body_bytes: Bytes) -> Result<Bytes> {
-        if body_bytes.len() < 1_000 {
-            tracing::debug!("bytes from client: {:?}", body_bytes);
-        } else {
-            tracing::debug!("{} bytes from client", body_bytes.len())
-        }
-        while !body_bytes.starts_with(&[b'P', b'A', b'C', b'K']) && !body_bytes.is_empty() {
-            let (bytes_take, mut pkt_line) = read_pkt_line(&mut body_bytes);
-            if bytes_take != 0 {
-                let command = self.parse_ref_command(&mut pkt_line);
-                self.parse_capabilities(&String::from_utf8(pkt_line.to_vec()).unwrap());
-                tracing::debug!(
-                    "parse ref_command: {:?}, with caps:{:?}",
-                    command,
-                    self.capabilities
-                );
-                self.command_list.push(command);
-            }
-        }
-        // handles situation when client send b"0000"
-        if body_bytes.is_empty() {
-            return Ok(body_bytes);
-        }
-        // After receiving the pack data from the sender, the receiver sends a report
-        let mut report_status = BytesMut::new();
-        let pack_handler = self.pack_handler().await;
-        //1. unpack progress
-        let unpack_success = pack_handler
-            .unpack(&self.context.config.pack, body_bytes)
-            .await
-            .is_ok();
-
-        // write "unpack ok\n to report"
-        add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
-
-        let mut default_exist = pack_handler.check_default_branch().await;
-
-        //2. update each refs and build report
-        for mut command in self.command_list.clone() {
-            if command.ref_type == RefType::Tag {
-                // just update if refs type is tag
-                pack_handler.update_refs(&command).await.unwrap();
-            } else {
-                // Updates can be unsuccessful for a number of reasons.
-                // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
-                // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
-                // c.Also, some references can be updated while others can be rejected.
-                if unpack_success {
-                    if !default_exist {
-                        command.default_branch = true;
-                        default_exist = true;
+                    Err(ref err) => {
+                        command.failed(err.to_string());
                     }
-                    pack_handler.update_refs(&command).await.unwrap();
-                } else {
-                    command.failed(String::from("unpack failed"));
                 }
             }
             add_pkt_line_string(&mut report_status, command.get_status());

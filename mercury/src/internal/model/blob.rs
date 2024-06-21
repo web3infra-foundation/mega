@@ -5,8 +5,8 @@ use common::utils::generate_id;
 
 use crate::{hash::SHA1, internal::object::blob::Blob};
 
-impl From<Blob> for mega_blob::Model {
-    fn from(value: Blob) -> Self {
+impl From<&Blob> for mega_blob::Model {
+    fn from(value: &Blob) -> Self {
         mega_blob::Model {
             id: generate_id(),
             blob_id: value.id.to_plain_str(),
