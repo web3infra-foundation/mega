@@ -127,8 +127,12 @@ async fn create_file(
     let res = state
         .monorepo()
         .create_monorepo_file(json.clone())
-        .await
-        .unwrap();
+        .await;
+    let res = if res.is_err() {
+        CommonResult::failed(&res.err().unwrap().to_string())
+    } else {
+        CommonResult::succrss()
+    };
     Ok(Json(res))
 }
 
@@ -136,7 +140,12 @@ async fn merge(
     state: State<ApiServiceState>,
     Json(json): Json<MergeOperation>,
 ) -> Result<Json<CommonResult>, (StatusCode, String)> {
-    let res = state.monorepo().merge_mr(json.clone()).await.unwrap();
+    let res = state.monorepo().merge_mr(json.clone()).await;
+    let res = if res.is_err() {
+        CommonResult::failed(&res.err().unwrap().to_string())
+    } else {
+        CommonResult::succrss()
+    };
     Ok(Json(res))
 }
 

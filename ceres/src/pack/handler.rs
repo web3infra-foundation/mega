@@ -1,10 +1,9 @@
 use std::{
     collections::HashSet,
-    io::Cursor,
     pin::Pin,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        mpsc::{self, Receiver},
+        mpsc::Receiver,
     },
 };
 
@@ -42,27 +41,6 @@ pub trait PackHandler: Send + Sync {
         (head_hash, refs)
     }
 
-    async fn unpack(&self, pack_config: &PackConfig, pack_file: Bytes) -> Result<(), GitError> {
-        // #[cfg(debug_assertions)]
-        // {
-        //     let datetime = chrono::Utc::now().naive_utc();
-        //     let path = format!("{}.pack", datetime);
-        //     let mut output = std::fs::File::create(path).unwrap();
-        //     output.write_all(&pack_file).unwrap();
-        // }
-        let (sender, receiver) = mpsc::channel();
-        let p = Pack::new(
-            None,
-            Some(1024 * 1024 * 1024 * pack_config.pack_decode_mem_size),
-            Some(pack_config.pack_decode_cache_path.clone()),
-            pack_config.clean_cache_after_decode,
-        );
-
-        p.decode_async(Cursor::new(pack_file), sender); //Pack moved here
-
-        self.save_entry(receiver).await
-    }
-
     async fn unpack_stream(
         &self,
         pack_config: &PackConfig,
@@ -81,7 +59,7 @@ pub trait PackHandler: Send + Sync {
         Ok(receiver)
     }
 
-    async fn save_entry(&self, rx: Receiver<Entry>) -> Result<(), GitError>;
+    async fn handle_receiver(&self, rx: Receiver<Entry>) -> Result<(), GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
