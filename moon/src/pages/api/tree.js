@@ -8,7 +8,7 @@ export default async function handler(req, res) {
 
     try {
         // 构建请求 URL
-        const apiUrl = `http://localhost:8000/api/v1/tree?repo_path=/projects/freighter&object_id=${encodeURIComponent(object_id)}`;
+        const apiUrl = `http://localhost:8000/api/v1/tree?path=${encodeURIComponent(repo_path)}`;
 
         // 发起对外部 API 的请求
         const response = await axios.get(apiUrl);

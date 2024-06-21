@@ -83,6 +83,9 @@ pub enum GitError {
 
     #[error("Network Error: {0}")]
     NetworkError(String),
+
+    #[error("{0}")]
+    CustomError(String),
 }
 
 impl From<FromUtf8Error> for GitError {

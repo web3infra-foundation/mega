@@ -13,6 +13,14 @@ pub fn generate_git_keep() -> Blob {
     Blob::from_content(&git_keep_content)
 }
 
+pub fn generate_git_keep_with_timestamp() -> Blob {
+    let git_keep_content = format!(
+        "This file was used to maintain the git tree, generate at:{}",
+        chrono::Utc::now().naive_utc()
+    );
+    Blob::from_content(&git_keep_content)
+}
+
 pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
     let tree_item = TreeItem {
         mode: TreeItemMode::Blob,
@@ -83,7 +91,7 @@ impl MegaModelConverter {
                 self.traverse_for_update(child_tree);
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
-                let mut mega_blob: mega_blob::Model = blob.to_owned().into();
+                let mut mega_blob: mega_blob::Model = blob.into();
                 mega_blob.commit_id = self.commit.id.to_plain_str();
                 self.mega_blobs
                     .borrow_mut()

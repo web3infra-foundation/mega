@@ -74,45 +74,19 @@ pub enum MegaObjectModel {
 impl GitObject {
     pub fn convert_to_mega_model(self) -> MegaObjectModel {
         match self {
-            GitObject::Commit(commit) => {
-                let mega_commit: mega_commit::Model = commit.into();
-                MegaObjectModel::Commit(mega_commit)
-            }
-            GitObject::Tree(tree) => {
-                let mega_tree: mega_tree::Model = tree.into();
-                MegaObjectModel::Tree(mega_tree)
-            }
-            GitObject::Blob(blob) => {
-                let mega_blob: mega_blob::Model = blob.clone().into();
-                let raw_blob: raw_blob::Model = blob.into();
-                MegaObjectModel::Blob(mega_blob, raw_blob)
-            }
-            GitObject::Tag(tag) => {
-                let mega_tag: mega_tag::Model = tag.into();
-                MegaObjectModel::Tag(mega_tag)
-            }
+            GitObject::Commit(commit) => MegaObjectModel::Commit(commit.into()),
+            GitObject::Tree(tree) => MegaObjectModel::Tree(tree.into()),
+            GitObject::Blob(blob) => MegaObjectModel::Blob((&blob).into(), blob.into()),
+            GitObject::Tag(tag) => MegaObjectModel::Tag(tag.into()),
         }
     }
 
     pub fn convert_to_git_model(self) -> GitObjectModel {
         match self {
-            GitObject::Commit(commit) => {
-                let commit: git_commit::Model = commit.into();
-                GitObjectModel::Commit(commit)
-            }
-            GitObject::Tree(tree) => {
-                let tree: git_tree::Model = tree.into();
-                GitObjectModel::Tree(tree)
-            }
-            GitObject::Blob(blob) => {
-                let git_blob: git_blob::Model = (&blob).into();
-                let raw_blob: raw_blob::Model = blob.into();
-                GitObjectModel::Blob(git_blob, raw_blob)
-            }
-            GitObject::Tag(tag) => {
-                let tag: git_tag::Model = tag.into();
-                GitObjectModel::Tag(tag)
-            }
+            GitObject::Commit(commit) => GitObjectModel::Commit(commit.into()),
+            GitObject::Tree(tree) => GitObjectModel::Tree(tree.into()),
+            GitObject::Blob(blob) => GitObjectModel::Blob((&blob).into(), blob.into()),
+            GitObject::Tag(tag) => GitObjectModel::Tag(tag.into()),
         }
     }
 }

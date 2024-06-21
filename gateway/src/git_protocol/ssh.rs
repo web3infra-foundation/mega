@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Duration, Utc};
-use futures::StreamExt;
+use futures::{stream, StreamExt};
 use russh::server::{self, Auth, Msg, Response, Session};
 use russh::{Channel, ChannelId};
 use russh_keys::key;
@@ -226,8 +226,12 @@ impl SshServer {
     async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
 
+        let data = self.data_combined.clone();
+        let stream = stream::once(async move {
+            Ok(Bytes::from(data))
+        });
         let buf = smart_protocol
-            .git_receive_pack(Bytes::from(self.data_combined.to_vec()))
+            .git_receive_pack_stream(Box::pin(stream))
             .await
             .unwrap();
         tracing::info!("report status: {:?}", buf);
