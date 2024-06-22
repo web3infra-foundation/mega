@@ -24,7 +24,7 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
     const [currentPath, setCurrentPath] = useState([]); // for breadcrumb
     const { DirectoryTree } = Tree;
     const [expandedKeys, setExpandedKeys] = useState([]);
-    const fileCodeContainerStyle = showTree ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px', marginTop: '40px' };
+    const fileCodeContainerStyle = showTree ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px' };
     const dirShowTrStyle = { borderBottom: '1px solid  rgba(0, 0, 0, 0.1)', }
 
     useEffect(() => {
