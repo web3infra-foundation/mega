@@ -1,5 +1,4 @@
 import '../styles/TopNavbar.css';
-// import '../styles/globals.css';
 
 const TopNavbar = () => {
     return (
