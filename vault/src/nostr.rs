@@ -27,7 +27,7 @@ mod tests {
         assert_eq!(PublicKey::from_slice(&nostr_decode).unwrap(), public_key);
         // verify
         let secp = Secp256k1::new();
-        let message = Message::from_slice(&[0xab; 32]).expect("32 bytes");
+        let message = Message::from_digest_slice(&[0xab; 32]).expect("32 bytes");
         let sig = secp.sign_ecdsa(&message, &secret_key);
         assert_eq!(secp.verify_ecdsa(&message, &sig, &public_key), Ok(()));
     }

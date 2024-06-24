@@ -90,15 +90,6 @@ fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
         Some(req_data),
     );
     assert!(resp.is_ok());
-    // let resp_body = resp.unwrap();
-    // let data = resp_body.unwrap().data;
-    // let key_data = data.unwrap();
-    // println!("generate root result: {:?}", key_data);
-
-    // let resp_ca_pem = read_api(&core, token, "pki/ca/pem");
-    // let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
-    //
-    // println!("resp_ca_pem_cert_data: {:?}", resp_ca_pem_cert_data);
 }
 
 /// issue certificate
@@ -118,7 +109,6 @@ pub fn issue_cert(data: Value) -> (String, String) {
     assert!(resp.is_ok());
     let resp_body = resp.unwrap();
     let cert_data = resp_body.unwrap().data.unwrap();
-    // println!("cert_data: {:?}", cert_data);
 
     (
         cert_data["certificate"].as_str().unwrap().to_owned(), // TODO may add root cert (chain) in it
@@ -170,7 +160,6 @@ mod tests {
         let (cert_pem, private_key) = issue_cert(json!({
             "ttl": "10d",
             "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
-            // "alt_names": "a.test.com,b.test.com",
         }));
 
         println!("cert_pem: {}", cert_pem);
@@ -319,7 +308,6 @@ mod tests_raw {
         let data = resp_body.unwrap().data;
         assert!(data.is_some());
         let key_data = data.unwrap();
-        // println!("generate root result: {:?}", key_data);
 
         let resp_ca_pem = test_read_api(&core, token, "pki/ca/pem", true);
         let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
