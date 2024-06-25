@@ -14,18 +14,16 @@ use venus::{
     monorepo::mr::{CommonResult, MergeOperation},
 };
 
-use crate::{
-    api_service::import_service::ImportRepoService,
+use ceres::{
+    api_service::import_api_service::ImportApiService,
+    api_service::mono_api_service::MonoApiService,
+    api_service::ApiHandler,
+    model::objects::{BlobObjects, LatestCommitInfo, TreeBriefInfo, TreeCommitInfo},
     model::{
         create_file::CreateFileInfo,
         query::{BlobContentQuery, CodePreviewQuery},
     },
 };
-use crate::{
-    api_service::mono_service::MonorepoService,
-    model::objects::{BlobObjects, LatestCommitInfo, TreeCommitInfo},
-};
-use crate::{api_service::ApiHandler, model::objects::TreeBriefInfo};
 
 #[derive(Clone)]
 pub struct ApiServiceState {
@@ -33,8 +31,8 @@ pub struct ApiServiceState {
 }
 
 impl ApiServiceState {
-    pub fn monorepo(&self) -> MonorepoService {
-        MonorepoService {
+    pub fn monorepo(&self) -> MonoApiService {
+        MonoApiService {
             storage: self.context.services.mega_storage.clone(),
         }
     }
@@ -51,13 +49,13 @@ impl ApiServiceState {
                 .unwrap()
             {
                 let repo: Repo = model.into();
-                return Box::new(ImportRepoService {
+                return Box::new(ImportApiService {
                     storage: self.context.services.git_db_storage.clone(),
                     repo,
                 });
             }
         }
-        Box::new(MonorepoService {
+        Box::new(MonoApiService {
             storage: self.context.services.mega_storage.clone(),
         })
     }
@@ -124,10 +122,7 @@ async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult>, (StatusCode, String)> {
-    let res = state
-        .monorepo()
-        .create_monorepo_file(json.clone())
-        .await;
+    let res = state.monorepo().create_monorepo_file(json.clone()).await;
     let res = if res.is_err() {
         CommonResult::failed(&res.err().unwrap().to_string())
     } else {

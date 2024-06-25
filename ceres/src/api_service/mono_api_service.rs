@@ -25,12 +25,12 @@ use crate::model::objects::{
 };
 
 #[derive(Clone)]
-pub struct MonorepoService {
+pub struct MonoApiService {
     pub storage: Arc<MegaStorage>,
 }
 
 #[async_trait]
-impl ApiHandler for MonorepoService {
+impl ApiHandler for MonoApiService {
     async fn get_blob_as_string(
         &self,
         path: PathBuf,
@@ -96,7 +96,6 @@ impl ApiHandler for MonorepoService {
     async fn get_tree_commit_info(&self, path: PathBuf) -> Result<TreeCommitInfo, GitError> {
         match self.search_tree_by_path(&path).await {
             Ok((_, tree)) => {
-                // let mut commit_map = HashMap::new();
                 let mut item_to_commit = HashMap::new();
 
                 let trees = self
@@ -174,7 +173,7 @@ impl ApiHandler for MonorepoService {
     }
 }
 
-impl MonorepoService {
+impl MonoApiService {
     pub async fn init_monorepo(&self) {
         self.storage.init_monorepo().await
     }
