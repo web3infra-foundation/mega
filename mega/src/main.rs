@@ -9,7 +9,7 @@ mod commands;
 
 fn main() {
     // Parse the command line arguments
-    let result = cli::parse();
+    let result = cli::parse(None);
 
     // If there was an error, print it
     if let Err(e) = result {
