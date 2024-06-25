@@ -30,7 +30,8 @@ use venus::import_repo::{
 };
 
 use crate::{
-    api_service::mono_api_service::MonoApiService, model::create_file::CreateFileInfo,
+    api_service::{mono_api_service::MonoApiService, ApiHandler},
+    model::create_file::CreateFileInfo,
     pack::handler::PackHandler,
 };
 
@@ -322,7 +323,7 @@ impl ImportRepo {
         let path = PathBuf::from(self.repo.repo_path.clone());
         let f_name = path.file_name().unwrap().to_str().unwrap();
         let api_service = MonoApiService {
-            storage: self.context.services.mega_storage.clone(),
+            context: self.context.clone(),
         };
         let req = CreateFileInfo {
             is_directory: true,

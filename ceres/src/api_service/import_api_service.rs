@@ -1,118 +1,142 @@
-use std::path::{Component, Path};
-use std::{path::PathBuf, sync::Arc};
+use std::collections::HashMap;
+use std::path::Path;
+use std::path::PathBuf;
 
 use axum::async_trait;
 
-use jupiter::storage::git_db_storage::GitDbStorage;
+use callisto::raw_blob;
+use common::errors::MegaError;
+use jupiter::context::Context;
 use mercury::errors::GitError;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use venus::import_repo::repo::Repo;
 
 use crate::api_service::ApiHandler;
-use crate::model::objects::{BlobObjects, LatestCommitInfo, TreeBriefInfo, TreeCommitInfo};
-
+use crate::model::create_file::CreateFileInfo;
 
 #[derive(Clone)]
 pub struct ImportApiService {
-    pub storage: Arc<GitDbStorage>,
+    pub context: Context,
     pub repo: Repo,
 }
 
 #[async_trait]
 impl ApiHandler for ImportApiService {
-    async fn get_blob_as_string(&self, _path: PathBuf, _filename: &str) -> Result<BlobObjects, GitError> {
-        unimplemented!()
+    async fn create_monorepo_file(&self, _: CreateFileInfo) -> Result<(), GitError> {
+        return Err(GitError::CustomError(
+            "import dir does not support create file".to_string(),
+        ));
     }
 
-    async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError> {
-        let (_, tree) = self.search_tree_by_path(&path).await.unwrap();
-        let tree_info = self
-            .storage
-            .get_tree_by_hash(&self.repo, &tree.id.to_plain_str())
+    async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
+        self.context
+            .services
+            .mega_storage
+            .get_raw_blob_by_hash(hash)
+            .await
+    }
+
+    fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
+        if let Ok(relative_path) = path.strip_prefix(self.repo.repo_path.clone()) {
+            Ok(relative_path.to_path_buf())
+        } else {
+            Err(GitError::ConversionError(
+                "The full path does not start with the base path.".to_string(),
+            ))
+        }
+    }
+
+    async fn get_root_tree(&self) -> Tree {
+        let storage = self.context.services.git_db_storage.clone();
+        let refs = storage.get_default_ref(&self.repo).await.unwrap().unwrap();
+
+        let root_commit = storage
+            .get_commit_by_hash(&self.repo, &refs.ref_hash)
             .await
             .unwrap()
             .unwrap();
-        let commit: Commit = self
-            .storage
-            .get_commit_by_hash(&self.repo, &tree_info.commit_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .into();
-        self.convert_commit_to_info(commit)
-    }
-
-    async fn get_tree_info(&self, _path: PathBuf) -> Result<TreeBriefInfo, GitError> {
-        unimplemented!()
-    }
-
-    async fn get_tree_commit_info(&self, _path: PathBuf) -> Result<TreeCommitInfo, GitError> {
-        unimplemented!()
-    }
-}
-
-impl ImportApiService {
-    /// Searches for a tree and affected parent by path.
-    ///
-    /// This function asynchronously searches for a tree by the provided path.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - A reference to the path to search.
-    ///
-    /// # Returns
-    ///
-    /// Returns a tuple containing a vector of parent trees to be updated and
-    /// the target tree if found, or an error of type `GitError`.
-    async fn search_tree_by_path(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
-        let refs = self.storage.get_default_ref(&self.repo).await.unwrap().unwrap();
-
-        let root_commit = self.storage.get_commit_by_hash(&self.repo, &refs.ref_hash).await.unwrap().unwrap();
-        let root_tree: Tree = self
-            .storage
+        storage
             .get_tree_by_hash(&self.repo, &root_commit.tree)
             .await
             .unwrap()
             .unwrap()
-            .into();
-        let mut search_tree = root_tree.clone();
-        let mut update_tree = vec![root_tree];
-
-        let component_num = path.components().count();
-
-        for (index, component) in path.components().enumerate() {
-            // root tree already found
-            if component != Component::RootDir {
-                let target_name = component.as_os_str().to_str().unwrap();
-                let search_res = search_tree
-                    .tree_items
-                    .iter()
-                    .find(|x| x.name == target_name);
-
-                if let Some(search_res) = search_res {
-                    let hash = search_res.id.to_plain_str();
-                    let res: Tree = self
-                        .storage
-                        .get_tree_by_hash(&self.repo, &hash)
-                        .await
-                        .unwrap()
-                        .unwrap()
-                        .into();
-                    search_tree = res.clone();
-                    if index != component_num - 1 {
-                        update_tree.push(res);
-                    }
-                } else {
-                    return Err(GitError::ConversionError(
-                        "can't find target parent tree under latest commit".to_string(),
-                    ));
-                }
-            }
-        }
-        Ok((update_tree, search_tree))
+            .into()
     }
 
+    async fn get_tree_by_hash(&self, hash: &str) -> Tree {
+        self.context
+            .services
+            .git_db_storage
+            .get_tree_by_hash(&self.repo, hash)
+            .await
+            .unwrap()
+            .unwrap()
+            .into()
+    }
+
+    async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
+        let storage = self.context.services.git_db_storage.clone();
+        let tree_info = storage
+            .get_tree_by_hash(&self.repo, t_hash)
+            .await
+            .unwrap()
+            .unwrap();
+        storage
+            .get_commit_by_hash(&self.repo, &tree_info.commit_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into()
+    }
+
+    async fn add_trees_to_map(
+        &self,
+        item_to_commit: &mut HashMap<String, String>,
+        hashes: Vec<String>,
+    ) {
+        let storage = self.context.services.git_db_storage.clone();
+        let trees = storage
+            .get_trees_by_hashes(&self.repo, hashes)
+            .await
+            .unwrap();
+        for tree in trees {
+            item_to_commit.insert(tree.tree_id, tree.commit_id);
+        }
+    }
+
+    async fn add_blobs_to_map(
+        &self,
+        item_to_commit: &mut HashMap<String, String>,
+        hashes: Vec<String>,
+    ) {
+        let storage = self.context.services.git_db_storage.clone();
+        let blobs = storage
+            .get_blobs_by_hashes(&self.repo, hashes)
+            .await
+            .unwrap();
+        for blob in blobs {
+            item_to_commit.insert(blob.blob_id, blob.commit_id);
+        }
+    }
+
+    async fn get_commits_by_hashes(
+        &self,
+        c_hashes: Vec<String>,
+    ) -> Result<HashMap<String, Commit>, GitError> {
+        let storage = self.context.services.git_db_storage.clone();
+        let commits = storage
+            .get_commits_by_hashes(&self.repo, &c_hashes)
+            .await
+            .unwrap();
+        Ok(commits
+            .into_iter()
+            .map(|x| (x.commit_id.clone(), x.into()))
+            .collect())
+    }
+}
+
+impl ImportApiService {
     // pub async fn get_blob_objects(
     //     &self,
     //     object_id: &str,
@@ -139,118 +163,6 @@ impl ImportApiService {
     //     };
 
     //     let data = BlobObjects { row_data };
-    //     Ok(Json(data))
-    // }
-
-    // pub async fn get_directories(
-    //     &self,
-    //     query: DirectoryQuery,
-    // ) -> Result<Json<Directories>, (StatusCode, String)> {
-    //     let DirectoryQuery {
-    //         object_id,
-    //         repo_path,
-    //     } = query;
-    //     if let Some(obj_id) = object_id {
-    //         self.get_tree_objects(&obj_id, &repo_path).await
-    //     } else {
-    //         let directory = self
-    //             .storage
-    //             .get_directory_by_full_path(&repo_path)
-    //             .await
-    //             .unwrap();
-    //         match directory {
-    //             Some(dir) => {
-    //                 if dir.is_repo {
-    //                     // find commit by path
-    //                     let commit_id = match self.storage.search_refs(&repo_path).await {
-    //                         Ok(refs) if !refs.is_empty() => refs[0].ref_git_id.clone(),
-    //                         _ => {
-    //                             return Err((
-    //                                 StatusCode::NOT_FOUND,
-    //                                 "repo_path might not valid".to_string(),
-    //                             ))
-    //                         }
-    //                     };
-    //                     // find tree by commit
-    //                     let tree_id = match self
-    //                         .storage
-    //                         .get_commit_by_hash(&commit_id, &repo_path)
-    //                         .await
-    //                     {
-    //                         Ok(Some(commit)) => commit.tree,
-    //                         _ => return Err((StatusCode::NOT_FOUND, "Tree not found".to_string())),
-    //                     };
-    //                     self.get_tree_objects(&tree_id, &repo_path).await
-    //                 } else {
-    //                     let dirs = self.storage.get_directory_by_pid(dir.id).await.unwrap();
-    //                     let items = dirs.into_iter().map(|x| x.into()).collect();
-    //                     let data = Directories { items };
-    //                     Ok(Json(data))
-    //                 }
-    //             }
-    //             None => Err((
-    //                 StatusCode::NOT_FOUND,
-    //                 "repo_path might not valid".to_string(),
-    //             )),
-    //         }
-    //     }
-    // }
-
-    // pub async fn get_tree_objects(
-    //     &self,
-    //     object_id: &str,
-    //     repo_path: &str,
-    // ) -> Result<Json<Directories>, (StatusCode, String)> {
-    //     let tree_data = match self.storage.get_obj_data_by_id(object_id).await {
-    //         Ok(Some(node)) => {
-    //             if node.object_type == "tree" {
-    //                 node.data
-    //             } else {
-    //                 return Err((StatusCode::NOT_FOUND, "Tree not found".to_string()));
-    //             }
-    //         }
-    //         _ => return Err((StatusCode::NOT_FOUND, "Tree not found".to_string())),
-    //     };
-
-    //     let tree = Tree::new_from_data(tree_data);
-    //     let child_ids = tree
-    //         .tree_items
-    //         .iter()
-    //         .map(|tree_item| tree_item.id.to_plain_str())
-    //         .collect();
-
-    //     let child_nodes = self
-    //         .storage
-    //         .get_nodes_by_hashes(child_ids, repo_path)
-    //         .await
-    //         .unwrap();
-
-    //     let mut items: Vec<Item> = child_nodes
-    //         .iter()
-    //         .map(|node| Item::from(node.clone()))
-    //         .collect();
-    //     let related_commit_ids = child_nodes.into_iter().map(|x| x.last_commit).collect();
-    //     let related_c = self
-    //         .storage
-    //         .get_commit_by_hashes(related_commit_ids, repo_path)
-    //         .await
-    //         .unwrap();
-    //     let mut related_c_map: HashMap<String, Commit> = HashMap::new();
-    //     for c in related_c {
-    //         related_c_map.insert(c.git_id.clone(), c.into());
-    //     }
-
-    //     for item in &mut items {
-    //         let related_c_id = item.commit_id.clone().unwrap();
-    //         let commit = related_c_map.get(&related_c_id).unwrap();
-    //         item.commit_msg = Some(utils::remove_useless_str(
-    //             commit.message.clone(),
-    //             SIGNATURE_END.to_owned(),
-    //         ));
-    //         item.commit_date = Some(commit.committer.timestamp.to_string());
-    //     }
-
-    //     let data = Directories { items };
     //     Ok(Json(data))
     // }
 
