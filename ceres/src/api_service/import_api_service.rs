@@ -14,13 +14,13 @@ use crate::model::objects::{BlobObjects, LatestCommitInfo, TreeBriefInfo, TreeCo
 
 
 #[derive(Clone)]
-pub struct ImportRepoService {
+pub struct ImportApiService {
     pub storage: Arc<GitDbStorage>,
     pub repo: Repo,
 }
 
 #[async_trait]
-impl ApiHandler for ImportRepoService {
+impl ApiHandler for ImportApiService {
     async fn get_blob_as_string(&self, _path: PathBuf, _filename: &str) -> Result<BlobObjects, GitError> {
         unimplemented!()
     }
@@ -52,7 +52,7 @@ impl ApiHandler for ImportRepoService {
     }
 }
 
-impl ImportRepoService {
+impl ImportApiService {
     /// Searches for a tree and affected parent by path.
     ///
     /// This function asynchronously searches for a tree by the provided path.
