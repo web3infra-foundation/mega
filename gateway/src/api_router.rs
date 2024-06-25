@@ -33,7 +33,7 @@ pub struct ApiServiceState {
 impl ApiServiceState {
     pub fn monorepo(&self) -> MonoApiService {
         MonoApiService {
-            storage: self.context.services.mega_storage.clone(),
+            context: self.context.clone(),
         }
     }
 
@@ -50,13 +50,13 @@ impl ApiServiceState {
             {
                 let repo: Repo = model.into();
                 return Box::new(ImportApiService {
-                    storage: self.context.services.git_db_storage.clone(),
+                    context: self.context.clone(),
                     repo,
                 });
             }
         }
         Box::new(MonoApiService {
-            storage: self.context.services.mega_storage.clone(),
+            context: self.context.clone(),
         })
     }
 }
@@ -122,7 +122,11 @@ async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult>, (StatusCode, String)> {
-    let res = state.monorepo().create_monorepo_file(json.clone()).await;
+    let res = state
+        .api_handler(json.path.clone().into())
+        .await
+        .create_monorepo_file(json.clone())
+        .await;
     let res = if res.is_err() {
         CommonResult::failed(&res.err().unwrap().to_string())
     } else {
