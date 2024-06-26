@@ -11,7 +11,7 @@ use mercury::{
     errors::GitError,
     internal::object::{
         commit::Commit,
-        tree::{Tree, TreeItemMode},
+        tree::{Tree, TreeItem, TreeItemMode},
     },
 };
 
@@ -36,6 +36,8 @@ pub trait ApiHandler: Send + Sync {
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError>;
 
+    async fn get_root_commit(&self) -> Commit;
+
     async fn get_root_tree(&self) -> Tree;
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree;
@@ -54,10 +56,14 @@ pub trait ApiHandler: Send + Sync {
         hashes: Vec<String>,
     );
 
-    async fn get_commits_by_hashes(
+    async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError>;
+
+    async fn traverse_commit_history(
         &self,
-        c_hashes: Vec<String>,
-    ) -> Result<HashMap<String, Commit>, GitError>;
+        path: &Path,
+        commit: Commit,
+        target: TreeItem,
+    ) -> Commit;
 
     async fn get_blob_as_string(
         &self,
@@ -132,25 +138,30 @@ pub trait ApiHandler: Send + Sync {
 
                 let mut items = Vec::new();
                 let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
-                let commit_map = self
+                let commits = self
                     .get_commits_by_hashes(commit_ids.into_iter().collect())
                     .await
                     .unwrap();
+                let commit_map: HashMap<String, Commit> = commits
+                    .into_iter()
+                    .map(|x| (x.id.to_plain_str(), x))
+                    .collect();
 
                 for item in tree.tree_items {
                     let mut info: TreeCommitItem = item.clone().into();
                     if let Some(commit_id) = item_to_commit.get(&item.id.to_plain_str()) {
-                        if let Some(commit) = commit_map.get(commit_id) {
-                            // let commit: Commit = model.clone().into();
-                            info.oid = commit.id.to_plain_str();
-                            info.message = self.remove_useless_str(
-                                commit.message.clone(),
-                                SIGNATURE_END.to_owned(),
-                            );
-                            info.date = commit.committer.timestamp.to_string();
+                        let commit = if let Some(commit) = commit_map.get(commit_id) {
+                            commit
                         } else {
-                            tracing::error!("failed fecth commit: {}", commit_id)
-                        }
+                            tracing::error!("failed fecth commit: {}", commit_id);
+                            &self
+                                .traverse_commit_history(&path, self.get_root_commit().await, item)
+                                .await
+                        };
+                        info.oid = commit.id.to_plain_str();
+                        info.message = self
+                            .remove_useless_str(commit.message.clone(), SIGNATURE_END.to_owned());
+                        info.date = commit.committer.timestamp.to_string();
                     }
                     items.push(info);
                 }
@@ -227,8 +238,7 @@ pub trait ApiHandler: Send + Sync {
                     .find(|x| x.name == target_name);
 
                 if let Some(search_res) = search_res {
-                    let hash = search_res.id.to_plain_str();
-                    let res = self.get_tree_by_hash(&hash).await;
+                    let res = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
                     search_tree = res.clone();
                     // skip last component
                     if index != component_num - 1 {
@@ -242,5 +252,36 @@ pub trait ApiHandler: Send + Sync {
             }
         }
         Ok((update_tree, search_tree))
+    }
+
+    async fn reachable_in_tree(
+        &self,
+        root_tree: &Tree,
+        path: &Path,
+        target: TreeItem,
+    ) -> Result<bool, GitError> {
+        let relative_path = self.strip_relative(path).unwrap();
+        let mut search_tree = root_tree.clone();
+        // first find search tree by path
+        for component in relative_path.components() {
+            // root tree already found
+            if component != Component::RootDir {
+                let target_name = component.as_os_str().to_str().unwrap();
+                let search_res = search_tree
+                    .tree_items
+                    .iter()
+                    .find(|x| x.name == target_name);
+                if let Some(search_res) = search_res {
+                    search_tree = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
+                } else {
+                    return Ok(false);
+                }
+            }
+        }
+        // check item exist under search tree
+        if search_tree.tree_items.into_iter().any(|x| x == target) {
+            return Ok(true);
+        }
+        Ok(false)
     }
 }
