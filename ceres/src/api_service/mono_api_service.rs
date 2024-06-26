@@ -112,6 +112,10 @@ impl ApiHandler for MonoApiService {
         Ok(path.to_path_buf())
     }
 
+    async fn get_root_commit(&self) -> Commit {
+        unreachable!()
+    }
+
     async fn get_root_tree(&self) -> Tree {
         let storage = self.context.services.mega_storage.clone();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
@@ -170,16 +174,19 @@ impl ApiHandler for MonoApiService {
         }
     }
 
-    async fn get_commits_by_hashes(
-        &self,
-        c_hashes: Vec<String>,
-    ) -> Result<HashMap<String, Commit>, GitError> {
+    async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
         let storage = self.context.services.mega_storage.clone();
         let commits = storage.get_commits_by_hashes(&c_hashes).await.unwrap();
-        Ok(commits
-            .into_iter()
-            .map(|x| (x.commit_id.clone(), x.into()))
-            .collect())
+        Ok(commits.into_iter().map(|x| x.into()).collect())
+    }
+
+    async fn traverse_commit_history(
+        &self,
+        _: &Path,
+        _: Commit,
+        _: TreeItem,
+    ) -> Commit {
+        unreachable!()
     }
 }
 
