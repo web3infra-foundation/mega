@@ -145,44 +145,38 @@ impl ApiHandler for ImportApiService {
     async fn traverse_commit_history(
         &self,
         path: &Path,
-        mut start_commit: Commit,
+        start_commit: Commit,
         target: TreeItem,
     ) -> Commit {
-        let mut target_commit = None;
-        let mut history = HashSet::new();
+        let mut target_commit = start_commit.clone();
+        let mut visited = HashSet::new();
         let mut p_stack = VecDeque::new();
-        loop {
-            let root_tree = self
-                .get_tree_by_hash(&start_commit.tree_id.to_plain_str())
-                .await;
+
+        visited.insert(start_commit.id);
+        p_stack.push_back(start_commit);
+
+        while let Some(commit) = p_stack.pop_front() {
+            let root_tree = self.get_tree_by_hash(&commit.tree_id.to_plain_str()).await;
             let reachable = self
                 .reachable_in_tree(&root_tree, path, target.clone())
                 .await
                 .unwrap();
-
             if reachable {
                 let mut p_ids = vec![];
-                for p_id in start_commit.parent_commit_ids.clone() {
-                    if !history.contains(&p_id) {
+                for p_id in commit.parent_commit_ids.clone() {
+                    if !visited.contains(&p_id) {
                         p_ids.push(p_id.to_plain_str());
-                        history.insert(p_id);
+                        visited.insert(p_id);
                     }
                 }
-                println!("p_ids:{:?}", p_ids);
+                if target_commit.committer.timestamp > commit.committer.timestamp {
+                    target_commit = commit;
+                }
                 let parent_commits = self.get_commits_by_hashes(p_ids).await.unwrap();
                 p_stack.extend(parent_commits);
             }
-            println!("{}", p_stack.len());
-            if let Some(next_commit) = p_stack.pop_front() {
-                if reachable {
-                    target_commit = Some(start_commit);
-                }
-                start_commit = next_commit;
-            } else {
-                break;
-            }
         }
-        target_commit.unwrap()
+        target_commit
     }
 }
 
