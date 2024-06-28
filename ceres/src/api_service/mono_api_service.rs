@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use axum::async_trait;
 
-use callisto::db_enums::ConvType;
+use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::context::Context;
@@ -19,6 +19,7 @@ use venus::monorepo::mr::MergeOperation;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
+use crate::model::objects::{CommonResult, MrInfoItem};
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -180,12 +181,7 @@ impl ApiHandler for MonoApiService {
         Ok(commits.into_iter().map(|x| x.into()).collect())
     }
 
-    async fn traverse_commit_history(
-        &self,
-        _: &Path,
-        _: Commit,
-        _: TreeItem,
-    ) -> Commit {
+    async fn traverse_commit_history(&self, _: &Path, _: Commit, _: TreeItem) -> Commit {
         unreachable!()
     }
 }
@@ -193,6 +189,24 @@ impl ApiHandler for MonoApiService {
 impl MonoApiService {
     pub async fn init_monorepo(&self) {
         self.context.services.mega_storage.init_monorepo().await
+    }
+
+    pub async fn mr_list(&self, status: &str) -> Result<CommonResult<Vec<MrInfoItem>>, MegaError> {
+        let status = if status == "open" {
+            vec![MergeStatus::Open]
+        } else if status == "closed" {
+            vec![MergeStatus::Closed, MergeStatus::Merged]
+        } else {
+            return Err(MegaError::with_message("Invalid status name"));
+        };
+        let storage = self.context.services.mega_storage.clone();
+        let mr_list = storage.get_mr_by_status(status).await.unwrap();
+        let res = CommonResult {
+            data: Some(mr_list.into_iter().map(|m| m.into()).collect()),
+            result: true,
+            err_message: String::new(),
+        };
+        Ok(res)
     }
 
     pub async fn merge_mr(&self, op: MergeOperation) -> Result<(), MegaError> {

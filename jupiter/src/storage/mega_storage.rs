@@ -121,6 +121,18 @@ impl MegaStorage {
         Ok(None)
     }
 
+    pub async fn get_mr_by_status(
+        &self,
+        status: Vec<MergeStatus>,
+    ) -> Result<Vec<mega_mr::Model>, MegaError> {
+        let model = mega_mr::Entity::find()
+            .filter(mega_mr::Column::Status.is_in(status))
+            .all(self.get_connection())
+            .await
+            .unwrap();
+        Ok(model)
+    }
+
     pub async fn get_open_mr_by_id(&self, mr_id: i64) -> Result<Option<MergeRequest>, MegaError> {
         let model = mega_mr::Entity::find_by_id(mr_id)
             .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
