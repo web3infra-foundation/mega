@@ -26,8 +26,6 @@ use crate::model::{
 pub mod import_api_service;
 pub mod mono_api_service;
 
-const SIGNATURE_END: &str = "-----END PGP SIGNATURE-----";
-
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
@@ -159,8 +157,7 @@ pub trait ApiHandler: Send + Sync {
                                 .await
                         };
                         info.oid = commit.id.to_plain_str();
-                        info.message = self
-                            .remove_useless_str(commit.message.clone(), SIGNATURE_END.to_owned());
+                        info.message = commit.format_message();
                         info.date = commit.committer.timestamp.to_string();
                     }
                     items.push(info);
@@ -178,7 +175,7 @@ pub trait ApiHandler: Send + Sync {
     }
 
     fn convert_commit_to_info(&self, commit: Commit) -> Result<LatestCommitInfo, GitError> {
-        let message = self.remove_useless_str(commit.message.clone(), SIGNATURE_END.to_owned());
+        let message = commit.format_message();
         let committer = UserInfo {
             display_name: commit.committer.name,
             ..Default::default()
@@ -197,16 +194,6 @@ pub trait ApiHandler: Send + Sync {
             status: "success".to_string(),
         };
         Ok(res)
-    }
-
-    fn remove_useless_str(&self, content: String, remove_str: String) -> String {
-        if let Some(index) = content.find(&remove_str) {
-            let filtered_text = &content[index + remove_str.len()..].replace('\n', "");
-            let truncated_text = filtered_text.chars().take(50).collect::<String>();
-            truncated_text.to_owned()
-        } else {
-            content
-        }
     }
 
     /// Searches for a tree and affected parent by path.
