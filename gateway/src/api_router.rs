@@ -17,9 +17,7 @@ use ceres::{
     },
     model::{
         create_file::CreateFileInfo,
-        objects::{
-            BlobObjects, CommonResult, LatestCommitInfo, MrInfoItem, TreeBriefInfo, TreeCommitInfo,
-        },
+        objects::{CommonResult, LatestCommitInfo, MrInfoItem, TreeBriefItem, TreeCommitItem},
         query::{BlobContentQuery, CodePreviewQuery},
     },
 };
@@ -80,13 +78,17 @@ pub fn routers() -> Router<ApiServiceState> {
 async fn get_blob_object(
     Query(query): Query<BlobContentQuery>,
     state: State<ApiServiceState>,
-) -> Result<Json<BlobObjects>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let res = state
         .api_handler(query.path.clone().into())
         .await
-        .get_blob_as_string(query.path.into(), &query.name)
-        .await
-        .unwrap();
+        .get_blob_as_string(query.path.into())
+        .await;
+
+    let res = match res {
+        Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
     Ok(Json(res))
 }
 
@@ -162,26 +164,32 @@ async fn get_latest_commit(
 async fn get_tree_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
-) -> Result<Json<TreeBriefInfo>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<Vec<TreeBriefItem>>>, (StatusCode, String)> {
     let res = state
         .api_handler(query.path.clone().into())
         .await
         .get_tree_info(query.path.into())
-        .await
-        .unwrap();
+        .await;
+    let res = match res {
+        Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
     Ok(Json(res))
 }
 
 async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
-) -> Result<Json<TreeCommitInfo>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, (StatusCode, String)> {
     let res = state
         .api_handler(query.path.clone().into())
         .await
         .get_tree_commit_info(query.path.into())
-        .await
-        .unwrap();
+        .await;
+    let res = match res {
+        Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
     Ok(Json(res))
 }
 
@@ -192,7 +200,7 @@ async fn get_mr_list(
     let status = query.get("status").unwrap();
     let res = state.monorepo().mr_list(status).await;
     let res = match res {
-        Ok(res) => res,
+        Ok(data) => CommonResult::success(Some(data)),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))
