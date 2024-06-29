@@ -7,7 +7,7 @@ mod tests {
 
     #[test]
     fn test_cli() {
-        let args = vec!["mega", "service", "http"];
+        let args = "service http".split(' ').collect();
         cli::parse(Some(args)).expect("Failed to start http service");
     }
 }
