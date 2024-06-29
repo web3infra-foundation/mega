@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
     extract::{Query, State},
@@ -9,23 +9,20 @@ use axum::{
 };
 
 use jupiter::context::Context;
-use venus::{
-    import_repo::repo::Repo,
-    monorepo::mr::{CommonResult, MergeOperation},
-};
+use venus::{import_repo::repo::Repo, monorepo::mr::MergeOperation};
 
-use crate::{
-    api_service::import_service::ImportRepoService,
+use ceres::{
+    api_service::{
+        import_api_service::ImportApiService, mono_api_service::MonoApiService, ApiHandler,
+    },
     model::{
         create_file::CreateFileInfo,
+        objects::{
+            BlobObjects, CommonResult, LatestCommitInfo, MrInfoItem, TreeBriefInfo, TreeCommitInfo,
+        },
         query::{BlobContentQuery, CodePreviewQuery},
     },
 };
-use crate::{
-    api_service::mono_service::MonorepoService,
-    model::objects::{BlobObjects, LatestCommitInfo, TreeCommitInfo},
-};
-use crate::{api_service::ApiHandler, model::objects::TreeBriefInfo};
 
 #[derive(Clone)]
 pub struct ApiServiceState {
@@ -33,9 +30,9 @@ pub struct ApiServiceState {
 }
 
 impl ApiServiceState {
-    pub fn monorepo(&self) -> MonorepoService {
-        MonorepoService {
-            storage: self.context.services.mega_storage.clone(),
+    pub fn monorepo(&self) -> MonoApiService {
+        MonoApiService {
+            context: self.context.clone(),
         }
     }
 
@@ -51,14 +48,14 @@ impl ApiServiceState {
                 .unwrap()
             {
                 let repo: Repo = model.into();
-                return Box::new(ImportRepoService {
-                    storage: self.context.services.git_db_storage.clone(),
+                return Box::new(ImportApiService {
+                    context: self.context.clone(),
                     repo,
                 });
             }
         }
-        Box::new(MonorepoService {
-            storage: self.context.services.mega_storage.clone(),
+        Box::new(MonoApiService {
+            context: self.context.clone(),
         })
     }
 }
@@ -74,7 +71,8 @@ pub fn routers() -> Router<ApiServiceState> {
     let preview_code = Router::new()
         .route("/latest-commit", get(get_latest_commit))
         .route("/tree-commit-info", get(get_tree_commit_info))
-        .route("/tree", get(get_tree_info));
+        .route("/tree", get(get_tree_info))
+        .route("/mr-list", get(get_mr_list));
 
     Router::new().merge(router_v1).merge(preview_code)
 }
@@ -123,15 +121,15 @@ async fn init(state: State<ApiServiceState>) {
 async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
-) -> Result<Json<CommonResult>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let res = state
-        .monorepo()
+        .api_handler(json.path.clone().into())
+        .await
         .create_monorepo_file(json.clone())
         .await;
-    let res = if res.is_err() {
-        CommonResult::failed(&res.err().unwrap().to_string())
-    } else {
-        CommonResult::succrss()
+    let res = match res {
+        Ok(_) => CommonResult::success(None),
+        Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))
 }
@@ -139,12 +137,11 @@ async fn create_file(
 async fn merge(
     state: State<ApiServiceState>,
     Json(json): Json<MergeOperation>,
-) -> Result<Json<CommonResult>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let res = state.monorepo().merge_mr(json.clone()).await;
-    let res = if res.is_err() {
-        CommonResult::failed(&res.err().unwrap().to_string())
-    } else {
-        CommonResult::succrss()
+    let res = match res {
+        Ok(_) => CommonResult::success(None),
+        Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))
 }
@@ -185,5 +182,18 @@ async fn get_tree_commit_info(
         .get_tree_commit_info(query.path.into())
         .await
         .unwrap();
+    Ok(Json(res))
+}
+
+async fn get_mr_list(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<ApiServiceState>,
+) -> Result<Json<CommonResult<Vec<MrInfoItem>>>, (StatusCode, String)> {
+    let status = query.get("status").unwrap();
+    let res = state.monorepo().mr_list(status).await;
+    let res = match res {
+        Ok(res) => res,
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
     Ok(Json(res))
 }

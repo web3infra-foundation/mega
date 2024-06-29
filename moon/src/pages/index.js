@@ -11,6 +11,7 @@ import Markdown from 'react-markdown';
 import Bottombar from '../components/Bottombar';
 import TopNavbar from '../components/TopNavbar';
 import '../styles/index.css';
+import { formatDistance, fromUnixTime } from 'date-fns'
 
 const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeData }) => {
 
@@ -311,7 +312,9 @@ const HomePage = ({ rootDirectory, directory, readmeContent, fileContent, TreeDa
                                             </td>
                                         )}
                                         <td className="projectCommitMsg ">{project.message}</td>
-                                        <td className="projectCommitMsg">{project.date}</td>
+                                        <td className="projectCommitMsg">
+                                            {formatDistance(fromUnixTime(project.date), new Date(), { addSuffix: true })}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

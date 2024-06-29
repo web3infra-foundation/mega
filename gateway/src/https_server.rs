@@ -28,9 +28,9 @@ use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
-use crate::api_service::router::ApiServiceState;
+use crate::api_router::{self, ApiServiceState};
+use crate::lfs;
 use crate::relay_server::run_relay_server;
-use crate::{api_service, lfs};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -137,10 +137,7 @@ pub async fn app(config: Config, host: String, port: u16) -> Router {
     // add TraceLayer for log record
     // add CorsLayer to add cors header
     Router::new()
-        .nest(
-            "/api/v1",
-            api_service::router::routers().with_state(api_state),
-        )
+        .nest("/api/v1", api_router::routers().with_state(api_state))
         .route(
             "/*path",
             get(get_method_router)

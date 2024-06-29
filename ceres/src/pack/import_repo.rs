@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     str::FromStr,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -28,7 +29,11 @@ use venus::import_repo::{
     repo::Repo,
 };
 
-use crate::pack::handler::PackHandler;
+use crate::{
+    api_service::{mono_api_service::MonoApiService, ApiHandler},
+    model::create_file::CreateFileInfo,
+    pack::handler::PackHandler,
+};
 
 pub struct ImportRepo {
     pub context: Context,
@@ -50,6 +55,7 @@ impl PackHandler for ImportRepo {
     }
 
     async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
+        self.create_tree_not_exist().await;
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
@@ -309,5 +315,23 @@ impl PackHandler for ImportRepo {
     async fn check_default_branch(&self) -> bool {
         let storage = self.context.services.git_db_storage.clone();
         storage.default_branch_exist(&self.repo).await.unwrap()
+    }
+}
+
+impl ImportRepo {
+    async fn create_tree_not_exist(&self) {
+        let path = PathBuf::from(self.repo.repo_path.clone());
+        let f_name = path.file_name().unwrap().to_str().unwrap();
+        let api_service = MonoApiService {
+            context: self.context.clone(),
+        };
+        let req = CreateFileInfo {
+            is_directory: true,
+            name: f_name.to_owned(),
+            path: path.parent().unwrap().to_str().unwrap().to_owned(),
+            content: None,
+        };
+
+        if (api_service.create_monorepo_file(req).await).is_ok() {}
     }
 }
