@@ -19,7 +19,7 @@ use venus::monorepo::mr::MergeOperation;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
-use crate::model::objects::{CommonResult, MrInfoItem};
+use crate::model::objects::MrInfoItem;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -191,7 +191,7 @@ impl MonoApiService {
         self.context.services.mega_storage.init_monorepo().await
     }
 
-    pub async fn mr_list(&self, status: &str) -> Result<CommonResult<Vec<MrInfoItem>>, MegaError> {
+    pub async fn mr_list(&self, status: &str) -> Result<Vec<MrInfoItem>, MegaError> {
         let status = if status == "open" {
             vec![MergeStatus::Open]
         } else if status == "closed" {
@@ -201,12 +201,7 @@ impl MonoApiService {
         };
         let storage = self.context.services.mega_storage.clone();
         let mr_list = storage.get_mr_by_status(status).await.unwrap();
-        let res = CommonResult {
-            data: Some(mr_list.into_iter().map(|m| m.into()).collect()),
-            result: true,
-            err_message: String::new(),
-        };
-        Ok(res)
+        Ok(mr_list.into_iter().map(|m| m.into()).collect())
     }
 
     pub async fn merge_mr(&self, op: MergeOperation) -> Result<(), MegaError> {

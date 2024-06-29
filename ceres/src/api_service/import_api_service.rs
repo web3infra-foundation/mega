@@ -44,7 +44,7 @@ impl ApiHandler for ImportApiService {
         if let Ok(relative_path) = path.strip_prefix(self.repo.repo_path.clone()) {
             Ok(relative_path.to_path_buf())
         } else {
-            Err(GitError::ConversionError(
+            Err(GitError::CustomError(
                 "The full path does not start with the base path.".to_string(),
             ))
         }

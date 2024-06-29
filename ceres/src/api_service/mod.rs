@@ -17,10 +17,7 @@ use mercury::{
 
 use crate::model::{
     create_file::CreateFileInfo,
-    objects::{
-        BlobObjects, LatestCommitInfo, TreeBriefInfo, TreeBriefItem, TreeCommitInfo,
-        TreeCommitItem, UserInfo,
-    },
+    objects::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo},
 };
 
 pub mod import_api_service;
@@ -63,20 +60,18 @@ pub trait ApiHandler: Send + Sync {
         target: TreeItem,
     ) -> Commit;
 
-    async fn get_blob_as_string(
-        &self,
-        path: PathBuf,
-        filename: &str,
-    ) -> Result<BlobObjects, GitError> {
-        let (_, tree) = self.search_tree_by_path(&path).await.unwrap();
+    async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<String, GitError> {
+        let filename = file_path.file_name().unwrap().to_str().unwrap();
+        let path = file_path.parent().unwrap();
         let mut plain_text = String::new();
+        let (_, tree) = self.search_tree_by_path(path).await?;
         if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
             plain_text = match self.get_raw_blob_by_hash(&item.id.to_plain_str()).await {
                 Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
                 _ => String::new(),
             };
         }
-        Ok(BlobObjects { plain_text })
+        Ok(plain_text)
     }
 
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError> {
@@ -85,7 +80,7 @@ pub trait ApiHandler: Send + Sync {
         self.convert_commit_to_info(commit)
     }
 
-    async fn get_tree_info(&self, path: PathBuf) -> Result<TreeBriefInfo, GitError> {
+    async fn get_tree_info(&self, path: PathBuf) -> Result<Vec<TreeBriefItem>, GitError> {
         match self.search_tree_by_path(&path).await {
             Ok((_, tree)) => {
                 let mut items = Vec::new();
@@ -97,19 +92,13 @@ pub trait ApiHandler: Send + Sync {
                         .clone_into(&mut info.path);
                     items.push(info);
                 }
-                Ok(TreeBriefInfo {
-                    total_count: items.len(),
-                    items,
-                })
+                Ok(items)
             }
-            Err(_) => Ok(TreeBriefInfo {
-                total_count: 0,
-                items: Vec::new(),
-            }),
+            Err(_) => Ok(Vec::new()),
         }
     }
 
-    async fn get_tree_commit_info(&self, path: PathBuf) -> Result<TreeCommitInfo, GitError> {
+    async fn get_tree_commit_info(&self, path: PathBuf) -> Result<Vec<TreeCommitItem>, GitError> {
         match self.search_tree_by_path(&path).await {
             Ok((_, tree)) => {
                 let mut item_to_commit = HashMap::new();
@@ -162,15 +151,9 @@ pub trait ApiHandler: Send + Sync {
                     }
                     items.push(info);
                 }
-                Ok(TreeCommitInfo {
-                    total_count: items.len(),
-                    items,
-                })
+                Ok(items)
             }
-            Err(_) => Ok(TreeCommitInfo {
-                total_count: 0,
-                items: Vec::new(),
-            }),
+            Err(_) => Ok(Vec::new()),
         }
     }
 
@@ -209,7 +192,7 @@ pub trait ApiHandler: Send + Sync {
     /// Returns a tuple containing a vector of parent trees to be updated and
     /// the target tree if found, or an error of type `GitError`.
     async fn search_tree_by_path(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
-        let relative_path = self.strip_relative(path).unwrap();
+        let relative_path = self.strip_relative(path)?;
         let root_tree = self.get_root_tree().await;
         let mut search_tree = root_tree.clone();
         let mut update_tree = vec![root_tree];
@@ -232,7 +215,7 @@ pub trait ApiHandler: Send + Sync {
                         update_tree.push(res);
                     }
                 } else {
-                    return Err(GitError::ConversionError(
+                    return Err(GitError::CustomError(
                         "can't find target parent tree under latest commit".to_string(),
                     ));
                 }
