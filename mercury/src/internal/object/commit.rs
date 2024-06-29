@@ -114,7 +114,13 @@ impl Commit {
                 has_signature = true;
             }
         }
-        self.message.lines().next().unwrap().to_owned()
+        // does not have pgp, find first line has data
+        for line in self.message.lines() {
+            if !line.trim().is_empty() {
+                return line.to_owned();
+            }
+        }
+        self.message.clone()
     }
 }
 
