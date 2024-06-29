@@ -3,9 +3,10 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use futures::Stream;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel,
-    QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait,
+    IntoActiveModel, QueryFilter, QueryTrait, Set,
 };
 use sea_orm::{PaginatorTrait, QueryOrder};
 
@@ -179,10 +180,10 @@ impl GitDbStorage {
         &self,
         repo_path: &str,
     ) -> Result<Option<git_repo::Model>, MegaError> {
-        let result = git_repo::Entity::find()
-            .filter(git_repo::Column::RepoPath.eq(repo_path))
-            .one(self.get_connection())
-            .await?;
+        let query = git_repo::Entity::find()
+            .filter(Expr::cust(format!("'{}' LIKE repo_path || '%'", repo_path)));
+        tracing::debug!("{}", query.build(DbBackend::Postgres).to_string());
+        let result = query.one(self.get_connection()).await?;
         Ok(result)
     }
 
@@ -289,6 +290,19 @@ impl GitDbStorage {
         Ok(git_blob::Entity::find()
             .filter(git_blob::Column::RepoId.eq(repo.repo_id))
             .stream(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_blobs_by_hashes(
+        &self,
+        repo: &Repo,
+        hashes: Vec<String>,
+    ) -> Result<Vec<git_blob::Model>, MegaError> {
+        Ok(git_blob::Entity::find()
+            .filter(git_blob::Column::RepoId.eq(repo.repo_id))
+            .filter(git_blob::Column::BlobId.is_in(hashes))
+            .all(self.get_connection())
             .await
             .unwrap())
     }

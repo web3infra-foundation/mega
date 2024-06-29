@@ -31,6 +31,37 @@ use venus::import_repo::import_refs::{RefCommand, Refs};
 pub trait PackHandler: Send + Sync {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
+    async fn handle_receiver(&self, rx: Receiver<Entry>) -> Result<(), GitError>;
+
+    /// Asynchronously retrieves the full pack data for the specified repository path.
+    /// This function collects commits and nodes from the storage and packs them into
+    /// a single binary vector. There is no need to build the entire tree; the function
+    /// only sends all the data related to this repository.
+    ///
+    /// # Returns
+    /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
+    ///
+    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError>;
+
+    async fn incremental_pack(
+        &self,
+        want: Vec<String>,
+        have: Vec<String>,
+    ) -> Result<ReceiverStream<Vec<u8>>, GitError>;
+
+    async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError>;
+
+    async fn get_blobs_by_hashes(
+        &self,
+        hashes: Vec<String>,
+    ) -> Result<Vec<raw_blob::Model>, MegaError>;
+
+    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
+
+    async fn check_commit_exist(&self, hash: &str) -> bool;
+
+    async fn check_default_branch(&self) -> bool;
+
     fn find_head_hash(&self, refs: Vec<Refs>) -> (String, Vec<Refs>) {
         let mut head_hash = ZERO_ID.to_string();
         for git_ref in refs.iter() {
@@ -58,24 +89,6 @@ pub trait PackHandler: Send + Sync {
         });
         Ok(receiver)
     }
-
-    async fn handle_receiver(&self, rx: Receiver<Entry>) -> Result<(), GitError>;
-
-    /// Asynchronously retrieves the full pack data for the specified repository path.
-    /// This function collects commits and nodes from the storage and packs them into
-    /// a single binary vector. There is no need to build the entire tree; the function
-    /// only sends all the data related to this repository.
-    ///
-    /// # Returns
-    /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
-    ///
-    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError>;
-
-    async fn incremental_pack(
-        &self,
-        want: Vec<String>,
-        have: Vec<String>,
-    ) -> Result<ReceiverStream<Vec<u8>>, GitError>;
 
     async fn traverse_for_count(
         &self,
@@ -160,17 +173,4 @@ pub trait PackHandler: Send + Sync {
             sender.send(tree.into()).await.unwrap();
         }
     }
-
-    async fn get_trees_by_hashes(&self, hashes: Vec<String>) -> Result<Vec<Tree>, MegaError>;
-
-    async fn get_blobs_by_hashes(
-        &self,
-        hashes: Vec<String>,
-    ) -> Result<Vec<raw_blob::Model>, MegaError>;
-
-    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
-
-    async fn check_commit_exist(&self, hash: &str) -> bool;
-
-    async fn check_default_branch(&self) -> bool;
 }
