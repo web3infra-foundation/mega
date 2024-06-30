@@ -12,6 +12,7 @@ pub struct Config {
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
     pub ztm: ZTMConfig,
+    pub lfs: LFSConfig,
 }
 
 impl Config {
@@ -149,6 +150,21 @@ impl Default for ZTMConfig {
             ca: String::from("127.0.0.1:9999"),
             hub: String::from("127.0.0.1:8888"),
             agent: String::from("127.0.0.1:7777"),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LFSConfig {
+    pub enable_split: bool,
+    pub split_size: usize,
+}
+
+impl Default for LFSConfig {
+    fn default() -> Self {
+        Self {
+            enable_split: false,
+            split_size: 1024*1024*20, // 20MB
         }
     }
 }
