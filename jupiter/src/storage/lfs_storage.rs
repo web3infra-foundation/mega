@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use callisto::{lfs_locks, lfs_objects};
-use sea_orm::{DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel};
+use callisto::{lfs_locks, lfs_objects, lfs_split_relation};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter,
+};
 
 use common::errors::MegaError;
 
@@ -35,6 +37,18 @@ impl LfsStorage {
             .unwrap())
     }
 
+    pub async fn new_lfs_relation(
+        &self,
+        relation: lfs_split_relation::Model,
+    ) -> Result<InsertResult<lfs_split_relation::ActiveModel>, MegaError> {
+        Ok(
+            lfs_split_relation::Entity::insert(relation.into_active_model())
+                .exec(self.get_connection())
+                .await
+                .unwrap(),
+        )
+    }
+
     pub async fn get_lfs_object(
         &self,
         oid: String,
@@ -43,6 +57,27 @@ impl LfsStorage {
             .one(self.get_connection())
             .await
             .unwrap();
+        Ok(result)
+    }
+
+    pub async fn get_lfs_relations(
+        &self,
+        oid: String,
+    ) -> Result<Vec<lfs_split_relation::Model>, MegaError> {
+        let obj = self.get_lfs_object(oid.clone()).await?;
+        if obj.is_none() {
+            return Err(MegaError::with_message("Object not found"));
+        }
+        let result = lfs_split_relation::Entity::find()
+            .filter(lfs_split_relation::Column::OriOid.eq(oid))
+            .all(self.get_connection())
+            .await
+            .unwrap();
+        if result.is_empty() {
+            return Err(MegaError::with_message(
+                "Object relation not found, maybe have not been uploaded yet",
+            ));
+        }
         Ok(result)
     }
 

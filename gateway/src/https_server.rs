@@ -73,6 +73,8 @@ impl From<AppState> for LfsConfig {
                 value.context.config.storage.lfs_obj_local_path,
             )),
             repo_name: String::from("repo_name"),
+            enable_split: value.context.config.lfs.enable_split,
+            split_size: value.context.config.lfs.split_size,
         }
     }
 }
@@ -197,7 +199,9 @@ async fn post_method_router(
         return lfs::lfs_delete_lock(state, &lfs_config, uri.path(), req).await;
     } else if Regex::new(r"/objects/batch$").unwrap().is_match(uri.path()) {
         return lfs::lfs_process_batch(state, &lfs_config, req).await;
-    } else if Regex::new(r"/git-upload-pack$")
+    }
+    // Routing git services.
+    else if Regex::new(r"/git-upload-pack$")
         .unwrap()
         .is_match(uri.path())
     {
