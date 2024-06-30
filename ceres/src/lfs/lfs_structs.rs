@@ -16,6 +16,7 @@ pub struct MetaObject {
     pub oid: String,
     pub size: i64,
     pub exist: bool,
+    pub splited: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -87,6 +88,7 @@ pub struct BatchRequest {
     pub transfers: Vec<String>,
     pub objects: Vec<RequestVars>,
     pub hash_algo: String,
+    pub enable_split: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]

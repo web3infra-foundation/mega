@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use bytes::Bytes;
 use chrono::{prelude::*, Duration};
+use common::config::LFSConfig;
 use jupiter::storage::lfs_storage::LfsStorage;
 use rand::prelude::*;
 
@@ -175,6 +176,12 @@ pub async fn lfs_delete_lock(
     }
 }
 
+/// Process batch request.
+/// if operation is "download":
+///     1. if server enable splite and client support it, then return a list of links to download the object.
+///     2. if server enable splite and client not support it, then return a single link to download the object.
+///     3. if server not enable splite, client support it, report error.
+/// if operation is "upload", then return a link to upload the object.
 pub async fn lfs_process_batch(
     config: &LfsConfig,
     mut batch_vars: BatchRequest,
@@ -187,7 +194,7 @@ pub async fn lfs_process_batch(
     let server_url = format!("http://{}:{}", config.host, config.port);
 
     let storage = config.context.services.lfs_storage.clone();
-
+    
     for object in &batch_vars.objects {
         let meta = lfs_get_meta(storage.clone(), object).await;
         // Found
@@ -199,7 +206,7 @@ pub async fn lfs_process_batch(
         }
         // Not found
         if batch_vars.operation == "upload" {
-            meta = lfs_put_meta(storage.clone(), object).await.unwrap();
+            meta = lfs_put_meta(storage.clone(), object, config.enable_split).await.unwrap();
             response_objects.push(represent(object, &meta, false, true, false, &server_url).await);
         } else {
             let rep = Representation {
@@ -218,6 +225,14 @@ pub async fn lfs_process_batch(
     Ok(response_objects)
 }
 
+/// if server enable split, then return a list of chunk ids.
+/// else return an error.
+pub async fn lfs_fetch_chunk_ids(config: &LFSConfig, oid: &str) -> Result<(), GitLFSError> {
+    unimplemented!();
+}
+
+/// Upload object to storage.
+/// if server enable split, split the object and upload each part to storage, save the relationship to database.
 pub async fn lfs_upload_object(
     config: &LfsConfig,
     request_vars: &RequestVars,
@@ -226,6 +241,7 @@ pub async fn lfs_upload_object(
     let meta = lfs_get_meta(config.context.services.lfs_storage.clone(), request_vars)
         .await
         .unwrap();
+    // TODO: splite
     let res = config
         .lfs_storage
         .put_object(&config.repo_name,&meta.oid,  body_bytes)
@@ -241,6 +257,8 @@ pub async fn lfs_upload_object(
     Ok(())
 }
 
+/// Download object from storage.
+/// when server enable split,  if OID is a complete object, then splice the object and return it.
 pub async fn lfs_download_object(
     config: &LfsConfig,
     request_vars: &RequestVars,
@@ -457,6 +475,7 @@ async fn lfs_get_meta(
             oid: val.oid,
             size: val.size,
             exist: val.exist,
+            splited: val.splited,
         }),
         None => Err(GitLFSError::GeneralError("".to_string())),
     }
@@ -465,6 +484,7 @@ async fn lfs_get_meta(
 async fn lfs_put_meta(
     storage: Arc<LfsStorage>,
     v: &RequestVars,
+    splited: bool,
 ) -> Result<MetaObject, GitLFSError> {
     // Check if already exist.
     let result = storage.get_lfs_object(v.oid.clone()).await.unwrap();
@@ -473,6 +493,7 @@ async fn lfs_put_meta(
             oid: result.oid,
             size: result.size,
             exist: true,
+            splited: result.splited,
         });
     }
 
@@ -481,12 +502,14 @@ async fn lfs_put_meta(
         oid: v.oid.to_string(),
         size: v.size,
         exist: true,
+        splited
     };
 
     let meta_to = lfs_objects::Model {
         oid: meta.oid.to_owned(),
         size: meta.size.to_owned(),
         exist: true,
+        splited
     };
 
     let res = storage.new_lfs_object(meta_to).await;
