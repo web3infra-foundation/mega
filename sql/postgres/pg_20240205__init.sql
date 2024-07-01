@@ -216,7 +216,7 @@ CREATE TABLE IF NOT EXISTS "lfs_objects" (
   "oid" VARCHAR(64) PRIMARY KEY,
   "size" BIGINT NOT NULL,
   "exist" BOOLEAN NOT NULL,
-  "splited" BOOLEAN NOT NULL,
+  "splited" BOOLEAN NOT NULL
 );
 CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
     "ori_oid" VARCHAR(64) NOT NULL,
