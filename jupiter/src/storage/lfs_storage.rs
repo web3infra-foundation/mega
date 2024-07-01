@@ -81,6 +81,18 @@ impl LfsStorage {
         Ok(result)
     }
 
+    pub async fn get_lfs_relations_ori_oid(&self, sub_oid: &String) -> Result<Option<String>, MegaError> {
+        let result = lfs_split_relation::Entity::find()
+            .filter(lfs_split_relation::Column::SubOid.eq(sub_oid))
+            .all(self.get_connection())
+            .await
+            .unwrap();
+        if result.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(result[0].ori_oid.clone()))
+    }
+
     pub async fn delete_lfs_object(&self, oid: String) -> Result<(), MegaError> {
         lfs_objects::Entity::delete_by_id(oid)
             .exec(self.get_connection())
