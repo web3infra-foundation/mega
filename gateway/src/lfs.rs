@@ -52,8 +52,8 @@ use axum::{
 use ceres::lfs::{
     handler,
     lfs_structs::{
-        BatchResponse, LockList, LockListQuery, LockRequest, LockResponse, RequestVars,
-        UnlockRequest, UnlockResponse, VerifiableLockRequest,
+        BatchResponse, FetchchunkResponse, LockList, LockListQuery, LockRequest, LockResponse,
+        RequestVars, UnlockRequest, UnlockResponse, VerifiableLockRequest,
     },
     LfsConfig,
 };
@@ -209,6 +209,8 @@ pub async fn lfs_process_batch(
                 .unwrap())
         }
         Err(err) => Ok({
+            tracing::error!("Error: {}", err);
+
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(Body::from(format!("Error: {}", err)))
@@ -222,17 +224,28 @@ pub async fn lfs_fetch_chunk_ids(
     config: &LfsConfig,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let request = Json::from_request(req, &state).await.unwrap();
+    let request = Json::from_request(req, &state).await;
+    if request.is_err() {
+        return Err((StatusCode::BAD_REQUEST, "Invalid request".to_string()));
+    }
+    let request = request.unwrap();
     let result = handler::lfs_fetch_chunk_ids(config, &request).await;
     match result {
         Ok(response) => {
-            let body = serde_json::to_string(&response).unwrap_or_default();
+            let size = response.iter().fold(0, |acc, chunk| acc + chunk.size);
+            let fetch_response = FetchchunkResponse {
+                oid: request.oid.clone(),
+                size,
+                chunks: response,
+            };
+            let body = serde_json::to_string(&fetch_response).unwrap_or_default();
             Ok(Response::builder()
                 .header("Content-Type", LFS_CONTENT_TYPE)
                 .body(Body::from(body))
                 .unwrap())
         }
         Err(err) => Ok({
+            tracing::error!("Error: {}", err);
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(Body::from(format!("Error: {}", err)))
