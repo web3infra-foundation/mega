@@ -33,9 +33,9 @@ const TopNavbar = () => {
                 {/* link button */}
                 <div className='navLinkIcons'>
                     <ul className='navLinkUl'>
-                        <li className='navLinkLi'><img className='navPagesIcon' src="/icons/code.svg"></img><a href='#'>Code</a></li>
-                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/issues.svg"></img><a href='#'>Issues</a></li>
-                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/git-pull-request.svg"></img><a href='#'>Merge requests</a></li>
+                        <li className='navLinkLi'><img className='navPagesIcon' src="/icons/code.svg"></img><a href='/'>Code</a></li>
+                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/issues.svg"></img><a href='/issue'>Issues</a></li>
+                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/git-pull-request.svg"></img><a href='/mr'>Merge requests</a></li>
                     </ul>
                 </div>
             </div >
