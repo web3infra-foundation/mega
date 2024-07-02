@@ -1,4 +1,5 @@
 use core::fmt;
+use std::fmt::Display;
 
 use sea_orm::{DeriveActiveEnum, EnumIter};
 
@@ -33,6 +34,17 @@ pub enum MergeStatus {
     Merged,
     #[sea_orm(string_value = "closed")]
     Closed,
+}
+
+impl Display for MergeStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            MergeStatus::Open => "open",
+            MergeStatus::Merged => "merged",
+            MergeStatus::Closed => "closed",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]

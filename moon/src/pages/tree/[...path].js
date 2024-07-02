@@ -1,8 +1,8 @@
-// import { useRouter } from 'next/router';
+import { useRouter } from 'next/router';
 import CodeTable from '@/components/CodeTable'
 import axios from 'axios';
 
-export default function HomePage({ directory, readmeContent, fileContent }) {
+export default function TreePage({ directory, readmeContent, fileContent }) {
 
     return (
         <div>
@@ -15,9 +15,9 @@ export async function getServerSideProps(context) {
     const MEGA_URL = 'http://localhost:8000';
     // get the parameters form context
     const { path } = context.query;
-
+    
     // obtain the current directory
-    const response = await axios.get(`${MEGA_URL}/api/v1/tree-commit-info?path=/`);
+    const response = await axios.get(`${MEGA_URL}/api/v1/tree-commit-info?path=/${encodeURIComponent(path.join('/'))}`);
     const directory = response.data;
     var readmeContent = '';
 
@@ -34,6 +34,7 @@ export async function getServerSideProps(context) {
 
         }
     }
+
 
     return {
         props: {
