@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use bytes::Bytes;
 use chrono::{prelude::*, Duration};
-use common::config::LFSConfig;
 use jupiter::storage::lfs_storage::LfsStorage;
 use rand::prelude::*;
 
@@ -18,6 +17,8 @@ use crate::lfs::lfs_structs::{
 };
 use crate::lfs::lfs_structs::{Link, Lock, LockListQuery, MetaObject, Representation, RequestVars};
 use crate::lfs::LfsConfig;
+
+use super::lfs_structs::ChunkRepresentation;
 
 pub async fn lfs_retrieve_lock(
     config: &LfsConfig,
@@ -232,8 +233,58 @@ pub async fn lfs_process_batch(
 
 /// if server enable split, then return a list of chunk ids.
 /// else return an error.
-pub async fn lfs_fetch_chunk_ids(config: &LFSConfig, oid: &str) -> Result<(), GitLFSError> {
-    unimplemented!();
+pub async fn lfs_fetch_chunk_ids(
+    config: &LfsConfig,
+    fetch_vars: &RequestVars,
+) -> Result<Vec<ChunkRepresentation>, GitLFSError> {
+    if !config.enable_split {
+        return Err(GitLFSError::GeneralError(
+            "Server didn't run in `split` mode, didn't support chunk ids".to_string(),
+        ));
+    }
+
+    let meta = lfs_get_meta(config.context.services.lfs_storage.clone(), fetch_vars)
+        .await
+        .map_err(|_| GitLFSError::GeneralError("".to_string()))?;
+    assert!(meta.splited, "database didn't match the split mode");
+
+    let relations = config
+        .context
+        .services
+        .lfs_storage
+        .get_lfs_relations(fetch_vars.oid.clone())
+        .await
+        .map_err(|_| GitLFSError::GeneralError("".to_string()))?;
+
+    if relations.is_empty() {
+        return Err(GitLFSError::GeneralError(
+            "oid didn't have chunks".to_string(),
+        ));
+    }
+    let mut response_objects = Vec::<ChunkRepresentation>::new();
+    let server_url = format!("http://{}:{}", config.host, config.port);
+
+    for relation in relations {
+        // Reuse RequestArgs to create a link
+        let tmp_request_vars = RequestVars {
+            oid: relation.sub_oid.clone(),
+            size: relation.size,
+            authorization: fetch_vars.authorization.clone(),
+            password: fetch_vars.password.clone(),
+            user: fetch_vars.user.clone(),
+            repo: fetch_vars.repo.clone(),
+        };
+        response_objects.push(ChunkRepresentation {
+            sub_oid: relation.sub_oid,
+            size: relation.size,
+            offset: relation.offset,
+            link: create_link(
+                &tmp_request_vars.download_link(server_url.to_string()).await,
+                &HashMap::new(),
+            ),
+        });
+    }
+    Ok(response_objects)
 }
 
 /// Upload object to storage.
@@ -303,7 +354,6 @@ pub async fn lfs_download_object(
     config: &LfsConfig,
     request_vars: &RequestVars,
 ) -> Result<Bytes, GitLFSError> {
-    
     if config.enable_split {
         let meta = lfs_get_meta(config.context.services.lfs_storage.clone(), request_vars).await;
         let relation_db = config.context.services.lfs_storage.clone();
