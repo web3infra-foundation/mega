@@ -178,9 +178,6 @@ pub async fn lfs_delete_lock(
 }
 
 /// Process batch request.
-/// if operation is "download":
-///     if server enable splite and client support it, report error, use `lfs_fetch_chunk_ids` to get chunk ids.
-///     else use original method to download object.
 pub async fn lfs_process_batch(
     config: &LfsConfig,
     mut batch_vars: BatchRequest,
@@ -298,10 +295,10 @@ pub async fn lfs_upload_object(
         .await
         .unwrap();
     if config.enable_split && meta.splited {
-        assert!(request_vars.size == body_bytes.len() as i64);
+        // assert!(request_vars.size == body_bytes.len() as i64, "size didn't match: {} != {}", request_vars.size, body_bytes.len()); // TODO: git client, request_vars.size is `0`!!
         // split object to blocks
-        let mut sub_ids = vec![];
 
+        let mut sub_ids = vec![];
         for chunk in body_bytes.chunks(config.split_size) {
             // sha256
             let sub_id = sha256::digest(chunk);
@@ -323,15 +320,15 @@ pub async fn lfs_upload_object(
         // save the relationship to database
         let mut offset = 0;
         for sub_id in sub_ids {
-            let size = min(config.split_size as i64, body_bytes.len() as i64 - offset);
             let db = config.context.services.lfs_storage.clone();
+            let size = min(config.split_size as i64, body_bytes.len() as i64 - offset);
             lfs_put_relation(db, &meta.oid, &sub_id, offset, size)
                 .await
                 .unwrap();
             offset += size;
         }
-        unimplemented!(); // Split object and upload each part to storage.
     } else {
+        // normal mode
         let res = config
             .lfs_storage
             .put_object(&config.repo_name, &meta.oid, body_bytes)
@@ -378,11 +375,10 @@ pub async fn lfs_download_object(
             Err(_) => {
                 // check if the oid is a part of a split object, if so, return the part.
                 let sub_oid = request_vars.oid.clone();
-                let ori_oid = relation_db
-                    .get_lfs_relations_ori_oid(&sub_oid)
+                if !lfs_check_sub_oid_exist(relation_db, &sub_oid)
                     .await
-                    .unwrap();
-                if ori_oid.is_none() {
+                    .unwrap()
+                {
                     return Err(GitLFSError::GeneralError(
                         "oid didn't belong to any object".to_string(),
                     ));
@@ -660,6 +656,9 @@ async fn lfs_put_meta(
 
 async fn lfs_delete_meta(storage: Arc<LfsStorage>, v: &RequestVars) -> Result<(), GitLFSError> {
     let res = storage.delete_lfs_object(v.oid.to_owned()).await;
+    lfs_delete_all_relations(storage.clone(), &v.oid)
+        .await
+        .unwrap();
     match res {
         Ok(_) => Ok(()),
         Err(_) => Err(GitLFSError::GeneralError("".to_string())),
@@ -738,6 +737,7 @@ async fn delete_lock(
     }
 }
 
+/// put relation, ignore if already exist.
 async fn lfs_put_relation(
     storage: Arc<LfsStorage>,
     ori_oid: &String,
@@ -751,10 +751,35 @@ async fn lfs_put_relation(
         offset,
         size,
     };
-
     let res = storage.new_lfs_relation(relation).await;
-    match res.is_ok() {
-        true => Ok(()),
-        false => Err(GitLFSError::GeneralError("".to_string())),
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            if e.to_string().contains("duplicate key value") {
+                Ok(())
+            } else {
+                Err(GitLFSError::GeneralError(e.to_string()))
+            }
+        }
     }
+}
+
+/// delete all relations of an object if it exists. do nothing if not.
+async fn lfs_delete_all_relations(
+    storage: Arc<LfsStorage>,
+    ori_oid: &String,
+) -> Result<(), GitLFSError> {
+    let relations = storage.get_lfs_relations(ori_oid.to_owned()).await.unwrap();
+    for relation in relations {
+        let _ = storage.delete_lfs_relation(relation).await;
+    }
+    Ok(())
+}
+
+async fn lfs_check_sub_oid_exist(
+    storage: Arc<LfsStorage>,
+    sub_oid: &String,
+) -> Result<bool, GitLFSError> {
+    let result = storage.get_lfs_relations_ori_oid(sub_oid).await.unwrap();
+    Ok(!result.is_empty())
 }
