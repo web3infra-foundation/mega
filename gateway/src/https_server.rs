@@ -199,6 +199,8 @@ async fn post_method_router(
         return lfs::lfs_delete_lock(state, &lfs_config, uri.path(), req).await;
     } else if Regex::new(r"/objects/batch$").unwrap().is_match(uri.path()) {
         return lfs::lfs_process_batch(state, &lfs_config, req).await;
+    } else if Regex::new(r"objects/chunkids$").unwrap().is_match(uri.path()) {
+        return lfs::lfs_fetch_chunk_ids(state, &lfs_config, req).await;
     }
     // Routing git services.
     else if Regex::new(r"/git-upload-pack$")

@@ -8,7 +8,7 @@ pub enum TransferMode {
     BASIC,
     MULTIPART,
     //not implement yet
-    STREAMING
+    STREAMING,
 }
 
 #[derive(Debug, Default)]
@@ -99,6 +99,13 @@ pub struct BatchResponse {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct FetchchunkResponse {
+    pub oid: String,
+    pub size : i64,
+    pub chunks: Vec<ChunkRepresentation>,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Link {
     pub href: String,
     pub header: HashMap<String, String>,
@@ -121,6 +128,14 @@ pub struct Representation {
     pub actions: Option<HashMap<String, Link>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ObjectError>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChunkRepresentation {
+    pub sub_oid: String,
+    pub offset: i64,
+    pub size: i64,
+    pub link: Link,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
