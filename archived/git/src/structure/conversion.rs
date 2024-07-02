@@ -121,7 +121,7 @@ impl PackProtocol {
         let mut traversal_list: Vec<Commit> = vec![commit.clone()];
         let mut want_commits: Vec<Commit> = vec![commit];
 
-        // tarverse commit's all parents to find the commit that client does not have
+        // traverse commit's all parents to find the commit that client does not have
         while let Some(temp) = traversal_list.pop() {
             for p_commit_id in temp.parent_commit_ids {
                 let p_commit_id = &p_commit_id.to_plain_str();

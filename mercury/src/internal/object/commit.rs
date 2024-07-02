@@ -103,6 +103,25 @@ impl Commit {
         .unwrap();
         Commit::new(author, committer, tree_id, parent_commit_ids, message)
     }
+
+    pub fn format_message(&self) -> String {
+        let mut has_signature = false;
+        for line in self.message.lines() {
+            if has_signature && !line.trim().is_empty() {
+                return line.to_owned();
+            }
+            if line.contains("-----END PGP SIGNATURE-----") {
+                has_signature = true;
+            }
+        }
+        // does not have pgp, find first line has data
+        for line in self.message.lines() {
+            if !line.trim().is_empty() {
+                return line.to_owned();
+            }
+        }
+        self.message.clone()
+    }
 }
 
 impl ObjectTrait for Commit {
@@ -151,7 +170,7 @@ impl ObjectTrait for Commit {
         let message = unsafe {
             String::from_utf8_unchecked(commit[commit.find_byte(0x0a).unwrap() + 1..].to_vec())
         };
-        
+
         Ok(Commit {
             id: hash,
             tree_id,
