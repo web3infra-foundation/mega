@@ -4,7 +4,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    QuerySelect,
+    QueryOrder, QuerySelect,
 };
 
 use callisto::db_enums::{ConvType, MergeStatus};
@@ -127,7 +127,16 @@ impl MegaStorage {
     ) -> Result<Vec<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Status.is_in(status))
+            .order_by_desc(mega_mr::Column::CreatedAt)
             .all(self.get_connection())
+            .await
+            .unwrap();
+        Ok(model)
+    }
+
+    pub async fn get_mr(&self, mr_id: i64) -> Result<Option<mega_mr::Model>, MegaError> {
+        let model = mega_mr::Entity::find_by_id(mr_id)
+            .one(self.get_connection())
             .await
             .unwrap();
         Ok(model)
@@ -160,6 +169,17 @@ impl MegaStorage {
         a_model.created_at = NotSet;
         a_model.update(self.get_connection()).await.unwrap();
         Ok(())
+    }
+
+    pub async fn get_mr_conversations(
+        &self,
+        mr_id: i64,
+    ) -> Result<Vec<mega_mr_conv::Model>, MegaError> {
+        let model = mega_mr_conv::Entity::find()
+            .filter(mega_mr_conv::Column::MrId.eq(mr_id))
+            .all(self.get_connection())
+            .await;
+        Ok(model?)
     }
 
     pub async fn add_mr_conversation(
@@ -254,6 +274,10 @@ impl MegaStorage {
     }
 
     pub async fn init_monorepo(&self) {
+        if self.get_ref("/").await.unwrap().is_some() {
+            tracing::info!("Monorepo Directory Already Inited, skip init process!");
+            return;
+        }
         let converter = MegaModelConverter::init();
         let commit: mega_commit::Model = converter.commit.into();
         mega_commit::Entity::insert(commit.into_active_model())
