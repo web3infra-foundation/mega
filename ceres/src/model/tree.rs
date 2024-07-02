@@ -1,5 +1,5 @@
-use callisto::mega_mr;
 use serde::{Deserialize, Serialize};
+
 use mercury::internal::object::tree::{TreeItem, TreeItemMode};
 
 #[derive(Serialize, Deserialize)]
@@ -73,51 +73,10 @@ impl From<TreeItem> for TreeBriefItem {
     }
 }
 
-// #[derive(Serialize, Deserialize)]
-// pub struct BlobObjects {
-//     pub plain_text: String,
-// }
 
 #[derive(Serialize, Deserialize)]
-pub struct MrInfoItem {
+pub struct MRFileTree {
     pub title: String,
-    pub status: String,
-    pub open_date: String,
-    pub merge_date: String,
-}
-
-impl From<mega_mr::Model> for MrInfoItem {
-    fn from(value: mega_mr::Model) -> Self {
-        Self {
-            title: String::new(),
-            status: value.status.to_string(),
-            open_date: value.created_at.to_string(),
-            merge_date: value.merge_date.unwrap().to_string(),
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
-
-pub struct CommonResult<T> {
-    pub req_result: bool,
-    pub data: Option<T>,
-    pub err_message: String,
-}
-
-impl <T> CommonResult<T> {
-    pub fn success(data: Option<T>) -> Self {
-        CommonResult {
-            req_result: true,
-            data,
-            err_message: "".to_owned(),
-        }
-    }
-    pub fn failed(err_message: &str) -> Self {
-        CommonResult {
-            req_result: false,
-            data: None,
-            err_message: err_message.to_string(),
-        }
-    }
+    pub id: i64,
+    pub children: Vec<MRFileTree>,
 }

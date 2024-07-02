@@ -153,10 +153,10 @@
 7. Start the Mega server for testing.
 
    ```bash
-   # Starting a single https server
-   $ cargo run service https
+   # Starting a single http server
+   $ cargo run service http
    # Or Starting multiple server
-   $ cargo run service start http ssh p2p
+   $ cargo run service multi http ssh
    ```
 
 8. Test the `git push` and `git clone`
@@ -325,9 +325,9 @@
 
    ```bash
    # Start a single https server
-   $ cargo run service https
+   $ cargo run service http
    # Or Start multiple server
-   $ cargo run service start http ssh p2p
+   $ cargo run service multi http ssh
    ```
 
 8. Test `git push` and `git clone`

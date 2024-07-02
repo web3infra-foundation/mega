@@ -17,8 +17,10 @@ use ceres::{
     },
     model::{
         create_file::CreateFileInfo,
-        objects::{CommonResult, LatestCommitInfo, MrInfoItem, TreeBriefItem, TreeCommitItem},
+        mr::{MRDetail, MrInfoItem},
+        tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem},
         query::{BlobContentQuery, CodePreviewQuery},
+        CommonResult,
     },
 };
 
@@ -70,7 +72,8 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/latest-commit", get(get_latest_commit))
         .route("/tree-commit-info", get(get_tree_commit_info))
         .route("/tree", get(get_tree_info))
-        .route("/mr-list", get(get_mr_list));
+        .route("/mr-list", get(get_mr_list))
+        .route("/mr-detail", get(mr_detail));
 
     Router::new().merge(router_v1).merge(preview_code)
 }
@@ -199,6 +202,19 @@ async fn get_mr_list(
 ) -> Result<Json<CommonResult<Vec<MrInfoItem>>>, (StatusCode, String)> {
     let status = query.get("status").unwrap();
     let res = state.monorepo().mr_list(status).await;
+    let res = match res {
+        Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
+async fn mr_detail(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<ApiServiceState>,
+) -> Result<Json<CommonResult<Option<MRDetail>>>, (StatusCode, String)> {
+    let mr_id = query.get("id").unwrap().parse::<i64>().unwrap();
+    let res = state.monorepo().mr_detail(mr_id).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
         Err(err) => CommonResult::failed(&err.to_string()),

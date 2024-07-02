@@ -19,7 +19,7 @@ use venus::monorepo::mr::MergeOperation;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
-use crate::model::objects::MrInfoItem;
+use crate::model::mr::{MRDetail, MrInfoItem};
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -197,11 +197,24 @@ impl MonoApiService {
         } else if status == "closed" {
             vec![MergeStatus::Closed, MergeStatus::Merged]
         } else {
-            return Err(MegaError::with_message("Invalid status name"));
+            vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
+            // return Err(MegaError::with_message("Invalid status name"));
         };
         let storage = self.context.services.mega_storage.clone();
         let mr_list = storage.get_mr_by_status(status).await.unwrap();
         Ok(mr_list.into_iter().map(|m| m.into()).collect())
+    }
+
+    pub async fn mr_detail(&self, mr_id: i64) -> Result<Option<MRDetail>, MegaError> {
+        let storage = self.context.services.mega_storage.clone();
+        let model = storage.get_mr(mr_id).await.unwrap();
+        if let Some(model) = model {
+            let mut detail: MRDetail = model.into();
+            let conversions = storage.get_mr_conversations(mr_id).await.unwrap();
+            detail.conversions = conversions.into_iter().map(|x| x.into()).collect();
+            return Ok(Some(detail));
+        }
+        Ok(None)
     }
 
     pub async fn merge_mr(&self, op: MergeOperation) -> Result<(), MegaError> {
