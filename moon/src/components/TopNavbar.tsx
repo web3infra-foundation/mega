@@ -1,4 +1,5 @@
 import '../styles/TopNavbar.css';
+import Link from 'next/link';
 
 const TopNavbar = () => {
     return (
@@ -7,7 +8,7 @@ const TopNavbar = () => {
                 {/* level first */}
                 <div className='logo-container'>
                     <div className='navLeft'>
-                        <a href='/'><img src="/images/megaTitle.png" alt="logo" className='logOfMega'></img></a>
+                        <Link href='/'><img src="/images/megaTitle.png" alt="logo" className='logOfMega'></img></Link>
                     </div>
                     <div className='navRight'>
                         <div>
@@ -33,9 +34,9 @@ const TopNavbar = () => {
                 {/* link button */}
                 <div className='navLinkIcons'>
                     <ul className='navLinkUl'>
-                        <li className='navLinkLi'><img className='navPagesIcon' src="/icons/code.svg"></img><a href='/'>Code</a></li>
-                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/issues.svg"></img><a href='/issue'>Issues</a></li>
-                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/git-pull-request.svg"></img><a href='/mr'>Merge requests</a></li>
+                        <li className='navLinkLi'><img className='navPagesIcon' src="/icons/code.svg"></img><Link href='/'>Code</Link></li>
+                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/issues.svg"></img><Link href='/issue'>Issues</Link></li>
+                        <li className='navLinkLi'><img className='navPagesIcon ' src="/icons/git-pull-request.svg"></img><Link href='/mr'>Merge requests</Link></li>
                     </ul>
                 </div>
             </div >

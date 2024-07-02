@@ -3,10 +3,13 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
-    const { repo_path, object_id } = req.query;
+
+    const endpoint = process.env.NEXT_MEGA_API_URL;
+
+    const { path } = req.query;
 
     try {
-        const apiUrl = `http://localhost:8000/api/v1/tree?path=${encodeURIComponent(repo_path)}`;
+        const apiUrl = `${endpoint}/api/v1/tree?path=${path}`;
 
         const response = await axios.get(apiUrl);
 
