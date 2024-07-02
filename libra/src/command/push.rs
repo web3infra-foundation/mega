@@ -184,6 +184,8 @@ fn collect_history_commits(commit_id: &SHA1) -> HashSet<SHA1> {
 }
 
 fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
+    tracing::debug!("local_ref: {}, remote_ref: {}", local_ref, remote_ref);
+
     // just fast-forward optimization
     if remote_ref != SHA1::default() { // remote exists
         let mut commit = Commit::load(&local_ref);
@@ -234,7 +236,8 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
             }
         }
         for parent in parents.iter() {
-            objs.extend(diff_tree_objs(Some(parent), &commit.tree_id));
+            let parent_tree = Commit::load(parent).tree_id;
+            objs.extend(diff_tree_objs(Some(&parent_tree), &commit.tree_id));
             if !exist_commits.contains(parent) {
                 queue.push_back(*parent);
             }
