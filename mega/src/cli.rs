@@ -20,8 +20,11 @@ use crate::commands::{builtin, builtin_exec};
 ///
 /// This function returns a `MegaResult`. If the parsing is successful, it will return the result.
 /// If there is an error during the parsing, it will return an error.
-pub fn parse() -> MegaResult {
-    let matches = cli().try_get_matches().unwrap_or_else(|e| e.exit());
+pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
+    let matches = match args {
+        Some(args) => cli().no_binary_name(true).try_get_matches_from(args).unwrap_or_else(|e| e.exit()),
+        None => cli().try_get_matches().unwrap_or_else(|e| e.exit())
+    };
 
     // Get the current directory
     let current_dir = env::current_dir()?;
