@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{self, Read};
 use std::{collections::HashSet, fs, io::Write};
 
 use ceres::protocol::ServiceType::UploadPack;
@@ -101,12 +101,12 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         .unwrap();
 
     let mut buffer = vec![];
-    while let Some(item) = result_stream.next().await {
+    while let Some(item) = result_stream.next().await { // TODO: 改为流式传输 不要等待读取完毕
         let item = item.unwrap();
         buffer.extend(item);
     }
 
-    let mut pack_data = Vec::new();
+    let pack_data;
     // pase pkt line
     if let Some(pack_pos) = buffer.windows(4).position(|w| w == b"PACK") {
         tracing::info!("pack data found at: {}", pack_pos);
@@ -122,34 +122,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
             buffer = buffer[pack_pos - 5..].to_vec();
             // buffer -> stream
             let mut reader = std::io::Cursor::new(&buffer);
-            loop {
-                let len_bytes = read_bytes(&mut reader, 4).unwrap();
-                let len_str = std::str::from_utf8(&len_bytes).unwrap();
-                let mut len = u32::from_str_radix(len_str, 16).unwrap();
-                if len == 0 {
-                    tracing::info!("pack data read done");
-                    break;
-                }
-                let code = reader.read_u8().unwrap();
-                len -= 5; // 1 byte for code, 4 bytes for length
-                let mut data = vec![0u8; len as usize];
-                reader.read_exact(&mut data).unwrap();
-
-                match code {
-                    1 => { // Data
-                        pack_data.extend(data);
-                    }
-                    2 => { // Progress
-                        tracing::info!("progress: {}", std::str::from_utf8(&data).unwrap());
-                    }
-                    3 => { // Error
-                        tracing::error!("stderr: {}", std::str::from_utf8(&data).unwrap());
-                    }
-                    _ => {
-                        tracing::warn!("unknown side-band-64k code: {}", code);
-                    }
-                }
-            }
+            pack_data = parse_sideband_data(&mut reader).unwrap();
         }
     } else {
         tracing::error!(
@@ -261,4 +234,38 @@ async fn current_have() -> Vec<String> {
     }
 
     have
+}
+
+/// Parse `side-band-64k` data
+fn parse_sideband_data(mut reader: impl Read) -> io::Result<Vec<u8>> {
+    let mut total_data = Vec::new();
+    loop {
+        let len_bytes = read_bytes(&mut reader, 4)?;
+        let len_str = std::str::from_utf8(&len_bytes).unwrap();
+        let mut len = u32::from_str_radix(len_str, 16).unwrap();
+        if len == 0 {
+            tracing::info!("pack data read done");
+            break;
+        }
+        let code = reader.read_u8()?;
+        len -= 5; // 1 byte for code, 4 bytes for length
+        let mut data = vec![0u8; len as usize];
+        reader.read_exact(&mut data)?;
+
+        match code {
+            1 => { // Data
+                total_data.extend(data);
+            }
+            2 => { // Progress
+                println!("\r{}", std::str::from_utf8(&data).unwrap());
+            }
+            3 => { // Error
+                tracing::error!("{}", std::str::from_utf8(&data).unwrap());
+            }
+            _ => {
+                tracing::warn!("unknown side-band-64k code: {}", code);
+            }
+        }
+    }
+    Ok(total_data)
 }
