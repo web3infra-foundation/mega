@@ -14,7 +14,7 @@ use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 use common::enums::ZtmType;
-use gemini::ztm::run_ztm_client;
+use gemini::ztm::{run_ztm_client, LocalZTM};
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -196,7 +196,10 @@ async fn post_method_router(
         return lfs::lfs_delete_lock(state, &lfs_config, uri.path(), req).await;
     } else if Regex::new(r"/objects/batch$").unwrap().is_match(uri.path()) {
         return lfs::lfs_process_batch(state, &lfs_config, req).await;
-    } else if Regex::new(r"objects/chunkids$").unwrap().is_match(uri.path()) {
+    } else if Regex::new(r"objects/chunkids$")
+        .unwrap()
+        .is_match(uri.path())
+    {
         return lfs::lfs_fetch_chunk_ids(state, &lfs_config, req).await;
     }
     // Routing git services.
@@ -257,7 +260,6 @@ pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
     match ztm_type {
         ZtmType::Agent => {
             //Mega server join a ztm mesh
-            let config = config.ztm;
             let bootstrap_node = match common.bootstrap_node {
                 Some(n) => n,
                 None => {
@@ -265,8 +267,10 @@ pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
                     return;
                 }
             };
-            let peer_id = "123".to_string();
-            tokio::spawn(async move { run_ztm_client(bootstrap_node, config, peer_id).await });
+            let (peer_id, _) = vault::init();
+            let ztm: LocalZTM = LocalZTM { agent_port: 7778 };
+            ztm.clone().start_ztm_agent();
+            tokio::spawn(async move { run_ztm_client(bootstrap_node, config, peer_id, ztm).await });
         }
         ZtmType::Relay => {
             //Start a sub thread to run relay server
