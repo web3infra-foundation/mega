@@ -154,17 +154,13 @@ impl Default for ZTMConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LFSConfig {
     pub enable_split: bool,
+    #[serde(default = "default_split_size")]
     pub split_size: usize,
 }
 
-impl Default for LFSConfig {
-    fn default() -> Self {
-        Self {
-            enable_split: false,
-            split_size: 1024*1024*20, // 20MB
-        }
-    }
+fn default_split_size() -> usize {
+    1024 * 1024 * 20 // 20MB
 }
