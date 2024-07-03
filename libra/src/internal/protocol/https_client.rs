@@ -126,7 +126,7 @@ impl HttpsClient {
             refs = refs.trim();
             if !read_first_line {
                 if hash == SHA1::default().to_plain_str() {
-                    break; // empty repo, return empty list
+                    break; // empty repo, return empty list // TODO: parse capability
                 }
                 let (head, caps) = refs.split_once('\0').unwrap();
                 if service == UploadPack.to_string() {
@@ -215,16 +215,17 @@ impl HttpsClient {
         request.send().await
     }
 }
-
+/// for fetching
 async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) -> Bytes {
     let mut buf = BytesMut::new();
     let mut write_first_line = false;
 
+    let capability = vec!["side-band-64k", "ofs-delta"].join(" ");
     for w in want {
         if !write_first_line {
             add_pkt_line_string(
                 &mut buf,
-                format!("want {}\0agent=libra/0.1.0\n", w).to_string(),
+                format!("want {} {} agent=libra/0.1.0\n", w, capability).to_string(),
             );
             write_first_line = true;
         } else {
