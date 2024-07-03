@@ -215,5 +215,13 @@ CREATE TABLE IF NOT EXISTS "lfs_locks" (
 CREATE TABLE IF NOT EXISTS "lfs_objects" (
   "oid" VARCHAR(64) PRIMARY KEY,
   "size" BIGINT NOT NULL,
-  "exist" BOOLEAN NOT NULL
+  "exist" BOOLEAN NOT NULL,
+  "splited" BOOLEAN NOT NULL
 );
+CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
+    "ori_oid" VARCHAR(64) NOT NULL,
+    "sub_oid" VARCHAR(64) NOT NULL,
+    "offset" BIGINT NOT NULL,
+    "size" BIGINT NOT NULL,
+    PRIMARY KEY ("ori_oid", "sub_oid", "offset")
+)

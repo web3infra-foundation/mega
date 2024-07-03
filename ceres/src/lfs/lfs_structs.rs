@@ -8,7 +8,7 @@ pub enum TransferMode {
     BASIC,
     MULTIPART,
     //not implement yet
-    STREAMING
+    STREAMING,
 }
 
 #[derive(Debug, Default)]
@@ -16,6 +16,7 @@ pub struct MetaObject {
     pub oid: String,
     pub size: i64,
     pub exist: bool,
+    pub splited: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -87,6 +88,7 @@ pub struct BatchRequest {
     pub transfers: Vec<String>,
     pub objects: Vec<RequestVars>,
     pub hash_algo: String,
+    pub enable_split: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -94,6 +96,13 @@ pub struct BatchResponse {
     pub transfer: String,
     pub objects: Vec<Representation>,
     pub hash_algo: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct FetchchunkResponse {
+    pub oid: String,
+    pub size : i64,
+    pub chunks: Vec<ChunkRepresentation>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -119,6 +128,14 @@ pub struct Representation {
     pub actions: Option<HashMap<String, Link>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ObjectError>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChunkRepresentation {
+    pub sub_oid: String,
+    pub offset: i64,
+    pub size: i64,
+    pub link: Link,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
