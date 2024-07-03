@@ -1,16 +1,18 @@
+use std::{collections::HashMap, thread::sleep, time::Duration};
+
 use axum::async_trait;
-use common::config::ZTMConfig;
+use common::config::{Config, ZTMConfig};
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMUserPermit {
     pub ca: String,
     pub agent: CertAgent,
     pub bootstraps: Vec<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CertAgent {
     pub name: String,
     pub certificate: String,
@@ -18,7 +20,7 @@ pub struct CertAgent {
     pub private_key: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMMesh {
     pub name: String,
     pub ca: String,
@@ -28,7 +30,7 @@ pub struct ZTMMesh {
     pub errors: Vec<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Agent {
     pub id: String,
     pub name: String,
@@ -36,7 +38,7 @@ pub struct Agent {
     pub certificate: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMEndPoint {
     pub id: String,
     pub name: String,
@@ -44,18 +46,18 @@ pub struct ZTMEndPoint {
     pub online: bool,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMServiceReq {
     pub host: String,
     pub port: u16,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMPortReq {
     pub target: ZTMPortService,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMPortService {
     pub service: String,
 }
@@ -63,10 +65,13 @@ pub struct ZTMPortService {
 const MESH_NAME: &str = "relay_mesh";
 
 #[async_trait]
-pub trait ZTM {
+pub trait ZTMCA {
     async fn create_ztm_certificate(&self, name: String) -> Result<ZTMUserPermit, String>;
-    // fn create_ztm_certificate(&self, name: String) -> Result<ZTMUserPermit, String>;
     async fn delete_ztm_certificate(&self, name: String) -> Result<String, String>;
+}
+
+#[async_trait]
+pub trait ZTMAgent {
     async fn connect_ztm_hub(&self, permit: ZTMUserPermit) -> Result<ZTMMesh, String>;
     async fn create_ztm_service(
         &self,
@@ -80,8 +85,6 @@ pub trait ZTM {
         service_name: String,
         port: u16,
     ) -> Result<String, String>;
-
-    async fn search_ztm_endpoint(&self, name: String) -> Result<ZTMEndPoint, String>;
 }
 
 pub struct RemoteZTM {
@@ -89,7 +92,7 @@ pub struct RemoteZTM {
 }
 
 #[async_trait]
-impl ZTM for RemoteZTM {
+impl ZTMCA for RemoteZTM {
     async fn create_ztm_certificate(&self, name: String) -> Result<ZTMUserPermit, String> {
         let ca_address = self.config.ca.clone();
         let hub_address = self.config.hub.clone();
@@ -160,7 +163,10 @@ impl ZTM for RemoteZTM {
         };
         Ok(s)
     }
+}
 
+#[async_trait]
+impl ZTMAgent for RemoteZTM {
     async fn connect_ztm_hub(&self, permit: ZTMUserPermit) -> Result<ZTMMesh, String> {
         // POST {agent}/api/meshes/${meshName}
         let permit_string = serde_json::to_string(&permit).unwrap();
@@ -255,12 +261,37 @@ impl ZTM for RemoteZTM {
         };
         Ok(response_text)
     }
+}
 
-    async fn search_ztm_endpoint(&self, name: String) -> Result<ZTMEndPoint, String> {
-        // GET {agent}/api/meshes/{mesh}/endpoints
-        let agent_address = self.config.agent.clone();
-        let url = format!("{agent_address}/api/meshes/{MESH_NAME}/endpoints");
-        let request_result = reqwest::get(url).await;
+#[derive(Debug, Clone)]
+pub struct LocalZTM {
+    pub agent_port: u16,
+}
+
+impl LocalZTM {
+    pub fn start_ztm_agent(self) {
+        tokio::spawn(async move {
+            rust_ztm::start_agent("ztm_agent.db", self.agent_port);
+        });
+    }
+}
+
+#[async_trait]
+impl ZTMAgent for LocalZTM {
+    async fn connect_ztm_hub(&self, permit: ZTMUserPermit) -> Result<ZTMMesh, String> {
+        // POST {agent}/api/meshes/${meshName}
+        let permit_string = serde_json::to_string(&permit).unwrap();
+        tracing::info!("permit_string:{permit_string}");
+        let agent_port = self.agent_port;
+        let agent_address = format!("http://127.0.0.1:{agent_port}");
+        let url = format!("{agent_address}/api/meshes/{MESH_NAME}");
+        let client = Client::new();
+        let request_result = client
+            .post(url)
+            .header(CONTENT_TYPE, "application/json")
+            .body(permit_string)
+            .send()
+            .await;
         let response_text = match handle_ztm_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
@@ -268,25 +299,93 @@ impl ZTM for RemoteZTM {
             }
         };
 
-        let endpoint_list: Vec<ZTMEndPoint> = match serde_json::from_slice(response_text.as_bytes())
-        {
+        let mesh: ZTMMesh = match serde_json::from_slice(response_text.as_bytes()) {
             Ok(p) => p,
             Err(e) => {
                 return Err(e.to_string());
             }
         };
-        for endpoint in endpoint_list {
-            if endpoint.name == name {
-                return Ok(endpoint);
+        Ok(mesh)
+    }
+
+    async fn create_ztm_service(
+        &self,
+        ep_id: String,
+        service_name: String,
+        port: u16,
+    ) -> Result<String, String> {
+        //  create a ZTM service
+        //  POST {agent}/api/meshes/${mesh.name}/endpoints/${ep.id}/services/${svcName}
+        let agent_port = self.agent_port;
+        let agent_address = format!("http://127.0.0.1:{agent_port}");
+        let url = format!(
+            "{agent_address}/api/meshes/{MESH_NAME}/endpoints/{ep_id}/services/tcp/{service_name}"
+        );
+        let client = Client::new();
+        let req = ZTMServiceReq {
+            host: "127.0.0.1".to_string(),
+            port,
+        };
+        let req_string = serde_json::to_string(&req).unwrap();
+        let request_result = client
+            .post(url)
+            .header(CONTENT_TYPE, "application/json")
+            .body(req_string)
+            .send()
+            .await;
+        let response_text = match handle_ztm_response(request_result).await {
+            Ok(s) => s,
+            Err(s) => {
+                return Err(s);
             }
-        }
-        return Err("endpoint not found".to_string());
+        };
+        Ok(response_text)
+    }
+
+    async fn create_ztm_port(
+        &self,
+        ep_id: String,
+        service_name: String,
+        port: u16,
+    ) -> Result<String, String> {
+        //POST {agent}/api/meshes/${mesh.name}/endpoints/${ep.id}/ports/127.0.0.1/tcp/{port}
+        // request body {"service":service_name}
+        let agent_port = self.agent_port;
+        let agent_address = format!("http://127.0.0.1:{agent_port}");
+        let url = format!(
+            "{agent_address}/api/meshes/{MESH_NAME}/endpoints/{ep_id}/ports/127.0.0.1/tcp/{port}"
+        );
+        let client = Client::new();
+        let req = ZTMPortReq {
+            target: ZTMPortService {
+                service: service_name,
+            },
+        };
+        let req_string = serde_json::to_string(&req).unwrap();
+        let request_result = client
+            .post(url)
+            .header(CONTENT_TYPE, "application/json")
+            .body(req_string)
+            .send()
+            .await;
+        let response_text = match handle_ztm_response(request_result).await {
+            Ok(s) => s,
+            Err(s) => {
+                return Err(s);
+            }
+        };
+        Ok(response_text)
     }
 }
 
-pub async fn run_ztm_client(bootstrap_node: String, config: ZTMConfig, peer_id: String) {
-    let name = peer_id;
-    let ztm: RemoteZTM = RemoteZTM { config };
+pub async fn run_ztm_client(
+    bootstrap_node: String,
+    _config: Config,
+    peer_id: String,
+    agent: LocalZTM,
+) {
+    let name = peer_id.clone();
+    // let _context = Context::new(config.clone()).await;
 
     // 1. to get permit json from bootstrap_node
     // GET {bootstrap_node}/api/v1/certificate?name={name}
@@ -308,7 +407,7 @@ pub async fn run_ztm_client(bootstrap_node: String, config: ZTMConfig, peer_id: 
     };
 
     // 2. join ztm mesh
-    let mesh = match ztm.connect_ztm_hub(permit).await {
+    let mesh = match agent.connect_ztm_hub(permit.clone()).await {
         Ok(m) => m,
         Err(s) => {
             tracing::error!(s);
@@ -317,20 +416,9 @@ pub async fn run_ztm_client(bootstrap_node: String, config: ZTMConfig, peer_id: 
     };
     tracing::info!("connect to ztm hub successfully");
 
-    // // 3. find ztm relay service
-    // let relay_endpoint = match ztm.search_ztm_endpoint("relay".to_string()).await {
-    //     Ok(endpoint) => endpoint,
-    //     Err(s) => {
-    //         tracing::error!("find relay ztm endpoint failed, {s}");
-    //         return;
-    //     }
-    // };
-    // let endpoint_id = relay_endpoint.id;
-    // tracing::info!("find relay ztm endpoint successfully, id = {endpoint_id}");
-
-    // 4. create a ztm port
+    // 3. create a ztm port for relay
     let ztm_port = 8002;
-    match ztm
+    match agent
         .create_ztm_port(mesh.agent.id, "relay".to_string(), ztm_port)
         .await
     {
@@ -341,6 +429,35 @@ pub async fn run_ztm_client(bootstrap_node: String, config: ZTMConfig, peer_id: 
         }
     }
     tracing::info!("create a ztm port successfully, port:{ztm_port}");
+    let peer_id_clone = peer_id.clone();
+    loop {
+        ping(
+            peer_id_clone.clone(),
+            permit.bootstraps.first().unwrap().to_string(),
+            ztm_port,
+        )
+        .await;
+        sleep(Duration::from_secs(15));
+    }
+}
+
+pub async fn ping(peer_id: String, hub: String, ztm_port: u16) {
+    let url = format!("http://127.0.0.1:{ztm_port}/ping");
+    let mut params = HashMap::new();
+    params.insert("peer_id", peer_id.clone());
+    params.insert("hub", hub);
+    params.insert("agent_name", peer_id.clone());
+    params.insert("service_name", peer_id.clone());
+    let client = reqwest::Client::new();
+    let response = client.get(url.clone()).query(&params).send().await;
+    let response_text = match handle_ztm_response(response).await {
+        Ok(s) => s,
+        Err(s) => {
+            tracing::error!("GET {url} failed,{s}");
+            return;
+        }
+    };
+    tracing::info!("Get {url}, response: {response_text}");
 }
 
 pub async fn handle_ztm_response(
