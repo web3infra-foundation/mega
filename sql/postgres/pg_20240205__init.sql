@@ -225,3 +225,22 @@ CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
     "size" BIGINT NOT NULL,
     PRIMARY KEY ("ori_oid", "sub_oid", "offset")
 )
+
+
+CREATE TABLE IF NOT EXISTS "ztm_node" (
+  "peer_id" VARCHAR(64) PRIMARY KEY,
+  "hub" VARCHAR(64),
+  "agent_name" VARCHAR(64),
+  "service_name" VARCHAR(64),
+  "type" VARCHAR(64),
+  "online" BOOLEAN NOT NULL,
+  "last_online_time" BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
+  "identifier" VARCHAR(128) PRIMARY KEY,
+  "name" VARCHAR(64),
+  "origin" VARCHAR(64),
+  "update_time" BIGINT NOT NULL,
+  "commit" VARCHAR(64)
+);
