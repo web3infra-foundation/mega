@@ -17,7 +17,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
-use crate::api_router::{self, ApiServiceState};
+use crate::api::api_router::{self};
+use crate::api::ApiServiceState;
 
 pub async fn run_relay_server(config: Config, host: String, port: u16) {
     let app = app(config.clone(), host.clone(), port).await;

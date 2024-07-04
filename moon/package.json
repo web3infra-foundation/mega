@@ -12,6 +12,7 @@
     "@ant-design/icons": "^5.3.7",
     "@headlessui/react": "^2.1.0",
     "@headlessui/tailwindcss": "^0.2.1",
+    "@heroicons/react": "^2.1.4",
     "@lexical/react": "^0.16.0",
     "@tailwindcss/forms": "^0.5.7",
     "antd": "^5.18.3",
