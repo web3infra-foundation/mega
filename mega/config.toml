@@ -13,7 +13,7 @@ print_std = true
 
 [database]
 # database connection url
-db_url = "postgres://postgres:postgres@localhost:5432/mega"
+db_url = "postgres://mega:mega@localhost:5432/mega"
 
 # db max connection, setting it to twice the number of CPU cores would be appropriate.
 max_connection = 32
