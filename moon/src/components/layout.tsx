@@ -1,12 +1,11 @@
-import Navbar from './TopNavbar'
+import Navbar from './TopNavBar'
 import Footer from './Bottombar'
-import '../styles/index.css';
 
 export default function Layout({ children }) {
     return (
         <>
             <Navbar />
-            <main>{children}</main>
+            <main className='h-dvh'>{children}</main>
             <Footer />
         </>
     )

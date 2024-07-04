@@ -79,3 +79,20 @@ pub enum ConvType {
     #[sea_orm(string_value = "merged")]
     Merged,
 }
+
+impl Display for ConvType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ConvType::Comment => "Comment",
+            ConvType::Deploy => "Deploy",
+            ConvType::Commit => "Commit",
+            ConvType::ForcePush => "ForcePush",
+            ConvType::Edit => "Edit",
+            ConvType::Review => "Review",
+            ConvType::Approve => "Approve",
+            ConvType::MergeQueue => "MergeQueue",
+            ConvType::Merged => "Merged",
+        };
+        write!(f, "{}", s)
+    }
+}

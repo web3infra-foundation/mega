@@ -1,9 +1,12 @@
-import Editor from '@/components/editor/Editor';
+import Editor from './editor/Editor';
 import 'github-markdown-css/github-markdown-light.css';
 import { Highlight, themes } from "prism-react-renderer";
-import ReactDOM from 'react-dom';
+import { useState } from 'react';
+import { createRoot } from 'react-dom/client';
 
 const CodeContent = ({ fileContent }) => {
+
+    const [showEditor, setShowEditor] = useState(false);
 
     const handleLineNumberClick = (lineIndex) => {
         setShowEditor(!showEditor);
@@ -14,11 +17,15 @@ const CodeContent = ({ fileContent }) => {
             editorContainer.className = 'editor-container';
 
             // render the Editor into the container
-            ReactDOM.render(<Editor />, editorContainer);
-            codeLineNumber.parentNode.insertBefore(editorContainer, codeLineNumber.nextSibling);
+            const root = createRoot(editorContainer);
+            root.render(<Editor />)
+            if (codeLineNumber && codeLineNumber.parentNode) {
+                codeLineNumber.parentNode.insertBefore(editorContainer, codeLineNumber.nextSibling);
+
+            }
         } else {
             const editorContainer = document.querySelector('.editor-container');
-            if (editorContainer) {
+            if (editorContainer && editorContainer.parentNode) {
                 editorContainer.parentNode.removeChild(editorContainer);
             }
         }
