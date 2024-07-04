@@ -28,7 +28,8 @@ use common::model::{CommonOptions, GetParams};
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
-use crate::api_router::{self, ApiServiceState};
+use crate::api::api_router::{self};
+use crate::api::ApiServiceState;
 use crate::lfs;
 use crate::relay_server::run_relay_server;
 

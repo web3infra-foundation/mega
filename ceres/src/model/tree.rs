@@ -73,7 +73,6 @@ impl From<TreeItem> for TreeBriefItem {
     }
 }
 
-
 #[derive(Serialize, Deserialize)]
 pub struct MRFileTree {
     pub title: String,

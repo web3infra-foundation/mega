@@ -2,6 +2,7 @@ import React from 'react';
 import { Avatar, List, Tag } from 'antd/lib';
 import { format, formatDistance, fromUnixTime } from 'date-fns'
 import { MergeOutlined } from '@ant-design/icons';
+import Link from 'next/link';
 
 interface MrInfoItem {
     id: number,
@@ -48,10 +49,9 @@ const MergeList: React.FC<MergeListProps> = ({ mrList }) => {
                 <List.Item>
                     <List.Item.Meta
                         avatar={
-                            // <Avatar src={`https://api.dicebear.com/7.x/miniavs/svg?seed=${index}`} />
                             <MergeOutlined twoToneColor="#eb2f96" />
                         }
-                        title={<a href={`/mr/${item.id}`}>{`MR ${item.id} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</a>}
+                        title={<Link href={`/mr/${item.id}`}>{`MR ${item.id} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
                         description={getDescription(item)}
                     />
                 </List.Item>

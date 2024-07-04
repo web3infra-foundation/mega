@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -15,11 +15,11 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::monorepo::converter;
-use venus::monorepo::mr::MergeOperation;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
 use crate::model::mr::{MRDetail, MrInfoItem};
+use crate::model::tree::MRFileTree;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -217,14 +217,28 @@ impl MonoApiService {
         Ok(None)
     }
 
-    pub async fn merge_mr(&self, op: MergeOperation) -> Result<(), MegaError> {
+    pub async fn mr_tree_files(&self, mr_id: i64) -> Result<MRFileTree, MegaError> {
         let storage = self.context.services.mega_storage.clone();
-        if let Some(mut mr) = storage.get_open_mr_by_id(op.mr_id).await.unwrap() {
+        let model = storage.get_mr(mr_id).await.unwrap();
+        if let Some(model) = model {
+            let start_tree = storage.get_commit_by_hash(&model.to_hash).await.unwrap().unwrap().tree;
+            let mut stack = VecDeque::new();
+            stack.push_back(start_tree);
+            // while let Some(_) = stack.pop_front() {
+
+            // }
+        }
+        Err(MegaError::with_message("Can not find related MR by id"))
+    }
+
+    pub async fn merge_mr(&self, mr_id: i64) -> Result<(), MegaError> {
+        let storage = self.context.services.mega_storage.clone();
+        if let Some(mut mr) = storage.get_open_mr_by_id(mr_id).await.unwrap() {
             let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
             if mr.from_hash == refs.ref_commit_hash {
                 // update mr
-                mr.merge(op.comment);
+                mr.merge();
                 storage.update_mr(mr.clone()).await.unwrap();
 
                 let commit: Commit = storage
