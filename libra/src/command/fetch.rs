@@ -1,14 +1,14 @@
-use std::io::{self, Read};
+use std::io;
+use std::vec;
 use std::{collections::HashSet, fs, io::Write};
 
 use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
-use futures::StreamExt;
 use mercury::internal::object::commit::Commit;
-use mercury::utils::read_bytes;
 use mercury::{errors::GitError, hash::SHA1};
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio_util::io::StreamReader;
 use url::Url;
-use byteorder::ReadBytesExt;
 
 use crate::command::{ask_basic_auth, load_object};
 use crate::{
@@ -100,37 +100,41 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         .await
         .unwrap();
 
-    let mut buffer = vec![];
-    while let Some(item) = result_stream.next().await { // TODO: 改为流式传输 不要等待读取完毕
-        let item = item.unwrap();
-        buffer.extend(item);
-    }
-
-    let pack_data;
-    // pase pkt line
-    if let Some(pack_pos) = buffer.windows(4).position(|w| w == b"PACK") {
-        tracing::info!("pack data found at: {}", pack_pos);
-        let readable_output = std::str::from_utf8(&buffer[..pack_pos]).unwrap();
-        tracing::debug!("stdout readable: \n{}", readable_output);
-        tracing::info!("pack length: {}", buffer.len() - pack_pos);
-        assert!(buffer[pack_pos..pack_pos + 4].eq(b"PACK"));
-
-        let side_band = true; // TODO: Check Client & Server Capability
-        if !side_band {
-            pack_data = buffer[pack_pos..].to_vec(); // no side-band-64k
-        } else {
-            buffer = buffer[pack_pos - 5..].to_vec();
-            // buffer -> stream
-            let mut reader = std::io::Cursor::new(&buffer);
-            pack_data = parse_sideband_data(&mut reader).unwrap();
+    let mut reader = StreamReader::new(&mut result_stream);
+    let mut pack_data = Vec::new();
+    let mut reach_pack = false;
+    loop {
+        let (len, data) = read_pkt_line(&mut reader).await.unwrap();
+        if len == 0 {
+            break;
         }
-    } else {
-        tracing::error!(
-            "no pack data found, stdout is: \n{}",
-            std::str::from_utf8(&buffer).unwrap()
-        );
-        panic!("no pack data found");
-    }
+        if data.len() >= 5 && &data[1..5] == b"PACK" {
+            reach_pack = true;
+            tracing::debug!("Receiving PACK data...");
+        }
+        if reach_pack { // 2.PACK data
+            // Side-Band Capability, should be enabled if Server Support
+            let code = data[0];
+            let data = &data[1..];
+            match code {
+                1 => { // Data
+                    pack_data.extend(data); // TODO: decode meanwhile & calc progress
+                }
+                2 => { // Progress
+                    print!("{}", String::from_utf8_lossy(&data));
+                }
+                3 => { // Error
+                    tracing::error!("{}", String::from_utf8_lossy(&data));
+                }
+                _ => {
+                    tracing::warn!("unknown side-band-64k code: {}", code);
+                }
+            }
+        } else if &data != b"NAK\n" { // 1.front info (server progress), ignore NAK (first line)
+            print!("{}", String::from_utf8_lossy(&data)); // data contains '\r' & '\n' at end
+            std::io::stdout().flush().unwrap();
+        }
+    };
 
     /* save pack file */
     let pack_file = {
@@ -236,36 +240,21 @@ async fn current_have() -> Vec<String> {
     have
 }
 
-/// Parse `side-band-64k` data
-fn parse_sideband_data(mut reader: impl Read) -> io::Result<Vec<u8>> {
-    let mut total_data = Vec::new();
-    loop {
-        let len_bytes = read_bytes(&mut reader, 4)?;
-        let len_str = std::str::from_utf8(&len_bytes).unwrap();
-        let mut len = u32::from_str_radix(len_str, 16).unwrap();
-        if len == 0 {
-            tracing::info!("pack data read done");
-            break;
-        }
-        let code = reader.read_u8()?;
-        len -= 5; // 1 byte for code, 4 bytes for length
-        let mut data = vec![0u8; len as usize];
-        reader.read_exact(&mut data)?;
-
-        match code {
-            1 => { // Data
-                total_data.extend(data);
-            }
-            2 => { // Progress
-                println!("\r{}", std::str::from_utf8(&data).unwrap());
-            }
-            3 => { // Error
-                tracing::error!("{}", std::str::from_utf8(&data).unwrap());
-            }
-            _ => {
-                tracing::warn!("unknown side-band-64k code: {}", code);
-            }
-        }
+/// Read 4 bytes hex number
+async fn read_hex_4(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<u32> {
+    let mut buf = [0u8; 4];
+    reader.read_exact(&mut buf).await?;
+    let hex_str = std::str::from_utf8(&buf).unwrap();
+    u32::from_str_radix(hex_str, 16).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+}
+/// async version of `read_pkt_line`
+/// - return (raw length, data)
+async fn read_pkt_line(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<(usize, Vec<u8>)> {
+    let len = read_hex_4(reader).await?;
+    if len == 0 {
+        return Ok((0, Vec::new()));
     }
-    Ok(total_data)
+    let mut data = vec![0u8; (len - 4) as usize];
+    reader.read_exact(&mut data).await?;
+    Ok((len as usize, data))
 }
