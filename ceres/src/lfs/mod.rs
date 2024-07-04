@@ -16,4 +16,8 @@ pub struct LfsConfig {
     pub lfs_storage: Arc<dyn RawStorage>,
 
     pub repo_name: String,
+
+    pub enable_split: bool,
+
+    pub split_size: usize,
 }

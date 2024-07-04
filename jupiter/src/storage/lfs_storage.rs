@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use callisto::{lfs_locks, lfs_objects};
-use sea_orm::{DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel};
+use callisto::{lfs_locks, lfs_objects, lfs_split_relation};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter,
+};
 
 use common::errors::MegaError;
 
@@ -35,6 +37,16 @@ impl LfsStorage {
             .unwrap())
     }
 
+    pub async fn new_lfs_relation(
+        &self,
+        relation: lfs_split_relation::Model,
+    ) -> Result<InsertResult<lfs_split_relation::ActiveModel>, MegaError> {
+        lfs_split_relation::Entity::insert(relation.into_active_model())
+            .exec(self.get_connection())
+            .await
+            .map_err(|e| MegaError::with_message(e.to_string().as_str()))
+    }
+
     pub async fn get_lfs_object(
         &self,
         oid: String,
@@ -46,8 +58,53 @@ impl LfsStorage {
         Ok(result)
     }
 
+    pub async fn get_lfs_relations(
+        &self,
+        oid: String,
+    ) -> Result<Vec<lfs_split_relation::Model>, MegaError> {
+        let obj = self.get_lfs_object(oid.clone()).await?;
+        if obj.is_none() {
+            return Err(MegaError::with_message("Object not found"));
+        }
+        let result = lfs_split_relation::Entity::find()
+            .filter(lfs_split_relation::Column::OriOid.eq(oid))
+            .all(self.get_connection())
+            .await
+            .unwrap();
+        if result.is_empty() {
+            return Err(MegaError::with_message(
+                "Object relation not found, maybe have not been uploaded yet",
+            ));
+        }
+        Ok(result)
+    }
+
+    pub async fn get_lfs_relations_ori_oid(
+        &self,
+        sub_oid: &String,
+    ) -> Result<Vec<String>, MegaError> {
+        let result = lfs_split_relation::Entity::find()
+            .filter(lfs_split_relation::Column::SubOid.eq(sub_oid))
+            .all(self.get_connection())
+            .await
+            .unwrap();
+        Ok(result.iter().map(|r| r.ori_oid.clone()).collect())
+    }
+
     pub async fn delete_lfs_object(&self, oid: String) -> Result<(), MegaError> {
         lfs_objects::Entity::delete_by_id(oid)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    pub async fn delete_lfs_relation(
+        &self,
+        object: lfs_split_relation::Model,
+    ) -> Result<(), MegaError> {
+        let r: lfs_split_relation::ActiveModel = object.into();
+        lfs_split_relation::Entity::delete(r)
             .exec(self.get_connection())
             .await
             .unwrap();
