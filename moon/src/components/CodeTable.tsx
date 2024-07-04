@@ -1,8 +1,11 @@
 
-import 'github-markdown-css/github-markdown-light.css';
-import { useRouter } from 'next/router';
-import Markdown from 'react-markdown';
+import 'github-markdown-css/github-markdown-light.css'
+import { useRouter } from 'next/router'
+import Markdown from 'react-markdown'
 import { formatDistance, fromUnixTime } from 'date-fns'
+import folderPic from '../../public/icons/folder.svg'
+import filePic from '../../public/icons/file.svg'
+import Image from 'next/image'
 
 const CodeTable = ({ directory, readmeContent, showTree }) => {
 
@@ -33,7 +36,6 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
     };
 
     const handleGoBack = () => {
-        // const path = router.query.path;
         const { path } = router.query;
         const safePath = Array.isArray(path) ? path : [];
 
@@ -77,7 +79,7 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
                         {showTree && (
                             <tr style={dirShowTrStyle} className="dirShowTr" key="back">
                                 <td className="projectName ">
-                                    <img src="/icons/folder.svg" className='fileTableIcon' alt="File icon" />
+                                    <Image src={folderPic} alt="File icon" className='fileTableIcon' />
                                     <span onClick={() => handleGoBack()}>..</span>
                                 </td>
                                 <td></td>
@@ -89,19 +91,19 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
                             <tr style={dirShowTrStyle} className="dirShowTr" key={project.id}>
                                 {project.content_type === 'file' && (
                                     <td className="projectName ">
-                                        <img src="/icons/file.svg" className='fileTableIcon' alt="File icon" />
+                                        <Image src={filePic} alt="File icon" className='fileTableIcon' />
                                         <span onClick={() => handleFileClick(project)}>{project.name}</span>
                                     </td>
                                 )}
                                 {project.content_type === 'directory' && (
                                     <td className="projectName ">
-                                        <img src="/icons/folder.svg" className='fileTableIcon' alt="File icon" />
+                                        <Image src={folderPic} alt="File icon" className='fileTableIcon' />
                                         <span onClick={() => handleDirectoryClick(project)}>{project.name}</span>
                                     </td>
                                 )}
                                 <td className="projectCommitMsg ">{project.message}</td>
                                 <td className="projectCommitMsg">
-                                    {formatDistance(fromUnixTime(project.date), new Date(), { addSuffix: true })}
+                                    {project.date && formatDistance(fromUnixTime(project.date), new Date(), { addSuffix: true })}
                                 </td>
                             </tr>
                         ))}

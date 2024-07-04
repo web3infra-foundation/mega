@@ -5,8 +5,8 @@ export default async function handler(req, res) {
     const { id } = req.query;
 
     try {
-        const apiUrl = `${endpoint}/api/v1/mr-detail/${id}`;
-        const response = await axios.get(apiUrl);
+        const apiUrl = `${endpoint}/api/v1/merge/${id}`;
+        const response = await axios.post(apiUrl);
         const data = response.data;
         res.status(200).json(data);
     } catch (error) {

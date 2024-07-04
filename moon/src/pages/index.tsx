@@ -1,4 +1,5 @@
 import CodeTable from '../components/CodeTable';
+import '../styles/index.css';
 
 export default function HomePage({ directory, readmeContent, fileContent }) {
     return (

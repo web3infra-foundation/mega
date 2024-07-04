@@ -373,21 +373,21 @@ impl MonoRepo {
         let storage = self.context.services.mega_storage.clone();
         let mut entry_list = Vec::new();
         let mut join_tasks = vec![];
-        let mut commit_id = String::new();
+        let mut current_commit_id = String::new();
         for entry in receiver {
-            if commit_id.is_empty() {
+            if current_commit_id.is_empty() {
                 if entry.obj_type == ObjectType::Commit {
-                    commit_id = entry.hash.to_plain_str();
+                    current_commit_id = entry.hash.to_plain_str();
                 }
             } else {
                 if entry.obj_type == ObjectType::Commit {
                     return Err(GitError::CustomError(
-                        "only single commit support in each commit".to_string(),
+                        "only single commit support in each push".to_string(),
                     ));
                 }
                 if entry_list.len() >= 1000 {
                     let stg_clone = storage.clone();
-                    let commit_id = commit_id.clone();
+                    let commit_id = current_commit_id.clone();
                     let handle = tokio::spawn(async move {
                         stg_clone.save_entry(&commit_id, entry_list).await.unwrap();
                     });
@@ -398,7 +398,7 @@ impl MonoRepo {
             entry_list.push(entry);
         }
         join_all(join_tasks).await;
-        storage.save_entry(&commit_id, entry_list).await.unwrap();
+        storage.save_entry(&current_commit_id, entry_list).await.unwrap();
         Ok(())
     }
 }

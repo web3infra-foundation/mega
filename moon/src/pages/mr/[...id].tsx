@@ -11,7 +11,7 @@ export default function MRDetailPage({ mrDetail }) {
 
 export async function getServerSideProps(context) {
     const { id } = context.query;
-    const res = await fetch(`http://localhost:3000/api/mr?id=${id}`);
+    const res = await fetch(`http://localhost:3000/api/mr/${id}`);
     const response = await res.json();
     const mrDetail = response.data;
     return {
