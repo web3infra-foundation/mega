@@ -147,7 +147,7 @@
 
    ```bash
    $ cd mega
-   $ cargo run init -d postgres
+   $ cargo run init
    ```
 
 7. Start the Mega server for testing.
@@ -260,7 +260,7 @@
 
       [database]
       # database connection url
-      db_url = "postgres://postgres:postgres@localhost:5432/mega"
+      db_url = "postgres://mega:mega@localhost:5432/mega"
 
       # db max connection, setting it to twice the number of CPU cores would be appropriate.
       max_connection = 32
@@ -325,7 +325,7 @@
 
    ```bash
    $ cd mega
-   $ cargo run init -d postgres
+   $ cargo run init
    ```
 
 7. Start Mega server.
@@ -389,7 +389,7 @@ Config `confg.toml` file for the Mega project.
 
    [database]
    # database connection url
-   db_url = "postgres://postgres:postgres@localhost:5432/mega"
+   db_url = "postgres://mega:mega@localhost:5432/mega"
 
    # db max connection, setting it to twice the number of CPU cores would be appropriate.
    max_connection = 2
