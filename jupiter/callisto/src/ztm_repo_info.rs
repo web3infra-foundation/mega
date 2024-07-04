@@ -3,13 +3,14 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "lfs_objects")]
+#[sea_orm(table_name = "ztm_repo_info")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub oid: String,
-    pub size: i64,
-    pub exist: bool,
-    pub splited: bool,
+    pub identifier: String,
+    pub name: String,
+    pub origin: String,
+    pub update_time: i64,
+    pub commit: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

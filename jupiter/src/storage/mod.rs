@@ -3,6 +3,7 @@ pub mod git_fs_storage;
 pub mod init;
 pub mod lfs_storage;
 pub mod mega_storage;
+pub mod ztm_storage;
 
 use async_trait::async_trait;
 
