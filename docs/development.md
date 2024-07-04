@@ -310,7 +310,14 @@
       pack_decode_cache_path = "/tmp/.mega/cache"
 
       clean_cache_after_decode = true
+      
+      [lfs]
+      ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+      # Enable or disable splitting large files into smaller chunks
 
+      enable_split = false  # Default is disabled. Set to true to enable file splitting.   
+      # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
+      split_size = 20971520 # Default size is 20MB (20971520 bytes)
 
    ```
 
@@ -430,6 +437,14 @@ Config `confg.toml` file for the Mega project.
    pack_decode_cache_path = "/tmp/.mega/cache"
 
    clean_cache_after_decode = true
+
+   [lfs]
+   ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+   # Enable or disable splitting large files into smaller chunks
+
+   enable_split = false  # Default is disabled. Set to true to enable file splitting.   
+   # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
+   split_size = 20971520 # Default size is 20MB (20971520 bytes)
 ```
 
 ## Comment Guideline
