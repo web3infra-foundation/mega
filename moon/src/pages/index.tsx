@@ -1,7 +1,6 @@
 import CodeTable from '../components/CodeTable';
-import '../styles/index.css';
 
-export default function HomePage({ directory, readmeContent, fileContent }) {
+export default function HomePage({ directory, readmeContent }) {
     return (
         <div>
             <CodeTable directory={directory} readmeContent={readmeContent} showTree={false} />

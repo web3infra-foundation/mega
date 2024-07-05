@@ -1,7 +1,6 @@
-import CodeTable from '../../components/CodeTable';
-import Bread from '../../components/BreadCrumb';
-import RepoTree from '../../components/RepoTree';
-
+import CodeTable from '../../components/CodeTable'
+import Bread from '../../components/BreadCrumb'
+import RepoTree from '../../components/RepoTree'
 
 export default function TreePage({ directory, readmeContent }) {
     return (
