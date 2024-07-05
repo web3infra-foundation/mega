@@ -1,7 +1,9 @@
 use std::collections::{HashSet, VecDeque};
+use std::io::Write;
 use std::str::FromStr;
 use bytes::BytesMut;
 use clap::Parser;
+use colored::Colorize;
 use tokio::sync::mpsc;
 use url::Url;
 use ceres::protocol::ServiceType::ReceivePack;
@@ -114,13 +116,12 @@ pub async fn execute(args: PushArgs) {
         SHA1::from_str(&commit_hash).unwrap(),
         SHA1::from_str(&remote_hash).unwrap()
     );
-    println!("Counting objects: {}", objs.len());
 
     // let (tx, rx) = mpsc::channel::<Entry>();
     let (entry_tx, entry_rx) = mpsc::channel(1_000_000);
     let (stream_tx, mut stream_rx) = mpsc::channel(1_000_000);
     
-    let encoder = PackEncoder::new(objs.len(), 5, stream_tx);
+    let encoder = PackEncoder::new(objs.len(), 0, stream_tx); // TODO: diff slow, so window_size = 0
     encoder.encode_async(entry_rx).await.unwrap();
 
     for entry in objs {
@@ -128,13 +129,14 @@ pub async fn execute(args: PushArgs) {
         entry_tx.send(entry).await.unwrap();
     }
     drop(entry_tx);
-    println!("Delta compression done.");
 
+    println!("Compression...");
     let mut pack_data = Vec::new();
     while let Some(chunk) = stream_rx.recv().await {
         pack_data.extend(chunk);
     }
     data.extend_from_slice(&pack_data);
+    println!("Delta compression done.");
 
     let res = client.send_pack(data.freeze(), auth).await.unwrap();
 
@@ -155,7 +157,7 @@ pub async fn execute(args: PushArgs) {
     let (len, _) = read_pkt_line(&mut data);
     assert_eq!(len, 0);
 
-    println!("Push success");
+    println!("{}", "Push success".green());
 
     // set after push success
     if args.set_upstream {
@@ -243,6 +245,9 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
             }
         }
         objs.insert(commit.into());
+
+        print!("Counting objects: {}\r", objs.len());
+        std::io::stdout().flush().unwrap();
     }
 
     // root commit has no parent
@@ -251,12 +256,13 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
         objs.extend(diff_tree_objs(None, &root_tree));
     }
 
+    print!("Counting objects: {} done.\n", objs.len());
     objs
 }
 
 /// calc objects that in `new_tree` but not in `old_tree`
 /// - if `old_tree` is None, return all objects in `new_tree` (include tree itself)
-fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
+fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> { // TODO: skip objs that has been added in caller
     let mut objs = HashSet::new();
     if let Some(old_tree) = old_tree {
         if old_tree == new_tree {
@@ -283,7 +289,10 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
                 TreeItemMode::Tree => {
                     objs.extend(diff_tree_objs(None, &item.id)); //TODO optimize, find same name tree
                 }
-                _ => {
+                _ => { // TODO: submodule (TreeItemMode: Commit)
+                    if item.mode == TreeItemMode::Commit { // (160000)| Gitlink (Submodule)
+                        eprintln!("fatal: submodule not supported");
+                    }
                     let blob = Blob::load(&item.id);
                     objs.insert(blob.into());
                 }
