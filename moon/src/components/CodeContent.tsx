@@ -1,8 +1,9 @@
-import Editor from './editor/Editor';
-import 'github-markdown-css/github-markdown-light.css';
-import { Highlight, themes } from "prism-react-renderer";
-import { useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import Editor from './editor/Editor'
+import 'github-markdown-css/github-markdown-light.css'
+import { Highlight, themes } from "prism-react-renderer"
+import { useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import styles from './CodeContent.module.css'
 
 const CodeContent = ({ fileContent }) => {
 
@@ -34,12 +35,12 @@ const CodeContent = ({ fileContent }) => {
 
 
     return (
-        <div className="fileCodeContainer">
-            <div className="viewChangeTab">
-                <button className='viewChangeTabButton'>
+        <div className={styles.fileCodeContainer} >
+            <div className={styles.viewChangeTab}>
+                <button className={styles.viewChangeTabButton}>
                     Code
                 </button>
-                <button className='viewChangeTabButton'>
+                <button className={styles.viewChangeTabButton}>
                     Blame
                 </button>
             </div>
@@ -50,11 +51,11 @@ const CodeContent = ({ fileContent }) => {
                 language="rust"
             >
                 {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                    <pre style={style} className="codeShowContainer">
+                    <pre style={style} className={styles.codeShowContainer}>
                         {tokens.map((line, i) => (
                             <div key={i} {...getLineProps({ line })}>
-                                <button onClick={(event) => handleLineNumberClick(i)} className="lineNumberButton" style={{ marginLeft: '8px', backgroundColor: 'rgb(247, 237, 224, 0.7)', width: '25px', height: '17px', lineHeight: '17px', borderRadius: '3px', marginTop: '5px', border: 'none' }}>+</button>
-                                <span className="codeLineNumber">{i + 1}</span>
+                                <button onClick={(event) => handleLineNumberClick(i)} className={styles.lineNumberButton} style={{ marginLeft: '8px', backgroundColor: 'rgb(247, 237, 224, 0.7)', width: '25px', height: '17px', lineHeight: '17px', borderRadius: '3px', marginTop: '5px', border: 'none' }}>+</button>
+                                <span className={styles.codeLineNumber}>{i + 1}</span>
                                 {line.map((token, key) => (
                                     <span key={key} {...getTokenProps({ token })} />
                                 ))}

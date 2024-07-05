@@ -6,6 +6,7 @@ import { formatDistance, fromUnixTime } from 'date-fns'
 import folderPic from '../../public/icons/folder.svg'
 import filePic from '../../public/icons/file.svg'
 import Image from 'next/image'
+import styles from './CodeTable.module.css'
 
 const CodeTable = ({ directory, readmeContent, showTree }) => {
 
@@ -59,27 +60,27 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
     });
 
     return (
-        <div className="dirTable" style={fileCodeContainerStyle}>
-            <div className="innerTable">
-                <table className="dirShowTable">
-                    <thead className="dirShowTableThead">
+        <div className= {styles.dirTable} style={fileCodeContainerStyle}>
+            <div className={styles.innerTable}>
+                <table className={styles.dirShowTable}>
+                    <thead className={styles.dirShowTableThead}>
                         <tr>
-                            <th scope="col" className="dirShowTableTr">
+                            <th scope="col" className={styles.dirShowTableTr}>
                                 Name
                             </th>
-                            <th scope="col" className="dirShowTableTr">
+                            <th scope="col" className={styles.dirShowTableTr}>
                                 Message
                             </th>
-                            <th scope="col" className="dirShowTableTr">
+                            <th scope="col" className={styles.dirShowTableTr}>
                                 Date
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="dirShowTableTbody">
+                    <tbody className={styles.dirShowTableTbody}>
                         {showTree && (
-                            <tr style={dirShowTrStyle} className="dirShowTr" key="back">
-                                <td className="projectName ">
-                                    <Image src={folderPic} alt="File icon" className='fileTableIcon' />
+                            <tr style={dirShowTrStyle} className={styles.dirShowTr} key="back">
+                                <td className={styles.projectName}>
+                                    <Image src={folderPic} alt="File icon" className={styles.fileTableIcon} />
                                     <span onClick={() => handleGoBack()}>..</span>
                                 </td>
                                 <td></td>
@@ -88,21 +89,21 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
                         )}
 
                         {sortedProjects.map((project) => (
-                            <tr style={dirShowTrStyle} className="dirShowTr" key={project.id}>
+                            <tr style={dirShowTrStyle} className={styles.dirShowTr} key={project.id}>
                                 {project.content_type === 'file' && (
-                                    <td className="projectName ">
-                                        <Image src={filePic} alt="File icon" className='fileTableIcon' />
+                                    <td className={styles.projectName} >
+                                        <Image src={filePic} alt="File icon" className={styles.fileTableIcon} />
                                         <span onClick={() => handleFileClick(project)}>{project.name}</span>
                                     </td>
                                 )}
                                 {project.content_type === 'directory' && (
-                                    <td className="projectName ">
-                                        <Image src={folderPic} alt="File icon" className='fileTableIcon' />
+                                    <td className={styles.projectName} >
+                                        <Image src={folderPic} alt="File icon" className={styles.fileTableIcon} />
                                         <span onClick={() => handleDirectoryClick(project)}>{project.name}</span>
                                     </td>
                                 )}
-                                <td className="projectCommitMsg ">{project.message}</td>
-                                <td className="projectCommitMsg">
+                                <td className={styles.projectCommitMsg} >{project.message}</td>
+                                <td className={styles.projectCommitMsg}>
                                     {project.date && formatDistance(fromUnixTime(project.date), new Date(), { addSuffix: true })}
                                 </td>
                             </tr>
@@ -111,7 +112,7 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
                 </table>
             </div>
             {readmeContent && (
-                <div className='markdownContent'>
+                <div className={styles.markdownContent}>
                     <div className="markdown-body">
                         <Markdown>{readmeContent}</Markdown>
                     </div>
