@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use axum::{
     extract::{Path, Query, State},
@@ -10,7 +10,6 @@ use axum::{
 use crate::api::ApiServiceState;
 use ceres::model::{
     mr::{MRDetail, MrInfoItem},
-    tree::MRFileTree,
     CommonResult,
 };
 
@@ -62,7 +61,7 @@ async fn mr_detail(
 async fn get_mr_files(
     Path(mr_id): Path<i64>,
     state: State<ApiServiceState>,
-) -> Result<Json<CommonResult<MRFileTree>>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<Vec<PathBuf>>>, (StatusCode, String)> {
     let res = state.monorepo().mr_tree_files(mr_id).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),

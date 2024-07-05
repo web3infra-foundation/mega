@@ -1,8 +1,9 @@
-import 'github-markdown-css/github-markdown-light.css';
-import { DownOutlined } from '@ant-design/icons/lib';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { Tree } from 'antd/lib';
+import 'github-markdown-css/github-markdown-light.css'
+import { DownOutlined } from '@ant-design/icons/lib'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
+import { Tree } from 'antd/lib'
+import styles from './RepoTree.module.css'
 
 const Bread = ({ directory }) => {
     const router = useRouter();
@@ -109,7 +110,7 @@ const Bread = ({ directory }) => {
     };
 
     return (
-        <div className='dirTreeContainer'>
+        <div className={styles.dirTreeContainer}>
             <Tree
                 // multiple
                 onSelect={onSelect}
@@ -119,7 +120,7 @@ const Bread = ({ directory }) => {
                 switcherIcon={<DownOutlined />}
                 expandedKeys={expandedKeys}
             />
-        </div>
+        </div >
     );
 };
 

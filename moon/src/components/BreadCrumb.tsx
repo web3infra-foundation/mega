@@ -1,7 +1,8 @@
 
-import 'github-markdown-css/github-markdown-light.css';
-import { useRouter } from 'next/router';
-import { Breadcrumb } from 'antd/lib';
+import 'github-markdown-css/github-markdown-light.css'
+import { useRouter } from 'next/router'
+import { Breadcrumb } from 'antd/lib'
+import styles from './BreadCrumb.module.css'
 
 const Bread = () => {
     const router = useRouter();
@@ -18,7 +19,7 @@ const Bread = () => {
     }));
 
     return (
-        <Breadcrumb className='breadCrumb'
+        <Breadcrumb className={styles.breadCrumb}
             items={breadCrumbItems}
         />
     );
