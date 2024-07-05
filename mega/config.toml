@@ -13,7 +13,7 @@ print_std = true
 
 [database]
 # database connection url
-db_url = "postgres://postgres:postgres@localhost:5432/mega"
+db_url = "postgres://mega:mega@localhost:5432/mega"
 
 # db max connection, setting it to twice the number of CPU cores would be appropriate.
 max_connection = 32
@@ -75,5 +75,9 @@ hub = "http://127.0.0.1:8888"
 agent = "http://127.0.0.1:7777"
 
 [lfs]
-enable_split = true
-split_size = 20971520 # 20MB
+## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+# Enable or disable splitting large files into smaller chunks
+enable_split = true  # Default is disabled. Set to true to enable file splitting.
+
+# Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
+split_size = 20971520 # Default size is 20MB (20971520 bytes)
