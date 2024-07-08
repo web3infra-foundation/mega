@@ -147,16 +147,16 @@
 
    ```bash
    $ cd mega
-   $ cargo run init -d postgres
+   $ cargo run init
    ```
 
 7. Start the Mega server for testing.
 
    ```bash
-   # Starting a single https server
-   $ cargo run service https
+   # Starting a single http server
+   $ cargo run service http
    # Or Starting multiple server
-   $ cargo run service start http ssh p2p
+   $ cargo run service multi http ssh
    ```
 
 8. Test the `git push` and `git clone`
@@ -260,7 +260,7 @@
 
       [database]
       # database connection url
-      db_url = "postgres://postgres:postgres@localhost:5432/mega"
+      db_url = "postgres://mega:mega@localhost:5432/mega"
 
       # db max connection, setting it to twice the number of CPU cores would be appropriate.
       max_connection = 32
@@ -310,7 +310,14 @@
       pack_decode_cache_path = "/tmp/.mega/cache"
 
       clean_cache_after_decode = true
+      
+      [lfs]
+      ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+      # Enable or disable splitting large files into smaller chunks
 
+      enable_split = false  # Default is disabled. Set to true to enable file splitting.   
+      # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
+      split_size = 20971520 # Default size is 20MB (20971520 bytes)
 
    ```
 
@@ -318,16 +325,16 @@
 
    ```bash
    $ cd mega
-   $ cargo run init -d postgres
+   $ cargo run init
    ```
 
 7. Start Mega server.
 
    ```bash
    # Start a single https server
-   $ cargo run service https
+   $ cargo run service http
    # Or Start multiple server
-   $ cargo run service start http ssh p2p
+   $ cargo run service multi http ssh
    ```
 
 8. Test `git push` and `git clone`
@@ -382,7 +389,7 @@ Config `confg.toml` file for the Mega project.
 
    [database]
    # database connection url
-   db_url = "postgres://postgres:postgres@localhost:5432/mega"
+   db_url = "postgres://mega:mega@localhost:5432/mega"
 
    # db max connection, setting it to twice the number of CPU cores would be appropriate.
    max_connection = 2
@@ -430,6 +437,14 @@ Config `confg.toml` file for the Mega project.
    pack_decode_cache_path = "/tmp/.mega/cache"
 
    clean_cache_after_decode = true
+
+   [lfs]
+   ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+   # Enable or disable splitting large files into smaller chunks
+
+   enable_split = false  # Default is disabled. Set to true to enable file splitting.   
+   # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
+   split_size = 20971520 # Default size is 20MB (20971520 bytes)
 ```
 
 ## Comment Guideline

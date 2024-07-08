@@ -30,3 +30,4 @@ futures = { workspace = true }
 bytes = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }
+sha256 = { workspace = true }

@@ -17,7 +17,7 @@ use mercury::{
 
 use crate::model::{
     create_file::CreateFileInfo,
-    objects::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo},
+    tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo},
 };
 
 pub mod import_api_service;

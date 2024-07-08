@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -15,11 +15,10 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use venus::monorepo::converter;
-use venus::monorepo::mr::MergeOperation;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
-use crate::model::objects::MrInfoItem;
+use crate::model::mr::{MRDetail, MrInfoItem};
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -197,21 +196,89 @@ impl MonoApiService {
         } else if status == "closed" {
             vec![MergeStatus::Closed, MergeStatus::Merged]
         } else {
-            return Err(MegaError::with_message("Invalid status name"));
+            vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
+            // return Err(MegaError::with_message("Invalid status name"));
         };
         let storage = self.context.services.mega_storage.clone();
         let mr_list = storage.get_mr_by_status(status).await.unwrap();
         Ok(mr_list.into_iter().map(|m| m.into()).collect())
     }
 
-    pub async fn merge_mr(&self, op: MergeOperation) -> Result<(), MegaError> {
+    pub async fn mr_detail(&self, mr_id: i64) -> Result<Option<MRDetail>, MegaError> {
         let storage = self.context.services.mega_storage.clone();
-        if let Some(mut mr) = storage.get_open_mr_by_id(op.mr_id).await.unwrap() {
+        let model = storage.get_mr(mr_id).await.unwrap();
+        if let Some(model) = model {
+            let mut detail: MRDetail = model.into();
+            let conversions = storage.get_mr_conversations(mr_id).await.unwrap();
+            detail.conversions = conversions.into_iter().map(|x| x.into()).collect();
+            return Ok(Some(detail));
+        }
+        Ok(None)
+    }
+
+    pub async fn mr_tree_files(&self, mr_id: i64) -> Result<Vec<PathBuf>, MegaError> {
+        let storage = self.context.services.mega_storage.clone();
+        let model = storage.get_mr(mr_id).await.unwrap();
+        if let Some(model) = model {
+            let to_tree_id = storage
+                .get_commit_by_hash(&model.to_hash)
+                .await
+                .unwrap()
+                .unwrap()
+                .tree;
+
+            let from_tree_id = storage
+                .get_commit_by_hash(&model.from_hash)
+                .await
+                .unwrap()
+                .unwrap()
+                .tree;
+
+            let mut tree_comparation = TreeComparation {
+                left_tree: VecDeque::new(),
+                result_file: vec![],
+            };
+            tree_comparation.left_tree.push_back((
+                SHA1::from_str(&to_tree_id).unwrap(),
+                Some(SHA1::from_str(&from_tree_id).unwrap()),
+                PathBuf::from(model.path),
+            ));
+            while let Some((new_tree, base_tree, mut current_path)) =
+                tree_comparation.left_tree.pop_front()
+            {
+                let new_tree: Tree = storage
+                    .get_tree_by_hash(&new_tree.to_plain_str())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .into();
+
+                let base_tree = if let Some(base_tree) = base_tree {
+                    let base_tree: Tree = storage
+                        .get_tree_by_hash(&base_tree.to_plain_str())
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .into();
+                    Some(base_tree)
+                } else {
+                    None
+                };
+                tree_comparation.compare(new_tree, base_tree, &mut current_path);
+            }
+            return Ok(tree_comparation.result_file);
+        }
+        Err(MegaError::with_message("Can not find related MR by id"))
+    }
+
+    pub async fn merge_mr(&self, mr_id: i64) -> Result<(), MegaError> {
+        let storage = self.context.services.mega_storage.clone();
+        if let Some(mut mr) = storage.get_open_mr_by_id(mr_id).await.unwrap() {
             let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
             if mr.from_hash == refs.ref_commit_hash {
                 // update mr
-                mr.merge(op.comment);
+                mr.merge();
                 storage.update_mr(mr.clone()).await.unwrap();
 
                 let commit: Commit = storage
@@ -310,9 +377,91 @@ impl MonoApiService {
     }
 }
 
+pub struct TreeComparation {
+    pub left_tree: VecDeque<(SHA1, Option<SHA1>, PathBuf)>,
+    pub result_file: Vec<PathBuf>,
+}
+
+impl TreeComparation {
+    // fn compare(&mut self, new: Tree, base: Option<Tree>) {
+    //     let new_set: HashSet<_> = new.tree_items.into_iter().collect();
+    //     let base_set = if let Some(tree) = base {
+    //         tree.tree_items.into_iter().collect()
+    //     } else {
+    //         HashSet::new()
+    //     };
+    //     let diff: Vec<_> = new_set.symmetric_difference(&base_set).cloned().collect();
+    //     for item in diff {
+    //         if item.mode == TreeItemMode::Tree {
+    //             let t_id = item.id.to_plain_str();
+    //             if !self.left_tree.contains(&t_id) {
+    //                 self.left_tree.push_back(t_id);
+    //             }
+    //         } else {
+    //             self.result_file.push(item.name)
+    //         }
+    //     }
+    // }
+
+    pub fn compare(&mut self, new: Tree, base: Option<Tree>, current_path: &mut PathBuf) {
+        let mut map_name_to_item = HashMap::new();
+        let mut map_id_to_item = HashMap::new();
+
+        if let Some(tree) = base {
+            for item in tree.tree_items {
+                map_name_to_item.insert(item.name.clone(), item.clone());
+                map_id_to_item.insert(item.id, item.clone());
+            }
+        }
+
+        for item in new.tree_items {
+            match (
+                map_name_to_item.get(&item.name),
+                map_id_to_item.get(&item.id),
+            ) {
+                (Some(base_item), _) if base_item.id != item.id => {
+                    self.process_diff(item, Some(base_item.id), current_path);
+                }
+                (_, Some(base_item)) if base_item.name != item.name => {
+                    self.process_diff(item, None, current_path);
+                }
+                (None, None) => {
+                    self.process_diff(item, None, current_path);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn process_diff(&mut self, item: TreeItem, base_id: Option<SHA1>, current_path: &mut PathBuf) {
+        if item.mode == TreeItemMode::Tree {
+            if !self
+                .left_tree
+                .contains(&(item.id, base_id, current_path.to_path_buf()))
+            {
+                current_path.push(item.name);
+                self.left_tree
+                    .push_back((item.id, base_id, current_path.to_path_buf()));
+                current_path.pop();
+            }
+        } else {
+            current_path.push(item.name);
+            self.result_file.push(current_path.to_path_buf());
+            current_path.pop();
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
+    use std::{collections::VecDeque, path::PathBuf};
+
+    use mercury::{
+        hash::SHA1,
+        internal::object::tree::{Tree, TreeItem, TreeItemMode},
+    };
+
+    use crate::api_service::mono_api_service::TreeComparation;
 
     #[test]
     pub fn test() {
@@ -323,5 +472,67 @@ mod test {
             full_path.pop();
             println!("name: {}, path: {:?}", name, full_path);
         }
+    }
+
+    #[test]
+    fn test_compare_tree() {
+        let base = Tree::from_tree_items(vec![
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: SHA1::new(&"src".as_bytes().to_vec()),
+                name: "src".to_string(),
+            },
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: SHA1::new(&"mega".as_bytes().to_vec()),
+                name: "mega".to_string(),
+            },
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: SHA1::new(&"delete.txt".as_bytes().to_vec()),
+                name: "delete.txt".to_string(),
+            },
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: SHA1::new(&"README.md".as_bytes().to_vec()),
+                name: "README.md".to_string(),
+            },
+        ])
+        .unwrap();
+
+        let new = Tree::from_tree_items(vec![
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: SHA1::new(&"src".as_bytes().to_vec()),
+                name: "src_new".to_string(),
+            },
+            TreeItem {
+                mode: TreeItemMode::Tree,
+                id: SHA1::new(&"mega222".as_bytes().to_vec()),
+                name: "mega".to_string(),
+            },
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: SHA1::new(&"Cargo.toml".as_bytes().to_vec()),
+                name: "Cargo.toml".to_string(),
+            },
+            TreeItem {
+                mode: TreeItemMode::Blob,
+                id: SHA1::new(&"README.md".as_bytes().to_vec()),
+                name: "README.md".to_string(),
+            },
+        ])
+        .unwrap();
+
+        let mut tree_comparation = TreeComparation {
+            left_tree: VecDeque::new(),
+            result_file: vec![],
+        };
+        // let mut current_path = Path::new("/");
+        tree_comparation.compare(new, Some(base), &mut PathBuf::from("/"));
+        println!(
+            "files: {:?} left Tree: {:?}",
+            tree_comparation.result_file, tree_comparation.left_tree
+        );
     }
 }
