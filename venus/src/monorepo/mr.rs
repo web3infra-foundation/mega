@@ -1,5 +1,4 @@
 use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
 
 use callisto::{db_enums::MergeStatus, mega_mr};
 use common::utils::generate_id;
@@ -34,7 +33,7 @@ impl MergeRequest {
         self.status = MergeStatus::Closed;
     }
 
-    pub fn merge(&mut self, _: Option<String>) {
+    pub fn merge(&mut self) {
         self.status = MergeStatus::Merged;
         self.merge_date = Some(chrono::Utc::now().naive_utc())
     }
@@ -68,11 +67,5 @@ impl From<mega_mr::Model> for MergeRequest {
             to_hash: value.to_hash,
         }
     }
-}
-
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
-pub struct MergeOperation {
-    pub comment: Option<String>,
-    pub mr_id: i64,
 }
 
