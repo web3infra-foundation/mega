@@ -4,6 +4,7 @@ use std::{collections::HashSet, fs, io::Write};
 
 use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
+use indicatif::ProgressBar;
 use mercury::internal::object::commit::Commit;
 use mercury::{errors::GitError, hash::SHA1};
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -103,6 +104,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
     let mut reader = StreamReader::new(&mut result_stream);
     let mut pack_data = Vec::new();
     let mut reach_pack = false;
+    let bar = ProgressBar::new_spinner();
     loop {
         let (len, data) = read_pkt_line(&mut reader).await.unwrap();
         if len == 0 {
@@ -113,6 +115,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
             tracing::debug!("Receiving PACK data...");
         }
         if reach_pack { // 2.PACK data
+            bar.tick();
             // Side-Band Capability, should be enabled if Server Support
             let code = data[0];
             let data = &data[1..];
@@ -122,12 +125,13 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
                 }
                 2 => { // Progress
                     print!("{}", String::from_utf8_lossy(&data));
+                    std::io::stdout().flush().unwrap();
                 }
                 3 => { // Error
-                    tracing::error!("{}", String::from_utf8_lossy(&data));
+                    eprintln!("{}", String::from_utf8_lossy(&data));
                 }
                 _ => {
-                    tracing::warn!("unknown side-band-64k code: {}", code);
+                    eprintln!("unknown side-band-64k code: {}", code);
                 }
             }
         } else if &data != b"NAK\n" { // 1.front info (server progress), ignore NAK (first line)
@@ -135,6 +139,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
             std::io::stdout().flush().unwrap();
         }
     };
+    bar.finish();
 
     /* save pack file */
     let pack_file = {
