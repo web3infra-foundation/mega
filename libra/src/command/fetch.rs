@@ -1,10 +1,14 @@
+use std::io;
+use std::vec;
 use std::{collections::HashSet, fs, io::Write};
 
 use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
-use futures::StreamExt;
+use indicatif::ProgressBar;
 use mercury::internal::object::commit::Commit;
 use mercury::{errors::GitError, hash::SHA1};
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio_util::io::StreamReader;
 use url::Url;
 
 use crate::command::{ask_basic_auth, load_object};
@@ -97,34 +101,51 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         .await
         .unwrap();
 
-    let mut buffer = vec![];
-    while let Some(item) = result_stream.next().await {
-        let item = item.unwrap();
-        buffer.extend(item);
-    }
-
-    // pase pkt line
-    if let Some(pack_pos) = buffer.windows(4).position(|w| w == b"PACK") {
-        tracing::info!("pack data found at: {}", pack_pos);
-        let readable_output = std::str::from_utf8(&buffer[..pack_pos]).unwrap();
-        tracing::debug!("stdout readable: \n{}", readable_output);
-        tracing::info!("pack length: {}", buffer.len() - pack_pos);
-        assert!(buffer[pack_pos..pack_pos + 4].eq(b"PACK"));
-
-        buffer = buffer[pack_pos..].to_vec();
-    } else {
-        tracing::error!(
-            "no pack data found, stdout is: \n{}",
-            std::str::from_utf8(&buffer).unwrap()
-        );
-        panic!("no pack data found");
-    }
+    let mut reader = StreamReader::new(&mut result_stream);
+    let mut pack_data = Vec::new();
+    let mut reach_pack = false;
+    let bar = ProgressBar::new_spinner();
+    loop {
+        let (len, data) = read_pkt_line(&mut reader).await.unwrap();
+        if len == 0 {
+            break;
+        }
+        if data.len() >= 5 && &data[1..5] == b"PACK" {
+            reach_pack = true;
+            tracing::debug!("Receiving PACK data...");
+        }
+        if reach_pack { // 2.PACK data
+            bar.tick();
+            // Side-Band Capability, should be enabled if Server Support
+            let code = data[0];
+            let data = &data[1..];
+            match code {
+                1 => { // Data
+                    pack_data.extend(data); // TODO: decode meanwhile & calc progress
+                }
+                2 => { // Progress
+                    print!("{}", String::from_utf8_lossy(data));
+                    std::io::stdout().flush().unwrap();
+                }
+                3 => { // Error
+                    eprintln!("{}", String::from_utf8_lossy(data));
+                }
+                _ => {
+                    eprintln!("unknown side-band-64k code: {}", code);
+                }
+            }
+        } else if &data != b"NAK\n" { // 1.front info (server progress), ignore NAK (first line)
+            print!("{}", String::from_utf8_lossy(&data)); // data contains '\r' & '\n' at end
+            std::io::stdout().flush().unwrap();
+        }
+    };
+    bar.finish();
 
     /* save pack file */
     let pack_file = {
-        let hash = SHA1::new(&buffer[..buffer.len() - 20].to_vec());
+        let hash = SHA1::new(&pack_data[..pack_data.len() - 20].to_vec());
 
-        let checksum = SHA1::from_bytes(&buffer[buffer.len() - 20..]);
+        let checksum = SHA1::from_bytes(&pack_data[pack_data.len() - 20..]);
         assert_eq!(hash, checksum);
         let checksum = checksum.to_plain_str();
         println!("checksum: {}", checksum);
@@ -133,7 +154,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
             .join("pack")
             .join(format!("pack-{}.pack", checksum));
         let mut file = fs::File::create(pack_file.clone()).unwrap();
-        file.write_all(&buffer).expect("write failed");
+        file.write_all(&pack_data).expect("write failed");
 
         pack_file.to_string_or_panic()
     };
@@ -222,4 +243,23 @@ async fn current_have() -> Vec<String> {
     }
 
     have
+}
+
+/// Read 4 bytes hex number
+async fn read_hex_4(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<u32> {
+    let mut buf = [0u8; 4];
+    reader.read_exact(&mut buf).await?;
+    let hex_str = std::str::from_utf8(&buf).unwrap();
+    u32::from_str_radix(hex_str, 16).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+}
+/// async version of `read_pkt_line`
+/// - return (raw length, data)
+async fn read_pkt_line(reader: &mut (impl AsyncRead + Unpin)) -> io::Result<(usize, Vec<u8>)> {
+    let len = read_hex_4(reader).await?;
+    if len == 0 {
+        return Ok((0, Vec::new()));
+    }
+    let mut data = vec![0u8; (len - 4) as usize];
+    reader.read_exact(&mut data).await?;
+    Ok((len as usize, data))
 }
