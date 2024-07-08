@@ -256,7 +256,7 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
         objs.extend(diff_tree_objs(None, &root_tree));
     }
 
-    print!("Counting objects: {} done.\n", objs.len());
+    println!("Counting objects: {} done.", objs.len());
     objs
 }
 

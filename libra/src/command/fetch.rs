@@ -124,11 +124,11 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
                     pack_data.extend(data); // TODO: decode meanwhile & calc progress
                 }
                 2 => { // Progress
-                    print!("{}", String::from_utf8_lossy(&data));
+                    print!("{}", String::from_utf8_lossy(data));
                     std::io::stdout().flush().unwrap();
                 }
                 3 => { // Error
-                    eprintln!("{}", String::from_utf8_lossy(&data));
+                    eprintln!("{}", String::from_utf8_lossy(data));
                 }
                 _ => {
                     eprintln!("unknown side-band-64k code: {}", code);
