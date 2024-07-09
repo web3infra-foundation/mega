@@ -55,6 +55,11 @@ fn copy_mega_apps() {
 }
 
 fn main() {
+    // check submodule exists
+    let check_file = Path::new("libs/ztm/pipy/CMakeLists.txt");
+    if !check_file.exists() {
+        panic!("Please run `git submodule update --init --recursive` to get the submodule");
+    }
     copy_mega_apps();
 
     build_agent_ui();
