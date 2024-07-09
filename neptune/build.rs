@@ -1,6 +1,8 @@
+use std::{fs, path::Path};
+
 use cmake::Config;
 fn build_agent_ui() {
-    let ui = std::path::Path::new("libs/ztm/agent/gui");
+    let ui = Path::new("libs/ztm/agent/gui");
     if cfg!(feature = "agent-ui") {
         if !ui.exists() {
             // run npm run build in the libs/ztm/gui
@@ -16,7 +18,7 @@ fn build_agent_ui() {
     }
 }
 
-fn parse_args_to_rustc(dst: &std::path::Path) {
+fn parse_args_to_rustc(dst: &Path) {
     // ** `cargo:rustc-*` format is used to pass information to the cargo build system
 
     // parse to `rustc` to look for dynamic library, used in running
@@ -39,8 +41,25 @@ fn parse_args_to_rustc(dst: &std::path::Path) {
     println!("cargo:rustc-link-lib=pipy");
 }
 
+/// copy `mega-app/` to `libs/ztm/agent/apps/mega`
+fn copy_mega_apps() {
+    let src = Path::new("mega_app");
+    let dst = Path::new("libs/ztm/agent/apps/mega");
+    if src.exists() {
+        if dst.exists() {
+            fs::remove_dir_all(dst).expect("failed to remove origin agent/apps");
+        }
+        // std::fs::copy(src, dst).expect("failed to copy mega to agent/apps");
+        copy_dir_all(src, dst).expect("failed to copy mega to agent/apps");
+    }
+}
+
 fn main() {
+    copy_mega_apps();
+
     build_agent_ui();
+
+    /* compile ztm & pipy */
     // run npm install in the libs/ztm
     let _ = std::process::Command::new("npm")
         .current_dir("libs/ztm/pipy")
@@ -49,7 +68,6 @@ fn main() {
         .expect("failed to run npm install in ztm/pipy");
 
     let mut config = Config::new("libs/ztm/pipy");
-    // clean previous build content
 
     // set to use clang/clang++ to compile
     config.define("CMAKE_C_COMPILER", "clang");
@@ -73,4 +91,18 @@ fn main() {
     let dst = config.build();
 
     parse_args_to_rustc(&dst);
+}
+
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
