@@ -21,4 +21,4 @@ tokio = { workspace = true, features = ["net"] }
 chrono = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
-rust-ztm = { git = "https://github.com/flomesh-io/rust-ztm.git" }
+neptune = { workspace = true }
