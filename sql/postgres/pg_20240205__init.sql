@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
     "offset" BIGINT NOT NULL,
     "size" BIGINT NOT NULL,
     PRIMARY KEY ("ori_oid", "sub_oid", "offset")
-)
+);
 
 
 CREATE TABLE IF NOT EXISTS "ztm_node" (

@@ -6,7 +6,7 @@
 #
 #
 
-on: [ push, pull_request ]
+on: [push, pull_request]
 
 name: Base GitHub Action for Check, Test and Lints
 
@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -32,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -49,6 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -69,5 +75,6 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+          submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - run: cd ./scorpio && cargo clippy --all-targets --all-features -- -D warnings
