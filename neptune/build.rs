@@ -82,12 +82,11 @@ fn main() {
         "ztm/agent:../agent,ztm/hub:../hub,ztm/ca:../ca",
     );
 
-    std::env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", "4");
-
-    // add target to build
     config.no_build_target(true);
 
-    // build
+    // build, with half of the cpu
+    let cups = num_cpus::get() - num_cpus::get() / 2;
+    std::env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", cups.to_string());
     let dst = config.build();
 
     parse_args_to_rustc(&dst);

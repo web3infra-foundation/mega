@@ -5,6 +5,7 @@ edition = "2021"
 
 [build-dependencies]
 cmake = "0.1.50"
+num_cpus = { workspace = true }
 
 [dependencies]
 libc = "0.1.0"
