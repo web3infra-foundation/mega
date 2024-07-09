@@ -271,7 +271,7 @@ pub struct LocalZTM {
 impl LocalZTM {
     pub fn start_ztm_agent(self) {
         tokio::spawn(async move {
-            rust_ztm::start_agent("ztm_agent.db", self.agent_port);
+            neptune::start_agent("ztm_agent.db", self.agent_port);
         });
     }
 }
