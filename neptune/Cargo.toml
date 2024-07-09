@@ -1,0 +1,18 @@
+[package]
+name = "neptune"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+cmake = "0.1.50"
+
+[dependencies]
+libc = "0.1.0"
+reqwest = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }
+tokio-test = { workspace = true }
+
+[features]
+agent-ui = []
