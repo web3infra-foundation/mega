@@ -1,11 +1,15 @@
 use std::{ffi::OsStr, path::Path, time::SystemTime};
 use libc::{c_int, ENOSYS, EPERM};
-
+#[macro_use]
+extern crate log;
 use fuser::{ Filesystem, KernelConfig, ReplyAttr, ReplyBmap, ReplyCreate, ReplyData, ReplyDirectory };
 use fuser::{ ReplyDirectoryPlus, ReplyEmpty, ReplyEntry, ReplyIoctl, ReplyLock, ReplyLseek };
 use fuser::{ ReplyOpen, ReplyStatfs, ReplyWrite, ReplyXattr, Request, TimeOrNow};
 use tracing::{debug,warn};
-
+mod passthrough;
+mod overlayfs;
+mod store;
+mod inode_alloc;
 #[allow(unused)]
 struct MegaFuse;
 
