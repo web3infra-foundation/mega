@@ -15,7 +15,12 @@ Cargo.lock
 
 # Mac
 .DS_Store
-.VSCodeCounter# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+.VSCodeCounter
 
 # zmt agent data file
 ztm_agent.db
+
+# buck2 out
+buck-out
