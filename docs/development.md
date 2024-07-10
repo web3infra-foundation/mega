@@ -19,6 +19,7 @@
    ```bash
    $ git clone https://github.com/web3infra-foundation/mega.git
    $ cd mega
+   $ git submodule update --init --recursive
    $ cargo build
    ```
 
@@ -183,12 +184,13 @@
    ```bash
    $ git clone https://github.com/web3infra-foundation/mega.git
    $ cd mega
+   $ git submodule update --init --recursive
    $ cargo build
    ```
 
 3. Install PostgreSQL and initialize database.
 
-   1. Install PostgreSQL.
+   1.Install PostgreSQL.
 
    ```bash
    $ pacman -S postgresql
@@ -199,7 +201,7 @@
    $ systemctl enable --now postgresql
    ```
 
-   2. Create database.
+   2.Create database.
 
    ```bash
    $ sudo -u postgres psql postgres
@@ -212,14 +214,14 @@
    postgres=# \q
    ```
 
-   3. Import `mega/sql/postgres/pg_<time>_init.sql` to `mega`.
+   3.Import `mega/sql/postgres/pg_<time>_init.sql` to `mega`.
 
    ```bash
    $ cd mega/sql/postgres
    $ sudo -u postgres psql mega < pg_20240205__init.sql
    ```
 
-   4. Create user and grant privileges.
+   4.Create user and grant privileges.
 
    ```sql
    $ sudo -u postgres psql postgres
