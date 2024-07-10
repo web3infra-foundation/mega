@@ -54,24 +54,39 @@ fn copy_mega_apps() {
     }
 }
 
-fn main() {
-    // check submodule exists
-    let check_file = Path::new("libs/ztm/pipy/CMakeLists.txt");
-    if !check_file.exists() {
-        panic!("Please run `git submodule update --init --recursive` to get the submodule");
-    }
-    copy_mega_apps();
-
-    build_agent_ui();
-
-    /* compile ztm & pipy */
-    // run npm install in the libs/ztm
+/// run npm install in the libs/ztm
+fn run_npm_install() {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     let _ = std::process::Command::new("npm")
         .current_dir("libs/ztm/pipy")
         .arg("install")
         .output()
         .expect("failed to run npm install in ztm/pipy");
 
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("cmd.exe")
+        .current_dir("libs/ztm/pipy")
+        // .arg("install")
+        .arg("/C")
+        .arg("npm install")
+        .output()
+        .expect("failed to run npm install in ztm/pipy");
+}
+
+fn main() {
+    // check submodule exists
+    let check_file = Path::new("libs/ztm/pipy/CMakeLists.txt");
+    if !check_file.exists() {
+        panic!("Please run `git submodule update --init --recursive` to get the submodule");
+    }
+
+    copy_mega_apps();
+
+    build_agent_ui();
+
+    run_npm_install();
+    
+    /* compile ztm & pipy */
     let mut config = Config::new("libs/ztm/pipy");
 
     // set to use clang/clang++ to compile
