@@ -7,13 +7,69 @@ import folderPic from '../../public/icons/folder.svg'
 import filePic from '../../public/icons/file.svg'
 import Image from 'next/image'
 import styles from './CodeTable.module.css'
+import { Space, Table, TableProps } from 'antd/lib'
+
+export interface DataType {
+    oid: string;
+    name: string;
+    content_type: string;
+    message: string;
+    date: number;
+}
 
 const CodeTable = ({ directory, readmeContent, showTree }) => {
 
     const router = useRouter();
-    const currentProjectDir = directory || [];
     const fileCodeContainerStyle = showTree ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px' };
-    const dirShowTrStyle = { borderBottom: '1px solid  rgba(0, 0, 0, 0.1)', }
+
+    var columns: TableProps<DataType>['columns'] = [
+        {
+            title: 'Name',
+            dataIndex: ['name', 'content_type'],
+            key: 'name',
+            render: (_, record) => {
+                return <>
+                    {record.content_type === "file" &&
+                        <Space>
+                            <Image src={filePic} alt="File icon" className={styles.fileTableIcon} />
+                            <span onClick={() => handleFileClick(record)}>{record.name}</span>
+                        </Space>
+                    }
+                    {record.content_type === "directory" &&
+                        <Space>
+                            <Image src={folderPic} alt="File icon" className={styles.fileTableIcon} />
+                            <a onClick={() => handleDirectoryClick(record)}>{record.name}</a>
+                        </Space>}
+                </>
+            }
+        },
+        {
+            title: 'Message',
+            dataIndex: 'message',
+            key: 'message',
+            render: (text) => <a>{text}</a>,
+        },
+        {
+            title: 'Date',
+            dataIndex: 'date',
+            key: 'date',
+            render: (_, { date }) => (
+                <>
+                    {date && formatDistance(fromUnixTime(date), new Date(), { addSuffix: true })}
+                </>
+            )
+        },
+        {
+            title: 'Action',
+            key: 'action',
+            render: (_, record) => (
+                <Space size="middle">
+                    <a>Publish {record.name}</a>
+                    <a>Revoke</a>
+                </Space>
+            ),
+        },
+    ];
 
     const handleFileClick = (file) => {
         const { path } = router.query;
@@ -44,12 +100,11 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
             router.push('/')
         } else {
             router.push(`/tree/${safePath.slice(0, -1).join('/')}`);
-
         }
     };
 
     // sort by file type, render folder type first
-    const sortedProjects = currentProjectDir.sort((a, b) => {
+    const sortedDir = directory.sort((a, b) => {
         if (a.content_type === 'directory' && b.content_type === 'file') {
             return -1;
         } else if (a.content_type === 'file' && b.content_type === 'directory') {
@@ -60,57 +115,8 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
     });
 
     return (
-        <div className= {styles.dirTable} style={fileCodeContainerStyle}>
-            <div className={styles.innerTable}>
-                <table className={styles.dirShowTable}>
-                    <thead className={styles.dirShowTableThead}>
-                        <tr>
-                            <th scope="col" className={styles.dirShowTableTr}>
-                                Name
-                            </th>
-                            <th scope="col" className={styles.dirShowTableTr}>
-                                Message
-                            </th>
-                            <th scope="col" className={styles.dirShowTableTr}>
-                                Date
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className={styles.dirShowTableTbody}>
-                        {showTree && (
-                            <tr style={dirShowTrStyle} className={styles.dirShowTr} key="back">
-                                <td className={styles.projectName}>
-                                    <Image src={folderPic} alt="File icon" className={styles.fileTableIcon} />
-                                    <span onClick={() => handleGoBack()}>..</span>
-                                </td>
-                                <td></td>
-                                <td></td>
-                            </tr>
-                        )}
-
-                        {sortedProjects.map((project) => (
-                            <tr style={dirShowTrStyle} className={styles.dirShowTr} key={project.id}>
-                                {project.content_type === 'file' && (
-                                    <td className={styles.projectName} >
-                                        <Image src={filePic} alt="File icon" className={styles.fileTableIcon} />
-                                        <span onClick={() => handleFileClick(project)}>{project.name}</span>
-                                    </td>
-                                )}
-                                {project.content_type === 'directory' && (
-                                    <td className={styles.projectName} >
-                                        <Image src={folderPic} alt="File icon" className={styles.fileTableIcon} />
-                                        <span onClick={() => handleDirectoryClick(project)}>{project.name}</span>
-                                    </td>
-                                )}
-                                <td className={styles.projectCommitMsg} >{project.message}</td>
-                                <td className={styles.projectCommitMsg}>
-                                    {project.date && formatDistance(fromUnixTime(project.date), new Date(), { addSuffix: true })}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+        <div className={styles.dirTable} style={fileCodeContainerStyle}>
+            <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
             {readmeContent && (
                 <div className={styles.markdownContent}>
                     <div className="markdown-body">
