@@ -12,6 +12,13 @@ print_std = true
 
 
 [database]
+# "sqlite" | "postgres"
+# "sqlite" will use `db_path` and ignore `db_url`
+db_type = "sqlite"
+
+# used for sqlite
+db_path = "/tmp/.mega/mega.db"
+
 # database connection url
 db_url = "postgres://mega:mega@localhost:5432/mega"
 

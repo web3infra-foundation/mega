@@ -12,5 +12,6 @@ path = "src/lib.rs"
 common = { path = "../../common" }
 
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 chrono = { workspace = true }
-sea-orm = { workspace = true, features = ["sqlx-postgres", "sqlx-mysql"] }
+sea-orm = { workspace = true, features = ["sqlx-postgres", "sqlx-mysql", "sqlx-sqlite"] }
