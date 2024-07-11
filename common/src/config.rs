@@ -48,6 +48,8 @@ impl Default for LogConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DbConfig {
+    pub db_type: String,
+    pub db_path: String,
     pub db_url: String,
     pub max_connection: u32,
     pub min_connection: u32,
@@ -57,6 +59,8 @@ pub struct DbConfig {
 impl Default for DbConfig {
     fn default() -> Self {
         Self {
+            db_type: String::new(),
+            db_path: String::new(),
             db_url: String::new(),
             max_connection: 32,
             min_connection: 16,
