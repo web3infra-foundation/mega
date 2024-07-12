@@ -13,9 +13,12 @@ use futures::{future::join_all, StreamExt};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::raw_blob;
+use callisto::{mega_tree, raw_blob};
 use common::errors::MegaError;
-use jupiter::{context::Context, storage::GitStorageProvider};
+use jupiter::{
+    context::Context,
+    storage::{batch_save_model, GitStorageProvider},
+};
 use mercury::{
     errors::GitError,
     internal::{
@@ -31,7 +34,6 @@ use venus::import_repo::{
 
 use crate::{
     api_service::{mono_api_service::MonoApiService, ApiHandler},
-    model::create_file::CreateFileInfo,
     pack::handler::PackHandler,
 };
 
@@ -55,7 +57,7 @@ impl PackHandler for ImportRepo {
     }
 
     async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
-        self.create_tree_not_exist().await;
+        self.create_monorepo_parent().await.unwrap();
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
@@ -319,19 +321,55 @@ impl PackHandler for ImportRepo {
 }
 
 impl ImportRepo {
-    async fn create_tree_not_exist(&self) {
+    // create monorepo parent for preserve import repo
+    async fn create_monorepo_parent(&self) -> Result<(), GitError> {
         let path = PathBuf::from(self.repo.repo_path.clone());
-        let f_name = path.file_name().unwrap().to_str().unwrap();
-        let api_service = MonoApiService {
+        let mono_api_service = MonoApiService {
             context: self.context.clone(),
         };
-        let req = CreateFileInfo {
-            is_directory: true,
-            name: f_name.to_owned(),
-            path: path.parent().unwrap().to_str().unwrap().to_owned(),
-            content: None,
-        };
+        let storage = self.context.services.mega_storage.clone();
+        let save_trees = mono_api_service.search_and_create_tree(&path).await?;
 
-        if (api_service.create_monorepo_file(req).await).is_ok() {}
+        let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();
+        let new_commit = Commit::from_tree_id(
+            save_trees[save_trees.len() - 1].id,
+            vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
+            &format!(
+                "push thrid-part crates {:?} commit",
+                path.file_name().unwrap()
+            ),
+        );
+
+        let save_trees: Vec<mega_tree::ActiveModel> = save_trees
+            .into_iter()
+            .map(|tree| {
+                let mut model: mega_tree::Model = tree.into();
+                model.commit_id = new_commit.id.to_plain_str();
+                model.into()
+            })
+            .collect();
+
+        batch_save_model(storage.get_connection(), save_trees)
+            .await
+            .unwrap();
+
+        root_ref.ref_commit_hash = new_commit.id.to_plain_str();
+        root_ref.ref_tree_hash = new_commit.tree_id.to_plain_str();
+        storage.update_ref(root_ref).await.unwrap();
+        storage.save_mega_commits(vec![new_commit]).await.unwrap();
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::PathBuf;
+    #[test]
+    pub fn test_recurse_tree() {
+        let path = PathBuf::from("/third-part/crates/tokio/tokio-console");
+        let ancestors: Vec<_> = path.ancestors().collect();
+        for path in ancestors.into_iter() {
+            println!("{:?}", path);
+        }
     }
 }
