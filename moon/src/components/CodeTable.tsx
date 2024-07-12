@@ -7,7 +7,8 @@ import folderPic from '../../public/icons/folder.svg'
 import filePic from '../../public/icons/file.svg'
 import Image from 'next/image'
 import styles from './CodeTable.module.css'
-import { Space, Table, TableProps } from 'antd/lib'
+import { Input, Modal, Space, Table, TableProps } from 'antd/lib'
+import { useState } from 'react'
 
 export interface DataType {
     oid: string;
@@ -21,6 +22,9 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
 
     const router = useRouter();
     const fileCodeContainerStyle = showTree ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px' };
+    const [open, setOpen] = useState(false);
+    const [confirmLoading, setConfirmLoading] = useState(false);
+    const [modalText, setModalText] = useState('');
 
     var columns: TableProps<DataType>['columns'] = [
         {
@@ -64,7 +68,7 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
-                    <a>Publish {record.name}</a>
+                    <a onClick={() => showModal(record.name)}>Publish</a>
                     <a>Revoke</a>
                 </Space>
             ),
@@ -114,9 +118,35 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
         }
     });
 
+    const showModal = (name) => {
+        setModalText(name);
+        setOpen(true);
+    };
+
+    const handleOk = () => {
+        setConfirmLoading(true);
+        setTimeout(() => {
+            setOpen(false);
+            setConfirmLoading(false);
+        }, 2000);
+    };
+
+    const handleCancel = () => {
+        setOpen(false);
+    };
+
     return (
         <div className={styles.dirTable} style={fileCodeContainerStyle}>
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
+            <Modal
+                title="Did you want to publish repo to public?"
+                open={open}
+                onOk={handleOk}
+                confirmLoading={confirmLoading}
+                onCancel={handleCancel}
+            >
+                <Input showCount maxLength={20} placeholder={modalText} />
+            </Modal>
             {readmeContent && (
                 <div className={styles.markdownContent}>
                     <div className="markdown-body">
