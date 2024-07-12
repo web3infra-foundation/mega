@@ -17,7 +17,7 @@ impl From<mega_commit::Model> for Commit {
                 .parents_id
                 .as_array()
                 .unwrap()
-                .into_iter()
+                .iter()
                 .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
                 .collect(),
             author: Signature::from_data(value.author.unwrap().into()).unwrap(),
@@ -36,7 +36,7 @@ impl From<git_commit::Model> for Commit {
                 .parents_id
                 .as_array()
                 .unwrap()
-                .into_iter()
+                .iter()
                 .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
                 .collect(),
             author: Signature::from_data(value.author.unwrap().into()).unwrap(),
