@@ -23,7 +23,7 @@
    $ cargo build
    ```
 
-3. Install PostgreSQL and init database.
+3. Install PostgreSQL and init database. (You can skip this step if using SQLite in `config.toml`)
 
    1. Install PostgreSQL 16 with `brew` command.
 
@@ -90,8 +90,15 @@
 
 
       [database]
+      # "sqlite" | "postgres"
+      # "sqlite" will use `db_path` and ignore `db_url`
+      db_type = "sqlite"
+
+      # used for sqlite
+      db_path = "/tmp/.mega/mega.db"
+
       # database connection url
-      db_url = "postgres://postgres:postgres@localhost:5432/mega"
+      db_url = "postgres://mega:mega@localhost:5432/mega"
 
       # db max connection, setting it to twice the number of CPU cores would be appropriate.
       max_connection = 32
@@ -188,7 +195,7 @@
    $ cargo build
    ```
 
-3. Install PostgreSQL and initialize database.
+3. Install PostgreSQL and initialize database. (You can skip this step if using SQLite in `config.toml`)
 
    1.Install PostgreSQL.
 
@@ -261,6 +268,13 @@
 
 
       [database]
+      # "sqlite" | "postgres"
+      # "sqlite" will use `db_path` and ignore `db_url`
+      db_type = "sqlite"
+
+      # used for sqlite
+      db_path = "/tmp/.mega/mega.db"
+
       # database connection url
       db_url = "postgres://mega:mega@localhost:5432/mega"
 
@@ -356,6 +370,8 @@
 
 If you are using GitHub codespaces, you can follow the steps below to set up the Mega project. When you create a new Codespace, the Mega project will be cloned automatically. You can then follow the steps below to set up the project.
 
+You can skip this step (PostgreSQL setup) if using SQLite in `config.toml`.
+
 When the codespace is ready, the PostgreSQL will be installed and started automatically. You can then follow the steps below to set up the database with below steps.
 
 ```bash
@@ -390,6 +406,13 @@ Config `confg.toml` file for the Mega project.
 
 
    [database]
+   # "sqlite" | "postgres"
+   # "sqlite" will use `db_path` and ignore `db_url`
+   db_type = "sqlite"
+
+   # used for sqlite
+   db_path = "/tmp/.mega/mega.db"
+
    # database connection url
    db_url = "postgres://mega:mega@localhost:5432/mega"
 
@@ -448,6 +471,14 @@ Config `confg.toml` file for the Mega project.
    # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
    split_size = 20971520 # Default size is 20MB (20971520 bytes)
 ```
+## Database maintenance
+Currently, the tables of database are created by `.sql` file. 
+
+If you want to add a new table or modify the existing table, you need to update the `.sql` files which are located in the `sql` directory.
+
+### Attention
+- Each database corresponds to one `.sql` file, you must modify all of them if you want to update the tables in order to keep the consistency of the database.
+- DO NOT use `Array` Type in PostgreSQL but use `JSON` instead, for compatibility with SQLite & MySQL. (`JSON` <==> `serde_json::Value`)
 
 ## Comment Guideline
 
