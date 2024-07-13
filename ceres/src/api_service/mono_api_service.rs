@@ -32,7 +32,7 @@ impl ApiHandler for MonoApiService {
         let path = PathBuf::from(file_info.path);
         let mut save_trees = vec![];
 
-        let (update_trees, search_tree) = self.search_tree_by_path(&path).await.unwrap();
+        let (update_trees, search_tree) = self.search_tree_for_update(&path).await.unwrap();
         let mut t_items = search_tree.tree_items;
 
         let new_item = if file_info.is_directory {
@@ -89,14 +89,18 @@ impl ApiHandler for MonoApiService {
             .unwrap();
         save_trees.push(p_tree);
 
-        for save_t in save_trees {
-            let mut tree_model: mega_tree::Model = save_t.into();
-            tree_model.commit_id.clone_from(&commit_id);
-            let tree_model: mega_tree::ActiveModel = tree_model.into();
-            batch_save_model(storage.get_connection(), vec![tree_model])
-                .await
-                .unwrap();
-        }
+        let save_trees = save_trees
+            .into_iter()
+            .map(|save_t| {
+                let mut tree_model: mega_tree::Model = save_t.into();
+                tree_model.commit_id.clone_from(&commit_id);
+                let tree_model: mega_tree::ActiveModel = tree_model.into();
+                tree_model
+            })
+            .collect();
+        batch_save_model(storage.get_connection(), save_trees)
+            .await
+            .unwrap();
         Ok(())
     }
 
@@ -297,7 +301,7 @@ impl MonoApiService {
                     let path = PathBuf::from(mr.path.clone());
                     // beacuse only parent tree is needed so we skip current directory
                     let (tree_vec, _) = self
-                        .search_tree_by_path(path.parent().unwrap())
+                        .search_tree_for_update(path.parent().unwrap())
                         .await
                         .unwrap();
                     self.update_parent_tree(path, tree_vec, commit)
