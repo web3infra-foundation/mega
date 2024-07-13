@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS "mega_commit" (
   "id" BIGINT PRIMARY KEY,
   "commit_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
-  "parents_id" TEXT [] NOT NULL,
+  "parents_id" JSON NOT NULL,  -- for compatibility with sqlite, DO NOT use Array Type
   "author" TEXT,
   "committer" TEXT,
   "content" TEXT,
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS "git_commit" (
   "repo_id" BIGINT NOT NULL,
   "commit_id" VARCHAR(40) NOT NULL,
   "tree" VARCHAR(40) NOT NULL,
-  "parents_id" TEXT [] NOT NULL,
+  "parents_id" JSON NOT NULL,
   "author" TEXT,
   "committer" TEXT,
   "content" TEXT,

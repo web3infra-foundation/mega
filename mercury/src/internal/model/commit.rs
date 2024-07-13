@@ -15,8 +15,10 @@ impl From<mega_commit::Model> for Commit {
             tree_id: SHA1::from_str(&value.tree).unwrap(),
             parent_commit_ids: value
                 .parents_id
-                .into_iter()
-                .map(|id| SHA1::from_str(&id).unwrap())
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
                 .collect(),
             author: Signature::from_data(value.author.unwrap().into()).unwrap(),
             committer: Signature::from_data(value.committer.unwrap().into()).unwrap(),
@@ -32,8 +34,10 @@ impl From<git_commit::Model> for Commit {
             tree_id: SHA1::from_str(&value.tree).unwrap(),
             parent_commit_ids: value
                 .parents_id
-                .into_iter()
-                .map(|id| SHA1::from_str(&id).unwrap())
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|id| SHA1::from_str(id.as_str().unwrap()).unwrap())
                 .collect(),
             author: Signature::from_data(value.author.unwrap().into()).unwrap(),
             committer: Signature::from_data(value.committer.unwrap().into()).unwrap(),
