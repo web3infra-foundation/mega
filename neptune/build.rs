@@ -158,6 +158,11 @@ fn build() -> PathBuf {
         config.define("CMAKE_C_COMPILER", "clang");
         config.define("CMAKE_CXX_COMPILER", "clang++");
     }
+    #[cfg(target_os = "windows")]
+    {
+        // TODO: compile pass, but when run, it blocked when load the pipy.dll
+        config.generator("Visual Studio 17 2022");
+    }
     // compile ztm in pipy
     config.define("PIPY_SHARED", "ON");
     config.define("PIPY_GUI", "OFF");
@@ -166,8 +171,6 @@ fn build() -> PathBuf {
         "PIPY_CUSTOM_CODEBASES",
         "ztm/agent:../agent,ztm/hub:../hub,ztm/ca:../ca",
     );
-
-    config.no_build_target(true);
 
     // build, with half of the cpu
     let cups = num_cpus::get() - num_cpus::get() / 2;
