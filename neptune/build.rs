@@ -20,15 +20,23 @@ fn copy_mega_apps() {
 }
 
 /// use npm to build agent ui in `libs/ztm/agent/gui`
-fn build_agent_ui() {
+fn npm_build_agent_ui() {
     let ui = Path::new("libs/ztm/agent/gui");
     if cfg!(feature = "agent-ui") {
         if !ui.exists() {
             // run npm run build in the libs/ztm/gui
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             let _ = std::process::Command::new("npm")
                 .current_dir("libs/ztm/gui")
                 .arg("run")
                 .arg("build")
+                .output()
+                .expect("failed to run npm run build in ztm/gui");
+            #[cfg(target_os = "windows")]
+            let _ = std::process::Command::new("cmd.exe")
+                .current_dir("libs/ztm/gui")
+                .arg("/C")
+                .arg("npm run build")
                 .output()
                 .expect("failed to run npm run build in ztm/gui");
         }
@@ -114,16 +122,30 @@ fn copy_lib_to_target(dst: &Path) {
     fs::copy(&source, &target).expect("failed to copy lib to target");
 }
 
-fn build() -> PathBuf {
-    build_agent_ui();
-
-    /* compile ztm & pipy */
-    // run npm install in the libs/ztm
+// run npm install in the libs/ztm/pipy
+fn npm_install_pipy() {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     let _ = std::process::Command::new("npm")
         .current_dir("libs/ztm/pipy")
         .arg("install")
         .output()
         .expect("failed to run npm install in ztm/pipy");
+
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("cmd.exe")
+        .current_dir("libs/ztm/pipy")
+        // .arg("install")
+        .arg("/C")
+        .arg("npm install")
+        .output()
+        .expect("failed to run npm install in ztm/pipy");
+}
+
+fn build() -> PathBuf {
+    npm_build_agent_ui();
+
+    /* compile ztm & pipy */
+    npm_install_pipy();
 
     let mut config = Config::new("libs/ztm/pipy");
 
