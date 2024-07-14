@@ -1,5 +1,6 @@
 use core::panic;
 use std::{
+    env::current_dir,
     fs,
     path::{Path, PathBuf},
 };
@@ -8,15 +9,14 @@ use cmake::Config;
 
 /// copy `mega-app/` to `libs/ztm/agent/apps/mega`
 fn copy_mega_apps() {
-    let src = Path::new("mega_app");
+    let src = Path::new("mega");
     let dst = Path::new("libs/ztm/agent/apps/mega");
-    if src.exists() {
-        if dst.exists() {
-            fs::remove_dir_all(dst).expect("failed to remove origin agent/apps");
-        }
-        // std::fs::copy(src, dst).expect("failed to copy mega to agent/apps");
-        copy_dir_all(src, dst).expect("failed to copy mega to agent/apps");
+    assert!(src.exists(), "neptune/mega not exists");
+    if dst.exists() {
+        fs::remove_dir_all(dst).expect("failed to remove origin agent/apps");
     }
+    // std::fs::copy(src, dst).expect("failed to copy mega to agent/apps");
+    copy_dir_all(src, dst).expect("failed to copy mega to agent/apps");
 }
 
 /// use npm to build agent ui in `libs/ztm/agent/gui`
@@ -98,9 +98,9 @@ fn copy_lib_to_target(dst: &Path) {
             _source.join("libpipy.so")
         } else if cfg!(target_os = "windows") {
             if cfg!(debug_assertions) {
-                _source.join("pipyd.dll")
+                _source.join("Debug").join("pipyd.dll")
             } else {
-                _source.join("pipy.dll")
+                _source.join("Release").join("pipy.dll")
             }
         } else {
             panic!("unsupported target os");
@@ -109,10 +109,13 @@ fn copy_lib_to_target(dst: &Path) {
 
     // !hack, only work directory is `$workspace/neptune`
     let target = {
+        let mut _target = current_dir().unwrap();
+        assert!(_target.ends_with("neptune"));
+        _target.pop();
         let _target = if cfg!(debug_assertions) {
-            Path::new("../target/debug")
+            _target.join("target").join("debug")
         } else {
-            Path::new("../target/release")
+            _target.join("target").join("release")
         };
         _target.join(source.file_name().unwrap())
     };
