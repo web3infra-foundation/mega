@@ -160,8 +160,9 @@ fn build() -> PathBuf {
     }
     #[cfg(target_os = "windows")]
     {
-        // TODO: compile pass, but when run, it blocked when load the pipy.dll
         config.generator("Visual Studio 17 2022");
+        config.define("CMAKE_MT", "CMAKE_MT-NOTFOUND"); // XXX enumerate possible parameters found
+        config.define("CMAKE_CXX_FLAGS", "/DWIN32 /D_WINDOWS /W3 /GR /EHsc"); // XXX enumerate possible parameters found
     }
     // compile ztm in pipy
     config.define("PIPY_SHARED", "ON");
