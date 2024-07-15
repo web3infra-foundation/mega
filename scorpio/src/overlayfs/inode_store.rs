@@ -20,6 +20,7 @@ pub struct InodeStore {
     // Path to inode mapping, used to reserve inode number for same path.
     path_mapping: Trie<String, Inode>,
     next_inode: u64,
+    inode_limit: u64,
 }
 #[allow(unused)]
 impl InodeStore {
@@ -30,14 +31,15 @@ impl InodeStore {
             deleted: HashMap::new(),
             path_mapping: Trie::new(),
             next_inode: 1,
+            inode_limit: VFS_MAX_INO,
         }
     }
 
     pub(crate) fn alloc_unique_inode(&mut self) -> Result<Inode> {
         // Iter VFS_MAX_INO times to find a free inode number.
         let mut ino = self.next_inode;
-        for _ in 0..VFS_MAX_INO {
-            if ino > VFS_MAX_INO {
+        for _ in 0..self.inode_limit {
+            if ino > self.inode_limit {
                 ino = 1;
             }
             if !self.inodes.contains_key(&ino) && !self.deleted.contains_key(&ino) {
@@ -46,10 +48,10 @@ impl InodeStore {
             }
             ino += 1;
         }
-        error!("reached maximum inode number: {}", VFS_MAX_INO);
+        error!("reached maximum inode number: {}", self.inode_limit );
         Err(Error::new(
             ErrorKind::Other,
-            format!("maximum inode number {} reached", VFS_MAX_INO),
+            format!("maximum inode number {} reached", self.inode_limit ),
         ))
     }
 
@@ -133,6 +135,11 @@ impl InodeStore {
             .collect::<Vec<_>>();
         to_delete.sort_by(|a, b| a.0.cmp(b.0));
         trace!("all deleted inodes: {:?}", to_delete);
+    }
+
+    pub fn extend_inode_number(&mut self,next_inode:u64, limit_inode:u64){
+        self.next_inode = next_inode;
+        self.inode_limit = limit_inode;
     }
 }
 

@@ -13,5 +13,10 @@ radix_trie = "0.2.1"
 signal-hook = "0.3.17"
 tracing = "0.1.40"
 
+sea-orm = { version= "0.12.15",features = [
+    "sqlx-sqlite",
+    "runtime-tokio-rustls",
+    "macros",
+] }
 
 [workspace]
