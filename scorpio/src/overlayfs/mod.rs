@@ -26,8 +26,6 @@ use fuse_backend_rs::api::{SLASH_ASCII, VFS_MAX_INO};
 use inode_store::InodeStore;
 
 
-
-
 pub type Inode = u64;
 pub type Handle = u64;
 pub const CURRENT_DIR: &str = ".";
@@ -35,7 +33,7 @@ pub const PARENT_DIR: &str = "..";
 
 //type BoxedFileSystem = Box<dyn FileSystem<Inode = Inode, Handle = Handle> + Send + Sync>;
 pub type BoxedLayer = Box<dyn Layer<Inode = Inode, Handle = Handle> + Send + Sync>;
-
+const INODE_ALLOC_BATCH:u64 = 0x1_0000_0000;
 // RealInode represents one inode object in specific layer.
 // Also, each RealInode maps to one Entry, which should be 'forgotten' after drop.
 // Important note: do not impl Clone trait for it or refcount will be messed up.
@@ -2148,6 +2146,15 @@ impl OverlayFs {
         }
 
         Err(Error::from_raw_os_error(libc::ENOENT))
+    }
+
+    
+    // extend or init the inodes number to one overlay if the current number is done.
+    pub fn extend_inode_alloc(&mut self,key:u64){
+        let next_inode = key * INODE_ALLOC_BATCH;
+        let limit_inode = next_inode + INODE_ALLOC_BATCH -1;
+        self.inodes.write().unwrap().extend_inode_number(next_inode, limit_inode);
+        
     }
 }
 #[cfg(not(feature = "async-io"))]
