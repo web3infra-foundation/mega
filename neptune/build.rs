@@ -1,5 +1,6 @@
 use core::panic;
 use std::{
+    env::current_dir,
     fs,
     path::{Path, PathBuf},
 };
@@ -8,27 +9,34 @@ use cmake::Config;
 
 /// copy `mega-app/` to `libs/ztm/agent/apps/mega`
 fn copy_mega_apps() {
-    let src = Path::new("mega_app");
+    let src = Path::new("mega");
     let dst = Path::new("libs/ztm/agent/apps/mega");
-    if src.exists() {
-        if dst.exists() {
-            fs::remove_dir_all(dst).expect("failed to remove origin agent/apps");
-        }
-        // std::fs::copy(src, dst).expect("failed to copy mega to agent/apps");
-        copy_dir_all(src, dst).expect("failed to copy mega to agent/apps");
+    assert!(src.exists(), "neptune/mega not exists");
+    if dst.exists() {
+        fs::remove_dir_all(dst).expect("failed to remove origin agent/apps");
     }
+    // std::fs::copy(src, dst).expect("failed to copy mega to agent/apps");
+    copy_dir_all(src, dst).expect("failed to copy mega to agent/apps");
 }
 
 /// use npm to build agent ui in `libs/ztm/agent/gui`
-fn build_agent_ui() {
+fn npm_build_agent_ui() {
     let ui = Path::new("libs/ztm/agent/gui");
     if cfg!(feature = "agent-ui") {
         if !ui.exists() {
             // run npm run build in the libs/ztm/gui
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             let _ = std::process::Command::new("npm")
                 .current_dir("libs/ztm/gui")
                 .arg("run")
                 .arg("build")
+                .output()
+                .expect("failed to run npm run build in ztm/gui");
+            #[cfg(target_os = "windows")]
+            let _ = std::process::Command::new("cmd.exe")
+                .current_dir("libs/ztm/gui")
+                .arg("/C")
+                .arg("npm run build")
                 .output()
                 .expect("failed to run npm run build in ztm/gui");
         }
@@ -90,9 +98,9 @@ fn copy_lib_to_target(dst: &Path) {
             _source.join("libpipy.so")
         } else if cfg!(target_os = "windows") {
             if cfg!(debug_assertions) {
-                _source.join("pipyd.dll")
+                _source.join("Debug").join("pipyd.dll")
             } else {
-                _source.join("pipy.dll")
+                _source.join("Release").join("pipy.dll")
             }
         } else {
             panic!("unsupported target os");
@@ -101,10 +109,13 @@ fn copy_lib_to_target(dst: &Path) {
 
     // !hack, only work directory is `$workspace/neptune`
     let target = {
+        let mut _target = current_dir().unwrap();
+        assert!(_target.ends_with("neptune"));
+        _target.pop();
         let _target = if cfg!(debug_assertions) {
-            Path::new("../target/debug")
+            _target.join("target").join("debug")
         } else {
-            Path::new("../target/release")
+            _target.join("target").join("release")
         };
         _target.join(source.file_name().unwrap())
     };
@@ -114,16 +125,30 @@ fn copy_lib_to_target(dst: &Path) {
     fs::copy(&source, &target).expect("failed to copy lib to target");
 }
 
-fn build() -> PathBuf {
-    build_agent_ui();
-
-    /* compile ztm & pipy */
-    // run npm install in the libs/ztm
+// run npm install in the libs/ztm/pipy
+fn npm_install_pipy() {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     let _ = std::process::Command::new("npm")
         .current_dir("libs/ztm/pipy")
         .arg("install")
         .output()
         .expect("failed to run npm install in ztm/pipy");
+
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("cmd.exe")
+        .current_dir("libs/ztm/pipy")
+        // .arg("install")
+        .arg("/C")
+        .arg("npm install")
+        .output()
+        .expect("failed to run npm install in ztm/pipy");
+}
+
+fn build() -> PathBuf {
+    npm_build_agent_ui();
+
+    /* compile ztm & pipy */
+    npm_install_pipy();
 
     let mut config = Config::new("libs/ztm/pipy");
 
@@ -133,6 +158,12 @@ fn build() -> PathBuf {
         config.define("CMAKE_C_COMPILER", "clang");
         config.define("CMAKE_CXX_COMPILER", "clang++");
     }
+    #[cfg(target_os = "windows")]
+    {
+        config.generator("Visual Studio 17 2022");
+        config.define("CMAKE_MT", "CMAKE_MT-NOTFOUND"); // XXX enumerate possible parameters found
+        config.define("CMAKE_CXX_FLAGS", "/DWIN32 /D_WINDOWS /W3 /GR /EHsc"); // XXX enumerate possible parameters found
+    }
     // compile ztm in pipy
     config.define("PIPY_SHARED", "ON");
     config.define("PIPY_GUI", "OFF");
@@ -141,8 +172,6 @@ fn build() -> PathBuf {
         "PIPY_CUSTOM_CODEBASES",
         "ztm/agent:../agent,ztm/hub:../hub,ztm/ca:../ca",
     );
-
-    config.no_build_target(true);
 
     // build, with half of the cpu
     let cups = num_cpus::get() - num_cpus::get() / 2;
