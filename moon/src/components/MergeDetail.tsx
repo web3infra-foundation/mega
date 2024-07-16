@@ -1,6 +1,7 @@
+'use client'
 import React, { useEffect, useState } from 'react';
 import { Card, Button, List, Typography } from 'antd/lib';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
 const MRDetailPage = ({ mrDetail }) => {
     const router = useRouter();
@@ -12,16 +13,18 @@ const MRDetailPage = ({ mrDetail }) => {
         const fetchFileList = async () => {
             set_to_loading(2)
             try {
-                const res = await fetch(`/api/mr/files?id=${mrDetail.id}`);
+                const res = await fetch(`/api/mr/${mrDetail.id}/files`);
                 const result = await res.json();
-
-                setFileData(result.data);
+                setFileData(result.data.data);
             } catch (err) {
                 setError(err);
             } finally {
                 cancel_loading(2)
             }
         };
+        if (!mrDetail || !mrDetail.id) {
+            return;
+        }
         fetchFileList();
     }, [mrDetail]);
 
@@ -42,25 +45,28 @@ const MRDetailPage = ({ mrDetail }) => {
         });
     }
 
-    const enterLoading = async (index: number, id: number) => {
+    const approve_mr = async (index: number, id: number) => {
         set_to_loading(index);
-        const res = await fetch(`/api/mr/merge?id=${id}`);
+        const res = await fetch(`/api/mr/${id}/merge`,{
+            method: 'POST',
+        });
         if (res) {
             cancel_loading(index);
         }
+        
         if (res.ok) {
-            router.reload();
+            router.refresh();
         }
     };
 
 
     return (
-        <Card title="Card title">
+        <Card title="Merge Request Detail Page">
             {mrDetail.status === "open" &&
                 <Button
                     type="primary"
                     loading={loadings[1]}
-                    onClick={() => enterLoading(1, mrDetail.id)}
+                    onClick={() => approve_mr(1, mrDetail.id)}
                 >
                     Merge MR
                 </Button>
