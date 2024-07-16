@@ -1,11 +1,11 @@
 import 'github-markdown-css/github-markdown-light.css'
 import { DownOutlined } from '@ant-design/icons/lib'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/router'
+import { useRouter } from 'next/navigation'
 import { Tree } from 'antd/lib'
 import styles from './RepoTree.module.css'
 
-const Bread = ({ directory }) => {
+const RepoTree = ({ directory }) => {
     const router = useRouter();
     const [treeData, setTreeData] = useState();
     const [updateTree, setUpdateTree] = useState(false);
@@ -26,7 +26,6 @@ const Bread = ({ directory }) => {
 
     // convert the dir to tree data
     const convertToTreeData = (responseData) => {
-        // console.log("!!!!!!!!!!!!in convert");
         return sortProjectsByType(responseData).map(item => {
             const treeItem = {
                 title: item.name,
@@ -124,4 +123,4 @@ const Bread = ({ directory }) => {
     );
 };
 
-export default Bread;
+export default RepoTree;

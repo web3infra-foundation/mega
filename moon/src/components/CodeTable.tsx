@@ -1,6 +1,7 @@
+'use client'
 
 import 'github-markdown-css/github-markdown-light.css'
-import { useRouter } from 'next/router'
+import { useRouter, usePathname } from 'next/navigation'
 import Markdown from 'react-markdown'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import folderPic from '../../public/icons/folder.svg'
@@ -18,13 +19,14 @@ export interface DataType {
     date: number;
 }
 
-const CodeTable = ({ directory, readmeContent, showTree }) => {
-
+const CodeTable = ({ directory, readmeContent, treeIsShow }) => {
     const router = useRouter();
-    const fileCodeContainerStyle = showTree ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px' };
+    const fileCodeContainerStyle = treeIsShow ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px' };
     const [open, setOpen] = useState(false);
     const [confirmLoading, setConfirmLoading] = useState(false);
     const [modalText, setModalText] = useState('');
+    const pathname = usePathname();
+    let real_path = pathname.replace("/tree", "");
 
     var columns: TableProps<DataType>['columns'] = [
         {
@@ -76,29 +78,24 @@ const CodeTable = ({ directory, readmeContent, showTree }) => {
     ];
 
     const handleFileClick = (file) => {
-        const { path } = router.query;
-        const safePath = Array.isArray(path) ? path : [];
-
-        const newPath = `/blob/${safePath.join("/")}/${file.name}`;
+        const newPath = `/blob/${real_path}/${file.name}`;
         router.push(newPath);
     };
 
     const handleDirectoryClick = async (directory) => {
-        const { path } = router.query;
         var newPath = '';
-        if (Array.isArray(path)) {
-            newPath = `/tree/${path.join("/")}/${directory.name}`;
-        } else {
+        if (real_path === '/') {
             newPath = `/tree/${directory.name}`;
+        } else {
+            newPath = `/tree/${real_path}/${directory.name}`;
         }
-        router.push({
-            pathname: newPath,
-        });
+        router.push(
+            newPath,
+        );
     };
 
     const handleGoBack = () => {
-        const { path } = router.query;
-        const safePath = Array.isArray(path) ? path : [];
+        const safePath = real_path.split('/');
 
         if (safePath.length == 1) {
             router.push('/')
