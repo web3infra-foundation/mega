@@ -66,14 +66,7 @@
    $ psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
    ```
 
-4. Install redis.
-
-   ```bash
-   $ brew install redis
-   $ brew services start redis
-   ```
-
-5. Update config file for local test. For local testing, Mega uses the `config.toml` file to configure the required parameters.
+4. Update config file for local test. For local testing, Mega uses the `config.toml` file to configure the required parameters.
 
    ```ini
     # Fillin the following environment variables with values you set
@@ -151,14 +144,14 @@
 
    ```
 
-6. Init the Mega
+5. Init the Mega
 
    ```bash
    $ cd mega
    $ cargo run init
    ```
 
-7. Start the Mega server for testing.
+6. Start the Mega server for testing.
 
    ```bash
    # Starting a single http server
@@ -167,7 +160,7 @@
    $ cargo run service multi http ssh
    ```
 
-8. Test the `git push` and `git clone`
+7. Test the `git push` and `git clone`
 
    ```bash
    $ cd mega
@@ -243,14 +236,7 @@
    $ sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
    ```
 
-4. Install redis.
-
-   ```bash
-   $ pacman -S redis
-   $ systemctl enable --now redis
-   ```
-
-5. Config `confg.toml`.
+4. Config `confg.toml`.
 
    ```ini
     # Fillin the following environment variables with values you set
@@ -337,14 +323,14 @@
 
    ```
 
-6. Init Mega.
+5. Init Mega.
 
    ```bash
    $ cd mega
    $ cargo run init
    ```
 
-7. Start Mega server.
+6. Start Mega server.
 
    ```bash
    # Start a single https server
@@ -353,7 +339,7 @@
    $ cargo run service multi http ssh
    ```
 
-8. Test `git push` and `git clone`
+7. Test `git push` and `git clone`
 
    ```bash
    $ cd /tmp
