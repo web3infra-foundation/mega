@@ -89,6 +89,7 @@ fn parse_args_to_rustc(dst: &Path) {
 
 /// copy finally lib to target/debug or target/release
 /// for example, in macos and debug mode, it copy target/debug/build/neptune-xxxx/out/libpipy.dylib to target/debug/libpipy.dylib
+/// !only works when develop mega, didn't work if use `mega` as crate of other project
 fn copy_lib_to_target(dst: &Path) {
     let source = {
         let _source: PathBuf = dst.join("build");
@@ -103,26 +104,30 @@ fn copy_lib_to_target(dst: &Path) {
                 _source.join("Release").join("pipy.dll")
             }
         } else {
-            panic!("unsupported target os");
+            println!("cargo:warning=unexpected target os");
+            return;
         }
     };
 
     // !hack, only work directory is `$workspace/neptune`
     let target = {
         let mut _target = current_dir().unwrap();
-        assert!(_target.ends_with("neptune"));
-        _target.pop();
-        let _target = if cfg!(debug_assertions) {
+        _target.pop(); // path: neptune/../
+        if cfg!(debug_assertions) {
             _target.join("target").join("debug")
         } else {
             _target.join("target").join("release")
-        };
-        _target.join(source.file_name().unwrap())
+        }
     };
     if target.exists() {
-        fs::remove_file(&target).expect("failed to remove origin lib");
+        let target = target.join(source.file_name().unwrap());
+        if target.exists() {
+            fs::remove_file(&target).expect("failed to remove origin lib");
+        }
+        fs::copy(&source, &target).expect("failed to copy lib to target");
+    } else {
+        println!("neptune/../target/debug and neptune/../target/release not exists");
     }
-    fs::copy(&source, &target).expect("failed to copy lib to target");
 }
 
 // run npm install in the libs/ztm/pipy
@@ -161,7 +166,6 @@ fn build() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
         config.generator("Visual Studio 17 2022");
-        config.define("CMAKE_MT", "CMAKE_MT-NOTFOUND"); // XXX enumerate possible parameters found
         config.define("CMAKE_CXX_FLAGS", "/DWIN32 /D_WINDOWS /W3 /GR /EHsc"); // XXX enumerate possible parameters found
     }
     // compile ztm in pipy
@@ -189,7 +193,7 @@ fn main() {
     copy_mega_apps();
     let dst = build();
     parse_args_to_rustc(&dst);
-    copy_lib_to_target(&dst);
+    copy_lib_to_target(&dst); // optional, didn't work in all cases
 }
 
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
