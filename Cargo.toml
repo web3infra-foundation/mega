@@ -10,6 +10,7 @@ members = [
     "libra",
     "vault",
     "neptune",
+    "lunar/src-tauri"
 ]
 exclude = ["craft"]
 resolver = "1"
