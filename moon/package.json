@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.3.7",
+    "@ant-design/nextjs-registry": "^1.0.0",
     "@headlessui/react": "^2.1.0",
     "@headlessui/tailwindcss": "^0.2.1",
     "@heroicons/react": "^2.1.4",
@@ -17,7 +18,9 @@
     "@tailwindcss/forms": "^0.5.7",
     "antd": "^5.18.3",
     "axios": "^1.7.2",
+    "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
+    "framer-motion": "^11.3.2",
     "github-markdown-css": "^5.6.1",
     "highlight.js": "^11.9.0",
     "lexical": "^0.16.0",

@@ -1,19 +1,15 @@
-
 import 'github-markdown-css/github-markdown-light.css'
-import { useRouter } from 'next/router'
+import { useRouter } from 'next/navigation'
 import { Breadcrumb } from 'antd/lib'
 import styles from './BreadCrumb.module.css'
 
-const Bread = () => {
+const Bread = ({ path }) => {
     const router = useRouter();
-    const { path } = router.query;
-    const safePath = Array.isArray(path) ? path : [];
-
     const handleBreadcrumbClick = async (index) => {
-        router.push(`/tree/${safePath.slice(0, index + 1).join('/')}`);
+        router.push(`/tree/${path.slice(0, index + 1).join('/')}`);
     };
 
-    const breadCrumbItems = safePath.map((path, index) => ({
+    const breadCrumbItems = path.map((path, index) => ({
         title: path,
         onClick: () => handleBreadcrumbClick(index),
     }));
