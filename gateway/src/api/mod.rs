@@ -28,7 +28,7 @@ impl ApiServiceState {
                 .context
                 .services
                 .git_db_storage
-                .find_git_repo(path.to_str().unwrap())
+                .find_git_repo_like_path(path.to_str().unwrap())
                 .await
                 .unwrap()
             {

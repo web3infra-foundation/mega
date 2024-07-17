@@ -176,12 +176,44 @@ impl GitDbStorage {
         Ok(())
     }
 
-    pub async fn find_git_repo(
+    /// Finds a Git repository with an exact match on the repository path.
+    ///
+    /// # Arguments
+    ///
+    /// * `repo_path` - A string slice that holds the path of the repository to search for.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing an `Option` with the Git repository model if found, or `None` if not found.
+    /// Returns a `MegaError` if an error occurs during the search.
+    pub async fn find_git_repo_exact_match(
+        &self,
+        repo_path: &str,
+    ) -> Result<Option<git_repo::Model>, MegaError> {
+        let result = git_repo::Entity::find()
+            .filter(git_repo::Column::RepoPath.eq(repo_path))
+            .one(self.get_connection())
+            .await?;
+        Ok(result)
+    }
+
+    /// Finds a Git repository with a path that matches the beginning of the provided repository path using a LIKE query.
+    ///
+    /// # Arguments
+    ///
+    /// * `repo_path` - A string slice that holds the beginning of the path of the repository to search for.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing an `Option` with the Git repository model if found, or `None` if not found.
+    /// Returns a `MegaError` if an error occurs during the search.
+    pub async fn find_git_repo_like_path(
         &self,
         repo_path: &str,
     ) -> Result<Option<git_repo::Model>, MegaError> {
         let query = git_repo::Entity::find()
-            .filter(Expr::cust(format!("'{}' LIKE repo_path || '%'", repo_path)));
+            .filter(Expr::cust(format!("'{}' LIKE repo_path || '%'", repo_path)))
+            .order_by_desc(Expr::cust("LENGTH(repo_path)"));
         tracing::debug!("{}", query.build(DbBackend::Postgres).to_string());
         let result = query.one(self.get_connection()).await?;
         Ok(result)
@@ -196,17 +228,6 @@ impl GitDbStorage {
             .unwrap();
         Ok(())
     }
-
-    // #[allow(unused)]
-    // pub async fn update_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
-    //     let git_repo = git_repo::Entity::find_by_id(repo.repo_id)
-    //         .one(self.get_connection())
-    //         .await
-    //         .unwrap();
-    //     let git_repo: git_repo::ActiveModel = git_repo.unwrap().into();
-    //     git_repo.update(self.get_connection()).await.unwrap();
-    //     Ok(())
-    // }
 
     pub async fn get_commit_by_hash(
         &self,
