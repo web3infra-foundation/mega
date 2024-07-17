@@ -45,7 +45,7 @@ fn npm_build_agent_ui() {
     }
 }
 
-fn parse_args_to_rustc(dst: &Path) {
+fn parse_link_args_to_rustc(dst: &Path) {
     // ** `cargo:rustc-*` format is used to pass information to the cargo build system
 
     // parse to `rustc` to look for dynamic library, used in running
@@ -190,9 +190,13 @@ fn main() {
         panic!("Please run `git submodule update --init --recursive` to get the submodule");
     }
 
+    /* set return if changed to reduce build times, ref: `https://doc.rust-lang.org/cargo/reference/build-scripts.html#change-detection`` */
+    println!("cargo:rerun-if-changed=mega");
+    println!("cargo:rerun-if-changed=src");
+
     copy_mega_apps();
     let dst = build();
-    parse_args_to_rustc(&dst);
+    parse_link_args_to_rustc(&dst);
     copy_lib_to_target(&dst); // optional, didn't work in all cases
 }
 
