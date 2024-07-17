@@ -9,10 +9,7 @@ use axum::{
 use crate::api::mr_router;
 use crate::api::ApiServiceState;
 use ceres::model::{
-    create_file::CreateFileInfo,
-    query::{BlobContentQuery, CodePreviewQuery},
-    tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem},
-    CommonResult,
+    create_file::CreateFileInfo, publish_path::PublishPathInfo, query::{BlobContentQuery, CodePreviewQuery}, tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem}, CommonResult
 };
 
 pub fn routers() -> Router<ApiServiceState> {
@@ -22,7 +19,8 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/latest-commit", get(get_latest_commit))
         .route("/tree/commit-info", get(get_tree_commit_info))
         .route("/tree", get(get_tree_info))
-        .route("/blob", get(get_blob_object));
+        .route("/blob", get(get_blob_object))
+        .route("/publish", post(publish_path_to_repo));
 
     Router::new().merge(router).merge(mr_router::routers())
 }
@@ -124,6 +122,22 @@ async fn get_tree_commit_info(
         .await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
+async fn publish_path_to_repo(
+    state: State<ApiServiceState>,
+    Json(json): Json<PublishPathInfo>,
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    let res = state
+        .api_handler(json.path.clone().into())
+        .await
+        .publish_path(json)
+        .await;
+    let res = match res {
+        Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))

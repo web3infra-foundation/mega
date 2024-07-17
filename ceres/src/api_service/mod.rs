@@ -17,8 +17,7 @@ use mercury::{
 use venus::monorepo::converter;
 
 use crate::model::{
-    create_file::CreateFileInfo,
-    tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo},
+    create_file::CreateFileInfo, publish_path::PublishPathInfo, tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo}
 };
 
 pub mod import_api_service;
@@ -27,6 +26,8 @@ pub mod mono_api_service;
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
+
+    async fn publish_path(&self, publish_info: PublishPathInfo) -> Result<(), GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError>;
 
@@ -63,9 +64,9 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<String, GitError> {
         let filename = file_path.file_name().unwrap().to_str().unwrap();
-        let path = file_path.parent().unwrap();
+        let parent = file_path.parent().unwrap();
         let mut plain_text = String::new();
-        if let Some(tree) = self.search_tree_by_path(path).await? {
+        if let Some(tree) = self.search_tree_by_path(parent).await? {
             if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
                 plain_text = match self.get_raw_blob_by_hash(&item.id.to_plain_str()).await {
                     Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
@@ -187,18 +188,21 @@ pub trait ApiHandler: Send + Sync {
         Ok(res)
     }
 
-    /// Searches for a tree and affected parent by path.
-    ///
-    /// This function asynchronously searches for a tree by the provided path.
+    /// Searches for a tree in the Git repository by its path and returns the trees involved in the update and the target tree.
     ///
     /// # Arguments
     ///
-    /// * `path` - A reference to the path to search.
+    /// * `path` - A reference to the path to search for.
     ///
     /// # Returns
     ///
-    /// Returns a tuple containing a vector of parent trees to be updated and
-    /// the target tree if found, or an error of type `GitError`.
+    /// A tuple containing:
+    /// - A vector of trees involved in the update process.
+    /// - The target tree found at the end of the search.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `GitError` if the path does not exist.
     async fn search_tree_for_update(&self, path: &Path) -> Result<(Vec<Tree>, Tree), GitError> {
         let relative_path = self.strip_relative(path)?;
         let root_tree = self.get_root_tree().await;
@@ -232,6 +236,20 @@ pub trait ApiHandler: Send + Sync {
         Ok((update_tree, search_tree))
     }
 
+    /// Searches for a tree by a given path.
+    ///
+    /// This function takes a `path` and searches for the corresponding tree
+    /// in the repository. It returns a `Result` containing an `Option<Tree>`.
+    /// If the tree is found, it returns `Some(Tree)`. If the path does not
+    /// exist, it returns `None`. In case of an error, it returns a `GitError`.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - A reference to the `Path` to search for the tree.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Option<Tree>, GitError>` - A result containing an optional tree or a Git error.
     async fn search_tree_by_path(&self, path: &Path) -> Result<Option<Tree>, GitError> {
         let relative_path = self.strip_relative(path)?;
         let root_tree = self.get_root_tree().await;
@@ -255,41 +273,54 @@ pub trait ApiHandler: Send + Sync {
         Ok(Some(search_tree))
     }
 
-    // move to monorepo.
-    async fn search_and_create_tree(&self, path: &Path) -> Result<Vec<Tree>, GitError> {
+    /// Searches for a tree in the Git repository by its path, creating intermediate trees if necessary,
+    /// and returns the trees involved in the update process.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - A reference to the path to search for.
+    ///
+    /// # Returns
+    ///
+    /// A vector of trees involved in the update process.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `GitError` if an error occurs during the search or tree creation process.
+    async fn search_and_create_tree(&self, path: &Path) -> Result<VecDeque<Tree>, GitError> {
         let relative_path = self.strip_relative(path)?;
         let root_tree = self.get_root_tree().await;
         let mut search_tree = root_tree.clone();
         let mut update_item_tree = VecDeque::new();
         update_item_tree.push_back((root_tree, Component::RootDir));
-        let mut result = vec![];
+        let mut saving_trees = VecDeque::new();
         let mut stack: VecDeque<_> = VecDeque::new();
 
         for component in relative_path.components() {
-            // skip rootdir
-            if component != Component::RootDir {
-                let target_name = component.as_os_str().to_str().unwrap();
-                let search_res = search_tree
-                    .tree_items
-                    .iter()
-                    .find(|x| x.name == target_name);
-                if let Some(search_res) = search_res {
-                    let res = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
-                    search_tree = res.clone();
-                    update_item_tree.push_back((res, component));
-                } else {
-                    stack.push_back(component)
-                }
+            if component == Component::RootDir {
+                continue;
+            }
+
+            let target_name = component.as_os_str().to_str().unwrap();
+            if let Some(search_res) = search_tree
+                .tree_items
+                .iter()
+                .find(|x| x.name == target_name)
+            {
+                search_tree = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
+                update_item_tree.push_back((search_tree.clone(), component));
+            } else {
+                stack.push_back(component);
             }
         }
 
         let blob = converter::generate_git_keep_with_timestamp();
-        let new_item = TreeItem {
+        let mut last_tree = Tree::from_tree_items(vec![TreeItem {
             mode: TreeItemMode::Blob,
             id: blob.id,
             name: String::from(".gitkeep"),
-        };
-        let mut last_tree = Tree::from_tree_items(vec![new_item]).unwrap();
+        }])
+        .unwrap();
         let mut last_tree_name = "";
         let mut first_element = true;
 
@@ -297,43 +328,40 @@ pub trait ApiHandler: Send + Sync {
             if first_element {
                 first_element = false;
             } else {
-                let new_item = TreeItem {
+                last_tree = Tree::from_tree_items(vec![TreeItem {
                     mode: TreeItemMode::Tree,
                     id: last_tree.id,
                     name: last_tree_name.to_owned(),
-                };
-                last_tree = Tree::from_tree_items(vec![new_item]).unwrap();
+                }])
+                .unwrap();
             }
-            result.push(last_tree.clone());
+            saving_trees.push_back(last_tree.clone());
             last_tree_name = component.as_os_str().to_str().unwrap();
         }
 
-        let (new_item_tree, search_name) = update_item_tree.pop_back().unwrap();
-        let new_item = TreeItem {
-            mode: TreeItemMode::Tree,
-            id: last_tree.id,
-            name: last_tree_name.to_owned(),
-        };
-        let mut items = new_item_tree.tree_items.clone();
-        items.push(new_item);
-        last_tree = Tree::from_tree_items(items).unwrap();
-        result.push(last_tree.clone());
+        if let Some((mut new_item_tree, search_name_component)) = update_item_tree.pop_back() {
+            new_item_tree.tree_items.push(TreeItem {
+                mode: TreeItemMode::Tree,
+                id: last_tree.id,
+                name: last_tree_name.to_owned(),
+            });
+            last_tree = Tree::from_tree_items(new_item_tree.tree_items).unwrap();
+            saving_trees.push_back(last_tree.clone());
 
-        let mut replace_hash = last_tree.id;
-        let mut search_name = search_name.as_os_str().to_str().unwrap();
-        while let Some((mut tree, component)) = update_item_tree.pop_back() {
-            let index = tree
-                .tree_items
-                .iter()
-                .position(|x| x.name == search_name)
-                .unwrap();
-            tree.tree_items[index].id = replace_hash;
-            let new_tree = Tree::from_tree_items(tree.tree_items).unwrap();
-            replace_hash = new_tree.id;
-            search_name = component.as_os_str().to_str().unwrap();
-            result.push(new_tree)
+            let mut replace_hash = last_tree.id;
+            let mut search_name = search_name_component.as_os_str().to_str().unwrap();
+            while let Some((mut tree, component)) = update_item_tree.pop_back() {
+                if let Some(index) = tree.tree_items.iter().position(|x| x.name == search_name) {
+                    tree.tree_items[index].id = replace_hash;
+                    let new_tree = Tree::from_tree_items(tree.tree_items).unwrap();
+                    replace_hash = new_tree.id;
+                    search_name = component.as_os_str().to_str().unwrap();
+                    saving_trees.push_back(new_tree);
+                }
+            }
         }
-        Ok(result)
+
+        Ok(saving_trees)
     }
 
     async fn reachable_in_tree(
