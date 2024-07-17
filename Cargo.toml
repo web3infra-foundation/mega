@@ -26,7 +26,7 @@ callisto = { path = "jupiter/callisto" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
 neptune = { path = "neptune" }
-
+mega = { path = "mega" }
 anyhow = "1.0.86"
 serde = "1.0.203"
 serde_json = "1.0.117"
