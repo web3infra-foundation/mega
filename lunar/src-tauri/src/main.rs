@@ -6,7 +6,15 @@ fn hello_string(name: &str) -> String {
     format!("Hello from Rust, {}!", name)
 }
 
+fn start_mega() {
+    let args = "-c ../config.toml service http".split(' ').collect();
+    mega::cli::parse(Some(args)).expect("failed to start mega");
+}
+
 fn main() {
+    std::thread::spawn(|| {
+        start_mega();
+    });
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![hello_string])
         .run(tauri::generate_context!())
