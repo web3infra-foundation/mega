@@ -2,6 +2,8 @@ use core::panic;
 use std::{
     env::current_dir,
     fs,
+    hash::Hasher,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -16,7 +18,10 @@ fn copy_mega_apps() {
         fs::remove_dir_all(dst).expect("failed to remove origin agent/apps");
     }
     // std::fs::copy(src, dst).expect("failed to copy mega to agent/apps");
-    copy_dir_all(src, dst).expect("failed to copy mega to agent/apps");
+    copy_dir_all(src, dst).unwrap_or_else(|e| {
+        fs::remove_dir(dst).expect("failed to remove agent/apps");
+        panic!("failed to copy mega to agent/apps: {}", e);
+    });
 }
 
 /// use npm to build agent ui in `libs/ztm/agent/gui`
@@ -183,16 +188,31 @@ fn build() -> PathBuf {
     config.build()
 }
 
+/// file/path list to detect change
+/// list files because cargo didn't dupport exclude path
+/// we didn't want to detect changes such as node_modules
+fn return_if_change() {
+    /* set return if changed to reduce build times, ref: `https://doc.rust-lang.org/cargo/reference/build-scripts.html#change-detection`` */
+    println!("cargo:rerun-if-changed=mega");
+    println!("cargo:rerun-if-changed=src");
+
+    println!("cargo:rerun-if-changed=libs/ztm/agent");
+    println!("cargo:rerun-if-changed=libs/ztm/hub");
+    println!("cargo:rerun-if-changed=libs/ztm/ca");
+
+    println!("cargo:rerun-if-changed=libs/ztm/pipy/src");
+    println!("cargo:rerun-if-changed=libs/ztm/pipy/CMakeLists.txt");
+    println!("cargo:rerun-if-changed=libs/ztm/pipy/include");
+    println!("cargo:rerun-if-changed=libs/ztm/pipy/deps");
+}
+
 fn main() {
     // check submodule exists
     let check_file = Path::new("libs/ztm/pipy/CMakeLists.txt");
     if !check_file.exists() {
         panic!("Please run `git submodule update --init --recursive` to get the submodule");
     }
-
-    /* set return if changed to reduce build times, ref: `https://doc.rust-lang.org/cargo/reference/build-scripts.html#change-detection`` */
-    println!("cargo:rerun-if-changed=mega");
-    println!("cargo:rerun-if-changed=src");
+    return_if_change();
 
     copy_mega_apps();
     let dst = build();
@@ -201,6 +221,14 @@ fn main() {
 }
 
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+    fn hash_file(file: PathBuf) -> std::io::Result<u64> {
+        let mut file = fs::File::open(file)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(&buf, &mut hasher);
+        Ok(hasher.finish())
+    }
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
         let entry = entry?;
@@ -208,7 +236,16 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result
         if ty.is_dir() {
             copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
         } else {
-            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            // check content hash, skip if same, so didn't change timestamp of file, in case cargo rebuild
+            let dts_file = dst.as_ref().join(entry.file_name());
+            if dts_file.exists() {
+                let src_hash = hash_file(entry.path())?;
+                let dst_hash = hash_file(dts_file.clone())?;
+                if src_hash == dst_hash {
+                    continue;
+                }
+            }
+            fs::copy(entry.path(), dts_file)?;
         }
     }
     Ok(())
