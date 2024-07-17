@@ -4,6 +4,7 @@ pub mod create_file;
 pub mod mr;
 pub mod query;
 pub mod tree;
+pub mod publish_path;
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
 

@@ -14,11 +14,13 @@ use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use venus::import_repo::repo::Repo;
 use venus::monorepo::converter;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
 use crate::model::mr::{MRDetail, MrInfoItem};
+use crate::model::publish_path::PublishPathInfo;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -27,14 +29,25 @@ pub struct MonoApiService {
 
 #[async_trait]
 impl ApiHandler for MonoApiService {
+    /// Creates a new file or directory in the monorepo based on the provided file information.
+    ///
+    /// # Arguments
+    ///
+    /// * `file_info` - Information about the file or directory to create.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on success, or a `GitError` on failure.
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
         let storage = self.context.services.mega_storage.clone();
         let path = PathBuf::from(file_info.path);
         let mut save_trees = vec![];
 
-        let (update_trees, search_tree) = self.search_tree_for_update(&path).await.unwrap();
+        // Search for the tree to update and get its tree items
+        let (update_trees, search_tree) = self.search_tree_for_update(&path).await?;
         let mut t_items = search_tree.tree_items;
 
+        // Create a new tree item based on whether it's a directory or file
         let new_item = if file_info.is_directory {
             if t_items
                 .iter()
@@ -56,26 +69,26 @@ impl ApiHandler for MonoApiService {
                 name: file_info.name.clone(),
             }
         } else {
-            let blob = Blob::from_content(&file_info.content.unwrap());
-            let mega_blob: mega_blob::Model = (&blob).into();
-            let mega_blob: mega_blob::ActiveModel = mega_blob.into();
-            let raw_blob: raw_blob::Model = blob.clone().into();
-            let raw_blob: raw_blob::ActiveModel = raw_blob.into();
-            batch_save_model(storage.get_connection(), vec![mega_blob])
-                .await
-                .unwrap();
-            batch_save_model(storage.get_connection(), vec![raw_blob])
-                .await
-                .unwrap();
+            let content = file_info.content.unwrap();
+            let blob = Blob::from_content(&content);
+            let mega_blob: mega_blob::ActiveModel = Into::<mega_blob::Model>::into(&blob).into();
+            let raw_blob: raw_blob::ActiveModel =
+                Into::<raw_blob::Model>::into(blob.clone()).into();
+
+            let conn = storage.get_connection();
+            batch_save_model(conn, vec![mega_blob]).await.unwrap();
+            batch_save_model(conn, vec![raw_blob]).await.unwrap();
             TreeItem {
                 mode: TreeItemMode::Blob,
                 id: blob.id,
                 name: file_info.name.clone(),
             }
         };
+        // Add the new item to the tree items and create a new tree
         t_items.push(new_item);
         let p_tree = Tree::from_tree_items(t_items).unwrap();
 
+        // Create a commit for the new tree
         let refs = storage.get_ref("/").await.unwrap().unwrap();
         let commit = Commit::from_tree_id(
             p_tree.id,
@@ -83,24 +96,28 @@ impl ApiHandler for MonoApiService {
             &format!("create file {} commit", file_info.name),
         );
 
-        let commit_id = self
-            .update_parent_tree(path, update_trees, commit)
-            .await
-            .unwrap();
+        // Update the parent tree with the new commit
+        let commit_id = self.update_parent_tree(path, update_trees, commit).await?;
         save_trees.push(p_tree);
 
-        let save_trees = save_trees
+        let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|save_t| {
                 let mut tree_model: mega_tree::Model = save_t.into();
                 tree_model.commit_id.clone_from(&commit_id);
-                let tree_model: mega_tree::ActiveModel = tree_model.into();
-                tree_model
+                tree_model.into()
             })
             .collect();
         batch_save_model(storage.get_connection(), save_trees)
             .await
             .unwrap();
+        Ok(())
+    }
+
+    async fn publish_path(&self, publish_info: PublishPathInfo) -> Result<(), GitError> {
+        let storage = self.context.services.git_db_storage.clone();
+        let repo: Repo = publish_info.into();
+        storage.save_git_repo(repo.clone()).await.unwrap();
         Ok(())
     }
 

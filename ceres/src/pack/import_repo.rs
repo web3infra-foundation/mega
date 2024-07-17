@@ -332,7 +332,7 @@ impl ImportRepo {
 
         let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();
         let new_commit = Commit::from_tree_id(
-            save_trees[save_trees.len() - 1].id,
+            save_trees.back().unwrap().id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
             &format!(
                 "push thrid-part crates {:?} commit",
