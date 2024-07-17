@@ -224,7 +224,7 @@ pub trait ApiHandler: Send + Sync {
                     }
                 } else {
                     return Err(GitError::CustomError(
-                        "can't find target parent tree under latest commit".to_string(),
+                        "Path not exist, please create path first!".to_string(),
                     ));
                 }
             }

@@ -32,7 +32,7 @@ impl ApiHandler for MonoApiService {
         let path = PathBuf::from(file_info.path);
         let mut save_trees = vec![];
 
-        let (update_trees, search_tree) = self.search_tree_for_update(&path).await.unwrap();
+        let (update_trees, search_tree) = self.search_tree_for_update(&path).await?;
         let mut t_items = search_tree.tree_items;
 
         let new_item = if file_info.is_directory {

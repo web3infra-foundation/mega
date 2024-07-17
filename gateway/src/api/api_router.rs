@@ -20,7 +20,7 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/status", get(life_cycle_check))
         .route("/create-file", post(create_file))
         .route("/latest-commit", get(get_latest_commit))
-        .route("/tree-commit-info", get(get_tree_commit_info))
+        .route("/tree/commit-info", get(get_tree_commit_info))
         .route("/tree", get(get_tree_info))
         .route("/blob", get(get_blob_object));
 
