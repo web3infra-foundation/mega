@@ -2,10 +2,7 @@ use core::fmt;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use callisto::db_enums::RefType;
-use common::{
-    errors::MegaError,
-    utils::{generate_id, ZERO_ID},
-};
+use common::{errors::MegaError, utils::ZERO_ID};
 use jupiter::context::Context;
 use venus::{import_repo::import_refs::RefCommand, import_repo::repo::Repo};
 
@@ -151,16 +148,11 @@ impl SmartProtocol {
             let storage = self.context.services.git_db_storage.clone();
 
             let path_str = self.path.to_str().unwrap();
-            let model = storage.find_git_repo(path_str).await.unwrap();
+            let model = storage.find_git_repo_exact_match(path_str).await.unwrap();
             let repo = if let Some(repo) = model {
                 repo.into()
             } else {
-                let repo_name = self.path.file_name().unwrap().to_str().unwrap().to_owned();
-                let repo = Repo {
-                    repo_id: generate_id(),
-                    repo_path: self.path.to_str().unwrap().to_owned(),
-                    repo_name,
-                };
+                let repo = Repo::new(self.path.clone(), false);
                 storage.save_git_repo(repo.clone()).await.unwrap();
                 repo
             };

@@ -15,10 +15,10 @@ use ceres::model::{
 
 pub fn routers() -> Router<ApiServiceState> {
     Router::new()
-        .route("/mr-list", get(get_mr_list))
-        .route("/mr-detail/:mr_id", get(mr_detail))
-        .route("/merge/:mr_id", post(merge))
-        .route("/mr-files/:mr_id", get(get_mr_files))
+        .route("/mr/list", get(get_mr_list))
+        .route("/mr/:mr_id/detail", get(mr_detail))
+        .route("/mr/:mr_id/merge", post(merge))
+        .route("/mr/:mr_id/files", get(get_mr_files))
 }
 
 async fn merge(

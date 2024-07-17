@@ -333,7 +333,6 @@ impl MegaStorage {
     ) -> Result<Vec<mega_commit::Model>, MegaError> {
         Ok(mega_commit::Entity::find()
             .filter(mega_commit::Column::CommitId.is_in(hashes))
-            .distinct()
             .all(self.get_connection())
             .await
             .unwrap())
