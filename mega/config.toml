@@ -1,8 +1,12 @@
+# the directory where the data files is located, such as logs, database, etc.
+# can be overrided by environment variable `MEGA_BASE_DIR`
+base_dir = "/tmp/.mega"
+
 # Filling the following environment variables with values you set
 ## Logging Configuration
 [log]
 # The path which log file is saved
-log_path = "/tmp/.mega/logs"
+log_path = "${base_dir}/logs"
 
 # log level
 level = "debug"
@@ -17,7 +21,7 @@ print_std = true
 db_type = "sqlite"
 
 # used for sqlite
-db_path = "/tmp/.mega/mega.db"
+db_path = "${base_dir}/mega.db"
 
 # database connection url
 db_url = "postgres://mega:mega@localhost:5432/mega"
@@ -33,7 +37,7 @@ sqlx_logging = false
 
 
 [ssh]
-ssh_key_path = "/tmp/.mega/ssh"
+ssh_key_path = "${base_dir}/ssh"
 
 [storage]
 # raw object stroage type, can be `local` or `remote`
@@ -43,9 +47,9 @@ raw_obj_storage_type = "LOCAL"
 big_obj_threshold = 1024
 
 # set the local path of the project storage
-raw_obj_local_path = "/tmp/.mega/objects"
+raw_obj_local_path = "${base_dir}/objects"
 
-lfs_obj_local_path = "/tmp/.mega/lfs"
+lfs_obj_local_path = "${base_dir}/lfs"
 
 obs_access_key = ""
 obs_secret_key = ""
@@ -68,7 +72,7 @@ import_dir = "/third-part"
 pack_decode_mem_size = 4
 
 # The location where the object stored when the memory used by decode exceeds the limit
-pack_decode_cache_path = "/tmp/.mega/cache"
+pack_decode_cache_path = "${base_dir}/cache"
 
 clean_cache_after_decode = true
 
