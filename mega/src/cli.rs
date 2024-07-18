@@ -42,6 +42,11 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
 
     init_log(&config.log);
 
+    ctrlc::set_handler(move || {
+        tracing::info!("Received Ctrl-C signal, exiting...");
+        std::process::exit(0);
+    }).unwrap();
+
     let (cmd, subcommand_args) = match matches.subcommand() {
         Some((cmd, args)) => (cmd, args),
         _ => {
