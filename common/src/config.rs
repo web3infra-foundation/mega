@@ -1,10 +1,16 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use c::{ConfigError, FileFormat};
 use config as c;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
+use config::builder::DefaultState;
+use config::Source;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Config {
+    pub base_dir: PathBuf,
     pub log: LogConfig,
     pub database: DbConfig,
     pub ssh: SshConfig,
@@ -17,8 +23,11 @@ pub struct Config {
 
 impl Config {
     pub fn new(path: &str) -> Result<Self, ConfigError> {
-        let builder = c::Config::builder().add_source(c::File::new(path, FileFormat::Toml));
-        let config = builder.build().unwrap();
+        let builder = c::Config::builder()
+            .add_source(c::File::new(path, FileFormat::Toml))
+            .add_source(c::Environment::with_prefix("mega")); // e.g. MEGA_BASE_DIR == base_dir
+        // support ${} variable substitution
+        let config = variable_placeholder_substitute(builder);
 
         Config::from_config(config)
     }
@@ -26,6 +35,68 @@ impl Config {
     pub fn from_config(config: c::Config) -> Result<Self, c::ConfigError> {
         // config.get::<Self>(env!("CARGO_PKG_NAME"))
         config.try_deserialize::<Config>()
+    }
+}
+
+/// supports braces-delimited variables (i.e. ${foo}).
+/// - only top-level variables are supported.
+/// - only support `String` type.
+/// - do not support recursive substitution
+fn variable_placeholder_substitute(mut builder: c::ConfigBuilder<DefaultState>) -> c::Config {
+    // `Config::set` is deprecated, use `ConfigBuilder::set_override` instead
+    let config = builder.clone().build().unwrap();
+    let mut vars = HashMap::new();
+    // top-level variables
+    for (k, mut v) in config.collect().unwrap() { // a copy
+        if let c::ValueKind::String(s) = &v.kind {
+            if envsubst::is_templated(&s) { // do not support recursive substitution
+                let new_str = envsubst::substitute(s, &vars).unwrap();
+                v.kind = c::ValueKind::String(new_str);
+                builder = builder.set_override(k, v).unwrap();
+            } else {
+                println!("{}: {:?}", k, s);
+                vars.insert(k, s.clone());
+            }
+        }
+    }
+    // second-level or nested variables
+    let map = Arc::new(RefCell::new(HashMap::new()));
+    for (k, v) in config.collect().unwrap() {
+        if let c::ValueKind::Table(_) = v.kind {
+            let map_c = map.clone();
+            traverse_config(&k, &v, Arc::new(move |key, value| {
+                if let c::ValueKind::String(str) = &value.kind {
+                    if envsubst::is_templated(&str) {
+                        map_c.borrow_mut().insert(key.to_string(), value.clone());
+                    }
+                }
+            }));
+        }
+    }
+
+    // do substitution: ${} -> value
+    for (k, mut v) in Arc::try_unwrap(map).unwrap().into_inner() {
+        let old_str = v.clone().into_string().unwrap();
+        let new_str = envsubst::substitute(&old_str, &vars).unwrap();
+        println!("{}: {} -> {}", k, old_str, &new_str);
+        v.kind = c::ValueKind::String(new_str);
+        builder = builder.set_override(&k, v).unwrap();
+    }
+
+    builder.build().unwrap()
+}
+
+/// visitor pattern: traverse each config & execute the closure `f`
+fn traverse_config(key: &str, value: &c::Value, f: Arc<dyn Fn(&str, &c::Value)>) {
+    match &value.kind {
+        c::ValueKind::Table(table) => {
+            for (k, v) in table.iter() {
+                // join keys by '.'
+                let new_key = if key.is_empty() { k.clone() } else { format!("{}.{}", key, k) };
+                traverse_config(&new_key, v, f.clone());
+            }
+        }
+        _ => f(key, value),
     }
 }
 
