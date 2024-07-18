@@ -14,13 +14,9 @@ fn copy_mega_apps() {
     let src = Path::new("mega");
     let dst = Path::new("libs/ztm/agent/apps/mega");
     assert!(src.exists(), "neptune/mega not exists");
-    if dst.exists() {
-        fs::remove_dir_all(dst).expect("failed to remove origin agent/apps");
-    }
-    // std::fs::copy(src, dst).expect("failed to copy mega to agent/apps");
     copy_dir_all(src, dst).unwrap_or_else(|e| {
-        fs::remove_dir(dst).expect("failed to remove agent/apps");
-        panic!("failed to copy mega to agent/apps: {}", e);
+        fs::remove_dir(dst).expect("failed to remove agent/apps/mega");
+        panic!("failed to copy mega to agent/apps/mega: {}", e);
     });
 }
 
@@ -220,6 +216,7 @@ fn main() {
     copy_lib_to_target(&dst); // optional, didn't work in all cases
 }
 
+/// recursively copy directory, didn't change file's timestamp if not changed
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
     fn hash_file(file: PathBuf) -> std::io::Result<u64> {
         let mut file = fs::File::open(file)?;
@@ -229,8 +226,10 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result
         std::hash::Hash::hash(&buf, &mut hasher);
         Ok(hasher.finish())
     }
+
     fs::create_dir_all(&dst)?;
-    for entry in fs::read_dir(src)? {
+    // copy files if not exists or changed
+    for entry in fs::read_dir(&src)? {
         let entry = entry?;
         let ty = entry.file_type()?;
         if ty.is_dir() {
@@ -245,7 +244,22 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result
                     continue;
                 }
             }
-            fs::copy(entry.path(), dts_file)?;
+            fs::copy(entry.path(), &dts_file)?;
+            println!("copy {:?} to {:?}", entry.path(), &dts_file);
+        }
+    }
+
+    // remove files that not exists in src
+    for entry in fs::read_dir(dst)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let src_entry = src.as_ref().join(entry.file_name());
+        if !src_entry.exists() {
+            if ty.is_dir() {
+                fs::remove_dir_all(entry.path())?;
+            } else {
+                fs::remove_file(entry.path())?;
+            }
         }
     }
     Ok(())
