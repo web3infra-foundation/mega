@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::{Duration, SystemTime};
 
 use axum::body::Body;
 use axum::extract::{FromRequest, Query, State};
@@ -7,8 +8,9 @@ use axum::http::{Request, Response, StatusCode, Uri};
 use axum::routing::get;
 use axum::{Json, Router};
 use callisto::{ztm_node, ztm_repo_info};
-use common::config::{Config, ZTMConfig};
-use gemini::ztm::{RemoteZTM, ZTMAgent, ZTMCA};
+use common::config::Config;
+use common::model::CommonOptions;
+use gemini::ztm::hub::{LocalHub, ZTMCA};
 use gemini::{Node, RelayGetParams, RelayResultRes, RepoInfo};
 use jupiter::context::Context;
 use regex::Regex;
@@ -20,21 +22,14 @@ use tower_http::trace::TraceLayer;
 use crate::api::api_router::{self};
 use crate::api::ApiServiceState;
 
-pub async fn run_relay_server(config: Config, host: String, port: u16) {
-    let app = app(config.clone(), host.clone(), port).await;
+pub async fn run_relay_server(config: Config, common: CommonOptions) {
+    let host = common.host.clone();
+    let relay_port = common.relay_port;
+    let hub_port = common.ztm_hub_port;
+    let ca_port = common.ca_port;
+    let app = app(config.clone(), host.clone(), relay_port, hub_port, ca_port).await;
 
-    let ztm_config = config.ztm;
-    match relay_connect_ztm(ztm_config, port).await {
-        Ok(s) => {
-            tracing::info!("relay connect ztm success: {s}");
-        }
-        Err(e) => {
-            tracing::error!("relay connect ztm failed : {e}");
-            return;
-        }
-    }
-
-    let server_url = format!("{}:{}", host, port);
+    let server_url = format!("{}:{}", host, relay_port);
     tracing::info!("start relay server: {server_url}");
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -47,13 +42,23 @@ pub async fn run_relay_server(config: Config, host: String, port: u16) {
 pub struct AppState {
     pub context: Context,
     pub host: String,
-    pub port: u16,
+    pub relay_port: u16,
+    pub hub_port: u16,
+    pub ca_port: u16,
 }
 
-pub async fn app(config: Config, host: String, port: u16) -> Router {
+pub async fn app(
+    config: Config,
+    host: String,
+    relay_port: u16,
+    hub_port: u16,
+    ca_port: u16,
+) -> Router {
     let state = AppState {
         host,
-        port,
+        relay_port,
+        hub_port,
+        ca_port,
         context: Context::new(config.clone()).await,
     };
 
@@ -61,6 +66,8 @@ pub async fn app(config: Config, host: String, port: u16) -> Router {
         context: Context::new(config).await,
     };
 
+    let context = api_state.context.clone();
+    tokio::spawn(async move { loop_running(context).await });
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
@@ -82,11 +89,10 @@ async fn get_method_router(
     Query(params): Query<RelayGetParams>,
     uri: Uri,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let ztm_config = state.context.config.ztm.clone();
     if Regex::new(r"/hello$").unwrap().is_match(uri.path()) {
         return hello_relay(params).await;
     } else if Regex::new(r"/certificate$").unwrap().is_match(uri.path()) {
-        return certificate(ztm_config, params).await;
+        return certificate(state, params).await;
     } else if Regex::new(r"/ping$").unwrap().is_match(uri.path()) {
         return ping(state, params).await;
     } else if Regex::new(r"/node_list$").unwrap().is_match(uri.path()) {
@@ -120,7 +126,7 @@ pub async fn hello_relay(_params: RelayGetParams) -> Result<Response<Body>, (Sta
 }
 
 pub async fn certificate(
-    config: ZTMConfig,
+    state: State<AppState>,
     params: RelayGetParams,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     if params.name.is_none() {
@@ -128,7 +134,11 @@ pub async fn certificate(
     }
     let name = params.name.unwrap();
 
-    let ztm: RemoteZTM = RemoteZTM { config };
+    let ztm: LocalHub = LocalHub {
+        host: state.host.clone(),
+        hub_port: state.hub_port,
+        ca_port: state.ca_port,
+    };
     let permit = match ztm.create_ztm_certificate(name.clone()).await {
         Ok(p) => p,
         Err(e) => {
@@ -233,50 +243,57 @@ pub async fn repo_list(
         .into_iter()
         .map(|x| x.into())
         .collect();
-    let json_string = serde_json::to_string(&repo_info_list).unwrap();
+    let nodelist: Vec<Node> = storage
+        .get_all_node()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|x| x.into())
+        .collect();
+    let mut repo_info_list_result = vec![];
+    for mut repo in repo_info_list {
+        for node in &nodelist {
+            if repo.origin == node.peer_id {
+                repo.peer_online = node.online;
+            }
+        }
+        repo_info_list_result.push(repo.clone());
+    }
+    let json_string = serde_json::to_string(&repo_info_list_result).unwrap();
     Ok(Response::builder()
         .header("Content-Type", "application/json")
         .body(Body::from(json_string))
         .unwrap())
 }
 
-pub async fn relay_connect_ztm(config: ZTMConfig, relay_port: u16) -> Result<String, String> {
-    // 1. generate a permit for relay
-    let name = "relay".to_string();
-    let ztm: RemoteZTM = RemoteZTM { config };
-    match ztm.delete_ztm_certificate(name.clone()).await {
-        Ok(_s) => (),
-        Err(e) => {
-            return Err(e);
+async fn loop_running(context: Context) {
+    let mut interval = tokio::time::interval(Duration::from_secs(60));
+
+    loop {
+        check_nodes_online(context.clone()).await;
+        interval.tick().await;
+    }
+}
+
+async fn check_nodes_online(context: Context) {
+    let storage = context.services.ztm_storage.clone();
+    let nodelist: Vec<ztm_node::Model> =
+        storage.get_all_node().await.unwrap().into_iter().collect();
+    for mut node in nodelist {
+        //check online
+        let from_timestamp = Duration::from_millis(node.last_online_time as u64);
+        let now = SystemTime::now();
+        let elapsed = match now.duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(dur) => dur,
+            Err(_) => {
+                continue;
+            }
+        };
+        if elapsed.as_secs() > from_timestamp.as_secs() + 60 {
+            node.online = false;
+            storage.update_node(node.clone()).await.unwrap();
         }
     }
-    let permit = match ztm.create_ztm_certificate(name).await {
-        Ok(p) => p,
-        Err(e) => {
-            return Err(e);
-        }
-    };
-
-    // 2. connect to ZTM hub (join a mesh)
-    let mesh = match ztm.connect_ztm_hub(permit).await {
-        Ok(m) => m,
-        Err(e) => {
-            return Err(e);
-        }
-    };
-
-    // 3. create a ZTM service
-    let response_text = match ztm
-        .create_ztm_service(mesh.agent.id, "relay".to_string(), relay_port)
-        .await
-    {
-        Ok(m) => m,
-        Err(e) => {
-            return Err(e);
-        }
-    };
-
-    Ok(response_text)
 }
 
 #[cfg(test)]

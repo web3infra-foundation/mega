@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::{thread, time};
 
 use anyhow::Result;
 use axum::body::Body;
@@ -14,7 +15,8 @@ use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 use common::enums::ZtmType;
-use gemini::ztm::{run_ztm_client, LocalZTM};
+use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
+use gemini::ztm::hub::LocalZTMHub;
 use regex::Regex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -30,6 +32,7 @@ use jupiter::raw_storage::local_storage::LocalStorage;
 
 use crate::api::api_router::{self};
 use crate::api::ApiServiceState;
+use crate::ca_server::run_ca_server;
 use crate::lfs;
 use crate::relay_server::run_relay_server;
 
@@ -62,6 +65,7 @@ pub struct AppState {
     pub context: Context,
     pub host: String,
     pub port: u16,
+    pub common: CommonOptions,
 }
 
 impl From<AppState> for LfsConfig {
@@ -92,9 +96,9 @@ pub async fn https_server(config: Config, options: HttpsOptions) {
         https_port,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.common);
+    check_run_with_ztm(config.clone(), options.common.clone());
 
-    let app = app(config, host.clone(), https_port).await;
+    let app = app(config, host.clone(), https_port, options.common.clone()).await;
 
     let server_url = format!("{}:{}", host, https_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
@@ -113,9 +117,9 @@ pub async fn http_server(config: Config, options: HttpOptions) {
         http_port,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.common);
+    check_run_with_ztm(config.clone(), options.common.clone());
 
-    let app = app(config, host.clone(), http_port).await;
+    let app = app(config, host.clone(), http_port, options.common.clone()).await;
 
     let server_url = format!("{}:{}", host, http_port);
 
@@ -126,13 +130,14 @@ pub async fn http_server(config: Config, options: HttpOptions) {
         .unwrap();
 }
 
-pub async fn app(config: Config, host: String, port: u16) -> Router {
+pub async fn app(config: Config, host: String, port: u16, common: CommonOptions) -> Router {
     let context = Context::new(config.clone()).await;
     context.services.mega_storage.init_monorepo().await;
     let state = AppState {
         host,
         port,
         context: context.clone(),
+        common: common.clone(),
     };
 
     let api_state = ApiServiceState { context };
@@ -175,6 +180,19 @@ async fn get_method_router(
             TransportProtocol::Http,
         );
         return ceres::http::handler::git_info_refs(params, pack_protocol).await;
+    } else if Regex::new(r"/ztm/repo_provide$")
+        .unwrap()
+        .is_match(uri.path())
+    {
+        return gemini::http::handler::repo_provide(
+            state.port,
+            state.common.bootstrap_node.clone(),
+            state.context.clone(),
+            params,
+        )
+        .await;
+    } else if Regex::new(r"/ztm/repo_folk$").unwrap().is_match(uri.path()) {
+        return gemini::http::handler::repo_folk(state.common.ztm_agent_port, params).await;
     } else {
         return Err((
             StatusCode::NOT_FOUND,
@@ -270,18 +288,37 @@ pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
                 }
             };
             let (peer_id, _) = vault::init();
-            let ztm: LocalZTM = LocalZTM { agent_port: 7778 };
-            ztm.clone().start_ztm_agent();
-            tokio::spawn(async move { run_ztm_client(bootstrap_node, config, peer_id, ztm).await });
+            let ztm_agent: LocalZTMAgent = LocalZTMAgent {
+                agent_port: common.ztm_agent_port,
+            };
+            ztm_agent.clone().start_ztm_agent();
+            thread::sleep(time::Duration::from_secs(3));
+            tokio::spawn(async move {
+                run_ztm_client(bootstrap_node, config, peer_id, ztm_agent).await
+            });
         }
         ZtmType::Relay => {
-            //Start a sub thread to run relay server
+            //Start a sub thread to ca server
             let config_clone = config.clone();
             let host_clone = common.host.clone();
-            let relay_port = common.relay_port;
-            tokio::spawn(
-                async move { run_relay_server(config_clone, host_clone, relay_port).await },
-            );
+            let ca_port = common.ca_port;
+            tokio::spawn(async move { run_ca_server(config_clone, host_clone, ca_port).await });
+            thread::sleep(time::Duration::from_secs(5));
+
+            //Start a sub thread to run ztm-hub
+            let ca = format!("localhost:{ca_port}");
+            let ztm_hub: LocalZTMHub = LocalZTMHub {
+                hub_port: common.ztm_hub_port,
+                ca,
+                name: vec!["relay".to_string()],
+            };
+            ztm_hub.clone().start_ztm_hub();
+            thread::sleep(time::Duration::from_secs(5));
+
+            //Start a sub thread to run relay server
+            let config_clone = config.clone();
+            let common: CommonOptions = common.clone();
+            tokio::spawn(async move { run_relay_server(config_clone, common).await });
         }
     }
 }
