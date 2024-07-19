@@ -1,0 +1,103 @@
+namespace Mega {
+    entity User = {
+        "username": String,
+        "role": String,
+    };
+
+    entity Team = {
+        "name": String,
+        "members": Set<User>,
+    };
+
+    entity Repository in Team = {
+        "name": String,
+        "private": Bool,
+        "owner": User,
+        "collaborators": Set<User>,
+    };
+
+    entity PullRequest in Repository = {
+        "title": String,
+        "owner": User,
+        "source": String,
+        "target": String,
+    };
+
+    entity Issue in Repository = {
+        "title": String,
+        "owner": User,
+        "status": String,  // E.g., "open", "closed"
+    };
+
+    action "createRepo" appliesTo {
+        principal: User,
+        resource: Repository,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "deleteRepo" appliesTo {
+        principal: User,
+        resource: Repository,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "viewRepo" appliesTo {
+        principal: User,
+        resource: Repository,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "createPullRequest" appliesTo {
+        principal: User,
+        resource: Repository,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "closePullRequest" appliesTo {
+        principal: User,
+        resource: Repository,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "mergePullRequest" appliesTo {
+        principal: User,
+        resource: PullRequest,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "createIssue" appliesTo {
+        principal: User,
+        resource: Issue,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "closeIssue" appliesTo {
+        principal: User,
+        resource: Issue,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "viewIssue" appliesTo {
+        principal: User,
+        resource: Issue,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+}
