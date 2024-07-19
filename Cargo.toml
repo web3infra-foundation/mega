@@ -10,8 +10,9 @@ members = [
     "libra",
     "vault",
     "neptune",
-    "lunar/src-tauri"
+    "lunar/src-tauri",
 ]
+default-members = ["mega", "libra"]
 exclude = ["craft"]
 resolver = "1"
 
