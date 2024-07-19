@@ -23,6 +23,7 @@ axum = { workspace = true }
 axum-server = { version = "0.6", features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
+russh = { workspace = true }
 russh-keys = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -31,8 +32,11 @@ futures = { workspace = true }
 bytes = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-russh = { workspace = true, features = ["openssl"] }
-tower-http = { workspace = true, features = ["cors", "trace", "decompression-full"] }
+tower-http = { workspace = true, features = [
+    "cors",
+    "trace",
+    "decompression-full",
+] }
 tokio = { workspace = true, features = ["net"] }
 regex = "1.10.4"
 ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
