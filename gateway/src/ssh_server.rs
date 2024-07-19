@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::{create_dir_all, File};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -108,13 +108,8 @@ pub fn load_key(key_root: PathBuf) -> Result<KeyPair> {
     if !key_path.exists() {
         // generate a keypair if not exists
         let keys = KeyPair::generate_ed25519().unwrap();
-        let mut key_file = File::create(&key_path).unwrap();
 
-        if let KeyPair::RSA { key, hash: _ } = &keys {
-            let pem = key.private_key_to_pem().unwrap();
-            key_file.write_all(&pem)?;
-            tracing::info!("pem: {:?}", &pem);
-        } else if let KeyPair::Ed25519(inner_pair) = &keys {
+        if let KeyPair::Ed25519(inner_pair) = &keys {
             // Handle other variants or provide a default behavior
             inner_pair
                 .write_pkcs8_pem_file(key_path, LineEnding::CR)
