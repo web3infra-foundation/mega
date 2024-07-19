@@ -10,6 +10,7 @@ members = [
     "libra",
     "vault",
     "neptune",
+    "saturn",
 ]
 exclude = ["craft"]
 resolver = "1"
@@ -25,6 +26,7 @@ callisto = { path = "jupiter/callisto" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
 neptune = { path = "neptune" }
+saturn = { path = "saturn" }
 
 anyhow = "1.0.86"
 serde = "1.0.203"
