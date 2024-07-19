@@ -19,7 +19,8 @@ pub fn start_agent(database: &str, listen_port: u16) {
         CString::new("ztm-pipy").unwrap(),
         CString::new("repo://ztm/agent").unwrap(),
         CString::new("--args").unwrap(),
-        CString::new(format!("--database={}", database)).unwrap(),
+        // CString::new(format!("--database={}", database)).unwrap(),
+        CString::new(format!("--data={}", database)).unwrap(),
         CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
     ];
     let c_args: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();

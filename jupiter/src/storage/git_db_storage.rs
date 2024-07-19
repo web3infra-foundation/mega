@@ -219,6 +219,16 @@ impl GitDbStorage {
         Ok(result)
     }
 
+    pub async fn find_git_repo_by_path(
+        &self,
+        repo_path: &str,
+    ) -> Result<Option<git_repo::Model>, MegaError> {
+        let query = git_repo::Entity::find().filter(git_repo::Column::RepoPath.eq(repo_path));
+        tracing::debug!("{}", query.build(DbBackend::Postgres).to_string());
+        let result = query.one(self.get_connection()).await?;
+        Ok(result)
+    }
+
     pub async fn save_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
         let model: git_repo::Model = repo.into();
         let a_model = model.into_active_model();

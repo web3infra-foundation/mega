@@ -14,6 +14,15 @@ pub struct CommonOptions {
     #[arg(long, default_value_t = 8001)]
     pub relay_port: u16,
 
+    #[arg(long, default_value_t = 7777)]
+    pub ztm_agent_port: u16,
+
+    #[arg(long, default_value_t = 8888)]
+    pub ztm_hub_port: u16,
+
+    #[arg(long, default_value_t = 9999)]
+    pub ca_port: u16,
+
     #[arg(long)]
     pub bootstrap_node: Option<String>,
 }
@@ -26,4 +35,6 @@ pub struct GetParams {
     pub path: Option<String>,
     pub limit: Option<String>,
     pub cursor: Option<String>,
+    pub identifier: Option<String>,
+    pub port: Option<u16>,
 }
