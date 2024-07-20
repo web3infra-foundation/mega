@@ -39,8 +39,8 @@ pub fn start_hub(listen_port: u16, name: Vec<String>, ca: &str) {
         CString::new("ztm-pipy").unwrap(),
         CString::new("repo://ztm/hub").unwrap(),
         CString::new("--args").unwrap(),
-        CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
-        CString::new(format!("--ca={}", ca)).unwrap(),
+        // CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
+        // CString::new(format!("--ca={}", ca)).unwrap(),
     ];
     let c_args: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();
     unsafe {
@@ -78,6 +78,12 @@ mod tests {
         tracing::debug!("resp: {:?}", resp);
         assert!(resp.status().as_u16() == 502); // 502
         tracing::info!("ztm agent exit success");
+    }
+
+    #[tokio::test]
+    async fn test_start_hub() {
+        start_hub(8888, vec![], "localhost:9999");
+        thread::sleep(std::time::Duration::from_secs(3));
     }
 
     #[tokio::test]

@@ -11,7 +11,7 @@ use jupiter::context::Context;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
 
-use crate::RepoInfo;
+use crate::{RepoInfo, ZTM_APP_PROVIDER};
 
 use super::{handle_ztm_response, hub::ZTMUserPermit};
 
@@ -445,7 +445,7 @@ pub async fn run_ztm_client(
     match agent
         .start_ztm_app(
             mesh.clone().agent.id,
-            "ztm".to_string(),
+            ZTM_APP_PROVIDER.to_string(),
             "tunnel".to_string(),
         )
         .await
@@ -457,61 +457,6 @@ pub async fn run_ztm_client(
         }
     }
     tracing::info!("start tunnel app successfully");
-
-    // let ep_list = match agent.get_ztm_endpoints().await {
-    //     Ok(eps) => {
-    //         tracing::info!("eps:{:?}", eps);
-    //         eps
-    //     }
-    //     Err(s) => {
-    //         tracing::error!("get_ztm_endpoints, {s}");
-    //         return;
-    //     }
-    // };
-
-    // //creata inbound
-    // match agent
-    //     .create_ztm_app_tunnel_inbound(
-    //         mesh.clone().agent.id,
-    //         "ztm".to_string(),
-    //         "tunnel".to_string(),
-    //         "test".to_string(),
-    //     )
-    //     .await
-    // {
-    //     Ok(_) => (),
-    //     Err(s) => {
-    //         tracing::error!("create app inbound, {s}");
-    //         return;
-    //     }
-    // }
-    // tracing::info!("create app inbound successfully");
-
-    // //creata outbound
-    // for ep in ep_list {
-    //     if ep.online && ep.name == "ep-2" {
-    //         tracing::info!("ep-2:{}", ep.id);
-    //         match agent
-    //             .create_ztm_app_tunnel_outbound(
-    //                 ep.id,
-    //                 "ztm".to_string(),
-    //                 "tunnel".to_string(),
-    //                 "test".to_string(),
-    //                 8080,
-    //             )
-    //             .await
-    //         {
-    //             Ok(msg) => {
-    //                 tracing::info!("create app outbound successfully,{}", msg);
-    //             }
-    //             Err(s) => {
-    //                 tracing::error!("create app outbound, {s}");
-    //                 return;
-    //             }
-    //         }
-    //         break;
-    //     }
-    // }
 
     // ping relay
     let peer_id_clone = peer_id.clone();

@@ -21,6 +21,7 @@ Cargo.lock
 
 # zmt agent data file
 ztm_agent.db
+ztm_agent_db*
 
 # buck2 out
 buck-out

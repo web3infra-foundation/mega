@@ -6,7 +6,7 @@ use venus::import_repo::repo::Repo;
 
 use crate::{
     ztm::agent::{share_repo, LocalZTMAgent, ZTMAgent},
-    RepoInfo,
+    RepoInfo, ZTM_APP_PROVIDER,
 };
 
 pub async fn repo_provide(
@@ -129,7 +129,7 @@ pub async fn repo_folk(
     match agent
         .create_ztm_app_tunnel_inbound(
             local_ep.id,
-            "ztm".to_string(),
+            ZTM_APP_PROVIDER.to_string(),
             "tunnel".to_string(),
             bound_name.clone(),
             port,
@@ -148,7 +148,7 @@ pub async fn repo_folk(
     match agent
         .create_ztm_app_tunnel_outbound(
             remote_ep.id,
-            "ztm".to_string(),
+            ZTM_APP_PROVIDER.to_string(),
             "tunnel".to_string(),
             bound_name,
             remote_port,
