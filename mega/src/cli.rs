@@ -1,7 +1,7 @@
 //! Cli module is responsible for parsing command line arguments and executing the appropriate.
 
 use std::env;
-
+use std::path::PathBuf;
 use clap::{Arg, ArgMatches, Command};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
@@ -31,8 +31,8 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
     // Get the path to the config file in the current directory
     let config_path = current_dir.join("config.toml");
 
-    let config = if let Some(path) = matches.get_one::<String>("config").cloned() {
-        Config::new(path.as_str()).unwrap()
+    let config = if let Some(path) = matches.get_one::<PathBuf>("config").cloned() {
+        Config::new(path.to_str().unwrap()).unwrap()
     } else if config_path.exists() {
         Config::new(config_path.to_str().unwrap()).unwrap()
     } else {
