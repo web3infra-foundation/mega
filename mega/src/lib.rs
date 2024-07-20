@@ -7,7 +7,8 @@ mod tests {
 
     #[test]
     fn test_cli() {
-        let args = "service http".split(' ').collect();
+        let config_path = "config.toml";
+        let args = vec!["-c", config_path, "service", "multi", "http"];
         cli::parse(Some(args)).expect("Failed to start http service");
     }
 }
