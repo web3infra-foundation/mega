@@ -1,8 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::fs;
-
 #[tauri::command]
 fn hello_string(name: &str) -> String {
     format!("Hello from Rust, {}!", name)
@@ -15,9 +13,6 @@ fn start_mega(config_path: &str) {
 }
 
 fn main() {
-    // only for githut action check, according to [[feat] Prevent error when distDir doesn't exist](https://github.com/tauri-apps/tauri/issues/3142)
-    // ../out is the default distDir
-    fs::create_dir_all("../out").expect("failed to create out directory");
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![hello_string])
         .setup(|app| {
