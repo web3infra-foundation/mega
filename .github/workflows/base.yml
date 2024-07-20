@@ -24,6 +24,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v2
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -41,6 +42,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: Swatinem/rust-cache@v2
       - run: | 
           sudo apt update
           sudo apt install libwebkit2gtk-4.0-dev \
