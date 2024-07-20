@@ -2,6 +2,7 @@
 
 const nextConfig = {
     reactStrictMode: true,
+    output: "export",
     transpilePackages: [
         // antd & deps
         // https://github.com/vercel/next.js/issues/65707
