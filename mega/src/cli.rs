@@ -96,6 +96,7 @@ fn cli() -> Command {
             Arg::new("config")
                 .short('c')
                 .long("config")
+                .value_parser(clap::value_parser!(PathBuf))
                 .help("Sets a config file work directory"),
         )
 }
