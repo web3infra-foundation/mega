@@ -32,7 +32,7 @@ pub fn start_agent(database: &str, listen_port: u16) {
 
 /// start ztm hub, like run pipy repo://ztm/hub --listen=0.0.0.0:listen_port --name=name --ca=ca
 /// ! only support to start one agent or one hub at one process
-pub fn start_hub(listen_port: u16, name: Vec<String>, ca: &str) {
+pub fn start_hub(listen_port: u16, name: Vec<String>, _ca: &str) {
     let _ = name; // TODO: ignore name
     tracing::info!("start pipy with port: {}", listen_port);
     let args = [
