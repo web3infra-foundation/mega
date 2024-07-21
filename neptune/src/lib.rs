@@ -18,6 +18,7 @@ pub fn start_agent(database: &str, listen_port: u16) {
     let args = [
         CString::new("ztm-pipy").unwrap(),
         CString::new("repo://ztm/agent").unwrap(),
+        CString::new("--reuse-port").unwrap(),
         CString::new("--args").unwrap(),
         CString::new(format!("--database={}", database)).unwrap(),
         CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
