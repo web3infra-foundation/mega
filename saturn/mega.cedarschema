@@ -16,7 +16,7 @@ namespace Mega {
         "collaborators": Set<User>,
     };
 
-    entity PullRequest in Repository = {
+    entity MergeRequest in Repository = {
         "title": String,
         "owner": User,
         "source": String,
@@ -53,7 +53,7 @@ namespace Mega {
         },
     };
 
-    action "createPullRequest" appliesTo {
+    action "createMergeRequest" appliesTo {
         principal: User,
         resource: Repository,
         context: {
@@ -61,7 +61,7 @@ namespace Mega {
         },
     };
 
-    action "closePullRequest" appliesTo {
+    action "closeMergeRequest" appliesTo {
         principal: User,
         resource: Repository,
         context: {
@@ -69,14 +69,54 @@ namespace Mega {
         },
     };
 
-    action "mergePullRequest" appliesTo {
+    action "mergeMergeRequest" appliesTo {
         principal: User,
-        resource: PullRequest,
+        resource: MergeRequest,
         context: {
             "authenticated": Bool,
         },
     };
 
+    action "createTeam" appliesTo {
+        principal: User,
+        resource: Team,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "deleteTeam" appliesTo {
+        principal: User,
+        resource: Team,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "viewTeam" appliesTo {
+        principal: User,
+        resource: Team,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "addMember" appliesTo {
+        principal: User,
+        resource: Team,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+
+    action "removeMember" appliesTo {
+        principal: User,
+        resource: Team,
+        context: {
+            "authenticated": Bool,
+        },
+    };
+    
     action "createIssue" appliesTo {
         principal: User,
         resource: Issue,
