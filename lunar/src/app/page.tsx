@@ -1,15 +1,17 @@
 'use client'
 
-import React from 'react';
-import { Space, Table, Tag } from 'antd';
-import type { TableProps } from 'antd';
+import React from 'react'
+import { Space, Table, Tag } from 'antd'
+import type { TableProps } from 'antd'
+import HelloRust from '@/components/catalyst/hello'
+import { GetResult } from '../../../moon/src/components/ApiResult'
 
 interface DataType {
-  key: string;
-  name: string;
-  age: number;
-  address: string;
-  tags: string[];
+  key: string
+  name: string
+  age: number
+  address: string
+  tags: string[]
 }
 
 const columns: TableProps<DataType>['columns'] = [
@@ -36,15 +38,15 @@ const columns: TableProps<DataType>['columns'] = [
     render: (_, { tags }) => (
       <>
         {tags.map((tag) => {
-          let color = tag.length > 5 ? 'geekblue' : 'green';
+          let color = tag.length > 5 ? 'geekblue' : 'green'
           if (tag === 'loser') {
-            color = 'volcano';
+            color = 'volcano'
           }
           return (
             <Tag color={color} key={tag}>
               {tag.toUpperCase()}
             </Tag>
-          );
+          )
         })}
       </>
     ),
@@ -59,7 +61,7 @@ const columns: TableProps<DataType>['columns'] = [
       </Space>
     ),
   },
-];
+]
 
 const data: DataType[] = [
   {
@@ -83,12 +85,15 @@ const data: DataType[] = [
     address: 'Sydney No. 1 Lake Park',
     tags: ['cool', 'teacher'],
   },
-];
+]
 
 export default function HomePage() {
   return (
     <div>
       <Table columns={columns} dataSource={data} />
+      <HelloRust />
+      {/* ---- */}
+      <GetResult host="http://127.0.0.1:8000/api/v1/tree" />
     </div>
-  );
+  )
 }

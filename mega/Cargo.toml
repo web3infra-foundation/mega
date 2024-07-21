@@ -29,6 +29,7 @@ rand = { workspace = true }
 smallvec = { workspace = true }
 config = { workspace = true }
 shadow-rs = { workspace = true }
+ctrlc = "3.4.4"
 
 [dev-dependencies]
 reqwest = { workspace = true , features = ["stream", "json"] }
