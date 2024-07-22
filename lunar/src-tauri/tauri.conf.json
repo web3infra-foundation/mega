@@ -44,9 +44,7 @@
                 "providerShortName": null,
                 "signingIdentity": null
             },
-            "resources": [
-                "config.toml"
-            ],
+            "resources": [],
             "shortDescription": "",
             "targets": "all",
             "windows": {
