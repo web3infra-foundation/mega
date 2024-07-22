@@ -51,7 +51,7 @@ impl AppContext {
         let output = validator.validate(&policies, ValidationMode::default());
 
         if output.validation_passed() {
-            tracing::info!("Validation passed!");
+            tracing::info!("All policy validation passed!");
             let authorizer = Authorizer::new();
             let c = Self {
                 // entities,
