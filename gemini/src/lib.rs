@@ -4,8 +4,11 @@ use callisto::{ztm_node, ztm_repo_info};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+pub mod ca;
 pub mod http;
 pub mod ztm;
+
+const ZTM_APP_PROVIDER: &str = "mega";
 
 #[derive(Deserialize, Debug)]
 pub struct RelayGetParams {
@@ -100,6 +103,22 @@ impl TryFrom<RelayGetParams> for ztm_node::Model {
     }
 }
 
+impl TryFrom<Node> for ztm_node::Model {
+    type Error = ConversionError;
+
+    fn try_from(n: Node) -> Result<Self, Self::Error> {
+        Ok(ztm_node::Model {
+            peer_id: n.peer_id,
+            hub: n.hub,
+            agent_name: n.agent_name,
+            service_name: n.service_name,
+            r#type: n.mega_type,
+            online: n.online,
+            last_online_time: n.last_online_time,
+        })
+    }
+}
+
 impl From<ztm_node::Model> for Node {
     fn from(n: ztm_node::Model) -> Self {
         Node {
@@ -121,6 +140,7 @@ pub struct RepoInfo {
     pub origin: String,
     pub update_time: i64,
     pub commit: String,
+    pub peer_online: bool,
 }
 
 impl From<RepoInfo> for ztm_repo_info::Model {
@@ -143,6 +163,7 @@ impl From<ztm_repo_info::Model> for RepoInfo {
             origin: r.origin,
             update_time: r.update_time,
             commit: r.commit,
+            peer_online: false,
         }
     }
 }

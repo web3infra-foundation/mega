@@ -20,6 +20,20 @@ fn copy_mega_apps() {
     });
 }
 
+/// copy `hub/main.js` to `libs/ztm/hub/main.js`
+fn copy_mega_ztm_hub() {
+    let path = Path::new("hub");
+    if fs::metadata(path).is_err() {
+        println!("neptune/hub does not exist, skip to copy");
+        return;
+    }
+    let dst = Path::new("libs/ztm/hub");
+    copy_dir_all(path, dst).unwrap_or_else(|e| {
+        fs::remove_dir(dst).expect("failed to remove ztm/hub");
+        panic!("failed to copy neptune/hub to neptune/libs/ztm/hub: {}", e);
+    });
+}
+
 /// use npm to build agent ui in `libs/ztm/agent/gui`
 fn npm_build_agent_ui() {
     let ui = Path::new("libs/ztm/agent/gui");
@@ -211,6 +225,7 @@ fn main() {
     return_if_change();
 
     copy_mega_apps();
+    copy_mega_ztm_hub();
     let dst = build();
     parse_link_args_to_rustc(&dst);
     copy_lib_to_target(&dst); // optional, didn't work in all cases
