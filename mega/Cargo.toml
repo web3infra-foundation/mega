@@ -40,6 +40,7 @@ bytes = { workspace = true }
 go-defer = { workspace = true }
 git2 = "0.19.0"
 toml = "0.8.13"
+tempfile = "3.10.1"
 
 [build-dependencies]
 shadow-rs = { workspace = true }
