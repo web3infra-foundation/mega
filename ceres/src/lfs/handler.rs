@@ -196,11 +196,7 @@ pub async fn lfs_process_batch(
         // Found
         let found = meta.is_ok();
         let mut meta = meta.unwrap_or_default();
-        if found
-            && config
-                .lfs_storage
-                .exist_object(&config.repo_name, &meta.oid)
-        {
+        if found && lfs_file_exist(config, &meta).await {
             // originla download method, split mode use ``
             response_objects.push(represent(object, &meta, true, false, false, &server_url).await);
             continue;
@@ -467,6 +463,28 @@ fn create_link(href: &str, header: &HashMap<String, String>) -> Link {
             let expire_time: DateTime<Utc> = Utc::now() + Duration::try_seconds(86400).unwrap();
             expire_time.to_rfc3339()
         },
+    }
+}
+
+/// check if meta file exist in storage.
+async fn lfs_file_exist(config: &LfsConfig, meta: &MetaObject) -> bool {
+    if meta.splited && config.enable_split {
+        let relations = config
+            .context
+            .services
+            .lfs_storage
+            .get_lfs_relations(meta.oid.clone())
+            .await
+            .unwrap();
+        relations.iter().all(|relation| {
+            config
+                .lfs_storage
+                .exist_object(&config.repo_name, &relation.sub_oid)
+        })
+    } else {
+        config
+            .lfs_storage
+            .exist_object(&config.repo_name, &meta.oid)
     }
 }
 
