@@ -2,7 +2,9 @@
 use std::process::Command;
 use std::{env, fs, io, thread};
 use std::io::Write;
+use std::net::TcpStream;
 use std::path::Path;
+use std::time::Duration;
 use rand::Rng;
 use tempfile::TempDir;
 
@@ -27,12 +29,10 @@ fn run_git_cmd(args: &[&str]) {
 }
 
 fn is_port_in_use(port: u16) -> bool {
-    let output = Command::new("lsof")
-        .arg(format!("-i:{}", port))
-        .output()
-        .expect("Failed to execute command");
-
-    !output.stdout.is_empty()
+    match TcpStream::connect_timeout(&format!("127.0.0.1:{}", port).parse().unwrap(), Duration::from_millis(1000)) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
 }
 
 fn run_mega_server() {
@@ -40,10 +40,10 @@ fn run_mega_server() {
         let args = vec!["service", "multi", "http"];
         mega::cli::parse(Some(args)).expect("Failed to start mega service");
     });
-    // loop check until 8000 port to be ready
+    // loop check until port to be ready
     let mut i = 0;
-    while !is_port_in_use(PORT) && (i < 10) {
-        thread::sleep(std::time::Duration::from_secs(1));
+    while !is_port_in_use(PORT) && (i < 15) {
+        thread::sleep(Duration::from_secs(1));
         i += 1;
     }
     assert!(is_port_in_use(PORT), "mega server not started");
