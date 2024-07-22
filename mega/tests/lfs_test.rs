@@ -10,7 +10,7 @@ const PORT: u16 = 8000; // mega server port
 /// check if git lfs is installed
 fn check_git_lfs() -> bool {
     let status = Command::new("git")
-        .args(&["lfs", "version"])
+        .args(["lfs", "version"])
         .status()
         .expect("Failed to execute git lfs version");
 
