@@ -78,6 +78,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git-lfs
           git lfs install
+          git config --global user.email "mega@github.com"
+          git config --global user.name "Mega"
       - uses: actions-rs/cargo@v1
         with:
           command: test
