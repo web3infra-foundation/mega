@@ -32,14 +32,14 @@ export default function Page({ params }: { params: { path: string[] } }) {
     );
 }
 
-export async function getDirectory(pathname: string) {
+async function getDirectory(pathname: string) {
     const res = await fetch(`http://localhost:3000/api/tree/commit-info?path=${pathname}`);
     const response = await res.json();
     const directory = response.data.data;
     return directory
 }
 
-export async function getReadmeContent(pathname, directory) {
+async function getReadmeContent(pathname, directory) {
     var readmeContent = '';
     for (const project of directory || []) {
         if (project.name === 'README.md' && project.content_type === 'file') {
