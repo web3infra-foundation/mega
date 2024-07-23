@@ -1,5 +1,5 @@
 use axum::{body::Body, http::Response};
-use common::model::GetParams;
+use common::model::{CommonResult, GetParams};
 use jupiter::context::Context;
 use reqwest::StatusCode;
 use venus::import_repo::repo::Repo;
@@ -34,7 +34,7 @@ pub async fn repo_provide(
     let git_model = context
         .services
         .git_db_storage
-        .find_git_repo_by_path(path.as_str())
+        .find_git_repo_exact_match(path.as_str())
         .await;
 
     let git_model = match git_model {
@@ -163,8 +163,12 @@ pub async fn repo_folk(
             return Err((StatusCode::INTERNAL_SERVER_ERROR, s));
         }
     }
-    let msg = format!("Success, you can try to clone the repo like this:\ngit clone http://localhost:{port}/{git_path}");
-    Ok(Response::builder().body(Body::from(msg)).unwrap())
+    let msg = format!("git clone http://localhost:{port}/{git_path}");
+    let json_string = serde_json::to_string(&CommonResult::success(Some(msg))).unwrap();
+    Ok(Response::builder()
+        .header("Content-Type", "application/json")
+        .body(Body::from(json_string))
+        .unwrap())
 }
 
 pub fn get_peer_id_from_identifier(identifier: String) -> Result<String, String> {

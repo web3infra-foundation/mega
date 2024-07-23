@@ -7,7 +7,7 @@ fn hello_string(name: &str) -> String {
 }
 
 fn start_mega() {
-    let args_str = "service http".to_string();
+    let args_str = "service http --ztm agent --bootstrap-node http://34.84.172.121/relay".to_string();
     let args = args_str.split(' ').collect();
     mega::cli::parse(Some(args)).expect("failed to start mega");
 }
