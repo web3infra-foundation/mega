@@ -26,7 +26,7 @@ export default function BlobPage({ params }: { params: { path: string[] } }) {
     )
 }
 
-export async function getReadmeContent(pathname: string) {
+async function getReadmeContent(pathname: string) {
     const res = await fetch(`http://localhost:3000/api/blob?path=${pathname}`);
     const response = await res.json();
     const directory = response.data.data;

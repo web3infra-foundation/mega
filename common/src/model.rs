@@ -1,5 +1,5 @@
 use clap::Args;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::ZtmType;
 
@@ -37,4 +37,28 @@ pub struct GetParams {
     pub cursor: Option<String>,
     pub identifier: Option<String>,
     pub port: Option<u16>,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CommonResult<T> {
+    pub req_result: bool,
+    pub data: Option<T>,
+    pub err_message: String,
+}
+
+impl<T> CommonResult<T> {
+    pub fn success(data: Option<T>) -> Self {
+        CommonResult {
+            req_result: true,
+            data,
+            err_message: "".to_owned(),
+        }
+    }
+    pub fn failed(err_message: &str) -> Self {
+        CommonResult {
+            req_result: false,
+            data: None,
+            err_message: err_message.to_string(),
+        }
+    }
 }
