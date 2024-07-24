@@ -15,6 +15,7 @@ fn default_stat64(inode:u64) -> stat64 {
         mtimensec: 0,                 // Default nanoseconds of last modification time
         ctimensec: 0,                 // Default nanoseconds of last status change time
         mode: 0o444,                  // Default file mode (r--r--r--)
+        //mode: 0o555,                  // Default file mode (r-xr-xr-x)
         nlink: 1,                     // Default number of hard links
         uid: 1000,                    // Default user ID
         gid: 1000,                    // Default group ID
@@ -24,8 +25,8 @@ fn default_stat64(inode:u64) -> stat64 {
     };
     t.into()
 }
-#[allow(unused)]
-pub fn default_entry(inode:u64) -> Entry {
+
+pub fn default_file_entry(inode:u64) -> Entry {
     Entry{
         inode,
         generation: 0,
@@ -34,6 +35,19 @@ pub fn default_entry(inode:u64) -> Entry {
         attr_timeout: Duration::from_secs(u64::MAX),
         entry_timeout: Duration::from_secs(u64::MAX),
     } // Return a default Entry instance
+}
+
+pub fn default_dic_entry(inode:u64) -> Entry {
+    let mut d = default_stat64(inode);
+    d.st_mode = 0o555;
+    Entry{
+        inode,
+        generation: 0,
+        attr:  d,
+        attr_flags: 0,
+        attr_timeout: Duration::from_secs(u64::MAX),
+        entry_timeout: Duration::from_secs(u64::MAX),
+    } // Return a default Dictionary Entry instance
 }
 // pub struct stat64 {
 //     pub st_dev: ::dev_t,          // Device ID of the device containing the file
