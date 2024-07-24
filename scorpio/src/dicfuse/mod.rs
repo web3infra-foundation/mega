@@ -5,11 +5,10 @@ mod fuse;
 
 use std::{sync::Arc, time::Duration};
 use std::io::Result;
-use fuse::default_entry;
 use fuse_backend_rs::{abi::fuse_abi::FsOptions, api::filesystem::{Context, Entry, FileSystem}};
 use tokio::task::JoinHandle;
 
-use store::DictionaryStore;
+use store::{DictionaryStore, IntoEntry};
 
 struct Dicfuse{
     store: Arc<DictionaryStore>,
@@ -50,8 +49,11 @@ impl FileSystem for Dicfuse{
     
     fn lookup(&self, ctx: &Context, parent: Self::Inode, name: &std::ffi::CStr) -> Result<Entry> {
         let store = self.store.clone();
-        let pitem = store.find_path(parent).ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
-        Ok(Entry::default())
+        let mut ppath  = store.find_path(parent).ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
+        let pitem  = store.get_inode(parent)?;
+        ppath.push(name.to_string_lossy().into_owned());
+        let chil = store.get_by_path(&ppath.to_string())?;
+        Ok(chil.into_entry())
     }
     
 
@@ -71,9 +73,8 @@ impl FileSystem for Dicfuse{
     ) -> std::io::Result<(libc::stat64, std::time::Duration)> {
         let store = self.store.clone();
         let i = store.find_path(inode).ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
-        let entry  = default_entry(inode);
+        let entry  = fuse::default_file_entry(inode);
         Ok((entry.attr,Duration::from_secs(u64::MAX)))
-       
     }
     
     fn setattr(
@@ -285,5 +286,88 @@ impl FileSystem for Dicfuse{
         Err(std::io::Error::from_raw_os_error(libc::ENOSYS))
     }
     
+
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{io, path::Path, sync::Arc,thread};
+
+    use fuse_backend_rs::{api::server::Server, transport::{FuseChannel, FuseSession}};
+    use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
+
+    use super::Dicfuse;
+
+
+    pub struct DicFuseServer {
+        server: Arc<Server<Arc<Dicfuse>>>,
+        ch: FuseChannel,
+    }
+    impl DicFuseServer {
+        pub fn svc_loop(&mut self) -> Result<(),io::Error> {
+            let _ebadf = std::io::Error::from_raw_os_error(libc::EBADF);
+            println!("entering server loop");
+            loop {
+                if let Some((reader, writer)) = self
+                    .ch
+                    .get_request()
+                    .map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?
+                {
+                    if let Err(e) = self
+                        .server
+                        .handle_message(reader, writer.into(), None, None)
+                    {
+                        match e {
+                            fuse_backend_rs::Error::EncodeMessage(_ebadf) => {
+                                break;
+                            }
+                            _ => {
+                                print!("Handling fuse message failed");
+                                continue;
+                            }
+                        }
+                    }
+                } else {
+                    print!("fuse server exits");
+                    break;
+                }
+            }
+            Ok(())
+        }
+    
+
+    }
+
+    #[test]
+    fn test_svc_loop_success() {
+        let dicfuse = Arc::new(Dicfuse::new());
+        // Create fuse session
+        let mut se = FuseSession::new(Path::new(&"/home/luxian/ccode/mega/dictest"), "dic", "", true).unwrap();
+        se.mount().unwrap();
+        let ch: FuseChannel = se.new_channel().unwrap();
+        let server = Arc::new(Server::new(dicfuse.clone()));
+        let mut dicfuse_server = DicFuseServer { server, ch };
+
+        // Mock the behavior of get_request to simulate a successful request
+        // This would require implementing a mock or a stub for FuseChannel
+        // For the sake of this example, we will assume it is done correctly
+
+       
+        // Spawn server thread
+        let handle = thread::spawn(move || {
+            let _ = dicfuse_server.svc_loop();
+        });
+        // Wait for termination signal
+        let mut signals = Signals::new(TERM_SIGNALS).unwrap();
+        if let Some(_sig) = signals.forever().next() {
+            //pass
+        }
+        // Unmount and wake up
+        se.umount().unwrap();
+        se.wake().unwrap();
+        // Join server thread
+        let _ = handle.join();
+    }
+
 
 }
