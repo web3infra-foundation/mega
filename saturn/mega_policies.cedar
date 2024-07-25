@@ -1,50 +1,50 @@
 // policy "anyoneCanViewPublicRepo" even if not login?
 permit (
     principal,
-    action in [Mega::Action::"viewRepo"],
+    action in [Action::"viewRepo"],
     resource
 )
-unless { resource.private };
+unless { resource.is_private };
 
 // policy "adminCanManageTeams"
-permit (
-    principal,
-    action in
-        [Mega::Action::"createTeam",
-         Mega::Action::"deleteTeam",
-         Mega::Action::"viewTeam",
-         Mega::Action::"addMember",
-         Mega::Action::"removeMember"],
-    resource
-)
-when { context.authenticated == true && principal.role == "admin" };
+// permit (
+//     principal,
+//     action in
+//         [Action::"createTeam",
+//          Action::"deleteTeam",
+//          Action::"viewTeam",
+//          Action::"addMember",
+//          Action::"removeMember"],
+//     resource
+// )
+// when { principal.role == "admin" };
 
 // policy "memberCanViewTeam"
 permit (
     principal,
-    action in [Mega::Action::"viewTeam"],
+    action in [Action::"viewTeam"],
     resource
 )
-when { context.authenticated == true && principal in resource.members };
+when { principal in resource.members };
 
 //Actions for readers
 permit (
     principal,
-    action in [Mega::Action::"pullRepo", Mega::Action::"forkRepo"],
+    action in [Action::"viewRepo", Action::"pullRepo", Action::"forkRepo"],
     resource
 )
 when { principal in resource.readers };
 
 permit (
     principal,
-    action in [Mega::Action::"openIssue", Mega::Action::"createMergeRequest"],
+    action in [Action::"openIssue", Action::"createMergeRequest"],
     resource
 )
 when { principal in resource.repo.readers };
 
 permit (
     principal,
-    action in [Mega::Action::"editIssue"],
+    action in [Action::"editIssue"],
     resource
 )
 when { principal in resource.repo.readers && principal == resource.owner };
@@ -52,7 +52,7 @@ when { principal in resource.repo.readers && principal == resource.owner };
 //Actions for triagers
 permit (
     principal,
-    action == Mega::Action::"assignIssue",
+    action == Action::"assignIssue",
     resource
 )
 when { principal in resource.repo.triagers };
@@ -60,14 +60,14 @@ when { principal in resource.repo.triagers };
 //Actions for writers
 permit (
     principal,
-    action == Mega::Action::"pushRepo",
+    action == Action::"pushRepo",
     resource
 )
 when { principal in resource.writers };
 
 permit (
     principal,
-    action in [Mega::Action::"editIssue", Mega::Action::"approveMergeRequest"],
+    action in [Action::"editIssue", Action::"approveMergeRequest"],
     resource
 )
 when { principal in resource.repo.writers };
@@ -75,8 +75,7 @@ when { principal in resource.repo.writers };
 //Actions for maintainers
 permit (
     principal,
-    action in
-        [Mega::Action::"deleteIssue", Mega::Action::"approveMergeRequest"],
+    action in [Action::"deleteIssue", Action::"approveMergeRequest"],
     resource
 )
 when { principal in resource.repo.maintainers };
@@ -85,11 +84,12 @@ when { principal in resource.repo.maintainers };
 permit (
     principal,
     action in
-        [Mega::Action::"addReader",
-         Mega::Action::"addTriager",
-         Mega::Action::"addWriter",
-         Mega::Action::"addMaintainer",
-         Mega::Action::"addAdmin"],
+        [Action::"addReader",
+         Action::"addTriager",
+         Action::"addWriter",
+         Action::"addMaintainer",
+         Action::"addAdmin",
+         Action::"deleteRepo"],
     resource
 )
 when { principal in resource.admins };
