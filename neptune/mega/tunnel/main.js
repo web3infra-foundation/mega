@@ -1,8 +1,10 @@
+import initHole from './punch.js'
 import initAPI from './api.js'
 import initCLI from './cli.js'
 
 export default function ({ app, mesh, utils }) {
-  var api = initAPI({ app, mesh })
+  var punch = initHole({ app, mesh })
+  var api = initAPI({ app, mesh, punch })
   var cli = initCLI({ app, mesh, utils, api })
 
   var $ctx
@@ -14,6 +16,15 @@ export default function ({ app, mesh, utils }) {
   var serveUser = utils.createServer({
     '/cli': {
       'CONNECT': utils.createCLIResponder(cli),
+    },
+
+    '/api/appinfo': {
+      'GET': responder(() => Promise.resolve(response(200, {
+        name: app.name,
+        provider: app.provider,
+        username: app.username,
+        endpoint: app.endpoint,
+      })))
     },
 
     '/api/endpoints': {
@@ -73,6 +84,17 @@ export default function ({ app, mesh, utils }) {
       }),
     },
 
+    // '/api/punch/{destEp}': {
+    //   'GET': responder(({destEp}) => {
+    //     return api.createHole(destEp)
+    //   }),
+
+    //   'DELETE': responder(({destEp}) => {
+    //     api.deleteHole(destEp)
+    //     return response(204)
+    //   })
+    // },
+
     '*': {
       'GET': responder((_, req) => {
         return Promise.resolve(gui.serve(req) || response(404))
@@ -128,6 +150,64 @@ export default function ({ app, mesh, utils }) {
 
       'CONNECT': api.servePeerInbound,
     },
+
+    '/api/ping': {
+      'GET': responder(() => Promise.resolve(response(200)))
+    },
+
+    '/api/punch/{action}': {
+      'GET': responder(({action}) => {
+        var ep = $ctx.peer.id
+        var ip = $ctx.peer.ip
+        var port = $ctx.peer.port
+
+        console.log(`Punch Event: ${action} from ${ep} ${ip} ${port}`)
+        switch(action) {
+          case 'leave':
+            api.deleteHole(ep, true)
+            break
+          default:
+            return Promise.resolve(response(500, "Unknown punch action"))
+        }
+        return Promise.resolve(response(200))
+      }),
+
+      'POST': responder(({action}, req) => {
+        var obj = JSON.decode(req.body)
+        var ep = $ctx.peer.id
+        var ip = $ctx.peer.ip
+        var port = $ctx.peer.port
+
+        console.log(`Punch Event: ${action} from ${ep} ${ip} ${port}`)
+        console.log("Punch req: ", obj)
+        switch(action) {
+          case 'request':
+            api.createHole(ep, 'server')
+            api.updateHoleInfo(ep, ip, port, obj.cert)
+            api.syncPunch(ep)
+            // var certs = hole.signPeerCert(new crypto.PublicKey(obj.pkey))
+            // return Promise.resolve(response(200, cert))
+            break
+          case 'accept':
+            api.updateHoleInfo(ep, ip, port, obj.cert)
+            api.syncPunch(ep)
+            break
+          default:
+            return Promise.resolve(response(500, "Unknown punch action"))
+        }
+        return Promise.resolve(response(200))
+      }),
+
+      'CONNECT': pipeline($=>$.pipe(api.makeRespTunnel, () => $ctx))
+    },
+  })
+
+  punch.setService((ctx) => {
+    // Tricky callback to set ctx,
+    // expecting everything in hole works
+    // just like it's coming from hub.
+    $ctx = ctx
+    return servePeer
   })
 
   return pipeline($=>$
