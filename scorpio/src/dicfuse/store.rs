@@ -27,7 +27,7 @@ pub struct Item {
 #[allow(unused)]
 pub struct DicItem{
     inode:u64,
-    name:GPath,
+    path_name:GPath,
     content_type: Mutex<ContentType>,
     children:Mutex<HashMap<String, Arc<DicItem>>>,
     parent:u64,
@@ -44,7 +44,7 @@ impl DicItem {
     pub fn new(inode:u64,parent:u64, item:Item) -> Self {
         DicItem {
             inode,
-            name: item.name.into(), // Assuming GPath can be created from String
+            path_name: item.path.into(), // Assuming GPath can be created from String
             content_type: match item.content_type.as_str() {
                 "file" => ContentType::File.into(),
                 "directory" => ContentType::Dictionary(false).into(),
@@ -56,11 +56,11 @@ impl DicItem {
     }
     //get the total path
     pub fn get_path(&self) -> String {
-        self.name.to_string()
+        self.path_name.to_string()
     }
     //get the file or dic name . aka tail name.
     pub fn get_name(&self) -> String {
-        self.name.name()
+        self.path_name.name()
     }
     // add a children item
     pub fn push_children(&self,children:Arc<DicItem>){
@@ -130,7 +130,7 @@ impl DictionaryStore {
         };
         let root_item = DicItem{
             inode: 1,
-            name: GPath::new(),
+            path_name: GPath::new(),
             content_type: ContentType::Dictionary(false).into(),
             children: Mutex::new(HashMap::new()),
             parent: UNKNOW_INODE, //  root dictory has no parent
@@ -141,6 +141,8 @@ impl DictionaryStore {
         self.next_inode.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let alloc_inode = self.next_inode.load(std::sync::atomic::Ordering::Relaxed);
         self.radix_trie.lock().unwrap().insert(item.path.clone(), alloc_inode);
+        
+        self.queue.lock().unwrap().push_back(alloc_inode);
 
         if let Some(parent) = pitem{
             let newitem = Arc::new(DicItem::new(alloc_inode, parent.get_inode(),item));
@@ -150,21 +152,22 @@ impl DictionaryStore {
             self.inodes.lock().unwrap().insert(alloc_inode, Arc::new(DicItem::new(alloc_inode, UNKNOW_INODE,item)));
         }
        
-        self.queue.lock().unwrap().push_back(alloc_inode);
+        
     }
     pub fn import(&self){
         const ROOT_DIR: &str ="/";
-        let mut queue = VecDeque::new();
         let items: Vec<Item> = tokio::runtime::Runtime::new().unwrap().block_on(fetch_tree(ROOT_DIR)).unwrap().collect();//todo: can't tokio
         for it in items{
             self.update_inode(None,it);
         }
-        while !queue.is_empty() {//BFS to look up all dictionary
-            let one_inode = queue.pop_back().unwrap();
+        loop {//BFS to look up all dictionary
+            if self.queue.lock().unwrap().is_empty(){
+                break;
+            }
+            let one_inode = self.queue.lock().unwrap().pop_front().unwrap();
             let mut new_items = Vec::new();
             {
-                let inodes_lock = self.inodes.lock().unwrap();
-                let it = inodes_lock.get(&one_inode).unwrap();
+                let it = self.inodes.lock().unwrap().get(&one_inode).unwrap().clone();
                 if let ContentType::Dictionary(load) = *it.content_type.lock().unwrap(){
                     if !load{
                         let path = it.get_path();
@@ -186,7 +189,7 @@ impl DictionaryStore {
 
     
     pub fn find_path(&self,inode :u64)-> Option<GPath>{
-        self.inodes.lock().unwrap().get(&inode).map(|item| item.name.clone())
+        self.inodes.lock().unwrap().get(&inode).map(|item| item.path_name.clone())
     }
     pub fn get_inode(&self,inode: u64) -> Result<Arc<DicItem>, io::Error> {
         match self.inodes.lock().unwrap().get(&inode) {
@@ -201,7 +204,7 @@ impl DictionaryStore {
         self.get_inode(*inode)
     }
     fn find_children(&self,parent: u64) -> Result<DicItem,io::Error>{
-        let path = self.inodes.lock().unwrap().get(&parent).map(|item| item.name.clone());
+        let path = self.inodes.lock().unwrap().get(&parent).map(|item| item.path_name.clone());
         if let Some(parent_path) = path{
             let l  = self.radix_trie.lock().unwrap();
             let pathstr:String =parent_path.name();
