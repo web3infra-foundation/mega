@@ -1,68 +1,51 @@
-namespace Mega {
-    // entity Public;
-    entity UserGroup in [UserGroup];
-    entity User in [UserGroup, Team] {
-        "role": String,
-    };
+entity UserGroup in [UserGroup];
+entity User in [UserGroup, Team];
 
-    entity Team in [UserGroup] {
-        "admins": UserGroup,
-        "members": Set<User>,
-    };
+entity Team in [UserGroup] {
+    "admins": UserGroup,
+    "members": UserGroup,
+};
 
-    entity Repository  = {
-        "private": Bool,
-        "admins": UserGroup,
-        "maintainers": UserGroup,
-        "readers": UserGroup,
-        "triagers": UserGroup,
-        "writers": UserGroup,
-    };
+entity Repository = {
+    "is_private": Bool,
+    "admins": UserGroup,
+    "maintainers": UserGroup,
+    "readers": UserGroup,
+    "triagers": UserGroup,
+    "writers": UserGroup,
+};
 
-    entity MergeRequest = {
-        "repo": Repository,
-        "owner": User,
-        "source": String,
-        "target": String,
-    };
+entity MergeRequest = {
+    "repo": Repository,
+    "owner": User,
+};
 
-    entity Issue  = {
-        "repo": Repository,
-        "owner": User,
-    };
+entity Issue = {
+    "repo": Repository,
+    "owner": User,
+};
 
-    action "deleteRepo", "viewRepo", "forkRepo", "pullRepo", "pushRepo" appliesTo {
-        principal: [User],
-        resource: [Repository],
-        context: {
-            "authenticated": Bool,
-        },
-    };
+action "deleteRepo", "viewRepo", "forkRepo", "pullRepo", "pushRepo" appliesTo {
+    principal: [User],
+    resource: [Repository],
+};
 
-    action "createMergeRequest", "closeMergeRequest", "approveMergeRequest" appliesTo {
-        principal: [User],
-        resource: [MergeRequest],
-        context: {
-            "authenticated": Bool,
-        },
-    };
+action "createMergeRequest", "closeMergeRequest", "approveMergeRequest" appliesTo {
+    principal: [User],
+    resource: [MergeRequest],
+};
 
-    action "createTeam", "viewTeam" ,"addMember", "removeMember", "deleteTeam" appliesTo {
-        principal: [User],
-        resource: [Team],
-        context: {
-            "authenticated": Bool,
-        },
-    };
+action "createTeam", "viewTeam", "addMember", "removeMember", "deleteTeam" appliesTo {
+    principal: [User],
+    resource: [Team],
+};
 
-    action openIssue, assignIssue, deleteIssue, editIssue appliesTo {
-        principal: [User],
-        resource: [Issue]
-    };
+action "openIssue", "assignIssue", "deleteIssue", "editIssue" appliesTo {
+    principal: [User],
+    resource: [Issue],
+};
 
-    action addReader, addWriter, addMaintainer, addAdmin, addTriager appliesTo {
-        principal: [User],
-        resource: [Repository]
-    };
-
-}
+action "addReader", "addWriter", "addMaintainer", "addAdmin", "addTriager" appliesTo {
+    principal: [User],
+    resource: [Repository],
+};
