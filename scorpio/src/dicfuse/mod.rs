@@ -42,6 +42,7 @@ impl FileSystem for Dicfuse{
     
     fn init(&self, capable:FsOptions) -> Result<FsOptions> {
         self.store.import();
+        //let mut ops = FsOptions::DO_READDIRPLUS | FsOptions::READDIRPLUS_AUTO;
         Ok(fuse_backend_rs::abi::fuse_abi::FsOptions::empty())
     }
     
@@ -293,7 +294,7 @@ impl FileSystem for Dicfuse{
 mod tests {
     use std::{io, path::Path, sync::Arc,thread};
 
-    use fuse_backend_rs::{api::server::Server, transport::{FuseChannel, FuseSession}};
+    use fuse_backend_rs::{ api::server::Server, transport::{FuseChannel, FuseSession}};
     use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
     use super::Dicfuse;
@@ -341,18 +342,16 @@ mod tests {
     #[test]
     fn test_svc_loop_success() {
         let dicfuse = Arc::new(Dicfuse::new());
+       // dicfuse.init(FsOptions::empty()).unwrap();
         // Create fuse session
         let mut se = FuseSession::new(Path::new(&"/home/luxian/ccode/mega/dictest"), "dic", "", true).unwrap();
         se.mount().unwrap();
         let ch: FuseChannel = se.new_channel().unwrap();
+        println!("start fs servers");
         let server = Arc::new(Server::new(dicfuse.clone()));
+
         let mut dicfuse_server = DicFuseServer { server, ch };
 
-        // Mock the behavior of get_request to simulate a successful request
-        // This would require implementing a mock or a stub for FuseChannel
-        // For the sake of this example, we will assume it is done correctly
-
-       
         // Spawn server thread
         let handle = thread::spawn(move || {
             let _ = dicfuse_server.svc_loop();
