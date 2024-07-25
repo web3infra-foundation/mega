@@ -457,6 +457,7 @@ Config `confg.toml` file for the Mega project.
    # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
    split_size = 20971520 # Default size is 20MB (20971520 bytes)
 ```
+---
 ## Database maintenance
 Currently, the tables of database are created by `.sql` file. 
 
@@ -465,7 +466,64 @@ If you want to add a new table or modify the existing table, you need to update 
 ### Attention
 - Each database corresponds to one `.sql` file, you must modify all of them if you want to update the tables in order to keep the consistency of the database.
 - DO NOT use `Array` Type in PostgreSQL but use `JSON` instead, for compatibility with SQLite & MySQL. (`JSON` <==> `serde_json::Value`)
+---
+## Tests
+> Keep in mind that it's impossible to find all bugs.
+> 
+> Tests are the last line of defense.
 
+### Unit Tests
+
+Unit tests are small, focused tests that verify the behavior of a single function or module in isolation.
+
+#### Example:
+
+```rust
+// ...Other Codes
+
+#[cfg(test)] // indicates this block will only be compiled when running tests
+mod tests {
+   use super::*;
+
+   #[test] // indicates that this function is a test, which will be run by `cargo test`
+   fn test_add() {
+      let result = add(1, 1);
+      assert_eq!(result, 2); // assert is important to tests
+   }
+}
+```
+
+### Integration Tests
+Integration tests verify that different parts of your **library** work correctly together.
+They are **external** to your crate and use your code in the same way any other code would.
+
+#### Steps
+You can refer to the implementation of the mega **module**. ([mega/tests](/mega/tests))
+1. Create a `tests` directory at the **same level** as your `src` directory (e.g. `libra/tests`).
+2. Add `*.rs` files in this directory. // Each file will be compiled as a separate **crate**.
+
+#### Attention
+- The `tests` in **root** directory (workspace) is NOT integration tests, but some `data` for other tests.
+- If you need a common module, use `tests/common/mod.rs` rather than `tests/common.rs`, to declare it's not a test file.
+- There is no need to add `#[cfg(test)]` to the `tests` directory. `tests` will be compiled only when running tests.
+
+#### Run integration tests
+The following command will be executed in `GitHub Actions`.
+
+This command DOES NOT run **Unit Tests** (which could be very messy).
+```bash
+cargo test --workspace --test '*' -- --nocapture
+```
+- `--workspace` : Run tests for **all packages** in the workspace.
+- `--test` : Test the specified **integration test**.
+- `--` : Pass the following arguments to the test binary.
+- `--nocapture` : DO NOT capture the output (e.g. `println!`) of the test.
+
+If you want to run tests in a specific package, you can use `--package`.
+
+For more information, please refer to the [rust wiki](https://rustwiki.org/zh-CN/cargo/commands/cargo-test.html).
+
+---
 ## Comment Guideline
 
 This guide outlines the recommended order for importing dependencies in Rust projects.
@@ -476,6 +534,7 @@ This guide outlines the recommended order for importing dependencies in Rust pro
 
 ### Function Comments (///)
 
+---
 ## Rust Dependency Import Order Guideline
 
 This guide outlines the recommended order for importing dependencies in Rust projects.

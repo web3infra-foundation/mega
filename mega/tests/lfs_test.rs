@@ -1,3 +1,5 @@
+mod common;
+
 /// integration tests for the mega module
 use std::process::Command;
 use std::{env, fs, io, thread};
