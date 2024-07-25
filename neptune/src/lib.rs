@@ -18,8 +18,10 @@ pub fn start_agent(database: &str, listen_port: u16) {
     let args = [
         CString::new("ztm-pipy").unwrap(),
         CString::new("repo://ztm/agent").unwrap(),
+        CString::new("--reuse-port").unwrap(),
         CString::new("--args").unwrap(),
-        CString::new(format!("--database={}", database)).unwrap(),
+        // CString::new(format!("--database={}", database)).unwrap(),
+        CString::new(format!("--data={}", database)).unwrap(),
         CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
     ];
     let c_args: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();
@@ -31,15 +33,15 @@ pub fn start_agent(database: &str, listen_port: u16) {
 
 /// start ztm hub, like run pipy repo://ztm/hub --listen=0.0.0.0:listen_port --name=name --ca=ca
 /// ! only support to start one agent or one hub at one process
-pub fn start_hub(listen_port: u16, name: Vec<String>, ca: &str) {
+pub fn start_hub(listen_port: u16, name: Vec<String>, _ca: &str) {
     let _ = name; // TODO: ignore name
     tracing::info!("start pipy with port: {}", listen_port);
     let args = [
         CString::new("ztm-pipy").unwrap(),
         CString::new("repo://ztm/hub").unwrap(),
         CString::new("--args").unwrap(),
-        CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
-        CString::new(format!("--ca={}", ca)).unwrap(),
+        // CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
+        // CString::new(format!("--ca={}", ca)).unwrap(),
     ];
     let c_args: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();
     unsafe {
@@ -77,6 +79,12 @@ mod tests {
         tracing::debug!("resp: {:?}", resp);
         assert!(resp.status().as_u16() == 502); // 502
         tracing::info!("ztm agent exit success");
+    }
+
+    #[tokio::test]
+    async fn test_start_hub() {
+        start_hub(8888, vec![], "localhost:9999");
+        thread::sleep(std::time::Duration::from_secs(3));
     }
 
     #[tokio::test]

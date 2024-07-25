@@ -20,5 +20,7 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 chrono = { workspace = true }
 jupiter = { workspace = true }
+vault = { workspace = true }
 callisto = { workspace = true }
+venus = { workspace = true }
 neptune = { workspace = true }
