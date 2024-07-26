@@ -10,6 +10,7 @@ members = [
     "libra",
     "vault",
     "neptune",
+    "saturn",
     "lunar/src-tauri",
 ]
 default-members = ["mega", "libra"]
@@ -27,6 +28,7 @@ callisto = { path = "jupiter/callisto" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
 neptune = { path = "neptune" }
+saturn = { path = "saturn" }
 mega = { path = "mega" }
 anyhow = "1.0.86"
 serde = "1.0.203"
@@ -65,5 +67,6 @@ colored = "2.1.0"
 idgenerator = "2.0.0"
 num_cpus = "1.16.0"
 config = "0.14.0"
-shadow-rs = "0.29.0"
+shadow-rs = "0.30.0"
 reqwest = "0.12.5"
+lazy_static = "1.5.0"

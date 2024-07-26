@@ -11,14 +11,14 @@ export default async function HomePage() {
     </div>
   );
 }
-export async function getDirectory() {
+async function getDirectory() {
   const res = await fetch(`http://localhost:3000/api/tree/commit-info?path=/`);
   const response = await res.json();
   const directory = response.data.data;
   return directory
 }
 
-export async function getReadmeContent(directory) {
+async function getReadmeContent(directory) {
   var readmeContent = '';
   for (const project of directory || []) {
     if (project.name === 'README.md' && project.content_type === 'file') {

@@ -1,4 +1,4 @@
 [submodule "neptune/libs/ztm"]
 	path = neptune/libs/ztm
-	url = git@github.com:flomesh-io/ztm.git
+	url = https://github.com/flomesh-io/ztm.git
     ignore = dirty

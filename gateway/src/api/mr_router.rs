@@ -7,11 +7,10 @@ use axum::{
     Json, Router,
 };
 
+use ceres::model::mr::{MRDetail, MrInfoItem};
+use common::model::CommonResult;
+
 use crate::api::ApiServiceState;
-use ceres::model::{
-    mr::{MRDetail, MrInfoItem},
-    CommonResult,
-};
 
 pub fn routers() -> Router<ApiServiceState> {
     Router::new()
