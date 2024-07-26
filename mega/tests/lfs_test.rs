@@ -31,10 +31,8 @@ fn run_git_cmd(args: &[&str]) {
 }
 
 fn is_port_in_use(port: u16) -> bool {
-    match TcpStream::connect_timeout(&format!("127.0.0.1:{}", port).parse().unwrap(), Duration::from_millis(1000)) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    TcpStream::connect_timeout(&format!("127.0.0.1:{}", port).parse().unwrap(), Duration::from_millis(1000))
+        .is_ok()
 }
 
 fn run_mega_server() {
