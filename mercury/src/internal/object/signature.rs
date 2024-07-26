@@ -5,9 +5,9 @@
 //! - Name: The name of the author, encoded as a UTF-8 string.
 //! - Email: The email address of the author, encoded as a UTF-8 string.
 //! - Timestamp: The timestamp of when the commit was authored, encoded as a decimal number of seconds
-//! since the Unix epoch (January 1, 1970, 00:00:00 UTC).
+//!   since the Unix epoch (January 1, 1970, 00:00:00 UTC).
 //! - Timezone: The timezone offset of the author's local time from Coordinated Universal Time (UTC),
-//! encoded as a string in the format "+HHMM" or "-HHMM".
+//!   encoded as a string in the format "+HHMM" or "-HHMM".
 //!
 use std::{fmt::Display, str::FromStr};
 

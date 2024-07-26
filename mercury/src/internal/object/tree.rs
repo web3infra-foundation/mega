@@ -120,11 +120,11 @@ impl TreeItemMode {
 /// <mode> <name>\0<binary object ID>
 /// ```
 /// - `<mode>` is the mode of the object, represented as a six-digit octal number. The first digit
-/// represents the object type (tree, blob, etc.), and the remaining digits represent the file mode or permissions.
+///   represents the object type (tree, blob, etc.), and the remaining digits represent the file mode or permissions.
 /// - `<name>` is the name of the object.
 /// - `\0` is a null byte separator.
 /// - `<binary object ID>` is the ID of the object that represents the contents of the file or
-/// directory, represented as a binary SHA-1 hash.
+///   directory, represented as a binary SHA-1 hash.
 ///
 /// # Example
 /// ```bash
