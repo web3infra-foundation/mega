@@ -81,3 +81,6 @@ achieving unified management.
 - [ ] `.gitignore` and `.gitattributes`
 - [ ] `lfs`
 - [ ] `ssh`
+
+## Development
+Refs to [Development](../docs/libra/development.md)
