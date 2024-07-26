@@ -10,13 +10,13 @@ use crate::errors::GitError;
 /// * `Blob` (1): A Git object that stores the content of a file.
 /// * `Tree` (2): A Git object that represents a directory or a folder in a Git repository.
 /// * `Commit` (3): A Git object that represents a commit in a Git repository, which contains
-/// information such as the author, committer, commit message, and parent commits.
+///   information such as the author, committer, commit message, and parent commits.
 /// * `Tag` (4): A Git object that represents a tag in a Git repository, which is used to mark a
-/// specific point in the Git history.
+///   specific point in the Git history.
 /// * `OffsetDelta` (6): A Git object that represents a delta between two objects, where the delta
-/// is stored as an offset to the base object.
+///   is stored as an offset to the base object.
 /// * `HashDelta` (7): A Git object that represents a delta between two objects, where the delta
-/// is stored as a hash of the base object.
+///   is stored as a hash of the base object.
 ///
 /// By assigning unique integer values to each Git object type, Git can easily and efficiently
 /// identify the type of an object and perform the appropriate operations on it. when parsing a Git

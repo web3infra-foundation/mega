@@ -66,83 +66,7 @@
    $ psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
    ```
 
-4. Update config file for local test. For local testing, Mega uses the `config.toml` file to configure the required parameters.
-
-   ```ini
-    # Fillin the following environment variables with values you set
-      ## Logging Configuration
-      [log]
-      # The path which log file is saved
-      log_path = "/tmp/.mega/logs"
-
-      # log level
-      level = "debug"
-
-      # print std log in console, disable it on production for performance
-      print_std = true
-
-
-      [database]
-      # "sqlite" | "postgres"
-      # "sqlite" will use `db_path` and ignore `db_url`
-      db_type = "sqlite"
-
-      # used for sqlite
-      db_path = "/tmp/.mega/mega.db"
-
-      # database connection url
-      db_url = "postgres://mega:mega@localhost:5432/mega"
-
-      # db max connection, setting it to twice the number of CPU cores would be appropriate.
-      max_connection = 32
-
-      # db min connection, setting it to the number of CPU cores would be appropriate.
-      min_connection = 16
-
-      # Whether to disabling SQLx Log
-      sqlx_logging = false
-
-
-      [ssh]
-      ssh_key_path = "/tmp/.mega/ssh"
-
-      [storage]
-      # raw object stroage type, can be `local` or `remote`
-      raw_obj_storage_type = "LOCAL"
-
-      ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
-      big_obj_threshold = 1024
-
-      # set the local path of the project storage
-      raw_obj_local_path = "/tmp/.mega/objects"
-
-      lfs_obj_local_path = "/tmp/.mega/lfs"
-
-      obs_access_key = ""
-      obs_secret_key = ""
-
-      # cloud storage region
-      obs_region = "cn-east-3"
-
-      # Override the endpoint URL used for remote storage services
-      obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
-
-
-      [monorepo]
-      ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
-      ## Mega treats files in that directory as import repo and other directories as monorepo
-      import_dir = "/third-part"
-
-
-      # The maximum memory used by decode, Unit is GB
-      pack_decode_mem_size = 4
-
-      # The location where the object stored when the memory used by decode exceeds the limit
-      pack_decode_cache_path = "/tmp/.mega/cache"
-
-      clean_cache_after_decode = true
-
-   ```
+4. Update config file for local test. For local testing, Mega uses the `config.toml` file to configure the required parameters. See [Configuration](#configuration).
 
 5. Init the Mega
 
@@ -236,92 +160,7 @@
    $ sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
    ```
 
-4. Config `confg.toml`.
-
-   ```ini
-    # Fillin the following environment variables with values you set
-
-      ## Logging Configuration
-      [log]
-      # The path which log file is saved
-      log_path = "/tmp/.mega/logs"
-
-      # log level
-      level = "debug"
-
-      # print std log in console, disable it on production for performance
-      print_std = true
-
-
-      [database]
-      # "sqlite" | "postgres"
-      # "sqlite" will use `db_path` and ignore `db_url`
-      db_type = "sqlite"
-
-      # used for sqlite
-      db_path = "/tmp/.mega/mega.db"
-
-      # database connection url
-      db_url = "postgres://mega:mega@localhost:5432/mega"
-
-      # db max connection, setting it to twice the number of CPU cores would be appropriate.
-      max_connection = 32
-
-      # db min connection, setting it to the number of CPU cores would be appropriate.
-      min_connection = 16
-
-      # Whether to disabling SQLx Log
-      sqlx_logging = false
-
-
-      [ssh]
-      ssh_key_path = "/tmp/.mega/ssh"
-
-      [storage]
-      # raw object stroage type, can be `local` or `remote`
-      raw_obj_storage_type = "LOCAL"
-
-      ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
-      big_obj_threshold = 1024
-
-      # set the local path of the project storage
-      raw_obj_local_path = "/tmp/.mega/objects"
-
-      lfs_obj_local_path = "/tmp/.mega/lfs"
-
-      obs_access_key = ""
-      obs_secret_key = ""
-
-      # cloud storage region
-      obs_region = "cn-east-3"
-
-      # Override the endpoint URL used for remote storage services
-      obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
-
-
-      [monorepo]
-      ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
-      ## Mega treats files in that directory as import repo and other directories as monorepo
-      import_dir = "/third-part"
-
-
-      # The maximum memory used by decode, Unit is GB
-      pack_decode_mem_size = 4
-
-      # The location where the object stored when the memory used by decode exceeds the limit
-      pack_decode_cache_path = "/tmp/.mega/cache"
-
-      clean_cache_after_decode = true
-      
-      [lfs]
-      ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
-      # Enable or disable splitting large files into smaller chunks
-
-      enable_split = false  # Default is disabled. Set to true to enable file splitting.   
-      # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
-      split_size = 20971520 # Default size is 20MB (20971520 bytes)
-
-   ```
+4. Config `confg.toml`. See [Configuration](#configuration).
 
 5. Init Mega.
 
@@ -376,87 +215,123 @@ sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to me
 
 Config `confg.toml` file for the Mega project.
 
-```ini
-   # Fillin the following environment variables with values you set
+---
+## Configuration
+Config `confg.toml` file for the Mega project.
 
-   ## Logging Configuration
-   [log]
-   # The path which log file is saved
-   log_path = "/tmp/.mega/logs"
+### Path
+- Default: automatically load `config.toml` in current directory.
+- Specify manually: use `--config "/path/to/config.toml"`
 
-   # log level
-   level = "debug"
+### Enhance
+- You can use environment variables starting with `MEGA_` to override the configuration in `config.toml`.
+  - like `MEGA_BASE_DIR` to override `base_dir`. // with `env::set_var()`
+  - but it seems only not available for nested keys, like `log.log_path`.
+- Support `${}` syntax to reference other keys in the same file.
+  - like `log_path = "${base_dir}/logs"`, `${base_dir}` will be replaced by the value of `base_dir`
+  - or `key = "${xxx.yyy}/zzz"` (prefix `xxx.` can't be omitted)
+  - only support `String` type
+  - substitute from up to down
+  - see codes in [config.rs](/common/src/config.rs)
 
-   # print std log in console, disable it on production for performance
-   print_std = true
+```toml
+# The directory where the data files is located, such as logs, database, etc.
+# can be overrided by environment variable `MEGA_BASE_DIR`
+base_dir = "/tmp/.mega"
 
+# Filling the following environment variables with values you set
+## Logging Configuration
+[log]
+# The path which log file is saved
+log_path = "${base_dir}/logs"
 
-   [database]
-   # "sqlite" | "postgres"
-   # "sqlite" will use `db_path` and ignore `db_url`
-   db_type = "sqlite"
+# log level
+level = "debug"
 
-   # used for sqlite
-   db_path = "/tmp/.mega/mega.db"
-
-   # database connection url
-   db_url = "postgres://mega:mega@localhost:5432/mega"
-
-   # db max connection, setting it to twice the number of CPU cores would be appropriate.
-   max_connection = 2
-
-   # db min connection, setting it to the number of CPU cores would be appropriate.
-   min_connection = 4
-
-   # Whether to disabling SQLx Log
-   sqlx_logging = false
-
-   [ssh]
-   ssh_key_path = "/tmp/.mega/ssh"
-
-   [storage]
-   # raw object stroage type, can be `local` or `remote`
-   raw_obj_storage_type = "LOCAL"
-
-   ## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
-   big_obj_threshold = 1024
-
-   # set the local path of the project storage
-   raw_obj_local_path = "/tmp/.mega/objects"
-
-   lfs_obj_local_path = "/tmp/.mega/lfs"
-
-   obs_access_key = ""
-   obs_secret_key = ""
-
-   # cloud storage region
-   obs_region = "cn-east-3"
-
-   # Override the endpoint URL used for remote storage services
-   obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
+# print std log in console, disable it on production for performance
+print_std = true
 
 
-   [monorepo]
-   ## Only import directory support multi-branch commit and tag, repo under regular directory only support main branch only
-   ## Mega treats files in that directory as import repo and other directories as monorepo
-   import_dir = "/third-part"
+[database]
+# "sqlite" | "postgres"
+# "sqlite" will use `db_path` and ignore `db_url`
+db_type = "sqlite"
 
-   # The maximum memory used by decode, Unit is GB
-   pack_decode_mem_size = 4
+# used for sqlite
+db_path = "${base_dir}/mega.db"
 
-   # The location where the object stored when the memory used by decode exceeds the limit
-   pack_decode_cache_path = "/tmp/.mega/cache"
+# database connection url
+db_url = "postgres://mega:mega@localhost:5432/mega"
 
-   clean_cache_after_decode = true
+# db max connection, setting it to twice the number of CPU cores would be appropriate.
+max_connection = 32
 
-   [lfs]
-   ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
-   # Enable or disable splitting large files into smaller chunks
+# db min connection, setting it to the number of CPU cores would be appropriate.
+min_connection = 16
 
-   enable_split = false  # Default is disabled. Set to true to enable file splitting.   
-   # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
-   split_size = 20971520 # Default size is 20MB (20971520 bytes)
+# Whether to disabling SQLx Log
+sqlx_logging = false
+
+
+[ssh]
+ssh_key_path = "${base_dir}/ssh"
+
+[storage]
+# raw object stroage type, can be `local` or `remote`
+raw_obj_storage_type = "LOCAL"
+
+## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
+big_obj_threshold = 1024
+
+# set the local path of the project storage
+raw_obj_local_path = "${base_dir}/objects"
+
+lfs_obj_local_path = "${base_dir}/lfs"
+
+obs_access_key = ""
+obs_secret_key = ""
+
+# cloud storage region
+obs_region = "cn-east-3"
+
+# Override the endpoint URL used for remote storage services
+obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
+
+
+[monorepo]
+## Only import directory support multi-branch commit and tag, monorepo only support main branch
+## Mega treats files under this directory as import repo and other directories as monorepo
+import_dir = "/third-part"
+
+
+[pack]
+# The maximum memory used by decode, Unit is GB
+pack_decode_mem_size = 4
+
+# The location where the object stored when the memory used by decode exceeds the limit
+pack_decode_cache_path = "${base_dir}/cache"
+
+clean_cache_after_decode = true
+
+# The maximum meesage size in channel buffer while decode
+channel_message_size = 1_000_000
+
+
+[ztm]
+ca = "http://127.0.0.1:9999"
+hub = "http://127.0.0.1:8888"
+agent = "http://127.0.0.1:7777"
+
+[lfs]
+## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+# Enable or disable splitting large files into smaller chunks
+enable_split = false  # Default is disabled. Set to true to enable file splitting.
+
+# Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
+split_size = 20971520 # Default size is 20MB (20971520 bytes)
 ```
+
+---
 ## Database maintenance
 Currently, the tables of database are created by `.sql` file. 
 
@@ -465,7 +340,64 @@ If you want to add a new table or modify the existing table, you need to update 
 ### Attention
 - Each database corresponds to one `.sql` file, you must modify all of them if you want to update the tables in order to keep the consistency of the database.
 - DO NOT use `Array` Type in PostgreSQL but use `JSON` instead, for compatibility with SQLite & MySQL. (`JSON` <==> `serde_json::Value`)
+---
+## Tests
+> Keep in mind that it's impossible to find all bugs.
+> 
+> Tests are the last line of defense.
 
+### Unit Tests
+
+Unit tests are small, focused tests that verify the behavior of a single function or module in isolation.
+
+#### Example:
+
+```rust
+// ...Other Codes
+
+#[cfg(test)] // indicates this block will only be compiled when running tests
+mod tests {
+   use super::*;
+
+   #[test] // indicates that this function is a test, which will be run by `cargo test`
+   fn test_add() {
+      let result = add(1, 1);
+      assert_eq!(result, 2); // assert is important to tests
+   }
+}
+```
+
+### Integration Tests
+Integration tests verify that different parts of your **library** work correctly together.
+They are **external** to your crate and use your code in the same way any other code would.
+
+#### Steps
+You can refer to the implementation of the mega **module**. ([mega/tests](/mega/tests))
+1. Create a `tests` directory at the **same level** as your `src` directory (e.g. `libra/tests`).
+2. Add `*.rs` files in this directory. // Each file will be compiled as a separate **crate**.
+
+#### Attention
+- The `tests` in **root** directory (workspace) is NOT integration tests, but some `data` for other tests.
+- If you need a common module, use `tests/common/mod.rs` rather than `tests/common.rs`, to declare it's not a test file.
+- There is no need to add `#[cfg(test)]` to the `tests` directory. `tests` will be compiled only when running tests.
+
+#### Run integration tests
+The following command will be executed in `GitHub Actions`.
+
+This command DOES NOT run **Unit Tests** (which could be very messy).
+```bash
+cargo test --workspace --test '*' -- --nocapture
+```
+- `--workspace` : Run tests for **all packages** in the workspace.
+- `--test` : Test the specified **integration test**.
+- `--` : Pass the following arguments to the test binary.
+- `--nocapture` : DO NOT capture the output (e.g. `println!`) of the test.
+
+If you want to run tests in a specific package, you can use `--package`.
+
+For more information, please refer to the [rust wiki](https://rustwiki.org/zh-CN/cargo/commands/cargo-test.html).
+
+---
 ## Comment Guideline
 
 This guide outlines the recommended order for importing dependencies in Rust projects.
@@ -476,6 +408,7 @@ This guide outlines the recommended order for importing dependencies in Rust pro
 
 ### Function Comments (///)
 
+---
 ## Rust Dependency Import Order Guideline
 
 This guide outlines the recommended order for importing dependencies in Rust projects.

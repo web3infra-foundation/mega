@@ -25,11 +25,11 @@ use crate::internal::object::ObjectType;
 /// The `Commit` struct is used to represent a commit object.
 ///
 /// - The tree object SHA points to the top level tree for this commit, which reflects the complete
-/// state of the repository at the time of the commit. The tree object in turn points to blobs and
-/// subtrees which represent the files in the repository.
+///   state of the repository at the time of the commit. The tree object in turn points to blobs and
+///   subtrees which represent the files in the repository.
 /// - The parent commit SHAs allow Git to construct a linked list of commits and build the full
-/// commit history. By chaining together commits in this fashion, Git is able to represent the entire
-/// history of a repository with a single commit object at its root.
+///   commit history. By chaining together commits in this fashion, Git is able to represent the entire
+///   history of a repository with a single commit object at its root.
 /// - The author and committer fields contain the name, email address, timestamp and timezone.
 /// - The message field contains the commit message, which maybe include signed or DCO.
 #[allow(unused)]

@@ -46,12 +46,12 @@ impl Drop for Pack {
 impl Pack {
     /// # Parameters
     /// - `thread_num`: The number of threads to use for decoding and cache, `None` mean use the number of logical CPUs.
-    /// It can't be zero, or panic <br>
+    ///   It can't be zero, or panic <br>
     /// - `mem_limit`: The maximum size of the memory cache in bytes, or None for unlimited.
-    /// The 80% of it will be used for [Caches]  <br>
+    ///   The 80% of it will be used for [Caches]  <br>
     ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
     /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
-    /// For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
+    ///   For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
     /// - `clean_tmp`: whether to remove temp dir
     ///
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>, clean_tmp: bool) -> Self {
