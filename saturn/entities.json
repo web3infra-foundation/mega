@@ -1,0 +1,78 @@
+{
+    "users": {
+        "User::\"kesha\"": {
+            "euid": "User::\"kesha\"",
+            "parents": [
+                "UserGroup::\"mega_admin\""
+            ]
+        },
+        "User::\"alice\"": {
+            "euid": "User::\"alice\"",
+            "parents": [
+                "UserGroup::\"mega_reader\""
+            ]
+        }
+    },
+    "repos": {
+        "Repository::\"mega\"": {
+            "euid": "Repository::\"mega\"",
+            "is_private": true,
+            "admins": "UserGroup::\"mega_admin\"",
+            "maintainers": "UserGroup::\"mega_matainer\"",
+            "writers": "UserGroup::\"mega_writer\"",
+            "triagers": "UserGroup::\"mega_triager\"",
+            "readers": "UserGroup::\"mega_reader\"",
+            "parents": []
+        },
+        "Repository::\"public\"": {
+            "euid": "Repository::\"public\"",
+            "is_private": false,
+            "admins": "UserGroup::\"placeholder\"",
+            "maintainers": "UserGroup::\"placeholder\"",
+            "writers": "UserGroup::\"placeholder\"",
+            "triagers": "UserGroup::\"placeholder\"",
+            "readers": "UserGroup::\"placeholder\"",
+            "parents": []
+        }
+    },
+    "user_groups": {
+        "UserGroup::\"mega_admin\"": {
+            "euid": "UserGroup::\"mega_admin\"",
+            "parents": [
+                "UserGroup::\"mega_matainer\""
+            ]
+        },
+        "UserGroup::\"mega_matainer\"": {
+            "euid": "UserGroup::\"mega_matainer\"",
+            "parents": [
+                "UserGroup::\"mega_writer\""
+            ]
+        },
+        "UserGroup::\"mega_writer\"": {
+            "euid": "UserGroup::\"mega_writer\"",
+            "parents": [
+                "UserGroup::\"mega_triager\""
+            ]
+        },
+        "UserGroup::\"mega_triager\"": {
+            "euid": "UserGroup::\"mega_triager\"",
+            "parents": [
+                "UserGroup::\"mega_reader\""
+            ]
+        },
+        "UserGroup::\"mega_reader\"": {
+            "euid": "UserGroup::\"mega_reader\"",
+            "parents": []
+        },
+        "UserGroup::\"placeholder\"": {
+            "euid": "UserGroup::\"placeholder\"",
+            "parents": []
+        }
+    },
+    "merge_requests": {
+
+    },
+    "issues": {
+
+    }
+}

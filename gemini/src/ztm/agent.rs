@@ -7,7 +7,6 @@ use std::{
 
 use axum::async_trait;
 use common::config::Config;
-use jupiter::context::Context;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
 
@@ -370,12 +369,12 @@ impl ZTMAgent for LocalZTMAgent {
 }
 pub async fn run_ztm_client(
     bootstrap_node: String,
-    config: Config,
+    _config: Config,
     peer_id: String,
     agent: LocalZTMAgent,
 ) {
     let name = peer_id.clone();
-    let _context = Context::new(config.clone()).await;
+    // let _context = Context::new(config.clone()).await;
 
     // let local_permit_option = read_secret(peer_id.as_str()).unwrap();
     // let permit: ZTMUserPermit = match local_permit_option {

@@ -1,99 +1,34 @@
 'use client'
 
-import React from 'react'
-import { Space, Table, Tag } from 'antd'
-import type { TableProps } from 'antd'
-import HelloRust from '@/components/catalyst/hello'
-import { GetResult } from '../../../moon/src/components/ApiResult'
+import React, { useEffect, useState } from 'react'
+import DataList from '@/components/DataList'
 
-interface DataType {
-  key: string
-  name: string
-  age: number
-  address: string
-  tags: string[]
-}
-
-const columns: TableProps<DataType>['columns'] = [
-  {
-    title: 'Name',
-    dataIndex: 'name',
-    key: 'name',
-    render: (text) => <a>{text}</a>,
-  },
-  {
-    title: 'Age',
-    dataIndex: 'age',
-    key: 'age',
-  },
-  {
-    title: 'Address',
-    dataIndex: 'address',
-    key: 'address',
-  },
-  {
-    title: 'Tags',
-    key: 'tags',
-    dataIndex: 'tags',
-    render: (_, { tags }) => (
-      <>
-        {tags.map((tag) => {
-          let color = tag.length > 5 ? 'geekblue' : 'green'
-          if (tag === 'loser') {
-            color = 'volcano'
-          }
-          return (
-            <Tag color={color} key={tag}>
-              {tag.toUpperCase()}
-            </Tag>
-          )
-        })}
-      </>
-    ),
-  },
-  {
-    title: 'Action',
-    key: 'action',
-    render: (_, record) => (
-      <Space size="middle">
-        <a>Invite {record.name}</a>
-        <a>Delete</a>
-      </Space>
-    ),
-  },
-]
-
-const data: DataType[] = [
-  {
-    key: '1',
-    name: 'John Brown',
-    age: 32,
-    address: 'New York No. 1 Lake Park',
-    tags: ['nice', 'developer'],
-  },
-  {
-    key: '2',
-    name: 'Jim Green',
-    age: 42,
-    address: 'London No. 1 Lake Park',
-    tags: ['loser'],
-  },
-  {
-    key: '3',
-    name: 'Joe Black',
-    age: 32,
-    address: 'Sydney No. 1 Lake Park',
-    tags: ['cool', 'teacher'],
-  },
-]
 
 export default function HomePage() {
+  const [repo_list, setRepoList] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        let repo_list = await getRepoList();
+        setRepoList(repo_list);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+    fetchData();
+  }, []);
+
   return (
     <div>
-      <Table columns={columns} dataSource={data} />
-      <HelloRust />
-      {/* ---- */}
-      <GetResult host="http://127.0.0.1:8000/api/v1/tree" />
+      <DataList data={repo_list} />
     </div>
   )
+}
+
+async function getRepoList() {
+  const res = await fetch(`api/relay/repo_list`);
+  const response = await res.json();
+  const repo_list = response.data;
+  return repo_list
 }

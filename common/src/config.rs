@@ -1,12 +1,12 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
 use c::{ConfigError, FileFormat};
 use config as c;
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::rc::Rc;
 use config::builder::DefaultState;
 use config::{Source, ValueKind};
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::rc::Rc;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Config {
@@ -26,7 +26,7 @@ impl Config {
         let builder = c::Config::builder()
             .add_source(c::File::new(path, FileFormat::Toml))
             .add_source(c::Environment::with_prefix("mega")); // e.g. MEGA_BASE_DIR == base_dir
-        // support ${} variable substitution
+                                                              // support ${} variable substitution
         let config = variable_placeholder_substitute(builder);
 
         Config::from_config(config)
@@ -53,7 +53,8 @@ fn variable_placeholder_substitute(mut builder: c::ConfigBuilder<DefaultState>) 
     let config = builder.clone().build().unwrap(); // initial config
     let mut vars = HashMap::new();
     // top-level variables
-    for (k, mut v) in config.collect().unwrap() { // a copy
+    for (k, mut v) in config.collect().unwrap() {
+        // a copy
         if let ValueKind::String(str) = &v.kind {
             if envsubst::is_templated(str) {
                 let new_str = envsubst::substitute(str, &vars).unwrap();
@@ -101,7 +102,11 @@ fn traverse_config(key: &str, value: &c::Value, f: &impl Fn(&str, &c::Value)) {
         ValueKind::Table(table) => {
             for (k, v) in table.iter() {
                 // join keys by '.'
-                let new_key = if key.is_empty() { k.clone() } else { format!("{}.{}", key, k) };
+                let new_key = if key.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{}.{}", key, k)
+                };
                 traverse_config(&new_key, v, f);
             }
         }
@@ -139,9 +144,9 @@ pub struct DbConfig {
 impl Default for DbConfig {
     fn default() -> Self {
         Self {
-            db_type: String::new(),
-            db_path: String::new(),
-            db_url: String::new(),
+            db_type: String::from("sqlite"),
+            db_path: String::from("/tmp/.mega/mega.db"),
+            db_url: String::from("postgres://mega:mega@localhost:5432/mega"),
             max_connection: 32,
             min_connection: 16,
             sqlx_logging: false,
@@ -238,13 +243,17 @@ impl Default for ZTMConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
     pub enable_split: bool,
-    #[serde(default = "default_split_size")]
     pub split_size: usize,
 }
 
-fn default_split_size() -> usize {
-    1024 * 1024 * 20 // 20MB
+impl Default for LFSConfig {
+    fn default() -> Self {
+        Self {
+            enable_split: true,
+            split_size: 1024 * 1024 * 1024,
+        }
+    }
 }
