@@ -9,7 +9,7 @@ use std::{thread, time};
 use anyhow::Result;
 use axum::body::Body;
 use axum::extract::{Query, State};
-use axum::http::{Request, StatusCode, Uri};
+use axum::http::{self, Request, StatusCode, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
@@ -168,7 +168,12 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
                 .post(post_method_router)
                 .put(put_method_router),
         )
-        .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
+        .layer(
+            ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
+                http::header::AUTHORIZATION,
+                http::header::CONTENT_TYPE,
+            ])),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
         .with_state(state)

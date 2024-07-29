@@ -259,17 +259,8 @@ impl Default for LFSConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OauthConfig {
     pub github_client_id: String,
     pub github_client_secret: String,
-}
-
-impl Default for OauthConfig {
-    fn default() -> Self {
-        Self {
-            github_client_id: String::new(),
-            github_client_secret: String::new(),
-        }
-    }
 }

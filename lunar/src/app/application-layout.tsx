@@ -41,6 +41,10 @@ import {
   TicketIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
+import { useUser } from '@/app/api/fetcher';
+import { Skeleton } from "antd";
+import { Button } from '@/components/catalyst/button'
+import { useState, useEffect } from 'react'
 
 function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
   return (
@@ -75,20 +79,38 @@ export function ApplicationLayout({
   children: React.ReactNode
 }) {
   let pathname = usePathname()
+  const [token, setToken] = useState("")
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setToken(localStorage.getItem("access_token") || "")
+    }
+  }, [])
+
+  const { user, isLoading, isError } = useUser(token);
+  if (isLoading) return <Skeleton />;
 
   return (
     <SidebarLayout
       navbar={
         <Navbar>
           <NavbarSpacer />
-          <NavbarSection>
-            <Dropdown>
-              <DropdownButton as={NavbarItem}>
-                <Avatar src="/images/megaLogo.png" />
-              </DropdownButton>
-              <AccountDropdownMenu anchor="bottom end" />
-            </Dropdown>
-          </NavbarSection>
+          {
+            !token &&
+            <Button href="/login">Login</Button>
+          }
+          {
+            token &&
+            <NavbarSection>
+              <Dropdown>
+                <DropdownButton as={NavbarItem}>
+                  <Avatar src={"" || user.avatar_url} />
+                </DropdownButton>
+                <AccountDropdownMenu anchor="bottom end" />
+              </Dropdown>
+            </NavbarSection>
+
+          }
+
         </Navbar>
       }
       sidebar={
@@ -127,15 +149,19 @@ export function ApplicationLayout({
             <SidebarSection>
               <SidebarItem href="/" current={pathname === '/'}>
                 <HomeIcon />
-                <SidebarLabel>Home</SidebarLabel>
+                <SidebarLabel>Code & Issue</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/issue" current={pathname.startsWith('/issue')}>
+              <SidebarItem href="/chat" current={pathname.startsWith('/issue')}>
                 <Square2StackIcon />
-                <SidebarLabel>Issue</SidebarLabel>
+                <SidebarLabel>AI Chat</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/mr" current={pathname.startsWith('/mr')}>
+              <SidebarItem href="/reminder" current={pathname.startsWith('/mr')}>
                 <TicketIcon />
-                <SidebarLabel>Merge Request</SidebarLabel>
+                <SidebarLabel>Reminder</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/logs" current={pathname.startsWith('/mr')}>
+                <TicketIcon />
+                <SidebarLabel>Logs</SidebarLabel>
               </SidebarItem>
               <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
                 <Cog6ToothIcon />
@@ -156,22 +182,30 @@ export function ApplicationLayout({
             </SidebarSection>
           </SidebarBody>
 
+
           <SidebarFooter className="max-lg:hidden">
-            <Dropdown>
-              <DropdownButton as={SidebarItem}>
-                <span className="flex min-w-0 items-center gap-3">
-                  <Avatar slot="icon" initials="AD" className="size-10 bg-purple-500 text-white" />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">Admin</span>
-                    <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">
-                      Admin@mega.com
+            {token &&
+              <Dropdown>
+                <DropdownButton as={SidebarItem}>
+                  <span className="flex min-w-0 items-center gap-3">
+                    <Avatar src={"" || user.avatar_url} slot="icon" initials="AD" className="size-10 bg-purple-500 text-white" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">{user.login}</span>
+                      <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">
+                        {user.email}
+                      </span>
                     </span>
                   </span>
-                </span>
-                <ChevronUpIcon />
-              </DropdownButton>
-              <AccountDropdownMenu anchor="top start" />
-            </Dropdown>
+                  <ChevronUpIcon />
+                </DropdownButton>
+                <AccountDropdownMenu anchor="top start" />
+              </Dropdown>
+            }
+            {
+              !token &&
+              <Button href="/login">Login</Button>
+            }
+
           </SidebarFooter>
         </Sidebar>
       }

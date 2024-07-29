@@ -37,6 +37,7 @@ tower-http = { workspace = true, features = [
     "trace",
     "decompression-full",
 ] }
+axum-extra = { workspace = true, features = ["typed-header"]}
 tokio = { workspace = true, features = ["net"] }
 reqwest = { workspace = true, features = ["json"] }
 uuid = { workspace = true, features = ["v4"] }
