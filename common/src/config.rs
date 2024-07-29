@@ -19,6 +19,7 @@ pub struct Config {
     pub pack: PackConfig,
     pub ztm: ZTMConfig,
     pub lfs: LFSConfig,
+    pub oauth: OauthConfig,
 }
 
 impl Config {
@@ -256,4 +257,10 @@ impl Default for LFSConfig {
             split_size: 1024 * 1024 * 1024,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct OauthConfig {
+    pub github_client_id: String,
+    pub github_client_secret: String,
 }
