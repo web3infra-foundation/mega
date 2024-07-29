@@ -9,6 +9,9 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use axum_extra::headers::authorization::Bearer;
+use axum_extra::headers::Authorization;
+use axum_extra::TypedHeader;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -102,24 +105,22 @@ async fn oauth_callback(
         .unwrap();
     sessions.remove(&query.state);
 
-    let callback_url = format!("{}/login?access_token={}", redirect_uri, access_token);
+    let callback_url = format!("{}?access_token={}", redirect_uri, access_token);
     Ok(Redirect::temporary(&callback_url))
 }
 
 async fn user(
     Path(oauth_type): Path<String>,
-    Query(query): Query<HashMap<String, String>>,
+    TypedHeader(Authorization::<Bearer>(token)): TypedHeader<Authorization<Bearer>>,
     service_state: State<OauthServiceState>,
 ) -> Result<Json<GitHubUserJson>, (StatusCode, String)> {
     let oauth_type: SupportOauthType = match oauth_type.parse::<SupportOauthType>() {
         Ok(value) => value,
         Err(err) => return Err((StatusCode::BAD_REQUEST, err)),
     };
-    let access_token = query.get("access_token").unwrap();
-
     let res = service_state
         .oauth_handler(oauth_type)
-        .user_info(access_token)
+        .user_info(token.token())
         .await
         .unwrap();
     Ok(Json(res))
