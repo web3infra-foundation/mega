@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -8,16 +9,14 @@ use std::{thread, time};
 use anyhow::Result;
 use axum::body::Body;
 use axum::extract::{Query, State};
-use axum::http::{Request, StatusCode, Uri};
+use axum::http::{self, Request, StatusCode, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
-use common::enums::ZtmType;
-use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
-use gemini::ztm::hub::LocalZTMHub;
 use regex::Regex;
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
@@ -26,11 +25,15 @@ use tower_http::trace::TraceLayer;
 use ceres::lfs::LfsConfig;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
 use common::config::Config;
+use common::enums::ZtmType;
 use common::model::{CommonOptions, GetParams};
+use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
+use gemini::ztm::hub::LocalZTMHub;
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
 use crate::api::api_router::{self};
+use crate::api::oauth::{self, OauthServiceState};
 use crate::api::ApiServiceState;
 use crate::ca_server::run_ca_server;
 use crate::lfs;
@@ -140,20 +143,37 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
         common: common.clone(),
     };
 
-    let api_state = ApiServiceState { context };
+    let api_state = ApiServiceState {
+        context: context.clone(),
+    };
 
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
     Router::new()
-        .nest("/api/v1", api_router::routers().with_state(api_state))
+        .nest(
+            "/api/v1",
+            api_router::routers().with_state(api_state.clone()),
+        )
+        .nest(
+            "/auth",
+            oauth::routers().with_state(OauthServiceState {
+                context,
+                sessions: Arc::new(Mutex::new(HashMap::new())),
+            }),
+        )
         .route(
             "/*path",
             get(get_method_router)
                 .post(post_method_router)
                 .put(put_method_router),
         )
-        .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
+        .layer(
+            ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
+                http::header::AUTHORIZATION,
+                http::header::CONTENT_TYPE,
+            ])),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
         .with_state(state)
