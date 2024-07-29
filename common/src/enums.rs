@@ -7,6 +7,7 @@
 //! consistency, especially when multiple modules need to work with the same
 //! set of enum variants.
 
+use std::str::FromStr;
 
 use clap::ValueEnum;
 
@@ -17,7 +18,7 @@ pub enum ZtmType {
     Relay,
 }
 
-impl std::str::FromStr for ZtmType {
+impl FromStr for ZtmType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -25,6 +26,23 @@ impl std::str::FromStr for ZtmType {
             "agent" => Ok(ZtmType::Agent),
             "relay" => Ok(ZtmType::Relay),
             _ => Err(format!("'{}' is not a valid ztm type", s)),
+        }
+    }
+}
+
+/// An enum representing different oauth types.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum SupportOauthType {
+    GitHub,
+}
+
+impl FromStr for SupportOauthType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "github" => Ok(Self::GitHub),
+            _ => Err(format!("'{}' is not a valid oauth type", s)),
         }
     }
 }
