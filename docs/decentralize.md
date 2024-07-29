@@ -10,11 +10,13 @@
   "created_at": <unix timestamp in seconds>,
   "tags": [
     ["uri", <p2p://<32-bytes lowercase hex-encoded public key of the event creator>/<repository name>.git>],
-    ["action", <event type, include repo/issue/mr>, <repo: open/close/update; issue: open/comment/close; mr: open/comment/review/merge/close>],
-    ["commit", <git hash id>],
-    ["ref", <ref of the event, include branch/tag/issue/mr>],
-    ["title", <arbitrary string>],
-    ["content", <arbitrary string>],
+    ["action", <repo/issue/mr>, <repo: open/close/update; issue: open/comment/close; mr: open/comment/review/merge/close>],
+    ["ref", <Ref of the event, include branch/tag/issue/mr>],
+    ["commit", <Git commit SHA-1 ID>],
+    ["issue", <Issue ID>],
+    ["mr", <Merge Request ID>],
+    ["title", <Arbitrary string>],
+    ["content", <Arbitrary string>],
     ["sig", <64-byte lowercase hex of the signature of the sha256 hash of the serialized event data, which is the same as the id field>]
   ],
   "content": <arbitrary string>,
