@@ -35,6 +35,7 @@
     "**/*.tsx"
 , "src/pages/_app.back"  ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "src-tauri"
   ]
 }
