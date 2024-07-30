@@ -1,12 +1,13 @@
 {
-  "name": "moon",
+  "name": "lunar",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@ant-design/icons": "^5.3.7",
@@ -25,13 +26,13 @@
     "swr": "^2.2.5"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^1.6.0",
     "@types/node": "^22",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "autoprefixer": "^10.4.16",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
     "eslint": "^9.8",
-    "eslint-config-next": "14.0.3",
-    "postcss": "^8.4.31",
-    "typescript": "^5"
+    "postcss": "^8.4.40",
+    "typescript": "^5.5.4"
   }
 }
