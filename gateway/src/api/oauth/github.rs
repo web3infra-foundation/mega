@@ -65,8 +65,12 @@ impl OauthHandler for GithubOauthService {
             .send()
             .await
             .unwrap();
-        // tracing::debug!("user_resp: {:?}", resp.text().await.unwrap());
-        let user_info = resp.json::<GitHubUserJson>().await.unwrap();
+        let mut user_info = GitHubUserJson::default();
+        if resp.status().is_success() {
+            user_info = resp.json::<GitHubUserJson>().await.unwrap();
+        } else {
+            tracing::error!("github:user_info:err {:?}", resp.text().await.unwrap());
+        }
         Ok(user_info)
     }
 }
