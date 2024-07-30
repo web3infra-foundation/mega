@@ -29,11 +29,11 @@
     "react-markdown": "^9.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.16",
-    "eslint": "^8",
+    "eslint": "^9.8",
     "eslint-config-next": "14.0.3",
     "postcss": "^8.4.31",
     "typescript": "^5"
