@@ -19,7 +19,7 @@ pub struct GitHubAccessTokenJson {
     pub token_type: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct GitHubUserJson {
     pub login: String,
     pub id: u32,

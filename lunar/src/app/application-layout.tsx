@@ -41,9 +41,6 @@ import {
   TicketIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
-import { useUser } from '@/app/api/fetcher';
-import { Skeleton } from "antd";
-import { Button } from '@/components/catalyst/button'
 import { useState, useEffect } from 'react'
 
 function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
@@ -86,19 +83,15 @@ export function ApplicationLayout({
     }
   }, [])
 
-  const { user, isLoading, isError } = useUser(token);
-  if (isLoading) return <Skeleton />;
+  // const { user, isLoading, isError } = useUser(token);
+  // if (isLoading) return <Skeleton />;
 
   return (
     <SidebarLayout
       navbar={
         <Navbar>
           <NavbarSpacer />
-          {
-            !token &&
-            <Button href="/login">Login</Button>
-          }
-          {
+          {/* {
             token &&
             <NavbarSection>
               <Dropdown>
@@ -108,9 +101,7 @@ export function ApplicationLayout({
                 <AccountDropdownMenu anchor="bottom end" />
               </Dropdown>
             </NavbarSection>
-
-          }
-
+          } */}
         </Navbar>
       }
       sidebar={
@@ -183,7 +174,7 @@ export function ApplicationLayout({
           </SidebarBody>
 
 
-          <SidebarFooter className="max-lg:hidden">
+          {/* <SidebarFooter className="max-lg:hidden">
             {token &&
               <Dropdown>
                 <DropdownButton as={SidebarItem}>
@@ -201,12 +192,7 @@ export function ApplicationLayout({
                 <AccountDropdownMenu anchor="top start" />
               </Dropdown>
             }
-            {
-              !token &&
-              <Button href="/login">Login</Button>
-            }
-
-          </SidebarFooter>
+          </SidebarFooter> */}
         </Sidebar>
       }
     >
