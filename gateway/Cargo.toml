@@ -20,7 +20,7 @@ venus = { workspace = true }
 mercury = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
-axum-server = { version = "0.6", features = ["tls-rustls"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
 russh = { workspace = true }
