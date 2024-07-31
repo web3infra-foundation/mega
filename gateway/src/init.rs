@@ -7,3 +7,8 @@ pub async fn init_monorepo(config: Config) -> Result<(), Box<dyn std::error::Err
     context.services.mega_storage.init_monorepo().await;
     Ok(())
 }
+
+pub fn init_message_queue() -> Result<(), Box<dyn std::error::Error>> {
+    crate::mq::queue::init_message_queue(12);
+    Ok(())
+}

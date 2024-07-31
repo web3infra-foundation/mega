@@ -43,3 +43,4 @@ reqwest = { workspace = true, features = ["json"] }
 uuid = { workspace = true, features = ["v4"] }
 regex = "1.10.4"
 ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
+crossbeam-channel = "0.5.10"
