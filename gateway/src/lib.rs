@@ -6,6 +6,7 @@ pub mod init;
 mod lfs;
 pub mod relay_server;
 pub mod ssh_server;
+pub mod mq;
 
 #[cfg(test)]
 mod tests {}
