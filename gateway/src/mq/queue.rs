@@ -1,16 +1,27 @@
-use std::{borrow::Borrow, sync::Arc};
+use std::sync::{Arc, OnceLock};
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use tokio::{
-    runtime::{Builder, Runtime}, select, sync::Semaphore
-};
+use crossbeam_channel::{unbounded, Sender};
+use crossbeam_channel::Receiver;
+use tokio::runtime::{Builder, Runtime};
 
-use super::event::{EventType, Message};
+use super::event::Message;
+
+// Lazy initialized static MessageQueue instance.
+pub(crate) fn get_mq() -> &'static MessageQueue {
+    static MQ: OnceLock<MessageQueue> = OnceLock::new();
+    MQ.get_or_init(|| {
+        // FIXME: Temp value
+        let mq = MessageQueue::new(12);
+        mq.start();
+
+        mq
+    })
+}
 
 pub(crate) struct MessageQueue {
     sender: Sender<Message>,
     receiver: Receiver<Message>,
-    sem: Arc<Semaphore>,
+    // sem: Arc<Semaphore>,
     runtime: Arc<Runtime>,
 }
 
@@ -29,7 +40,7 @@ impl MessageQueue {
         MessageQueue {
             sender: s.to_owned(),
             receiver: r.to_owned(),
-            sem: Arc::new(Semaphore::new(n_workers)),
+            // sem: Arc::new(Semaphore::new(n_workers)),
             runtime: Arc::new(rt),
         }
     }
@@ -44,9 +55,7 @@ impl MessageQueue {
                 match receiver.recv() {
                     Ok(evt) => {
                         rt.spawn(async move {
-                            let evt = evt.clone();
-                            evt.process().await;
-                            evt.done().await;
+                            tracing::info!("{}", evt);
                         });
                     },
                     Err(e) => {
@@ -58,17 +67,7 @@ impl MessageQueue {
         });
     }
 
-    pub fn enqueue(&self, msg: Message) {
-        match self.sender.send(msg) {
-            Ok(()) => {}
-            Err(_) => {}
-        }
+    pub fn send(&self, msg: Message) {
+        let _ = self.sender.send(msg);
     }
-}
-
-pub(crate) fn init_message_queue(n_workers: usize) -> MessageQueue {
-    let mq = MessageQueue::new(n_workers);
-    mq.start();
-
-    mq
 }

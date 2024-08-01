@@ -1,58 +1,68 @@
-use std::sync::Arc;
-
-use serde::de::DeserializeOwned;
-use async_trait::async_trait;
+use axum::extract::State;
 
 use crate::api::ApiServiceState;
 
-pub(crate) type Message = Arc<Box<dyn Event<Type = EventType>>>;
+use super::queue::get_mq;
 
-pub(crate) enum EventType {
-    ApiRequestEvent,
+pub(crate) type Message = Event;
 
+pub enum Event {
+    Api(ApiRequestEvent),
 }
 
-#[async_trait]
-pub trait Event: Send + Sync {
-    type Type: Into<EventType>;
-    fn event_type(&self) -> Self::Type;
+#[derive(Debug)]
+pub enum ApiType {
+    // Common Api enum for api_routers
+    CreateFile,
+    LastestCommit,
+    CommitInfo,
+    TreeInfo,
+    Blob,
+    Publish,
 
-    async fn process(&self);
-    async fn done(&self);
+    // Merge Api enum for mr_routers
+    MergeRequest,
+    MergeDone,
+    MergeList,
+    MergeDetail,
+    MergeFiles,
 }
 
-// A common event stores how to perform a async action.
+// pub trait EventBase: Send + Sync {
+//     type Type: Into<EventType>;
+//     fn event_type(&self) -> Self::Type;
 
-pub(crate) struct ApiRequestEvent<T>
-    where T: DeserializeOwned
-{
-    state: ApiServiceState,
-    handler: fn() -> T,
-}
+//     // async fn process(&self);
+// }
 
-impl<T> ApiRequestEvent<T>
-    where T: DeserializeOwned
-{
-    fn new(state: ApiServiceState, handler: fn() -> T) -> Arc<Self> {
-        Arc::new(ApiRequestEvent {
-            state,
-            handler
-        })
+impl std::fmt::Display for Event {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            crate::mq::event::Event::Api(evt) => write!(f, "{}", evt),
+
+            #[allow(unreachable_patterns)]
+            _ => write!(f, "Unknown Event Type")
+        }
     }
 }
 
-#[async_trait]
-impl<T> Event for ApiRequestEvent<T>
-    where T: DeserializeOwned
-{
-    type Type = EventType;
-    fn event_type(&self) -> Self::Type { EventType::ApiRequestEvent }
+pub struct ApiRequestEvent {
+    pub api: ApiType,
+    pub state: State<ApiServiceState>,
+}
 
-    async fn process(&self) {
-        (self.handler)();
+impl std::fmt::Display for ApiRequestEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Api Request Event: {:?}", self.api)
     }
+}
 
-    async fn done(&self) {
-        todo!()
+impl ApiRequestEvent {
+    // Create and enqueue this event.
+    pub fn notice(api: ApiType, state: &State<ApiServiceState>) {
+        get_mq().send(Event::Api(ApiRequestEvent {
+            api,
+            state: state.clone()
+        }));
     }
 }
