@@ -81,6 +81,7 @@ mod test {
     }
 
     fn load_context() -> AppContext {
+        tracing_subscriber::fmt().pretty().init();
         AppContext::new(
             "./entities.json",
             "./mega.cedarschema",
@@ -122,11 +123,20 @@ mod test {
         // anyone can view public_repo
         assert!(app_context
             .is_authorized(
-                anyone,
+                anyone.clone(),
                 r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
                 resource.clone(),
                 Context::empty()
             )
             .is_ok());
+        // anyone can not view mega
+        assert!(app_context
+            .is_authorized(
+                anyone,
+                r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
+                r#"Repository::"mega""#.parse::<EntityUid>().unwrap(),
+                Context::empty()
+            )
+            .is_err());
     }
 }

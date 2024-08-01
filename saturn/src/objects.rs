@@ -21,7 +21,7 @@ impl From<User> for Entity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserGroup {
+pub struct UserGroup { 
     euid: EntityUid,
     parents: HashSet<EntityUid>,
 }
@@ -41,9 +41,6 @@ pub struct Repo {
     is_private: bool,
     admins: EntityUid,
     maintainers: EntityUid,
-    readers: EntityUid,
-    triagers: EntityUid,
-    writers: EntityUid,
     parents: HashSet<EntityUid>,
 }
 
@@ -61,19 +58,7 @@ impl From<Repo> for Entity {
             (
                 "maintainers",
                 format!("{}", value.maintainers.as_ref()).parse().unwrap(),
-            ),
-            (
-                "readers",
-                format!("{}", value.readers.as_ref()).parse().unwrap(),
-            ),
-            (
-                "triagers",
-                format!("{}", value.triagers.as_ref()).parse().unwrap(),
-            ),
-            (
-                "writers",
-                format!("{}", value.writers.as_ref()).parse().unwrap(),
-            ),
+            )
         ]
         .into_iter()
         .map(|(x, v)| (x.into(), v))
@@ -81,7 +66,6 @@ impl From<Repo> for Entity {
 
         let parents = value.parents.into_iter().map(|euid| euid.into()).collect();
 
-        // let euid: EntityUid = value.euid.into();
         Entity::new(value.euid.into(), attrs, parents).unwrap()
     }
 }

@@ -1,18 +1,10 @@
 entity UserGroup in [UserGroup];
-entity User in [UserGroup, Team];
-
-entity Team in [UserGroup] {
-    "admins": UserGroup,
-    "members": UserGroup,
-};
+entity User in [UserGroup];
 
 entity Repository = {
     "is_private": Bool,
     "admins": UserGroup,
     "maintainers": UserGroup,
-    "readers": UserGroup,
-    "triagers": UserGroup,
-    "writers": UserGroup,
 };
 
 entity MergeRequest = {
@@ -30,14 +22,9 @@ action "deleteRepo", "viewRepo", "forkRepo", "pullRepo", "pushRepo" appliesTo {
     resource: [Repository],
 };
 
-action "createMergeRequest", "closeMergeRequest", "approveMergeRequest" appliesTo {
+action "createMergeRequest", "editMergeRequest", "deleteMergeRequest", "approveMergeRequest" appliesTo {
     principal: [User],
     resource: [MergeRequest],
-};
-
-action "createTeam", "viewTeam", "addMember", "removeMember", "deleteTeam" appliesTo {
-    principal: [User],
-    resource: [Team],
 };
 
 action "openIssue", "assignIssue", "deleteIssue", "editIssue" appliesTo {
@@ -45,7 +32,7 @@ action "openIssue", "assignIssue", "deleteIssue", "editIssue" appliesTo {
     resource: [Issue],
 };
 
-action "addReader", "addWriter", "addMaintainer", "addAdmin", "addTriager" appliesTo {
+action "addMaintainer", "addAdmin" appliesTo {
     principal: [User],
     resource: [Repository],
 };
