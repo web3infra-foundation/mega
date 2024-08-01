@@ -90,8 +90,9 @@ impl server::Handler for SshServer {
         );
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
-                smart_protocol.service_type = ServiceType::from_str(command[0]).unwrap();
-                let res = smart_protocol.git_info_refs().await;
+                smart_protocol.service_type = Some(ServiceType::from_str(command[0]).unwrap());
+                // TODO handler ProtocolError
+                let res = smart_protocol.git_info_refs().await.unwrap();
                 self.smart_protocol = Some(smart_protocol);
                 session.data(channel, res.to_vec().into());
                 session.channel_success(channel);
@@ -161,8 +162,8 @@ impl server::Handler for SshServer {
             // String::from_utf8_lossy(data),
             data.len()
         );
-
-        match smart_protocol.service_type {
+        let service_type = smart_protocol.service_type.unwrap();
+        match service_type {
             ServiceType::UploadPack => {
                 self.handle_upload_pack(channel, data, session).await;
             }
@@ -180,7 +181,7 @@ impl server::Handler for SshServer {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         if let Some(smart_protocol) = self.smart_protocol.as_mut() {
-            if smart_protocol.service_type == ServiceType::ReceivePack {
+            if smart_protocol.service_type.unwrap() == ServiceType::ReceivePack {
                 self.handle_receive_pack(channel, session).await;
             };
         }

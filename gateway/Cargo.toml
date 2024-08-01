@@ -39,6 +39,8 @@ tower-http = { workspace = true, features = [
 ] }
 axum-extra = { workspace = true, features = ["typed-header"]}
 tokio = { workspace = true, features = ["net"] }
+tokio-stream = { workspace = true }
+async-stream = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 uuid = { workspace = true, features = ["v4"] }
 regex = "1.10.4"
