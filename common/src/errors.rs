@@ -75,5 +75,16 @@ pub enum GitLFSError {
     GeneralError(String),
 }
 
+
+#[derive(Debug, Error)]
+pub enum ProtocolError {
+    #[error("{0}")]
+    IO(#[from] std::io::Error),
+    #[error("Authentication failed: {0}")]
+    Deny(String),
+    #[error("Repository not found: {0}")]
+    NotFound(String),
+}
+
 #[cfg(test)]
 mod tests {}
