@@ -92,3 +92,8 @@ enable_split = true  # Default is disabled. Set to true to enable file splitting
 
 # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
 split_size = 20971520 # Default size is 20MB (20971520 bytes)
+
+[oauth]
+# GitHub OAuth application client id and secret
+github_client_id = ""
+github_client_secret = ""

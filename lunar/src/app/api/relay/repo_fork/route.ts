@@ -2,7 +2,7 @@ export const revalidate = 0
 
 import { NextRequest } from "next/server";
 
-const endpoint = process.env.MEGA_API_URL;
+const endpoint = process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams

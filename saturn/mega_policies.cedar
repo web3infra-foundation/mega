@@ -1,81 +1,33 @@
-// policy "anyoneCanViewPublicRepo" even if not login?
+// policy "anyoneCanViewPublicRepo"
 permit (
     principal,
-    action in [Action::"viewRepo"],
+    action in
+        [Action::"viewRepo",
+         Action::"pullRepo",
+         Action::"forkRepo",
+         Action::"pushRepo"],
     resource
 )
 unless { resource.is_private };
-
-// policy "adminCanManageTeams"
-// permit (
-//     principal,
-//     action in
-//         [Action::"createTeam",
-//          Action::"deleteTeam",
-//          Action::"viewTeam",
-//          Action::"addMember",
-//          Action::"removeMember"],
-//     resource
-// )
-// when { principal.role == "admin" };
-
-// policy "memberCanViewTeam"
-permit (
-    principal,
-    action in [Action::"viewTeam"],
-    resource
-)
-when { principal in resource.members };
-
-//Actions for readers
-permit (
-    principal,
-    action in [Action::"viewRepo", Action::"pullRepo", Action::"forkRepo"],
-    resource
-)
-when { principal in resource.readers };
 
 permit (
     principal,
     action in [Action::"openIssue", Action::"createMergeRequest"],
     resource
 )
-when { principal in resource.repo.readers };
-
-permit (
-    principal,
-    action in [Action::"editIssue"],
-    resource
-)
-when { principal in resource.repo.readers && principal == resource.owner };
-
-//Actions for triagers
-permit (
-    principal,
-    action == Action::"assignIssue",
-    resource
-)
-when { principal in resource.repo.triagers };
-
-//Actions for writers
-permit (
-    principal,
-    action == Action::"pushRepo",
-    resource
-)
-when { principal in resource.writers };
-
-permit (
-    principal,
-    action in [Action::"editIssue", Action::"approveMergeRequest"],
-    resource
-)
-when { principal in resource.repo.writers };
+unless { resource.repo.is_private };
 
 //Actions for maintainers
 permit (
     principal,
-    action in [Action::"deleteIssue", Action::"approveMergeRequest"],
+    action in [Action::"editIssue", Action::"editMergeRequest"],
+    resource
+)
+when { principal in resource.repo.maintainers || principal == resource.owner };
+
+permit (
+    principal,
+    action in [Action::"assignIssue", Action::"approveMergeRequest"],
     resource
 )
 when { principal in resource.repo.maintainers };
@@ -84,12 +36,24 @@ when { principal in resource.repo.maintainers };
 permit (
     principal,
     action in
-        [Action::"addReader",
-         Action::"addTriager",
-         Action::"addWriter",
+        [Action::"viewRepo",
+         Action::"pullRepo",
+         Action::"forkRepo",
+         Action::"pushRepo",
          Action::"addMaintainer",
          Action::"addAdmin",
          Action::"deleteRepo"],
     resource
 )
 when { principal in resource.admins };
+
+permit (
+    principal,
+    action in
+        [Action::"openIssue",
+         Action::"createMergeRequest",
+         Action::"deleteIssue",
+         Action::"deleteMergeRequest"],
+    resource
+)
+when { principal in resource.repo.admins };
