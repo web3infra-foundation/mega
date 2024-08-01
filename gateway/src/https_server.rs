@@ -23,7 +23,7 @@ use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
 use ceres::lfs::LfsConfig;
-use ceres::protocol::{SmartProtocol, TransportProtocol};
+use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::config::Config;
 use common::enums::ZtmType;
 use common::model::{CommonOptions, GetParams};
@@ -199,7 +199,7 @@ async fn get_method_router(
             state.context.clone(),
             TransportProtocol::Http,
         );
-        return ceres::http::handler::git_info_refs(params, pack_protocol).await;
+        return crate::git_protocol::http::git_info_refs(params, pack_protocol).await;
     } else if Regex::new(r"/ztm/repo_provide$")
         .unwrap()
         .is_match(uri.path())
@@ -247,22 +247,24 @@ async fn post_method_router(
         .unwrap()
         .is_match(uri.path())
     {
-        let pack_protocol = SmartProtocol::new(
+        let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/git-upload-pack"),
             state.context.clone(),
             TransportProtocol::Http,
         );
-        ceres::http::handler::git_upload_pack(req, pack_protocol).await
+        pack_protocol.service_type = Some(ServiceType::UploadPack);
+        crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
     } else if Regex::new(r"/git-receive-pack$")
         .unwrap()
         .is_match(uri.path())
     {
-        let pack_protocol = SmartProtocol::new(
+        let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/git-receive-pack"),
             state.context.clone(),
             TransportProtocol::Http,
         );
-        ceres::http::handler::git_receive_pack(req, pack_protocol).await
+        pack_protocol.service_type = Some(ServiceType::ReceivePack);
+        crate::git_protocol::http::git_receive_pack(req, pack_protocol).await
     } else {
         Err((
             StatusCode::NOT_FOUND,
