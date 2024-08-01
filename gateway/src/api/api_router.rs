@@ -14,7 +14,7 @@ use ceres::model::{
 };
 use common::model::CommonResult;
 
-use crate::api::mr_router;
+use crate::{api::mr_router, mq::event::{ApiRequestEvent, ApiType}};
 use crate::api::ApiServiceState;
 
 pub fn routers() -> Router<ApiServiceState> {
@@ -34,6 +34,7 @@ async fn get_blob_object(
     Query(query): Query<BlobContentQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    ApiRequestEvent::notice(ApiType::Blob, &state);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -75,6 +76,7 @@ async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    ApiRequestEvent::notice(ApiType::CreateFile, &state);
     let res = state
         .api_handler(json.path.clone().into())
         .await
@@ -91,6 +93,7 @@ async fn get_latest_commit(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, (StatusCode, String)> {
+    ApiRequestEvent::notice(ApiType::LastestCommit, &state);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -104,6 +107,7 @@ async fn get_tree_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeBriefItem>>>, (StatusCode, String)> {
+    ApiRequestEvent::notice(ApiType::TreeInfo, &state);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -120,6 +124,7 @@ async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, (StatusCode, String)> {
+    ApiRequestEvent::notice(ApiType::CommitInfo, &state);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -136,6 +141,7 @@ async fn publish_path_to_repo(
     state: State<ApiServiceState>,
     Json(json): Json<PublishPathInfo>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    ApiRequestEvent::notice(ApiType::Publish, &state);
     let res = state
         .api_handler(json.path.clone().into())
         .await
