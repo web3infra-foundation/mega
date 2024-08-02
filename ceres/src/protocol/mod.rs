@@ -146,7 +146,7 @@ impl SmartProtocol {
 
     pub async fn pack_handler(&self) -> Result<Arc<dyn PackHandler>, ProtocolError> {
         let import_dir = self.context.config.monorepo.import_dir.clone();
-        if self.path.starts_with(import_dir.clone()) && self.path != import_dir {
+        if self.path.starts_with(import_dir.clone()) {
             let storage = self.context.services.git_db_storage.clone();
             let path_str = self.path.to_str().unwrap();
             let model = storage.find_git_repo_exact_match(path_str).await.unwrap();
