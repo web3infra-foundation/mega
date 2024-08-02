@@ -1,5 +1,9 @@
 pub mod api;
 
+pub trait Model: Sync {
+    fn as_str(&self) -> &str;
+}
+
 pub trait AskModel {
     fn ask_model(
         &self,
