@@ -17,6 +17,8 @@ use common::model::CommonResult;
 use crate::api::mr_router;
 use crate::api::ApiServiceState;
 
+use super::ztm_router;
+
 pub fn routers() -> Router<ApiServiceState> {
     let router = Router::new()
         .route("/status", get(life_cycle_check))
@@ -27,7 +29,10 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/blob", get(get_blob_object))
         .route("/publish", post(publish_path_to_repo));
 
-    Router::new().merge(router).merge(mr_router::routers())
+    Router::new()
+        .merge(router)
+        .merge(mr_router::routers())
+        .merge(ztm_router::routers())
 }
 
 async fn get_blob_object(

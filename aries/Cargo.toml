@@ -12,7 +12,6 @@ common = { workspace = true }
 callisto = { workspace = true }
 gemini = { workspace = true }
 jupiter = { workspace = true }
-ceres = { workspace = true }
 tokio = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
