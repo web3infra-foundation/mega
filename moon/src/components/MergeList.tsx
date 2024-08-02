@@ -9,7 +9,7 @@ interface MrInfoItem {
     title: string,
     status: string,
     open_timestamp: number,
-    merge_timestamp: number,
+    merge_timestamp: number | null,
 }
 
 interface MergeListProps {
@@ -34,7 +34,11 @@ const MergeList: React.FC<MergeListProps> = ({ mrList }) => {
             case 'open':
                 return `MergeRequest opened on ${format(fromUnixTime(Number(item.open_timestamp)), 'MMM d')} by Admin`;
             case 'merged':
-                return `MergeRequest by Admin was merged ${formatDistance(fromUnixTime(item.merge_timestamp), new Date(), { addSuffix: true })}`;
+                if (item.merge_timestamp !== null) {
+                    return `MergeRequest by Admin was merged ${formatDistance(fromUnixTime(item.merge_timestamp), new Date(), { addSuffix: true })}`;
+                } else {
+                    return "";
+                }
             case 'closed':
                 return <Tag color="failed">closed</Tag>;
         }

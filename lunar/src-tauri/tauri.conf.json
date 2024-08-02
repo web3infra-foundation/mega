@@ -40,7 +40,9 @@
             "macOS": {
                 "entitlements": null,
                 "exceptionDomain": "",
-                "frameworks": [],
+                "frameworks": [
+                    "../../target/release/libpipy.dylib"
+                ],
                 "providerShortName": null,
                 "signingIdentity": null
             },
