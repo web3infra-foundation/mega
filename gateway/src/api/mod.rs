@@ -3,16 +3,20 @@ use std::path::PathBuf;
 use ceres::api_service::{
     import_api_service::ImportApiService, mono_api_service::MonoApiService, ApiHandler,
 };
+use common::model::CommonOptions;
 use jupiter::context::Context;
 use venus::import_repo::repo::Repo;
 
 pub mod api_router;
 pub mod mr_router;
 pub mod oauth;
+pub mod ztm_router;
 
 #[derive(Clone)]
 pub struct ApiServiceState {
     pub context: Context,
+    pub port: u16,
+    pub common: CommonOptions,
 }
 
 impl ApiServiceState {

@@ -9,27 +9,6 @@
 
 use std::str::FromStr;
 
-use clap::ValueEnum;
-
-/// An enum representing different ZTM types.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-pub enum ZtmType {
-    Agent,
-    Relay,
-}
-
-impl FromStr for ZtmType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "agent" => Ok(ZtmType::Agent),
-            "relay" => Ok(ZtmType::Relay),
-            _ => Err(format!("'{}' is not a valid ztm type", s)),
-        }
-    }
-}
-
 /// An enum representing different oauth types.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum SupportOauthType {
