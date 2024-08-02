@@ -41,6 +41,7 @@ pub struct Repo {
     is_private: bool,
     admins: EntityUid,
     maintainers: EntityUid,
+    readers: EntityUid,
     parents: HashSet<EntityUid>,
 }
 
@@ -58,6 +59,10 @@ impl From<Repo> for Entity {
             (
                 "maintainers",
                 format!("{}", value.maintainers.as_ref()).parse().unwrap(),
+            ),
+            (
+                "readers",
+                format!("{}", value.readers.as_ref()).parse().unwrap(),
             )
         ]
         .into_iter()
@@ -74,7 +79,6 @@ impl From<Repo> for Entity {
 pub struct MergeRequest {
     euid: EntityUid,
     repo: EntityUid,
-    owner: EntityUid,
     parents: HashSet<EntityUid>,
 }
 
@@ -82,10 +86,6 @@ impl From<MergeRequest> for Entity {
     fn from(value: MergeRequest) -> Entity {
         let attrs = [
             ("repo", format!("{}", value.repo.as_ref()).parse().unwrap()),
-            (
-                "owner",
-                format!("{}", value.owner.as_ref()).parse().unwrap(),
-            ),
         ]
         .into_iter()
         .map(|(x, v)| (x.into(), v))
@@ -104,7 +104,6 @@ impl From<MergeRequest> for Entity {
 pub struct Issue {
     euid: EntityUid,
     repo: EntityUid,
-    owner: EntityUid,
     parents: HashSet<EntityUid>,
 }
 
@@ -112,10 +111,6 @@ impl From<Issue> for Entity {
     fn from(value: Issue) -> Entity {
         let attrs = [
             ("repo", format!("{}", value.repo.as_ref()).parse().unwrap()),
-            (
-                "owner",
-                format!("{}", value.owner.as_ref()).parse().unwrap(),
-            ),
         ]
         .into_iter()
         .map(|(x, v)| (x.into(), v))
