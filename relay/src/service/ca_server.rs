@@ -15,10 +15,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
-use crate::api::api_router::{self};
-use crate::api::ApiServiceState;
-
-pub async fn run_ca_server(config: Config, _host: String, port: u16) {
+pub async fn run_ca_server(config: Config, port: u16) {
     let host = "127.0.0.1".to_string();
     let app = app(config.clone(), host.clone(), port).await;
 
@@ -45,15 +42,7 @@ pub async fn app(config: Config, host: String, port: u16) -> Router {
         context: Context::new(config.clone()).await,
     };
 
-    let api_state = ApiServiceState {
-        context: Context::new(config).await,
-    };
-
-    // add RequestDecompressionLayer for handle gzip encode
-    // add TraceLayer for log record
-    // add CorsLayer to add cors header
     Router::new()
-        .nest("/api/", api_router::routers().with_state(api_state))
         .route(
             "/*path",
             get(get_method_router)
@@ -93,11 +82,10 @@ async fn get_method_router(
 }
 
 async fn post_method_router(
-    state: State<AppState>,
+    _state: State<AppState>,
     uri: Uri,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let _ztm_config = state.context.config.ztm.clone();
     if Regex::new(r"/certificates/[a-zA-Z0-9]+$")
         .unwrap()
         .is_match(uri.path())
