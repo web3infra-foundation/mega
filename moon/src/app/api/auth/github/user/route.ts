@@ -2,8 +2,6 @@
 
 import { cookies } from "next/headers";
 
-export const revalidate = 0
-
 const endpoint = process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET(request: Request) {
@@ -11,6 +9,7 @@ export async function GET(request: Request) {
     const access_token = cookieStore.get('access_token');
 
     const res = await fetch(`${endpoint}/auth/github/user`, {
+        next: { revalidate: 300 },
         headers: {
             'Authorization': `Bearer ${access_token?.value}`,
             'Content-Type': 'application/json',

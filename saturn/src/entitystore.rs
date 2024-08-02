@@ -31,4 +31,12 @@ impl EntityStore {
             .chain(issues);
         Entities::from_entities(all, Some(schema)).unwrap()
     }
+
+    pub fn merge(&mut self, other: EntityStore) {
+        self.users.extend(other.users);
+        self.repos.extend(other.repos);
+        self.merge_requests.extend(other.merge_requests);
+        self.issues.extend(other.issues);
+        self.user_groups.extend(other.user_groups);
+    }
 }
