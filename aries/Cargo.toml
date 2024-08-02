@@ -1,10 +1,10 @@
 [package]
-name = "relay"
+name = "aries"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "relay"
+name = "aries"
 path = "src/main.rs"
 
 [dependencies]
