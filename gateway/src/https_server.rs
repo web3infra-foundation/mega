@@ -25,19 +25,15 @@ use tower_http::trace::TraceLayer;
 use ceres::lfs::LfsConfig;
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::config::Config;
-use common::enums::ZtmType;
 use common::model::{CommonOptions, GetParams};
 use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
-use gemini::ztm::hub::LocalZTMHub;
 use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
 use crate::api::api_router::{self};
 use crate::api::oauth::{self, OauthServiceState};
 use crate::api::ApiServiceState;
-use crate::ca_server::run_ca_server;
 use crate::lfs;
-use crate::relay_server::run_relay_server;
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -145,6 +141,8 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
 
     let api_state = ApiServiceState {
         context: context.clone(),
+        port,
+        common: common.clone(),
     };
 
     // add RequestDecompressionLayer for handle gzip encode
@@ -200,19 +198,6 @@ async fn get_method_router(
             TransportProtocol::Http,
         );
         return crate::git_protocol::http::git_info_refs(params, pack_protocol).await;
-    } else if Regex::new(r"/ztm/repo_provide$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        return gemini::http::handler::repo_provide(
-            state.port,
-            state.common.bootstrap_node.clone(),
-            state.context.clone(),
-            params,
-        )
-        .await;
-    } else if Regex::new(r"/ztm/repo_folk$").unwrap().is_match(uri.path()) {
-        return gemini::http::handler::repo_folk(state.common.ztm_agent_port, params).await;
     } else {
         return Err((
             StatusCode::NOT_FOUND,
@@ -293,22 +278,13 @@ async fn put_method_router(
 }
 
 pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
-    let ztm_type = match common.ztm {
-        Some(z) => z,
-        None => {
-            return;
-        }
-    };
-    match ztm_type {
-        ZtmType::Agent => {
-            //Mega server join a ztm mesh
-            let bootstrap_node = match common.bootstrap_node {
-                Some(n) => n,
-                None => {
-                    tracing::error!("bootstrap node is not provide");
-                    return;
-                }
-            };
+    //Mega server join a ztm mesh
+    match common.bootstrap_node {
+        Some(bootstrap_node) => {
+            tracing::info!(
+                "The bootstrap node is {}, prepare to join ztm network",
+                bootstrap_node
+            );
             let (peer_id, _) = vault::init();
             let ztm_agent: LocalZTMAgent = LocalZTMAgent {
                 agent_port: common.ztm_agent_port,
@@ -319,30 +295,10 @@ pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
                 run_ztm_client(bootstrap_node, config, peer_id, ztm_agent).await
             });
         }
-        ZtmType::Relay => {
-            //Start a sub thread to ca server
-            let config_clone = config.clone();
-            let host_clone = common.host.clone();
-            let ca_port = common.ca_port;
-            tokio::spawn(async move { run_ca_server(config_clone, host_clone, ca_port).await });
-            thread::sleep(time::Duration::from_secs(5));
-
-            //Start a sub thread to run ztm-hub
-            let ca = format!("localhost:{ca_port}");
-            let ztm_hub: LocalZTMHub = LocalZTMHub {
-                hub_port: common.ztm_hub_port,
-                ca,
-                name: vec!["relay".to_string()],
-            };
-            ztm_hub.clone().start_ztm_hub();
-            thread::sleep(time::Duration::from_secs(5));
-
-            //Start a sub thread to run relay server
-            let config_clone = config.clone();
-            let common: CommonOptions = common.clone();
-            tokio::spawn(async move { run_relay_server(config_clone, common).await });
+        None => {
+            tracing::info!("The bootstrap node is not set, prepare to start mega sever locally");
         }
-    }
+    };
 }
 
 #[cfg(test)]

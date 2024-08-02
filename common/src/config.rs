@@ -17,7 +17,6 @@ pub struct Config {
     pub storage: StorageConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
-    pub ztm: ZTMConfig,
     pub lfs: LFSConfig,
     pub oauth: OauthConfig,
 }
@@ -223,23 +222,6 @@ impl Default for PackConfig {
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ZTMConfig {
-    pub ca: String,
-    pub hub: String,
-    pub agent: String,
-}
-
-impl Default for ZTMConfig {
-    fn default() -> Self {
-        Self {
-            ca: String::from("127.0.0.1:9999"),
-            hub: String::from("127.0.0.1:8888"),
-            agent: String::from("127.0.0.1:7777"),
         }
     }
 }
