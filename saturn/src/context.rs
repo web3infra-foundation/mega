@@ -10,7 +10,7 @@ use crate::{entitystore::EntityStore, util::EntityUid};
 
 #[allow(dead_code)]
 pub struct AppContext {
-    entities: EntityStore,
+    pub entities: EntityStore,
     authorizer: Authorizer,
     policies: PolicySet,
     schema: Schema,
@@ -44,7 +44,7 @@ pub enum Error {
 
 impl AppContext {
     pub fn new(
-        entities_path: impl Into<PathBuf>,
+        entities: EntityStore,
         schema_path: impl Into<PathBuf>,
         policies_path: impl Into<PathBuf>,
     ) -> Result<Self, ContextError> {
@@ -53,8 +53,6 @@ impl AppContext {
 
         let schema_file = std::fs::File::open(schema_path)?;
         let (schema, _) = Schema::from_file_natural(schema_file).unwrap();
-        let entities_file = std::fs::File::open(entities_path.into())?;
-        let entities = serde_json::from_reader(entities_file)?;
         let policy_src = std::fs::read_to_string(policies_path)?;
         let policies = policy_src.parse()?;
         let validator = Validator::new(schema.clone());

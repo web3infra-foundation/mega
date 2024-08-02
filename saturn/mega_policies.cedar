@@ -5,34 +5,14 @@ permit (
         [Action::"viewRepo",
          Action::"pullRepo",
          Action::"forkRepo",
-         Action::"pushRepo"],
+         Action::"pushRepo",
+         Action::"openIssue",
+         Action::"createMergeRequest"],
     resource
 )
 unless { resource.is_private };
 
-permit (
-    principal,
-    action in [Action::"openIssue", Action::"createMergeRequest"],
-    resource
-)
-unless { resource.repo.is_private };
-
-//Actions for maintainers
-permit (
-    principal,
-    action in [Action::"editIssue", Action::"editMergeRequest"],
-    resource
-)
-when { principal in resource.repo.maintainers || principal == resource.owner };
-
-permit (
-    principal,
-    action in [Action::"assignIssue", Action::"approveMergeRequest"],
-    resource
-)
-when { principal in resource.repo.maintainers };
-
-//Actions for admins
+//Actions for readers
 permit (
     principal,
     action in
@@ -40,20 +20,38 @@ permit (
          Action::"pullRepo",
          Action::"forkRepo",
          Action::"pushRepo",
-         Action::"addMaintainer",
-         Action::"addAdmin",
-         Action::"deleteRepo"],
+         Action::"openIssue",
+         Action::"createMergeRequest"],
     resource
 )
-when { principal in resource.admins };
+when { principal in resource.readers };
 
+//Actions for maintainers
 permit (
     principal,
     action in
-        [Action::"openIssue",
-         Action::"createMergeRequest",
+        [Action::"editIssue",
+         Action::"editMergeRequest",
+         Action::"assignIssue",
+         Action::"approveMergeRequest"],
+    resource
+)
+when { principal in resource.maintainers };
+
+//Actions for admins
+permit (
+    principal,
+    action in
+        [Action::"addMaintainer",
+         Action::"addAdmin",
+         Action::"deleteRepo",
          Action::"deleteIssue",
          Action::"deleteMergeRequest"],
     resource
 )
-when { principal in resource.repo.admins };
+when { principal in resource.admins };
+
+
+// root admin can do anything
+permit (principal, action, resource)
+when { principal == User::"genedna" };
