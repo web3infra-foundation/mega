@@ -2,7 +2,10 @@ use core::fmt;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use callisto::db_enums::RefType;
-use common::{errors::MegaError, utils::ZERO_ID};
+use common::{
+    errors::{MegaError, ProtocolError},
+    utils::ZERO_ID,
+};
 use jupiter::context::Context;
 use venus::{import_repo::import_refs::RefCommand, import_repo::repo::Repo};
 
@@ -16,8 +19,7 @@ pub struct SmartProtocol {
     pub capabilities: Vec<Capability>,
     pub path: PathBuf,
     pub command_list: Vec<RefCommand>,
-    // only needed in ssh protocal
-    pub service_type: ServiceType,
+    pub service_type: Option<ServiceType>,
     pub context: Context,
 }
 
@@ -125,7 +127,7 @@ impl SmartProtocol {
             capabilities: Vec::new(),
             path,
             command_list: Vec::new(),
-            service_type: ServiceType::ReceivePack,
+            service_type: None,
             context,
         }
     }
@@ -137,29 +139,35 @@ impl SmartProtocol {
             capabilities: Vec::new(),
             path: PathBuf::new(),
             command_list: Vec::new(),
-            service_type: ServiceType::ReceivePack,
+            service_type: None,
             context,
         }
     }
 
-    pub async fn pack_handler(&self) -> Arc<dyn PackHandler> {
+    pub async fn pack_handler(&self) -> Result<Arc<dyn PackHandler>, ProtocolError> {
         let import_dir = self.context.config.monorepo.import_dir.clone();
         if self.path.starts_with(import_dir.clone()) && self.path != import_dir {
             let storage = self.context.services.git_db_storage.clone();
-
             let path_str = self.path.to_str().unwrap();
             let model = storage.find_git_repo_exact_match(path_str).await.unwrap();
             let repo = if let Some(repo) = model {
                 repo.into()
             } else {
-                let repo = Repo::new(self.path.clone(), false);
-                storage.save_git_repo(repo.clone()).await.unwrap();
-                repo
+                match self.service_type.unwrap() {
+                    ServiceType::UploadPack => {
+                        return Err(ProtocolError::NotFound("Repository not found.".to_owned()))
+                    }
+                    ServiceType::ReceivePack => {
+                        let repo = Repo::new(self.path.clone(), false);
+                        storage.save_git_repo(repo.clone()).await.unwrap();
+                        repo
+                    }
+                }
             };
-            Arc::new(ImportRepo {
+            Ok(Arc::new(ImportRepo {
                 context: self.context.clone(),
                 repo,
-            })
+            }))
         } else {
             let mut res = MonoRepo {
                 context: self.context.clone(),
@@ -175,7 +183,7 @@ impl SmartProtocol {
                 res.from_hash = Some(command.old_id.clone());
                 res.to_hash = Some(command.new_id.clone());
             }
-            Arc::new(res)
+            Ok(Arc::new(res))
         }
     }
 }
