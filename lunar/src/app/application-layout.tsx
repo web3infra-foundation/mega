@@ -39,6 +39,9 @@ import {
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
+  ChatBubbleLeftRightIcon,
+  CodeBracketSquareIcon,
+  ArchiveBoxArrowDownIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -142,16 +145,20 @@ export function ApplicationLayout({
                 <HomeIcon />
                 <SidebarLabel>Code & Issue</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/chat" current={pathname.startsWith('/issue')}>
-                <Square2StackIcon />
+              <SidebarItem href="/chat" current={pathname.startsWith('/chat')}>
+                <ChatBubbleLeftRightIcon />
                 <SidebarLabel>AI Chat</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/reminder" current={pathname.startsWith('/mr')}>
+              <SidebarItem href="/repo" current={pathname.startsWith('/repo')}>
+                <ArchiveBoxArrowDownIcon />
+                <SidebarLabel>Repos</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/reminder" current={pathname.startsWith('/reminder')}>
                 <TicketIcon />
                 <SidebarLabel>Reminder</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/logs" current={pathname.startsWith('/mr')}>
-                <TicketIcon />
+              <SidebarItem href="/logs" current={pathname.startsWith('/logs')}>
+                <CodeBracketSquareIcon />
                 <SidebarLabel>Logs</SidebarLabel>
               </SidebarItem>
               <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
