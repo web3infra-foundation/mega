@@ -1,7 +1,4 @@
-use axum::{body::Body, http::Response};
-use common::model::{CommonResult, GetParams};
 use jupiter::context::Context;
-use reqwest::StatusCode;
 use venus::import_repo::repo::Repo;
 
 use crate::{
@@ -11,26 +8,11 @@ use crate::{
 
 pub async fn repo_provide(
     port: u16,
-    bootstrap_node: Option<String>,
+    bootstrap_node: String,
     context: Context,
-    params: GetParams,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let bootstrap_node_clone = match bootstrap_node {
-        Some(b) => b.clone(),
-        None => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                String::from("Bootstrap node not provide\n"),
-            ));
-        }
-    };
-    let path = match params.path.clone() {
-        Some(p) => p,
-        None => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Path not provide\n")));
-        }
-    };
-    let url = format!("{bootstrap_node_clone}/api/v1/repo_provide");
+    path: String,
+) -> Result<String, String> {
+    let url = format!("{bootstrap_node}/api/v1/repo_provide");
     let git_model = context
         .services
         .git_db_storage
@@ -42,10 +24,10 @@ pub async fn repo_provide(
             if let Some(m) = r {
                 m
             } else {
-                return Err((StatusCode::BAD_REQUEST, String::from("Repo not found")));
+                return Err(String::from("Repo not found"));
             }
         }
-        Err(_) => return Err((StatusCode::BAD_REQUEST, String::from("Repo not found"))),
+        Err(_) => return Err(String::from("Repo not found")),
     };
     let repo: Repo = git_model.clone().into();
     let git_ref = context
@@ -70,40 +52,25 @@ pub async fn repo_provide(
         peer_online: true,
     };
     share_repo(url.clone(), repo_info).await;
-    Ok(Response::builder().body(Body::from("success")).unwrap())
+    Ok("success".to_string())
 }
 
 pub async fn repo_folk(
     ztm_agent_port: u16,
-    params: GetParams,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    tracing::info!("params:{:?}", params);
-    let identifier = match params.identifier.clone() {
-        Some(i) => i,
-        None => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                String::from("Identifier not provide\n"),
-            ));
-        }
-    };
-    let port = match params.port {
-        Some(i) => i,
-        None => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Port not provide\n")));
-        }
-    };
+    identifier: String,
+    local_port: u16,
+) -> Result<String, String> {
     let remote_peer_id = match get_peer_id_from_identifier(identifier.clone()) {
         Ok(p) => p,
-        Err(e) => return Err((StatusCode::BAD_REQUEST, e)),
+        Err(e) => return Err(e),
     };
     let remote_port = match get_remote_port_from_identifier(identifier.clone()) {
         Ok(p) => p,
-        Err(e) => return Err((StatusCode::BAD_REQUEST, e)),
+        Err(e) => return Err(e),
     };
     let git_path = match get_git_path_from_identifier(identifier) {
         Ok(p) => p,
-        Err(e) => return Err((StatusCode::BAD_REQUEST, e)),
+        Err(e) => return Err(e),
     };
 
     let agent: LocalZTMAgent = LocalZTMAgent {
@@ -111,12 +78,12 @@ pub async fn repo_folk(
     };
     let local_ep = match agent.get_ztm_local_endpoint().await {
         Ok(ep) => ep,
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
+        Err(e) => return Err(e),
     };
 
     let remote_ep = match agent.get_ztm_remote_endpoint(remote_peer_id.clone()).await {
         Ok(ep) => ep,
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
+        Err(e) => return Err(e),
     };
 
     let (peer_id, _) = vault::init();
@@ -132,14 +99,14 @@ pub async fn repo_folk(
             ZTM_APP_PROVIDER.to_string(),
             "tunnel".to_string(),
             bound_name.clone(),
-            port,
+            local_port,
         )
         .await
     {
         Ok(_) => (),
         Err(s) => {
             tracing::error!("create app inbound, {s}");
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, s));
+            return Err(s);
         }
     }
     tracing::info!("create app inbound successfully");
@@ -160,15 +127,11 @@ pub async fn repo_folk(
         }
         Err(s) => {
             tracing::error!("create app outbound, {s}");
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, s));
+            return Err(s);
         }
     }
-    let msg = format!("git clone http://localhost:{port}/{git_path}");
-    let json_string = serde_json::to_string(&CommonResult::success(Some(msg))).unwrap();
-    Ok(Response::builder()
-        .header("Content-Type", "application/json")
-        .body(Body::from(json_string))
-        .unwrap())
+    let msg = format!("git clone http://localhost:{local_port}/{git_path}");
+    Ok(msg)
 }
 
 pub fn get_peer_id_from_identifier(identifier: String) -> Result<String, String> {
