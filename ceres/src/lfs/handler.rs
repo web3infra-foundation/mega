@@ -8,7 +8,7 @@ use chrono::{prelude::*, Duration};
 use jupiter::storage::lfs_storage::LfsStorage;
 use rand::prelude::*;
 
-use callisto::{lfs_locks, lfs_objects, lfs_split_relation};
+use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use common::errors::{GitLFSError, MegaError};
 
 use crate::lfs::lfs_structs::{
@@ -763,7 +763,7 @@ async fn lfs_put_relation(
     offset: i64,
     size: i64,
 ) -> Result<(), GitLFSError> {
-    let relation = lfs_split_relation::Model {
+    let relation = lfs_split_relations::Model {
         ori_oid: ori_oid.to_owned(),
         sub_oid: sub_oid.to_owned(),
         offset,
