@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::AskModel;
+use crate::{AskModel, ChatMessage, ChatRole};
 
 pub enum GeminiModels {
     ChatBison001,
@@ -60,23 +60,30 @@ impl GeminiClient {
 }
 
 impl AskModel for GeminiClient {
-    async fn ask_model(&self, question: &str) -> Result<String, Box<dyn std::error::Error>> {
+    async fn ask_model_with_context(
+        &self,
+        _context: ChatMessage,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/{}:generateContent?key={}",
             self.model.as_str(),
             self.api_key
         );
         let client = reqwest::Client::new();
+        let mut contents = CachedContents { contents: vec![] };
+        _context.messages.iter().for_each(|(role, content)| {
+            contents.contents.push(Content {
+                parts: vec![Part::Text {
+                    text: content.clone(),
+                }],
+                role: match role {
+                    ChatRole::User => "user".to_string(),
+                    ChatRole::Model => "model".to_string(),
+                },
+            });
+        });
 
-        let body = serde_json::json!({
-            "contents": [{
-                "parts": [{
-                    "text": question
-                }]
-            }]
-        })
-        .to_string();
-
+        let body = serde_json::to_string(&contents).unwrap();
         let res = client
             .post(&url)
             .body(body)
@@ -97,6 +104,12 @@ impl AskModel for GeminiClient {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CachedContents {
+    contents: Vec<Content>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GeminiResponse {
@@ -113,13 +126,13 @@ struct Candidate {
     // safetry_ratings: Vec<SafetyRating>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Content {
     parts: Vec<Part>,
     role: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 enum Part {
     Text { text: String },
@@ -136,7 +149,7 @@ struct UsageMegadata {
 
 #[cfg(test)]
 mod test {
-    use crate::AskModel;
+    use crate::{AskModel, ChatRole};
 
     #[tokio::test]
     async fn test_gemini_client() {
@@ -150,6 +163,34 @@ mod test {
             Err(e) => {
                 println!("{}", e);
                 panic!();
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gemini_client_with_context() {
+        let api_key = super::super::test::get_gemini_key().unwrap();
+        let client = super::GeminiClient::new(api_key, super::GeminiModels::Gemini15Flash);
+        let _context = crate::ChatMessage {
+            messages: vec![
+                (
+                    ChatRole::User,
+                    "Resposponse a '0' no matter what you receive".into(),
+                ),
+                (
+                    ChatRole::Model,
+                    "Ok, I will response with a number 0.".into(),
+                ),
+                (ChatRole::User, "who are you".into()),
+            ],
+        };
+        let res = client.ask_model_with_context(_context).await;
+        match res {
+            Ok(text) => {
+                println!("Google Gemini response with  {}", text);
+            }
+            Err(e) => {
+                panic!("error: {}", e);
             }
         }
     }
