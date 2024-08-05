@@ -50,14 +50,17 @@ impl LingyiwanwuClient {
 }
 
 impl AskModel for LingyiwanwuClient {
-    async fn ask_model(&self, question: &str) -> Result<String, Box<dyn std::error::Error>> {
-        self.openai_client.ask_model(question).await
+    async fn ask_model_with_context(
+        &self,
+        context: crate::ChatMessage,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        self.openai_client.ask_model_with_context(context).await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::api::test::get_01_key;
+    use crate::{api::test::get_01_key, ChatRole};
 
     use super::*;
 
@@ -70,6 +73,29 @@ mod tests {
             .ask_model("What is the meaning of life?")
             .await
             .unwrap();
+        assert!(!response.is_empty());
+        println!("Lingyiwanwu response: {}", response);
+    }
+
+    #[tokio::test]
+    async fn test_lingyiwanwu_client_with_context() {
+        let api_key = get_01_key().unwrap();
+        let model = LingyiwanwuModels::YiLarge;
+        let client = LingyiwanwuClient::new(api_key, model);
+        let _context = crate::ChatMessage {
+            messages: vec![
+                (
+                    ChatRole::User,
+                    "Resposponse a '0' no matter what you receive".into(),
+                ),
+                (
+                    ChatRole::Model,
+                    "Ok, I will response with a number 0.".into(),
+                ),
+                (ChatRole::User, "What is the meaning of life?".into()),
+            ],
+        };
+        let response = client.ask_model_with_context(_context).await.unwrap();
         assert!(!response.is_empty());
         println!("Lingyiwanwu response: {}", response);
     }
