@@ -7,7 +7,7 @@ use tokio::runtime::{Builder, Runtime};
 use super::event::Message;
 
 // Lazy initialized static MessageQueue instance.
-pub(crate) fn get_mq() -> &'static MessageQueue {
+pub fn get_mq() -> &'static MessageQueue {
     static MQ: OnceLock<MessageQueue> = OnceLock::new();
     MQ.get_or_init(|| {
         // FIXME: Temp value
@@ -18,7 +18,7 @@ pub(crate) fn get_mq() -> &'static MessageQueue {
     })
 }
 
-pub(crate) struct MessageQueue {
+pub struct MessageQueue {
     sender: Sender<Message>,
     receiver: Receiver<Message>,
     // sem: Arc<Semaphore>,

@@ -1,0 +1,14 @@
+[package]
+name = "mq"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mq"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+crossbeam-channel = "0.5.10"

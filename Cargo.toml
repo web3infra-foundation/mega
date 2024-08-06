@@ -11,6 +11,7 @@ members = [
     "vault",
     "neptune",
     "saturn",
+    "mq",
     "lunar/src-tauri",
 ]
 default-members = ["mega", "libra"]
@@ -29,6 +30,7 @@ gemini = { path = "gemini" }
 vault = { path = "vault" }
 neptune = { path = "neptune" }
 saturn = { path = "saturn" }
+mq = { path = "mq" }
 mega = { path = "mega" }
 anyhow = "1.0.86"
 serde = "1.0.203"

@@ -6,6 +6,7 @@ use axum::{
     Json, Router,
 };
 
+use super::event::{ApiRequestEvent, ApiType};
 use ceres::model::{
     create_file::CreateFileInfo,
     publish_path::PublishPathInfo,
@@ -14,7 +15,7 @@ use ceres::model::{
 };
 use common::model::CommonResult;
 
-use crate::{api::mr_router, mq::event::{ApiRequestEvent, ApiType}};
+use crate::api::mr_router;
 use crate::api::ApiServiceState;
 
 pub fn routers() -> Router<ApiServiceState> {
