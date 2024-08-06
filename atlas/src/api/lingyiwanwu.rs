@@ -1,5 +1,5 @@
-//! According to the [Lingyiwanwu API Reference](https://platform.lingyiwanwu.com/docs/api-reference), the Lingyiwanwu API is the same as the OpenAI API.
-//! So this is just a wrapper around the OpenAI API, change api base.
+//! According to the [Lingyiwanwu API Reference](https://platform.lingyiwanwu.com/docs/api-reference), the Lingyiwanwu API is identical to the OpenAI API.
+//! Therefore, this is just a wrapper around the OpenAI API, with a different API base URL.
 
 use crate::AskModel;
 

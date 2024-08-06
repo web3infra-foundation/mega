@@ -1,3 +1,5 @@
+//! Google Gemini API client, see [Google Gemini API](https://ai.google.dev/api/caching)
+
 use serde::{Deserialize, Serialize};
 
 use crate::{AskModel, ChatMessage, ChatRole};
