@@ -244,3 +244,10 @@ CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
   "update_time" BIGINT NOT NULL,
   "commit" VARCHAR(64)
 );
+
+CREATE TABLE IF NOT EXISTS "mq_storage" (
+  "id" BIGINT PRIMARY KEY,
+  "category" VARCHAR(64),
+  "create_time" TIMESTAMP NOT NULL,
+  "content" TEXT
+);

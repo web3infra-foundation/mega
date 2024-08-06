@@ -1,6 +1,6 @@
 use std::any::Any;
 
-pub(crate) type Message = Box<dyn EventBase>;
+pub type Message = Box<dyn EventBase>;
 
 pub trait EventBase: Send + Sync + Any + std::fmt::Display {
     // async fn process(&self);

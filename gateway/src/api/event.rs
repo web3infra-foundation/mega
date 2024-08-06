@@ -39,7 +39,7 @@ impl EventBase for ApiRequestEvent {
 
 impl ApiRequestEvent {
     // Create and enqueue this event.
-    pub fn notice(api: ApiType, state: &State<ApiServiceState>) {
+    pub fn notify(api: ApiType, state: &State<ApiServiceState>) {
         get_mq().send(Box::new(ApiRequestEvent {
             api,
             state: state.clone()
