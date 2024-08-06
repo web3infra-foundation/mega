@@ -1,7 +1,10 @@
-use crate::AskModel;
+use crate::{AskModel, ChatMessage, ChatRole};
 use async_openai::{
     config::OpenAIConfig,
-    types::{ChatCompletionRequestSystemMessageArgs, CreateChatCompletionRequestArgs},
+    types::{
+        ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
+        ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs,
+    },
     Client,
 };
 
@@ -50,19 +53,37 @@ impl OpenAIClient {
 }
 
 impl AskModel for OpenAIClient {
-    async fn ask_model(&self, question: &str) -> Result<String, Box<dyn std::error::Error>> {
+    async fn ask_model_with_context(
+        &self,
+        _context: ChatMessage,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let mut messages: Vec<ChatCompletionRequestMessage> = vec![];
+        for (role, content) in _context.messages.iter() {
+            match role {
+                ChatRole::User => {
+                    messages.push(
+                        ChatCompletionRequestSystemMessageArgs::default()
+                            .content(content)
+                            .build()?
+                            .into(),
+                    );
+                }
+                ChatRole::Model => {
+                    messages.push(
+                        ChatCompletionRequestUserMessageArgs::default()
+                            .content(content.as_str())
+                            .build()?
+                            .into(),
+                    );
+                }
+            }
+        }
         let request = CreateChatCompletionRequestArgs::default()
             .model(self.model.as_str())
-            .messages([ChatCompletionRequestSystemMessageArgs::default()
-                .content(question)
-                .build()?
-                .into()])
+            .messages(messages)
             .build()
             .unwrap();
 
-        // debug, make request to json
-        let json_str = serde_json::to_string(&request).unwrap();
-        println!("json_str: {}", json_str);
         let response = self
             .client
             .chat()
