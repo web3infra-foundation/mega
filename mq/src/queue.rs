@@ -12,7 +12,7 @@ pub fn get_mq() -> &'static MessageQueue {
     static MQ: OnceLock<MessageQueue> = OnceLock::new();
     MQ.get_or_init(|| {
         // FIXME: Temp value
-        let mq = MessageQueue::new(12);
+        let mut mq = MessageQueue::new(12);
         mq.start();
 
         mq
