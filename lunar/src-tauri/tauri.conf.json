@@ -64,10 +64,10 @@
         "windows": [
             {
                 "fullscreen": false,
-                "height": 600,
+                "height": 768,
                 "resizable": true,
                 "title": "lunar-app",
-                "width": 800
+                "width": 1366
             }
         ]
     }

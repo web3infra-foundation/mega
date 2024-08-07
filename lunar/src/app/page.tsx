@@ -59,7 +59,7 @@ export default function HomePage() {
           <Skeleton />
         }
         {
-          (!isTreeLoading && !isBlobLoading) &&
+          (tree && blob) &&
           <CodeTable directory={tree.data} readmeContent={blob.data} treeIsShow={false} />
         }
       </Layout>
