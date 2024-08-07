@@ -1,10 +1,11 @@
 use std::sync::{Arc, OnceLock};
 
+use chrono::Utc;
 use crossbeam_channel::{unbounded, Sender};
 use crossbeam_channel::Receiver;
 use tokio::runtime::{Builder, Runtime};
 
-use super::event::Message;
+use crate::event::{EventBase, Message, EventType};
 
 // Lazy initialized static MessageQueue instance.
 pub fn get_mq() -> &'static MessageQueue {
@@ -67,7 +68,11 @@ impl MessageQueue {
         });
     }
 
-    pub fn send(&self, msg: Message) {
-        let _ = self.sender.send(msg);
+    pub fn send(&self, evt: EventType) {
+        let _ = self.sender.send(Message {
+            id: 1,
+            create_time: Utc::now(),
+            evt
+        });
     }
 }

@@ -10,7 +10,7 @@ pub struct Model {
     pub category: String,
     pub create_time: DateTime,
     #[sea_orm(column_type = "Text", nullable)]
-    pub commit: Option<String>,
+    pub content: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

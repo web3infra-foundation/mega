@@ -8,7 +8,6 @@ use venus::import_repo::repo::Repo;
 
 pub mod api_router;
 pub mod mr_router;
-pub mod event;
 pub mod oauth;
 
 #[derive(Clone)]
