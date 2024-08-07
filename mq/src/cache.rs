@@ -1,38 +1,68 @@
-use std::{collections::VecDeque, sync::OnceLock};
+use std::{borrow::BorrowMut, cell::RefCell, collections::VecDeque, sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard, OnceLock}, time::Duration};
 
-use crate::event::{Message, EventType};
+use chrono::Utc;
 
-// Lazy initialized static EventCache instance.
-pub fn get_mcache() -> &'static EventCache {
-    static MQ: OnceLock<EventCache> = OnceLock::new();
+use crate::{event::Message, queue::{get_mq, MessageQueue}};
+
+const FLUSH_INTERVAL: u64 = 10;
+
+// Lazy initialized static MessageCache instance.
+pub fn get_mcache() -> &'static MessageCache {
+    static MQ: OnceLock<MessageCache> = OnceLock::new();
     MQ.get_or_init(|| {
         // FIXME: Temp value
-        let mq = EventCache::new();
+        let mc = MessageCache::new();
+        mc.start();
 
-        mq
+        mc
     })
 }
 
-// Automatically flush event cache into database
+// Automatically flush message cache into database
 // eveny 10 seconds or 1024 message.
-pub struct EventCache {
-    inner: VecDeque<EventType>,
-    last_flush: u64,
-    flusher_handle: i64,
+pub struct MessageCache {
+    inner: Arc<Mutex<Vec<Message>>>,
+    bound_mq: &'static MessageQueue,
+    last_flush: i64,
+    stop: Arc<AtomicBool>,
 }
 
-impl EventCache {
+impl MessageCache {
     fn new() -> Self {
-        EventCache {
-            inner: VecDeque::new(),
-            last_flush: 0,
-            flusher_handle: -1
+        let now: chrono::DateTime<Utc> = Utc::now();
+
+        MessageCache {
+            inner: Arc::new(Mutex::new(Vec::new())),
+            bound_mq: get_mq(),
+            last_flush: now.timestamp_millis(),
+            stop: Arc::new(AtomicBool::new(false))
         }
     }
 
-    async fn flush(&self) {
-        let v = vec![1,2,3,4];
-
-
+    fn start(&self) {
+        let stop = self.stop.clone();
+        let _ = tokio::spawn(async move {
+            loop {
+                if !stop.load(std::sync::atomic::Ordering::Acquire) {
+                    return
+                }
+                tokio::time::sleep(Duration::from_secs(FLUSH_INTERVAL)).await;
+                instant_flush().await;
+            }
+        });
     }
+
+    async fn add(&self, msg: Message) {
+        let inner = self.inner.clone();
+        let mut locked  = inner.lock().unwrap();
+
+        if locked.len() >= 1024 {
+            instant_flush().await;
+        }
+        locked.push(msg);
+    }
+}
+
+pub async fn instant_flush() {
+    let c = get_mcache();
 }

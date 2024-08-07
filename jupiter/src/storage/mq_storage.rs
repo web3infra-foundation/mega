@@ -26,10 +26,10 @@ impl MQStorage {
     }
 
     pub async fn save_messages(msgs: Vec<mq_storage::Model>) {
-        
+
     }
 
-    pub async fn load_latest_messages() {
+    pub async fn get_latest_messages() {
 
     }
 }
