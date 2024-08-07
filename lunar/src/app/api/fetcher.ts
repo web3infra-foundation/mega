@@ -1,21 +1,7 @@
 import useSWR from "swr";
 
 const endpoint = process.env.NEXT_PUBLIC_API_URL;
-
-const fetchWithToken = async (url, token) => {
-
-  return fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
-  }).then(res => {
-    if (!res.ok) {
-      throw new Error('An error occurred while fetching the data.');
-    }
-    return res.json();
-  });
-};
+const relay = process.env.NEXT_PUBLIC_RELAY_API_URL;
 
 export class FetchError extends Error {
   info: any;
@@ -38,20 +24,10 @@ const fetcher = async url => {
   return res.json()
 }
 
-export function useUser(token) {
-  const { data, error, isLoading } = useSWR(token ? [`${endpoint}/auth/github/user`, token] : null, ([url, token]) => fetchWithToken(url, token), {
-    dedupingInterval: 300000, // The request will not be repeated for 5 minutes
-  })
-  return {
-    user: data,
-    isLoading,
-    isError: error,
-  }
-}
 
 export function useTreeCommitInfo(path) {
   const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/tree/commit-info?path=${path}`, fetcher, {
-    dedupingInterval: 300000,
+    dedupingInterval: 60000,
   })
   return {
     tree: data,
@@ -62,11 +38,22 @@ export function useTreeCommitInfo(path) {
 
 export function useBlobContent(path) {
   const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/blob?path=${path}`, fetcher, {
-    dedupingInterval: 300000,
+    dedupingInterval: 60000,
   })
   return {
     blob: data,
     isBlobLoading: isLoading,
     isBlobError: error,
+  }
+}
+
+export function useRepoList() {
+  const { data, error, isLoading } = useSWR(`${relay}/relay/api/v1/repo_list`, fetcher, {
+    dedupingInterval: 30000,
+  })
+  return {
+    data: data,
+    isLoading,
+    isError: error,
   }
 }
