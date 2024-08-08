@@ -8,8 +8,8 @@ const FLUSH_INTERVAL: u64 = 10;
 
 // Lazy initialized static MessageCache instance.
 pub fn get_mcache() -> &'static MessageCache {
-    static MQ: OnceLock<MessageCache> = OnceLock::new();
-    MQ.get_or_init(|| {
+    static MC: OnceLock<MessageCache> = OnceLock::new();
+    MC.get_or_init(|| {
         let mc = MessageCache::new();
         mc.start();
 
@@ -42,30 +42,24 @@ impl MessageCache {
         let stop = self.stop.clone();
         let _ = tokio::spawn(async move {
             loop {
-                if !stop.load(std::sync::atomic::Ordering::Acquire) {
+                if stop.load(std::sync::atomic::Ordering::Acquire) {
                     return
                 }
                 tokio::time::sleep(Duration::from_secs(FLUSH_INTERVAL)).await;
+
                 instant_flush().await;
             }
         });
     }
-
-    // fn clear_inner(&self) -> &Self {
-    //     let inner = self.inner.clone();
-    //     {
-    //         let mut locked  = inner.lock().unwrap();
-    //         locked.clear();
-    //     }
-    //     self
-    // }
 
     fn get_cache(&self) -> Vec<Message> {
         let mut res = Vec::new();
         let inner = self.inner.clone();
 
         let mut locked  = inner.lock().unwrap();
-        swap(locked.as_mut(), &mut res);
+        if locked.len() != 0 {
+            swap(locked.as_mut(), &mut res);
+        }
 
         res
     }
@@ -75,7 +69,8 @@ impl MessageCache {
         let should_flush: bool;
         {
             let mut locked  = inner.lock().unwrap();
-            should_flush = locked.len() >= 1024;
+            let l = locked.len();
+            should_flush = l >= 1;
             locked.push(msg);
         }
 
