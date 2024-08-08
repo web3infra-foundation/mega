@@ -37,7 +37,7 @@ pub trait EventBase:
 
 impl Display for EventType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{:?}", self)
     }
 }
 
@@ -45,8 +45,8 @@ impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ID: {}, Created at: {}, conetent: [{}]",
-            self.id, self.create_time, self.evt
+            "ID: {}, Created at: {}",
+            self.id, self.create_time
         )
     }
 }

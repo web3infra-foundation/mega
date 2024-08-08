@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::sync::atomic::AtomicI64;
 use std::sync::{Arc, OnceLock};
 
 use chrono::Utc;
@@ -21,6 +22,7 @@ pub struct MessageQueue {
     receiver: Receiver<Message>,
     // sem: Arc<Semaphore>,
     runtime: Arc<Runtime>,
+    cur_id: Arc<AtomicI64>,
     pub(crate) context: Context,
 }
 
@@ -36,7 +38,7 @@ impl Debug for MessageQueue {
 
 impl MessageQueue {
     // Should be singleton.
-    pub(crate) fn new(n_workers: usize, ctx: Context) -> Self {
+    pub(crate) fn new(n_workers: usize, seq: i64, ctx: Context) -> Self {
         let (s, r) = unbounded::<Message>();
         let rt = Builder::new_multi_thread()
             .worker_threads(n_workers)
@@ -48,6 +50,7 @@ impl MessageQueue {
             receiver: r.to_owned(),
             // sem: Arc::new(Semaphore::new(n_workers)),
             runtime: Arc::new(rt),
+            cur_id: Arc::new(AtomicI64::new(seq)),
             context: ctx,
         }
     }
@@ -79,7 +82,7 @@ impl MessageQueue {
 
     pub(crate) fn send(&self, evt: EventType) {
         let _ = self.sender.send(Message {
-            id: 1,
+            id: self.cur_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             create_time: Utc::now(),
             evt
         });
