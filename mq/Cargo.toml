@@ -14,7 +14,7 @@ callisto = { workspace = true }
 
 axum = { workspace = true }
 async-trait = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"]}
 tracing = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
