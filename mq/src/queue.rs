@@ -1,22 +1,19 @@
+use std::fmt::Debug;
 use std::sync::{Arc, OnceLock};
 
 use chrono::Utc;
 use crossbeam_channel::{unbounded, Sender};
 use crossbeam_channel::Receiver;
+use jupiter::context::Context;
 use tokio::runtime::{Builder, Runtime};
 
-use crate::event::{EventBase, Message, EventType};
+use crate::cache::get_mcache;
+use crate::event::{Message, EventType};
 
 // Lazy initialized static MessageQueue instance.
+pub(crate) static MQ: OnceLock<MessageQueue> = OnceLock::new();
 pub fn get_mq() -> &'static MessageQueue {
-    static MQ: OnceLock<MessageQueue> = OnceLock::new();
-    MQ.get_or_init(|| {
-        // FIXME: Temp value
-        let mut mq = MessageQueue::new(12);
-        mq.start();
-
-        mq
-    })
+    MQ.get().unwrap()
 }
 
 pub struct MessageQueue {
@@ -24,14 +21,22 @@ pub struct MessageQueue {
     receiver: Receiver<Message>,
     // sem: Arc<Semaphore>,
     runtime: Arc<Runtime>,
+    pub(crate) context: Context,
 }
 
 unsafe impl Send for MessageQueue{}
 unsafe impl Sync for MessageQueue{}
 
+impl Debug for MessageQueue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Just ignore context field.
+        f.debug_struct("MessageQueue").field("sender", &self.sender).field("receiver", &self.receiver).field("runtime", &self.runtime).finish()
+    }
+}
+
 impl MessageQueue {
     // Should be singleton.
-    fn new(n_workers: usize) -> Self {
+    pub(crate) fn new(n_workers: usize, ctx: Context) -> Self {
         let (s, r) = unbounded::<Message>();
         let rt = Builder::new_multi_thread()
             .worker_threads(n_workers)
@@ -43,18 +48,22 @@ impl MessageQueue {
             receiver: r.to_owned(),
             // sem: Arc::new(Semaphore::new(n_workers)),
             runtime: Arc::new(rt),
+            context: ctx,
         }
     }
 
-    fn start(&self) {
+    pub(crate) fn start(&self) {
         let receiver = self.receiver.clone();
         // let sem = self.sem.clone();
         let rt = self.runtime.clone();
 
         tokio::spawn(async move {
+            let mc = get_mcache();
             loop {
                 match receiver.recv() {
                     Ok(evt) => {
+                        let stored = evt.clone();
+                        mc.add(stored).await;
                         rt.spawn(async move {
                             tracing::info!("{}", evt);
                         });
@@ -68,7 +77,7 @@ impl MessageQueue {
         });
     }
 
-    pub fn send(&self, evt: EventType) {
+    pub(crate) fn send(&self, evt: EventType) {
         let _ = self.sender.send(Message {
             id: 1,
             create_time: Utc::now(),

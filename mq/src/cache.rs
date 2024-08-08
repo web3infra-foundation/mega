@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell, collections::VecDeque, sync::{atomic::AtomicBool, Arc, Mutex, MutexGuard, OnceLock}, time::Duration};
+use std::{mem::swap, sync::{atomic::{AtomicBool, AtomicI64}, Arc, Mutex, OnceLock}, time::Duration};
 
 use chrono::Utc;
 
@@ -10,7 +10,6 @@ const FLUSH_INTERVAL: u64 = 10;
 pub fn get_mcache() -> &'static MessageCache {
     static MQ: OnceLock<MessageCache> = OnceLock::new();
     MQ.get_or_init(|| {
-        // FIXME: Temp value
         let mc = MessageCache::new();
         mc.start();
 
@@ -23,7 +22,7 @@ pub fn get_mcache() -> &'static MessageCache {
 pub struct MessageCache {
     inner: Arc<Mutex<Vec<Message>>>,
     bound_mq: &'static MessageQueue,
-    last_flush: i64,
+    last_flush: Arc<AtomicI64>,
     stop: Arc<AtomicBool>,
 }
 
@@ -34,7 +33,7 @@ impl MessageCache {
         MessageCache {
             inner: Arc::new(Mutex::new(Vec::new())),
             bound_mq: get_mq(),
-            last_flush: now.timestamp_millis(),
+            last_flush: Arc::new(AtomicI64::new(now.timestamp_millis())),
             stop: Arc::new(AtomicBool::new(false))
         }
     }
@@ -52,17 +51,53 @@ impl MessageCache {
         });
     }
 
-    async fn add(&self, msg: Message) {
-        let inner = self.inner.clone();
-        let mut locked  = inner.lock().unwrap();
+    // fn clear_inner(&self) -> &Self {
+    //     let inner = self.inner.clone();
+    //     {
+    //         let mut locked  = inner.lock().unwrap();
+    //         locked.clear();
+    //     }
+    //     self
+    // }
 
-        if locked.len() >= 1024 {
-            instant_flush().await;
+    fn get_cache(&self) -> Vec<Message> {
+        let mut res = Vec::new();
+        let inner = self.inner.clone();
+
+        let mut locked  = inner.lock().unwrap();
+        swap(locked.as_mut(), &mut res);
+
+        res
+    }
+
+    pub(crate) async fn add(&self, msg: Message) -> &Self {
+        let inner = self.inner.clone();
+        let should_flush: bool;
+        {
+            let mut locked  = inner.lock().unwrap();
+            should_flush = locked.len() >= 1024;
+            locked.push(msg);
         }
-        locked.push(msg);
+
+        if should_flush {
+            instant_flush().await
+        }
+
+        self
     }
 }
 
 pub async fn instant_flush() {
-    let c = get_mcache();
+    use callisto::mq_storage::Model;
+
+    let mc = get_mcache();
+    let st = mc.bound_mq.context.services.mq_storage.clone();
+    let data = mc
+        .get_cache()
+        .into_iter().map(|d| Into::<Model>::into(d))
+        .collect::<Vec<Model>>();
+    st.save_messages(data).await;
+
+    let now =  Utc::now();
+    mc.last_flush.to_owned().store(now.timestamp_millis(), std::sync::atomic::Ordering::Relaxed);
 }
