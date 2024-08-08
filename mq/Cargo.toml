@@ -13,6 +13,7 @@ jupiter = { workspace = true }
 callisto = { workspace = true }
 
 axum = { workspace = true }
+async-trait = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
