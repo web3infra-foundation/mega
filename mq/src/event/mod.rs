@@ -118,6 +118,3 @@ impl From<callisto::mq_storage::Model> for Message {
         Self { id, create_time, evt }
     }
 }
-
-#[cfg(test)]
-mod tests {}
