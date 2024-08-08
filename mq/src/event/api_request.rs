@@ -1,6 +1,5 @@
 use common::config::Config;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use crate::{event::EventBase, event::EventType, queue::get_mq};
 
@@ -13,7 +12,7 @@ use crate::{event::EventBase, event::EventType, queue::get_mq};
 /// The event `id` and `create_time` will be attached to your event
 /// and then wrapped as a `Message`.                                \
 /// You should also write some code in `mq::queue` to handle the event. (for now)
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiRequestEvent {
     pub api: ApiType,
     pub config: common::config::Config,
@@ -58,10 +57,7 @@ impl ApiRequestEvent {
 // For storing the data into database.
 impl Into<serde_json::Value> for ApiRequestEvent {
     fn into(self) -> serde_json::Value {
-        json!({
-            "api": self.api,
-            "config": self.config
-        })
+        serde_json::to_value(self).unwrap()
     }
 }
 
@@ -69,13 +65,8 @@ impl TryFrom<serde_json::Value> for ApiRequestEvent {
     type Error = crate::event::Error;
 
     fn try_from(value: serde_json::Value) -> Result<Self, Self::Error> {
-        let api: ApiType = serde_json::from_value(value["api"].clone())?;
-        let config: common::config::Config = serde_json::from_value(value["config"].clone())?;
-
-        Ok(ApiRequestEvent {
-            api,
-            config
-        })
+        let res: ApiRequestEvent = serde_json::from_value(value)?;
+        Ok(res)
     }
 
 }

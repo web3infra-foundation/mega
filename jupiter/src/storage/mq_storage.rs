@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use callisto::mq_storage;
-use mq::event::Message;
-use sea_orm::{DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, Set};
+use sea_orm::DatabaseConnection;
+
+use super::batch_save_model;
 
 
 #[derive(Clone)]
@@ -25,11 +26,12 @@ impl MQStorage {
         }
     }
 
-    pub async fn save_messages(msgs: Vec<mq_storage::Model>) {
-
+    pub async fn save_messages(&self, msgs: Vec<mq_storage::Model>) {
+        let msgs: Vec<mq_storage::ActiveModel> = msgs.into_iter().map(|m| m.into()).collect();
+        batch_save_model(self.get_connection(), msgs).await.unwrap();
     }
 
-    pub async fn get_latest_messages() {
-
+    pub async fn get_latest_messages() -> Vec<mq_storage::Model> {
+        todo!()
     }
 }

@@ -9,6 +9,8 @@ path = "src/lib.rs"
 
 [dependencies]
 common = { workspace = true }
+jupiter = { workspace = true }
+callisto = { workspace = true }
 
 axum = { workspace = true }
 tokio = { workspace = true }
