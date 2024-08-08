@@ -1,5 +1,6 @@
 use common::config::Config;
 use serde::{Deserialize, Serialize};
+use async_trait::async_trait;
 
 use crate::{event::EventBase, event::EventType, queue::get_mq};
 
@@ -8,10 +9,9 @@ use crate::{event::EventBase, event::EventType, queue::get_mq};
 /// This is a example event definition for using message queue.     \
 ///
 /// Your customized event should implement `EventBase` trait.       \
-/// Then the event can be put into message queue.                   \
-/// The event `id` and `create_time` will be attached to your event
+/// Then the event can be wrapped and put into message queue.       \
+/// The message `id` and `create_time` will be attached to your event
 /// and then wrapped as a `Message`.                                \
-/// You should also write some code in `mq::queue` to handle the event. (for now)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiRequestEvent {
     pub api: ApiType,
@@ -42,7 +42,12 @@ impl std::fmt::Display for ApiRequestEvent {
     }
 }
 
-impl EventBase for ApiRequestEvent {}
+#[async_trait]
+impl EventBase for ApiRequestEvent {
+    async fn process(&self) {
+        tracing::info!("Handling Api Request event: [{}]", &self);
+    }
+}
 
 impl ApiRequestEvent {
     // Create and enqueue this event.

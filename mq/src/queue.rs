@@ -64,11 +64,11 @@ impl MessageQueue {
             let mc = get_mcache();
             loop {
                 match receiver.recv() {
-                    Ok(evt) => {
-                        let stored = evt.clone();
+                    Ok(msg) => {
+                        let stored = msg.clone();
                         mc.add(stored).await;
                         rt.spawn(async move {
-                            tracing::info!("{}", evt);
+                            msg.evt.process().await;
                         });
                     },
                     Err(e) => {

@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use api_request::ApiRequestEvent;
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,14 +31,33 @@ pub enum Error {
     MismatchedData(#[from] serde_json::error::Error),
 }
 
+#[async_trait]
 pub trait EventBase:
     Send + Sync + std::fmt::Display + Into<serde_json::Value> + TryFrom<serde_json::Value>
 {
+    // defines the callback function for this event.
+    async fn process(&self);
 }
 
 impl Display for EventType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+impl EventType {
+    pub(crate) async fn process(&self) {
+        match self {
+            // I can't easily add a trait bound for the enum members,
+            // so you have to manually add a process logic for your event here.
+            EventType::ApiRequest(evt) => evt.process().await,
+            // EventType::SomeOtherEvent(xxx) => xxx.process().await,
+
+            // This won't happen unless failed to load events from database.
+            // And that's because of a event conversion error.
+            // You should recheck yout conversion code logic.
+            EventType::ErrorEvent => panic!("Got error event"),
+        }
     }
 }
 
