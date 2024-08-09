@@ -25,7 +25,7 @@ pub fn cli() -> Command {
 // It determines which subcommand was used and calls the appropriate function.
 #[tokio::main]
 pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
-    use mq::init::init_mq;
+    use taurus::init::init_mq;
     init_mq(&config).await;
 
     let (cmd, subcommand_args) = match args.subcommand() {

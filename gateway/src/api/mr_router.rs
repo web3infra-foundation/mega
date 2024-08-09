@@ -10,7 +10,7 @@ use axum::{
 use ceres::model::mr::{MRDetail, MrInfoItem};
 use common::model::CommonResult;
 
-use mq::event::api_request::{ApiRequestEvent, ApiType};
+use taurus::event::api_request::{ApiRequestEvent, ApiType};
 use crate::api::ApiServiceState;
 
 pub fn routers() -> Router<ApiServiceState> {
