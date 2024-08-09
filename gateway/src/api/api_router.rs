@@ -6,7 +6,7 @@ use axum::{
     Json, Router,
 };
 
-use mq::event::api_request::{ApiRequestEvent, ApiType};
+use taurus::event::api_request::{ApiRequestEvent, ApiType};
 use ceres::model::{
     create_file::CreateFileInfo,
     publish_path::PublishPathInfo,
