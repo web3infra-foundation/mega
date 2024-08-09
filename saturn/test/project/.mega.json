@@ -1,0 +1,50 @@
+{
+    "users": {
+        "User::\"benjamin.747\"": {
+            "euid": "User::\"benjamin.747\"",
+            "parents": [
+                "UserGroup::\"admin\""
+            ]
+        },
+        "User::\"genedna\"": {
+            "euid": "User::\"genedna\"",
+            "parents": [
+                "UserGroup::\"admin\""
+            ]
+        }
+    },
+    "repos": {
+        "Repository::\"project\"": {
+            "euid": "Repository::\"project\"",
+            "is_private": false,
+            "admins": "UserGroup::\"admin\"",
+            "maintainers": "UserGroup::\"matainer\"",
+            "readers": "UserGroup::\"reader\"",
+            "parents": []
+        }
+    },
+    "user_groups": {
+        "UserGroup::\"admin\"": {
+            "euid": "UserGroup::\"admin\"",
+            "parents": [
+                "UserGroup::\"matainer\""
+            ]
+        },
+        "UserGroup::\"matainer\"": {
+            "euid": "UserGroup::\"matainer\"",
+            "parents": [
+                "UserGroup::\"reader\""
+            ]
+        },
+        "UserGroup::\"reader\"": {
+            "euid": "UserGroup::\"reader\"",
+            "parents": []
+        }
+    },
+    "merge_requests": {
+
+    },
+    "issues": {
+
+    }
+}

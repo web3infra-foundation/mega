@@ -1,9 +1,10 @@
 
-use fuse_backend_rs::api::filesystem::Entry;
+use fuse_backend_rs::api::filesystem::{Context, Entry};
 /// Read only file system for obtaining and displaying monorepo directory information
 use reqwest::Client;
 // Import Response explicitly
 use serde::{Deserialize, Serialize};
+
 use std::io;
 use std::sync::atomic::AtomicU64;
 use std::{collections::HashMap, error::Error};
@@ -11,13 +12,13 @@ use std::collections::VecDeque;
 use once_cell::sync::Lazy;
 use radix_trie::{self, TrieCommon};
 use std::sync::{Arc,Mutex};
-
-
-use super::fuse;
+use fuse_backend_rs::api::filesystem::DirEntry;
+use super::fuse::{self, default_dic_entry, default_file_entry};
 use super::model::GPath;
 const MEGA_TREE_URL: &str = "localhost:8000";//TODO: make it configable
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
-
+const INODE_FILE :&str ="file";
+const INODE_DICTIONARY :&str ="directory";
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Item {
     name: String,
@@ -34,7 +35,7 @@ pub struct DicItem{
 }
 
 #[allow(unused)]
-#[derive(PartialEq)]
+#[derive(PartialEq,Debug)]
 enum ContentType {
     File,
     Dictionary(bool),// if this dictionary is loaded.
@@ -44,10 +45,10 @@ impl DicItem {
     pub fn new(inode:u64,parent:u64, item:Item) -> Self {
         DicItem {
             inode,
-            path_name: item.path.into(), // Assuming GPath can be created from String
+            path_name: item.path.into(), // GPath can be created from String
             content_type: match item.content_type.as_str() {
-                "file" => ContentType::File.into(),
-                "directory" => ContentType::Dictionary(false).into(),
+                INODE_FILE => ContentType::File.into(),
+                INODE_DICTIONARY => ContentType::Dictionary(false).into(),
                 _ => panic!("Unknown content type"),
             },
             children: Mutex::new(HashMap::new()),
@@ -64,11 +65,24 @@ impl DicItem {
     }
     // add a children item
     pub fn push_children(&self,children:Arc<DicItem>){
-        self.children.lock().unwrap().insert(children.get_path(), children);
+        self.children.lock().unwrap().insert(children.get_name(), children);
     }
     // get the inode 
     pub fn get_inode(&self)-> u64{
         self.inode
+    }
+    fn get_tyep(&self) -> ContentType{
+        let t  = self.content_type.lock().unwrap();
+        match *t{
+            ContentType::File => ContentType::File,
+            ContentType::Dictionary(a) => ContentType::Dictionary(a),
+        }
+    }
+    pub fn  get_stat(&self) ->Entry{
+        match self.get_tyep(){
+            ContentType::File => default_file_entry(self.inode),
+            ContentType::Dictionary(_) => default_dic_entry(self.inode),
+        }
     }
 }
 
@@ -101,7 +115,7 @@ impl Iterator for ApiResponse{
 async fn fetch_tree(path: &str) -> Result<ApiResponse, Box<dyn Error>> {
     static CLIENT: Lazy<Client> = Lazy::new(Client::new);
     let client = CLIENT.clone();
-    let url = format!("http://{}/api/v1/tree?path={}", MEGA_TREE_URL, path);
+    let url = format!("http://{}/api/v1/tree?path=/{}", MEGA_TREE_URL, path);
     let  resp:ApiResponse = client.get(&url).send().await?.json().await?;
     if resp.req_result {   
         Ok(resp)
@@ -135,30 +149,33 @@ impl DictionaryStore {
             children: Mutex::new(HashMap::new()),
             parent: UNKNOW_INODE, //  root dictory has no parent
         };
+        init.inodes.lock().unwrap().insert(1, root_item.into());
         init
     }
-    fn update_inode(&self,pitem:Option<Arc<DicItem>>,item:Item){
+    fn update_inode(&self,pitem:Arc<DicItem>,item:Item){
         self.next_inode.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let alloc_inode = self.next_inode.load(std::sync::atomic::Ordering::Relaxed);
-        self.radix_trie.lock().unwrap().insert(item.path.clone(), alloc_inode);
         
-        self.queue.lock().unwrap().push_back(alloc_inode);
-
-        if let Some(parent) = pitem{
-            let newitem = Arc::new(DicItem::new(alloc_inode, parent.get_inode(),item));
-            parent.push_children(newitem.clone());
-            self.inodes.lock().unwrap().insert(alloc_inode, newitem);
-        }else{
-            self.inodes.lock().unwrap().insert(alloc_inode, Arc::new(DicItem::new(alloc_inode, UNKNOW_INODE,item)));
+        if item.content_type=="directory"{
+            self.queue.lock().unwrap().push_back(alloc_inode);
         }
-       
         
+        
+        let parent = pitem;
+        let newitem = Arc::new(DicItem::new(alloc_inode, parent.get_inode(),item));
+       
+        parent.push_children(newitem.clone());
+        self.radix_trie.lock().unwrap().insert(newitem.get_path(), alloc_inode);
+        self.inodes.lock().unwrap().insert(alloc_inode, newitem);
+
     }
     pub fn import(&self){
-        const ROOT_DIR: &str ="/";
-        let items: Vec<Item> = tokio::runtime::Runtime::new().unwrap().block_on(fetch_tree(ROOT_DIR)).unwrap().collect();//todo: can't tokio
+        
+        let items: Vec<Item> = tokio::runtime::Runtime::new().unwrap().block_on(fetch_tree("")).unwrap().collect();//todo: can't tokio
+        let root_inode = self.inodes.lock().unwrap().get(&1).unwrap().clone();
         for it in items{
-            self.update_inode(None,it);
+            println!("root item:{:?}",it);
+            self.update_inode(root_inode.clone(),it);
         }
         loop {//BFS to look up all dictionary
             if self.queue.lock().unwrap().is_empty(){
@@ -171,13 +188,15 @@ impl DictionaryStore {
                 if let ContentType::Dictionary(load) = *it.content_type.lock().unwrap(){
                     if !load{
                         let path = it.get_path();
+                        println!("fetch path :{}",path);
                         new_items = tokio::runtime::Runtime::new().unwrap().block_on(fetch_tree(&path)).unwrap().collect();
                     }
                    
                 }
                 let mut pc = it.clone();
                 for newit in new_items {
-                    self.update_inode(Some(pc.clone()),newit); // Await the update_inode call
+                    println!("import item :{:?}",newit);
+                    self.update_inode(pc.clone(),newit); // Await the update_inode call
                 }
                 let mut content_type = pc.content_type.lock().unwrap();
                 *content_type = ContentType::Dictionary(true);
@@ -213,8 +232,76 @@ impl DictionaryStore {
         }
         todo!()
     }
-}
 
+
+    pub fn do_readdir(&self,
+        ctx: &Context,
+        inode: u64,
+        handle: u64,
+        size: u32,
+        offset: u64,
+        add_entry: &mut dyn FnMut(DirEntry) -> std::io::Result<usize>,
+    ) -> std::io::Result<()> {
+         // 1. 获取目录项
+         let directory = self.get_inode(inode).unwrap();
+        
+         // 2. 确保目录项是一个目录
+         if let ContentType::Dictionary(_) = directory.get_tyep() {
+             // 3. 获取子目录项
+             let  children = directory.children.lock().unwrap();
+             let mut total_bytes_written = 0;
+             let mut current_offset = 0;
+ 
+             // 4. 遍历子目录项
+             for (i, (name, child)) in children.iter().enumerate() {
+                
+                 if current_offset as u64 >= offset {
+                     // 获取每个目录项的 stat 信息
+                     let entry = child.get_stat();
+                     // 计算目录项的大小
+                     let entry_size = name.len() + std::mem::size_of::<u64>(); // name 字节数 + inode 信息的字节数
+                     if total_bytes_written + entry_size as u64 > size as u64 {
+                         break;
+                     }
+                     println!("do_readir name:{},child inode:{},type:{:?},mode:{}",name, child.get_inode(),child.get_tyep(),entry_type_from_mode(entry.attr.st_mode));
+                     //entry_type_from_mode(entry.attr.st_mode)
+                     // 使用回调函数添加目录项
+                     let result = add_entry(DirEntry {
+                        ino: child.get_inode(),
+                        offset:i as u64,
+                        name:name.as_bytes(),
+                        type_: entry_type_from_mode(entry.attr.st_mode).into(),
+                     });
+ 
+                     match result {
+                         Ok(len) => {
+                             total_bytes_written += len as u64;
+                             current_offset += 1;
+                         }
+                         Err(e) => return Err(e),
+                     }
+                 }
+             }
+ 
+             // 5. 返回结果
+             Ok(())
+         } else {
+             Err(io::Error::new(io::ErrorKind::NotFound, "Not a directory"))
+         }
+    }
+}
+fn entry_type_from_mode(mode: libc::mode_t) -> u8 {
+    match mode & libc::S_IFMT {
+        libc::S_IFBLK => libc::DT_BLK,
+        libc::S_IFCHR => libc::DT_CHR,
+        libc::S_IFDIR => libc::DT_DIR,
+        libc::S_IFIFO => libc::DT_FIFO,
+        libc::S_IFLNK => libc::DT_LNK,
+        libc::S_IFREG => libc::DT_REG,
+        libc::S_IFSOCK => libc::DT_SOCK,
+        _ => libc::DT_UNKNOWN,
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

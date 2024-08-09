@@ -9,19 +9,19 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.3.7",
+    "@ant-design/icons": "^5.4.0",
     "@ant-design/nextjs-registry": "^1.0.0",
-    "@headlessui/react": "^2.1.0",
+    "@headlessui/react": "^2.1.2",
     "@headlessui/tailwindcss": "^0.2.1",
-    "@heroicons/react": "^2.1.4",
-    "@lexical/react": "^0.16.0",
+    "@heroicons/react": "^2.1.5",
+    "@lexical/react": "^0.16.1",
     "@tailwindcss/forms": "^0.5.7",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "framer-motion": "^11.3.2",
+    "framer-motion": "^11.3.19",
     "github-markdown-css": "^5.6.1",
-    "highlight.js": "^11.9.0",
-    "lexical": "^0.16.0",
+    "highlight.js": "^11.10.0",
+    "lexical": "^0.16.1",
     "next": "^14.2.5",
     "prism-react-renderer": "^2.3.1",
     "react": "^18.3.1",
@@ -30,12 +30,11 @@
   },
   "devDependencies": {
     "@types/node": "^22",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "autoprefixer": "^10.4.16",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
     "eslint": "^9.8",
-    "eslint-config-next": "14.0.3",
-    "postcss": "^8.4.31",
-    "typescript": "^5"
+    "postcss": "^8.4.40",
+    "typescript": "^5.5.4"
   }
 }
