@@ -6,6 +6,7 @@ use axum::{
     Json, Router,
 };
 
+use taurus::event::api_request::{ApiRequestEvent, ApiType};
 use ceres::model::{
     create_file::CreateFileInfo,
     publish_path::PublishPathInfo,
@@ -39,6 +40,7 @@ async fn get_blob_object(
     Query(query): Query<BlobContentQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::Blob, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -80,6 +82,7 @@ async fn create_file(
     state: State<ApiServiceState>,
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::CreateFile, &state.0.context.config);
     let res = state
         .api_handler(json.path.clone().into())
         .await
@@ -96,6 +99,7 @@ async fn get_latest_commit(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::LastestCommit, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -109,6 +113,7 @@ async fn get_tree_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeBriefItem>>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::TreeInfo, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -125,6 +130,7 @@ async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::CommitInfo, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
         .await
@@ -141,6 +147,7 @@ async fn publish_path_to_repo(
     state: State<ApiServiceState>,
     Json(json): Json<PublishPathInfo>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::Publish, &state.0.context.config);
     let res = state
         .api_handler(json.path.clone().into())
         .await
