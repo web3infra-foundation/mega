@@ -40,7 +40,9 @@
             "macOS": {
                 "entitlements": null,
                 "exceptionDomain": "",
-                "frameworks": [],
+                "frameworks": [
+                    "../../target/release/libpipy.dylib"
+                ],
                 "providerShortName": null,
                 "signingIdentity": null
             },
@@ -62,10 +64,10 @@
         "windows": [
             {
                 "fullscreen": false,
-                "height": 600,
+                "height": 768,
                 "resizable": true,
                 "title": "lunar-app",
-                "width": 800
+                "width": 1366
             }
         ]
     }

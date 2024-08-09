@@ -4,6 +4,9 @@
 
 Because Lunar depends on Mega, which in turn relies on Neptune’s dynamic library pipy, it’s important to handle libpipy carefully during compilation. 
 
+> [!NOTE]
+> The file paths in `src-tauri/tauri.conf.json` are set for `cargo tauri build` because `cargo build` and `cargo tauri build` use different file paths. If you want to use `cargo build`, you need to modify the file paths in `src-tauri/tauri.conf.json` to match the corresponding paths.
+
 ### Linux
 
 - deb 
@@ -16,3 +19,9 @@ However, compilation for AppImage will fail. After encountering the error “lib
 
 > [!NOTE]
 > If you use archlinux to bundle, according to [\[bug\]\[linuxdeploy\] Linux AppImage script fails](https://github.com/tauri-apps/tauri/issues/8929), you may need to run build with `NO_STRIP=true cargo tauri **`.
+
+
+### MacOS
+
+- dmg
+According to [tauri-apps issue(3055)](https://github.com/tauri-apps/tauri/issues/3055#issuecomment-1866022065), you may need to give `Terminal` app or `vscode` app, wahtever you use to compile, the permissions to control `Finder.app` to finish build `dmg` in Apple Silicon. But this didn't influence the build of `app`

@@ -386,4 +386,4 @@ erDiagram
 - Generating entities: 
 Entities can be generated from the database table structure with the following command
 
-`sea-orm-cli generate entity -u "postgres://postgres:$postgres@localhost/mega_re"  -o jupiter/entity/src` 
+`sea-orm-cli generate entity -u "postgres://postgres:$postgres@localhost/mega"  -o jupiter/entity/src` 
