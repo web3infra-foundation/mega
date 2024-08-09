@@ -40,7 +40,7 @@ impl MessageCache {
 
     fn start(&self) {
         let stop = self.stop.clone();
-        let _ = tokio::spawn(async move {
+        tokio::spawn(async move {
             loop {
                 if stop.load(std::sync::atomic::Ordering::Acquire) {
                     return
@@ -89,7 +89,7 @@ pub async fn instant_flush() {
     let st = mc.bound_mq.context.services.mq_storage.clone();
     let data = mc
         .get_cache()
-        .into_iter().map(|d| Into::<Model>::into(d))
+        .into_iter().map(Into::<Model>::into)
         .collect::<Vec<Model>>();
     st.save_messages(data).await;
 
