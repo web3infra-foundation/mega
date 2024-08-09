@@ -10,11 +10,13 @@ members = [
     "libra",
     "vault",
     "neptune",
+    "aries",
     "saturn",
     "mq",
     "lunar/src-tauri",
+    "atlas",
 ]
-default-members = ["mega", "libra"]
+default-members = ["mega", "libra","aries"]
 exclude = ["craft"]
 resolver = "1"
 
@@ -33,7 +35,7 @@ saturn = { path = "saturn" }
 mq = { path = "mq" }
 mega = { path = "mega" }
 anyhow = "1.0.86"
-serde = "1.0.203"
+serde = {version = "1.0.203", features = ["derive"]}
 serde_json = "1.0.117"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
@@ -63,14 +65,14 @@ axum-extra = "0.9.3"
 tower-http = "0.5.2"
 tower = "0.4.13"
 hex = "0.4.3"
-sea-orm = "0.12.15"
+sea-orm = "1.0.0"
 flate2 = "1.0.30"
 bstr = "1.9.1"
 colored = "2.1.0"
 idgenerator = "2.0.0"
 num_cpus = "1.16.0"
 config = "0.14.0"
-shadow-rs = "0.30.0"
+shadow-rs = "0.31.1"
 reqwest = "0.12.5"
 lazy_static = "1.5.0"
 uuid = "1.10.0"

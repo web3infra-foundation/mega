@@ -54,7 +54,7 @@ pub trait ZTMCA {
 }
 
 pub struct LocalHub {
-    pub host: String,
+    pub hub_host: String,
     pub hub_port: u16,
     pub ca_port: u16,
 }
@@ -103,7 +103,7 @@ impl ZTMCA for LocalHub {
             private_key: user_key.clone(),
         };
 
-        let hub_address = format!("{}:{}", self.host, self.hub_port);
+        let hub_address = format!("{}:{}", self.hub_host, self.hub_port);
         let permit = ZTMUserPermit {
             ca: ca_certificate.clone(),
             agent,

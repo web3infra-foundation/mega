@@ -6,17 +6,17 @@ const BLOCK_SIZE: u32 = 512;
 fn default_stat64(inode:u64) -> stat64 {
     let t = Attr{
         ino: inode,                       // Default inode number
-        size: 0,                      // Default file size
-        blocks: 0,                    // Default number of blocks
+        size: 512 ,                      // Default file size
+        blocks: 8,                    // Default number of blocks
         atime: 0,                     // Default last access time
         mtime: 0,                     // Default last modification time
         ctime: 0,                     // Default last status change time
         atimensec: 0,                 // Default nanoseconds of last access time
         mtimensec: 0,                 // Default nanoseconds of last modification time
         ctimensec: 0,                 // Default nanoseconds of last status change time
-        mode: 0o444,                  // Default file mode (r--r--r--)
-        //mode: 0o555,                  // Default file mode (r-xr-xr-x)
-        nlink: 1,                     // Default number of hard links
+        mode: 0o100444,                  // Default file mode (r--r--r--)
+        //mode: 0o0040755,                  // Default file mode (r-xr-xr-x)
+        nlink: 2,                     // Default number of hard links
         uid: 1000,                    // Default user ID
         gid: 1000,                    // Default group ID
         rdev: 0,                      // Default device ID
@@ -39,7 +39,7 @@ pub fn default_file_entry(inode:u64) -> Entry {
 
 pub fn default_dic_entry(inode:u64) -> Entry {
     let mut d = default_stat64(inode);
-    d.st_mode = 0o555;
+    d.st_mode = 0o0040755;
     Entry{
         inode,
         generation: 0,

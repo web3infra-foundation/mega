@@ -5,16 +5,15 @@ entity Repository = {
     "is_private": Bool,
     "admins": UserGroup,
     "maintainers": UserGroup,
+    "readers": UserGroup,
 };
 
 entity MergeRequest = {
     "repo": Repository,
-    "owner": User,
 };
 
 entity Issue = {
     "repo": Repository,
-    "owner": User,
 };
 
 action "deleteRepo", "viewRepo", "forkRepo", "pullRepo", "pushRepo" appliesTo {
@@ -24,12 +23,12 @@ action "deleteRepo", "viewRepo", "forkRepo", "pullRepo", "pushRepo" appliesTo {
 
 action "createMergeRequest", "editMergeRequest", "deleteMergeRequest", "approveMergeRequest" appliesTo {
     principal: [User],
-    resource: [MergeRequest],
+    resource: [Repository],
 };
 
 action "openIssue", "assignIssue", "deleteIssue", "editIssue" appliesTo {
     principal: [User],
-    resource: [Issue],
+    resource: [Repository],
 };
 
 action "addMaintainer", "addAdmin" appliesTo {

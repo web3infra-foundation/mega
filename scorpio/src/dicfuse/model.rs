@@ -24,7 +24,10 @@ impl GPath{
 }
 
 impl From<String> for GPath{
-    fn from(s: String) -> GPath {
+    fn from(mut s: String) -> GPath {
+        if s.starts_with('/'){
+            s.remove(0);
+        }
         GPath {
             path: s.split('/').map(String::from).collect(),
         }
@@ -38,3 +41,14 @@ impl Display for GPath{
     }
 }
 
+#[cfg(test)]
+mod tests{
+    use super::GPath;
+
+    #[test]
+    fn test_from_string(){
+        let path  = String::from("/release");
+        let gapth  = GPath::from(path);
+        assert_eq!(gapth.to_string(),String::from("release"))
+    }
+}
