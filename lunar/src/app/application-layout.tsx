@@ -39,9 +39,14 @@ import {
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
+  ChatBubbleLeftRightIcon,
+  CodeBracketSquareIcon,
+  ArchiveBoxArrowDownIcon,
 } from '@heroicons/react/20/solid'
+import { invoke } from '@tauri-apps/api'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { Badge } from 'antd/lib'
 
 function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
   return (
@@ -76,32 +81,41 @@ export function ApplicationLayout({
   children: React.ReactNode
 }) {
   let pathname = usePathname()
-  const [token, setToken] = useState("")
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setToken(localStorage.getItem("access_token") || "")
-    }
-  }, [])
 
-  // const { user, isLoading, isError } = useUser(token);
-  // if (isLoading) return <Skeleton />;
+  const [mega_status, setMegaStatus] = useState(false)
+  useEffect(() => {
+    const fetchStatus = () => {
+      invoke('mega_service_status')
+        .then((status: boolean) => {
+          setMegaStatus(status);
+          console.log(`Service Status: ${status}`);
+        })
+        .catch((error) => {
+          console.error(`Failed to get service status: ${error}`);
+        });
+    };
+    fetchStatus();
+    // Set up interval to fetch status every 10 seconds
+    const interval = setInterval(fetchStatus, 10000);
+    // Clean up interval on unmount
+    return () => clearInterval(interval);
+  }, [])
 
   return (
     <SidebarLayout
       navbar={
         <Navbar>
           <NavbarSpacer />
-          {/* {
-            token &&
-            <NavbarSection>
-              <Dropdown>
-                <DropdownButton as={NavbarItem}>
-                  <Avatar src={"" || user.avatar_url} />
-                </DropdownButton>
-                <AccountDropdownMenu anchor="bottom end" />
-              </Dropdown>
-            </NavbarSection>
-          } */}
+
+          <NavbarSection>
+            <Dropdown>
+              <DropdownButton as={NavbarItem}>
+                <Avatar src={"/images/megaLogo.png"} />
+              </DropdownButton>
+              <AccountDropdownMenu anchor="bottom end" />
+            </Dropdown>
+          </NavbarSection>
+
         </Navbar>
       }
       sidebar={
@@ -110,7 +124,8 @@ export function ApplicationLayout({
             <Dropdown>
               <DropdownButton as={SidebarItem}>
                 <Avatar src="/images/megaLogo.png" />
-                <SidebarLabel>Mega</SidebarLabel>
+                <SidebarLabel>Mega Status:</SidebarLabel>
+                <Badge status={mega_status ? "success" : "default"} text={mega_status ? "On" : "Off"} />
                 <ChevronDownIcon />
               </DropdownButton>
               <DropdownMenu className="min-w-80 lg:min-w-64" anchor="bottom start">
@@ -142,16 +157,20 @@ export function ApplicationLayout({
                 <HomeIcon />
                 <SidebarLabel>Code & Issue</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/chat" current={pathname.startsWith('/issue')}>
-                <Square2StackIcon />
+              <SidebarItem href="/chat" current={pathname.startsWith('/chat')}>
+                <ChatBubbleLeftRightIcon />
                 <SidebarLabel>AI Chat</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/reminder" current={pathname.startsWith('/mr')}>
+              <SidebarItem href="/repo" current={pathname.startsWith('/repo')}>
+                <ArchiveBoxArrowDownIcon />
+                <SidebarLabel>Repos</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/reminder" current={pathname.startsWith('/reminder')}>
                 <TicketIcon />
                 <SidebarLabel>Reminder</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/logs" current={pathname.startsWith('/mr')}>
-                <TicketIcon />
+              <SidebarItem href="/logs" current={pathname.startsWith('/logs')}>
+                <CodeBracketSquareIcon />
                 <SidebarLabel>Logs</SidebarLabel>
               </SidebarItem>
               <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>

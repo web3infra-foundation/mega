@@ -15,9 +15,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <head>
       </head>
       <body>
-        <ApplicationLayout >
-          <AntdRegistry>{children}</AntdRegistry>
-        </ApplicationLayout>
+        <AntdRegistry>
+          <ApplicationLayout >
+            {children}
+          </ApplicationLayout>
+        </AntdRegistry>
       </body>
     </html>
   )

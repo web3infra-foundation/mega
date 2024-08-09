@@ -22,8 +22,8 @@ const GITHUB_API_ENDPOINT: &str = "https://api.github.com";
 impl OauthHandler for GithubOauthService {
     fn authorize_url(&self, params: &AuthorizeParams, state: &str) -> String {
         let auth_url = format!(
-            "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&state={}",
-            self.client_id, params.redirect_uri, state
+            "{}/login/oauth/authorize?client_id={}&redirect_uri={}&state={}",
+            GITHUB_ENDPOINT, self.client_id, params.redirect_uri, state
         );
         auth_url
     }

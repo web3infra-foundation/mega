@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use callisto::{lfs_locks, lfs_objects, lfs_split_relation};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter,
 };
 
+use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use common::errors::MegaError;
 
 #[derive(Clone)]
@@ -39,9 +39,9 @@ impl LfsStorage {
 
     pub async fn new_lfs_relation(
         &self,
-        relation: lfs_split_relation::Model,
-    ) -> Result<InsertResult<lfs_split_relation::ActiveModel>, MegaError> {
-        lfs_split_relation::Entity::insert(relation.into_active_model())
+        relation: lfs_split_relations::Model,
+    ) -> Result<InsertResult<lfs_split_relations::ActiveModel>, MegaError> {
+        lfs_split_relations::Entity::insert(relation.into_active_model())
             .exec(self.get_connection())
             .await
             .map_err(|e| MegaError::with_message(e.to_string().as_str()))
@@ -61,13 +61,13 @@ impl LfsStorage {
     pub async fn get_lfs_relations(
         &self,
         oid: String,
-    ) -> Result<Vec<lfs_split_relation::Model>, MegaError> {
+    ) -> Result<Vec<lfs_split_relations::Model>, MegaError> {
         let obj = self.get_lfs_object(oid.clone()).await?;
         if obj.is_none() {
             return Err(MegaError::with_message("Object not found"));
         }
-        let result = lfs_split_relation::Entity::find()
-            .filter(lfs_split_relation::Column::OriOid.eq(oid))
+        let result = lfs_split_relations::Entity::find()
+            .filter(lfs_split_relations::Column::OriOid.eq(oid))
             .all(self.get_connection())
             .await
             .unwrap();
@@ -83,8 +83,8 @@ impl LfsStorage {
         &self,
         sub_oid: &String,
     ) -> Result<Vec<String>, MegaError> {
-        let result = lfs_split_relation::Entity::find()
-            .filter(lfs_split_relation::Column::SubOid.eq(sub_oid))
+        let result = lfs_split_relations::Entity::find()
+            .filter(lfs_split_relations::Column::SubOid.eq(sub_oid))
             .all(self.get_connection())
             .await
             .unwrap();
@@ -101,10 +101,10 @@ impl LfsStorage {
 
     pub async fn delete_lfs_relation(
         &self,
-        object: lfs_split_relation::Model,
+        object: lfs_split_relations::Model,
     ) -> Result<(), MegaError> {
-        let r: lfs_split_relation::ActiveModel = object.into();
-        lfs_split_relation::Entity::delete(r)
+        let r: lfs_split_relations::ActiveModel = object.into();
+        lfs_split_relations::Entity::delete(r)
             .exec(self.get_connection())
             .await
             .unwrap();

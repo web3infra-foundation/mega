@@ -6,6 +6,7 @@ use futures::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::db_enums::RefType;
+use common::errors::ProtocolError;
 
 use crate::protocol::ZERO_ID;
 use crate::protocol::{
@@ -57,10 +58,10 @@ impl SmartProtocol {
     /// Tracing information is logged regarding the response packet line stream.
     ///
     /// Finally, the constructed packet line stream is returned.
-    pub async fn git_info_refs(&self) -> BytesMut {
-        let pack_handler = self.pack_handler().await;
+    pub async fn git_info_refs(&self) -> Result<BytesMut, ProtocolError> {
+        let pack_handler = self.pack_handler().await?;
 
-        let service_type = self.service_type;
+        let service_type = self.service_type.unwrap();
 
         // The stream MUST include capability declarations behind a NUL on the first ref.
         let (head_hash, git_refs) = pack_handler.head_hash().await;
@@ -82,14 +83,14 @@ impl SmartProtocol {
         }
         let pkt_line_stream = self.build_smart_reply(&ref_list, service_type.to_string());
         tracing::debug!("git_info_refs response: {:?}", pkt_line_stream);
-        pkt_line_stream
+        Ok(pkt_line_stream)
     }
 
     pub async fn git_upload_pack(
         &mut self,
         upload_request: &mut Bytes,
-    ) -> Result<(ReceiverStream<Vec<u8>>, BytesMut)> {
-        let pack_handler = self.pack_handler().await;
+    ) -> Result<(ReceiverStream<Vec<u8>>, BytesMut), ProtocolError> {
+        let pack_handler = self.pack_handler().await?;
 
         let mut want: Vec<String> = Vec::new();
         let mut have: Vec<String> = Vec::new();
@@ -207,10 +208,10 @@ impl SmartProtocol {
     pub async fn git_receive_pack_stream(
         &mut self,
         data_stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
-    ) -> Result<Bytes> {
+    ) -> Result<Bytes, ProtocolError> {
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
-        let pack_handler = self.pack_handler().await;
+        let pack_handler = self.pack_handler().await?;
         //1. unpack progress
         let receiver = pack_handler
             .unpack_stream(&self.context.config.pack, data_stream)
@@ -223,7 +224,8 @@ impl SmartProtocol {
             let handle = tokio::runtime::Handle::current();
             handle.block_on(async { ph_clone.handle_receiver(receiver).await })
         })
-        .await.unwrap();
+        .await
+        .unwrap();
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
