@@ -10,6 +10,7 @@ use thiserror::Error;
 
 pub mod api_request;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EventType {
     ApiRequest(ApiRequestEvent),

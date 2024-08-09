@@ -27,7 +27,7 @@ impl MQStorage {
     }
 
     pub async fn save_messages(&self, msgs: Vec<Model>) {
-        if msgs.len() == 0 {
+        if msgs.is_empty() {
             return;
         }
 
