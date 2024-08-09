@@ -43,7 +43,7 @@ import {
   CodeBracketSquareIcon,
   ArchiveBoxArrowDownIcon,
 } from '@heroicons/react/20/solid'
-import { invoke } from '@tauri-apps/api'
+import { invoke } from '@tauri-apps/api/tauri'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Badge } from 'antd/lib'

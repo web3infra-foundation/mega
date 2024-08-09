@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use futures::{stream, StreamExt};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
@@ -9,7 +9,8 @@ use sea_orm::{
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tree, raw_blob,
+    mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tag, mega_tree,
+    raw_blob,
 };
 use common::config::StorageConfig;
 use common::errors::MegaError;
@@ -28,6 +29,15 @@ pub struct MegaStorage {
     pub raw_storage: Arc<dyn RawStorage>,
     pub connection: Arc<DatabaseConnection>,
     pub raw_obj_threshold: usize,
+}
+
+#[derive(Debug)]
+struct GitObjects {
+    pub commits: Vec<mega_commit::ActiveModel>,
+    trees: Vec<mega_tree::ActiveModel>,
+    blobs: Vec<mega_blob::ActiveModel>,
+    raw_blobs: Vec<raw_blob::ActiveModel>,
+    tags: Vec<mega_tag::ActiveModel>,
 }
 
 impl MegaStorage {
@@ -227,49 +237,61 @@ impl MegaStorage {
         commit_id: &str,
         entry_list: Vec<Entry>,
     ) -> Result<(), MegaError> {
-        let (commits, trees, blobs, raw_blobs, tags) = (
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-        );
+        let git_objects = Arc::new(Mutex::new(GitObjects {
+            commits: Vec::new(),
+            trees: Vec::new(),
+            blobs: Vec::new(),
+            raw_blobs: Vec::new(),
+            tags: Vec::new(),
+        }));
 
-        entry_list.par_iter().for_each(|entry| {
-            let raw_obj = entry.process_entry();
-            let model = raw_obj.convert_to_mega_model();
-            match model {
-                MegaObjectModel::Commit(commit) => {
-                    commits.lock().unwrap().push(commit.into_active_model())
+        stream::iter(entry_list)
+            .for_each_concurrent(None, |entry| {
+                let git_objects = git_objects.clone();
+                async move {
+                    let raw_obj = entry.process_entry();
+                    let model = raw_obj.convert_to_mega_model();
+                    let mut git_objects = git_objects.lock().unwrap();
+                    match model {
+                        MegaObjectModel::Commit(commit) => {
+                            git_objects.commits.push(commit.into_active_model())
+                        }
+                        MegaObjectModel::Tree(mut tree) => {
+                            commit_id.clone_into(&mut tree.commit_id);
+                            git_objects.trees.push(tree.into_active_model());
+                        }
+                        MegaObjectModel::Blob(mut blob, raw) => {
+                            commit_id.clone_into(&mut blob.commit_id);
+                            git_objects.blobs.push(blob.clone().into_active_model());
+                            git_objects.raw_blobs.push(raw.into_active_model());
+                        }
+                        MegaObjectModel::Tag(tag) => git_objects.tags.push(tag.into_active_model()),
+                    }
                 }
-                MegaObjectModel::Tree(mut tree) => {
-                    commit_id.clone_into(&mut tree.commit_id);
-                    trees.lock().unwrap().push(tree.into_active_model());
-                }
-                MegaObjectModel::Blob(mut blob, raw) => {
-                    commit_id.clone_into(&mut blob.commit_id);
-                    blobs.lock().unwrap().push(blob.clone().into_active_model());
-                    raw_blobs.lock().unwrap().push(raw.into_active_model());
-                }
-                MegaObjectModel::Tag(tag) => tags.lock().unwrap().push(tag.into_active_model()),
-            }
-        });
+            })
+            .await;
 
-        batch_save_model(self.get_connection(), commits.into_inner().unwrap())
+        let git_objects = Arc::try_unwrap(git_objects)
+            .expect("Failed to unwrap Arc")
+            .into_inner()
+            .unwrap();
+
+        batch_save_model(self.get_connection(), git_objects.commits)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), trees.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.trees)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), blobs.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.blobs)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), raw_blobs.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.raw_blobs)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), tags.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.tags)
             .await
             .unwrap();
+
         Ok(())
     }
 
@@ -396,21 +418,4 @@ impl MegaStorage {
 }
 
 #[cfg(test)]
-mod test {
-    use std::rc::Rc;
-
-    use venus::monorepo::mega_node::MegaNode;
-
-    #[allow(unused)]
-    pub fn print_tree(root: Rc<MegaNode>, depth: i32) {
-        println!(
-            "{:indent$}└── {}",
-            "",
-            root.name,
-            indent = (depth as usize) * 4
-        );
-        for child in root.children.borrow().iter() {
-            print_tree(child.clone(), depth + 1)
-        }
-    }
-}
+mod test {}
