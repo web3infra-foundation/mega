@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use futures::Stream;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use futures::{stream, Stream, StreamExt};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait,
@@ -31,6 +30,15 @@ pub struct GitDbStorage {
     pub raw_storage: Arc<dyn RawStorage>,
     pub connection: Arc<DatabaseConnection>,
     pub raw_obj_threshold: usize,
+}
+
+#[derive(Debug)]
+struct GitObjects {
+    pub commits: Vec<git_commit::ActiveModel>,
+    trees: Vec<git_tree::ActiveModel>,
+    blobs: Vec<git_blob::ActiveModel>,
+    raw_blobs: Vec<raw_blob::ActiveModel>,
+    tags: Vec<git_tag::ActiveModel>,
 }
 
 #[async_trait]
@@ -127,50 +135,63 @@ impl GitDbStorage {
     }
 
     pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
-        let (commits, trees, blobs, raw_blobs, tags) = (
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-            Mutex::new(Vec::new()),
-        );
-        entry_list.par_iter().for_each(|entry| {
-            let raw_obj = entry.process_entry();
-            let model = raw_obj.convert_to_git_model();
-            match model {
-                GitObjectModel::Commit(mut commit) => {
-                    commit.repo_id = repo.repo_id;
-                    commits.lock().unwrap().push(commit.into_active_model())
-                }
-                GitObjectModel::Tree(mut tree) => {
-                    tree.repo_id = repo.repo_id;
-                    trees.lock().unwrap().push(tree.clone().into_active_model());
-                }
-                GitObjectModel::Blob(mut blob, raw) => {
-                    blob.repo_id = repo.repo_id;
-                    blobs.lock().unwrap().push(blob.clone().into_active_model());
-                    raw_blobs.lock().unwrap().push(raw.into_active_model());
-                }
-                GitObjectModel::Tag(mut tag) => {
-                    tag.repo_id = repo.repo_id;
-                    tags.lock().unwrap().push(tag.into_active_model())
-                }
-            }
-        });
+        let git_objects = Arc::new(Mutex::new(GitObjects {
+            commits: Vec::new(),
+            trees: Vec::new(),
+            blobs: Vec::new(),
+            raw_blobs: Vec::new(),
+            tags: Vec::new(),
+        }));
 
-        batch_save_model(self.get_connection(), commits.into_inner().unwrap())
+        stream::iter(entry_list)
+            .for_each_concurrent(None, |entry| {
+                let git_objects = git_objects.clone();
+
+                async move {
+                    let raw_obj = entry.process_entry();
+                    let model = raw_obj.convert_to_git_model();
+                    let mut git_objects = git_objects.lock().unwrap();
+
+                    match model {
+                        GitObjectModel::Commit(mut commit) => {
+                            commit.repo_id = repo.repo_id;
+                            git_objects.commits.push(commit.into_active_model())
+                        }
+                        GitObjectModel::Tree(mut tree) => {
+                            tree.repo_id = repo.repo_id;
+                            git_objects.trees.push(tree.clone().into_active_model());
+                        }
+                        GitObjectModel::Blob(mut blob, raw) => {
+                            blob.repo_id = repo.repo_id;
+                            git_objects.blobs.push(blob.clone().into_active_model());
+                            git_objects.raw_blobs.push(raw.into_active_model());
+                        }
+                        GitObjectModel::Tag(mut tag) => {
+                            tag.repo_id = repo.repo_id;
+                            git_objects.tags.push(tag.into_active_model())
+                        }
+                    }
+                }
+            })
+            .await;
+
+        let git_objects = Arc::try_unwrap(git_objects)
+            .expect("Failed to unwrap Arc")
+            .into_inner()
+            .unwrap();
+        batch_save_model(self.get_connection(), git_objects.commits)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), trees.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.trees)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), blobs.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.blobs)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), raw_blobs.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.raw_blobs)
             .await
             .unwrap();
-        batch_save_model(self.get_connection(), tags.into_inner().unwrap())
+        batch_save_model(self.get_connection(), git_objects.tags)
             .await
             .unwrap();
         Ok(())

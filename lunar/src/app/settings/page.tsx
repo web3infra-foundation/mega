@@ -34,32 +34,17 @@ export default function Settings() {
     }, 6000);
   }
 
-  const startMega = async () => {
-    try {
-      await invoke('start_mega_service', { params: { params } });
-      console.log('Mega service started successfully');
-    } catch (error) {
-      console.error('Failed to start Mega service', error);
-    }
-  };
-
   const stopMega = async () => {
-    try {
-      await invoke('stop_mega_service');
-      console.log('Mega service stopped successfully');
-    } catch (error) {
-      console.error('Failed to stop Mega service', error);
-    }
+    invoke('stop_mega_service', { params: params })
+      .then((message) => console.log("result:", message))
+      .catch((err) => console.error("err:", err));
   };
 
   const restartMega = async () => {
     enterLoading(1);
-    try {
-      await invoke('restart_mega_service', { params: params });
-      console.log('Mega service restarted successfully');
-    } catch (error) {
-      console.error('Failed to restart Mega service', error);
-    }
+    invoke('restart_mega_service', { params: params })
+      .then((message) => console.log("result:", message))
+      .catch((err) => console.error("err:", err));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
