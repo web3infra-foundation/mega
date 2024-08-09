@@ -1,0 +1,9 @@
+{
+  "tauri": {
+    "bundle": {
+      "resources": [
+        "libs/libpipy.so"
+      ]
+    }
+  }
+}

@@ -11,6 +11,15 @@
     },
     "tauri": {
         "allowlist": {
+            "shell": {
+                "sidecar": true,
+                "scope": [
+                    {
+                        "name": "binaries/mega",
+                        "sidecar": true
+                    }
+                ]
+            },
             "fs": {
                 "scope": [
                     "$RESOURCE/*"
@@ -23,11 +32,11 @@
             "copyright": "",
             "appimage": {},
             "deb": {
-                "files": {
-                    "/usr/bin/libpipy.so": "../../target/release/libpipy.so"
-                }
+                "files": {}
             },
-            "externalBin": [],
+            "externalBin": [
+                "binaries/mega"
+            ],
             "icon": [
                 "icons/32x32.png",
                 "icons/128x128.png",
@@ -40,9 +49,7 @@
             "macOS": {
                 "entitlements": null,
                 "exceptionDomain": "",
-                "frameworks": [
-                    "../../target/release/libpipy.dylib"
-                ],
+                "frameworks": [],
                 "providerShortName": null,
                 "signingIdentity": null
             },
