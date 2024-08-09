@@ -18,6 +18,7 @@ gemini = { workspace = true }
 vault = { workspace = true }
 venus = { workspace = true }
 mercury = { workspace = true }
+taurus = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
@@ -37,7 +38,7 @@ tower-http = { workspace = true, features = [
     "trace",
     "decompression-full",
 ] }
-axum-extra = { workspace = true, features = ["typed-header"]}
+axum-extra = { workspace = true, features = ["typed-header"] }
 tokio = { workspace = true, features = ["net"] }
 tokio-stream = { workspace = true }
 async-stream = { workspace = true }

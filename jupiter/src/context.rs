@@ -3,8 +3,7 @@ use std::sync::Arc;
 use common::config::Config;
 
 use crate::storage::{
-    git_db_storage::GitDbStorage, init::database_connection, lfs_storage::LfsStorage,
-    mega_storage::MegaStorage, ztm_storage::ZTMStorage,
+    git_db_storage::GitDbStorage, init::database_connection, lfs_storage::LfsStorage, mega_storage::MegaStorage, mq_storage::MQStorage, ztm_storage::ZTMStorage
 };
 
 #[derive(Clone)]
@@ -34,6 +33,7 @@ pub struct Service {
     pub git_db_storage: Arc<GitDbStorage>,
     pub lfs_storage: Arc<LfsStorage>,
     pub ztm_storage: Arc<ZTMStorage>,
+    pub mq_storage: Arc<MQStorage>,
 }
 
 impl Service {
@@ -48,6 +48,7 @@ impl Service {
             ),
             lfs_storage: Arc::new(LfsStorage::new(connection.clone()).await),
             ztm_storage: Arc::new(ZTMStorage::new(connection.clone()).await),
+            mq_storage: Arc::new(MQStorage::new(connection.clone()).await),
         }
     }
 
@@ -61,6 +62,7 @@ impl Service {
             git_db_storage: Arc::new(GitDbStorage::mock()),
             lfs_storage: Arc::new(LfsStorage::mock()),
             ztm_storage: Arc::new(ZTMStorage::mock()),
+            mq_storage: Arc::new(MQStorage::mock()),
         })
     }
 }

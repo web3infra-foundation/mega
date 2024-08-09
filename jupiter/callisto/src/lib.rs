@@ -26,3 +26,4 @@ pub mod mega_tree;
 pub mod raw_blob;
 pub mod ztm_node;
 pub mod ztm_repo_info;
+pub mod mq_storage;

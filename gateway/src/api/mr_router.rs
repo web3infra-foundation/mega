@@ -10,6 +10,7 @@ use axum::{
 use ceres::model::mr::{MRDetail, MrInfoItem};
 use common::model::CommonResult;
 
+use taurus::event::api_request::{ApiRequestEvent, ApiType};
 use crate::api::ApiServiceState;
 
 pub fn routers() -> Router<ApiServiceState> {
@@ -24,11 +25,14 @@ async fn merge(
     Path(mr_id): Path<i64>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
+
     let res = state.monorepo().merge_mr(mr_id).await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
+    ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
     Ok(Json(res))
 }
 
@@ -36,6 +40,7 @@ async fn get_mr_list(
     Query(query): Query<HashMap<String, String>>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<MrInfoItem>>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::MergeList, &state.0.context.config);
     let status = query.get("status").unwrap();
     let res = state.monorepo().mr_list(status).await;
     let res = match res {
@@ -49,6 +54,7 @@ async fn mr_detail(
     Path(mr_id): Path<i64>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<Option<MRDetail>>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::MergeDetail, &state.0.context.config);
     let res = state.monorepo().mr_detail(mr_id).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
@@ -61,6 +67,7 @@ async fn get_mr_files(
     Path(mr_id): Path<i64>,
     state: State<ApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<PathBuf>>>, (StatusCode, String)> {
+    ApiRequestEvent::notify(ApiType::MergeFiles, &state.0.context.config);
     let res = state.monorepo().mr_tree_files(mr_id).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),

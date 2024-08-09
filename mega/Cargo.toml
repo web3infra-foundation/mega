@@ -16,6 +16,7 @@ path = "src/main.rs"
 gateway = { workspace = true }
 common = { workspace = true }
 ceres = { workspace = true }
+taurus = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["macros"] }
 clap = { workspace = true, features = ["derive"] }

@@ -12,6 +12,7 @@ members = [
     "neptune",
     "aries",
     "saturn",
+    "taurus",
     "lunar/src-tauri",
     "atlas",
 ]
@@ -31,6 +32,7 @@ gemini = { path = "gemini" }
 vault = { path = "vault" }
 neptune = { path = "neptune" }
 saturn = { path = "saturn" }
+taurus = { path = "taurus" }
 mega = { path = "mega" }
 anyhow = "1.0.86"
 serde = {version = "1.0.203", features = ["derive"]}

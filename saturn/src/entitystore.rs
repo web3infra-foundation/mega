@@ -18,6 +18,7 @@ pub struct EntityStore {
 }
 
 impl EntityStore {
+    #[allow(dead_code)]
     pub fn as_entities(&self, schema: &Schema) -> Entities {
         let users = self.users.values().map(|user| user.clone().into());
         let repos = self.repos.values().map(|repo| repo.clone().into());
@@ -32,6 +33,7 @@ impl EntityStore {
         Entities::from_entities(all, Some(schema)).unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn merge(&mut self, other: EntityStore) {
         self.users.extend(other.users);
         self.repos.extend(other.repos);
