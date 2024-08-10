@@ -5,13 +5,13 @@ use async_trait::async_trait;
 use crate::{event::EventBase, event::EventType, queue::get_mq};
 
 /// # Api Request Event
-/// 
-/// This is a example event definition for using message queue.     \
 ///
-/// Your customized event should implement `EventBase` trait.       \
-/// Then the event can be wrapped and put into message queue.       \
-/// The message `id` and `create_time` will be attached to your event
-/// and then wrapped as a `Message`.                                \
+/// This is a example event definition for using message queue.
+///
+/// Your customized event should implement `EventBase` trait.
+/// Then the event can be wrapped and put into message queue.
+/// The message `id` and `create_time` will be attached to your
+/// event and then wrapped as a `Message`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiRequestEvent {
     pub api: ApiType,
