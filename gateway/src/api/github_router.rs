@@ -1,18 +1,11 @@
-use std::fmt::format;
 use axum::{Json, Router};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::post;
 use lazy_static::lazy_static;
 use reqwest::Client;
-use reqwest::header::{ACCEPT, AUTHORIZATION};
 use serde_json::Value;
-use common::model::CommonResult;
 use crate::api::ApiServiceState;
-
-// const GITHUB_API_SERVER: &str = "https://api.github.com";
-// const OWNER: &str = "web3infra-foundation";
-// const REPO: &str = "mega";
 
 lazy_static! {
     static ref CLIENT: Client = Client::builder()
@@ -51,6 +44,12 @@ async fn webhook(
             let _title = payload["pull_request"]["title"].as_str().unwrap();
             let _body = payload["pull_request"]["body"].as_str().unwrap();
         }
+    } else if event_type == "issues" {
+        let action = payload["action"].as_str().unwrap();
+        tracing::debug!("Issue action: {}", action);
+        let title = payload["issue"]["title"].as_str().unwrap();
+        let body = payload["issue"]["body"].as_str().unwrap();
+        tracing::debug!("Issue: {} - {}", title, body);
     }
 
     Ok("WebHook OK")
