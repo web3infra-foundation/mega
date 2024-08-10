@@ -157,3 +157,15 @@ struct Usage {
     input_tokens: i32,
     output_tokens: i32,
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::api::test::{get_claude_key, test_client_with_context};
+    #[tokio::test]
+    async fn test_claude_client_with_context() {
+        let client = ClaudeClient::new(get_claude_key().unwrap(), ClaudeModels::Claude3_5Sonnet);
+
+        test_client_with_context(client).await;
+    }
+}

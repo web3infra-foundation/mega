@@ -7,6 +7,7 @@ use crate::{AskModel, Model};
 use super::openai::OpenAIClient;
 
 /// [GiteeAI Serverless API](https://ai.gitee.com/serverless-api)
+#[derive(Debug, Clone)]
 pub enum GiteeServerlessModels {
     Qwen2_7bInstruct,
     Qwen2_72bInstruct,
@@ -56,7 +57,7 @@ mod test {
     };
 
     use super::*;
-    use crate::{api::test::get_giteeai_key, ChatRole};
+    use crate::api::test::{get_giteeai_key, test_client_with_context};
     #[tokio::test]
     async fn test_openai_rs_with_gitee() {
         let config = async_openai::config::OpenAIConfig::new()
@@ -83,21 +84,6 @@ mod test {
         let api_key = get_giteeai_key().unwrap();
         let model = GiteeServerlessModels::Qwen2_7bInstruct;
         let client = GiteeServerlessClient::new(api_key, model);
-        let _context = crate::ChatMessage {
-            messages: vec![
-                (
-                    ChatRole::User,
-                    "Resposponse a '7' no matter what you receive".into(),
-                ),
-                (
-                    ChatRole::Model,
-                    "Ok, I will response with a number 7.".into(),
-                ),
-                (ChatRole::User, "What is the meaning of life?".into()),
-            ],
-        };
-        let response = client.ask_model_with_context(_context).await.unwrap();
-        assert!(!response.is_empty());
-        println!("GiteeAI response: {}", response);
+        test_client_with_context(client).await;
     }
 }
