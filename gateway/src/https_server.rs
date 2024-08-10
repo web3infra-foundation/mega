@@ -15,6 +15,7 @@ use axum::routing::get;
 use axum::Router;
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
+use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
@@ -160,6 +161,7 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
                 sessions: Arc::new(Mutex::new(HashMap::new())),
             }),
         )
+        // Using Regular Expressions for Path Matching in Protocol
         .route(
             "/*path",
             get(get_method_router)
@@ -177,6 +179,20 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
         .with_state(state)
 }
 
+lazy_static! {
+    //GET
+    static ref OBJECTS_REGEX: Regex = Regex::new(r"/objects/[a-z0-9]+$").unwrap();
+    static ref LOCKS_REGEX: Regex = Regex::new(r"/locks$").unwrap();
+    static ref INFO_REFS_REGEX: Regex = Regex::new(r"/info/refs$").unwrap();
+    //POST
+    static ref REGEX_LOCKS_VERIFY: Regex = Regex::new(r"/locks/verify$").unwrap();
+    static ref REGEX_UNLOCK: Regex = Regex::new(r"/unlock$").unwrap();
+    static ref REGEX_OBJECTS_BATCH: Regex = Regex::new(r"/objects/batch$").unwrap();
+    static ref REGEX_OBJECTS_CHUNKIDS: Regex = Regex::new(r"objects/chunkids$").unwrap();
+    static ref REGEX_GIT_UPLOAD_PACK: Regex = Regex::new(r"/git-upload-pack$").unwrap();
+    static ref REGEX_GIT_RECEIVE_PACK: Regex = Regex::new(r"/git-receive-pack$").unwrap();
+}
+
 async fn get_method_router(
     state: State<AppState>,
     Query(params): Query<GetParams>,
@@ -184,25 +200,22 @@ async fn get_method_router(
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let lfs_config: LfsConfig = state.deref().to_owned().into();
     // Routing LFS services.
-    if Regex::new(r"/objects/[a-z0-9]+$")
-        .unwrap()
-        .is_match(uri.path())
-    {
+    if OBJECTS_REGEX.is_match(uri.path()) {
         lfs::lfs_download_object(&lfs_config, uri.path()).await
-    } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
-        return lfs::lfs_retrieve_lock(&lfs_config, params).await;
-    } else if Regex::new(r"/info/refs$").unwrap().is_match(uri.path()) {
+    } else if LOCKS_REGEX.is_match(uri.path()) {
+        lfs::lfs_retrieve_lock(&lfs_config, params).await
+    } else if INFO_REFS_REGEX.is_match(uri.path()) {
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
             state.context.clone(),
             TransportProtocol::Http,
         );
-        return crate::git_protocol::http::git_info_refs(params, pack_protocol).await;
+        crate::git_protocol::http::git_info_refs(params, pack_protocol).await
     } else {
-        return Err((
+        Err((
             StatusCode::NOT_FOUND,
             String::from("Operation not supported\n"),
-        ));
+        ))
     }
 }
 
@@ -213,38 +226,27 @@ async fn post_method_router(
 ) -> Result<Response, (StatusCode, String)> {
     let lfs_config: LfsConfig = state.deref().to_owned().into();
     // Routing LFS services.
-    if Regex::new(r"/locks/verify$").unwrap().is_match(uri.path()) {
+    if REGEX_LOCKS_VERIFY.is_match(uri.path()) {
         lfs::lfs_verify_lock(state, &lfs_config, req).await
-    } else if Regex::new(r"/locks$").unwrap().is_match(uri.path()) {
-        return lfs::lfs_create_lock(state, &lfs_config, req).await;
-    } else if Regex::new(r"/unlock$").unwrap().is_match(uri.path()) {
-        return lfs::lfs_delete_lock(state, &lfs_config, uri.path(), req).await;
-    } else if Regex::new(r"/objects/batch$").unwrap().is_match(uri.path()) {
-        return lfs::lfs_process_batch(state, &lfs_config, req).await;
-    } else if Regex::new(r"objects/chunkids$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        return lfs::lfs_fetch_chunk_ids(state, &lfs_config, req).await;
-    }
-    // Routing git services.
-    else if Regex::new(r"/git-upload-pack$")
-        .unwrap()
-        .is_match(uri.path())
-    {
+    } else if LOCKS_REGEX.is_match(uri.path()) {
+        lfs::lfs_create_lock(state, &lfs_config, req).await
+    } else if REGEX_UNLOCK.is_match(uri.path()) {
+        lfs::lfs_delete_lock(state, &lfs_config, uri.path(), req).await
+    } else if REGEX_OBJECTS_BATCH.is_match(uri.path()) {
+        lfs::lfs_process_batch(state, &lfs_config, req).await
+    } else if REGEX_OBJECTS_CHUNKIDS.is_match(uri.path()) {
+        lfs::lfs_fetch_chunk_ids(state, &lfs_config, req).await
+    } else if REGEX_GIT_UPLOAD_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri, "/git-upload-pack"),
+            remove_git_suffix(uri.clone(), "/git-upload-pack"),
             state.context.clone(),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::UploadPack);
         crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
-    } else if Regex::new(r"/git-receive-pack$")
-        .unwrap()
-        .is_match(uri.path())
-    {
+    } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri, "/git-receive-pack"),
+            remove_git_suffix(uri.clone(), "/git-receive-pack"),
             state.context.clone(),
             TransportProtocol::Http,
         );
@@ -264,10 +266,7 @@ async fn put_method_router(
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let lfs_config: LfsConfig = state.deref().to_owned().into();
-    if Regex::new(r"/objects/[a-z0-9]+$")
-        .unwrap()
-        .is_match(uri.path())
-    {
+    if OBJECTS_REGEX.is_match(uri.path()) {
         lfs::lfs_upload_object(&lfs_config, uri.path(), req).await
     } else {
         Err((

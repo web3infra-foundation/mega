@@ -16,6 +16,7 @@ pub struct AppContext {
     schema: Schema,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum ContextError {
     #[error("{0}")]
@@ -34,6 +35,7 @@ pub enum ContextError {
     Json(#[from] serde_json::Error),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Authorization Denied")]
@@ -43,6 +45,7 @@ pub enum Error {
 }
 
 impl AppContext {
+    #[allow(dead_code)]
     pub fn new(
         entities: EntityStore,
         schema_path: impl Into<PathBuf>,
@@ -78,6 +81,7 @@ impl AppContext {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_authorized(
         &self,
         principal: impl AsRef<EntityUid>,
