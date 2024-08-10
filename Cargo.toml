@@ -12,10 +12,11 @@ members = [
     "neptune",
     "aries",
     "saturn",
+    "taurus",
     "lunar/src-tauri",
     "atlas",
 ]
-default-members = ["mega", "libra","aries"]
+default-members = ["mega", "libra", "aries"]
 exclude = ["craft"]
 resolver = "1"
 
@@ -31,25 +32,25 @@ gemini = { path = "gemini" }
 vault = { path = "vault" }
 neptune = { path = "neptune" }
 saturn = { path = "saturn" }
+taurus = { path = "taurus" }
 mega = { path = "mega" }
 anyhow = "1.0.86"
-serde = {version = "1.0.203", features = ["derive"]}
-serde_json = "1.0.117"
+serde = "1.0.205"
+serde_json = "1.0.122"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 tracing-appender = "0.2"
-thiserror = "1.0.61"
+thiserror = "1.0.63"
 rand = "0.8.5"
 smallvec = "1.13.2"
-tokio = "1.38.0"
+tokio = "1.39.2"
 tokio-stream = "0.1.15"
 tokio-test = "0.4.4"
-rayon = "1.10.0"
-clap = "4.5.4"
-async-trait = "0.1.80"
+clap = "4.5.14"
+async-trait = "0.1.81"
 async-stream = "0.3.5"
-bytes = "1.6.0"
-memchr = "2.7.2"
+bytes = "1.7.1"
+memchr = "2.7.4"
 chrono = "0.4.38"
 sha1 = "0.10.6"
 sha256 = "1.5"
@@ -65,7 +66,7 @@ tower = "0.4.13"
 hex = "0.4.3"
 sea-orm = "1.0.0"
 flate2 = "1.0.30"
-bstr = "1.9.1"
+bstr = "1.10.0"
 colored = "2.1.0"
 idgenerator = "2.0.0"
 num_cpus = "1.16.0"

@@ -29,7 +29,6 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 idgenerator = { workspace = true }
-rayon = { workspace = true }
 handlebars = "6.0.0"
 
 [dev-dependencies]
