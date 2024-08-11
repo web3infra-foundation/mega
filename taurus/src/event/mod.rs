@@ -7,13 +7,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
+use github_webhook::GithubWebhookEvent;
 
 pub mod api_request;
+mod github_webhook;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EventType {
     ApiRequest(ApiRequestEvent),
+    GithubWebhook(GithubWebhookEvent),
 
     // Reserved
     ErrorEvent,
@@ -53,6 +56,8 @@ impl EventType {
             // so you have to manually add a process logic for your event here.
             EventType::ApiRequest(evt) => evt.process().await,
             // EventType::SomeOtherEvent(xxx) => xxx.process().await,
+
+            EventType::GithubWebhook(evt) => evt.process().await,
 
             // This won't happen unless failed to load events from database.
             // And that's because of a event conversion error.
