@@ -1,7 +1,10 @@
+//! Google Gemini API client, see [Google Gemini API](https://ai.google.dev/api/caching)
+
 use serde::{Deserialize, Serialize};
 
 use crate::{AskModel, ChatMessage, ChatRole};
 
+#[derive(Debug, Clone)]
 pub enum GeminiModels {
     ChatBison001,
     TextBison001,
@@ -48,6 +51,7 @@ impl GeminiModels {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct GeminiClient {
     api_key: String,
     model: GeminiModels,
@@ -149,49 +153,12 @@ struct UsageMegadata {
 
 #[cfg(test)]
 mod test {
-    use crate::{AskModel, ChatRole};
-
-    #[tokio::test]
-    async fn test_gemini_client() {
-        let api_key = super::super::test::get_gemini_key().unwrap();
-        let client = super::GeminiClient::new(api_key, super::GeminiModels::Gemini15Flash);
-        let res = client.ask_model("who are you").await;
-        match res {
-            Ok(text) => {
-                println!("{}", text);
-            }
-            Err(e) => {
-                println!("{}", e);
-                panic!();
-            }
-        }
-    }
+    use crate::api::test::test_client_with_context;
 
     #[tokio::test]
     async fn test_gemini_client_with_context() {
         let api_key = super::super::test::get_gemini_key().unwrap();
         let client = super::GeminiClient::new(api_key, super::GeminiModels::Gemini15Flash);
-        let _context = crate::ChatMessage {
-            messages: vec![
-                (
-                    ChatRole::User,
-                    "Resposponse a '0' no matter what you receive".into(),
-                ),
-                (
-                    ChatRole::Model,
-                    "Ok, I will response with a number 0.".into(),
-                ),
-                (ChatRole::User, "who are you".into()),
-            ],
-        };
-        let res = client.ask_model_with_context(_context).await;
-        match res {
-            Ok(text) => {
-                println!("Google Gemini response with  {}", text);
-            }
-            Err(e) => {
-                panic!("error: {}", e);
-            }
-        }
+        test_client_with_context(client).await;
     }
 }
