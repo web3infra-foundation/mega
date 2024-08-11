@@ -78,6 +78,7 @@ impl AskModel for OpenAIClient {
                 }
             }
         }
+        
         let request = CreateChatCompletionRequestArgs::default()
             .model(self.model.as_str())
             .messages(messages)
