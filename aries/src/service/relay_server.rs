@@ -2,13 +2,14 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use callisto::{ztm_node, ztm_repo_info};
 use clap::Parser;
+use serde_json::Value;
 use common::config::Config;
 use gemini::ztm::hub::{LocalHub, ZTMUserPermit, ZTMCA};
 use gemini::{Node, RelayGetParams, RelayResultRes, RepoInfo};
@@ -104,7 +105,8 @@ pub fn routers() -> Router<AppState> {
         .route("/ping", get(ping))
         .route("/node_list", get(node_list))
         .route("/repo_provide", post(repo_provide))
-        .route("/repo_list", get(repo_list));
+        .route("/repo_list", get(repo_list))
+        .route("/github/webhook/:peer_id", post(github_webhook));
 
     Router::new().merge(router)
 }
@@ -218,6 +220,14 @@ pub async fn repo_list(
         repo_info_list_result.push(repo.clone());
     }
     Ok(Json(repo_info_list_result))
+}
+
+/// Forwards the GitHub webhook to the corresponding peer.
+async fn github_webhook(
+    Path(peer_id): Path<String>,
+    Json(payload): Json<Value>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    unimplemented!();
 }
 
 async fn loop_running(context: Context) {
