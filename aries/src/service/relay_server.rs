@@ -226,7 +226,8 @@ pub async fn repo_list(
 async fn github_webhook(
     Path(peer_id): Path<String>,
     Json(payload): Json<Value>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
+) -> Result<String, (StatusCode, String)> {
+    tracing::info!("GitHub Webhook Event: {:?} \n {:?}", peer_id, payload);
     unimplemented!();
 }
 
