@@ -15,7 +15,7 @@ use ceres::model::{
 };
 use common::model::CommonResult;
 
-use crate::api::mr_router;
+use crate::api::{github_router, mr_router};
 use crate::api::ApiServiceState;
 
 use super::ztm_router;
@@ -34,6 +34,7 @@ pub fn routers() -> Router<ApiServiceState> {
         .merge(router)
         .merge(mr_router::routers())
         .merge(ztm_router::routers())
+        .merge(github_router::routers())
 }
 
 async fn get_blob_object(

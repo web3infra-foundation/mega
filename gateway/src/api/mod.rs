@@ -11,6 +11,7 @@ pub mod api_router;
 pub mod mr_router;
 pub mod oauth;
 pub mod ztm_router;
+mod github_router;
 
 #[derive(Clone)]
 pub struct ApiServiceState {
