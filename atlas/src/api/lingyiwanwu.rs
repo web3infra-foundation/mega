@@ -1,5 +1,5 @@
-//! According to the [Lingyiwanwu API Reference](https://platform.lingyiwanwu.com/docs/api-reference), the Lingyiwanwu API is the same as the OpenAI API.
-//! So this is just a wrapper around the OpenAI API, change api base.
+//! According to the [Lingyiwanwu API Reference](https://platform.lingyiwanwu.com/docs/api-reference), the Lingyiwanwu API is identical to the OpenAI API.
+//! Therefore, this is just a wrapper around the OpenAI API, with a different API base URL.
 
 use crate::AskModel;
 
@@ -60,43 +60,15 @@ impl AskModel for LingyiwanwuClient {
 
 #[cfg(test)]
 mod tests {
-    use crate::{api::test::get_01_key, ChatRole};
+    use crate::api::test::{get_01_key, test_client_with_context};
 
     use super::*;
-
-    #[tokio::test]
-    async fn test_lingyiwanwu_client() {
-        let api_key = get_01_key().unwrap();
-        let model = LingyiwanwuModels::YiLarge;
-        let client = LingyiwanwuClient::new(api_key, model);
-        let response = client
-            .ask_model("What is the meaning of life?")
-            .await
-            .unwrap();
-        assert!(!response.is_empty());
-        println!("Lingyiwanwu response: {}", response);
-    }
 
     #[tokio::test]
     async fn test_lingyiwanwu_client_with_context() {
         let api_key = get_01_key().unwrap();
         let model = LingyiwanwuModels::YiLarge;
         let client = LingyiwanwuClient::new(api_key, model);
-        let _context = crate::ChatMessage {
-            messages: vec![
-                (
-                    ChatRole::User,
-                    "Resposponse a '0' no matter what you receive".into(),
-                ),
-                (
-                    ChatRole::Model,
-                    "Ok, I will response with a number 0.".into(),
-                ),
-                (ChatRole::User, "What is the meaning of life?".into()),
-            ],
-        };
-        let response = client.ask_model_with_context(_context).await.unwrap();
-        assert!(!response.is_empty());
-        println!("Lingyiwanwu response: {}", response);
+        test_client_with_context(client).await;
     }
 }
