@@ -5,6 +5,7 @@ use axum::routing::post;
 use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::Value;
+use taurus::event::github_webhook::{GithubWebhookEvent, WebhookType};
 use crate::api::ApiServiceState;
 
 lazy_static! {
@@ -19,47 +20,58 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/github/webhook", post(webhook))
 }
 
+/// Handle the GitHub webhook event. <br>
+/// For more details, see https://docs.github.com/zh/webhooks/webhook-events-and-payloads.
 async fn webhook(
     headers: HeaderMap,
-    Json(payload): Json<Value>
+    Json(mut payload): Json<Value>
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let event_type = headers
         .get("X-GitHub-Event")
         .and_then(|v| v.to_str().ok())
         .expect("Missing X-GitHub-Event header");
+    payload["event_type"] = event_type.into();
 
-    tracing::debug!("WebHook Event Type: {}", event_type);
+    let event_type = WebhookType::from(event_type);
+    match event_type {
+        WebhookType::PullRequest => {
+            let action = payload["action"].as_str().unwrap();
+            tracing::debug!("PR action: {}", action);
 
-    if event_type == "pull_request" {
-        let action = payload["action"].as_str().unwrap();
-        tracing::debug!("PR action: {}", action);
+            if ["opened", "reopened", "synchronize"].contains(&action) { // contents changed
+                let url = payload["pull_request"]["url"].as_str().unwrap();
+                let files = get_pr_files(url).await;
+                let commits = get_pr_commits(url).await;
+                // Add details to the payload
+                payload["files"] = files;
+                payload["commits"] = commits;
+            } else if action == "edited" { // PR title or body edited
+                let _ = payload["pull_request"]["title"].as_str().unwrap();
+                let _ = payload["pull_request"]["body"].as_str().unwrap();
+            }
 
-        if ["opened", "reopened", "synchronize"].contains(&action) {
-            let url = payload["pull_request"]["url"].as_str().unwrap();
-            let files = get_pr_files(url).await;
-            let commits = get_pr_commits(url).await;
-            tracing::debug!("PR: {:#?}", files);
-            tracing::debug!("Commits: {:#?}", commits);
-        } else if action == "edited" { // PR title or body edited
-            let _title = payload["pull_request"]["title"].as_str().unwrap();
-            let _body = payload["pull_request"]["body"].as_str().unwrap();
+            GithubWebhookEvent::notify(WebhookType::PullRequest, payload);
         }
-    } else if event_type == "issues" {
-        let action = payload["action"].as_str().unwrap();
-        tracing::debug!("Issue action: {}", action);
-        let title = payload["issue"]["title"].as_str().unwrap();
-        let body = payload["issue"]["body"].as_str().unwrap();
-        tracing::debug!("Issue: {} - {}", title, body);
+        WebhookType::Issues => {
+            GithubWebhookEvent::notify(WebhookType::Issues, payload);
+        }
+        WebhookType::Unknown(_type) => {
+            tracing::warn!("Unknown event type: {}", _type);
+            GithubWebhookEvent::notify(WebhookType::Unknown(_type), payload);
+        }
     }
 
     Ok("WebHook OK")
 }
 
-async fn get_pr_files(pr_url: &str) -> Value {
+/// GitHub API: Get the files change of a pull request. <br>
+/// For read-only operation of public repos, no authentication is required.
+pub async fn get_pr_files(pr_url: &str) -> Value {
     get_request(&format!("{}/files", pr_url)).await
 }
 
-async fn get_pr_commits(pr_url: &str) -> Value {
+/// GitHub API: Get the commits of a pull request.
+pub async fn get_pr_commits(pr_url: &str) -> Value {
     get_request(&format!("{}/commits", pr_url)).await
 }
 
