@@ -10,7 +10,7 @@ use thiserror::Error;
 use github_webhook::GithubWebhookEvent;
 
 pub mod api_request;
-mod github_webhook;
+pub mod github_webhook;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]

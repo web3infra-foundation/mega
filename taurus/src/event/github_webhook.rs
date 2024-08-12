@@ -13,7 +13,18 @@ pub struct GithubWebhookEvent {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum WebhookType {
     PullRequest,
-    Issue,
+    Issues,
+    Unknown(String),
+}
+
+impl From<&str> for WebhookType {
+    fn from(value: &str) -> Self {
+        match value {
+            "pull_request" => WebhookType::PullRequest,
+            "issues" => WebhookType::Issues,
+            _ => WebhookType::Unknown(value.to_string()),
+        }
+    }
 }
 
 impl std::fmt::Display for GithubWebhookEvent {
@@ -25,7 +36,8 @@ impl std::fmt::Display for GithubWebhookEvent {
 #[async_trait]
 impl EventBase for GithubWebhookEvent {
     async fn process(&self) {
-        tracing::info!("Handling GitHub Webhook Event: [{}]", &self);
+        tracing::info!("Processing: [{}]", &self);
+        tracing::info!("Payload: {:#?}", &self.payload);
     }
 }
 
