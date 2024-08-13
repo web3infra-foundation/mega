@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 pub struct CommonOptions {
     #[arg(long, default_value_t = String::from("127.0.0.1"))]
     pub host: String,
+}
 
+#[derive(Args, Clone, Debug)]
+pub struct ZtmOptions {
     #[arg(long, default_value_t = 7777)]
     pub ztm_agent_port: u16,
 

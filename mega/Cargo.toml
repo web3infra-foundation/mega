@@ -13,6 +13,8 @@ name = "mega"
 path = "src/main.rs"
 
 [dependencies]
+mono = { workspace = true }
+jupiter = { workspace = true }
 gateway = { workspace = true }
 common = { workspace = true }
 ceres = { workspace = true }
@@ -30,17 +32,17 @@ rand = { workspace = true }
 smallvec = { workspace = true }
 config = { workspace = true }
 shadow-rs = { workspace = true }
-ctrlc = "3.4.4"
+ctrlc = { workspace = true }
 
 [dev-dependencies]
-reqwest = { workspace = true , features = ["stream", "json"] }
+reqwest = { workspace = true, features = ["stream", "json"] }
 russh = { workspace = true }
 russh-keys = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 go-defer = { workspace = true }
-git2 = "0.19.0"
-tempfile = "3.10.1"
+git2 = { workspace = true }
+tempfile = { workspace = true }
 
 [build-dependencies]
 shadow-rs = { workspace = true }
