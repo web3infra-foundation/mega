@@ -9,9 +9,9 @@ use axum::{
 
 use common::model::CommonResult;
 
-use crate::api::ApiServiceState;
+use crate::api::MegaApiServiceState;
 
-pub fn routers() -> Router<ApiServiceState> {
+pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
         .route("/ztm/repo_provide", get(repo_provide))
         .route("/ztm/repo_folk", get(repo_folk))
@@ -19,7 +19,7 @@ pub fn routers() -> Router<ApiServiceState> {
 
 async fn repo_provide(
     Query(query): Query<HashMap<String, String>>,
-    state: State<ApiServiceState>,
+    state: State<MegaApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let path = match query.get("path") {
         Some(p) => p,
@@ -27,7 +27,7 @@ async fn repo_provide(
             return Err((StatusCode::BAD_REQUEST, String::from("Path not provide\n")));
         }
     };
-    let bootstrap_node = match state.common.bootstrap_node.clone() {
+    let bootstrap_node = match state.ztm.bootstrap_node.clone() {
         Some(b) => b.clone(),
         None => {
             return Err((
@@ -39,7 +39,7 @@ async fn repo_provide(
     let res = match gemini::http::handler::repo_provide(
         state.port,
         bootstrap_node,
-        state.context.clone(),
+        state.inner.context.clone(),
         path.to_string(),
     )
     .await
@@ -52,7 +52,7 @@ async fn repo_provide(
 
 async fn repo_folk(
     Query(query): Query<HashMap<String, String>>,
-    state: State<ApiServiceState>,
+    state: State<MegaApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let identifier = match query.get("identifier") {
         Some(i) => i,
@@ -77,7 +77,7 @@ async fn repo_folk(
     };
 
     let res = gemini::http::handler::repo_folk(
-        state.common.ztm_agent_port,
+        state.ztm.ztm_agent_port,
         identifier.to_string(),
         local_port,
     )

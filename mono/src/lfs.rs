@@ -60,7 +60,7 @@ use ceres::lfs::{
 use common::{errors::GitLFSError, model::GetParams};
 use futures::TryStreamExt;
 
-use crate::https_server::AppState;
+use crate::server::https_server::AppState;
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 

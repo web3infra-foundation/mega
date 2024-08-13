@@ -2,8 +2,8 @@ use clap::{ArgMatches, Args, Command, FromArgMatches};
 
 use common::config::Config;
 use common::errors::MegaResult;
-use mono::server::ssh_server::start_server;
-use mono::server::ssh_server::SshOptions;
+use crate::server::ssh_server::{start_server, SshOptions};
+
 
 pub fn cli() -> Command {
     SshOptions::augment_args_for_update(Command::new("ssh").about("Start Git SSH server"))
