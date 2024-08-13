@@ -1,0 +1,37 @@
+FROM debian:bookworm-slim
+
+WORKDIR /opt/mega
+
+RUN echo "deb http://mirrors.ustc.edu.cn/debian bookworm main contrib non-free" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.ustc.edu.cn/debian-security bookworm-security main contrib non-free" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.ustc.edu.cn/debian bookworm-updates main contrib non-free" >> /etc/apt/sources.list
+
+RUN apt-get update && apt-get install -y \
+    cmake \
+    clang \
+    nodejs \
+    npm \
+    build-essential \
+    curl \
+    wget \
+    file \
+    libssl-dev \
+    libgtk-3-dev \
+    libayatana-appindicator3-dev \
+    librsvg2-dev \
+    ca-certificates \
+    && curl https://sh.rustup.rs -sSf | sh -s -- -y \
+    && . $HOME/.cargo/env
+
+ENV PATH=/root/.cargo/bin:$PATH！
+
+# copy the source code, the context must be the root of the project
+COPY . .
+RUN chmod +x /opt/mega/docker/startmono.sh
+
+# build
+RUN cargo build -p mono
+
+VOLUME /etc/mega
+
+CMD ["bash", "-c", "/opt/mega/docker/startmono.sh"]
