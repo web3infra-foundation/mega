@@ -1,0 +1,5 @@
+rust_binary(
+    name = "mono",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/main.rs",
+)

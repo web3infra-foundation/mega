@@ -6,7 +6,6 @@ use axum::{
     Json, Router,
 };
 
-use taurus::event::api_request::{ApiRequestEvent, ApiType};
 use ceres::model::{
     create_file::CreateFileInfo,
     publish_path::PublishPathInfo,
@@ -14,13 +13,12 @@ use ceres::model::{
     tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem},
 };
 use common::model::CommonResult;
+use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
-use crate::api::{github_router, mr_router};
-use crate::api::ApiServiceState;
+use crate::api::mr_router;
+use crate::api::MonoApiServiceState;
 
-use super::ztm_router;
-
-pub fn routers() -> Router<ApiServiceState> {
+pub fn routers() -> Router<MonoApiServiceState> {
     let router = Router::new()
         .route("/status", get(life_cycle_check))
         .route("/create-file", post(create_file))
@@ -30,16 +28,12 @@ pub fn routers() -> Router<ApiServiceState> {
         .route("/blob", get(get_blob_object))
         .route("/publish", post(publish_path_to_repo));
 
-    Router::new()
-        .merge(router)
-        .merge(mr_router::routers())
-        .merge(ztm_router::routers())
-        .merge(github_router::routers())
+    Router::new().merge(router).merge(mr_router::routers())
 }
 
 async fn get_blob_object(
     Query(query): Query<BlobContentQuery>,
-    state: State<ApiServiceState>,
+    state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     ApiRequestEvent::notify(ApiType::Blob, &state.0.context.config);
     let res = state
@@ -55,32 +49,12 @@ async fn get_blob_object(
     Ok(Json(res))
 }
 
-// async fn get_origin_object(
-//     Query(query): Query<HashMap<String, String>>,
-//     state: State<ApiServiceState>,
-// ) -> Result<impl IntoResponse, (StatusCode, String)> {
-//     let object_id = query.get("object_id").unwrap();
-//     let repo_path = query.get("repo_path").expect("repo_path is required");
-//     state
-//         .object_service
-//         .get_objects_data(object_id, repo_path)
-//         .await
-// }
-
 async fn life_cycle_check() -> Result<impl IntoResponse, (StatusCode, String)> {
     Ok(Json("http ready"))
 }
 
-// async fn get_count_nums(
-//     Query(query): Query<HashMap<String, String>>,
-//     state: State<ApiServiceState>,
-// ) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
-//     let repo_path = query.get("repo_path").unwrap();
-//     state.object_service.count_object_num(repo_path).await
-// }
-
 async fn create_file(
-    state: State<ApiServiceState>,
+    state: State<MonoApiServiceState>,
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     ApiRequestEvent::notify(ApiType::CreateFile, &state.0.context.config);
@@ -98,7 +72,7 @@ async fn create_file(
 
 async fn get_latest_commit(
     Query(query): Query<CodePreviewQuery>,
-    state: State<ApiServiceState>,
+    state: State<MonoApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, (StatusCode, String)> {
     ApiRequestEvent::notify(ApiType::LastestCommit, &state.0.context.config);
     let res = state
@@ -112,7 +86,7 @@ async fn get_latest_commit(
 
 async fn get_tree_info(
     Query(query): Query<CodePreviewQuery>,
-    state: State<ApiServiceState>,
+    state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeBriefItem>>>, (StatusCode, String)> {
     ApiRequestEvent::notify(ApiType::TreeInfo, &state.0.context.config);
     let res = state
@@ -129,7 +103,7 @@ async fn get_tree_info(
 
 async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
-    state: State<ApiServiceState>,
+    state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, (StatusCode, String)> {
     ApiRequestEvent::notify(ApiType::CommitInfo, &state.0.context.config);
     let res = state
@@ -145,7 +119,7 @@ async fn get_tree_commit_info(
 }
 
 async fn publish_path_to_repo(
-    state: State<ApiServiceState>,
+    state: State<MonoApiServiceState>,
     Json(json): Json<PublishPathInfo>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     ApiRequestEvent::notify(ApiType::Publish, &state.0.context.config);

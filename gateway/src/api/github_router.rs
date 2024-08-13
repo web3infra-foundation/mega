@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::Value;
 use taurus::event::github_webhook::{GithubWebhookEvent, WebhookType};
-use crate::api::ApiServiceState;
+use crate::api::MegaApiServiceState;
 
 lazy_static! {
     static ref CLIENT: Client = Client::builder()
@@ -15,7 +15,7 @@ lazy_static! {
         .unwrap();
 }
 
-pub fn routers() -> Router<ApiServiceState> {
+pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
         .route("/github/webhook", post(webhook))
 }

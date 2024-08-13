@@ -1,45 +1,36 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::{thread, time};
 
-use anyhow::Result;
-use axum::body::Body;
-use axum::extract::{Query, State};
-use axum::http::{self, Request, StatusCode, Uri};
-use axum::response::Response;
 use axum::routing::get;
-use axum::Router;
+use axum::{http, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
-use lazy_static::lazy_static;
-use regex::Regex;
-use tokio::sync::Mutex;
+
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
-use ceres::lfs::LfsConfig;
-use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::config::Config;
-use common::model::{CommonOptions, GetParams};
+use common::model::{CommonOptions, ZtmOptions};
 use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
 use jupiter::context::Context;
-use jupiter::raw_storage::local_storage::LocalStorage;
+use mono::api::MonoApiServiceState;
+use mono::server::https_server::{
+    get_method_router, post_method_router, put_method_router, AppState,
+};
 
-use crate::api::api_router::{self};
-use crate::api::oauth::{self, OauthServiceState};
-use crate::api::ApiServiceState;
-use crate::lfs;
+use crate::api::{github_router, ztm_router, MegaApiServiceState};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
     #[clap(flatten)]
     pub common: CommonOptions,
+
+    #[clap(flatten)]
+    pub ztm: ZtmOptions,
 
     #[arg(long, default_value_t = 8000)]
     pub http_port: u16,
@@ -49,6 +40,9 @@ pub struct HttpOptions {
 pub struct HttpsOptions {
     #[clap(flatten)]
     pub common: CommonOptions,
+
+    #[clap(flatten)]
+    pub ztm: ZtmOptions,
 
     #[arg(long, default_value_t = 443)]
     pub https_port: u16,
@@ -60,45 +54,25 @@ pub struct HttpsOptions {
     pub https_cert_path: PathBuf,
 }
 
-#[derive(Clone)]
-pub struct AppState {
-    pub context: Context,
-    pub host: String,
-    pub port: u16,
-    pub common: CommonOptions,
-}
-
-impl From<AppState> for LfsConfig {
-    fn from(value: AppState) -> Self {
-        Self {
-            host: value.host,
-            port: value.port,
-            context: value.context.clone(),
-            lfs_storage: Arc::new(LocalStorage::init(
-                value.context.config.storage.lfs_obj_local_path,
-            )),
-            repo_name: String::from("repo_name"),
-            enable_split: value.context.config.lfs.enable_split,
-            split_size: value.context.config.lfs.split_size,
-        }
-    }
-}
-
-pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
-    PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
-}
-
 pub async fn https_server(config: Config, options: HttpsOptions) {
     let HttpsOptions {
         common: CommonOptions { host, .. },
         https_key_path,
         https_cert_path,
         https_port,
+        ztm,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.common.clone());
+    check_run_with_ztm(config.clone(), options.ztm.clone());
 
-    let app = app(config, host.clone(), https_port, options.common.clone()).await;
+    let app = app(
+        config,
+        host.clone(),
+        https_port,
+        options.common.clone(),
+        ztm.clone(),
+    )
+    .await;
 
     let server_url = format!("{}:{}", host, https_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
@@ -115,11 +89,19 @@ pub async fn http_server(config: Config, options: HttpOptions) {
     let HttpOptions {
         common: CommonOptions { host, .. },
         http_port,
+        ztm,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.common.clone());
+    check_run_with_ztm(config.clone(), options.ztm.clone());
 
-    let app = app(config, host.clone(), http_port, options.common.clone()).await;
+    let app = app(
+        config,
+        host.clone(),
+        http_port,
+        options.common.clone(),
+        ztm.clone(),
+    )
+    .await;
 
     let server_url = format!("{}:{}", host, http_port);
 
@@ -130,7 +112,13 @@ pub async fn http_server(config: Config, options: HttpOptions) {
         .unwrap();
 }
 
-pub async fn app(config: Config, host: String, port: u16, common: CommonOptions) -> Router {
+pub async fn app(
+    config: Config,
+    host: String,
+    port: u16,
+    common: CommonOptions,
+    ztm: ZtmOptions,
+) -> Router {
     let context = Context::new(config.clone()).await;
     context.services.mega_storage.init_monorepo().await;
     let state = AppState {
@@ -140,26 +128,37 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
         common: common.clone(),
     };
 
-    let api_state = ApiServiceState {
-        context: context.clone(),
+    let mrga_api_state = MegaApiServiceState {
+        inner: MonoApiServiceState {
+            context: context.clone(),
+            common: common.clone(),
+        },
+        ztm,
         port,
+    };
+
+    let mono_api_state = MonoApiServiceState {
+        context: context.clone(),
         common: common.clone(),
     };
+
+    pub fn mega_routers() -> Router<MegaApiServiceState> {
+        Router::new()
+            .merge(ztm_router::routers())
+            .merge(github_router::routers())
+    }
 
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
     Router::new()
         .nest(
-            "/api/v1",
-            api_router::routers().with_state(api_state.clone()),
+            "/api/v1/mono",
+            mono::api::api_router::routers().with_state(mono_api_state.clone()),
         )
         .nest(
-            "/auth",
-            oauth::routers().with_state(OauthServiceState {
-                context,
-                sessions: Arc::new(Mutex::new(HashMap::new())),
-            }),
+            "/api/v1/mega",
+            mega_routers().with_state(mrga_api_state.clone()),
         )
         // Using Regular Expressions for Path Matching in Protocol
         .route(
@@ -179,106 +178,9 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
         .with_state(state)
 }
 
-lazy_static! {
-    //GET
-    static ref OBJECTS_REGEX: Regex = Regex::new(r"/objects/[a-z0-9]+$").unwrap();
-    static ref LOCKS_REGEX: Regex = Regex::new(r"/locks$").unwrap();
-    static ref INFO_REFS_REGEX: Regex = Regex::new(r"/info/refs$").unwrap();
-    //POST
-    static ref REGEX_LOCKS_VERIFY: Regex = Regex::new(r"/locks/verify$").unwrap();
-    static ref REGEX_UNLOCK: Regex = Regex::new(r"/unlock$").unwrap();
-    static ref REGEX_OBJECTS_BATCH: Regex = Regex::new(r"/objects/batch$").unwrap();
-    static ref REGEX_OBJECTS_CHUNKIDS: Regex = Regex::new(r"objects/chunkids$").unwrap();
-    static ref REGEX_GIT_UPLOAD_PACK: Regex = Regex::new(r"/git-upload-pack$").unwrap();
-    static ref REGEX_GIT_RECEIVE_PACK: Regex = Regex::new(r"/git-receive-pack$").unwrap();
-}
-
-async fn get_method_router(
-    state: State<AppState>,
-    Query(params): Query<GetParams>,
-    uri: Uri,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let lfs_config: LfsConfig = state.deref().to_owned().into();
-    // Routing LFS services.
-    if OBJECTS_REGEX.is_match(uri.path()) {
-        lfs::lfs_download_object(&lfs_config, uri.path()).await
-    } else if LOCKS_REGEX.is_match(uri.path()) {
-        lfs::lfs_retrieve_lock(&lfs_config, params).await
-    } else if INFO_REFS_REGEX.is_match(uri.path()) {
-        let pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri, "/info/refs"),
-            state.context.clone(),
-            TransportProtocol::Http,
-        );
-        crate::git_protocol::http::git_info_refs(params, pack_protocol).await
-    } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            String::from("Operation not supported\n"),
-        ))
-    }
-}
-
-async fn post_method_router(
-    state: State<AppState>,
-    uri: Uri,
-    req: Request<Body>,
-) -> Result<Response, (StatusCode, String)> {
-    let lfs_config: LfsConfig = state.deref().to_owned().into();
-    // Routing LFS services.
-    if REGEX_LOCKS_VERIFY.is_match(uri.path()) {
-        lfs::lfs_verify_lock(state, &lfs_config, req).await
-    } else if LOCKS_REGEX.is_match(uri.path()) {
-        lfs::lfs_create_lock(state, &lfs_config, req).await
-    } else if REGEX_UNLOCK.is_match(uri.path()) {
-        lfs::lfs_delete_lock(state, &lfs_config, uri.path(), req).await
-    } else if REGEX_OBJECTS_BATCH.is_match(uri.path()) {
-        lfs::lfs_process_batch(state, &lfs_config, req).await
-    } else if REGEX_OBJECTS_CHUNKIDS.is_match(uri.path()) {
-        lfs::lfs_fetch_chunk_ids(state, &lfs_config, req).await
-    } else if REGEX_GIT_UPLOAD_PACK.is_match(uri.path()) {
-        let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri.clone(), "/git-upload-pack"),
-            state.context.clone(),
-            TransportProtocol::Http,
-        );
-        pack_protocol.service_type = Some(ServiceType::UploadPack);
-        crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
-    } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
-        let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(uri.clone(), "/git-receive-pack"),
-            state.context.clone(),
-            TransportProtocol::Http,
-        );
-        pack_protocol.service_type = Some(ServiceType::ReceivePack);
-        crate::git_protocol::http::git_receive_pack(req, pack_protocol).await
-    } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            String::from("Operation not supported"),
-        ))
-    }
-}
-
-async fn put_method_router(
-    state: State<AppState>,
-    uri: Uri,
-    req: Request<Body>,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    let lfs_config: LfsConfig = state.deref().to_owned().into();
-    if OBJECTS_REGEX.is_match(uri.path()) {
-        lfs::lfs_upload_object(&lfs_config, uri.path(), req).await
-    } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            String::from("Operation not supported"),
-        ))
-    }
-}
-
-pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
+pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions) {
     //Mega server join a ztm mesh
-    match common.bootstrap_node {
+    match ztm.bootstrap_node {
         Some(bootstrap_node) => {
             tracing::info!(
                 "The bootstrap node is {}, prepare to join ztm network",
@@ -286,7 +188,7 @@ pub fn check_run_with_ztm(config: Config, common: CommonOptions) {
             );
             let (peer_id, _) = vault::init();
             let ztm_agent: LocalZTMAgent = LocalZTMAgent {
-                agent_port: common.ztm_agent_port,
+                agent_port: ztm.ztm_agent_port,
             };
             ztm_agent.clone().start_ztm_agent();
             thread::sleep(time::Duration::from_secs(3));
