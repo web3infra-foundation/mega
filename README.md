@@ -40,7 +40,7 @@ For now, we are developing on the macOS and Arch Linux. And quick start manuel i
 
 ### Quick Review of Architecture
 
-![Mega Architect](docs/images/architect.svg)
+![Mega Architect](docs/images/Mega_Bin_and_Modules.png)
 
 1. **mega** - The main entry of Mega.
 2. **gateway** - The Gateway module is responsible for handling `git`, `git-lfs` and web UI requests through the HTTP and SSH protocol. More information on the [Gateway](gateway/README.md).

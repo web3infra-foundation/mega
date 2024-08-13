@@ -1,0 +1,71 @@
+[package]
+name = "mono"
+version = "0.1.0"
+edition = "2021"
+authors = ["Quanyi Ma <genedna@gmail.com>"]
+keywords = ["git", "monorepo", "decentralized"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+build = "src/build.rs"
+
+[[bin]]
+name = "mono"
+path = "src/main.rs"
+
+[dependencies]
+common = { workspace = true }
+jupiter = { workspace = true }
+callisto = { workspace = true }
+ceres = { workspace = true }
+vault = { workspace = true }
+venus = { workspace = true }
+mercury = { workspace = true }
+taurus = { workspace = true }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+russh = { workspace = true }
+russh-keys = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+tower-http = { workspace = true, features = [
+    "cors",
+    "trace",
+    "decompression-full",
+] }
+axum-extra = { workspace = true, features = ["typed-header"] }
+tokio = { workspace = true, features = ["net", "macros"] }
+tokio-stream = { workspace = true }
+async-stream = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+uuid = { workspace = true, features = ["v4"] }
+regex = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["pkcs8"] }
+lazy_static = { workspace = true }
+ctrlc = { workspace = true }
+shadow-rs = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true, features = ["stream", "json"] }
+russh = { workspace = true }
+russh-keys = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+go-defer = { workspace = true }
+git2 = { workspace = true }
+tempfile = { workspace = true }
+rand = { workspace = true }
+
+
+[build-dependencies]
+shadow-rs = { workspace = true }

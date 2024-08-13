@@ -2,13 +2,11 @@ use std::path::PathBuf;
 
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 
-use common::{
-    config::Config,
-    errors::MegaResult,
-    model::{CommonOptions, ZtmOptions},
+use crate::server::{
+    https_server::{self, HttpOptions, HttpsOptions},
+    ssh_server::{self, SshCustom, SshOptions},
 };
-use gateway::https_server::{self, HttpOptions, HttpsOptions};
-use mono::server::ssh_server::{self, SshCustom, SshOptions};
+use common::{config::Config, errors::MegaResult, model::CommonOptions};
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum StartCommand {
@@ -23,9 +21,6 @@ pub struct StartOptions {
 
     #[clap(flatten)]
     pub common: CommonOptions,
-
-    #[clap(flatten)]
-    pub ztm: ZtmOptions,
 
     #[arg(long, default_value_t = 8000)]
     pub http_port: u16,
@@ -63,18 +58,16 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         let http = HttpOptions {
             common: server_matchers.common.clone(),
             http_port: server_matchers.http_port,
-            ztm: server_matchers.ztm,
         };
-        tokio::spawn(async move { https_server::http_server(config_clone, http).await })
+        tokio::spawn(async move { https_server::start_http(config_clone, http).await })
     } else if service_type.contains(&StartCommand::Https) {
         let https = HttpsOptions {
             common: server_matchers.common.clone(),
             https_port: server_matchers.https_port,
             https_key_path: server_matchers.https_key_path.unwrap(),
             https_cert_path: server_matchers.https_cert_path.unwrap(),
-            ztm: server_matchers.ztm,
         };
-        tokio::spawn(async move { https_server::https_server(config_clone, https).await })
+        tokio::spawn(async move { https_server::start_https(config_clone, https).await })
     } else {
         tokio::task::spawn(async {})
     };

@@ -1,0 +1,93 @@
+# the directory where the data files is located, such as logs, database, etc.
+# can be overrided by environment variable `MONO_BASE_DIR`
+base_dir = "/tmp/.mega"
+
+# Filling the following environment variables with values you set
+## Logging Configuration
+[log]
+# The path which log file is saved
+log_path = "${base_dir}/logs"
+
+# log level
+level = "debug"
+
+# print std log in console, disable it on production for performance
+print_std = true
+
+
+[database]
+# "sqlite" | "postgres"
+# "sqlite" will use `db_path` and ignore `db_url`
+db_type = "postgres"
+
+# used for sqlite
+db_path = "${base_dir}/mega.db"
+
+# database connection url
+db_url = "postgres://mega:mega@localhost:5432/mega"
+
+# db max connection, setting it to twice the number of CPU cores would be appropriate.
+max_connection = 32
+
+# db min connection, setting it to the number of CPU cores would be appropriate.
+min_connection = 16
+
+# Whether to disabling SQLx Log
+sqlx_logging = false
+
+
+[ssh]
+ssh_key_path = "${base_dir}/ssh"
+
+[storage]
+# raw object stroage type, can be `local` or `remote`
+raw_obj_storage_type = "LOCAL"
+
+## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
+big_obj_threshold = 1024
+
+# set the local path of the project storage
+raw_obj_local_path = "${base_dir}/objects"
+
+lfs_obj_local_path = "${base_dir}/lfs"
+
+obs_access_key = ""
+obs_secret_key = ""
+
+# cloud storage region
+obs_region = "cn-east-3"
+
+# Override the endpoint URL used for remote storage services
+obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
+
+
+[monorepo]
+## Only import directory support multi-branch commit and tag, monorepo only support main branch
+## Mega treats files under this directory as import repo and other directories as monorepo
+import_dir = "/third-part"
+
+
+[pack]
+# The maximum memory used by decode, Unit is GB
+pack_decode_mem_size = 4
+
+# The location where the object stored when the memory used by decode exceeds the limit
+pack_decode_cache_path = "${base_dir}/cache"
+
+clean_cache_after_decode = true
+
+# The maximum meesage size in channel buffer while decode
+channel_message_size = 1_000_000
+
+[lfs]
+## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
+# Enable or disable splitting large files into smaller chunks
+enable_split = true  # Default is disabled. Set to true to enable file splitting.
+
+# Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
+split_size = 20971520 # Default size is 20MB (20971520 bytes)
+
+[oauth]
+# GitHub OAuth application client id and secret
+github_client_id = "Ov23li3y0koaZFzk8CUE"
+github_client_secret = "58babfc9794ca137feff59c57c82ef6f5318ec37"
