@@ -27,14 +27,10 @@ use mercury::{
     },
 };
 use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
-use venus::import_repo::{
-    import_refs::{CommandType, RefCommand, Refs},
-    repo::Repo,
-};
 
 use crate::{
     api_service::{mono_api_service::MonoApiService, ApiHandler},
-    pack::handler::PackHandler,
+    pack::handler::PackHandler, protocol::{import_refs::{CommandType, RefCommand, Refs}, repo::Repo},
 };
 
 pub struct ImportRepo {
@@ -45,13 +41,14 @@ pub struct ImportRepo {
 #[async_trait]
 impl PackHandler for ImportRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
-        let refs: Vec<Refs> = self
+        let result = self
             .context
             .services
             .git_db_storage
-            .get_ref(&self.repo)
+            .get_ref(self.repo.repo_id)
             .await
             .unwrap();
+        let refs: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
 
         self.find_head_hash(refs)
     }
@@ -67,14 +64,14 @@ impl PackHandler for ImportRepo {
                 let stg_clone = storage.clone();
                 let repo_clone = self.repo.clone();
                 let handle = tokio::spawn(async move {
-                    stg_clone.save_entry(&repo_clone, entry_list).await.unwrap();
+                    stg_clone.save_entry(repo_clone.repo_id, entry_list).await.unwrap();
                 });
                 join_tasks.push(handle);
                 entry_list = vec![];
             }
         }
         join_all(join_tasks).await;
-        storage.save_entry(&self.repo, entry_list).await.unwrap();
+        storage.save_entry(self.repo.repo_id, entry_list).await.unwrap();
         Ok(())
     }
 
@@ -84,13 +81,13 @@ impl PackHandler for ImportRepo {
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
         let storage = self.context.services.git_db_storage.clone();
-        let total = storage.get_obj_count_by_repo_id(&self.repo).await;
+        let total = storage.get_obj_count_by_repo_id(self.repo.repo_id).await;
         let encoder = PackEncoder::new(total, 0, stream_tx);
         encoder.encode_async(entry_rx).await.unwrap();
 
-        let repo = self.repo.clone();
+        let repo_id = self.repo.repo_id;
         tokio::spawn(async move {
-            let mut commit_stream = storage.get_commits_by_repo_id(&repo).await.unwrap();
+            let mut commit_stream = storage.get_commits_by_repo_id(repo_id).await.unwrap();
 
             while let Some(model) = commit_stream.next().await {
                 match model {
@@ -104,7 +101,7 @@ impl PackHandler for ImportRepo {
             }
             tracing::info!("send commits end");
 
-            let mut tree_stream = storage.get_trees_by_repo_id(&repo).await.unwrap();
+            let mut tree_stream = storage.get_trees_by_repo_id(repo_id).await.unwrap();
             while let Some(model) = tree_stream.next().await {
                 match model {
                     Ok(m) => {
@@ -117,7 +114,7 @@ impl PackHandler for ImportRepo {
             }
             tracing::info!("send trees end");
 
-            let mut bid_stream = storage.get_blobs_by_repo_id(&repo).await.unwrap();
+            let mut bid_stream = storage.get_blobs_by_repo_id(repo_id).await.unwrap();
             let mut bids = vec![];
             while let Some(model) = bid_stream.next().await {
                 match model {
@@ -150,7 +147,7 @@ impl PackHandler for ImportRepo {
             join_all(blob_handler).await;
             tracing::info!("send blobs end");
 
-            let tags = storage.get_tags_by_repo_id(&repo).await.unwrap();
+            let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
             for m in tags.into_iter() {
                 let c: Tag = m.into();
                 let entry: Entry = c.into();
@@ -176,7 +173,7 @@ impl PackHandler for ImportRepo {
         let mut exist_objs = HashSet::new();
 
         let mut want_commits: Vec<Commit> = storage
-            .get_commits_by_hashes(&self.repo, &want_clone)
+            .get_commits_by_hashes(self.repo.repo_id, &want_clone)
             .await
             .unwrap()
             .into_iter()
@@ -191,7 +188,7 @@ impl PackHandler for ImportRepo {
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
-                        .get_commit_by_hash(&self.repo, &p_commit_id)
+                        .get_commit_by_hash(self.repo.repo_id, &p_commit_id)
                         .await
                         .unwrap()
                         .unwrap()
@@ -208,7 +205,7 @@ impl PackHandler for ImportRepo {
             .map(|c| c.tree_id.to_plain_str())
             .collect();
         let want_trees: HashMap<SHA1, Tree> = storage
-            .get_trees_by_hashes(&self.repo, want_tree_ids)
+            .get_trees_by_hashes(self.repo.repo_id, want_tree_ids)
             .await
             .unwrap()
             .into_iter()
@@ -218,12 +215,12 @@ impl PackHandler for ImportRepo {
         obj_num.fetch_add(want_commits.len(), Ordering::SeqCst);
 
         let have_commits = storage
-            .get_commits_by_hashes(&self.repo, &have)
+            .get_commits_by_hashes(self.repo.repo_id, &have)
             .await
             .unwrap();
         let have_trees = storage
             .get_trees_by_hashes(
-                &self.repo,
+                self.repo.repo_id,
                 have_commits.iter().map(|x| x.tree.clone()).collect(),
             )
             .await
@@ -268,7 +265,7 @@ impl PackHandler for ImportRepo {
             .context
             .services
             .git_db_storage
-            .get_trees_by_hashes(&self.repo, hashes)
+            .get_trees_by_hashes(self.repo.repo_id, hashes)
             .await
             .unwrap()
             .into_iter()
@@ -282,7 +279,7 @@ impl PackHandler for ImportRepo {
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
         self.context
             .services
-            .mega_storage
+            .mono_storage
             .get_raw_blobs_by_hashes(hashes)
             .await
     }
@@ -291,12 +288,12 @@ impl PackHandler for ImportRepo {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {
             CommandType::Create => {
-                storage.save_ref(&self.repo, refs).await.unwrap();
+                storage.save_ref(self.repo.repo_id, refs.clone().into()).await.unwrap();
             }
-            CommandType::Delete => storage.remove_ref(&self.repo, refs).await.unwrap(),
+            CommandType::Delete => storage.remove_ref(self.repo.repo_id, &refs.ref_name).await.unwrap(),
             CommandType::Update => {
                 storage
-                    .update_ref(&self.repo, &refs.ref_name, &refs.new_id)
+                    .update_ref(self.repo.repo_id, &refs.ref_name, &refs.new_id)
                     .await
                     .unwrap();
             }
@@ -308,7 +305,7 @@ impl PackHandler for ImportRepo {
         self.context
             .services
             .git_db_storage
-            .get_commit_by_hash(&self.repo, hash)
+            .get_commit_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap()
             .is_some()
@@ -316,7 +313,7 @@ impl PackHandler for ImportRepo {
 
     async fn check_default_branch(&self) -> bool {
         let storage = self.context.services.git_db_storage.clone();
-        storage.default_branch_exist(&self.repo).await.unwrap()
+        storage.default_branch_exist(self.repo.repo_id).await.unwrap()
     }
 }
 
@@ -327,7 +324,7 @@ impl ImportRepo {
         let mono_api_service = MonoApiService {
             context: self.context.clone(),
         };
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let save_trees = mono_api_service.search_and_create_tree(&path).await?;
 
         let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();

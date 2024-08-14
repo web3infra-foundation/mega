@@ -25,7 +25,7 @@ use mercury::{
         pack::entry::Entry,
     },
 };
-use venus::import_repo::import_refs::{RefCommand, Refs};
+use crate::protocol::import_refs::{RefCommand, Refs};
 
 #[async_trait]
 pub trait PackHandler: Send + Sync {
