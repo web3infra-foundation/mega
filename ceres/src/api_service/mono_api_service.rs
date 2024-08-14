@@ -9,18 +9,19 @@ use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::context::Context;
 use jupiter::storage::batch_save_model;
+use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
-use venus::import_repo::repo::Repo;
-use venus::monorepo::converter;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
 use crate::model::mr::{MRDetail, MrInfoItem};
 use crate::model::publish_path::PublishPathInfo;
+use crate::protocol::mr::MergeRequest;
+use crate::protocol::repo::Repo;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -39,7 +40,7 @@ impl ApiHandler for MonoApiService {
     ///
     /// Returns `Ok(())` on success, or a `GitError` on failure.
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError> {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let path = PathBuf::from(file_info.path);
         let mut save_trees = vec![];
 
@@ -55,7 +56,7 @@ impl ApiHandler for MonoApiService {
             {
                 return Err(GitError::CustomError("Duplicate name".to_string()));
             }
-            let blob = converter::generate_git_keep_with_timestamp();
+            let blob = generate_git_keep_with_timestamp();
             let tree_item = TreeItem {
                 mode: TreeItemMode::Blob,
                 id: blob.id,
@@ -117,14 +118,14 @@ impl ApiHandler for MonoApiService {
     async fn publish_path(&self, publish_info: PublishPathInfo) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let repo: Repo = publish_info.into();
-        storage.save_git_repo(repo.clone()).await.unwrap();
+        storage.save_git_repo(repo.clone().into()).await.unwrap();
         Ok(())
     }
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
         self.context
             .services
-            .mega_storage
+            .mono_storage
             .get_raw_blob_by_hash(hash)
             .await
     }
@@ -138,7 +139,7 @@ impl ApiHandler for MonoApiService {
     }
 
     async fn get_root_tree(&self) -> Tree {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let refs = storage.get_ref("/").await.unwrap().unwrap();
 
         storage
@@ -152,7 +153,7 @@ impl ApiHandler for MonoApiService {
     async fn get_tree_by_hash(&self, hash: &str) -> Tree {
         self.context
             .services
-            .mega_storage
+            .mono_storage
             .get_tree_by_hash(hash)
             .await
             .unwrap()
@@ -161,7 +162,7 @@ impl ApiHandler for MonoApiService {
     }
 
     async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let tree_info = storage.get_tree_by_hash(t_hash).await.unwrap().unwrap();
         storage
             .get_commit_by_hash(&tree_info.commit_id)
@@ -176,7 +177,7 @@ impl ApiHandler for MonoApiService {
         item_to_commit: &mut HashMap<String, String>,
         hashes: Vec<String>,
     ) {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let trees = storage.get_trees_by_hashes(hashes).await.unwrap();
         for tree in trees {
             item_to_commit.insert(tree.tree_id, tree.commit_id);
@@ -188,7 +189,7 @@ impl ApiHandler for MonoApiService {
         item_to_commit: &mut HashMap<String, String>,
         hashes: Vec<String>,
     ) {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let blobs = storage.get_mega_blobs_by_hashes(hashes).await.unwrap();
         for blob in blobs {
             item_to_commit.insert(blob.blob_id, blob.commit_id);
@@ -196,7 +197,7 @@ impl ApiHandler for MonoApiService {
     }
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let commits = storage.get_commits_by_hashes(&c_hashes).await.unwrap();
         Ok(commits.into_iter().map(|x| x.into()).collect())
     }
@@ -208,7 +209,7 @@ impl ApiHandler for MonoApiService {
 
 impl MonoApiService {
     pub async fn init_monorepo(&self) {
-        self.context.services.mega_storage.init_monorepo().await
+        self.context.services.mono_storage.init_monorepo().await
     }
 
     pub async fn mr_list(&self, status: &str) -> Result<Vec<MrInfoItem>, MegaError> {
@@ -220,13 +221,13 @@ impl MonoApiService {
             vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
             // return Err(MegaError::with_message("Invalid status name"));
         };
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let mr_list = storage.get_mr_by_status(status).await.unwrap();
         Ok(mr_list.into_iter().map(|m| m.into()).collect())
     }
 
     pub async fn mr_detail(&self, mr_id: i64) -> Result<Option<MRDetail>, MegaError> {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let model = storage.get_mr(mr_id).await.unwrap();
         if let Some(model) = model {
             let mut detail: MRDetail = model.into();
@@ -238,7 +239,7 @@ impl MonoApiService {
     }
 
     pub async fn mr_tree_files(&self, mr_id: i64) -> Result<Vec<PathBuf>, MegaError> {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let model = storage.get_mr(mr_id).await.unwrap();
         if let Some(model) = model {
             let to_tree_id = storage
@@ -293,14 +294,15 @@ impl MonoApiService {
     }
 
     pub async fn merge_mr(&self, mr_id: i64) -> Result<(), MegaError> {
-        let storage = self.context.services.mega_storage.clone();
-        if let Some(mut mr) = storage.get_open_mr_by_id(mr_id).await.unwrap() {
+        let storage = self.context.services.mono_storage.clone();
+        if let Some(model) = storage.get_open_mr_by_id(mr_id).await.unwrap() {
+            let mut mr: MergeRequest = model.into();
             let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
             if mr.from_hash == refs.ref_commit_hash {
                 // update mr
                 mr.merge();
-                storage.update_mr(mr.clone()).await.unwrap();
+                storage.update_mr(mr.clone().into()).await.unwrap();
 
                 let commit: Commit = storage
                     .get_commit_by_hash(&mr.to_hash)
@@ -343,7 +345,7 @@ impl MonoApiService {
         mut tree_vec: Vec<Tree>,
         commit: Commit,
     ) -> Result<String, GitError> {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let mut save_trees = Vec::new();
         let mut p_commit_id = String::new();
 

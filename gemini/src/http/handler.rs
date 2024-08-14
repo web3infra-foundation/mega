@@ -1,5 +1,5 @@
 use jupiter::context::Context;
-use venus::import_repo::repo::Repo;
+use ceres::protocol::repo::Repo;
 
 use crate::{
     ztm::agent::{share_repo, LocalZTMAgent, ZTMAgent},
@@ -33,7 +33,7 @@ pub async fn repo_provide(
     let git_ref = context
         .services
         .git_db_storage
-        .get_default_ref(&repo)
+        .get_default_ref(repo.repo_id)
         .await
         .unwrap()
         .unwrap();
@@ -48,7 +48,7 @@ pub async fn repo_provide(
         identifier,
         origin: peer_id.clone(),
         update_time,
-        commit: git_ref.ref_hash,
+        commit: git_ref.ref_git_id,
         peer_online: true,
     };
     share_repo(url.clone(), repo_info).await;

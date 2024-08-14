@@ -22,5 +22,5 @@ chrono = { workspace = true }
 jupiter = { workspace = true }
 vault = { workspace = true }
 callisto = { workspace = true }
-venus = { workspace = true }
+ceres = { workspace = true }
 neptune = { workspace = true }
