@@ -140,7 +140,7 @@ mod test {
 
     use mercury::{hash::SHA1, internal::object::commit::Commit};
 
-    use crate::monorepo::converter::MegaModelConverter;
+    use crate::utils::converter::MegaModelConverter;
 
     #[test]
     pub fn test_init_mega_dir() {

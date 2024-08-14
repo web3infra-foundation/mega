@@ -15,7 +15,6 @@ common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
 mercury = { workspace = true }
-venus = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 tokio-stream = { workspace = true }

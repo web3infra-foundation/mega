@@ -10,8 +10,9 @@ use common::errors::ProtocolError;
 
 use crate::protocol::ZERO_ID;
 use crate::protocol::{
-    Capability, RefCommand, ServiceType, SideBind, SmartProtocol, TransportProtocol,
+    Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol,
 };
+use crate::protocol::import_refs::RefCommand;
 
 const LF: char = '\n';
 
@@ -400,7 +401,7 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 pub mod test {
     use bytes::{Bytes, BytesMut};
     use callisto::db_enums::RefType;
-    use venus::import_repo::import_refs::{CommandType, RefCommand};
+    use crate::protocol::import_refs::{CommandType, RefCommand};
 
     use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
     use crate::protocol::{Capability, SmartProtocol};

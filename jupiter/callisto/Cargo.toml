@@ -9,7 +9,7 @@ name = "callisto"
 path = "src/lib.rs"
 
 [dependencies]
-common = { path = "../../common" }
+common = { workspace = true }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

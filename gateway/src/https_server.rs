@@ -120,7 +120,7 @@ pub async fn app(
     ztm: ZtmOptions,
 ) -> Router {
     let context = Context::new(config.clone()).await;
-    context.services.mega_storage.init_monorepo().await;
+    context.services.mono_storage.init_monorepo().await;
     let state = AppState {
         host,
         port,
