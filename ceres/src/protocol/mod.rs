@@ -6,12 +6,17 @@ use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
+use import_refs::RefCommand;
 use jupiter::context::Context;
-use venus::{import_repo::import_refs::RefCommand, import_repo::repo::Repo};
+use repo::Repo;
 
 use crate::pack::{handler::PackHandler, import_repo::ImportRepo, monorepo::MonoRepo};
 
 pub mod smart;
+pub mod repo;
+pub mod import_refs;
+pub mod mr;
+pub mod mega_refs;
 
 #[derive(Clone)]
 pub struct SmartProtocol {
@@ -159,7 +164,7 @@ impl SmartProtocol {
                     }
                     ServiceType::ReceivePack => {
                         let repo = Repo::new(self.path.clone(), false);
-                        storage.save_git_repo(repo.clone()).await.unwrap();
+                        storage.save_git_repo(repo.clone().into()).await.unwrap();
                         repo
                     }
                 }

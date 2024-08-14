@@ -157,7 +157,7 @@ impl CacheObject {
         }
     }
 
-    /// transform the CacheObject to venus::internal::pack::entry::Entry
+    /// transform the CacheObject to Entry
     pub fn to_entry(&self) -> Entry {
         match self.obj_type {
             ObjectType::Blob | ObjectType::Tree | ObjectType::Commit | ObjectType::Tag => {

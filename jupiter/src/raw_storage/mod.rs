@@ -30,29 +30,29 @@ pub struct BlobLink {
 pub trait RawStorage: Sync + Send {
     fn get_storage_type(&self) -> StorageType;
 
-    async fn get_ref(&self, repo_name: &str, ref_name: &str) -> Result<String, MegaError>;
+    async fn get_ref(&self, repo_id: i64, ref_name: &str) -> Result<String, MegaError>;
 
     async fn put_ref(
         &self,
-        repo_name: &str,
+        repo_id: i64,
         ref_name: &str,
         ref_hash: &str,
     ) -> Result<(), MegaError>;
 
-    async fn delete_ref(&self, repo_name: &str, ref_name: &str) -> Result<(), MegaError>;
+    async fn delete_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError>;
 
     async fn update_ref(
         &self,
-        repo_name: &str,
+        repo_id: i64,
         ref_name: &str,
         ref_hash: &str,
     ) -> Result<(), MegaError>;
 
-    async fn get_object(&self, repo_name: &str, object_id: &str) -> Result<Bytes, MegaError>;
+    async fn get_object(&self, repo_id: i64, object_id: &str) -> Result<Bytes, MegaError>;
 
     async fn put_object(
         &self,
-        repo_name: &str,
+        repo_id: i64,
         object_id: &str,
         body_content: &[u8],
     ) -> Result<String, MegaError>;
@@ -71,9 +71,9 @@ pub trait RawStorage: Sync + Send {
     // }
 
     // save a entry and return the b_link file
-    async fn convert_blink(&self, repo_name: &str, entry: &Entry) -> Result<Vec<u8>, MegaError> {
+    async fn convert_blink(&self, repo_id: i64, entry: &Entry) -> Result<Vec<u8>, MegaError> {
         let location = self
-            .put_object(repo_name, &entry.hash.to_plain_str(), &entry.data)
+            .put_object(repo_id, &entry.hash.to_plain_str(), &entry.data)
             .await
             .unwrap();
         let handlebars = Handlebars::new();
@@ -103,7 +103,7 @@ pub trait RawStorage: Sync + Send {
         Ok(rendered.into_bytes())
     }
 
-    fn exist_object(&self, repo_name: &str, object_id: &str) -> bool;
+    fn exist_object(&self, repo_id: i64, object_id: &str) -> bool;
 
     fn transform_path(&self, sha1: &str) -> String {
         if sha1.len() < 5 {

@@ -26,12 +26,15 @@ use mercury::{
         pack::entry::Entry,
     },
 };
-use venus::{
-    import_repo::import_refs::{RefCommand, Refs},
-    monorepo::mr::MergeRequest,
-};
 
-use crate::pack::handler::PackHandler;
+use crate::{
+    pack::handler::PackHandler,
+    protocol::{
+        import_refs::{RefCommand, Refs},
+        mega_refs::MegaRefs,
+        mr::MergeRequest,
+    },
+};
 
 pub struct MonoRepo {
     pub context: Context,
@@ -43,11 +46,12 @@ pub struct MonoRepo {
 #[async_trait]
 impl PackHandler for MonoRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
 
         let result = storage.get_ref(self.path.to_str().unwrap()).await.unwrap();
         let refs = if result.is_some() {
-            vec![result.unwrap().into()]
+            let mega_refs: MegaRefs = result.unwrap().into();
+            vec![mega_refs.into()]
         } else {
             let target_path = self.path.clone();
             let refs = storage.get_ref("/").await.unwrap().unwrap();
@@ -116,7 +120,7 @@ impl PackHandler for MonoRepo {
     }
 
     async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
 
         let (mut mr, mr_exist) = self.get_mr().await;
 
@@ -153,11 +157,11 @@ impl PackHandler for MonoRepo {
                     .await
                     .unwrap();
             }
-            storage.update_mr(mr.clone()).await.unwrap();
+            storage.update_mr(mr.clone().into()).await.unwrap();
         } else {
             unpack_res = self.save_entry(receiver).await;
             if unpack_res.is_ok() {
-                storage.save_mr(mr.clone()).await.unwrap();
+                storage.save_mr(mr.clone().into()).await.unwrap();
             }
         };
         unpack_res
@@ -166,7 +170,7 @@ impl PackHandler for MonoRepo {
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
     async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let pack_config = &self.context.config.pack;
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let obj_num = AtomicUsize::new(0);
 
         let refs = storage
@@ -210,7 +214,7 @@ impl PackHandler for MonoRepo {
     ) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let mut want_clone = want.clone();
         let pack_config = &self.context.config.pack;
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let obj_num = AtomicUsize::new(0);
 
         let mut exist_objs = HashSet::new();
@@ -300,7 +304,7 @@ impl PackHandler for MonoRepo {
         Ok(self
             .context
             .services
-            .mega_storage
+            .mono_storage
             .get_trees_by_hashes(hashes)
             .await
             .unwrap()
@@ -315,7 +319,7 @@ impl PackHandler for MonoRepo {
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
         self.context
             .services
-            .mega_storage
+            .mono_storage
             .get_raw_blobs_by_hashes(hashes)
             .await
     }
@@ -328,7 +332,7 @@ impl PackHandler for MonoRepo {
     async fn check_commit_exist(&self, hash: &str) -> bool {
         self.context
             .services
-            .mega_storage
+            .mono_storage
             .get_commit_by_hash(hash)
             .await
             .unwrap()
@@ -342,14 +346,14 @@ impl PackHandler for MonoRepo {
 
 impl MonoRepo {
     async fn get_mr(&self) -> (MergeRequest, bool) {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
 
         let mr = storage
             .get_open_mr(self.path.to_str().unwrap())
             .await
             .unwrap();
         if let Some(mr) = mr {
-            (mr, true)
+            (mr.into(), true)
         } else {
             let mr = MergeRequest {
                 path: self.path.to_str().unwrap().to_owned(),
@@ -370,7 +374,7 @@ impl MonoRepo {
     }
 
     async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
-        let storage = self.context.services.mega_storage.clone();
+        let storage = self.context.services.mono_storage.clone();
         let mut entry_list = Vec::new();
         let mut join_tasks = vec![];
         let mut current_commit_id = String::new();
@@ -398,7 +402,10 @@ impl MonoRepo {
             entry_list.push(entry);
         }
         join_all(join_tasks).await;
-        storage.save_entry(&current_commit_id, entry_list).await.unwrap();
+        storage
+            .save_entry(&current_commit_id, entry_list)
+            .await
+            .unwrap();
         Ok(())
     }
 }

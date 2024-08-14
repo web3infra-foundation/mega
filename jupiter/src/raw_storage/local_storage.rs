@@ -28,8 +28,8 @@ impl RawStorage for LocalStorage {
         StorageType::LocalFs
     }
 
-    async fn get_ref(&self, repo_name: &str, ref_name: &str) -> Result<String, MegaError> {
-        let path = Path::new(&self.base_path).join(repo_name).join(ref_name);
+    async fn get_ref(&self, repo_id: i64, ref_name: &str) -> Result<String, MegaError> {
+        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
         let mut file = fs::File::open(path)?;
         let mut buf = String::new();
         file.read_to_string(&mut buf)?;
@@ -38,11 +38,11 @@ impl RawStorage for LocalStorage {
 
     async fn put_ref(
         &self,
-        repo_name: &str,
+        repo_id: i64,
         ref_name: &str,
         ref_hash: &str,
     ) -> Result<(), MegaError> {
-        let path = Path::new(&self.base_path).join(repo_name).join(ref_name);
+        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
         let parent = path.parent().unwrap();
         fs::create_dir_all(parent)?;
         let mut file = fs::File::create(path)?;
@@ -50,26 +50,26 @@ impl RawStorage for LocalStorage {
         Ok(())
     }
 
-    async fn delete_ref(&self, repo_name: &str, ref_name: &str) -> Result<(), MegaError> {
-        let path = Path::new(&self.base_path).join(repo_name).join(ref_name);
+    async fn delete_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError> {
+        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
         Ok(fs::remove_file(path)?)
     }
 
     async fn update_ref(
         &self,
-        repo_name: &str,
+        repo_id: i64,
         ref_name: &str,
         ref_hash: &str,
     ) -> Result<(), MegaError> {
-        let path = Path::new(&self.base_path).join(repo_name).join(ref_name);
+        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
         let mut file = OpenOptions::new().write(true).open(path).unwrap();
         file.write_all(ref_hash.as_bytes()).unwrap();
         Ok(())
     }
 
-    async fn get_object(&self, repo_name: &str, object_id: &str) -> Result<Bytes, MegaError> {
+    async fn get_object(&self, repo_id: i64, object_id: &str) -> Result<Bytes, MegaError> {
         let path = Path::new(&self.base_path)
-            .join(repo_name)
+            .join(repo_id.to_string())
             .join("objects")
             .join(self.transform_path(object_id));
         let mut file =
@@ -81,12 +81,12 @@ impl RawStorage for LocalStorage {
 
     async fn put_object(
         &self,
-        repo_name: &str,
+        repo_id: i64,
         object_id: &str,
         body_content: &[u8],
     ) -> Result<String, MegaError> {
         let path = Path::new(&self.base_path)
-            .join(repo_name)
+            .join(repo_id.to_string())
             .join("objects")
             .join(self.transform_path(object_id));
         let dir = path.parent().unwrap();
@@ -97,9 +97,9 @@ impl RawStorage for LocalStorage {
         Ok(path.to_str().unwrap().to_string())
     }
 
-    fn exist_object(&self, repo_name: &str, object_id: &str) -> bool {
+    fn exist_object(&self, repo_id: i64, object_id: &str) -> bool {
         let path = Path::new(&self.base_path)
-            .join(repo_name)
+            .join(repo_id.to_string())
             .join("objects")
             .join(self.transform_path(object_id));
         Path::exists(&path)
@@ -124,9 +124,9 @@ mod tests {
         source.push("tests/objects");
 
         let local_storage = LocalStorage::init(source.clone());
-        assert!(local_storage.put_object("", &oid, &content).await.is_ok());
+        assert!(local_storage.put_object(0, &oid, &content).await.is_ok());
 
-        assert!(local_storage.exist_object("", &oid));
+        assert!(local_storage.exist_object(0, &oid));
     }
 
     #[tokio::test]
@@ -137,7 +137,7 @@ mod tests {
 
         storage
             .put_ref(
-                "",
+                0,
                 "refs/tags/1.0",
                 "5bb8ee25bac1014c15abc49c56d1ee0aab1050cb",
             )
@@ -160,7 +160,7 @@ mod tests {
 
         // run test code
         storage
-            .update_ref("", ref_name, "04ea005354bbbf8bf676fd97d8993a66ffeaa472")
+            .update_ref(0, ref_name, "04ea005354bbbf8bf676fd97d8993a66ffeaa472")
             .await
             .unwrap();
         let buf = fs::read_to_string(&ref_path).unwrap();
@@ -178,7 +178,7 @@ mod tests {
         fs::write(&ref_path, "5bb8ee25bac1014c15abc49c56d1ee0aab1050cb").unwrap();
 
         let storage = LocalStorage::init(test_path.clone());
-        storage.delete_ref("", ref_name).await.unwrap();
+        storage.delete_ref(0, ref_name).await.unwrap();
         let ref_path = test_path.join(ref_name);
         assert!(!Path::exists(&ref_path));
     }
@@ -188,7 +188,7 @@ mod tests {
         let mut test_path = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         test_path.push("tests");
         let storage = LocalStorage::init(test_path.clone());
-        let ref_hash = storage.get_ref("", "refs/heads/master").await.unwrap();
+        let ref_hash = storage.get_ref(0, "refs/heads/master").await.unwrap();
         assert_eq!(ref_hash, "5bb8ee25bac1014c15abc49c56d1ee0aab1050cb")
     }
 }
