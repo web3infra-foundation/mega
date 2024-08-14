@@ -2,9 +2,10 @@ FROM debian:bookworm-slim
 
 WORKDIR /opt/mega
 
-RUN echo "deb http://mirrors.ustc.edu.cn/debian bookworm main contrib non-free" > /etc/apt/sources.list && \
-    echo "deb http://mirrors.ustc.edu.cn/debian-security bookworm-security main contrib non-free" >> /etc/apt/sources.list && \
-    echo "deb http://mirrors.ustc.edu.cn/debian bookworm-updates main contrib non-free" >> /etc/apt/sources.list
+# set mirror for apt
+# RUN echo "deb http://mirrors.ustc.edu.cn/debian bookworm main contrib non-free" > /etc/apt/sources.list && \
+#     echo "deb http://mirrors.ustc.edu.cn/debian-security bookworm-security main contrib non-free" >> /etc/apt/sources.list && \
+#     echo "deb http://mirrors.ustc.edu.cn/debian bookworm-updates main contrib non-free" >> /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y \
     cmake \
@@ -27,11 +28,11 @@ ENV PATH=/root/.cargo/bin:$PATH！
 
 # copy the source code, the context must be the root of the project
 COPY . .
-RUN chmod +x /opt/mega/docker/startmono.sh
+RUN chmod +x /opt/mega/docker/start_mono.sh
 
 # build
 RUN cargo build -p mono
 
 VOLUME /etc/mega
 
-CMD ["bash", "-c", "/opt/mega/docker/startmono.sh"]
+CMD ["bash", "-c", "/opt/mega/docker/start_mono.sh"]
