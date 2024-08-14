@@ -300,7 +300,7 @@ pub async fn lfs_upload_object(
             let sub_id = sha256::digest(chunk);
             let res = config
                 .lfs_storage
-                .put_object(&config.repo_name, &sub_id, chunk)
+                .put_object(0, &sub_id, chunk)
                 .await;
             if res.is_err() {
                 lfs_delete_meta(config.context.services.lfs_storage.clone(), request_vars)
@@ -327,7 +327,7 @@ pub async fn lfs_upload_object(
         // normal mode
         let res = config
             .lfs_storage
-            .put_object(&config.repo_name, &meta.oid, body_bytes)
+            .put_object(0, &meta.oid, body_bytes)
             .await;
         if res.is_err() {
             lfs_delete_meta(config.context.services.lfs_storage.clone(), request_vars)
@@ -359,7 +359,7 @@ pub async fn lfs_download_object(
                 for relation in relations {
                     let sub_bytes = config
                         .lfs_storage
-                        .get_object(&config.repo_name, &relation.sub_oid)
+                        .get_object(0, &relation.sub_oid)
                         .await
                         .unwrap();
                     let offset = relation.offset as usize;
@@ -382,7 +382,7 @@ pub async fn lfs_download_object(
 
                 let bytes = config
                     .lfs_storage
-                    .get_object(&config.repo_name, &sub_oid)
+                    .get_object(0, &sub_oid)
                     .await
                     .unwrap();
                 Ok(bytes)
@@ -394,7 +394,7 @@ pub async fn lfs_download_object(
             .unwrap();
         let bytes = config
             .lfs_storage
-            .get_object(&config.repo_name, &meta.oid)
+            .get_object(0, &meta.oid)
             .await
             .unwrap();
         Ok(bytes)
@@ -479,12 +479,12 @@ async fn lfs_file_exist(config: &LfsConfig, meta: &MetaObject) -> bool {
         relations.iter().all(|relation| {
             config
                 .lfs_storage
-                .exist_object(&config.repo_name, &relation.sub_oid)
+                .exist_object(0, &relation.sub_oid)
         })
     } else {
         config
             .lfs_storage
-            .exist_object(&config.repo_name, &meta.oid)
+            .exist_object(0, &meta.oid)
     }
 }
 

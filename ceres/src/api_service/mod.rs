@@ -7,6 +7,7 @@ use axum::async_trait;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
+use jupiter::utils::converter::generate_git_keep_with_timestamp;
 use mercury::{
     errors::GitError,
     internal::object::{
@@ -14,10 +15,11 @@ use mercury::{
         tree::{Tree, TreeItem, TreeItemMode},
     },
 };
-use venus::monorepo::converter;
 
 use crate::model::{
-    create_file::CreateFileInfo, publish_path::PublishPathInfo, tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo}
+    create_file::CreateFileInfo,
+    publish_path::PublishPathInfo,
+    tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo},
 };
 
 pub mod import_api_service;
@@ -314,7 +316,7 @@ pub trait ApiHandler: Send + Sync {
             }
         }
 
-        let blob = converter::generate_git_keep_with_timestamp();
+        let blob = generate_git_keep_with_timestamp();
         let mut last_tree = Tree::from_tree_items(vec![TreeItem {
             mode: TreeItemMode::Blob,
             id: blob.id,

@@ -6,7 +6,6 @@ members = [
     "common",
     "mercury",
     "jupiter",
-    "venus",
     "ceres",
     "libra",
     "vault",
@@ -26,7 +25,6 @@ gateway = { path = "gateway" }
 common = { path = "common" }
 mercury = { path = "mercury" }
 jupiter = { path = "jupiter" }
-venus = { path = "venus" }
 ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
 gemini = { path = "gemini" }
@@ -65,7 +63,7 @@ russh-keys = "0.44.0"
 axum = "0.7.5"
 axum-extra = "0.9.3"
 tower-http = "0.5.2"
-tower = "0.4.13"
+tower = "0.5.0"
 hex = "0.4.3"
 sea-orm = "1.0.0"
 flate2 = "1.0.30"

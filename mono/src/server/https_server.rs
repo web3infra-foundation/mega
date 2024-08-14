@@ -126,7 +126,7 @@ pub async fn start_http(config: Config, options: HttpOptions) {
 
 pub async fn app(config: Config, host: String, port: u16, common: CommonOptions) -> Router {
     let context = Context::new(config.clone()).await;
-    context.services.mega_storage.init_monorepo().await;
+    context.services.mono_storage.init_monorepo().await;
     let state = AppState {
         host,
         port,

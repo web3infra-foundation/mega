@@ -1,6 +1,7 @@
 use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
-use venus::import_repo::repo::Repo;
+
+use crate::protocol::repo::Repo;
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PublishPathInfo {

@@ -14,9 +14,6 @@ use common::config::StorageConfig;
 use common::errors::MegaError;
 use mercury::internal::object::GitObjectModel;
 use mercury::internal::pack::entry::Entry;
-use venus::import_repo::import_refs::RefCommand;
-use venus::import_repo::import_refs::Refs;
-use venus::import_repo::repo::Repo;
 
 use crate::{
     raw_storage::{self, RawStorage},
@@ -43,10 +40,10 @@ struct GitObjects {
 
 #[async_trait]
 impl GitStorageProvider for GitDbStorage {
-    async fn save_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
-        let mut model: import_refs::Model = refs.clone().into();
-        model.repo_id = repo.repo_id;
-        let a_model = model.into_active_model();
+    async fn save_ref(&self, repo_id: i64, mut refs: import_refs::Model) -> Result<(), MegaError> {
+        // let mut model: import_refs::Model = refs.clone().into();
+        refs.repo_id = repo_id;
+        let a_model = refs.into_active_model();
         import_refs::Entity::insert(a_model)
             .exec(self.get_connection())
             .await
@@ -54,28 +51,32 @@ impl GitStorageProvider for GitDbStorage {
         Ok(())
     }
 
-    async fn remove_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
+    async fn remove_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError> {
         import_refs::Entity::delete_many()
-            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
-            .filter(import_refs::Column::RefName.eq(refs.ref_name.clone()))
+            .filter(import_refs::Column::RepoId.eq(repo_id))
+            .filter(import_refs::Column::RefName.eq(ref_name))
             .exec(self.get_connection())
             .await?;
         Ok(())
     }
 
-    async fn get_ref(&self, repo: &Repo) -> Result<Vec<Refs>, MegaError> {
+    async fn get_ref(&self, repo_id: i64) -> Result<Vec<import_refs::Model>, MegaError> {
         let result = import_refs::Entity::find()
-            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::RepoId.eq(repo_id))
             .order_by_asc(import_refs::Column::RefName)
             .all(self.get_connection())
             .await?;
-        let res: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
-        Ok(res)
+        Ok(result)
     }
 
-    async fn update_ref(&self, repo: &Repo, ref_name: &str, new_id: &str) -> Result<(), MegaError> {
+    async fn update_ref(
+        &self,
+        repo_id: i64,
+        ref_name: &str,
+        new_id: &str,
+    ) -> Result<(), MegaError> {
         let ref_data: import_refs::Model = import_refs::Entity::find()
-            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::RepoId.eq(repo_id))
             .filter(import_refs::Column::RefName.eq(ref_name))
             .one(self.get_connection())
             .await
@@ -111,30 +112,34 @@ impl GitDbStorage {
         }
     }
 
-    pub async fn get_default_ref(&self, repo: &Repo) -> Result<Option<Refs>, MegaError> {
+    pub async fn get_default_ref(
+        &self,
+        repo_id: i64,
+    ) -> Result<Option<import_refs::Model>, MegaError> {
         let result = import_refs::Entity::find()
-            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::RepoId.eq(repo_id))
             .filter(import_refs::Column::DefaultBranch.eq(true))
             .one(self.get_connection())
             .await?;
-        if let Some(model) = result {
-            let refs: Refs = model.into();
-            Ok(Some(refs))
-        } else {
-            Ok(None)
-        }
+        Ok(result)
+        // if let Some(model) = result {
+        //     let refs: Refs = model.into();
+        //     Ok(Some(refs))
+        // } else {
+        //     Ok(None)
+        // }
     }
 
-    pub async fn default_branch_exist(&self, repo: &Repo) -> Result<bool, MegaError> {
+    pub async fn default_branch_exist(&self, repo_id: i64) -> Result<bool, MegaError> {
         let result = import_refs::Entity::find()
-            .filter(import_refs::Column::RepoId.eq(repo.repo_id))
+            .filter(import_refs::Column::RepoId.eq(repo_id))
             .filter(import_refs::Column::DefaultBranch.eq(true))
             .count(self.get_connection())
             .await?;
         Ok(result > 0)
     }
 
-    pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
+    pub async fn save_entry(&self, repo_id: i64, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         let git_objects = Arc::new(Mutex::new(GitObjects {
             commits: Vec::new(),
             trees: Vec::new(),
@@ -154,20 +159,20 @@ impl GitDbStorage {
 
                     match model {
                         GitObjectModel::Commit(mut commit) => {
-                            commit.repo_id = repo.repo_id;
+                            commit.repo_id = repo_id;
                             git_objects.commits.push(commit.into_active_model())
                         }
                         GitObjectModel::Tree(mut tree) => {
-                            tree.repo_id = repo.repo_id;
+                            tree.repo_id = repo_id;
                             git_objects.trees.push(tree.clone().into_active_model());
                         }
                         GitObjectModel::Blob(mut blob, raw) => {
-                            blob.repo_id = repo.repo_id;
+                            blob.repo_id = repo_id;
                             git_objects.blobs.push(blob.clone().into_active_model());
                             git_objects.raw_blobs.push(raw.into_active_model());
                         }
                         GitObjectModel::Tag(mut tag) => {
-                            tag.repo_id = repo.repo_id;
+                            tag.repo_id = repo_id;
                             git_objects.tags.push(tag.into_active_model())
                         }
                     }
@@ -240,9 +245,9 @@ impl GitDbStorage {
         Ok(result)
     }
 
-    pub async fn save_git_repo(&self, repo: Repo) -> Result<(), MegaError> {
-        let model: git_repo::Model = repo.into();
-        let a_model = model.into_active_model();
+    pub async fn save_git_repo(&self, repo: git_repo::Model) -> Result<(), MegaError> {
+        // let model: git_repo::Model = repo.into();
+        let a_model = repo.into_active_model();
         git_repo::Entity::insert(a_model)
             .exec(self.get_connection())
             .await
@@ -252,11 +257,11 @@ impl GitDbStorage {
 
     pub async fn get_commit_by_hash(
         &self,
-        repo: &Repo,
+        repo_id: i64,
         hash: &str,
     ) -> Result<Option<git_commit::Model>, MegaError> {
         Ok(git_commit::Entity::find()
-            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(git_commit::Column::RepoId.eq(repo_id))
             .filter(git_commit::Column::CommitId.eq(hash))
             .one(self.get_connection())
             .await
@@ -265,35 +270,35 @@ impl GitDbStorage {
 
     pub async fn get_commits_by_hashes(
         &self,
-        repo: &Repo,
+        repo_id: i64,
         hashes: &Vec<String>,
     ) -> Result<Vec<git_commit::Model>, MegaError> {
         Ok(git_commit::Entity::find()
-            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(git_commit::Column::RepoId.eq(repo_id))
             .filter(git_commit::Column::CommitId.is_in(hashes))
             .all(self.get_connection())
             .await
             .unwrap())
     }
 
-    pub async fn get_commits_by_repo_id<'a>(
-        &'a self,
-        repo: &'a Repo,
-    ) -> Result<impl Stream<Item = Result<git_commit::Model, DbErr>> + 'a + Send, MegaError> {
+    pub async fn get_commits_by_repo_id(
+        &self,
+        repo_id: i64,
+    ) -> Result<impl Stream<Item = Result<git_commit::Model, DbErr>> + Send + '_, MegaError> {
         let stream = git_commit::Entity::find()
-            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(git_commit::Column::RepoId.eq(repo_id))
             .stream(self.get_connection())
             .await
             .unwrap();
         Ok(stream)
     }
 
-    pub async fn get_trees_by_repo_id<'a>(
-        &'a self,
-        repo: &'a Repo,
-    ) -> Result<impl Stream<Item = Result<git_tree::Model, DbErr>> + 'a + Send, MegaError> {
+    pub async fn get_trees_by_repo_id(
+        &self,
+        repo_id: i64,
+    ) -> Result<impl Stream<Item = Result<git_tree::Model, DbErr>> + '_ + Send, MegaError> {
         Ok(git_tree::Entity::find()
-            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tree::Column::RepoId.eq(repo_id))
             .stream(self.get_connection())
             .await
             .unwrap())
@@ -301,11 +306,11 @@ impl GitDbStorage {
 
     pub async fn get_trees_by_hashes(
         &self,
-        repo: &Repo,
+        repo_id: i64,
         hashes: Vec<String>,
     ) -> Result<Vec<git_tree::Model>, MegaError> {
         Ok(git_tree::Entity::find()
-            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tree::Column::RepoId.eq(repo_id))
             .filter(git_tree::Column::TreeId.is_in(hashes))
             .all(self.get_connection())
             .await
@@ -314,23 +319,23 @@ impl GitDbStorage {
 
     pub async fn get_tree_by_hash(
         &self,
-        repo: &Repo,
+        repo_id: i64,
         hash: &str,
     ) -> Result<Option<git_tree::Model>, MegaError> {
         Ok(git_tree::Entity::find()
-            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tree::Column::RepoId.eq(repo_id))
             .filter(git_tree::Column::TreeId.eq(hash))
             .one(self.get_connection())
             .await
             .unwrap())
     }
 
-    pub async fn get_blobs_by_repo_id<'a>(
-        &'a self,
-        repo: &'a Repo,
-    ) -> Result<impl Stream<Item = Result<git_blob::Model, DbErr>> + 'a + Send, MegaError> {
+    pub async fn get_blobs_by_repo_id(
+        & self,
+        repo_id: i64,
+    ) -> Result<impl Stream<Item = Result<git_blob::Model, DbErr>> + '_ + Send, MegaError> {
         Ok(git_blob::Entity::find()
-            .filter(git_blob::Column::RepoId.eq(repo.repo_id))
+            .filter(git_blob::Column::RepoId.eq(repo_id))
             .stream(self.get_connection())
             .await
             .unwrap())
@@ -338,11 +343,11 @@ impl GitDbStorage {
 
     pub async fn get_blobs_by_hashes(
         &self,
-        repo: &Repo,
+        repo_id: i64,
         hashes: Vec<String>,
     ) -> Result<Vec<git_blob::Model>, MegaError> {
         Ok(git_blob::Entity::find()
-            .filter(git_blob::Column::RepoId.eq(repo.repo_id))
+            .filter(git_blob::Column::RepoId.eq(repo_id))
             .filter(git_blob::Column::BlobId.is_in(hashes))
             .all(self.get_connection())
             .await
@@ -360,35 +365,38 @@ impl GitDbStorage {
             .unwrap())
     }
 
-    pub async fn get_tags_by_repo_id(&self, repo: &Repo) -> Result<Vec<git_tag::Model>, MegaError> {
+    pub async fn get_tags_by_repo_id(
+        &self,
+        repo_id: i64,
+    ) -> Result<Vec<git_tag::Model>, MegaError> {
         Ok(git_tag::Entity::find()
-            .filter(git_tag::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tag::Column::RepoId.eq(repo_id))
             .all(self.get_connection())
             .await
             .unwrap())
     }
 
-    pub async fn get_obj_count_by_repo_id(&self, repo: &Repo) -> usize {
+    pub async fn get_obj_count_by_repo_id(&self, repo_id: i64) -> usize {
         let c_count = git_commit::Entity::find()
-            .filter(git_commit::Column::RepoId.eq(repo.repo_id))
+            .filter(git_commit::Column::RepoId.eq(repo_id))
             .count(self.get_connection())
             .await
             .unwrap();
 
         let t_count = git_tree::Entity::find()
-            .filter(git_tree::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tree::Column::RepoId.eq(repo_id))
             .count(self.get_connection())
             .await
             .unwrap();
 
         let b_count = git_blob::Entity::find()
-            .filter(git_blob::Column::RepoId.eq(repo.repo_id))
+            .filter(git_blob::Column::RepoId.eq(repo_id))
             .count(self.get_connection())
             .await
             .unwrap();
 
         let tag_count = git_tag::Entity::find()
-            .filter(git_tag::Column::RepoId.eq(repo.repo_id))
+            .filter(git_tag::Column::RepoId.eq(repo_id))
             .count(self.get_connection())
             .await
             .unwrap();

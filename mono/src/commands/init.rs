@@ -19,7 +19,7 @@ pub fn cli() -> Command {
 pub(crate) async fn exec(config: Config, _: &ArgMatches) -> MegaResult {
 
     let context = Context::new(config).await;
-    context.services.mega_storage.init_monorepo().await;
+    context.services.mono_storage.init_monorepo().await;
     Ok(())
 }
 
