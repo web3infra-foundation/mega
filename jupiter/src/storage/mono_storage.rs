@@ -17,15 +17,13 @@ use common::errors::MegaError;
 use common::utils::generate_id;
 use mercury::internal::object::MegaObjectModel;
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
-use venus::monorepo::converter::MegaModelConverter;
-use venus::monorepo::mega_refs::MegaRefs;
-use venus::monorepo::mr::MergeRequest;
 
 use crate::raw_storage::{self, RawStorage};
 use crate::storage::batch_save_model;
+use crate::utils::converter::MegaModelConverter;
 
 #[derive(Clone)]
-pub struct MegaStorage {
+pub struct MonoStorage {
     pub raw_storage: Arc<dyn RawStorage>,
     pub connection: Arc<DatabaseConnection>,
     pub raw_obj_threshold: usize,
@@ -40,13 +38,13 @@ struct GitObjects {
     tags: Vec<mega_tag::ActiveModel>,
 }
 
-impl MegaStorage {
+impl MonoStorage {
     pub fn get_connection(&self) -> &DatabaseConnection {
         &self.connection
     }
 
     pub async fn new(connection: Arc<DatabaseConnection>, config: StorageConfig) -> Self {
-        MegaStorage {
+        MonoStorage {
             connection,
             raw_storage: raw_storage::init(config.raw_obj_storage_type, config.raw_obj_local_path)
                 .await,
@@ -55,7 +53,7 @@ impl MegaStorage {
     }
 
     pub fn mock() -> Self {
-        MegaStorage {
+        MonoStorage {
             connection: Arc::new(DatabaseConnection::default()),
             raw_storage: raw_storage::mock(),
             raw_obj_threshold: 1024,
@@ -92,24 +90,23 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn remove_ref(&self, refs: MegaRefs) -> Result<(), MegaError> {
+    pub async fn remove_ref(&self, refs: mega_refs::Model) -> Result<(), MegaError> {
         mega_refs::Entity::delete_by_id(refs.id)
             .exec(self.get_connection())
             .await?;
         Ok(())
     }
 
-    pub async fn get_ref(&self, path: &str) -> Result<Option<MegaRefs>, MegaError> {
+    pub async fn get_ref(&self, path: &str) -> Result<Option<mega_refs::Model>, MegaError> {
         let result = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
             .one(self.get_connection())
             .await?;
-        Ok(result.map(|model| model.into()))
+        Ok(result)
     }
 
-    pub async fn update_ref(&self, refs: MegaRefs) -> Result<(), MegaError> {
-        let ref_data: mega_refs::Model = refs.into();
-        let mut ref_data: mega_refs::ActiveModel = ref_data.into();
+    pub async fn update_ref(&self, refs: mega_refs::Model) -> Result<(), MegaError> {
+        let mut ref_data: mega_refs::ActiveModel = refs.into();
         ref_data.reset(mega_refs::Column::RefCommitHash);
         ref_data.reset(mega_refs::Column::RefTreeHash);
         ref_data.reset(mega_refs::Column::UpdatedAt);
@@ -117,18 +114,14 @@ impl MegaStorage {
         Ok(())
     }
 
-    pub async fn get_open_mr(&self, path: &str) -> Result<Option<MergeRequest>, MegaError> {
+    pub async fn get_open_mr(&self, path: &str) -> Result<Option<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Path.eq(path))
             .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
             .one(self.get_connection())
             .await
             .unwrap();
-        if let Some(model) = model {
-            let mr: MergeRequest = model.into();
-            return Ok(Some(mr));
-        }
-        Ok(None)
+        Ok(model)
     }
 
     pub async fn get_mr_by_status(
@@ -152,29 +145,30 @@ impl MegaStorage {
         Ok(model)
     }
 
-    pub async fn get_open_mr_by_id(&self, mr_id: i64) -> Result<Option<MergeRequest>, MegaError> {
+    pub async fn get_open_mr_by_id(&self, mr_id: i64) -> Result<Option<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find_by_id(mr_id)
             .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
             .one(self.get_connection())
             .await
             .unwrap();
-        if let Some(model) = model {
-            let mr: MergeRequest = model.into();
-            return Ok(Some(mr));
-        }
-        Ok(None)
+        // if let Some(model) = model {
+        //     let mr: MergeRequest = model.into();
+        //     return Ok(Some(mr));
+        // }
+        // Ok(None)
+        Ok(model)
     }
 
-    pub async fn save_mr(&self, mr: MergeRequest) -> Result<(), MegaError> {
-        let model: mega_mr::Model = mr.into();
-        let a_model = model.into_active_model();
+    pub async fn save_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
+        // let model: mega_mr::Model = mr.into();
+        let a_model = mr.into_active_model();
         a_model.insert(self.get_connection()).await.unwrap();
         Ok(())
     }
 
-    pub async fn update_mr(&self, mr: MergeRequest) -> Result<(), MegaError> {
-        let model: mega_mr::Model = mr.into();
-        let mut a_model = model.into_active_model();
+    pub async fn update_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
+        // let model: mega_mr::Model = mr.into();
+        let mut a_model = mr.into_active_model();
         a_model = a_model.reset_all();
         a_model.created_at = NotSet;
         a_model.update(self.get_connection()).await.unwrap();

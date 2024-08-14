@@ -2,6 +2,7 @@ use std::{io::Cursor, sync::Arc};
 
 use async_trait::async_trait;
 
+use callisto::import_refs;
 use common::{config::StorageConfig, errors::MegaError};
 use mercury::{
     hash::SHA1,
@@ -9,10 +10,6 @@ use mercury::{
         object::{types::ObjectType, utils},
         pack::entry::Entry,
     },
-};
-use venus::{
-    import_repo::import_refs::{RefCommand, Refs},
-    import_repo::repo::Repo,
 };
 
 use crate::{
@@ -26,28 +23,29 @@ pub struct GitFsStorage {
 
 #[async_trait]
 impl GitStorageProvider for GitFsStorage {
-    async fn save_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
+    async fn save_ref(&self, repo_id: i64, refs: import_refs::Model) -> Result<(), MegaError> {
         self.raw_storage
-            .put_ref(&repo.repo_name, &refs.ref_name, &refs.new_id)
+            .put_ref(repo_id, &refs.ref_name, &refs.ref_git_id)
             .await
     }
 
-    async fn remove_ref(&self, repo: &Repo, refs: &RefCommand) -> Result<(), MegaError> {
-        self.raw_storage
-            .delete_ref(&repo.repo_name, &refs.ref_name)
-            .await
+    async fn remove_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError> {
+        self.raw_storage.delete_ref(repo_id, ref_name).await
     }
 
-    async fn get_ref(&self, _repo: &Repo) -> Result<Vec<Refs>, MegaError> {
+    async fn get_ref(&self, _repo_id: i64) -> Result<Vec<import_refs::Model>, MegaError> {
         // let ref_hash = self.raw_storage.get_ref(&repo.repo_name, ref_name).await;
         // if let Some()
         todo!()
     }
 
-    async fn update_ref(&self, repo: &Repo, ref_name: &str, new_id: &str) -> Result<(), MegaError> {
-        self.raw_storage
-            .update_ref(&repo.repo_name, ref_name, new_id)
-            .await
+    async fn update_ref(
+        &self,
+        repo_id: i64,
+        ref_name: &str,
+        new_id: &str,
+    ) -> Result<(), MegaError> {
+        self.raw_storage.update_ref(repo_id, ref_name, new_id).await
     }
 }
 
@@ -65,10 +63,10 @@ impl GitFsStorage {
         }
     }
 
-    pub async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError> {
+    pub async fn save_entry(&self, repo_id: i64, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         for entry in entry_list {
             self.raw_storage
-                .put_object(&repo.repo_name, &entry.hash.to_plain_str(), &entry.data)
+                .put_object(repo_id, &entry.hash.to_plain_str(), &entry.data)
                 .await
                 .unwrap();
         }
@@ -77,14 +75,14 @@ impl GitFsStorage {
 
     pub async fn get_entry_by_sha1(
         &self,
-        repo: Repo,
+        repo_id: i64,
         sha1_vec: Vec<&str>,
     ) -> Result<Vec<Entry>, MegaError> {
         let mut res: Vec<Entry> = Vec::new();
         for sha1 in sha1_vec {
             let data = self
                 .raw_storage
-                .get_object(&repo.repo_name, sha1)
+                .get_object(repo_id, sha1)
                 .await
                 .unwrap();
             let (type_num, _) = utils::read_type_and_size(&mut Cursor::new(&data)).unwrap();

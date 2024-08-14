@@ -3,7 +3,8 @@ use std::sync::Arc;
 use common::config::Config;
 
 use crate::storage::{
-    git_db_storage::GitDbStorage, init::database_connection, lfs_storage::LfsStorage, mega_storage::MegaStorage, mq_storage::MQStorage, ztm_storage::ZTMStorage
+    git_db_storage::GitDbStorage, init::database_connection, lfs_storage::LfsStorage,
+    mono_storage::MonoStorage, mq_storage::MQStorage, ztm_storage::ZTMStorage,
 };
 
 #[derive(Clone)]
@@ -29,7 +30,7 @@ impl Context {
 
 #[derive(Clone)]
 pub struct Service {
-    pub mega_storage: Arc<MegaStorage>,
+    pub mono_storage: Arc<MonoStorage>,
     pub git_db_storage: Arc<GitDbStorage>,
     pub lfs_storage: Arc<LfsStorage>,
     pub ztm_storage: Arc<ZTMStorage>,
@@ -40,8 +41,8 @@ impl Service {
     async fn new(config: &Config) -> Service {
         let connection = Arc::new(database_connection(&config.database).await);
         Service {
-            mega_storage: Arc::new(
-                MegaStorage::new(connection.clone(), config.storage.clone()).await,
+            mono_storage: Arc::new(
+                MonoStorage::new(connection.clone(), config.storage.clone()).await,
             ),
             git_db_storage: Arc::new(
                 GitDbStorage::new(connection.clone(), config.storage.clone()).await,
@@ -58,7 +59,7 @@ impl Service {
 
     fn mock() -> Arc<Self> {
         Arc::new(Self {
-            mega_storage: Arc::new(MegaStorage::mock()),
+            mono_storage: Arc::new(MonoStorage::mock()),
             git_db_storage: Arc::new(GitDbStorage::mock()),
             lfs_storage: Arc::new(LfsStorage::mock()),
             ztm_storage: Arc::new(ZTMStorage::mock()),

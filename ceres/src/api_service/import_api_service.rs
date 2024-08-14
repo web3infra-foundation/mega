@@ -13,11 +13,11 @@ use mercury::errors::GitError;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::tree::TreeItem;
-use venus::import_repo::repo::Repo;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
 use crate::model::publish_path::PublishPathInfo;
+use crate::protocol::repo::Repo;
 
 #[derive(Clone)]
 pub struct ImportApiService {
@@ -42,7 +42,7 @@ impl ApiHandler for ImportApiService {
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
         self.context
             .services
-            .mega_storage
+            .mono_storage
             .get_raw_blob_by_hash(hash)
             .await
     }
@@ -58,9 +58,9 @@ impl ApiHandler for ImportApiService {
     }
     async fn get_root_commit(&self) -> Commit {
         let storage = self.context.services.git_db_storage.clone();
-        let refs = storage.get_default_ref(&self.repo).await.unwrap().unwrap();
+        let refs = storage.get_default_ref(self.repo.repo_id).await.unwrap().unwrap();
         storage
-            .get_commit_by_hash(&self.repo, &refs.ref_hash)
+            .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
             .await
             .unwrap()
             .unwrap()
@@ -69,15 +69,15 @@ impl ApiHandler for ImportApiService {
 
     async fn get_root_tree(&self) -> Tree {
         let storage = self.context.services.git_db_storage.clone();
-        let refs = storage.get_default_ref(&self.repo).await.unwrap().unwrap();
+        let refs = storage.get_default_ref(self.repo.repo_id).await.unwrap().unwrap();
 
         let root_commit = storage
-            .get_commit_by_hash(&self.repo, &refs.ref_hash)
+            .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
             .await
             .unwrap()
             .unwrap();
         storage
-            .get_tree_by_hash(&self.repo, &root_commit.tree)
+            .get_tree_by_hash(self.repo.repo_id, &root_commit.tree)
             .await
             .unwrap()
             .unwrap()
@@ -88,7 +88,7 @@ impl ApiHandler for ImportApiService {
         self.context
             .services
             .git_db_storage
-            .get_tree_by_hash(&self.repo, hash)
+            .get_tree_by_hash(self.repo.repo_id, hash)
             .await
             .unwrap()
             .unwrap()
@@ -98,12 +98,12 @@ impl ApiHandler for ImportApiService {
     async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
         let storage = self.context.services.git_db_storage.clone();
         let tree_info = storage
-            .get_tree_by_hash(&self.repo, t_hash)
+            .get_tree_by_hash(self.repo.repo_id, t_hash)
             .await
             .unwrap()
             .unwrap();
         storage
-            .get_commit_by_hash(&self.repo, &tree_info.commit_id)
+            .get_commit_by_hash(self.repo.repo_id, &tree_info.commit_id)
             .await
             .unwrap()
             .unwrap()
@@ -117,7 +117,7 @@ impl ApiHandler for ImportApiService {
     ) {
         let storage = self.context.services.git_db_storage.clone();
         let trees = storage
-            .get_trees_by_hashes(&self.repo, hashes)
+            .get_trees_by_hashes(self.repo.repo_id, hashes)
             .await
             .unwrap();
         for tree in trees {
@@ -132,7 +132,7 @@ impl ApiHandler for ImportApiService {
     ) {
         let storage = self.context.services.git_db_storage.clone();
         let blobs = storage
-            .get_blobs_by_hashes(&self.repo, hashes)
+            .get_blobs_by_hashes(self.repo.repo_id, hashes)
             .await
             .unwrap();
         for blob in blobs {
@@ -143,7 +143,7 @@ impl ApiHandler for ImportApiService {
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let commits = storage
-            .get_commits_by_hashes(&self.repo, &c_hashes)
+            .get_commits_by_hashes(self.repo.repo_id, &c_hashes)
             .await
             .unwrap();
         Ok(commits.into_iter().map(|x| x.into()).collect())
