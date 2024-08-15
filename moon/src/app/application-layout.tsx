@@ -113,7 +113,7 @@ export function ApplicationLayout({
         <Navbar>
           <NavbarSpacer />
           {
-            !user &&
+            !token &&
             <Button href="/login">Login</Button>
           }
           {

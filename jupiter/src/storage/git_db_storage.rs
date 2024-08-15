@@ -122,12 +122,6 @@ impl GitDbStorage {
             .one(self.get_connection())
             .await?;
         Ok(result)
-        // if let Some(model) = result {
-        //     let refs: Refs = model.into();
-        //     Ok(Some(refs))
-        // } else {
-        //     Ok(None)
-        // }
     }
 
     pub async fn default_branch_exist(&self, repo_id: i64) -> Result<bool, MegaError> {
