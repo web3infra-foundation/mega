@@ -21,6 +21,8 @@ sea-orm = { version= "0.12.15",features = [
 ] }
 once_cell = "1.19.0"
 tokio = { version = "1.38.1", features = ["full"] }
+arc-swap = "1.5"
+vm-memory = { version = "0.10", features = ["backend-mmap", "backend-bitmap"] }
 
 [features]
 async-io = []

@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 
 use store::{DictionaryStore, IntoEntry};
 
-struct Dicfuse{
+pub struct Dicfuse{
     store: Arc<DictionaryStore>,
     //runtime: Arc<tokio::runtime::Runtime>,
 }
@@ -41,6 +41,7 @@ impl FileSystem for Dicfuse{
     type Handle = u64;
     
     fn init(&self, capable:FsOptions) -> Result<FsOptions> {
+        println!("Dicfuse init....");
         self.store.import();
         //let mut ops = FsOptions::DO_READDIRPLUS | FsOptions::READDIRPLUS_AUTO;
         Ok(fuse_backend_rs::abi::fuse_abi::FsOptions::empty())
@@ -389,6 +390,7 @@ mod tests {
         });
         // Wait for termination signal
         let mut signals = Signals::new(TERM_SIGNALS).unwrap();
+        println!("Signals start");
         if let Some(_sig) = signals.forever().next() {
             //pass
         }
