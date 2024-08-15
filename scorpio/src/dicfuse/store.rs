@@ -13,12 +13,16 @@ use once_cell::sync::Lazy;
 use radix_trie::{self, TrieCommon};
 use std::sync::{Arc,Mutex};
 use fuse_backend_rs::api::filesystem::DirEntry;
+use crate::fuse::READONLY_INODE;
+
 use super::fuse::{self, default_dic_entry, default_file_entry};
 use super::model::GPath;
 const MEGA_TREE_URL: &str = "localhost:8000";//TODO: make it configable
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE :&str ="file";
 const INODE_DICTIONARY :&str ="directory";
+
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Item {
     name: String,
@@ -132,7 +136,6 @@ pub struct DictionaryStore {
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
 }
 
-
 #[allow(unused)]
 impl DictionaryStore {
     pub fn new() -> Self {
@@ -154,8 +157,10 @@ impl DictionaryStore {
     }
     fn update_inode(&self,pitem:Arc<DicItem>,item:Item){
         self.next_inode.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        
         let alloc_inode = self.next_inode.load(std::sync::atomic::Ordering::Relaxed);
         
+        assert!(alloc_inode < READONLY_INODE );
         if item.content_type=="directory"{
             self.queue.lock().unwrap().push_back(alloc_inode);
         }
@@ -170,7 +175,6 @@ impl DictionaryStore {
 
     }
     pub fn import(&self){
-        
         let items: Vec<Item> = tokio::runtime::Runtime::new().unwrap().block_on(fetch_tree("")).unwrap().collect();//todo: can't tokio
         let root_inode = self.inodes.lock().unwrap().get(&1).unwrap().clone();
         for it in items{
@@ -205,7 +209,6 @@ impl DictionaryStore {
         }
         //queue.clear();
     }
-
     
     pub fn find_path(&self,inode :u64)-> Option<GPath>{
         self.inodes.lock().unwrap().get(&inode).map(|item| item.path_name.clone())
@@ -232,7 +235,6 @@ impl DictionaryStore {
         }
         todo!()
     }
-
 
     pub fn do_readdir(&self,
         ctx: &Context,

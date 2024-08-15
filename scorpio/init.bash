@@ -1,0 +1,2 @@
+umount /tmp/dictest
+
