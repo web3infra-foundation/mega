@@ -1,4 +1,5 @@
-import useSWR from "swr";
+import useSWR, { Fetcher } from "swr";
+import { invoke } from '@tauri-apps/api/tauri';
 
 const endpoint = process.env.NEXT_PUBLIC_API_URL;
 const relay = process.env.NEXT_PUBLIC_RELAY_API_URL;
@@ -26,8 +27,8 @@ const fetcher = async url => {
 
 
 export function useTreeCommitInfo(path) {
-  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/tree/commit-info?path=${path}`, fetcher, {
-    dedupingInterval: 60000,
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/tree/commit-info?path=${path}`, fetcher, {
+    dedupingInterval: 1000,
   })
   return {
     tree: data,
@@ -37,7 +38,7 @@ export function useTreeCommitInfo(path) {
 }
 
 export function useBlobContent(path) {
-  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/blob?path=${path}`, fetcher, {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/blob?path=${path}`, fetcher, {
     dedupingInterval: 60000,
   })
   return {
@@ -56,4 +57,47 @@ export function useRepoList() {
     isLoading,
     isError: error,
   }
+}
+
+// export function usePublishRepo(path: string) {
+//   const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mega/ztm/repo_provide?path=${path}`, fetcher)
+//   return {
+//     data: data,
+//     isLoading,
+//     isError: error,
+//   }
+// }
+
+export const tauriFetcher: Fetcher<any, [string, { [key: string]: any }]> = ([key, args]) => {
+  return invoke(key, args);
+};
+
+export function useMegaStatus() {
+  const { data, error, isLoading } = useSWR(
+    ['mega_service_status', {}],
+    tauriFetcher
+  );
+
+  return {
+    status: data,
+    isLoading,
+    isError: error,
+  };
+}
+
+// normal fetch 
+export async function requestPublishRepo(path) {
+  const response = await fetch(`${endpoint}/api/v1/mega/ztm/repo_provide?path=${path}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to publish repo');
+  }
+
+  // 返回响应数据
+  return response.json();
 }

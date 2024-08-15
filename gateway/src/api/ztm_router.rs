@@ -14,7 +14,7 @@ use crate::api::MegaApiServiceState;
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
         .route("/ztm/repo_provide", get(repo_provide))
-        .route("/ztm/repo_folk", get(repo_folk))
+        .route("/ztm/repo_fork", get(repo_fork))
 }
 
 async fn repo_provide(
@@ -50,7 +50,7 @@ async fn repo_provide(
     Ok(Json(res))
 }
 
-async fn repo_folk(
+async fn repo_fork(
     Query(query): Query<HashMap<String, String>>,
     state: State<MegaApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
@@ -76,7 +76,7 @@ async fn repo_folk(
         }
     };
 
-    let res = gemini::http::handler::repo_folk(
+    let res = gemini::http::handler::repo_fork(
         state.ztm.ztm_agent_port,
         identifier.to_string(),
         local_port,
