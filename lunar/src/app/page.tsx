@@ -1,10 +1,10 @@
 'use client'
 
 import { Flex, Layout } from 'antd';
-import { Skeleton } from "antd";
-import CodeTable from '../../../moon/src/components/CodeTable';
-import MergeList from '../../../moon/src/components/MergeList';
-import { useTreeCommitInfo, useBlobContent } from '@/app/api/fetcher';
+import { Skeleton, Button, Result } from "antd/lib";
+import CodeTable from '@/components/CodeTable';
+import MergeList from '@/components/MergeList';
+import { useTreeCommitInfo, useBlobContent, useMegaStatus } from '@/app/api/fetcher';
 
 const { Content } = Layout;
 
@@ -22,6 +22,7 @@ const layoutStyle = {
   overflow: 'hidden',
   width: 'calc(50% - 8px)',
   maxWidth: 'calc(50% - 8px)',
+  background: '#fff'
 };
 
 const mrList = [
@@ -51,27 +52,43 @@ const mrList = [
 export default function HomePage() {
   const { tree, isTreeLoading, isTreeError } = useTreeCommitInfo("/");
   const { blob, isBlobLoading, isBlobError } = useBlobContent("/README.md");
+  const { status, isLoading, isError } = useMegaStatus();
+
+  if (isTreeLoading || isBlobLoading || isLoading) return <Skeleton />;
 
   return (
-    <Flex gap="middle" wrap>
-      <Layout style={layoutStyle}>
-        {(isTreeLoading || isBlobLoading) &&
-          <Skeleton />
-        }
-        {
-          (tree && blob) &&
-          <CodeTable directory={tree.data} readmeContent={blob.data} treeIsShow={false} />
-        }
-      </Layout>
-      <Layout style={layoutStyle}>
-        {(isTreeLoading || isBlobLoading) &&
-          <Skeleton />
-        }
-        {(!isTreeLoading && !isBlobLoading) &&
-          <MergeList mrList={mrList} />
-        }
-        {/* <Content style={contentStyle}></Content> */}
-      </Layout>
-    </Flex>
+    <div>
+      {!status &&
+        < Result
+          status="warning"
+          title="Set relay server address first to start mega server"
+          extra={
+            <Button type="primary" key="setting" href='/settings'>
+              Go Setting
+            </Button>
+          }
+        />
+      }
+      {
+        status &&
+        <Flex gap="middle" wrap>
+          <Layout style={layoutStyle}>
+            {
+              (tree && blob) &&
+              <CodeTable directory={tree.data} readmeContent={blob.data} />
+            }
+          </Layout>
+          <Layout style={layoutStyle}>
+            {(isTreeLoading || isBlobLoading) &&
+              <Skeleton />
+            }
+            {(!isTreeLoading && !isBlobLoading) &&
+              <MergeList mrList={mrList} />
+            }
+            {/* <Content style={contentStyle}></Content> */}
+          </Layout>
+        </Flex>
+      }
+    </div>
   )
 }

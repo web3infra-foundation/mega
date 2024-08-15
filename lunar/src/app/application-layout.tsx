@@ -37,7 +37,6 @@ import {
   HomeIcon,
   QuestionMarkCircleIcon,
   SparklesIcon,
-  Square2StackIcon,
   TicketIcon,
   ChatBubbleLeftRightIcon,
   CodeBracketSquareIcon,
