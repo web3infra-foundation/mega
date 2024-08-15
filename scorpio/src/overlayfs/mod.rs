@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock, Weak};
 
 use config::Config;
-use fuse_backend_rs::abi::fuse_abi::{stat64, statvfs64, CreateIn, ROOT_ID as FUSE_ROOT_ID};
+use fuse_backend_rs::abi::fuse_abi::{stat64, statvfs64, CreateIn};
 use fuse_backend_rs::api::filesystem::{
     Context, DirEntry, Entry, Layer, OpenOptions
 };
@@ -89,6 +89,7 @@ pub struct OverlayFs {
     no_opendir: AtomicBool,
     killpriv_v2: AtomicBool,
     perfile_dax: AtomicBool,
+    root_inodes: u64,
 }
 
 struct RealHandle {
@@ -843,6 +844,7 @@ impl OverlayFs {
         upper: Option<Arc<BoxedLayer>>,
         lowers: Vec<Arc<BoxedLayer>>,
         params: Config,
+        root_inode:u64,
     ) -> Result<Self> {
         // load root inode
         Ok(OverlayFs {
@@ -857,11 +859,12 @@ impl OverlayFs {
             no_opendir: AtomicBool::new(false),
             killpriv_v2: AtomicBool::new(false),
             perfile_dax: AtomicBool::new(false),
+            root_inodes: root_inode,
         })
     }
 
     pub fn root_inode(&self) -> Inode {
-        FUSE_ROOT_ID
+        self.root_inodes
     }
 
     fn alloc_inode(&self, path: &String) -> Result<u64> {
@@ -870,7 +873,7 @@ impl OverlayFs {
 
     pub fn import(&self) -> Result<()> {
         let mut root = OverlayInode::new();
-        root.inode = FUSE_ROOT_ID;
+        root.inode = self.root_inode();
         root.path = String::from("");
         root.name = String::from("");
         root.lookups = AtomicU64::new(2);
@@ -904,7 +907,7 @@ impl OverlayFs {
         let root_node = Arc::new(root);
 
         // insert root inode into hash
-        self.insert_inode(FUSE_ROOT_ID, Arc::clone(&root_node));
+        self.insert_inode(self.root_inode(), Arc::clone(&root_node));
 
         info!("loading root directory\n");
         self.load_directory(&ctx, &root_node)?;
@@ -914,7 +917,7 @@ impl OverlayFs {
 
     fn root_node(&self) -> Arc<OverlayInode> {
         // Root node must exist.
-        self.get_active_inode(FUSE_ROOT_ID).unwrap()
+        self.get_active_inode(self.root_inode()).unwrap()
     }
 
     fn insert_inode(&self, inode: u64, node: Arc<OverlayInode>) {
@@ -970,7 +973,7 @@ impl OverlayFs {
         // Current file or dir.
         if name.eq(".")  
             // Root directory has no parent.
-            || (parent == FUSE_ROOT_ID && name.eq("..")) 
+            || (parent == self.root_inode() && name.eq("..")) 
             // Special convention: empty name indicates current dir.
             || name.is_empty()
         {
@@ -2150,11 +2153,10 @@ impl OverlayFs {
 
     
     // extend or init the inodes number to one overlay if the current number is done.
-    pub fn extend_inode_alloc(&mut self,key:u64){
+    pub fn extend_inode_alloc(&self,key:u64){
         let next_inode = key * INODE_ALLOC_BATCH;
         let limit_inode = next_inode + INODE_ALLOC_BATCH -1;
         self.inodes.write().unwrap().extend_inode_number(next_inode, limit_inode);
-        
     }
 }
 #[cfg(not(feature = "async-io"))]
@@ -2272,7 +2274,7 @@ mod tests {
             do_import: true, 
             ..Default::default() };
         
-        let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config).unwrap();
+        let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config,1).unwrap();
         // Import overlayfs
         overlayfs.import().unwrap();
 
