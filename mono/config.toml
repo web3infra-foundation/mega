@@ -1,5 +1,5 @@
 # the directory where the data files is located, such as logs, database, etc.
-# can be overrided by environment variable `MONO_BASE_DIR`
+# can be overrided by environment variable `MEGA_BASE_DIR`
 base_dir = "/tmp/.mega"
 
 # Filling the following environment variables with values you set
