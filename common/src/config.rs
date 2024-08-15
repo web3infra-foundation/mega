@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     pub base_dir: PathBuf,
     pub log: LogConfig,
@@ -35,6 +35,25 @@ impl Config {
     pub fn from_config(config: c::Config) -> Result<Self, c::ConfigError> {
         // config.get::<Self>(env!("CARGO_PKG_NAME"))
         config.try_deserialize::<Config>()
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let base_dir = PathBuf::from(
+            std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| "/tmp/.mega".to_string()),
+        );
+        std::fs::create_dir_all(&base_dir).unwrap();
+        
+        // use mega/config.toml because mega use sqlite as default db
+        let default_config = include_str!("../../mega/config.toml");
+        let default_config = default_config.replace("/tmp/.mega", base_dir.to_str().unwrap());
+
+        let config_path = base_dir.join("config.toml");
+        std::fs::write(&config_path, default_config).unwrap();
+        eprintln!("create default config.toml in {:?}", &config_path);
+
+        Config::new(config_path.to_str().unwrap()).unwrap()
     }
 }
 
