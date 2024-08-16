@@ -2,7 +2,7 @@ use clap::Subcommand;
 use regex::Regex;
 use std::fs::{File, OpenOptions};
 use std::io;
-use std::io::{BufRead, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use crate::utils::{path, util};
 use crate::utils::path_ext::PathExt;
@@ -21,7 +21,7 @@ pub enum LfsCmds {
 
 pub async fn execute(cmd: LfsCmds) {
     match cmd {
-        LfsCmds::Track { pattern } => {
+        LfsCmds::Track { pattern } => { // TODO: deduplicate
             let attr_path = path::attributes().to_string_or_panic();
             match pattern {
                 Some(pattern) => {
@@ -39,7 +39,8 @@ pub async fn execute(cmd: LfsCmds) {
             }
         }
         LfsCmds::Untrack { path } => {
-            println!("{:?}", path);
+            let attr_path = path::attributes().to_string_or_panic();
+            untrack_lfs_patterns(&attr_path, path).unwrap();
         }
     }
 }
@@ -63,14 +64,53 @@ fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()> {
         }
     }
 
-    let lfs_patterns = extract_lfs_patterns(&file_path)?;
+    let lfs_patterns = extract_lfs_patterns(file_path)?;
     for pattern in patterns {
         if lfs_patterns.contains(&pattern) {
             continue;
         }
-        println!("Tracking {}", pattern);
+        println!("Tracking \"{}\"", pattern);
         let pattern = format!("{} filter=lfs diff=lfs merge=lfs -text\n", pattern.replace(" ", r"\ "));
         file.write_all(pattern.as_bytes())?;
+    }
+
+    Ok(())
+}
+
+fn untrack_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()> {
+    if !Path::new(file_path).exists() {
+        return Ok(());
+    }
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    let mut lines: Vec<String> = Vec::new();
+    for line in reader.lines() {
+        let line = line?;
+        let mut matched_pattern = None;
+        // delete the specified lfs patterns
+        for pattern in &patterns {
+            let pattern = pattern.replace(" ", r"\ ");
+            if line.trim_start().starts_with(&pattern) && line.contains("filter=lfs") {
+                matched_pattern = Some(pattern);
+                break;
+            }
+        }
+        match matched_pattern {
+            Some(pattern) => println!("Untracking \"{}\"", pattern),
+            None => lines.push(line),
+        }
+    }
+
+    // clear the file
+    let mut file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(file_path)?;
+
+    for line in lines {
+        file.write_all(line.as_bytes())?;
+        file.write_all(b"\n")?;
     }
 
     Ok(())
@@ -81,8 +121,8 @@ fn extract_lfs_patterns(file_path: &str) -> io::Result<Vec<String>> {
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let file = File::open(&path)?;
-    let reader = io::BufReader::new(file);
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
 
     // ' ' needs '\' before it to be escaped
     let re = Regex::new(r"^\s*(([^\s#\\]|\\ )+)").unwrap();
