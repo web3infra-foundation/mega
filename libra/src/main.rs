@@ -39,6 +39,8 @@ enum Commands {
     Restore(command::restore::RestoreArgs),
     #[command(about = "Show the working tree status")]
     Status,
+    #[command(subcommand, about = "Large File Storage")]
+    Lfs(command::lfs::LfsCmds),
     #[command(about = "Show commit logs")]
     Log(command::log::LogArgs),
     #[command(about = "List, create, or delete branches")]
@@ -96,6 +98,7 @@ async fn main() {
         Commands::Rm(args) => command::remove::execute(args).unwrap(),
         Commands::Restore(args) => command::restore::execute(args).await,
         Commands::Status => command::status::execute().await,
+        Commands::Lfs(cmd) => command::lfs::execute(cmd).await,
         Commands::Log(args) => command::log::execute(args).await,
         Commands::Branch(args) => command::branch::execute(args).await,
         Commands::Commit(args) => command::commit::execute(args).await,

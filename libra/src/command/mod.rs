@@ -14,6 +14,7 @@ pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
+pub mod lfs;
 
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils::util;
