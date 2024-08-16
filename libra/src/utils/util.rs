@@ -13,6 +13,7 @@ use crate::utils::path_ext::PathExt;
 
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
+pub const ATTRIBUTES: &str = ".libra_attributes";
 
 /// Returns the current working directory as a `PathBuf`.
 ///
