@@ -12,7 +12,7 @@ import {
     DocumentIcon,
 } from '@heroicons/react/20/solid'
 import { requestPublishRepo } from '@/app/api/fetcher'
-
+import { Button } from '@/components/catalyst/button'
 
 export interface DataType {
     oid: string;
@@ -78,8 +78,8 @@ const CodeTable = ({ directory, readmeContent }) => {
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
-                    <a onClick={() => showModal(record.name)}>Publish</a>
-                    <a>Revoke</a>
+                    <Button onClick={() => showModal(record.name)}>Publish</Button>
+                    <Button outline>Revoke</Button>
                 </Space>
             ),
         },
