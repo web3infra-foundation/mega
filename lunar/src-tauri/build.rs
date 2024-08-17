@@ -37,7 +37,7 @@ fn main() {
         "release"
     };
 
-    std::fs::copy(format!("../../target/{}/mega", debug_path), sidecar_path)
+    std::fs::copy(format!("../../target/{}/mega{}", debug_path, extension), sidecar_path)
         .expect("Run Cargo build for mega first");
 
     // Copy libpipy due to target os

@@ -6,9 +6,17 @@ import RepoTree from '@/components/RepoTree'
 import { useBlobContent, useTreeCommitInfo } from '@/app/api/fetcher'
 import { useSearchParams } from 'next/navigation';
 import { Skeleton, Flex, Layout } from "antd/lib";
-
+import { Suspense } from 'react'
 
 export default function Page() {
+    return (
+        <Suspense>
+            <Tree />
+        </Suspense>
+    );
+}
+
+function Tree() {
     const searchParams = useSearchParams();
     const path = searchParams.get('path');
     const { tree, isTreeLoading, isTreeError } = useTreeCommitInfo(path);
@@ -50,5 +58,5 @@ export default function Page() {
                 <CodeTable directory={tree.data} readmeContent={blob.data} />
             </Layout>
         </Flex>
-    );
+    )
 }

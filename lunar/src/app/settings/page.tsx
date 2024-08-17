@@ -75,6 +75,20 @@ export default function Settings() {
 
       <Divider className="my-10" soft />
 
+      <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Subheading>ZTM Agent Peer Id</Subheading>
+        </div>
+        <div>
+          <Input disabled={true} aria-label="Bootstrap Node" name="bootstrap_node"
+            value={params.bootstrap_node}
+          />
+        </div>
+      </section>
+
+      <Divider className="my-10" soft />
+
+
       <div className="flex justify-end gap-4">
         <Button>
           Reset
