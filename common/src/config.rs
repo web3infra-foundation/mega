@@ -44,10 +44,20 @@ impl Default for Config {
             std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| "/tmp/.mega".to_string()),
         );
         std::fs::create_dir_all(&base_dir).unwrap();
-        
+
         // use mega/config.toml because mega use sqlite as default db
         let default_config = include_str!("../../mega/config.toml");
-        let default_config = default_config.replace("/tmp/.mega", base_dir.to_str().unwrap());
+        let default_config = default_config
+            .lines()
+            .map(|line| {
+                if line.starts_with("base_dir ") {
+                    format!("base_dir = \"{}\"", base_dir.to_str().unwrap())
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
 
         let config_path = base_dir.join("config.toml");
         std::fs::write(&config_path, default_config).unwrap();
