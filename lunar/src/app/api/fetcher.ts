@@ -28,7 +28,7 @@ const fetcher = async url => {
 
 export function useTreeCommitInfo(path) {
   const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/tree/commit-info?path=${path}`, fetcher, {
-    dedupingInterval: 1000,
+    dedupingInterval: 30000,
   })
   return {
     tree: data,
@@ -45,6 +45,39 @@ export function useBlobContent(path) {
     blob: data,
     isBlobLoading: isLoading,
     isBlobError: error,
+  }
+}
+
+export function useMRList(status) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/mr/list?status=${status}`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    mrList: data,
+    isMRLoading: isLoading,
+    isMRError: error,
+  }
+}
+
+export function useMRDetail(id) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/mr/${id}/detail`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    mrDetail: data,
+    isMRLoading: isLoading,
+    isMRError: error,
+  }
+}
+
+export function useMRFiles(id) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/mr/${id}/files`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    mrFiles: data,
+    isMRLoading: isLoading,
+    isMRError: error,
   }
 }
 

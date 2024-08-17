@@ -46,7 +46,7 @@ const MergeList: React.FC<MergeListProps> = ({ mrList }) => {
 
     return (
         <List
-            style={{ width: '80%', marginLeft: '10%', marginTop: '10px' }}
+            style={{ width: '90%', marginLeft: '5%', marginTop: '10px' }}
             pagination={{ align: "center" }}
             dataSource={mrList}
             renderItem={(item, index) => (
@@ -55,7 +55,7 @@ const MergeList: React.FC<MergeListProps> = ({ mrList }) => {
                         avatar={
                             <MergeOutlined twoToneColor="#eb2f96" />
                         }
-                        title={<Link href={`/mr/${item.id}`}>{`MR ${item.id} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
+                        title={<Link href={`/mr?id=${item.id}`}>{`MR ${item.id} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
                         description={getDescription(item)}
                     />
                 </List.Item>
