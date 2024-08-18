@@ -296,7 +296,7 @@ mod tests {
     use secp256k1::{
         hashes::{sha256, Hash},
         rand::{self, rngs::OsRng},
-        Keypair, Message, Secp256k1, SecretKey,
+        Keypair, Message, Secp256k1,
     };
     use serde_json::Value;
 
@@ -321,7 +321,7 @@ mod tests {
     fn test_new_nostr_id() {
         let sk = "6b911fd37cdf5c81d4c0adb1ab7fa822ed253ab0ad9aa18d77257c88b29b718e";
         let secp = Secp256k1::new();
-        let keypair = secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap();
+        let keypair = secp256k1::Keypair::from_seckey_str(&secp, sk).unwrap();
         let pk = keypair.x_only_public_key().0;
         let tag = Tag::Generic(TagKind::P, Vec::new());
         let tags: Vec<Tag> = vec![tag];
@@ -334,7 +334,7 @@ mod tests {
     fn test_new_nostr_event() {
         let sk = "6b911fd37cdf5c81d4c0adb1ab7fa822ed253ab0ad9aa18d77257c88b29b718e";
         let secp = Secp256k1::new();
-        let keypair = secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap();
+        let keypair = secp256k1::Keypair::from_seckey_str(&secp, sk).unwrap();
         let tag = Tag::Generic(TagKind::P, Vec::new());
         let tags: Vec<Tag> = vec![tag];
         let content = "123".to_string();
@@ -375,7 +375,7 @@ mod tests {
     fn test_nostr_event_git() {
         let sk = "6b911fd37cdf5c81d4c0adb1ab7fa822ed253ab0ad9aa18d77257c88b29b718e";
         let secp = Secp256k1::new();
-        let keypair = secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap();
+        let keypair = secp256k1::Keypair::from_seckey_str(&secp, sk).unwrap();
 
         let git_event = GitEvent {
             peer: "yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c".to_string(),
