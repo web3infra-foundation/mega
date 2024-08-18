@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use callisto::{ztm_node, ztm_repo_info};
-use sea_orm::{DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, Set};
-
+use callisto::{ztm_node, ztm_nostr_event, ztm_nostr_req, ztm_repo_info};
 use common::errors::MegaError;
+use sea_orm::InsertResult;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, Set};
 
 #[derive(Clone)]
 pub struct ZTMStorage {
@@ -162,5 +162,74 @@ impl ZTMStorage {
                 Ok(repo_info)
             }
         }
+    }
+
+    pub async fn insert_nostr_event(
+        &self,
+        nostr_event: ztm_nostr_event::Model,
+    ) -> Result<InsertResult<ztm_nostr_event::ActiveModel>, MegaError> {
+        Ok(
+            ztm_nostr_event::Entity::insert(nostr_event.into_active_model())
+                .exec(self.get_connection())
+                .await
+                .unwrap(),
+        )
+    }
+
+    pub async fn get_nostr_event_by_id(
+        &self,
+        event_id: &str,
+    ) -> Result<Option<ztm_nostr_event::Model>, MegaError> {
+        let result = ztm_nostr_event::Entity::find_by_id(event_id)
+            .one(self.get_connection())
+            .await
+            .unwrap();
+        Ok(result)
+    }
+
+    pub async fn get_all_nostr_event(&self) -> Result<Vec<ztm_nostr_event::Model>, MegaError> {
+        Ok(ztm_nostr_event::Entity::find()
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_all_nostr_event_by_pubkey(
+        &self,
+        pubkey: &str,
+    ) -> Result<Vec<ztm_nostr_event::Model>, MegaError> {
+        Ok(ztm_nostr_event::Entity::find()
+            .filter(ztm_nostr_event::Column::Pubkey.eq(pubkey))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn insert_nostr_req(
+        &self,
+        nostr_req: ztm_nostr_req::Model,
+    ) -> Result<InsertResult<ztm_nostr_req::ActiveModel>, MegaError> {
+        Ok(ztm_nostr_req::Entity::insert(nostr_req.into_active_model())
+            .exec(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_all_nostr_req_by_subscription_id(
+        &self,
+        subscription_id: &str,
+    ) -> Result<Vec<ztm_nostr_req::Model>, MegaError> {
+        Ok(ztm_nostr_req::Entity::find()
+            .filter(ztm_nostr_req::Column::SubscriptionId.eq(subscription_id))
+            .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn get_all_nostr_req(&self) -> Result<Vec<ztm_nostr_req::Model>, MegaError> {
+        Ok(ztm_nostr_req::Entity::find()
+            .all(self.get_connection())
+            .await
+            .unwrap())
     }
 }

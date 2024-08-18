@@ -8,13 +8,16 @@ use axum::{
 };
 
 use common::model::CommonResult;
+use gemini::nostr::subscribe_git_event;
+use vault::get_peerid;
 
 use crate::api::MegaApiServiceState;
 
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
         .route("/ztm/repo_provide", get(repo_provide))
-        .route("/ztm/repo_fork", get(repo_fork))
+        .route("/ztm/repo_fork", get(repo_folk))
+        .route("/ztm/hello", get(hello))
 }
 
 async fn repo_provide(
@@ -50,7 +53,7 @@ async fn repo_provide(
     Ok(Json(res))
 }
 
-async fn repo_fork(
+async fn repo_folk(
     Query(query): Query<HashMap<String, String>>,
     state: State<MegaApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
@@ -76,9 +79,9 @@ async fn repo_fork(
         }
     };
 
-    let res = gemini::http::handler::repo_fork(
+    let res = gemini::http::handler::repo_folk(
         state.ztm.ztm_agent_port,
-        identifier.to_string(),
+        identifier.clone().to_string(),
         local_port,
     )
     .await;
@@ -86,5 +89,20 @@ async fn repo_fork(
         Ok(data) => CommonResult::success(Some(data)),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
+
+    //nostr subscribe to Events
+    if let Some(bootstrap_node) = state.ztm.bootstrap_node.clone() {
+        let _ = subscribe_git_event(identifier.to_string(), get_peerid(), bootstrap_node).await;
+    }
+
     Ok(Json(res))
+}
+
+async fn hello(
+    Query(_query): Query<HashMap<String, String>>,
+    _state: State<MegaApiServiceState>,
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    let (peer_id, _) = vault::init();
+    let msg = format!("hello from {peer_id}");
+    Ok(Json(CommonResult::success(Some(msg))))
 }

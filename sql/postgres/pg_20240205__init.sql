@@ -226,7 +226,6 @@ CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
     PRIMARY KEY ("ori_oid", "sub_oid", "offset")
 );
 
-
 CREATE TABLE IF NOT EXISTS "ztm_node" (
   "peer_id" VARCHAR(64) PRIMARY KEY,
   "hub" VARCHAR(64),
@@ -234,7 +233,8 @@ CREATE TABLE IF NOT EXISTS "ztm_node" (
   "service_name" VARCHAR(64),
   "type" VARCHAR(64),
   "online" BOOLEAN NOT NULL,
-  "last_online_time" BIGINT NOT NULL
+  "last_online_time" BIGINT NOT NULL,
+  "service_port" INT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
@@ -243,6 +243,22 @@ CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
   "origin" VARCHAR(64),
   "update_time" BIGINT NOT NULL,
   "commit" VARCHAR(64)
+);
+
+CREATE TABLE IF NOT EXISTS "ztm_nostr_event" (
+  "id" VARCHAR(128) PRIMARY KEY,
+  "pubkey" VARCHAR(128),
+  "created_at" BIGINT NOT NULL,
+  "kind" INT,
+  "tags" TEXT,
+  "content" TEXT,
+  "sig" VARCHAR(256)
+);
+
+CREATE TABLE IF NOT EXISTS "ztm_nostr_req" (
+  "id" VARCHAR(128) PRIMARY KEY,
+  "subscription_id" VARCHAR(128),
+  "filters" TEXT
 );
 
 CREATE TABLE IF NOT EXISTS "mq_storage" (

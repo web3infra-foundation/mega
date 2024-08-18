@@ -3,17 +3,12 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "ztm_node")]
+#[sea_orm(table_name = "ztm_nostr_req")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub peer_id: String,
-    pub hub: String,
-    pub agent_name: String,
-    pub service_name: String,
-    pub service_port: i32,
-    pub r#type: String,
-    pub online: bool,
-    pub last_online_time: i64,
+    pub id: String,
+    pub subscription_id: String,
+    pub filters: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
