@@ -383,7 +383,7 @@ mod tests {
     fn test_client_message_event() {
         let sk = "6b911fd37cdf5c81d4c0adb1ab7fa822ed253ab0ad9aa18d77257c88b29b718e";
         let secp = Secp256k1::new();
-        let keypair = secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap();
+        let keypair = secp256k1::Keypair::from_seckey_str(&secp, sk).unwrap();
         let tag = Tag::Generic(TagKind::P, Vec::new());
         let tags: Vec<Tag> = vec![tag];
         let content = "123".to_string();
