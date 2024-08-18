@@ -1,8 +1,10 @@
+use secp256k1::{Keypair, Secp256k1};
+
 use crate::vault::{read_secret, write_secret};
 
+pub mod nostr;
 pub mod pki;
 pub mod vault;
-pub mod nostr;
 
 /// Initialize the Nostr ID if it's not found.
 /// - return: `(Nostr ID, secret_key)`
@@ -29,6 +31,17 @@ pub fn init() -> (String, String) {
         id_data["nostr"].as_str().unwrap().to_string(),
         id_data["secret_key"].as_str().unwrap().to_string(),
     )
+}
+
+pub fn get_peerid() -> String {
+    let (id, _sk) = init();
+    id
+}
+
+pub fn get_keypair() -> Keypair {
+    let (_, sk) = init();
+    let secp = Secp256k1::new();
+    secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap()
 }
 
 #[cfg(test)]

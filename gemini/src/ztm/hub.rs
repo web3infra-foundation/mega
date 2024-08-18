@@ -3,7 +3,7 @@ use axum::async_trait;
 use reqwest::Client;
 use serde_json::Value;
 
-use crate::ztm::handle_ztm_response;
+use crate::util::handle_response;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CertAgent {
@@ -68,7 +68,7 @@ impl ZTMCA for LocalHub {
         //1. GET {ca}/api/certificates/ca -> ca certificate
         let url = format!("{ca_address}/api/certificates/ca");
         let request_result = reqwest::get(url).await;
-        let ca_certificate = match handle_ztm_response(request_result).await {
+        let ca_certificate = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -79,7 +79,7 @@ impl ZTMCA for LocalHub {
         let url = format!("{ca_address}/api/certificates/{name}");
         let client = Client::new();
         let request_result = client.post(url).send().await;
-        let user_key = match handle_ztm_response(request_result).await {
+        let user_key = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -89,7 +89,7 @@ impl ZTMCA for LocalHub {
         //3. GET {ca}/api/certificates/{username} -> user certificate
         let url = format!("{ca_address}/api/certificates/{name}");
         let request_result = reqwest::get(url).await;
-        let user_certificate = match handle_ztm_response(request_result).await {
+        let user_certificate = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);

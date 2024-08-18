@@ -1,9 +1,9 @@
 use jupiter::context::Context;
-use ceres::protocol::repo::Repo;
 
 use crate::{
-    ztm::agent::{share_repo, LocalZTMAgent, ZTMAgent},
-    RepoInfo, ZTM_APP_PROVIDER,
+    util::{get_short_peer_id, repo_path_to_identifier},
+    ztm::{agent::share_repo, create_tunnel},
+    RepoInfo,
 };
 
 pub async fn repo_provide(
@@ -29,11 +29,10 @@ pub async fn repo_provide(
         }
         Err(_) => return Err(String::from("Repo not found")),
     };
-    let repo: Repo = git_model.clone().into();
     let git_ref = context
         .services
         .git_db_storage
-        .get_default_ref(repo.repo_id)
+        .get_default_ref(git_model.id)
         .await
         .unwrap()
         .unwrap();
@@ -41,12 +40,12 @@ pub async fn repo_provide(
     let name = git_model.repo_name;
     let repo_path = git_model.repo_path;
     let (peer_id, _) = vault::init();
-    let identifier = format!("p2p://{}/{port}{repo_path}.git", peer_id.clone());
+    let identifier = repo_path_to_identifier(port, repo_path);
     let update_time = git_model.created_at.and_utc().timestamp();
     let repo_info = RepoInfo {
         name,
         identifier,
-        origin: peer_id.clone(),
+        origin: peer_id,
         update_time,
         commit: git_ref.ref_git_id,
         peer_online: true,
@@ -55,7 +54,7 @@ pub async fn repo_provide(
     Ok("success".to_string())
 }
 
-pub async fn repo_fork(
+pub async fn repo_folk(
     ztm_agent_port: u16,
     identifier: String,
     local_port: u16,
@@ -73,63 +72,25 @@ pub async fn repo_fork(
         Err(e) => return Err(e),
     };
 
-    let agent: LocalZTMAgent = LocalZTMAgent {
-        agent_port: ztm_agent_port,
-    };
-    let local_ep = match agent.get_ztm_local_endpoint().await {
-        Ok(ep) => ep,
-        Err(e) => return Err(e),
-    };
-
-    let remote_ep = match agent.get_ztm_remote_endpoint(remote_peer_id.clone()).await {
-        Ok(ep) => ep,
-        Err(e) => return Err(e),
-    };
-
     let (peer_id, _) = vault::init();
     let bound_name = format!(
         "{}_{}",
         get_short_peer_id(peer_id),
-        get_short_peer_id(remote_peer_id)
+        get_short_peer_id(remote_peer_id.clone())
     );
-    //creata inbound
-    match agent
-        .create_ztm_app_tunnel_inbound(
-            local_ep.id,
-            ZTM_APP_PROVIDER.to_string(),
-            "tunnel".to_string(),
-            bound_name.clone(),
-            local_port,
-        )
-        .await
+    match create_tunnel(
+        ztm_agent_port,
+        remote_peer_id,
+        local_port,
+        remote_port,
+        bound_name,
+    )
+    .await
     {
         Ok(_) => (),
-        Err(s) => {
-            tracing::error!("create app inbound, {s}");
-            return Err(s);
-        }
+        Err(e) => return Err(e),
     }
-    tracing::info!("create app inbound successfully");
 
-    //creata outbound
-    match agent
-        .create_ztm_app_tunnel_outbound(
-            remote_ep.id,
-            ZTM_APP_PROVIDER.to_string(),
-            "tunnel".to_string(),
-            bound_name,
-            remote_port,
-        )
-        .await
-    {
-        Ok(msg) => {
-            tracing::info!("create app outbound successfully,{}", msg);
-        }
-        Err(s) => {
-            tracing::error!("create app outbound, {s}");
-            return Err(s);
-        }
-    }
     let msg = format!("git clone http://localhost:{local_port}/{git_path}");
     Ok(msg)
 }
@@ -163,13 +124,6 @@ pub fn get_git_path_from_identifier(identifier: String) -> Result<String, String
     }
     let path = words[4..].join("/");
     Ok(path)
-}
-
-pub fn get_short_peer_id(peer_id: String) -> String {
-    if peer_id.len() <= 7 {
-        return peer_id;
-    }
-    peer_id[0..7].to_string()
 }
 
 #[cfg(test)]
