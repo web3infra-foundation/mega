@@ -21,6 +21,7 @@ axum = { workspace = true }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = [

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{RepoInfo, ZTM_APP_PROVIDER};
 
-use super::{handle_ztm_response, hub::ZTMUserPermit};
+use super::{handle_response, hub::ZTMUserPermit};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMMesh {
@@ -35,7 +35,6 @@ pub struct Agent {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMEndPoint {
     pub id: String,
-    pub name: String,
     pub username: String,
     pub online: bool,
     #[serde(rename = "isLocal")]
@@ -139,7 +138,7 @@ impl ZTMAgent for LocalZTMAgent {
             .body(permit_string)
             .send()
             .await;
-        let response_text = match handle_ztm_response(request_result).await {
+        let response_text = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -161,7 +160,7 @@ impl ZTMAgent for LocalZTMAgent {
         let agent_address = format!("http://127.0.0.1:{agent_port}");
         let url = format!("{agent_address}/api/meshes/{MESH_NAME}/endpoints");
         let request_result = reqwest::get(url).await;
-        let eps: String = match handle_ztm_response(request_result).await {
+        let eps: String = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -194,11 +193,11 @@ impl ZTMAgent for LocalZTMAgent {
         match self.get_ztm_endpoints().await {
             Ok(ep_list) => {
                 for ele in ep_list {
-                    if ele.online && ele.name == peer_id {
+                    if ele.online && ele.username == peer_id {
                         return Ok(ele);
                     }
                 }
-                return Err("Can not find remote ztm endpoint".to_string());
+                return Err(format!("Ztm agent({peer_id}) is not online."));
             }
             Err(e) => Err(e),
         }
@@ -229,7 +228,7 @@ impl ZTMAgent for LocalZTMAgent {
             .body(req_string)
             .send()
             .await;
-        let response_text = match handle_ztm_response(request_result).await {
+        let response_text = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -264,7 +263,7 @@ impl ZTMAgent for LocalZTMAgent {
             .body(req_string)
             .send()
             .await;
-        let response_text = match handle_ztm_response(request_result).await {
+        let response_text = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -294,7 +293,7 @@ impl ZTMAgent for LocalZTMAgent {
             .body(req)
             .send()
             .await;
-        let response_text = match handle_ztm_response(request_result).await {
+        let response_text = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -317,6 +316,7 @@ impl ZTMAgent for LocalZTMAgent {
         let url = format!(
             "{agent_address}/api/meshes/{MESH_NAME}/apps/{provider}/{app_name}/api/endpoints/{ep_id}/inbound/tcp/{bound_name}"
         );
+        tracing::info!("create_ztm_app_tunnel_inbound url: {}", url);
         let client = Client::new();
         let req = format!(r#"{{"listens": [{{"ip":"127.0.0.1","port":{port}}}]}}"#);
         // let req = r#"{"listens":[{"ip":"127.0.0.1","port":8081}]}"#;
@@ -326,7 +326,7 @@ impl ZTMAgent for LocalZTMAgent {
             .body(req)
             .send()
             .await;
-        let response_text = match handle_ztm_response(request_result).await {
+        let response_text = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -358,7 +358,7 @@ impl ZTMAgent for LocalZTMAgent {
             .body(req)
             .send()
             .await;
-        let response_text = match handle_ztm_response(request_result).await {
+        let response_text = match handle_response(request_result).await {
             Ok(s) => s,
             Err(s) => {
                 return Err(s);
@@ -367,53 +367,18 @@ impl ZTMAgent for LocalZTMAgent {
         Ok(response_text)
     }
 }
+
 pub async fn run_ztm_client(
     bootstrap_node: String,
     _config: Config,
     peer_id: String,
     agent: LocalZTMAgent,
+    http_port: u16,
 ) {
     let name = peer_id.clone();
-    // let _context = Context::new(config.clone()).await;
-
-    // let local_permit_option = read_secret(peer_id.as_str()).unwrap();
-    // let permit: ZTMUserPermit = match local_permit_option {
-    //     Some(res) => {
-    //         let p = ZTMUserPermit::from_json_map(res.data.unwrap());
-    //         tracing::info!("read ztm permit file from vault:{:?}", p);
-    //         p
-    //     }
-    //     None => {
-    //         //generate permit from bootstrap_node
-    //         // 1. to get permit json from bootstrap_node
-    //         // GET {bootstrap_node}/api/v1/certificate?name={name}
-    //         let url = format!("{bootstrap_node}/api/v1/certificate?name={name}");
-    //         let request_result = reqwest::get(url).await;
-    //         let response_text = match handle_ztm_response(request_result).await {
-    //             Ok(s) => s,
-    //             Err(s) => {
-    //                 tracing::error!(
-    //                     "GET {bootstrap_node}/api/v1/certificate?name={name} failed,{s}"
-    //                 );
-    //                 return;
-    //             }
-    //         };
-    //         let permit: ZTMUserPermit = match serde_json::from_slice(response_text.as_bytes()) {
-    //             Ok(p) => p,
-    //             Err(e) => {
-    //                 tracing::error!("{}", e);
-    //                 return;
-    //             }
-    //         };
-    //         //save to vault
-    //         write_secret(peer_id.clone().as_str(), Some(permit.to_json_map().clone())).unwrap();
-    //         permit
-    //     }
-    // };
-
     let url = format!("{bootstrap_node}/api/v1/certificate?name={name}");
     let request_result = reqwest::get(url).await;
-    let response_text = match handle_ztm_response(request_result).await {
+    let response_text = match handle_response(request_result).await {
         Ok(s) => s,
         Err(s) => {
             tracing::error!("GET {bootstrap_node}/api/v1/certificate?name={name} failed,{s}");
@@ -457,6 +422,23 @@ pub async fn run_ztm_client(
     }
     tracing::info!("start tunnel app successfully");
 
+    //test send msg
+    // sleep(Duration::from_secs(5));
+    // match send_get_request_to_peer_by_tunnel(
+    //     agent.agent_port,
+    //     "nX7NRgitx7wUwAiJXxAVcec4iAoV8YwbzUn8FqwfFR4J".to_string(),
+    //     "api/v1/ztm/repo_provide".to_string(),
+    // )
+    // .await
+    // {
+    //     Ok(s) => {
+    //         tracing::info!("send_get_request_to_peer_by_tunnel successfully:{}", s);
+    //     }
+    //     Err(e) => {
+    //         tracing::error!(e);
+    //     }
+    // };
+
     // ping relay
     let peer_id_clone = peer_id.clone();
     let bootstrap_node_clone = bootstrap_node.clone();
@@ -467,21 +449,23 @@ pub async fn run_ztm_client(
             url.clone(),
             peer_id_clone.clone(),
             permit.bootstraps.first().unwrap().to_string(),
+            http_port,
         )
         .await;
         interval.tick().await;
     }
 }
 
-pub async fn ping(url: String, peer_id: String, hub: String) {
+pub async fn ping(url: String, peer_id: String, hub: String, service_port: u16) {
     let mut params = HashMap::new();
     params.insert("peer_id", peer_id.clone());
     params.insert("hub", hub);
     params.insert("agent_name", peer_id.clone());
     params.insert("service_name", peer_id.clone());
+    params.insert("service_port", service_port.to_string());
     let client = reqwest::Client::new();
     let response = client.get(url.clone()).query(&params).send().await;
-    let response_text = match handle_ztm_response(response).await {
+    let response_text = match handle_response(response).await {
         Ok(s) => s,
         Err(s) => {
             tracing::error!("GET {url} failed,{s}");
@@ -501,7 +485,7 @@ pub async fn share_repo(url: String, repo_info: RepoInfo) {
         .body(req_string)
         .send()
         .await;
-    let response_text = match handle_ztm_response(response).await {
+    let response_text = match handle_response(response).await {
         Ok(s) => s,
         Err(s) => {
             tracing::error!("POST {} failed,{}", url.clone(), s.clone());

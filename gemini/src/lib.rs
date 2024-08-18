@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 pub mod ca;
 pub mod http;
+pub mod nostr;
+pub mod util;
 pub mod ztm;
 
 const ZTM_APP_PROVIDER: &str = "mega";
@@ -17,6 +19,7 @@ pub struct RelayGetParams {
     pub name: Option<String>,
     pub agent_name: Option<String>,
     pub service_name: Option<String>,
+    pub service_port: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,6 +51,7 @@ pub struct Node {
     pub mega_type: String,
     pub online: bool,
     pub last_online_time: i64,
+    pub service_port: i32,
 }
 
 #[derive(Debug)]
@@ -63,6 +67,7 @@ impl TryFrom<RelayGetParams> for Node {
             || paras.hub.is_none()
             || paras.agent_name.is_none()
             || paras.service_name.is_none()
+            || paras.service_port.is_none()
         {
             return Err(ConversionError::InvalidParas);
         }
@@ -75,6 +80,7 @@ impl TryFrom<RelayGetParams> for Node {
             mega_type: MegaType::Agent.to_string(),
             online: true,
             last_online_time: now,
+            service_port: paras.service_port.unwrap(),
         })
     }
 }
@@ -87,6 +93,7 @@ impl TryFrom<RelayGetParams> for ztm_node::Model {
             || paras.hub.is_none()
             || paras.agent_name.is_none()
             || paras.service_name.is_none()
+            || paras.service_port.is_none()
         {
             return Err(ConversionError::InvalidParas);
         }
@@ -99,6 +106,7 @@ impl TryFrom<RelayGetParams> for ztm_node::Model {
             r#type: MegaType::Agent.to_string(),
             online: true,
             last_online_time: now,
+            service_port: paras.service_port.unwrap(),
         })
     }
 }
@@ -115,6 +123,7 @@ impl TryFrom<Node> for ztm_node::Model {
             r#type: n.mega_type,
             online: n.online,
             last_online_time: n.last_online_time,
+            service_port: n.service_port,
         })
     }
 }
@@ -129,6 +138,7 @@ impl From<ztm_node::Model> for Node {
             mega_type: n.r#type,
             online: n.online,
             last_online_time: n.last_online_time,
+            service_port: n.service_port,
         }
     }
 }
