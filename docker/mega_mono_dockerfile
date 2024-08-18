@@ -1,6 +1,15 @@
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS builder
 
 WORKDIR /opt/mega
+
+# build args, to specify the build type, release or debug
+ARG BUILD_TYPE=release
+
+# check arg value
+RUN if [ "$BUILD_TYPE" != "release" ] && [ "$BUILD_TYPE" != "debug" ]; then \
+        echo "Invalid BUILD_TYPE: $BUILD_TYPE, must be release or debug"; \
+        exit 1; \
+    fi
 
 # set mirror for apt
 # RUN echo "deb http://mirrors.ustc.edu.cn/debian bookworm main contrib non-free" > /etc/apt/sources.list && \
@@ -28,11 +37,26 @@ ENV PATH=/root/.cargo/bin:$PATH！
 
 # copy the source code, the context must be the root of the project
 COPY . .
-RUN chmod +x /opt/mega/docker/start_mono.sh
 
 # build
-RUN cargo build -p mono
+RUN if [ "$BUILD_TYPE" = "release" ]; then \
+        cargo build -p mono --release; \
+    else \
+        cargo build -p mono; \
+    fi
 
-VOLUME /etc/mega
+# final image
+FROM debian:bookworm-slim
 
-CMD ["bash", "-c", "/opt/mega/docker/start_mono.sh"]
+RUN apt-get update && apt-get install -y libssl-dev
+
+ARG BUILD_TYPE=release
+
+COPY --from=builder /opt/mega/target/$BUILD_TYPE/mono /usr/local/bin/mono
+COPY --from=builder /opt/mega/docker/start_mono.sh /usr/local/bin/start_mono.sh
+RUN chmod +x /usr/local/bin/start_mono.sh
+RUN chmod +x /usr/local/bin/mono
+
+VOLUME /opt/mega/etc
+
+CMD ["bash", "-c", "/usr/local/bin/start_mono.sh"]

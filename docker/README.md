@@ -7,8 +7,9 @@
 # build postgres image
 docker buildx build -t mega-db:1.0 -f ./docker/mega_pg_dockerfile .
 
-# build backend mono image
-docker buildx build -t mega-mono:1.0 -f ./docker/mega_mono_dockerfile .
+# build backend mono image (default in release mode)
+# build backend mono in debug mode
+# docker buildx build -t mega-mono:1.0 -f ./docker/mega_mono_dockerfile --build-arg BUILD_TYPE=debug .
 
 # build frontend moon image
 docker buildx build -t mega-moon:1.0 -f ./docker/mega_moon_dockerfile .
