@@ -1,7 +1,6 @@
-# build images
+## Build Images
 
 ```bash
-
 # cd root of the project
 
 # build postgres image
@@ -16,10 +15,11 @@ docker buildx build -t mega-mono:0.1-pre-release -f ./docker/mega_mono_dockerfil
 docker buildx build -t mega-moon:0.1-pre-release -f ./docker/mega_moon_dockerfile .
 ```
 
-# test mono and moon
+## Test mono and moon
 
 
-## test without postgres
+### Test with SQLite
+
 ```bash
 # create network
 docker network create mega-network
@@ -30,9 +30,9 @@ docker run --rm -it -d --network mega-network -e NEXT_PUBLIC_API_URL=http://mega
 
 visit http://localhost:3000 to see the frontend
 
-## test with sqlite
+## Test with PostgreSQL
 
-1. start postgres
+[1] start postgres
 
 ```bash
 # create network
@@ -42,14 +42,14 @@ docker network create mega-network
 docker run --rm -it -d --network mega-network --name mega-db mega-db:0.1-pre-release
 ```
 
-2. create default config
+[2] create default config
 
 ```bash
 docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega/etc mega-mono:0.1-pre-release
 docker stop mega-mono
 ```
 
-3. edit `mega_base/config.toml`, change `db_type` to `postgres` and db_url to `postgres://mega:mega@mega-db:5432/mega`
+[3] edit `mega_base/config.toml`, change `db_type` to `postgres` and db_url to `postgres://mega:mega@mega-db:5432/mega`
 
 ```toml
 [database]
@@ -62,7 +62,7 @@ db_path = "${base_dir}/mega.db"
 db_url = "postgres://mega:mega@mega-db:5432/mega"
 ```
 
-4. Start the mono again, and run the frontend.
+[4] Start the mono again, and run the frontend.
 
 ```bash
 docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega/etc mega-mono:0.1-pre-release
