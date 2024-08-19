@@ -24,7 +24,7 @@ docker buildx build -t mega-moon:0.1-pre-release -f ./docker/mega_moon_dockerfil
 # create network
 docker network create mega-network
 
-docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega/etc mega-mono:0.1-pre-release
+docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega mega-mono:0.1-pre-release
 docker run --rm -it -d --network mega-network -e NEXT_PUBLIC_API_URL=http://mega-mono:8000 -p 3000:3000 mega-moon:0.1-pre-release
 ```
 
@@ -45,7 +45,7 @@ docker run --rm -it -d --network mega-network --name mega-db mega-db:0.1-pre-rel
 [2] create default config
 
 ```bash
-docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega/etc mega-mono:0.1-pre-release
+docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega mega-mono:0.1-pre-release
 docker stop mega-mono
 ```
 
@@ -65,6 +65,6 @@ db_url = "postgres://mega:mega@mega-db:5432/mega"
 [4] Start the mono again, and run the frontend.
 
 ```bash
-docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega/etc mega-mono:0.1-pre-release
+docker run --rm -it -d --network mega-network --name mega-mono -v ./mega_base:/opt/mega mega-mono:0.1-pre-release
 docker run --rm -it -d --network mega-network -e NEXT_PUBLIC_API_URL=http://mega-mono:8000 -p 3000:3000 mega-moon:0.1-pre-release
 ```
