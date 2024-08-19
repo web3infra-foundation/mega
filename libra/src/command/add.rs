@@ -97,7 +97,8 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
             if verbose {
                 println!("removed: {}", file_str);
             }
-        } else {
+        } else { // FIXME: unreachable code! This situation is not included in `status::changes_to_be_staged()`
+            // FIXME: should check files in original input paths
             // TODO do this check earlier, once fatal occurs, nothing should be done
             // file is not tracked && not exists, which means wrong pathspec
             println!("fatal: pathspec '{}' did not match any files", file.display());
