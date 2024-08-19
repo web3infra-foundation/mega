@@ -6,7 +6,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::ObjectTrait;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 
-use crate::utils::util;
+use crate::utils::{lfs, util};
 
 pub trait TreeExt {
     fn load(hash: &SHA1) -> Tree;
@@ -20,6 +20,7 @@ pub trait CommitExt {
 pub trait BlobExt {
     fn load(hash: &SHA1) -> Blob;
     fn from_file(path: impl AsRef<Path>) -> Blob;
+    fn from_lfs_file(path: impl AsRef<Path>) -> Blob;
     fn save(&self) -> SHA1;
 }
 
@@ -73,6 +74,16 @@ impl BlobExt for Blob {
     fn from_file(path: impl AsRef<Path>) -> Blob {
         let file_content = std::fs::read_to_string(path).unwrap();
         Blob::from_content(&file_content)
+    }
+
+    /// Create a blob from an LFS file
+    /// - include: create a pointer file & copy the file to `.libra/lfs/objects`
+    /// - `path`: absolute  or relative path to current dir
+    fn from_lfs_file(path: impl AsRef<Path>) -> Blob {
+        let (pointer, oid) = lfs::generate_pointer_file(&path);
+        tracing::debug!("\n{}", pointer);
+        lfs::backup_lfs_file(&path, &oid).unwrap();
+        Blob::from_content(&pointer)
     }
 
     fn save(&self) -> SHA1 {

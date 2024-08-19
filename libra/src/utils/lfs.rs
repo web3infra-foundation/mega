@@ -37,13 +37,10 @@ where
 const LFS_VERSION: &str = "https://git-lfs.github.com/spec/v1";
 const LFS_HASH_ALGO: &str = "sha256";
 
-/// Generate lfs pointer file
+/// Generate lfs pointer file string
 /// - return (pointer content, file hash)
 /// - absolute path
-pub fn generate_pointer_file<P>(path: P) -> (String, String)
-where
-    P: AsRef<Path>,
-{
+pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
     let path = path.as_ref();
     // calc file hash without type
     let file_hash = calc_lfs_file_hash(path).unwrap();
@@ -62,11 +59,13 @@ where
     let path = path.as_ref();
     let backup_path = util::storage_path()
         .join("lfs/objects")
-        .join(hash[..2].to_string())
-        .join(hash[2..4].to_string())
+        .join(&hash[..2])
+        .join(&hash[2..4])
         .join(hash);
-    fs::create_dir_all(backup_path.parent().unwrap())?;
-    fs::copy(path, backup_path)?;
+    if !backup_path.exists() {
+        fs::create_dir_all(backup_path.parent().unwrap())?;
+        fs::copy(path, backup_path)?;
+    }
     Ok(())
 }
 

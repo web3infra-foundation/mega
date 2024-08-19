@@ -107,14 +107,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         // file exists
         if !index.tracked(file_str, 0) {
             // file is not tracked
-            let blob = if lfs::is_lfs_tracked(file) {
-                let (pointer, oid) = lfs::generate_pointer_file(&file_abs);
-                tracing::debug!("\n{}", pointer);
-                lfs::backup_lfs_file(&file_abs, &oid).unwrap();
-                Blob::from_content(&pointer)
-            } else {
-                Blob::from_file(&file_abs)
-            };
+            let blob = gen_blob_from_file(&file_abs);
             blob.save();
             index.add(IndexEntry::new_from_file(file, blob.id, &workdir).unwrap());
             if verbose {
@@ -124,7 +117,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
             // file is tracked, maybe modified
             if index.is_modified(file_str, 0, &workdir) {
                 // file is modified(meta), but content may not change
-                let blob = Blob::from_file(&file_abs);
+                let blob = gen_blob_from_file(&file_abs);
                 if !index.verify_hash(file_str, 0, &blob.id) {
                     // content is changed
                     blob.save();
@@ -137,6 +130,17 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         }
     }
 }
+
+/// Generate a `Blob` from a file
+/// - if the file is tracked by LFS, generate a `Blob` with pointer file
+fn gen_blob_from_file(path: impl AsRef<Path>) -> Blob {
+    if lfs::is_lfs_tracked(&path) {
+        Blob::from_lfs_file(&path)
+    } else {
+        Blob::from_file(&path)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
