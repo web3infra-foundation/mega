@@ -2,6 +2,7 @@
 pub use fuse_backend_rs::passthrough;
 use std::io::Result;
 use crate::overlayfs::BoxedLayer;
+pub mod logwrapper;
 pub fn new_passthroughfs_layer(rootdir: &str) -> Result<BoxedLayer> {
     let config = fuse_backend_rs::passthrough::Config { 
         root_dir: String::from(rootdir), 
@@ -11,6 +12,7 @@ pub fn new_passthroughfs_layer(rootdir: &str) -> Result<BoxedLayer> {
         ..Default::default() };
 
     let fs = Box::new(passthrough::PassthroughFs::<()>::new(config)?);
+    
     fs.import()?;
     Ok(fs as BoxedLayer)
 }
