@@ -1,15 +1,14 @@
 use clap::Subcommand;
-use regex::Regex;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use crate::utils::{path, util};
+use crate::utils::{lfs, path, util};
 use crate::utils::path_ext::PathExt;
 
 #[derive(Subcommand, Debug)]
 pub enum LfsCmds {
-    /// View or add LFS paths to Libra Attributes
+    /// View or add LFS paths to Libra Attributes (root)
     Track {
         pattern: Option<Vec<String>>,
     },
@@ -20,15 +19,17 @@ pub enum LfsCmds {
 }
 
 pub async fn execute(cmd: LfsCmds) {
+    // TODO: attributes file should be created in current dir, NOT root dir
+    let attr_path = path::attributes().to_string_or_panic();
     match cmd {
         LfsCmds::Track { pattern } => { // TODO: deduplicate
-            let attr_path = path::attributes().to_string_or_panic();
             match pattern {
                 Some(pattern) => {
+                    let pattern = convert_patterns_to_workdir(pattern); //
                     add_lfs_patterns(&attr_path, pattern).unwrap();
                 }
                 None => {
-                    let lfs_patterns = extract_lfs_patterns(&attr_path).unwrap();
+                    let lfs_patterns = lfs::extract_lfs_patterns(&attr_path).unwrap();
                     if !lfs_patterns.is_empty() {
                         println!("Listing tracked patterns");
                         for p in lfs_patterns {
@@ -39,10 +40,17 @@ pub async fn execute(cmd: LfsCmds) {
             }
         }
         LfsCmds::Untrack { path } => {
-            let attr_path = path::attributes().to_string_or_panic();
+            let path = convert_patterns_to_workdir(path); //
             untrack_lfs_patterns(&attr_path, path).unwrap();
         }
     }
+}
+
+/// temp
+fn convert_patterns_to_workdir(patterns: Vec<String>) -> Vec<String> {
+    patterns.into_iter().map(|p| {
+        util::to_workdir_path(&p).to_string_or_panic()
+    }).collect()
 }
 
 fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()> {
@@ -64,7 +72,7 @@ fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()> {
         }
     }
 
-    let lfs_patterns = extract_lfs_patterns(file_path)?;
+    let lfs_patterns = lfs::extract_lfs_patterns(file_path)?;
     for pattern in patterns {
         if lfs_patterns.contains(&pattern) {
             continue;
@@ -114,33 +122,4 @@ fn untrack_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()
     }
 
     Ok(())
-}
-
-fn extract_lfs_patterns(file_path: &str) -> io::Result<Vec<String>> {
-    let path = Path::new(file_path);
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-
-    // ' ' needs '\' before it to be escaped
-    let re = Regex::new(r"^\s*(([^\s#\\]|\\ )+)").unwrap();
-
-    let mut patterns = Vec::new();
-
-    for line in reader.lines() {
-        let line = line?;
-        if !line.contains("filter=lfs") {
-            continue;
-        }
-        if let Some(cap) = re.captures(&line) {
-            if let Some(pattern) = cap.get(1) {
-                let pattern = pattern.as_str().replace(r"\ ", " ");
-                patterns.push(pattern);
-            }
-        }
-    }
-
-    Ok(patterns)
 }
