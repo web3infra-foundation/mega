@@ -5,7 +5,7 @@ use crate::command::status;
 use mercury::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::BlobExt;
 
-use crate::utils::{path, util};
+use crate::utils::{lfs, path, util};
 
 #[derive(Parser, Debug)]
 pub struct AddArgs {
@@ -107,7 +107,14 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         // file exists
         if !index.tracked(file_str, 0) {
             // file is not tracked
-            let blob = Blob::from_file(&file_abs);
+            let blob = if lfs::is_lfs_tracked(file) {
+                let (pointer, oid) = lfs::generate_pointer_file(&file_abs);
+                tracing::debug!("\n{}", pointer);
+                lfs::backup_lfs_file(&file_abs, &oid).unwrap();
+                Blob::from_content(&pointer)
+            } else {
+                Blob::from_file(&file_abs)
+            };
             blob.save();
             index.add(IndexEntry::new_from_file(file, blob.id, &workdir).unwrap());
             if verbose {

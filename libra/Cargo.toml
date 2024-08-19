@@ -36,7 +36,10 @@ futures-util = "0.3.30"
 rpassword = "7.3.1"
 indicatif = "0.17.8"
 wax = "0.6.0"
+lazy_static = { workspace = true }
 regex = { workspace = true }
+sha2 = "0.10.8"
+hex = { workspace = true }
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
