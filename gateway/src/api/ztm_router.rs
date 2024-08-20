@@ -20,6 +20,7 @@ pub fn routers() -> Router<MegaApiServiceState> {
         .route("/ztm/repo_provide", post(repo_provide))
         .route("/ztm/repo_fork", get(repo_folk))
         .route("/ztm/peer_id", get(peer_id))
+        .route("/ztm/alias_to_path", get(alias_to_path))
 }
 
 async fn repo_provide(
@@ -38,10 +39,12 @@ async fn repo_provide(
     let RepoProvideQuery { path, alias } = json.clone();
     let context = state.inner.context.clone();
     let model: ztm_path_mapping::Model = json.into();
-    match context.services.ztm_storage.save_alias_mapping(model.clone()).await {
-        Ok(_) => (),
-        Err(err) => return Err((StatusCode::BAD_REQUEST, err.to_string())),
-    }
+    context
+        .services
+        .ztm_storage
+        .save_alias_mapping(model.clone())
+        .await
+        .map_err(|_| (StatusCode::BAD_REQUEST, String::from("Invalid Params")))?;
     let res = match gemini::http::handler::repo_provide(
         bootstrap_node,
         state.inner.context.clone(),
@@ -107,4 +110,28 @@ async fn peer_id(
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let (peer_id, _) = vault::init();
     Ok(Json(CommonResult::success(Some(peer_id))))
+}
+
+async fn alias_to_path(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<MegaApiServiceState>,
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    let context = state.inner.context.clone();
+    let alias = match query.get("alias") {
+        Some(str) => str,
+        None => {
+            return Err((StatusCode::BAD_REQUEST, String::from("Alias not provide\n")));
+        }
+    };
+    let res = context
+        .services
+        .ztm_storage
+        .get_path_from_alias(alias)
+        .await
+        .map_err(|_| (StatusCode::BAD_REQUEST, String::from("Invalid Params")))?;
+    if let Some(res) = res {
+        Ok(Json(CommonResult::success(Some(res.repo_path))))
+    } else {
+        Err((StatusCode::BAD_REQUEST, String::from("Alias not found\n")))
+    }
 }

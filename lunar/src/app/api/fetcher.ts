@@ -139,7 +139,9 @@ export async function requestPublishRepo(data) {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to publish repo');
+    const errorResponse = await response.text();
+    const errorMessage = errorResponse || 'Failed to publish repo';
+    throw new Error(errorMessage);
   }
   return response.json();
 }
