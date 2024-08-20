@@ -11,6 +11,7 @@ use tauri::{Manager, State};
 #[derive(Default)]
 struct ServiceState {
     child: Option<CommandChild>,
+    with_relay: bool,
 }
 
 impl Drop for ServiceState {
@@ -63,8 +64,10 @@ fn start_mega_service(
     }
 
     let args = if let Some(ref addr) = params.bootstrap_node {
+        service_state.with_relay = true;
         vec!["service", "http", "--bootstrap-node", addr]
     } else {
+        service_state.with_relay = false;
         vec!["service", "http"]
     };
     let (mut rx, child) = Command::new_sidecar("mega")
@@ -74,7 +77,6 @@ fn start_mega_service(
         .expect("Failed to spawn `Mega service`");
 
     service_state.child = Some(child);
-    let cloned_state = Arc::clone(&state);
     // Sidecar output
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
@@ -95,9 +97,6 @@ fn start_mega_service(
                     } else if let Some(signal) = payload.signal {
                         eprintln!("Sidecar terminated by signal: {}", signal);
                     }
-                    // update ServiceState child
-                    let mut service_state = cloned_state.lock().unwrap();
-                    service_state.child = None;
                     break;
                 }
                 _ => {}
@@ -112,6 +111,7 @@ fn stop_mega_service(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<(), S
     let mut service_state = state.lock().unwrap();
     if let Some(child) = service_state.child.take() {
         child.kill().map_err(|e| e.to_string())?;
+        service_state.child = None;
     } else {
         println!("Mega Service is not running");
     }
@@ -129,9 +129,9 @@ fn restart_mega_service(
 }
 
 #[tauri::command]
-async fn mega_service_status(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<bool, String> {
+async fn mega_service_status(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<(bool, bool), String> {
     let service_state = state.lock().unwrap();
-    Ok(service_state.child.is_some())
+    Ok((service_state.child.is_some(), service_state.with_relay))
 }
 
 fn main() {

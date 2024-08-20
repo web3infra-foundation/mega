@@ -267,3 +267,12 @@ CREATE TABLE IF NOT EXISTS "mq_storage" (
   "create_time" TIMESTAMP NOT NULL,
   "content" TEXT
 );
+
+CREATE TABLE IF NOT EXISTS "ztm_path_mapping" (
+  "id" BIGINT PRIMARY KEY,
+  "alias" TEXT NOT NULL,
+  "repo_path" TEXT NOT NULL,
+  "created_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_alias UNIQUE (alias)
+);

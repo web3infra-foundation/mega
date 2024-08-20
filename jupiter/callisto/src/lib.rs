@@ -28,4 +28,5 @@ pub mod raw_blob;
 pub mod ztm_node;
 pub mod ztm_nostr_event;
 pub mod ztm_nostr_req;
+pub mod ztm_path_mapping;
 pub mod ztm_repo_info;

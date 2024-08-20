@@ -6,7 +6,8 @@ import { Input } from '@/components/catalyst/input'
 import { Text } from '@/components/catalyst/text'
 import { invoke } from '@tauri-apps/api/tauri'
 import { useState } from 'react'
-import { Button } from "antd";
+import { Button, Skeleton } from "antd";
+import { usePeerId } from '@/app/api/fetcher'
 
 interface MegaStartParams {
   bootstrap_node: string,
@@ -16,8 +17,10 @@ export default function Settings() {
 
   const [loadings, setLoadings] = useState<boolean[]>([]);
   const [params, setParams] = useState<MegaStartParams>({
-    bootstrap_node: "",
+    bootstrap_node: "http://34.84.172.121/relay",
   });
+  const { peerId, isLoading, isError } = usePeerId();
+  if (isLoading) return <Skeleton />;
 
   const enterLoading = (index: number) => {
     setLoadings((prevLoadings) => {
@@ -69,7 +72,7 @@ export default function Settings() {
           <Input disabled={loadings[1]} aria-label="Bootstrap Node" name="bootstrap_node"
             value={params.bootstrap_node}
             onChange={handleInputChange}
-            placeholder="http://34.84.172.121/relay" />
+          />
         </div>
       </section>
 
@@ -80,8 +83,8 @@ export default function Settings() {
           <Subheading>ZTM Agent Peer Id</Subheading>
         </div>
         <div>
-          <Input disabled={true} aria-label="Bootstrap Node" name="bootstrap_node"
-            value={params.bootstrap_node}
+          <Input disabled={true} aria-label="Peer Id" name="peer_id"
+            value={peerId.data}
           />
         </div>
       </section>
