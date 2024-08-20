@@ -239,7 +239,11 @@ impl ZTMStorage {
     ) -> Result<(), MegaError> {
         ztm_path_mapping::Entity::insert(model.into_active_model())
             .exec(self.get_connection())
-            .await?;
+            .await
+            .map_err(|err| {
+                tracing::error!("Error saving alias mapping: {}", err);
+                err
+            })?;
         Ok(())
     }
 
