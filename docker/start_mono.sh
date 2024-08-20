@@ -1,7 +1,7 @@
 #!/bin/sh
 
-export MEGA_BASE_DIR="/opt/mega/etc"
-CONFIG_FILE="$MEGA_BASE_DIR/config.toml"
+export MEGA_BASE_DIR="/opt/mega"
+CONFIG_FILE="$MEGA_BASE_DIR/etc/config.toml"
 
 # check if config file exists
 if [ -f "$CONFIG_FILE" ]; then

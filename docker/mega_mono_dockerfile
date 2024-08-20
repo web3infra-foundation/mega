@@ -57,6 +57,6 @@ COPY --from=builder /opt/mega/docker/start_mono.sh /usr/local/bin/start_mono.sh
 RUN chmod +x /usr/local/bin/start_mono.sh
 RUN chmod +x /usr/local/bin/mono
 
-VOLUME /opt/mega/etc
+VOLUME /opt/mega
 
 CMD ["bash", "-c", "/usr/local/bin/start_mono.sh"]
