@@ -3,7 +3,7 @@
 import { Flex, Layout, Skeleton, Alert } from "antd/lib";
 import CodeTable from '@/components/CodeTable';
 import MergeList from '@/components/MergeList';
-import { useTreeCommitInfo, useBlobContent, useMRList } from '@/app/api/fetcher';
+import { useTreeCommitInfo, useBlobContent, useMRList, useMegaStatus } from '@/app/api/fetcher';
 
 const { Content } = Layout;
 
@@ -39,23 +39,28 @@ export default function HomePage() {
   const { tree, isTreeLoading, isTreeError } = useTreeCommitInfo("/");
   const { blob, isBlobLoading, isBlobError } = useBlobContent("/README.md");
   const { mrList, isMRLoading, isMRError } = useMRList("");
+  const { status, isLoading, isError } = useMegaStatus();
 
-  if (isTreeLoading || isBlobLoading || isMRLoading) return <Skeleton />;
+  if (isTreeLoading || isBlobLoading || isMRLoading || isLoading) return <Skeleton />;
 
   return (
     <div>
-      <Alert
-        banner
-        message={
-          "Relay address is not configed, Some functions are not available"
-        }
-      />
+      {
+        !status[1] &&
+        <Alert
+          banner
+          message={
+            "Relay address is not configed, Some functions are not available"
+          }
+        />
+      }
+
       {
         <Flex gap="middle" wrap>
           <Layout style={leftStyle}>
             {
               (tree && blob) &&
-              <CodeTable directory={tree.data} readmeContent={blob.data} />
+              <CodeTable directory={tree.data} readmeContent={blob.data} with_ztm={status[1]} />
             }
           </Layout>
           <Layout style={rightStyle}>

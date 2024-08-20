@@ -64,6 +64,7 @@ async fn recieve(
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GitEventReq {
+    // TODO change path with alias
     pub path: String,
     pub action: String,
     pub title: String,

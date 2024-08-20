@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use callisto::{ztm_node, ztm_nostr_event, ztm_nostr_req, ztm_repo_info};
+use callisto::{ztm_node, ztm_nostr_event, ztm_nostr_req, ztm_path_mapping, ztm_repo_info};
 use common::errors::MegaError;
 use sea_orm::InsertResult;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, Set};
@@ -229,6 +229,27 @@ impl ZTMStorage {
     pub async fn get_all_nostr_req(&self) -> Result<Vec<ztm_nostr_req::Model>, MegaError> {
         Ok(ztm_nostr_req::Entity::find()
             .all(self.get_connection())
+            .await
+            .unwrap())
+    }
+
+    pub async fn save_alias_mapping(
+        &self,
+        model: ztm_path_mapping::Model,
+    ) -> Result<(), MegaError> {
+        ztm_path_mapping::Entity::insert(model.into_active_model())
+            .exec(self.get_connection())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn get_path_from_alias(
+        &self,
+        alias: &str,
+    ) -> Result<Option<ztm_path_mapping::Model>, MegaError> {
+        Ok(ztm_path_mapping::Entity::find()
+            .filter(ztm_path_mapping::Column::Alias.eq(alias))
+            .one(self.get_connection())
             .await
             .unwrap())
     }

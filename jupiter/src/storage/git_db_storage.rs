@@ -240,7 +240,6 @@ impl GitDbStorage {
     }
 
     pub async fn save_git_repo(&self, repo: git_repo::Model) -> Result<(), MegaError> {
-        // let model: git_repo::Model = repo.into();
         let a_model = repo.into_active_model();
         git_repo::Entity::insert(a_model)
             .exec(self.get_connection())

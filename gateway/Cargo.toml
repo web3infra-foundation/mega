@@ -13,12 +13,13 @@ path = "src/lib.rs"
 mono = { workspace = true }
 common = { workspace = true }
 jupiter = { workspace = true }
+callisto = { workspace = true }
 gemini = { workspace = true }
 vault = { workspace = true }
 taurus = { workspace = true }
 
 axum = { workspace = true }
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+axum-server = { workspace = true, features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
@@ -32,3 +33,4 @@ tower-http = { workspace = true, features = [
 tokio = { workspace = true, features = ["net"] }
 reqwest = { workspace = true, features = ["json"] }
 lazy_static = { workspace = true }
+chrono = { workspace = true }

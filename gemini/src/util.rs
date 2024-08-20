@@ -43,6 +43,11 @@ pub async fn handle_response(
     }
 }
 
+pub fn repo_alias_to_identifier( alias: String) -> String {
+    let (peer_id, _) = vault::init();
+    format!("p2p://{}/{alias}", peer_id.clone())
+}
+
 pub fn repo_path_to_identifier(http_port: u16, repo_path: String) -> String {
     let (peer_id, _) = vault::init();
     format!("p2p://{}/{http_port}{repo_path}.git", peer_id.clone())

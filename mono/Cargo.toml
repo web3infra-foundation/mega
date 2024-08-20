@@ -20,7 +20,7 @@ taurus = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+axum-server = { workspace = true, features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
