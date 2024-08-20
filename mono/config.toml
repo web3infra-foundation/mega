@@ -89,5 +89,5 @@ split_size = 20971520 # Default size is 20MB (20971520 bytes)
 
 [oauth]
 # GitHub OAuth application client id and secret
-github_client_id = "Ov23li3y0koaZFzk8CUE"
-github_client_secret = "58babfc9794ca137feff59c57c82ef6f5318ec37"
+github_client_id = ""
+github_client_secret = ""
