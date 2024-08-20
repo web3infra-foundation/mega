@@ -7,6 +7,7 @@ pub mod config;
 mod inode_store;
 pub mod sync_io;
 mod utils;
+mod diff;
 mod tempfile;
 use core::panic;
 use std::collections::HashMap;
