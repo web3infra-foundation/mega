@@ -72,23 +72,10 @@ async fn repo_folk(
             ));
         }
     };
-    let local_port = match query.get("port") {
-        Some(i) => i,
-        None => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Port not provide\n")));
-        }
-    };
-    let local_port = match local_port.parse::<u16>() {
-        Ok(i) => i,
-        Err(_) => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Port not valid\n")));
-        }
-    };
 
-    let res = gemini::http::handler::repo_folk(
+    let res = gemini::http::handler::repo_folk_alias(
         state.ztm.ztm_agent_port,
         identifier.clone().to_string(),
-        local_port,
     )
     .await;
     let res = match res {
