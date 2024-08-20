@@ -3,33 +3,29 @@ use std::collections::HashMap;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 
+use callisto::ztm_path_mapping;
 use common::model::CommonResult;
 use gemini::nostr::subscribe_git_event;
 use vault::get_peerid;
 
+use crate::api::model::RepoProvideQuery;
 use crate::api::MegaApiServiceState;
 
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
-        .route("/ztm/repo_provide", get(repo_provide))
+        .route("/ztm/repo_provide", post(repo_provide))
         .route("/ztm/repo_fork", get(repo_folk))
-        .route("/ztm/hello", get(hello))
+        .route("/ztm/peer_id", get(peer_id))
 }
 
 async fn repo_provide(
-    Query(query): Query<HashMap<String, String>>,
     state: State<MegaApiServiceState>,
+    Json(json): Json<RepoProvideQuery>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
-    let path = match query.get("path") {
-        Some(p) => p,
-        None => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Path not provide\n")));
-        }
-    };
     let bootstrap_node = match state.ztm.bootstrap_node.clone() {
         Some(b) => b.clone(),
         None => {
@@ -39,11 +35,18 @@ async fn repo_provide(
             ));
         }
     };
+    let RepoProvideQuery { path, alias } = json.clone();
+    let context = state.inner.context.clone();
+    let model: ztm_path_mapping::Model = json.into();
+    match context.services.ztm_storage.save_alias_mapping(model.clone()).await {
+        Ok(_) => (),
+        Err(err) => return Err((StatusCode::BAD_REQUEST, err.to_string())),
+    }
     let res = match gemini::http::handler::repo_provide(
-        state.port,
         bootstrap_node,
         state.inner.context.clone(),
-        path.to_string(),
+        path,
+        alias,
     )
     .await
     {
@@ -98,11 +101,10 @@ async fn repo_folk(
     Ok(Json(res))
 }
 
-async fn hello(
+async fn peer_id(
     Query(_query): Query<HashMap<String, String>>,
     _state: State<MegaApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let (peer_id, _) = vault::init();
-    let msg = format!("hello from {peer_id}");
-    Ok(Json(CommonResult::success(Some(msg))))
+    Ok(Json(CommonResult::success(Some(peer_id))))
 }

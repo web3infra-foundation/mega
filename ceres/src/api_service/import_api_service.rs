@@ -16,7 +16,6 @@ use mercury::internal::object::tree::TreeItem;
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
-use crate::model::publish_path::PublishPathInfo;
 use crate::protocol::repo::Repo;
 
 #[derive(Clone)]
@@ -30,12 +29,6 @@ impl ApiHandler for ImportApiService {
     async fn create_monorepo_file(&self, _: CreateFileInfo) -> Result<(), GitError> {
         return Err(GitError::CustomError(
             "import dir does not support create file".to_string(),
-        ));
-    }
-
-    async fn publish_path(&self, _: PublishPathInfo) -> Result<(), GitError> {
-        return Err(GitError::CustomError(
-            "Publish operation only support in mono directory".to_string(),
         ));
     }
 

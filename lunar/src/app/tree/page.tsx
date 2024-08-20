@@ -3,7 +3,7 @@
 import CodeTable from '@/components/CodeTable'
 import Bread from '@/components/BreadCrumb'
 import RepoTree from '@/components/RepoTree'
-import { useBlobContent, useTreeCommitInfo } from '@/app/api/fetcher'
+import { useBlobContent, useMegaStatus, useTreeCommitInfo } from '@/app/api/fetcher'
 import { useSearchParams } from 'next/navigation';
 import { Skeleton, Flex, Layout } from "antd/lib";
 import { Suspense } from 'react'
@@ -21,6 +21,8 @@ function Tree() {
     const path = searchParams.get('path');
     const { tree, isTreeLoading, isTreeError } = useTreeCommitInfo(path);
     const { blob, isBlobLoading, isBlobError } = useBlobContent(`${path}/README.md`);
+    const { status, isLoading, isError } = useMegaStatus();
+
     if (isTreeLoading || isBlobLoading) return <Skeleton />;
 
     const treeStyle = {
@@ -55,7 +57,7 @@ function Tree() {
                 <RepoTree directory={tree.data} />
             </Layout>
             <Layout style={codeStyle}>
-                <CodeTable directory={tree.data} readmeContent={blob.data} />
+                <CodeTable directory={tree.data} readmeContent={blob.data} with_ztm={status[1]} />
             </Layout>
         </Flex>
     )
