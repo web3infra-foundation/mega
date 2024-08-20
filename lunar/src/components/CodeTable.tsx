@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Markdown from 'react-markdown'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import styles from './CodeTable.module.css'
-import { Input, Modal, Space, Table, TableProps } from 'antd/lib'
+import { Input, Modal, Space, Table, TableProps, message } from 'antd/lib'
 import { useState } from 'react'
 import {
     FolderIcon,
@@ -23,6 +23,21 @@ export interface DataType {
 }
 
 const CodeTable = ({ directory, readmeContent, with_ztm }) => {
+    const [messageApi, contextHolder] = message.useMessage();
+
+    const msg_error = (content: String) => {
+        messageApi.open({
+            type: 'error',
+            content: content,
+        });
+    };
+    const msg_success = (content: String) => {
+        messageApi.open({
+            type: 'success',
+            content: content,
+        });
+    };
+
     const router = useRouter();
     const fileCodeContainerStyle = {
         width: '100%',
@@ -79,7 +94,7 @@ const CodeTable = ({ directory, readmeContent, with_ztm }) => {
             render: (_, record) => (
                 <Space size="middle">
                     <Button disabled={!with_ztm} onClick={() => showModal(record.name)}>Publish</Button>
-                    <Button disabled={!with_ztm} outline>Revoke</Button>
+                    {/* <Button disabled={!with_ztm} outline>Revoke</Button> */}
                 </Space>
             ),
         },
@@ -134,17 +149,19 @@ const CodeTable = ({ directory, readmeContent, with_ztm }) => {
             newPath = `${path}/${filename}`;
         }
         setConfirmLoading(true);
-        await requestPublishRepo({
-            "path": newPath,
-            "alias": filename,
-        })
+
+        try {
+            const result = await requestPublishRepo({
+                "path": newPath,
+                "alias": filename,
+            });
+            msg_success("Publish Success!");
+            console.log('Repo published successfully:', result);
+        } catch (error) {
+            msg_error("Publish failed:" + error);
+        }
         setOpen(false);
         setConfirmLoading(false);
-        // setTimeout(() => {
-        //     console.log("publish path", newPath);
-        //     setOpen(false);
-        //     setConfirmLoading(false);
-        // }, 2000);
     };
 
     const handleCancel = () => {
@@ -153,6 +170,7 @@ const CodeTable = ({ directory, readmeContent, with_ztm }) => {
 
     return (
         <div style={fileCodeContainerStyle}>
+            {contextHolder}
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
             <Modal
                 title="Given a alias for repo to public"

@@ -6,18 +6,26 @@ import { Input } from '@/components/catalyst/input'
 import { Text } from '@/components/catalyst/text'
 import { invoke } from '@tauri-apps/api/tauri'
 import { useState } from 'react'
-import { Button, Skeleton } from "antd";
+import { Button, Skeleton, message } from "antd";
 import { usePeerId } from '@/app/api/fetcher'
-
 interface MegaStartParams {
   bootstrap_node: string,
 }
 
 export default function Settings() {
 
+  const [messageApi, contextHolder] = message.useMessage();
+
+  const success = () => {
+    messageApi.open({
+      type: 'success',
+      content: 'Save setting successful',
+    });
+  };
+
   const [loadings, setLoadings] = useState<boolean[]>([]);
   const [params, setParams] = useState<MegaStartParams>({
-    bootstrap_node: "http://34.84.172.121/relay",
+    bootstrap_node: "http://gitmono.org/relay",
   });
   const { peerId, isLoading, isError } = usePeerId();
   if (isLoading) return <Skeleton />;
@@ -28,13 +36,14 @@ export default function Settings() {
       newLoadings[index] = true;
       return newLoadings;
     });
-    setTimeout(() => {
-      setLoadings((prevLoadings) => {
-        const newLoadings = [...prevLoadings];
-        newLoadings[index] = false;
-        return newLoadings;
-      });
-    }, 6000);
+  }
+
+  const exitLoading = (index: number) => {
+    setLoadings((prevLoadings) => {
+      const newLoadings = [...prevLoadings];
+      newLoadings[index] = false;
+      return newLoadings;
+    });
   }
 
   const stopMega = async () => {
@@ -46,8 +55,15 @@ export default function Settings() {
   const restartMega = async () => {
     enterLoading(1);
     invoke('restart_mega_service', { params: params })
-      .then((message) => console.log("result:", message))
+      .then((message) => {
+        console.log("result:", message);
+        success()
+      })
       .catch((err) => console.error("err:", err));
+
+    setTimeout(() => {
+      exitLoading(1);
+    }, 1000);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +76,7 @@ export default function Settings() {
 
   return (
     <form method="post" className="mx-auto max-w-4xl">
+      {contextHolder}
       <Heading>Settings</Heading>
       <Divider className="my-10 mt-6" />
 
