@@ -58,8 +58,11 @@ impl Default for Config {
             })
             .collect::<Vec<String>>()
             .join("\n");
-
-        let config_path = base_dir.join("config.toml");
+        
+        // default config path: $MEGA_BASE_DIR/etc/config.toml
+        // ensure the directory exists
+        std::fs::create_dir_all(base_dir.join("etc")).unwrap();
+        let config_path = base_dir.join("etc").join("config.toml");
         std::fs::write(&config_path, default_config).unwrap();
         eprintln!("create default config.toml in {:?}", &config_path);
 
