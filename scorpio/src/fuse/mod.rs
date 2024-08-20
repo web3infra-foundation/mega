@@ -4,8 +4,8 @@ use libc::{stat64, statvfs64};
 use std::{collections::HashMap, ffi::CStr, io::Result, sync::{Arc, Mutex}, time::Duration};
 use crate::{dicfuse::Dicfuse, overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
 
-
 mod inode_alloc;
+
 pub use inode_alloc::READONLY_INODE;
 #[allow(unused)]
 struct MegaFuse{
@@ -49,10 +49,10 @@ impl MegaFuse{
     }
     pub fn mount(&self,inode:u64){
 
-        let mountpoint="/tmp/true_temp".to_string();
-        let lowerdir=vec!["/tmp/lower".to_string()];
-        let upperdir="/tmp/upper".to_string();
-        let workdir="/tmp/workdir".to_string();
+        let mountpoint="/home/luxian/megatest/true_temp".to_string();
+        let lowerdir=vec!["/home/luxian/megatest/lower".to_string()];
+        let upperdir="/home/luxian/megatest/upper".to_string();
+        let workdir="/home/luxian/megatest/workerdir".to_string();
  
         let  config = config::Config { 
             work: workdir.clone(), 
@@ -127,6 +127,7 @@ impl FileSystem for MegaFuse{
         mode: u32,
         umask: u32,
     ) -> Result<Entry> {
+        println!("top mkdir : parent:{}, name :{:?}, mode:{},umask:{}",parent,name,mode,umask);
         let a:Arc<dyn FileSystem<Inode = u64,Handle = u64>> = select_filesystem!(self,parent );
         a.mkdir(ctx, parent, name, mode, umask)
     }
@@ -419,7 +420,7 @@ mod tests{
         megafuse.mount(4);
        // dicfuse.init(FsOptions::empty()).unwrap();
         // Create fuse session
-        let mut se = FuseSession::new(Path::new(&"/tmp/dictest"), "dic", "", true).unwrap();
+        let mut se = FuseSession::new(Path::new(&"/home/luxian/megatest/dictest"), "dic", "", false).unwrap();
         se.mount().unwrap();
         let ch: FuseChannel = se.new_channel().unwrap();
         println!("start fs servers");
