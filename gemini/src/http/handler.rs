@@ -1,16 +1,16 @@
 use jupiter::context::Context;
 
 use crate::{
-    util::{get_short_peer_id, repo_path_to_identifier},
+    util::{get_short_peer_id, repo_alias_to_identifier},
     ztm::{agent::share_repo, create_tunnel},
     RepoInfo,
 };
 
 pub async fn repo_provide(
-    port: u16,
     bootstrap_node: String,
     context: Context,
     path: String,
+    alias: String,
 ) -> Result<String, String> {
     let url = format!("{bootstrap_node}/api/v1/repo_provide");
     let git_model = context
@@ -38,9 +38,8 @@ pub async fn repo_provide(
         .unwrap();
 
     let name = git_model.repo_name;
-    let repo_path = git_model.repo_path;
     let (peer_id, _) = vault::init();
-    let identifier = repo_path_to_identifier(port, repo_path);
+    let identifier = repo_alias_to_identifier(alias);
     let update_time = git_model.created_at.and_utc().timestamp();
     let repo_info = RepoInfo {
         name,

@@ -92,6 +92,16 @@ export function useRepoList() {
   }
 }
 
+export function usePeerId() {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mega/ztm/peer_id`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    peerId: data,
+    isLoading: isLoading,
+    isError: error,
+  }
+}
 // export function usePublishRepo(path: string) {
 //   const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mega/ztm/repo_provide?path=${path}`, fetcher)
 //   return {
@@ -119,18 +129,17 @@ export function useMegaStatus() {
 }
 
 // normal fetch 
-export async function requestPublishRepo(path) {
-  const response = await fetch(`${endpoint}/api/v1/mega/ztm/repo_provide?path=${path}`, {
-    method: 'GET',
+export async function requestPublishRepo(data) {
+  const response = await fetch(`${endpoint}/api/v1/mega/ztm/repo_provide`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify(data),
   });
 
   if (!response.ok) {
     throw new Error('Failed to publish repo');
   }
-
-  // 返回响应数据
   return response.json();
 }

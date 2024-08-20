@@ -19,9 +19,7 @@ use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
 use crate::model::mr::{MRDetail, MrInfoItem};
-use crate::model::publish_path::PublishPathInfo;
 use crate::protocol::mr::MergeRequest;
-use crate::protocol::repo::Repo;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -112,13 +110,6 @@ impl ApiHandler for MonoApiService {
         batch_save_model(storage.get_connection(), save_trees)
             .await
             .unwrap();
-        Ok(())
-    }
-
-    async fn publish_path(&self, publish_info: PublishPathInfo) -> Result<(), GitError> {
-        let storage = self.context.services.git_db_storage.clone();
-        let repo: Repo = publish_info.into();
-        storage.save_git_repo(repo.clone().into()).await.unwrap();
         Ok(())
     }
 

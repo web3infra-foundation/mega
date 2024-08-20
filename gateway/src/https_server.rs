@@ -128,7 +128,7 @@ pub async fn app(
         common: common.clone(),
     };
 
-    let mrga_api_state = MegaApiServiceState {
+    let mega_api_state = MegaApiServiceState {
         inner: MonoApiServiceState {
             context: context.clone(),
             common: common.clone(),
@@ -159,7 +159,7 @@ pub async fn app(
         )
         .nest(
             "/api/v1/mega",
-            mega_routers().with_state(mrga_api_state.clone()),
+            mega_routers().with_state(mega_api_state.clone()),
         )
         // Using Regular Expressions for Path Matching in Protocol
         .route(

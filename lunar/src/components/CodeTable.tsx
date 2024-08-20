@@ -22,7 +22,7 @@ export interface DataType {
     date: number;
 }
 
-const CodeTable = ({ directory, readmeContent }) => {
+const CodeTable = ({ directory, readmeContent, with_ztm }) => {
     const router = useRouter();
     const fileCodeContainerStyle = {
         width: '100%',
@@ -78,8 +78,8 @@ const CodeTable = ({ directory, readmeContent }) => {
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
-                    <Button onClick={() => showModal(record.name)}>Publish</Button>
-                    <Button outline>Revoke</Button>
+                    <Button disabled={!with_ztm} onClick={() => showModal(record.name)}>Publish</Button>
+                    <Button disabled={!with_ztm} outline>Revoke</Button>
                 </Space>
             ),
         },
@@ -127,7 +127,6 @@ const CodeTable = ({ directory, readmeContent }) => {
     };
 
     const handleOk = async (filename) => {
-
         var newPath = '';
         if (!path) {
             newPath = `/${filename}`;
@@ -135,12 +134,17 @@ const CodeTable = ({ directory, readmeContent }) => {
             newPath = `${path}/${filename}`;
         }
         setConfirmLoading(true);
-        // await requestPublishRepo(path)
-        setTimeout(() => {
-            console.log("publish path", newPath);
-            setOpen(false);
-            setConfirmLoading(false);
-        }, 2000);
+        await requestPublishRepo({
+            "path": newPath,
+            "alias": filename,
+        })
+        setOpen(false);
+        setConfirmLoading(false);
+        // setTimeout(() => {
+        //     console.log("publish path", newPath);
+        //     setOpen(false);
+        //     setConfirmLoading(false);
+        // }, 2000);
     };
 
     const handleCancel = () => {
@@ -151,13 +155,13 @@ const CodeTable = ({ directory, readmeContent }) => {
         <div style={fileCodeContainerStyle}>
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
             <Modal
-                title="Did you want to publish repo to public?"
+                title="Given a alias for repo to public"
                 open={open}
-                onOk={async => handleOk(modalText)}
+                onOk={() => handleOk(modalText)}
                 confirmLoading={confirmLoading}
                 onCancel={handleCancel}
             >
-                <Input showCount maxLength={20} value={modalText} />
+                <Input showCount maxLength={20} defaultValue={modalText} />
             </Modal>
             {readmeContent && (
                 <div className={styles.markdownContent}>
