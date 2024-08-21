@@ -4,6 +4,12 @@ import { invoke } from '@tauri-apps/api/tauri';
 const endpoint = process.env.NEXT_PUBLIC_API_URL;
 const relay = process.env.NEXT_PUBLIC_RELAY_API_URL;
 
+export interface ApiResult<T> {
+  req_result: boolean,
+  data: T,
+  err_message: string
+}
+
 export class FetchError extends Error {
   info: any;
   status: number;
@@ -86,9 +92,9 @@ export function useRepoList() {
     dedupingInterval: 30000,
   })
   return {
-    data: data,
-    isLoading,
-    isError: error,
+    repo: data,
+    isRepoLoading: isLoading,
+    isRepoError: error,
   }
 }
 
@@ -102,6 +108,18 @@ export function usePeerId() {
     isError: error,
   }
 }
+
+export function useRepoFork(identifier) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mega/ztm/repo_fork?identifier=${identifier}`, {
+    dedupingInterval: 60000,
+  })
+  return {
+    url: data,
+    isForkLoading: isLoading,
+    isForkError: error,
+  }
+}
+
 // export function usePublishRepo(path: string) {
 //   const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mega/ztm/repo_provide?path=${path}`, fetcher)
 //   return {
