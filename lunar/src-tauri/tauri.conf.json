@@ -17,6 +17,10 @@
                     {
                         "name": "binaries/mega",
                         "sidecar": true
+                    },
+                    {
+                        "name": "binaries/libra",
+                        "sidecar": true
                     }
                 ]
             },
@@ -35,7 +39,8 @@
                 "files": {}
             },
             "externalBin": [
-                "binaries/mega"
+                "binaries/mega",
+                "binaries/libra"
             ],
             "icon": [
                 "icons/32x32.png",
