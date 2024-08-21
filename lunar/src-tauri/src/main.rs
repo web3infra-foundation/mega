@@ -1,8 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::env;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::{env, fs};
 
 use serde::Deserialize;
 use tauri::api::process::{Command, CommandChild, CommandEvent};
@@ -129,9 +130,84 @@ fn restart_mega_service(
 }
 
 #[tauri::command]
-async fn mega_service_status(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<(bool, bool), String> {
+fn mega_service_status(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<(bool, bool), String> {
     let service_state = state.lock().unwrap();
     Ok((service_state.child.is_some(), service_state.with_relay))
+}
+
+#[tauri::command]
+fn clone_repository(repo_url: String, name: String) -> Result<(), String> {
+    let home = match home::home_dir() {
+        Some(path) if !path.as_os_str().is_empty() => path,
+        _ => {
+            println!("Unable to get your home dir!");
+            PathBuf::new()
+        }
+    };
+    let target_dir = home.join(".mega").join(name.clone());
+
+    if target_dir.exists() {
+        fs::remove_dir_all(&target_dir).unwrap();
+    }
+
+    let output = Command::new_sidecar("libra")
+        .expect("Failed to create `libra` binary command")
+        .args(["clone", &repo_url, (target_dir.to_str().unwrap())])
+        .output()
+        .map_err(|e| format!("Failed to execute process: {}", e))?;
+
+    if output.status.success() {
+        println!("{}", output.stdout);
+    } else {
+        eprintln!("{}", output.stderr);
+    }
+    change_remote_url(target_dir.clone(), name)?;
+    push_to_new_remote(target_dir)?;
+    Ok(())
+}
+
+fn change_remote_url(repo_path: PathBuf, name: String) -> Result<(), String> {
+    Command::new_sidecar("libra")
+        .expect("Failed to create `libra` binary command")
+        .args(["remote", "remove", "origin"])
+        .current_dir(repo_path.clone())
+        .output()
+        .map_err(|e| format!("Failed to execute process: {}", e))?;
+
+    let output = Command::new_sidecar("libra")
+        .expect("Failed to create `libra` binary command")
+        .args([
+            "remote",
+            "add",
+            "origin",
+            &format!("http://localhost:8000/third-part/{}", name),
+        ])
+        .current_dir(repo_path.clone())
+        .output()
+        .map_err(|e| format!("Failed to execute process: {}", e))?;
+
+    if output.status.success() {
+        println!("{}", output.stdout);
+    } else {
+        eprintln!("{}", output.stderr);
+    }
+    Ok(())
+}
+
+fn push_to_new_remote(repo_path: PathBuf) -> Result<(), String> {
+    let output = Command::new_sidecar("libra")
+        .expect("Failed to create `libra` binary command")
+        .args(["push", "origin", "master"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("Failed to execute process: {}", e))?;
+
+    if output.status.success() {
+        println!("{}", output.stdout);
+    } else {
+        eprintln!("{}", output.stderr);
+    }
+    Ok(())
 }
 
 fn main() {
@@ -142,7 +218,8 @@ fn main() {
             start_mega_service,
             stop_mega_service,
             restart_mega_service,
-            mega_service_status
+            mega_service_status,
+            clone_repository
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
