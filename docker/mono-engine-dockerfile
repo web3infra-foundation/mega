@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y \
     && curl https://sh.rustup.rs -sSf | sh -s -- -y \
     && . $HOME/.cargo/env
 
-ENV PATH=/root/.cargo/bin:$PATH！
+ENV PATH=/root/.cargo/bin:$PATH
 
 # copy the source code, the context must be the root of the project
 COPY . .
@@ -53,10 +53,10 @@ RUN apt-get update && apt-get install -y libssl-dev
 ARG BUILD_TYPE=release
 
 COPY --from=builder /opt/mega/target/$BUILD_TYPE/mono /usr/local/bin/mono
-COPY --from=builder /opt/mega/docker/start_mono.sh /usr/local/bin/start_mono.sh
-RUN chmod +x /usr/local/bin/start_mono.sh
+COPY --from=builder /opt/mega/docker/start-mono.sh /usr/local/bin/start-mono.sh
+RUN chmod +x /usr/local/bin/start-mono.sh
 RUN chmod +x /usr/local/bin/mono
 
 VOLUME /opt/mega
 
-CMD ["bash", "-c", "/usr/local/bin/start_mono.sh"]
+CMD ["bash", "-c", "/usr/local/bin/start-mono.sh"]
