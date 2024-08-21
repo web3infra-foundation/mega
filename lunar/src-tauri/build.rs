@@ -30,6 +30,7 @@ fn main() {
         .unwrap();
 
     let sidecar_path = format!("./binaries/mega-{}{}", target_triple, extension);
+    let libra_path = format!("./binaries/libra-{}{}", target_triple, extension);
 
     let debug_path = if cfg!(debug_assertions) {
         "debug"
@@ -39,6 +40,9 @@ fn main() {
 
     std::fs::copy(format!("../../target/{}/mega{}", debug_path, extension), sidecar_path)
         .expect("Run Cargo build for mega first");
+
+    std::fs::copy(format!("../../target/{}/libra{}", debug_path, extension), libra_path)
+        .expect("Run Cargo build for libra first");
 
     // Copy libpipy due to target os
     #[cfg(target_os = "macos")]

@@ -24,7 +24,6 @@ export interface DataType {
 
 const CodeTable = ({ directory, readmeContent, with_ztm }) => {
     const [messageApi, contextHolder] = message.useMessage();
-
     const msg_error = (content: String) => {
         messageApi.open({
             type: 'error',
@@ -175,6 +174,7 @@ const CodeTable = ({ directory, readmeContent, with_ztm }) => {
             <Modal
                 title="Given a alias for repo to public"
                 open={open}
+                destroyOnClose
                 onOk={() => handleOk(modalText)}
                 confirmLoading={confirmLoading}
                 onCancel={handleCancel}

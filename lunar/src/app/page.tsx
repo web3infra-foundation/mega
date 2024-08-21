@@ -1,6 +1,6 @@
 'use client'
 
-import { Flex, Layout, Skeleton, Alert } from "antd/lib";
+import { Flex, Layout, Skeleton } from "antd/lib";
 import CodeTable from '@/components/CodeTable';
 import MergeList from '@/components/MergeList';
 import { useTreeCommitInfo, useBlobContent, useMRList, useMegaStatus } from '@/app/api/fetcher';
@@ -44,36 +44,19 @@ export default function HomePage() {
   if (isTreeLoading || isBlobLoading || isMRLoading || isLoading) return <Skeleton />;
 
   return (
-    <div>
-      {
-        !status[1] &&
-        <Alert
-          banner
-          message={
-            "Relay address is not configed, Some functions are not available"
-          }
-        />
-      }
-
-      {
-        <Flex gap="middle" wrap>
-          <Layout style={leftStyle}>
-            {
-              (tree && blob) &&
-              <CodeTable directory={tree.data} readmeContent={blob.data} with_ztm={status[1]} />
-            }
-          </Layout>
-          <Layout style={rightStyle}>
-            {(isTreeLoading || isBlobLoading) &&
-              <Skeleton />
-            }
-            {(!isTreeLoading && !isBlobLoading) &&
-              <MergeList mrList={mrList.data} />
-            }
-            {/* <Content style={contentStyle}></Content> */}
-          </Layout>
-        </Flex>
-      }
-    </div>
+    <Flex gap="middle" wrap>
+      <Layout style={leftStyle}>
+        {
+          (tree && blob) &&
+          <CodeTable directory={tree.data} readmeContent={blob.data} with_ztm={status[1]} />
+        }
+      </Layout>
+      <Layout style={rightStyle}>
+        {mrList &&
+          <MergeList mrList={mrList.data} />
+        }
+        {/* <Content style={contentStyle}></Content> */}
+      </Layout>
+    </Flex>
   )
 }
