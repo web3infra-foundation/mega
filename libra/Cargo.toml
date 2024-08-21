@@ -40,6 +40,7 @@ lazy_static = { workspace = true }
 regex = { workspace = true }
 sha2 = "0.10.8"
 hex = { workspace = true }
+serde_json = { workspace = true }
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"

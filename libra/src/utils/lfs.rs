@@ -1,10 +1,11 @@
 use std::fs::File;
 use std::{fs, io};
 use std::io::{BufRead, BufReader, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use lazy_static::lazy_static;
 use path_abs::{PathInfo, PathOps};
 use regex::Regex;
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use sha2::{Digest, Sha256};
 use wax::Pattern;
 use crate::utils::{path, util};
@@ -14,6 +15,13 @@ lazy_static! {
     static ref LFS_PATTERNS: Vec<String> = { // cache
         let attr_path = path::attributes().to_string_or_panic();
         extract_lfs_patterns(&attr_path).unwrap()
+    };
+
+    pub static ref LFS_HEADERS: HeaderMap = {
+        let mut headers = HeaderMap::new();
+        headers.insert(ACCEPT, HeaderValue::from_static("application/vnd.git-lfs+json"));
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/vnd.git-lfs+json"));
+        headers
     };
 }
 
@@ -35,7 +43,11 @@ where
 }
 
 const LFS_VERSION: &str = "https://git-lfs.github.com/spec/v1";
-const LFS_HASH_ALGO: &str = "sha256";
+/// This is the original & default transfer adapter. All Git LFS clients and servers SHOULD support it.
+pub const LFS_TRANSFER_API: &str = "basic";
+pub const LFS_HASH_ALGO: &str = "sha256";
+const LFS_OID_LEN: usize = 64;
+const LFS_POINTER_MAX_SIZE: usize = 300; // bytes
 
 /// Generate lfs pointer file string
 /// - return (pointer content, file hash)
@@ -50,18 +62,49 @@ pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
     (pointer, file_hash)
 }
 
+/// Generate LFS Server Url from repo Url.
+/// By default, Git LFS will append `.git/info/lfs` to the end of a Git remote url to build the LFS server URL.
+/// [doc: server-discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
+/// - like https://git-server.com/foo/bar.git/info/lfs
+/// - support ssh & https & git@ format
+pub fn generate_lfs_server_url(mut url: String) -> String {
+    if url.ends_with('/') {
+        url.pop();
+    }
+    if !url.ends_with(".git") {
+        url.push_str(".git");
+    }
+    url.push_str("/info/lfs");
+
+    if url.starts_with("git@") {
+        // git@git-server.com:foo/bar.git
+        url = "https://".to_string() + &url[4..].replace(":", "/");
+    } else if url.starts_with("ssh://") {
+        // ssh://git-server.com/foo/bar.git
+        url = "https://".to_string() + &url[6..];
+    }
+
+    url
+}
+
+/// Generate LFS cache path, in `.libra/lfs/objects`
+pub fn lfs_object_path(oid: &str) -> PathBuf {
+    util::storage_path()
+        .join("lfs/objects")
+        .join(&oid[..2])
+        .join(&oid[2..4])
+        .join(oid)
+        .into()
+}
+
 /// Copy LFS file to `.libra/lfs/objects`
 /// - absolute path
-pub fn backup_lfs_file<P>(path: P, hash: &str) -> io::Result<()>
+pub fn backup_lfs_file<P>(path: P, oid: &str) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
-    let backup_path = util::storage_path()
-        .join("lfs/objects")
-        .join(&hash[..2])
-        .join(&hash[2..4])
-        .join(hash);
+    let backup_path = lfs_object_path(oid);
     if !backup_path.exists() {
         fs::create_dir_all(backup_path.parent().unwrap())?;
         fs::copy(path, backup_path)?;
@@ -89,6 +132,22 @@ where
     }
     let file_hash = hex::encode(hash.finalize());
     Ok(file_hash)
+}
+
+/// Check if `data` is an LFS pointer, return `oid`
+pub fn parse_pointer_data(data: &[u8]) -> Option<String> {
+    if data.len() > LFS_POINTER_MAX_SIZE {
+        return None;
+    }
+    // Start with format `version ...`
+    if let Some(data) = data.strip_prefix(format!("version {}\noid {}:", LFS_VERSION, LFS_HASH_ALGO).as_bytes()) {
+        if data[LFS_OID_LEN] == b'\n' {
+            // check `oid` length
+            let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
+            return Some(oid);
+        }
+    }
+    None
 }
 
 /// Extract LFS patterns from `.libra_attributes` file
@@ -130,5 +189,27 @@ mod tests {
         let path = Path::new("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
         let (pointer, _oid) = generate_pointer_file(path);
         print!("{}", pointer);
+    }
+
+    #[test]
+    fn test_is_pointer_file() {
+        let data = b"version https://git-lfs.github.com/spec/v1\noid sha256:1234567890abcdef\nsize 1234\n";
+        assert!(parse_pointer_data(data).is_some());
+    }
+
+    #[test]
+    fn test_gen_lfs_server_url() {
+        const LFS_SERVER_URL: &str = "https://github.com/web3infra-foundation/mega.git/info/lfs";
+        let url = "https://github.com/web3infra-foundation/mega".to_owned();
+        assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
+
+        let url = "https://github.com/web3infra-foundation/mega.git".to_owned();
+        assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
+
+        let url = "git@github.com:web3infra-foundation/mega.git".to_owned();
+        assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
+
+        let url = "ssh://github.com/web3infra-foundation/mega.git".to_owned();
+        assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
     }
 }

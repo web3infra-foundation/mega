@@ -1,6 +1,8 @@
 use url::Url;
 
 pub mod https_client;
+pub mod lfs_client;
+
 #[allow(dead_code)] // todo: unimplemented
 pub trait ProtocolClient {
     /// create client from url
