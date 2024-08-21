@@ -13,10 +13,10 @@ COPY ./moon .
 
 RUN npm run build
 
-COPY ./docker/start_moon.sh /app/start_moon.sh
+COPY ./docker/start-moon.sh /app/start-moon.sh
 
-RUN chmod +x /app/start_moon.sh
+RUN chmod +x /app/start-moon.sh
 
 EXPOSE 3000
 
-ENTRYPOINT ["/bin/sh", "/app/start_moon.sh"]
+ENTRYPOINT ["/bin/sh", "/app/start-moon.sh"]
