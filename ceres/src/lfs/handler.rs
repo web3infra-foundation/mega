@@ -355,6 +355,11 @@ pub async fn lfs_download_object(
             Ok(meta) => {
                 // client didn't support split, splice the object and return it.
                 let relations = relation_db.get_lfs_relations(meta.oid).await.unwrap();
+                if relations.is_empty() {
+                    return Err(GitLFSError::GeneralError(
+                        "oid didn't have chunks".to_string(),
+                    ));
+                }
                 let mut bytes = vec![0u8; meta.size as usize];
                 for relation in relations {
                     let sub_bytes = config
@@ -476,6 +481,9 @@ async fn lfs_file_exist(config: &LfsConfig, meta: &MetaObject) -> bool {
             .get_lfs_relations(meta.oid.clone())
             .await
             .unwrap();
+        if relations.is_empty() {
+            return false;
+        }
         relations.iter().all(|relation| {
             config
                 .lfs_storage

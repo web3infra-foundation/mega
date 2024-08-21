@@ -71,11 +71,6 @@ impl LfsStorage {
             .all(self.get_connection())
             .await
             .unwrap();
-        if result.is_empty() {
-            return Err(MegaError::with_message(
-                "Object relation not found, maybe have not been uploaded yet",
-            ));
-        }
         Ok(result)
     }
 
