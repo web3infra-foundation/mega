@@ -134,7 +134,7 @@ pub async fn repo_folk_alias(ztm_agent_port: u16, identifier: String) -> Result<
         Err(e) => return Err(e),
     }
 
-    let msg = format!("git clone http://localhost:{local_port}{path}.git");
+    let msg = format!("http://localhost:{local_port}{path}.git");
     Ok(msg)
 }
 

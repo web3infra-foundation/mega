@@ -1,23 +1,15 @@
 'use client'
 
-import DataList from '@/components/DataList'
-import { useRepoList } from '../api/fetcher';
+import RepoList from '@/components/RepoList'
+import { useMegaStatus, useRepoList } from '@/app/api/fetcher';
 import { Skeleton } from "antd";
 
 
 export default function RepoPage() {
-  const { data, isLoading, isError } = useRepoList();
+  const { repo, isRepoLoading, isRepoError } = useRepoList();
 
+  if (isRepoLoading) return <Skeleton />;
   return (
-    <div>
-      {
-        isLoading &&
-        <Skeleton />
-      }
-      {
-        !isLoading &&
-        <DataList data={data} />
-      }
-    </div>
+    <RepoList data={repo} />
   )
 }

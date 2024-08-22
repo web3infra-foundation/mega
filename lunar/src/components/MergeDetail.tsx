@@ -23,7 +23,7 @@ const MRDetailPage = ({ mrDetail }) => {
             setFileData(mrFiles.data);
             cancel_loading(2)
         }
-    }, [mrDetail, mrFiles]);
+    }, [mrDetail, mrFiles, isMRLoading]);
 
 
     const set_to_loading = (index: number) => {
