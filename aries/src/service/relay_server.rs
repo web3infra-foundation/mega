@@ -252,6 +252,9 @@ async fn check_nodes_online(context: Context) {
     let nodelist: Vec<ztm_node::Model> =
         storage.get_all_node().await.unwrap().into_iter().collect();
     for mut node in nodelist {
+        if !node.online {
+            continue;
+        }
         //check online
         let from_timestamp = Duration::from_millis(node.last_online_time as u64);
         let now = SystemTime::now();
