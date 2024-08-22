@@ -21,6 +21,7 @@ tauri = { version = "1.7.1", features = [
     "process-command-api",
 ] }
 tokio = { workspace = true }
+home = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }

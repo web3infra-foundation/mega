@@ -1,10 +1,13 @@
 'use client'
 
-import { Input, Modal, Space, Table, TableProps, Badge, Button } from 'antd/lib'
-import { useEffect, useState } from 'react'
+import { Space, Table, TableProps, Badge, Button, Skeleton, message } from 'antd/lib'
+import { useState } from 'react'
 import { format, fromUnixTime } from 'date-fns'
 import { DownloadOutlined } from '@ant-design/icons';
+import { invoke } from '@tauri-apps/api/tauri';
+import { ApiResult, useMegaStatus } from '@/app/api/fetcher';
 
+const endpoint = process.env.NEXT_PUBLIC_API_URL;
 
 interface DataType {
     name: string;
@@ -16,32 +19,42 @@ interface DataType {
 }
 
 const DataList = ({ data }) => {
-    const [open, setOpen] = useState(false);
-    const [confirmLoading, setConfirmLoading] = useState(false);
-    const [inputPort, setInputPort] = useState("");
-    const [isOkButtonDisabled, setIsOkButtonDisabled] = useState(true);
-    const [modelRecord, setModalRecord] = useState<DataType>({
-        name: "",
-        identifier: "",
-        origin: "",
-        update_time: 0,
-        commit: "",
-        peer_online: true,
-    });
-    const [modal, contextHolder] = Modal.useModal();
+    const [messageApi, contextHolder] = message.useMessage();
+    const { status, isLoading, isError } = useMegaStatus();
+    const [loadings, setLoadings] = useState<boolean[]>([]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // console.log("value changes", e.target.value);
-        setInputPort(e.target.value);
-        setIsOkButtonDisabled(e.target.value.length < 4);
-    };
+    if (isLoading) return <Skeleton />;
 
-    const showSuccModel = (text) => {
-        modal.success({
-            title: 'Fork from remote success! Clone by command:',
-            content: `${text}`,
+    const enterLoading = (index: number) => {
+        setLoadings((prevLoadings) => {
+            const newLoadings = [...prevLoadings];
+            newLoadings[index] = true;
+            return newLoadings;
+        });
+    }
+
+    const exitLoading = (index: number) => {
+        setLoadings((prevLoadings) => {
+            const newLoadings = [...prevLoadings];
+            newLoadings[index] = false;
+            return newLoadings;
+        });
+    }
+
+    const msg_error = () => {
+        messageApi.open({
+            type: 'error',
+            content: 'Failed to clone repo',
         });
     };
+
+    const msg_success = () => {
+        messageApi.open({
+            type: 'success',
+            content: 'Clone success',
+        });
+    };
+
 
     var columns: TableProps<DataType>['columns'] = [
         {
@@ -93,8 +106,8 @@ const DataList = ({ data }) => {
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
-                    <Button disabled={!record.peer_online}
-                        onClick={() => showModal(record)} type="primary" shape="round" icon={<DownloadOutlined />} size={'small'}>
+                    <Button disabled={!record.peer_online || !status[1]} loading={loadings[1]}
+                        onClick={() => handleClone(record)} type="primary" shape="round" icon={<DownloadOutlined />} size={'small'}>
                         Clone
                     </Button>
                 </Space>
@@ -102,41 +115,32 @@ const DataList = ({ data }) => {
         },
     ];
 
-
-    const showModal = (record) => {
-        setModalRecord(record);
-        setOpen(true);
-    };
-
-    const handleOk = () => {
-        setConfirmLoading(true);
-
-        const repoFork = async () => {
-            try {
-                let text = await getRepoFork(modelRecord.identifier, inputPort);
-                setOpen(false);
-                setConfirmLoading(false);
-                showSuccModel(text);
-            } catch (error) {
-                console.error('Error fetching data:', error);
+    const handleClone = async (record) => {
+        enterLoading(1)
+        try {
+            let res: ApiResult<string> = await getRepoFork(record.identifier);
+            // showSuccModel(text);
+            console.log("repo fork result", res);
+            if (res.req_result) {
+                invoke('clone_repository', { repoUrl: res.data, name: record.name })
+                    .then(() => msg_success())
+                    .catch((error) => {
+                        console.error(`Failed to get service status: ${error}`);
+                        msg_error();
+                    });
+            } else {
+                msg_error();
             }
-        };
-        repoFork();
-
-        setTimeout(() => {
-            setOpen(false);
-            setConfirmLoading(false);
-        }, 5000);
-    };
-
-    const handleCancel = () => {
-        setOpen(false);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+        exitLoading(1)
     };
 
     return (
         <div>
             <Table scroll={{ x: true }} columns={columns} dataSource={data} />
-            <Modal
+            {/* <Modal
                 title="Please input a local port"
                 open={open}
                 onOk={handleOk}
@@ -145,17 +149,17 @@ const DataList = ({ data }) => {
                 okButtonProps={{ disabled: isOkButtonDisabled }}
             >
                 <Input showCount maxLength={5} value={inputPort} onChange={handleInputChange} />
-            </Modal>
+            </Modal> */}
             {contextHolder}
         </div>
     );
 };
 
 
-async function getRepoFork(identifier, port) {
-    const res = await fetch(`api/relay/repo_fork?identifier=${identifier}&port=${port}`);
+async function getRepoFork(identifier) {
+    const res = await fetch(`${endpoint}/api/v1/mega/ztm/repo_fork?identifier=${identifier}`);
     const response = await res.json();
-    return response.data.data
+    return response
 }
 
 export default DataList;
