@@ -1,6 +1,6 @@
 'use client'
 
-import { Input, Modal, Space, Table, TableProps, Badge, Button, Skeleton } from 'antd/lib'
+import { Space, Table, TableProps, Badge, Button, Skeleton, message } from 'antd/lib'
 import { useState } from 'react'
 import { format, fromUnixTime } from 'date-fns'
 import { DownloadOutlined } from '@ant-design/icons';
@@ -19,9 +19,9 @@ interface DataType {
 }
 
 const DataList = ({ data }) => {
+    const [messageApi, contextHolder] = message.useMessage();
     const { status, isLoading, isError } = useMegaStatus();
     const [loadings, setLoadings] = useState<boolean[]>([]);
-    const [modal, contextHolder] = Modal.useModal();
 
     if (isLoading) return <Skeleton />;
 
@@ -41,12 +41,20 @@ const DataList = ({ data }) => {
         });
     }
 
-    const showSuccModel = (text) => {
-        modal.success({
-            title: 'Fork from remote success! Clone by command:',
-            content: `${text}`,
+    const msg_error = () => {
+        messageApi.open({
+            type: 'error',
+            content: 'Failed to clone repo',
         });
     };
+
+    const msg_success = () => {
+        messageApi.open({
+            type: 'success',
+            content: 'Clone success',
+        });
+    };
+
 
     var columns: TableProps<DataType>['columns'] = [
         {
@@ -115,9 +123,13 @@ const DataList = ({ data }) => {
             console.log("repo fork result", res);
             if (res.req_result) {
                 invoke('clone_repository', { repoUrl: res.data, name: record.name })
+                    .then(() => msg_success())
                     .catch((error) => {
                         console.error(`Failed to get service status: ${error}`);
+                        msg_error();
                     });
+            } else {
+                msg_error();
             }
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -147,7 +159,7 @@ const DataList = ({ data }) => {
 async function getRepoFork(identifier) {
     const res = await fetch(`${endpoint}/api/v1/mega/ztm/repo_fork?identifier=${identifier}`);
     const response = await res.json();
-    return response.data
+    return response
 }
 
 export default DataList;
