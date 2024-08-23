@@ -54,7 +54,14 @@ impl ZTMStorage {
     }
 
     pub async fn update_node(&self, node: ztm_node::Model) -> Result<ztm_node::Model, MegaError> {
-        Ok(ztm_node::Entity::update(node.into_active_model())
+        let mut active_model: ztm_node::ActiveModel = node.clone().into_active_model();
+        active_model.hub = Set(node.hub);
+        active_model.agent_name = Set(node.agent_name);
+        active_model.service_name = Set(node.service_name);
+        active_model.r#type = Set(node.r#type);
+        active_model.online = Set(node.online);
+        active_model.last_online_time = Set(node.last_online_time);
+        Ok(ztm_node::Entity::update(active_model)
             .exec(self.get_connection())
             .await
             .unwrap())
