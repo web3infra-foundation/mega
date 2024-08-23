@@ -94,7 +94,6 @@ pub fn lfs_object_path(oid: &str) -> PathBuf {
         .join(&oid[..2])
         .join(&oid[2..4])
         .join(oid)
-        .into()
 }
 
 /// Copy LFS file to `.libra/lfs/objects`
