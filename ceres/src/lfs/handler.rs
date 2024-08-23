@@ -198,7 +198,7 @@ pub async fn lfs_process_batch(
         let mut meta = meta.unwrap_or_default();
         if found && lfs_file_exist(config, &meta).await {
             // originla download method, split mode use ``
-            response_objects.push(represent(object, &meta, true, false, false, &server_url).await);
+            response_objects.push(represent(object, &meta, batch_vars.operation == "download", false, false, &server_url).await);
             continue;
         }
         // Not found
