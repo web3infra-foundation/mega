@@ -20,6 +20,7 @@ use crate::internal::branch::Branch;
 use crate::internal::config::Config;
 use crate::internal::head::Head;
 use crate::internal::protocol::https_client::{BasicAuth, HttpsClient};
+use crate::internal::protocol::lfs_client::LFSClient;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 
@@ -117,6 +118,11 @@ pub async fn execute(args: PushArgs) {
         SHA1::from_str(&remote_hash).unwrap()
     );
 
+    { // upload lfs files
+        let client = LFSClient::from_url(&url);
+        client.push_objects(&objs, auth.clone()).await;
+    }
+
     // let (tx, rx) = mpsc::channel::<Entry>();
     let (entry_tx, entry_rx) = mpsc::channel(1_000_000);
     let (stream_tx, mut stream_rx) = mpsc::channel(1_000_000);
@@ -138,7 +144,7 @@ pub async fn execute(args: PushArgs) {
     data.extend_from_slice(&pack_data);
     println!("Delta compression done.");
 
-    let res = client.send_pack(data.freeze(), auth).await.unwrap();
+    let res = client.send_pack(data.freeze(), auth).await.unwrap(); // TODO: send stream
 
     if res.status() != 200 {
         eprintln!("status code: {}", res.status());
