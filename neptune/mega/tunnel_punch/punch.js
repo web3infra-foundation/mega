@@ -270,7 +270,14 @@ export default function ({ app, mesh }) {
       if (role === 'server') {
         makeFakeCall(destIP, destPort)
       }
-      directSession()
+
+      try {
+        directSession()
+      } catch (err) {
+        app.log("Punching failed, abandon this hole.")
+        state = 'fail'
+        updateHoles()
+      }
     }
 
     function makeRespTunnel() {
