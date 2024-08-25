@@ -89,6 +89,12 @@ impl Blob {
         // let mut buf = ReadBoxed::new(blob_content, ObjectType::Blob, content.len());
         // Blob::from_buf_read(&mut buf, content.len())
         let content = content.as_bytes().to_vec();
+        Blob::from_content_bytes(content)
+    }
+
+    /// Create a new Blob object from the given content bytes.
+    /// - some file content can't be represented as a string (UTF-8), so we need to use bytes.
+    pub fn from_content_bytes(content: Vec<u8>) -> Self {
         Blob {
             id: SHA1::from_type_and_data(ObjectType::Blob, &content),
             data: content,
