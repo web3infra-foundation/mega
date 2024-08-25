@@ -1,9 +1,13 @@
+use std::path::Path;
+use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncWriteExt;
 use url::Url;
 use ceres::lfs::lfs_structs::{BatchRequest, Representation, RequestVars};
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
+use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::lfs;
@@ -38,6 +42,15 @@ impl ProtocolClient for LFSClient {
 }
 
 impl LFSClient {
+    /// Construct LFSClient from current remote URL.
+    pub async fn new() -> Self {
+        let url = Config::get_current_remote_url().await;
+        match url {
+            Some(url) => LFSClient::from_url(&Url::parse(&url).unwrap()),
+            None => panic!("fatal: current remote url not found"),
+        }
+    }
+
     /// push LFS objects to remote server
     pub async fn push_objects<'a, I>(&self, objs: I, auth: Option<BasicAuth>)
     where
@@ -53,7 +66,7 @@ impl LFSClient {
         }
 
         let mut lfs_objs = Vec::new();
-        for oid in &lfs_oids {
+        for (oid, _) in &lfs_oids {
             let path = lfs::lfs_object_path(oid);
             if !path.exists() {
                 eprintln!("fatal: LFS object not found: {}", oid);
@@ -128,5 +141,50 @@ impl LFSClient {
         } else {
             tracing::debug!("LFS file {} already exists on remote server", object.oid);
         }
+    }
+
+    /// download (GET) one LFS file from remote server
+    pub async fn download_object(&self, oid: &str, size: u64, path: impl AsRef<Path>) {
+        let batch_request = BatchRequest {
+            operation: "download".to_string(),
+            transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
+            objects: vec![RequestVars {
+                oid: oid.to_owned(),
+                size: size as i64,
+                ..Default::default()
+            }],
+            hash_algo: lfs::LFS_HASH_ALGO.to_string(),
+            enable_split: None,
+        };
+
+        let request = self.client.post(self.url.clone()).json(&batch_request);
+        let response = request.send().await.unwrap();
+
+        let resp = response.json::<LfsBatchResponse>().await.unwrap();
+        tracing::debug!("LFS download response:\n {:#?}", serde_json::to_value(&resp).unwrap());
+
+        let link = resp.objects[0].actions.as_ref().unwrap().get("download").unwrap();
+
+        let mut request = self.client.get(link.href.clone());
+        for (k, v) in &link.header {
+            request = request.header(k, v);
+        }
+
+        let response = request.send().await.unwrap();
+
+        if !response.status().is_success() {
+            eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
+            return;
+        }
+
+        println!("Downloading LFS file: {}", oid);
+        let mut file = tokio::fs::File::create(path).await.unwrap();
+        let mut stream = response.bytes_stream();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.unwrap();
+            file.write_all(&chunk).await.unwrap();
+        }
+        println!("Downloaded."); // TODO: checksum
     }
 }

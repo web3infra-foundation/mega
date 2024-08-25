@@ -134,7 +134,7 @@ where
 }
 
 /// Check if `data` is an LFS pointer, return `oid`
-pub fn parse_pointer_data(data: &[u8]) -> Option<String> {
+pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     if data.len() > LFS_POINTER_MAX_SIZE {
         return None;
     }
@@ -143,7 +143,12 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<String> {
         if data[LFS_OID_LEN] == b'\n' {
             // check `oid` length
             let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
-            return Some(oid);
+            if let Some(data) = data.strip_prefix(format!("{}\nsize ", oid).as_bytes()) {
+                let data = String::from_utf8(data[..].to_vec()).unwrap();
+                if let Ok(size) = data.trim_end().parse::<u64>() {
+                    return Some((oid, size));
+                }
+            }
         }
     }
     None
@@ -210,5 +215,17 @@ mod tests {
 
         let url = "ssh://github.com/web3infra-foundation/mega.git".to_owned();
         assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
+    }
+
+    #[test]
+    fn test_parse_pointer_data() {
+        let data = r#"version https://git-lfs.github.com/spec/v1
+oid sha256:4859402c258b836d02e955d1090e29f586e58b2040504d68afec3d8d43757bba
+size 10
+"#;
+        let res = parse_pointer_data(data.as_bytes()).unwrap();
+        println!("{:?}", res);
+        assert_eq!(res.0, "4859402c258b836d02e955d1090e29f586e58b2040504d68afec3d8d43757bba");
+        assert_eq!(res.1, 10);
     }
 }
