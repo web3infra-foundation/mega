@@ -24,7 +24,7 @@ sha1 = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
-reqwest = { workspace = true, features = ["stream"] }
+reqwest = { workspace = true, features = ["stream", "json"] }
 tokio-util = { version = "0.7.11", features = ["io"] }
 color-backtrace = "0.6.1"
 colored = "2.1.0"

@@ -56,7 +56,7 @@ pub async fn execute(args: PushArgs) {
         Some(repo) => repo,
         None => {
             // e.g. [branch "master"].remote = origin
-            let remote = Config::get("branch", Some(&branch), "remote").await;
+            let remote = Config::get_remote(&branch).await;
             if let Some(remote) = remote {
                 remote
             } else {
@@ -65,7 +65,7 @@ pub async fn execute(args: PushArgs) {
             }
         }
     };
-    let repo_url = Config::get("remote", Some(&repository), "url").await;
+    let repo_url = Config::get_remote_url(&repository).await;
     if repo_url.is_none() {
         eprintln!("fatal: remote '{}' not found, please use 'libra remote add'", repository);
         return;
