@@ -50,16 +50,16 @@ const LFS_OID_LEN: usize = 64;
 const LFS_POINTER_MAX_SIZE: usize = 300; // bytes
 
 /// Generate lfs pointer file string
-/// - return (pointer content, file hash)
+/// - return (pointer content, lfs oid)
 /// - absolute path
 pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
     let path = path.as_ref();
     // calc file hash without type
-    let file_hash = calc_lfs_file_hash(path).unwrap();
+    let oid = calc_lfs_file_hash(path).unwrap();
 
     let pointer = format!("version {}\noid {}:{}\nsize {}\n",
-            LFS_VERSION, LFS_HASH_ALGO, file_hash, path.metadata().unwrap().len());
-    (pointer, file_hash)
+                          LFS_VERSION, LFS_HASH_ALGO, oid, path.metadata().unwrap().len());
+    (pointer, oid)
 }
 
 /// Generate LFS Server Url from repo Url.

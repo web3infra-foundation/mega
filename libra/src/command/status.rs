@@ -9,6 +9,7 @@ use mercury::internal::object::tree::Tree;
 
 use crate::internal::head::Head;
 use mercury::internal::index::Index;
+use crate::command::calc_file_blob_hash;
 use crate::utils::object_ext::{CommitExt, TreeExt};
 use crate::utils::{path, util};
 
@@ -159,7 +160,7 @@ pub fn changes_to_be_staged() -> Changes {
             changes.deleted.push(file.clone());
         } else if index.is_modified(file_str, 0, &workdir) {
             // only calc the hash if the file is modified (metadata), for optimization
-            let file_hash = util::calc_file_blob_hash(&file_abs).unwrap();
+            let file_hash = calc_file_blob_hash(&file_abs).unwrap();
             if !index.verify_hash(file_str, 0, &file_hash) {
                 changes.modified.push(file.clone());
             }

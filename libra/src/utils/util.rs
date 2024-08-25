@@ -1,6 +1,6 @@
 use path_abs::{PathAbs, PathInfo};
 use std::collections::HashSet;
-use std::io::{BufReader, Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
 
@@ -191,14 +191,6 @@ where
     P: AsRef<Path>,
 {
     workdir_to_relative(path, cur_dir())
-}
-
-pub fn calc_file_blob_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
-    let file = fs::File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut data = Vec::new();
-    reader.read_to_end(&mut data)?;
-    Ok(SHA1::from_type_and_data(ObjectType::Blob, &data))
 }
 
 /// List all files in the given dir and its sub_dir, except `.libra`
