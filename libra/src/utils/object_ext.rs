@@ -1,3 +1,5 @@
+use std::fs;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use mercury::hash::SHA1;
@@ -72,8 +74,11 @@ impl BlobExt for Blob {
     /// Create a blob from a file
     /// - `path`: absolute  or relative path to current dir
     fn from_file(path: impl AsRef<Path>) -> Blob {
-        let file_content = std::fs::read_to_string(path).unwrap();
-        Blob::from_content(&file_content)
+        let mut data = Vec::new();
+        let file = fs::File::open(path).unwrap();
+        let mut reader = BufReader::new(file);
+        reader.read_to_end(&mut data).unwrap();
+        Blob::from_content_bytes(data)
     }
 
     /// Create a blob from an LFS file
