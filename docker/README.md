@@ -35,7 +35,7 @@ visit http://localhost:3000 to see the frontend
 [1] Initiate volume for mono data and postgres data
 
 ```bash
-
+./init-volume.sh /mnt/data ./config.toml
 ```
 
 Check `db_type` to `postgres` and db_url to `postgres://mono:mono@mega-db:5432/mono` in the `config.toml`
