@@ -13,6 +13,7 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::types::ObjectType;
+use crate::command::calc_file_blob_hash;
 
 #[derive(Parser, Debug)]
 pub struct RestoreArgs {
@@ -206,7 +207,7 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)])
         } else {
             // file exists
             let path_wd_str = path_wd.to_string_or_panic();
-            let hash = util::calc_file_blob_hash(&path_abs).unwrap();
+            let hash = calc_file_blob_hash(&path_abs).unwrap();
             if target_blobs.contains_key(path_wd) {
                 // both in target & worktree: 1. modified 2. same
                 if hash != target_blobs[path_wd] {
