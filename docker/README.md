@@ -13,7 +13,7 @@ docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-docke
 # docker buildx build -t mono-engine:0.1-pre-debug -f ./docker/mono-engine-dockerfile --build-arg BUILD_TYPE=debug .
 
 # build frontend moon image
-docker buildx build -t mono-ui:0.1-pre-release -f ./docker/moon-ui-dockerfile .
+docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
 ```
 
 ## Test mono and moon
