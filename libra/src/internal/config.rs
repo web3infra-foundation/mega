@@ -5,6 +5,7 @@ use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::internal::db::get_db_conn_instance;
+use crate::internal::head::Head;
 use crate::internal::model::config;
 use crate::internal::model::config::Model;
 
@@ -52,6 +53,33 @@ impl Config {
     pub async fn get(configuration: &str, name: Option<&str>, key: &str) -> Option<String> {
         let values = Self::query(configuration, name, key).await;
         values.first().map(|c| c.value.to_owned())
+    }
+
+    /// Get remote repo name by branch name
+    pub async fn get_remote(branch: &str) -> Option<String> {
+        // e.g. [branch "master"].remote = origin
+        Config::get("branch", Some(branch), "remote").await
+    }
+
+    /// Get remote repo name of current branch
+    pub async fn get_current_remote() -> Option<String> {
+        match Head::current().await {
+            Head::Branch(name) => {
+                Config::get_remote(&name).await
+            },
+            Head::Detached(_) => None,
+        }
+    }
+
+    pub async fn get_remote_url(remote: &str) -> Option<String> {
+        Config::get("remote", Some(remote), "url").await
+    }
+
+    pub async fn get_current_remote_url() -> Option<String> {
+        match Config::get_current_remote().await {
+            Some(remote) => Config::get_remote_url(&remote).await,
+            None => None,
+        }
     }
 
     /// Get all configuration values

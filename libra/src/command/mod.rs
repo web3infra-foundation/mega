@@ -14,6 +14,7 @@ pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
+pub mod lfs;
 
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils::util;
@@ -21,6 +22,10 @@ use mercury::{errors::GitError, hash::SHA1, internal::object::ObjectTrait};
 use rpassword::read_password;
 use std::io;
 use std::io::Write;
+use std::path::Path;
+use mercury::internal::object::blob::Blob;
+use crate::utils;
+use crate::utils::object_ext::BlobExt;
 
 // impl load for all objects
 fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
@@ -109,6 +114,18 @@ pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
             (msg, None)
         }
     }
+}
+
+/// Calculate the hash of a file blob
+/// - for `lfs` file: calculate hash of the pointer data
+pub fn calc_file_blob_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
+    let blob =  if utils::lfs::is_lfs_tracked(&path) {
+        let (pointer, _) = utils::lfs::generate_pointer_file(&path);
+        Blob::from_content(&pointer)
+    } else {
+        Blob::from_file(&path)
+    };
+    Ok(blob.id)
 }
 
 #[cfg(test)]

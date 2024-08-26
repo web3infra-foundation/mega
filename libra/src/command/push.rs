@@ -20,6 +20,7 @@ use crate::internal::branch::Branch;
 use crate::internal::config::Config;
 use crate::internal::head::Head;
 use crate::internal::protocol::https_client::{BasicAuth, HttpsClient};
+use crate::internal::protocol::lfs_client::LFSClient;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 
@@ -55,7 +56,7 @@ pub async fn execute(args: PushArgs) {
         Some(repo) => repo,
         None => {
             // e.g. [branch "master"].remote = origin
-            let remote = Config::get("branch", Some(&branch), "remote").await;
+            let remote = Config::get_remote(&branch).await;
             if let Some(remote) = remote {
                 remote
             } else {
@@ -64,7 +65,7 @@ pub async fn execute(args: PushArgs) {
             }
         }
     };
-    let repo_url = Config::get("remote", Some(&repository), "url").await;
+    let repo_url = Config::get_remote_url(&repository).await;
     if repo_url.is_none() {
         eprintln!("fatal: remote '{}' not found, please use 'libra remote add'", repository);
         return;
@@ -117,6 +118,11 @@ pub async fn execute(args: PushArgs) {
         SHA1::from_str(&remote_hash).unwrap()
     );
 
+    { // upload lfs files
+        let client = LFSClient::from_url(&url);
+        client.push_objects(&objs, auth.clone()).await;
+    }
+
     // let (tx, rx) = mpsc::channel::<Entry>();
     let (entry_tx, entry_rx) = mpsc::channel(1_000_000);
     let (stream_tx, mut stream_rx) = mpsc::channel(1_000_000);
@@ -138,7 +144,7 @@ pub async fn execute(args: PushArgs) {
     data.extend_from_slice(&pack_data);
     println!("Delta compression done.");
 
-    let res = client.send_pack(data.freeze(), auth).await.unwrap();
+    let res = client.send_pack(data.freeze(), auth).await.unwrap(); // TODO: send stream
 
     if res.status() != 200 {
         eprintln!("status code: {}", res.status());
