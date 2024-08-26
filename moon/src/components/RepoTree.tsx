@@ -1,6 +1,6 @@
 import 'github-markdown-css/github-markdown-light.css'
 import { DownOutlined } from '@ant-design/icons/lib'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tree } from 'antd/lib'
 import styles from './RepoTree.module.css'
@@ -11,22 +11,8 @@ const RepoTree = ({ directory }) => {
     const [updateTree, setUpdateTree] = useState(false);
     const [expandedKeys, setExpandedKeys] = useState([]);
 
-    useEffect(() => {
-        setTreeData(convertToTreeData(directory));
-    }, [directory]);
-
-
-    useEffect(() => {
-        if (updateTree) {
-            setUpdateTree(false);
-        }
-    }, [updateTree]);
-
-
-
-    // convert the dir to tree data
-    const convertToTreeData = (responseData) => {
-        return sortProjectsByType(responseData).map(item => {
+    const convertToTreeData = useCallback((directory) => {
+        return sortProjectsByType(directory).map(item => {
             const treeItem = {
                 title: item.name,
                 key: item.id,
@@ -37,7 +23,18 @@ const RepoTree = ({ directory }) => {
             };
             return treeItem;
         });
-    };
+    }, []);
+
+    useEffect(() => {
+        setTreeData(convertToTreeData(directory));
+    }, [directory, convertToTreeData]);
+
+
+    useEffect(() => {
+        if (updateTree) {
+            setUpdateTree(false);
+        }
+    }, [updateTree]);
 
     // sortProjectsByType function to sort projects by file type
     const sortProjectsByType = (projects) => {

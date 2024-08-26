@@ -2,9 +2,8 @@
 
 import { cookies } from "next/headers";
 
-const endpoint = process.env.NEXT_PUBLIC_API_URL;
-
 export async function GET(request: Request) {
+    const endpoint = process.env.MEGA_HOST;
     const cookieStore = cookies();
     const access_token = cookieStore.get('access_token');
 

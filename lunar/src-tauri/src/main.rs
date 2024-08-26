@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::{env, fs};
+use std::{env, fs, thread, time};
 
 use serde::Deserialize;
 use tauri::api::process::{Command, CommandChild, CommandEvent};
@@ -78,6 +78,7 @@ fn start_mega_service(
         .expect("Failed to spawn `Mega service`");
 
     service_state.child = Some(child);
+    let cloned_state = Arc::clone(&state);
     // Sidecar output
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
@@ -98,6 +99,9 @@ fn start_mega_service(
                     } else if let Some(signal) = payload.signal {
                         eprintln!("Sidecar terminated by signal: {}", signal);
                     }
+                    let mut service_state = cloned_state.lock().unwrap();
+                    service_state.child = None;
+                    service_state.with_relay = false;
                     break;
                 }
                 _ => {}
@@ -112,7 +116,6 @@ fn stop_mega_service(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<(), S
     let mut service_state = state.lock().unwrap();
     if let Some(child) = service_state.child.take() {
         child.kill().map_err(|e| e.to_string())?;
-        service_state.child = None;
     } else {
         println!("Mega Service is not running");
     }
@@ -125,6 +128,8 @@ fn restart_mega_service(
     params: MegaStartParams,
 ) -> Result<(), String> {
     stop_mega_service(state.clone())?;
+    // wait for process exit
+    thread::sleep(time::Duration::from_millis(1000));
     start_mega_service(state, params)?;
     Ok(())
 }
