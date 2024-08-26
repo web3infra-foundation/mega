@@ -83,7 +83,7 @@ export default function Settings() {
       <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
         <div className="space-y-1">
           <Subheading>ZTM Server IP Address</Subheading>
-          <Text>This will be restart Mega server.</Text>
+          <Text>Reboot Mega service after saving.</Text>
         </div>
         <div>
           <Input disabled={loadings[1]} aria-label="Bootstrap Node" name="bootstrap_node"

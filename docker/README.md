@@ -40,5 +40,5 @@ docker network create mono-network
 # run postgres
 docker run --rm -it -d --name mono-pg --network mono-network -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
 docker run --rm -it -d --name mono-engine --network mono-network -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 -p 22:9000 mono-engine:0.1-pre-release
-docker run --rm -it -d --name mono-ui --network mono-network -e NEXT_PUBLIC_API_URL=http://mono-engine:8000 -p 3000:3000 mono-ui:0.1-pre-release
+docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_HOST=http://mono-engine:8000 -e MOON_HOST=http://localhost:3000  -p 3000:3000 mono-ui:0.1-pre-release
 ```

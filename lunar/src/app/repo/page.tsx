@@ -1,7 +1,7 @@
 'use client'
 
 import RepoList from '@/components/RepoList'
-import { useMegaStatus, useRepoList } from '@/app/api/fetcher';
+import { useRepoList } from '@/app/api/fetcher';
 import { Skeleton } from "antd";
 
 
