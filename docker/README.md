@@ -18,34 +18,17 @@ docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
 
 ## Test Mono Engine
 
-### Test Mono Engine with SQLite
-
-```bash
-# create network
-docker network create mono-network
-
-docker run --rm -it -d --network mono-network --name mono-engine -p 8000:8000 -p 22:9000 mono-engine:0.1-pre-release
-docker run --rm -it -d --network mono-network --name mono-ui -e NEXT_PUBLIC_API_URL=http://mono-engine:8000 -p 3000:3000 mono-ui:0.1-pre-release
-```
-
-visit http://localhost:3000 to see the frontend
-
 ### Test Mono Engine with PostgreSQL
 
 [1] Initiate volume for mono data and postgres data
 
 ```bash
+# Linux or MacOS
 ./init-volume.sh /mnt/data ./config.toml
-```
 
-Check `db_type` to `postgres` and db_url to `postgres://mono:mono@mega-db:5432/mono` in the `config.toml`
-
-```toml
-[database]
-db_type = "postgres"
-
-# database connection url
-db_url = "postgres://mono:mono@mono-pg:5432/mono"
+# Windows
+# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+# .\init-volume.ps1 -baseDir "D:\" -configFile ".\config.toml"
 ```
 
 [2] Start whole mono engine stack
