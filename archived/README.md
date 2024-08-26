@@ -19,6 +19,7 @@ This projects in archive folder has been officially archived. Please note the fo
 8. *p2p* - The p2p project will be replaced by a new project named [Gemini](../gemini/README.md).
 9. *git* - The git project will be replaced by a new project named [Mercury](../mercury/README.md).
 10. *storage* - The storage project will be replaced by a new project named [Venus](../venus/README.md).
+11. *craft* - The craft project will be replaced by a new project named [Libra](../libra/README.md).
 
 [Optional: Suggest any alternative tools, libraries, or projects that users can consider as a replacement for this project.]
 

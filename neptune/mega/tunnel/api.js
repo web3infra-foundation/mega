@@ -1,4 +1,4 @@
-export default function ({ app, mesh, punch }) {
+export default function ({ app, mesh }) {
   var currentListens = []
   var currentTargets = {}
 
@@ -39,12 +39,9 @@ export default function ({ app, mesh, punch }) {
   function getInbound(ep, protocol, name) {
     if (ep === app.endpoint.id) {
       return getLocalConfig().then(
-        config => {
-          var inbound = config.inbound.find(
-            i => i.protocol === protocol && i.name === name
-          ) || null
-          var hole = punch.findHole(ep)
-        }
+        config => config.inbound.find(
+          i => i.protocol === protocol && i.name === name
+        ) || null
       )
     } else {
       return requestPeer(ep, new Message(
@@ -173,33 +170,6 @@ export default function ({ app, mesh, punch }) {
     }
   }
 
-  function createHole(ep, role) {
-    var h = punch.findHole(ep)
-    if(h) return h
-
-    if(role === 'server') {
-      return punch.createOutboundHole(ep)
-    } else if(role === 'client') {
-      return punch.createInboundHole(ep)
-    }
-  }
-
-  function updateHoleInfo(ep, ip, port, cert) {
-    checkIP(ip)
-    checkPort(Number.parseInt(port))
-    punch.updateHoleInfo(ep, ip, port, cert)
-  }
-
-  function syncPunch(ep) {
-    var hole = punch.findHole(ep)
-    if(!hole) throw `Invalid Hole State for ${ep}`
-    hole.punch()
-  }
-
-  function deleteHole(ep, remote) {
-    punch.deleteHole(ep, remote)
-  }
-
   function getLocalConfig() {
     return mesh.read('/local/config.json').then(
       data => data ? JSON.decode(data) : { inbound: [], outbound: [] }
@@ -227,34 +197,23 @@ export default function ({ app, mesh, punch }) {
     currentListens = []
     currentTargets = {}
 
-    console.info(`Applying config: ${JSON.encode(config)}`)
-
     config.inbound.forEach(i => {
       var protocol = i.protocol
       var name = i.name
       var listens = i.listens
-      var $selectedEP
 
+      var $selectedEP
       var connectPeer = pipeline($=>$
         .connectHTTPTunnel(
           new Message({
             method: 'CONNECT',
             path: `/api/outbound/${protocol}/${name}`,
           })
-        ).to($=>$.pipe(() => {
-          punch.createInboundHole($selectedEP)
-          var hole = punch.findHole($selectedEP)
-          if(hole && hole.ready()) {
-            console.info("Using direct session")
-            return hole.directSession()
-          }
-          console.info("Using hub forwarded session")
-          return pipeline($=>$
-            .muxHTTP().to($=>$
-              .pipe(mesh.connect($selectedEP))
-            )
+        ).to($=>$
+          .muxHTTP().to($=>$
+            .pipe(() => mesh.connect($selectedEP))
           )
-        }))
+        )
         .onEnd(() => app.log(`Disconnected from ep ${$selectedEP} for ${protocol}/${name}`))
       )
 
@@ -326,24 +285,14 @@ export default function ({ app, mesh, punch }) {
     var $response
     return pipeline($=>$
       .onStart(req)
-      .pipe(() => {
-        var h = punch.findHole(ep)
-        if(h && h.ready()) {
-          return h.directSession()
-        }
-        return pipeline($=>$
-          .muxHTTP().to($=>$
-          .pipe(mesh.connect(ep))
-        ))
-      })
+      .muxHTTP().to($=>$
+        .pipe(mesh.connect(ep))
+      )
       .replaceMessage(res => {
         $response = res
         return new StreamEnd
       })
-      .onEnd(() => {
-        console.info('Answers in api: ', $response)
-        return $response
-      })
+      .onEnd(() => $response)
     ).spawn()
   }
 
@@ -394,22 +343,6 @@ export default function ({ app, mesh, punch }) {
     )
   )
 
-  var tunnelHole = null
-  var makeRespTunnel = pipeline($=>$
-    .onStart(ctx => {
-      console.info("Making resp tunnel: ", ctx)
-      var ep = ctx.peer.id
-      tunnelHole = punch.findHole(ep)
-      if(!tunnelHole) throw `Invalid Hole State for ${ep}`
-      return new Data
-    })
-    .pipe(() => {
-      var p = tunnelHole.makeRespTunnel()
-      tunnelHole = null
-      return p
-    }, () => tunnelHole)
-  )
-
   getLocalConfig().then(applyLocalConfig)
 
   return {
@@ -422,11 +355,6 @@ export default function ({ app, mesh, punch }) {
     setOutbound,
     deleteInbound,
     deleteOutbound,
-    createHole,
-    updateHoleInfo,
-    makeRespTunnel,
-    syncPunch,
-    deleteHole,
     servePeerInbound,
   }
 }

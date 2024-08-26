@@ -55,7 +55,7 @@ impl AppContext {
         let policies_path = policies_path.into();
 
         let schema_file = std::fs::File::open(schema_path)?;
-        let (schema, _) = Schema::from_file_natural(schema_file).unwrap();
+        let (schema, _) = Schema::from_cedarschema_file(schema_file).unwrap();
         let policy_src = std::fs::read_to_string(policies_path)?;
         let policies = policy_src.parse()?;
         let validator = Validator::new(schema.clone());

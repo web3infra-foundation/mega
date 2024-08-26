@@ -14,7 +14,7 @@ Mega is an unofficial open source implementation of Google Piper. And it has the
 
 ### Git compatible
 
-Mega offers the ability to utilize Git with a monorepo. This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, and seamless pushing of changes back. 
+Mega offers the ability to utilize Git with a monorepo. This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, and seamless pushing of changes back.
 
 ### Trunk-based Development
 
@@ -46,19 +46,18 @@ For now, we are developing on the macOS and Arch Linux. And quick start manuel i
 2. **mega** - The main entry of Mega, parse cli command with clap.
 3. **gateway** - The Gateway extend **mono** and contains ztm agent, which is responsible for ztm network capabilities. More information on the [Gateway](gateway/README.md).
 4. **libra** - The Libra is a `git` program that rewrite in Rust. More information on the [Libra](libra/README.md).
-5. **craft** - The Craft is `git` filters include `git-lfs` and `encrypt`/`decrypt` filer. More information on the [Craft](craft/README.md).
-6. **gemini** - The Gemini is a decentralized module of Mega. More information on the [Gemini](gemini/README.md).
-7. **scorpio** - The Scorpio is a FUSE filesystem that allow you to mount a Mega repository as a local filesystem. More information on the [Scorpio](scorpio/README.md).
-8. **mercury** - The Mercury module is the core module of Mega, which rewrites Git internal object like Blob, Tree, etc. More information on the [Mercury Module](mercury/README.md).
-9.  **ceres** - The Ceres is Mega's Monorepo Engine and implement the git transport protocol. More information on the [Ceres](ceres/README.md).
-10. **jupiter** - The Jupiter is storage engine for Mega. More information on the [Jupiter](jupiter/README.md).
-11. **saturn** - The Saturn module implement user permissions with Cedar policy [Saturn](saturn/README.md).
-12. **vault** -  The Vault module is used for key and certificate management, implemented with RustyVault
-13. **lunar** - The Lunar is a tauri app with Mega. More information on the [Lunar](lunar/README.md).
-14. **aries** - The Mega's ztm Relay Server. More information on the [Aries](aries/README.md).
-15. **altas** - AI API Module. More information on the [Altas](altas/README.md).
-16. **moon** - The Moon is a web UI for Mono Engine. More information on the [Moon](moon/README.md).
-17. **mars** - The Mars is website for Mega. More information on the [Mars](mars/README.md).
+5. **gemini** - The Gemini is a decentralized module of Mega. More information on the [Gemini](gemini/README.md).
+6. **scorpio** - The Scorpio is a FUSE filesystem that allow you to mount a Mega repository as a local filesystem. More information on the [Scorpio](scorpio/README.md).
+7. **mercury** - The Mercury module is the core module of Mega, which rewrites Git internal object like Blob, Tree, etc. More information on the [Mercury Module](mercury/README.md).
+8.  **ceres** - The Ceres is Mega's Monorepo Engine and implement the git transport protocol. More information on the [Ceres](ceres/README.md).
+9. **jupiter** - The Jupiter is storage engine for Mega. More information on the [Jupiter](jupiter/README.md).
+10. **saturn** - The Saturn module implement user permissions with Cedar policy [Saturn](saturn/README.md).
+11. **vault** -  The Vault module is used for key and certificate management, implemented with RustyVault
+12. **lunar** - The Lunar is a tauri app with Mega. More information on the [Lunar](lunar/README.md).
+13. **aries** - The Mega's ztm Relay Server. More information on the [Aries](aries/README.md).
+14. **altas** - AI API Module. More information on the [Altas](altas/README.md).
+15. **moon** - The Moon is a web UI for Mono Engine. More information on the [Moon](moon/README.md).
+16. **mars** - The Mars is website for Mega. More information on the [Mars](mars/README.md).
 
 
 

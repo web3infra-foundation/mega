@@ -33,7 +33,6 @@ const CodeContent = ({ fileContent }) => {
 
     };
 
-
     return (
         <div className={styles.fileCodeContainer} >
             <div className={styles.viewChangeTab}>

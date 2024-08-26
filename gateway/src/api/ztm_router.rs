@@ -3,30 +3,30 @@ use std::collections::HashMap;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 
+use callisto::ztm_path_mapping;
 use common::model::CommonResult;
+use gemini::nostr::subscribe_git_event;
+use vault::get_peerid;
 
+use crate::api::model::RepoProvideQuery;
 use crate::api::MegaApiServiceState;
 
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
-        .route("/ztm/repo_provide", get(repo_provide))
+        .route("/ztm/repo_provide", post(repo_provide))
         .route("/ztm/repo_fork", get(repo_fork))
+        .route("/ztm/peer_id", get(peer_id))
+        .route("/ztm/alias_to_path", get(alias_to_path))
 }
 
 async fn repo_provide(
-    Query(query): Query<HashMap<String, String>>,
     state: State<MegaApiServiceState>,
+    Json(json): Json<RepoProvideQuery>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
-    let path = match query.get("path") {
-        Some(p) => p,
-        None => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Path not provide\n")));
-        }
-    };
     let bootstrap_node = match state.ztm.bootstrap_node.clone() {
         Some(b) => b.clone(),
         None => {
@@ -36,11 +36,20 @@ async fn repo_provide(
             ));
         }
     };
+    let RepoProvideQuery { path, alias } = json.clone();
+    let context = state.inner.context.clone();
+    let model: ztm_path_mapping::Model = json.into();
+    context
+        .services
+        .ztm_storage
+        .save_alias_mapping(model.clone())
+        .await
+        .map_err(|_| (StatusCode::BAD_REQUEST, String::from("Invalid Params")))?;
     let res = match gemini::http::handler::repo_provide(
-        state.port,
         bootstrap_node,
         state.inner.context.clone(),
-        path.to_string(),
+        path,
+        alias,
     )
     .await
     {
@@ -63,28 +72,53 @@ async fn repo_fork(
             ));
         }
     };
-    let local_port = match query.get("port") {
-        Some(i) => i,
-        None => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Port not provide\n")));
-        }
-    };
-    let local_port = match local_port.parse::<u16>() {
-        Ok(i) => i,
-        Err(_) => {
-            return Err((StatusCode::BAD_REQUEST, String::from("Port not valid\n")));
-        }
-    };
 
-    let res = gemini::http::handler::repo_fork(
+    let res = gemini::http::handler::repo_folk_alias(
         state.ztm.ztm_agent_port,
-        identifier.to_string(),
-        local_port,
+        identifier.clone().to_string(),
     )
     .await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
+
+    //nostr subscribe to Events
+    if let Some(bootstrap_node) = state.ztm.bootstrap_node.clone() {
+        let _ = subscribe_git_event(identifier.to_string(), get_peerid(), bootstrap_node).await;
+    }
+
     Ok(Json(res))
+}
+
+async fn peer_id(
+    Query(_query): Query<HashMap<String, String>>,
+    _state: State<MegaApiServiceState>,
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    let (peer_id, _) = vault::init();
+    Ok(Json(CommonResult::success(Some(peer_id))))
+}
+
+async fn alias_to_path(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<MegaApiServiceState>,
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    let context = state.inner.context.clone();
+    let alias = match query.get("alias") {
+        Some(str) => str,
+        None => {
+            return Err((StatusCode::BAD_REQUEST, String::from("Alias not provide\n")));
+        }
+    };
+    let res = context
+        .services
+        .ztm_storage
+        .get_path_from_alias(alias)
+        .await
+        .map_err(|_| (StatusCode::BAD_REQUEST, String::from("Invalid Params")))?;
+    if let Some(res) = res {
+        Ok(Json(CommonResult::success(Some(res.repo_path))))
+    } else {
+        Err((StatusCode::BAD_REQUEST, String::from("Alias not found\n")))
+    }
 }

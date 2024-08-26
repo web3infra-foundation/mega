@@ -18,7 +18,6 @@ use mercury::{
 
 use crate::model::{
     create_file::CreateFileInfo,
-    publish_path::PublishPathInfo,
     tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo},
 };
 
@@ -28,8 +27,6 @@ pub mod mono_api_service;
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
-
-    async fn publish_path(&self, publish_info: PublishPathInfo) -> Result<(), GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError>;
 

@@ -22,7 +22,7 @@ use mono::server::https_server::{
     get_method_router, post_method_router, put_method_router, AppState,
 };
 
-use crate::api::{github_router, ztm_router, MegaApiServiceState};
+use crate::api::{github_router, nostr_router, ztm_router, MegaApiServiceState};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -63,7 +63,7 @@ pub async fn https_server(config: Config, options: HttpsOptions) {
         ztm,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.ztm.clone());
+    check_run_with_ztm(config.clone(), options.ztm.clone(), https_port);
 
     let app = app(
         config,
@@ -92,7 +92,7 @@ pub async fn http_server(config: Config, options: HttpOptions) {
         ztm,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.ztm.clone());
+    check_run_with_ztm(config.clone(), options.ztm.clone(), http_port);
 
     let app = app(
         config,
@@ -128,7 +128,7 @@ pub async fn app(
         common: common.clone(),
     };
 
-    let mrga_api_state = MegaApiServiceState {
+    let mega_api_state = MegaApiServiceState {
         inner: MonoApiServiceState {
             context: context.clone(),
             common: common.clone(),
@@ -145,6 +145,7 @@ pub async fn app(
     pub fn mega_routers() -> Router<MegaApiServiceState> {
         Router::new()
             .merge(ztm_router::routers())
+            .merge(nostr_router::routers())
             .merge(github_router::routers())
     }
 
@@ -158,7 +159,7 @@ pub async fn app(
         )
         .nest(
             "/api/v1/mega",
-            mega_routers().with_state(mrga_api_state.clone()),
+            mega_routers().with_state(mega_api_state.clone()),
         )
         // Using Regular Expressions for Path Matching in Protocol
         .route(
@@ -178,7 +179,7 @@ pub async fn app(
         .with_state(state)
 }
 
-pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions) {
+pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions, http_port: u16) {
     //Mega server join a ztm mesh
     match ztm.bootstrap_node {
         Some(bootstrap_node) => {
@@ -193,11 +194,11 @@ pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions) {
             ztm_agent.clone().start_ztm_agent();
             thread::sleep(time::Duration::from_secs(3));
             tokio::spawn(async move {
-                run_ztm_client(bootstrap_node, config, peer_id, ztm_agent).await
+                run_ztm_client(bootstrap_node, config, peer_id, ztm_agent, http_port).await
             });
         }
         None => {
-            tracing::info!("The bootstrap node is not set, prepare to start mega sever locally");
+            tracing::info!("The bootstrap node is not set, prepare to start mega server locally");
         }
     };
 }
