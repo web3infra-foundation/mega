@@ -1,4 +1,5 @@
 use std::path::Path;
+use async_static::async_static;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,10 @@ use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::lfs;
+
+async_static! {
+    pub static ref LFS_CLIENT: LFSClient = LFSClient::new().await;
+}
 
 pub struct LFSClient {
     pub url: Url,
