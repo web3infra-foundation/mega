@@ -1,11 +1,10 @@
 import { type NextRequest } from 'next/server'
 export const revalidate = 0
-
 export const dynamic = 'force-dynamic' // defaults to auto
 
-const endpoint = process.env.NEXT_PUBLIC_API_URL;
-
 export async function GET(request: NextRequest) {
+    const endpoint = process.env.MEGA_HOST;
+
     const searchParams = request.nextUrl.searchParams
     const path = searchParams.get('path')
 
