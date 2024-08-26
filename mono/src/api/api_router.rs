@@ -8,7 +8,6 @@ use axum::{
 
 use ceres::model::{
     create_file::CreateFileInfo,
-    publish_path::PublishPathInfo,
     query::{BlobContentQuery, CodePreviewQuery},
     tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem},
 };
@@ -25,8 +24,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/latest-commit", get(get_latest_commit))
         .route("/tree/commit-info", get(get_tree_commit_info))
         .route("/tree", get(get_tree_info))
-        .route("/blob", get(get_blob_object))
-        .route("/publish", post(publish_path_to_repo));
+        .route("/blob", get(get_blob_object));
 
     Router::new().merge(router).merge(mr_router::routers())
 }
@@ -113,23 +111,6 @@ async fn get_tree_commit_info(
         .await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
-}
-
-async fn publish_path_to_repo(
-    state: State<MonoApiServiceState>,
-    Json(json): Json<PublishPathInfo>,
-) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
-    ApiRequestEvent::notify(ApiType::Publish, &state.0.context.config);
-    let res = state
-        .api_handler(json.path.clone().into())
-        .await
-        .publish_path(json)
-        .await;
-    let res = match res {
-        Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))

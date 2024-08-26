@@ -226,15 +226,15 @@ CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
   PRIMARY KEY ("ori_oid", "sub_oid", "offset")
 );
 
-
 CREATE TABLE IF NOT EXISTS "ztm_node" (
-  "peer_id" TEXT PRIMARY KEY,
-  "hub" TEXT,
-  "agent_name" TEXT,
-  "service_name" TEXT,
-  "type" TEXT,
-  "online" INTEGER NOT NULL,
-  "last_online_time" INTEGER NOT NULL
+  "peer_id" VARCHAR(64) PRIMARY KEY,
+  "hub" VARCHAR(64),
+  "agent_name" VARCHAR(64),
+  "service_name" VARCHAR(64),
+  "type" VARCHAR(64),
+  "online" BOOLEAN NOT NULL,
+  "last_online_time" BIGINT NOT NULL,
+  "service_port" INT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
@@ -245,9 +245,34 @@ CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
   "commit" TEXT
 );
 
+CREATE TABLE IF NOT EXISTS "ztm_nostr_event" (
+  "id" VARCHAR(128) PRIMARY KEY,
+  "pubkey" VARCHAR(128),
+  "created_at" BIGINT NOT NULL,
+  "kind" INT,
+  "tags" TEXT,
+  "content" TEXT,
+  "sig" VARCHAR(256)
+);
+
+CREATE TABLE IF NOT EXISTS "ztm_nostr_req" (
+  "id" VARCHAR(128) PRIMARY KEY,
+  "subscription_id" VARCHAR(128),
+  "filters" TEXT
+);
+
 CREATE TABLE IF NOT EXISTS "mq_storage" (
   "id" INTEGER PRIMARY KEY,
   "category" TEXT,
   "create_time" TIMESTAMP NOT NULL,
   "content" TEXT
+);
+
+CREATE TABLE IF NOT EXISTS "ztm_path_mapping" (
+  "id" BIGINT PRIMARY KEY,
+  "alias" TEXT NOT NULL,
+  "repo_path" TEXT NOT NULL,
+  "created_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_alias UNIQUE (alias)
 );

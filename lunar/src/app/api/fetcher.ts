@@ -4,6 +4,12 @@ import { invoke } from '@tauri-apps/api/tauri';
 const endpoint = process.env.NEXT_PUBLIC_API_URL;
 const relay = process.env.NEXT_PUBLIC_RELAY_API_URL;
 
+export interface ApiResult<T> {
+  req_result: boolean,
+  data: T,
+  err_message: string
+}
+
 export class FetchError extends Error {
   info: any;
   status: number;
@@ -28,7 +34,7 @@ const fetcher = async url => {
 
 export function useTreeCommitInfo(path) {
   const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/tree/commit-info?path=${path}`, fetcher, {
-    dedupingInterval: 1000,
+    dedupingInterval: 30000,
   })
   return {
     tree: data,
@@ -48,14 +54,69 @@ export function useBlobContent(path) {
   }
 }
 
+export function useMRList(status) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/mr/list?status=${status}`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    mrList: data,
+    isMRLoading: isLoading,
+    isMRError: error,
+  }
+}
+
+export function useMRDetail(id) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/mr/${id}/detail`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    mrDetail: data,
+    isMRLoading: isLoading,
+    isMRError: error,
+  }
+}
+
+export function useMRFiles(id) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mono/mr/${id}/files`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    mrFiles: data,
+    isMRLoading: isLoading,
+    isMRError: error,
+  }
+}
+
 export function useRepoList() {
   const { data, error, isLoading } = useSWR(`${relay}/relay/api/v1/repo_list`, fetcher, {
     dedupingInterval: 30000,
   })
   return {
-    data: data,
-    isLoading,
+    repo: data,
+    isRepoLoading: isLoading,
+    isRepoError: error,
+  }
+}
+
+export function usePeerId() {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mega/ztm/peer_id`, fetcher, {
+    dedupingInterval: 60000,
+  })
+  return {
+    peerId: data,
+    isLoading: isLoading,
     isError: error,
+  }
+}
+
+export function useRepoFork(identifier) {
+  const { data, error, isLoading } = useSWR(`${endpoint}/api/v1/mega/ztm/repo_fork?identifier=${identifier}`, {
+    dedupingInterval: 60000,
+  })
+  return {
+    url: data,
+    isForkLoading: isLoading,
+    isForkError: error,
   }
 }
 
@@ -86,18 +147,19 @@ export function useMegaStatus() {
 }
 
 // normal fetch 
-export async function requestPublishRepo(path) {
-  const response = await fetch(`${endpoint}/api/v1/mega/ztm/repo_provide?path=${path}`, {
-    method: 'GET',
+export async function requestPublishRepo(data) {
+  const response = await fetch(`${endpoint}/api/v1/mega/ztm/repo_provide`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify(data),
   });
 
   if (!response.ok) {
-    throw new Error('Failed to publish repo');
+    const errorResponse = await response.text();
+    const errorMessage = errorResponse || 'Failed to publish repo';
+    throw new Error(errorMessage);
   }
-
-  // 返回响应数据
   return response.json();
 }

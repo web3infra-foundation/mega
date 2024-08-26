@@ -1,23 +1,26 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use callisto::{ztm_node, ztm_repo_info};
 use clap::Parser;
-use serde_json::Value;
 use common::config::Config;
 use gemini::ztm::hub::{LocalHub, ZTMUserPermit, ZTMCA};
+use gemini::ztm::send_get_request_to_peer_by_tunnel;
 use gemini::{Node, RelayGetParams, RelayResultRes, RepoInfo};
 use jupiter::context::Context;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
+
+use super::api;
 
 #[derive(Clone, Debug, Parser)]
 pub struct RelayOptions {
@@ -30,40 +33,29 @@ pub struct RelayOptions {
     #[arg(long, default_value_t = 8001)]
     pub relay_port: u16,
 
+    #[arg(long, default_value_t = 7777)]
+    pub ztm_agent_port: u16,
+
     #[arg(long, default_value_t = 8888)]
     pub ztm_hub_port: u16,
 
     #[arg(long, default_value_t = 9999)]
     pub ca_port: u16,
+
+    #[arg(long, default_value_t = false)]
+    pub only_agent: bool,
 }
 
 #[derive(Clone)]
 pub struct AppState {
     pub context: Context,
-    pub host: String,
-    pub hub_host: String,
-    pub relay_port: u16,
-    pub hub_port: u16,
-    pub ca_port: u16,
+    pub relay_option: RelayOptions,
 }
 
 pub async fn run_relay_server(config: Config, option: RelayOptions) {
-    let host = option.host.clone();
-    let relay_port = option.relay_port;
-    let hub_host = option.hub_host;
-    let hub_port = option.ztm_hub_port;
-    let ca_port = option.ca_port;
-    let app = app(
-        config.clone(),
-        host.clone(),
-        hub_host,
-        relay_port,
-        hub_port,
-        ca_port,
-    )
-    .await;
+    let app = app(config.clone(), option.clone()).await;
 
-    let server_url = format!("{}:{}", host, relay_port);
+    let server_url = format!("{}:{}", option.host, option.relay_port);
     tracing::info!("start relay server: {server_url}");
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -72,21 +64,10 @@ pub async fn run_relay_server(config: Config, option: RelayOptions) {
         .unwrap();
 }
 
-pub async fn app(
-    config: Config,
-    host: String,
-    hub_host: String,
-    relay_port: u16,
-    hub_port: u16,
-    ca_port: u16,
-) -> Router {
+pub async fn app(config: Config, relay_option: RelayOptions) -> Router {
     let state = AppState {
-        host,
-        hub_host,
-        hub_port,
-        relay_port,
-        ca_port,
         context: Context::new(config.clone()).await,
+        relay_option,
     };
 
     let context = Context::new(config.clone()).await;
@@ -106,9 +87,11 @@ pub fn routers() -> Router<AppState> {
         .route("/node_list", get(node_list))
         .route("/repo_provide", post(repo_provide))
         .route("/repo_list", get(repo_list))
-        .route("/github/webhook/:peer_id", post(github_webhook));
+        .route("/test/send", get(send_message));
 
-    Router::new().merge(router)
+    Router::new()
+        .merge(router)
+        .merge(api::nostr_router::routers())
 }
 
 async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -119,15 +102,16 @@ async fn certificate(
     Query(query): Query<RelayGetParams>,
     state: State<AppState>,
 ) -> Result<Json<ZTMUserPermit>, (StatusCode, String)> {
+    let option = state.relay_option.clone();
     if query.name.is_none() {
         return Err((StatusCode::BAD_REQUEST, "not enough paras".to_string()));
     }
     let name = query.name.unwrap();
 
     let ztm: LocalHub = LocalHub {
-        hub_host: state.hub_host.clone(),
-        hub_port: state.hub_port,
-        ca_port: state.ca_port,
+        hub_host: option.hub_host,
+        hub_port: option.ztm_hub_port,
+        ca_port: option.ca_port,
     };
     let permit = match ztm.create_ztm_certificate(name.clone()).await {
         Ok(p) => p,
@@ -222,13 +206,35 @@ pub async fn repo_list(
     Ok(Json(repo_info_list_result))
 }
 
-/// Forwards the GitHub webhook to the corresponding peer.
-async fn github_webhook(
-    Path(peer_id): Path<String>,
-    Json(payload): Json<Value>,
-) -> Result<String, (StatusCode, String)> {
-    tracing::info!("GitHub Webhook Event: {:?} \n {:?}", peer_id, payload);
-    unimplemented!();
+async fn send_message(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<AppState>,
+) -> Result<Json<String>, (StatusCode, String)> {
+    let ztm_agent_port = state.relay_option.ztm_agent_port;
+    let peer_id = match query.get("peer_id") {
+        Some(i) => i.to_string(),
+        None => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                String::from("peer_id not provide\n"),
+            ));
+        }
+    };
+    let path = match query.get("path") {
+        Some(i) => i.to_string(),
+        None => {
+            return Err((StatusCode::BAD_REQUEST, String::from("path not provide\n")));
+        }
+    };
+    let result = match send_get_request_to_peer_by_tunnel(ztm_agent_port, peer_id, path).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!(e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, e));
+        }
+    };
+
+    Ok(Json(result))
 }
 
 async fn loop_running(context: Context) {
@@ -236,6 +242,7 @@ async fn loop_running(context: Context) {
 
     loop {
         check_nodes_online(context.clone()).await;
+        // ping_self(context.clone()).await;
         interval.tick().await;
     }
 }
@@ -245,6 +252,9 @@ async fn check_nodes_online(context: Context) {
     let nodelist: Vec<ztm_node::Model> =
         storage.get_all_node().await.unwrap().into_iter().collect();
     for mut node in nodelist {
+        if !node.online {
+            continue;
+        }
         //check online
         let from_timestamp = Duration::from_millis(node.last_online_time as u64);
         let now = SystemTime::now();
@@ -260,6 +270,27 @@ async fn check_nodes_online(context: Context) {
         }
     }
 }
+
+// async fn ping_self(context: Context) {
+//     let storage = context.services.ztm_storage.clone();
+//     let nodelist: Vec<ztm_node::Model> =
+//         storage.get_all_node().await.unwrap().into_iter().collect();
+//     for mut node in nodelist {
+//         //check online
+//         let from_timestamp = Duration::from_millis(node.last_online_time as u64);
+//         let now = SystemTime::now();
+//         let elapsed = match now.duration_since(SystemTime::UNIX_EPOCH) {
+//             Ok(dur) => dur,
+//             Err(_) => {
+//                 continue;
+//             }
+//         };
+//         if elapsed.as_secs() > from_timestamp.as_secs() + 60 {
+//             node.online = false;
+//             storage.update_node(node.clone()).await.unwrap();
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {}

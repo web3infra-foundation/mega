@@ -1,11 +1,18 @@
 use clap::Parser;
 use common::config::{Config, LogConfig};
-use gemini::ztm::hub::LocalZTMHub;
+use gemini::ztm::{
+    agent::{run_ztm_client, LocalZTMAgent, ZTMAgent},
+    hub::LocalZTMHub,
+};
 use service::{
     ca_server::run_ca_server,
     relay_server::{run_relay_server, RelayOptions},
 };
-use std::{env, thread, time};
+use std::{
+    env,
+    thread::{self},
+    time::{self},
+};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 pub mod service;
@@ -35,11 +42,28 @@ async fn main() {
     let option = RelayOptions::parse();
     tracing::info!("{:?}", option);
 
+    if option.only_agent {
+        let (peer_id, _) = vault::init();
+        let ztm_agent: LocalZTMAgent = LocalZTMAgent {
+            agent_port: option.ztm_agent_port,
+        };
+        ztm_agent.clone().start_ztm_agent();
+        thread::sleep(time::Duration::from_secs(3));
+        run_ztm_client(
+            "http://34.84.172.121/relay".to_string(),
+            config.clone(),
+            peer_id,
+            ztm_agent,
+            8001,
+        )
+        .await
+    }
+
     //Start a sub thread to ca server
     let config_clone = config.clone();
     let ca_port = option.ca_port;
     tokio::spawn(async move { run_ca_server(config_clone, ca_port).await });
-    thread::sleep(time::Duration::from_secs(5));
+    thread::sleep(time::Duration::from_secs(3));
 
     //Start a sub thread to run ztm-hub
     let ca = format!("127.0.0.1:{ca_port}");
@@ -49,7 +73,23 @@ async fn main() {
         name: vec!["relay".to_string()],
     };
     ztm_hub.clone().start_ztm_hub();
-    thread::sleep(time::Duration::from_secs(5));
+    thread::sleep(time::Duration::from_secs(3));
+
+    //Start a sub thread to run ztm-agent
+    let ztm_agent = LocalZTMAgent {
+        agent_port: option.ztm_agent_port,
+    };
+    thread::sleep(time::Duration::from_secs(3));
+
+    match ztm_agent.get_ztm_endpoints().await {
+        Ok(ztm_ep_list) => {
+            tracing::info!("ztm agent connect success");
+            tracing::info!("{} online endpoints", ztm_ep_list.len());
+        }
+        Err(_) => {
+            tracing::error!("ztm agent connect failed");
+        }
+    }
 
     //Start  relay server
     run_relay_server(config, option).await;

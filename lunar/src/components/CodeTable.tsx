@@ -5,14 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Markdown from 'react-markdown'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import styles from './CodeTable.module.css'
-import { Input, Modal, Space, Table, TableProps } from 'antd/lib'
+import { Input, Modal, Space, Table, TableProps, message } from 'antd/lib'
 import { useState } from 'react'
 import {
     FolderIcon,
     DocumentIcon,
 } from '@heroicons/react/20/solid'
 import { requestPublishRepo } from '@/app/api/fetcher'
-
+import { Button } from '@/components/catalyst/button'
 
 export interface DataType {
     oid: string;
@@ -22,7 +22,21 @@ export interface DataType {
     date: number;
 }
 
-const CodeTable = ({ directory, readmeContent }) => {
+const CodeTable = ({ directory, readmeContent, with_ztm }) => {
+    const [messageApi, contextHolder] = message.useMessage();
+    const msg_error = (content: String) => {
+        messageApi.open({
+            type: 'error',
+            content: content,
+        });
+    };
+    const msg_success = (content: String) => {
+        messageApi.open({
+            type: 'success',
+            content: content,
+        });
+    };
+
     const router = useRouter();
     const fileCodeContainerStyle = {
         width: '100%',
@@ -78,8 +92,8 @@ const CodeTable = ({ directory, readmeContent }) => {
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
-                    <a onClick={() => showModal(record.name)}>Publish</a>
-                    <a>Revoke</a>
+                    <Button disabled={!with_ztm} onClick={() => showModal(record.name)}>Publish</Button>
+                    {/* <Button disabled={!with_ztm} outline>Revoke</Button> */}
                 </Space>
             ),
         },
@@ -127,7 +141,6 @@ const CodeTable = ({ directory, readmeContent }) => {
     };
 
     const handleOk = async (filename) => {
-
         var newPath = '';
         if (!path) {
             newPath = `/${filename}`;
@@ -135,12 +148,19 @@ const CodeTable = ({ directory, readmeContent }) => {
             newPath = `${path}/${filename}`;
         }
         setConfirmLoading(true);
-        // await requestPublishRepo(path)
-        setTimeout(() => {
-            console.log("publish path", newPath);
-            setOpen(false);
-            setConfirmLoading(false);
-        }, 2000);
+
+        try {
+            const result = await requestPublishRepo({
+                "path": newPath,
+                "alias": filename,
+            });
+            msg_success("Publish Success!");
+            console.log('Repo published successfully:', result);
+        } catch (error) {
+            msg_error("Publish failed:" + error);
+        }
+        setOpen(false);
+        setConfirmLoading(false);
     };
 
     const handleCancel = () => {
@@ -149,15 +169,17 @@ const CodeTable = ({ directory, readmeContent }) => {
 
     return (
         <div style={fileCodeContainerStyle}>
+            {contextHolder}
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
             <Modal
-                title="Did you want to publish repo to public?"
+                title="Given a alias for repo to public"
                 open={open}
-                onOk={async => handleOk(modalText)}
+                destroyOnClose
+                onOk={() => handleOk(modalText)}
                 confirmLoading={confirmLoading}
                 onCancel={handleCancel}
             >
-                <Input showCount maxLength={20} value={modalText} />
+                <Input showCount maxLength={20} defaultValue={modalText} />
             </Modal>
             {readmeContent && (
                 <div className={styles.markdownContent}>

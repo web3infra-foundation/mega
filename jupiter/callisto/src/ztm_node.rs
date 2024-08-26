@@ -10,6 +10,7 @@ pub struct Model {
     pub hub: String,
     pub agent_name: String,
     pub service_name: String,
+    pub service_port: i32,
     pub r#type: String,
     pub online: bool,
     pub last_online_time: i64,

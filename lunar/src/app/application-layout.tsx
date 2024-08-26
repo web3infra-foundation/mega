@@ -45,7 +45,7 @@ import {
 import { invoke } from '@tauri-apps/api/tauri'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Badge } from 'antd/lib'
+import { Badge, Alert, Skeleton } from 'antd/lib'
 
 function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
   return (
@@ -82,11 +82,14 @@ export function ApplicationLayout({
   let pathname = usePathname()
 
   const [mega_status, setMegaStatus] = useState(false)
+  const [ztm_status, setZtmStatus] = useState(true)
+
   useEffect(() => {
     const fetchStatus = () => {
       invoke('mega_service_status')
-        .then((status: boolean) => {
-          setMegaStatus(status);
+        .then((status: boolean[]) => {
+          setMegaStatus(status[0]);
+          setZtmStatus(status[1]);
           console.log(`Service Status: ${status}`);
         })
         .catch((error) => {
@@ -214,6 +217,15 @@ export function ApplicationLayout({
         </Sidebar>
       }
     >
+      {
+        !ztm_status &&
+        <Alert
+          banner
+          message={
+            "Relay address is not configed, Some functions are not available"
+          }
+        />
+      }
       {children}
     </SidebarLayout>
   )

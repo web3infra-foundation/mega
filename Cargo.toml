@@ -17,7 +17,6 @@ members = [
     "atlas",
 ]
 default-members = ["mega", "mono", "libra", "aries"]
-exclude = ["craft"]
 resolver = "1"
 
 [workspace.dependencies]
@@ -58,10 +57,11 @@ sha256 = "1.5"
 futures = "0.3.30"
 futures-util = "0.3.30"
 go-defer = "0.1.0"
-russh = "0.44.0"
-russh-keys = "0.44.0"
+russh = "0.45.0"
+russh-keys = "0.45.0"
 axum = "0.7.5"
 axum-extra = "0.9.3"
+axum-server = "0.7"
 tower-http = "0.5.2"
 tower = "0.5.0"
 hex = "0.4.3"
@@ -72,7 +72,7 @@ colored = "2.1.0"
 idgenerator = "2.0.0"
 num_cpus = "1.16.0"
 config = "0.14.0"
-shadow-rs = "0.32.0"
+shadow-rs = "0.33.0"
 reqwest = "0.12.5"
 lazy_static = "1.5.0"
 uuid = "1.10.0"
@@ -81,3 +81,4 @@ ed25519-dalek = "2.1.1"
 ctrlc = "3.4.4"
 git2 = "0.19.0"
 tempfile = "3.10.1"
+home = "0.5.9"

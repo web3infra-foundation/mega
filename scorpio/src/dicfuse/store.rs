@@ -247,13 +247,26 @@ impl DictionaryStore {
          // 1. 获取目录项
          let directory = self.get_inode(inode).unwrap();
         
+
+        // add_entry(DirEntry {
+        //     ino: directory.get_inode(),
+        //     offset:0,
+        //     name:b".",
+        //     type_: entry_type_from_mode(directory.get_stat().attr.st_mode).into(),
+        // });
+        // add_entry(DirEntry {
+        //     ino: directory.parent,
+        //     offset:1,
+        //     name:b"..",
+        //     type_: entry_type_from_mode(directory.get_stat().attr.st_mode).into(),
+        // });
          // 2. 确保目录项是一个目录
          if let ContentType::Dictionary(_) = directory.get_tyep() {
              // 3. 获取子目录项
              let  children = directory.children.lock().unwrap();
              let mut total_bytes_written = 0;
              let mut current_offset = 0;
- 
+
              // 4. 遍历子目录项
              for (i, (name, child)) in children.iter().enumerate() {
                 
@@ -270,7 +283,7 @@ impl DictionaryStore {
                      // 使用回调函数添加目录项
                      let result = add_entry(DirEntry {
                         ino: child.get_inode(),
-                        offset:i as u64,
+                        offset: (i+2) as u64,
                         name:name.as_bytes(),
                         type_: entry_type_from_mode(entry.attr.st_mode).into(),
                      });

@@ -15,15 +15,12 @@ path = "src/main.rs"
 [dependencies]
 common = { workspace = true }
 jupiter = { workspace = true }
-callisto = { workspace = true }
 ceres = { workspace = true }
-vault = { workspace = true }
-mercury = { workspace = true }
 taurus = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+axum-server = { workspace = true, features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
