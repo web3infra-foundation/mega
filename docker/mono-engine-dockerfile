@@ -19,9 +19,13 @@ RUN if [ "$BUILD_TYPE" != "release" ] && [ "$BUILD_TYPE" != "debug" ]; then \
 RUN apt-get update && apt-get install -y \
     cmake \
     clang \
+    build-essential
+
+RUN apt-get install -y \
     nodejs \
-    npm \
-    build-essential \
+    npm
+
+RUN apt-get install -y \
     curl \
     wget \
     file \

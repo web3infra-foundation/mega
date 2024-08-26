@@ -222,7 +222,7 @@ export function ApplicationLayout({
         <Alert
           banner
           message={
-            "Relay address is not configed, Some functions are not available"
+            "Relay server is not connected, Some functions are not available"
           }
         />
       }

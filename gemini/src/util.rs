@@ -43,7 +43,7 @@ pub async fn handle_response(
     }
 }
 
-pub fn repo_alias_to_identifier( alias: String) -> String {
+pub fn repo_alias_to_identifier(alias: String) -> String {
     let (peer_id, _) = vault::init();
     format!("p2p://{}/{alias}", peer_id.clone())
 }

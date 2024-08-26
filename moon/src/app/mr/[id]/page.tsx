@@ -17,7 +17,7 @@ export default function MRDetailPage( { params }: { params: { id: string } }) {
             }
         };
         fetchData();
-    }, []);
+    }, [params.id]);
 
     return (
         <div>

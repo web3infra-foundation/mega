@@ -1,18 +1,20 @@
-// 'use client'
+'use server'
 
-export default function Login() {
+import Image from "next/image";
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  const call_back_url = process.env.NEXT_PUBLIC_CALLBACK_URL;
-
+export default async function Login() {
+  const res = await fetch(`http://localhost:3000/api/env`);
+  const response = await res.json();
   return (
     <>
       <div className="flex min-h-full flex-1 flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <img
+          <Image
             alt="Mega"
             src="/images/megaLogo.png"
             className="mx-auto h-10 w-auto"
+            width={10}
+            height={10}
           />
 
           <h2 className="mt-6 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
@@ -49,7 +51,7 @@ export default function Login() {
               </a>
 
               <a
-                href={`${apiUrl}/auth/github/authorize?redirect_uri=${call_back_url}`}
+                href={`${response.mega_host}/auth/github/authorize?redirect_uri=${response.callback_url}`}
                 className="flex w-full items-center justify-center gap-3 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:ring-transparent"
               >
                 <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" className="h-5 w-5 fill-[#24292F]">
