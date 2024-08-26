@@ -14,7 +14,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::types::ObjectType;
 use crate::command::calc_file_blob_hash;
-use crate::internal::protocol::lfs_client::LFSClient;
+use crate::internal::protocol::lfs_client::LFS_CLIENT;
 
 #[derive(Parser, Debug)]
 pub struct RestoreArgs {
@@ -136,7 +136,8 @@ fn preprocess_blobs(blobs: &[(PathBuf, SHA1)]) -> HashMap<PathBuf, SHA1> {
         .collect()
 }
 
-/// restore a blob to file
+/// Restore a blob to file.
+/// If blob is an LFS pointer, download the actual file from LFS server.
 /// - `path` : to workdir
 async fn restore_to_file(hash: &SHA1, path: &PathBuf) -> io::Result<()> {
     let blob = Blob::load(hash);
@@ -153,8 +154,7 @@ async fn restore_to_file(hash: &SHA1, path: &PathBuf) -> io::Result<()> {
                 fs::copy(&lfs_obj_path, &path_abs)?;
             } else {
                 // not exist, download from server
-                let lfs_client = LFSClient::new().await;
-                lfs_client.download_object(&oid, size, &path_abs).await;
+                LFS_CLIENT.await.download_object(&oid, size, &path_abs).await;
             }
         }
         None => {
