@@ -5,7 +5,7 @@ use crate::command::status;
 use mercury::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::BlobExt;
 
-use crate::utils::{path, util};
+use crate::utils::{lfs, path, util};
 
 #[derive(Parser, Debug)]
 pub struct AddArgs {
@@ -97,7 +97,8 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
             if verbose {
                 println!("removed: {}", file_str);
             }
-        } else {
+        } else { // FIXME: unreachable code! This situation is not included in `status::changes_to_be_staged()`
+            // FIXME: should check files in original input paths
             // TODO do this check earlier, once fatal occurs, nothing should be done
             // file is not tracked && not exists, which means wrong pathspec
             println!("fatal: pathspec '{}' did not match any files", file.display());
@@ -106,7 +107,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         // file exists
         if !index.tracked(file_str, 0) {
             // file is not tracked
-            let blob = Blob::from_file(&file_abs);
+            let blob = gen_blob_from_file(&file_abs);
             blob.save();
             index.add(IndexEntry::new_from_file(file, blob.id, &workdir).unwrap());
             if verbose {
@@ -116,7 +117,7 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
             // file is tracked, maybe modified
             if index.is_modified(file_str, 0, &workdir) {
                 // file is modified(meta), but content may not change
-                let blob = Blob::from_file(&file_abs);
+                let blob = gen_blob_from_file(&file_abs);
                 if !index.verify_hash(file_str, 0, &blob.id) {
                     // content is changed
                     blob.save();
@@ -129,6 +130,17 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
         }
     }
 }
+
+/// Generate a `Blob` from a file
+/// - if the file is tracked by LFS, generate a `Blob` with pointer file
+fn gen_blob_from_file(path: impl AsRef<Path>) -> Blob {
+    if lfs::is_lfs_tracked(&path) {
+        Blob::from_lfs_file(&path)
+    } else {
+        Blob::from_file(&path)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

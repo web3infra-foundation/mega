@@ -3,16 +3,18 @@ use crate::internal::head::Head;
 use mercury::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 use crate::utils::path_ext::PathExt;
-use crate::utils::{path, util};
+use crate::utils::{lfs, path, util};
 use clap::Parser;
 use std::collections::{HashMap, HashSet};
-use std::fs;
+use std::{fs, io};
 use std::path::PathBuf;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::types::ObjectType;
+use crate::command::calc_file_blob_hash;
+use crate::internal::protocol::lfs_client::LFS_CLIENT;
 
 #[derive(Parser, Debug)]
 pub struct RestoreArgs {
@@ -117,7 +119,7 @@ pub async fn execute(args: RestoreArgs) {
     // The order is very important
     // `restore_worktree` will decide whether to delete the file based on whether it is tracked in the index.
     if worktree {
-        restore_worktree(&paths, &target_blobs);
+        restore_worktree(&paths, &target_blobs).await;
     }
     if staged {
         restore_index(&paths, &target_blobs);
@@ -134,12 +136,33 @@ fn preprocess_blobs(blobs: &[(PathBuf, SHA1)]) -> HashMap<PathBuf, SHA1> {
         .collect()
 }
 
-/// restore a blob to file
+/// Restore a blob to file.
+/// If blob is an LFS pointer, download the actual file from LFS server.
 /// - `path` : to workdir
-fn restore_to_file(hash: &SHA1, path: &PathBuf) {
+async fn restore_to_file(hash: &SHA1, path: &PathBuf) -> io::Result<()> {
     let blob = Blob::load(hash);
     let path_abs = util::workdir_to_absolute(path);
-    util::write_file(&blob.data, &path_abs).unwrap();
+    if let Some(parent) = path_abs.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match lfs::parse_pointer_data(&blob.data) {
+        Some((oid, size)) => {
+            // LFS file
+            let lfs_obj_path = lfs::lfs_object_path(&oid);
+            if lfs_obj_path.exists() {
+                // found in local cache
+                fs::copy(&lfs_obj_path, &path_abs)?;
+            } else {
+                // not exist, download from server
+                LFS_CLIENT.await.download_object(&oid, size, &path_abs).await;
+            }
+        }
+        None => {
+            // normal file
+            util::write_file(&blob.data, &path_abs)?;
+        }
+    }
+    Ok(())
 }
 
 /// Get the deleted files in the worktree(vs Index), filtered by `filters`
@@ -162,7 +185,7 @@ fn get_worktree_deleted_files_in_filters(
 /// Restore the worktree
 /// - `filter`: abs or relative to current (user input)
 /// - `target_blobs`: to workdir path
-pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
+pub async fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)]) {
     let target_blobs = preprocess_blobs(target_blobs);
     let deleted_files = get_worktree_deleted_files_in_filters(filter, &target_blobs);
 
@@ -198,7 +221,7 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)])
             // file not exist, deleted or illegal
             if target_blobs.contains_key(path_wd) {
                 // file in target_blobs (deleted), need to restore
-                restore_to_file(&target_blobs[path_wd], path_wd);
+                restore_to_file(&target_blobs[path_wd], path_wd).await.unwrap();
             } else {
                 // not in target_commit and workdir (illegal path), user input
                 unreachable!("It should be checked before");
@@ -206,12 +229,12 @@ pub fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, SHA1)])
         } else {
             // file exists
             let path_wd_str = path_wd.to_string_or_panic();
-            let hash = util::calc_file_blob_hash(&path_abs).unwrap();
+            let hash = calc_file_blob_hash(&path_abs).unwrap();
             if target_blobs.contains_key(path_wd) {
                 // both in target & worktree: 1. modified 2. same
                 if hash != target_blobs[path_wd] {
                     // modified
-                    restore_to_file(&target_blobs[path_wd], path_wd);
+                    restore_to_file(&target_blobs[path_wd], path_wd).await.unwrap();
                 } // else: same, keep
             } else {
                 // not in target but in worktree: New file

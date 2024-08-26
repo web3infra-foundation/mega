@@ -70,6 +70,7 @@ achieving unified management.
 - [ ] `rebase`
 - [x] `index-pack`
 - [x] `remote`
+- [x] `lfs`
 - [ ] `config`
 #### Remote
 - [x] `push`
@@ -78,8 +79,9 @@ achieving unified management.
 - [x] `fetch`
 
 ### Others
-- [ ] `.gitignore` and `.gitattributes`
-- [ ] `lfs`
+- [ ] `.gitignore`
+- [x] `.gitattributes` (only for `lfs` now)
+- [x] `LFS` (embedded)
 - [ ] `ssh`
 
 ## Development
