@@ -101,7 +101,7 @@ export function ApplicationLayout({
       fetchMessage();
     }
     async function fetchMessage() {
-      const response = await fetch('http://localhost:3000/api/auth/github/user');
+      const response = await fetch('/api/auth/github/user');
       const user = await response.json();
       setUser(user.data);
     }
