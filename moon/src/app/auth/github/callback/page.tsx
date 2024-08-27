@@ -15,7 +15,7 @@ export default function AuthPage({ searchParams }) {
     useEffect(() => {
         async function fetchData() {
             try {
-                const res = await fetch(`http://localhost:3000/api/env`);
+                const res = await fetch(`/api/env`);
                 if (!res.ok) {
                     throw new Error('Failed to fetch data');
                 }
