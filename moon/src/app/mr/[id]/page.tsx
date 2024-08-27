@@ -8,7 +8,7 @@ export default function MRDetailPage( { params }: { params: { id: string } }) {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const res = await fetch(`http://localhost:3000/api/mr/${params.id}/detail`);
+                const res = await fetch(`/api/mr/${params.id}/detail`);
                 const response = await res.json();
                 const data = response.data.data;
                 setMrDetail(data);
