@@ -7,7 +7,7 @@ export default function MergeRequestPage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const res = await fetch(`http://localhost:3000/api/mr/list?status=`);
+                const res = await fetch(`/api/mr/list?status=`);
                 const response = await res.json();
                 const mrList = response.data.data;
                 setMrList(mrList);
