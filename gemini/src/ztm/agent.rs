@@ -10,9 +10,12 @@ use common::config::Config;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
 
-use crate::{RepoInfo, ZTM_APP_PROVIDER};
+use crate::{
+    ztm::{ZTM_APP_NAME, ZTM_APP_PROVIDER},
+    RepoInfo,
+};
 
-use super::{handle_response, hub::ZTMUserPermit};
+use super::{handle_response, hub::ZTMUserPermit, MESH_NAME};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ZTMMesh {
@@ -55,6 +58,20 @@ pub struct ZTMPortReq {
 pub struct ZTMPortService {
     pub service: String,
 }
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ZTMAppInbound {
+    pub protocol: String,
+    pub name: String,
+    pub listens: Vec<ZTMAppInboundListen>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ZTMAppInboundListen {
+    pub ip: String,
+    pub port: u16,
+}
+
 #[async_trait]
 pub trait ZTMAgent {
     async fn connect_ztm_hub(&self, permit: ZTMUserPermit) -> Result<ZTMMesh, String>;
@@ -90,6 +107,14 @@ pub trait ZTMAgent {
         port: u16,
     ) -> Result<String, String>;
 
+    async fn get_ztm_app_tunnel_inbound_port(
+        &self,
+        ep_id: String,
+        provider: String,
+        app_name: String,
+        bound_name: String,
+    ) -> Option<u16>;
+
     async fn create_ztm_app_tunnel_outbound(
         &self,
         ep_id: String,
@@ -119,8 +144,6 @@ impl LocalZTMAgent {
         });
     }
 }
-
-const MESH_NAME: &str = "relay_mesh";
 
 #[async_trait]
 impl ZTMAgent for LocalZTMAgent {
@@ -335,6 +358,43 @@ impl ZTMAgent for LocalZTMAgent {
         Ok(response_text)
     }
 
+    async fn get_ztm_app_tunnel_inbound_port(
+        &self,
+        ep_id: String,
+        provider: String,
+        app_name: String,
+        bound_name: String,
+    ) -> Option<u16> {
+        //GET /api/meshes/{mesh.name}/apps/${provider}/${name}/api/endpoints/{ep}/inbound/{proto}/{name}
+        let agent_port = self.agent_port;
+        let agent_address = format!("http://127.0.0.1:{agent_port}");
+        let url = format!(
+            "{agent_address}/api/meshes/{MESH_NAME}/apps/{provider}/{app_name}/api/endpoints/{ep_id}/inbound/tcp/{bound_name}"
+        );
+        tracing::info!("get_ztm_app_tunnel_inbound url: {}", url);
+        let client = Client::new();
+        let request_result = client.get(url).send().await;
+        let response_text = match handle_response(request_result).await {
+            Ok(s) => s,
+            Err(_) => {
+                return None;
+            }
+        };
+        let ztm_app_inbound: ZTMAppInbound = match serde_json::from_str(response_text.as_str()) {
+            Ok(inbound) => inbound,
+            Err(_) => {
+                return None;
+            }
+        };
+        let listen = match ztm_app_inbound.listens.first() {
+            Some(listen) => listen,
+            None => {
+                return None;
+            }
+        };
+        Some(listen.port)
+    }
+
     async fn create_ztm_app_tunnel_outbound(
         &self,
         ep_id: String,
@@ -410,7 +470,7 @@ pub async fn run_ztm_client(
         .start_ztm_app(
             mesh.clone().agent.id,
             ZTM_APP_PROVIDER.to_string(),
-            "tunnel".to_string(),
+            ZTM_APP_NAME.to_string(),
         )
         .await
     {
@@ -421,23 +481,6 @@ pub async fn run_ztm_client(
         }
     }
     tracing::info!("start tunnel app successfully");
-
-    //test send msg
-    // sleep(Duration::from_secs(5));
-    // match send_get_request_to_peer_by_tunnel(
-    //     agent.agent_port,
-    //     "nX7NRgitx7wUwAiJXxAVcec4iAoV8YwbzUn8FqwfFR4J".to_string(),
-    //     "api/v1/ztm/repo_provide".to_string(),
-    // )
-    // .await
-    // {
-    //     Ok(s) => {
-    //         tracing::info!("send_get_request_to_peer_by_tunnel successfully:{}", s);
-    //     }
-    //     Err(e) => {
-    //         tracing::error!(e);
-    //     }
-    // };
 
     // ping relay
     let peer_id_clone = peer_id.clone();
