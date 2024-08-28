@@ -7,7 +7,7 @@ mod overlayfs;
 //mod store;
 mod fuse;
 mod dicfuse;
-
+mod util;
 
 use std::sync::Arc;
 use std::io::Result;
