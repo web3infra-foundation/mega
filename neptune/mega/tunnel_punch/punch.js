@@ -1,7 +1,7 @@
 export default function ({ app, mesh }) {
   // Only available for symmetric NAT
   function Hole(ep) {
-    // (idle) (handshake) (punching connected closed) (left fail)
+    // (idle) (handshake) (punching connected) (left fail)
     var state = 'idle'
     var bound = '0.0.0.0:' + randomPort()
     var destIP = null
@@ -81,7 +81,7 @@ export default function ({ app, mesh }) {
                   } else if (conn.state === 'closed') {
                     app.log(`Disconnected from peer ${destIP}:${destPort}`)
                     $connection = null
-                    state = 'closed'
+                    state = 'left'
                     retryTimes += 1
                   }
 
@@ -264,8 +264,6 @@ export default function ({ app, mesh }) {
     // 1. Server accept message got 200 OK
     // 2. Client receive accept
     function punch() {
-      state = 'punching'
-
       app.log(`Punching to ${destIP}:${destPort} (${ep})`)
       if (role === 'server') {
         makeFakeCall(destIP, destPort)
@@ -340,7 +338,10 @@ export default function ({ app, mesh }) {
           method: 'GET',
           path: '/api/ping'
         }))
-        .pipe(session)
+        .pipe(() => {
+          if (session) return session
+          return pipeline($=>$.dummy())
+        })
         .replaceMessage(res => {
           if (res.head.status != 200 && !pacemaker)
             app.log("Cardiac Arrest happens, hole: ", ep)
@@ -354,8 +355,12 @@ export default function ({ app, mesh }) {
 
       // if not called from pacemaker
       // the heart should beat automatically :)
-      heart.spawn()
-      new Timeout(10).wait().then(() => heartbeat(false))
+      try {
+        heart.spawn()
+        new Timeout(10).wait().then(() => heartbeat(false))
+      } catch (err) {
+        app.log("Heartbeat interrupted...")
+      }
     }
 
     // Used on direct connection setup.
@@ -363,14 +368,14 @@ export default function ({ app, mesh }) {
     function pacemaker() {
       rtt ??= 0.02
 
-      var timeout = [rtt, rtt, rtt, rtt, rtt, 2 * rtt, 3 * rtt, 5 * rtt, 8 * rtt, 13 * rtt]
+      var timeout = [rtt, rtt, 2 * rtt, 3 * rtt, 5 * rtt]
       var round = 0
       var cont = true
 
       pipeline($ => $
         .onStart(new Data)
         .repeat(() => {
-          if(round < 10)
+          if(round < 5 && state === 'connecting')
             return new Timeout(timeout[round]).wait().then(() => cont)
           return false
         })
