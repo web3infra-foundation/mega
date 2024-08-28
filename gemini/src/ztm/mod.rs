@@ -10,7 +10,7 @@ const MESH_NAME: &str = "relay_mesh";
 
 const ZTM_APP_PROVIDER: &str = "mega";
 
-const ZTM_APP_NAME: &str = "tunnel";
+const ZTM_APP_NAME: &str = "tunnel_punch";
 
 async fn create_tunnel(
     ztm_agent_port: u16,
