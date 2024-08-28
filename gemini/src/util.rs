@@ -52,3 +52,11 @@ pub fn repo_path_to_identifier(http_port: u16, repo_path: String) -> String {
     let (peer_id, _) = vault::init();
     format!("p2p://{}/{http_port}{repo_path}.git", peer_id.clone())
 }
+
+pub fn get_ztm_app_tunnel_bound_name(remote_peer_id: String) -> String {
+    format!(
+        "{}_{}",
+        get_short_peer_id(vault::get_peerid()),
+        get_short_peer_id(remote_peer_id)
+    )
+}

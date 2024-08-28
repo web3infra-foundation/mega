@@ -10,7 +10,7 @@ pub mod nostr;
 pub mod util;
 pub mod ztm;
 
-const ZTM_APP_PROVIDER: &str = "mega";
+
 
 #[derive(Deserialize, Debug)]
 pub struct RelayGetParams {

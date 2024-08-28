@@ -2,8 +2,10 @@ use common::model::CommonResult;
 use jupiter::context::Context;
 
 use crate::{
-    util::{get_available_port, get_short_peer_id, repo_alias_to_identifier},
-    ztm::{agent::share_repo, create_tunnel, send_get_request_to_peer_by_tunnel},
+    util::repo_alias_to_identifier,
+    ztm::{
+        agent::share_repo, get_or_create_remote_mega_tunnel, send_get_request_to_peer_by_tunnel,
+    },
     RepoInfo,
 };
 
@@ -54,53 +56,11 @@ pub async fn repo_provide(
     Ok("success".to_string())
 }
 
-pub async fn repo_folk(
-    ztm_agent_port: u16,
-    identifier: String,
-    local_port: u16,
-) -> Result<String, String> {
-    let remote_peer_id = match get_peer_id_from_identifier(identifier.clone()) {
-        Ok(p) => p,
-        Err(e) => return Err(e),
-    };
-    let remote_port = match get_remote_port_from_identifier(identifier.clone()) {
-        Ok(p) => p,
-        Err(e) => return Err(e),
-    };
-    let git_path = match get_git_path_from_identifier(identifier) {
-        Ok(p) => p,
-        Err(e) => return Err(e),
-    };
-
-    let (peer_id, _) = vault::init();
-    let bound_name = format!(
-        "{}_{}",
-        get_short_peer_id(peer_id),
-        get_short_peer_id(remote_peer_id.clone())
-    );
-    match create_tunnel(
-        ztm_agent_port,
-        remote_peer_id,
-        local_port,
-        remote_port,
-        bound_name,
-    )
-    .await
-    {
-        Ok(_) => (),
-        Err(e) => return Err(e),
-    }
-
-    let msg = format!("git clone http://localhost:{local_port}/{git_path}");
-    Ok(msg)
-}
-
 pub async fn repo_folk_alias(ztm_agent_port: u16, identifier: String) -> Result<String, String> {
     let remote_peer_id = match get_peer_id_from_identifier(identifier.clone()) {
         Ok(p) => p,
         Err(e) => return Err(e),
     };
-    let remote_port = 8000;
     let alias = match get_alias_from_identifier(identifier) {
         Ok(p) => p,
         Err(e) => return Err(e),
@@ -111,28 +71,14 @@ pub async fn repo_folk_alias(ztm_agent_port: u16, identifier: String) -> Result<
         Err(e) => return Err(e),
     };
 
-    let peer_id = vault::get_peerid();
-    let bound_name = format!(
-        "{}_{}",
-        get_short_peer_id(peer_id),
-        get_short_peer_id(remote_peer_id.clone())
-    );
-    let local_port = match get_available_port() {
-        Ok(p) => p,
-        Err(e) => return Err(e),
+    let local_port = get_or_create_remote_mega_tunnel(ztm_agent_port, remote_peer_id).await;
+
+    let local_port = match local_port {
+        Ok(local_port) => local_port,
+        Err(e) => {
+            return Err(e);
+        }
     };
-    match create_tunnel(
-        ztm_agent_port,
-        remote_peer_id,
-        local_port,
-        remote_port,
-        bound_name,
-    )
-    .await
-    {
-        Ok(_) => (),
-        Err(e) => return Err(e),
-    }
 
     let msg = format!("http://localhost:{local_port}{path}.git");
     Ok(msg)
@@ -145,28 +91,6 @@ pub fn get_peer_id_from_identifier(identifier: String) -> Result<String, String>
         return Err("invalid identifier".to_string());
     }
     return Ok(words.get(2).unwrap().to_string());
-}
-
-pub fn get_remote_port_from_identifier(identifier: String) -> Result<u16, String> {
-    // p2p://mrJ46F8gd2sa2Dx3iCYf6DauJ2WpAaepus7PwyZVebgD/8000/third-part/mega_143.git
-    let words: Vec<&str> = identifier.split('/').collect();
-    if words.len() <= 3 {
-        return Err("invalid identifier".to_string());
-    }
-    match words.get(3).unwrap().parse::<u16>() {
-        Ok(number) => Ok(number),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-pub fn get_git_path_from_identifier(identifier: String) -> Result<String, String> {
-    // p2p://mrJ46F8gd2sa2Dx3iCYf6DauJ2WpAaepus7PwyZVebgD/8000/third-part/mega_143.git
-    let words: Vec<&str> = identifier.split('/').collect();
-    if words.len() <= 4 {
-        return Err("invalid identifier".to_string());
-    }
-    let path = words[4..].join("/");
-    Ok(path)
 }
 
 pub fn get_alias_from_identifier(identifier: String) -> Result<String, String> {
