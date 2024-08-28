@@ -16,7 +16,7 @@ use fuse_backend_rs::api::filesystem::DirEntry;
 use crate::fuse::READONLY_INODE;
 
 use super::fuse::{self, default_dic_entry, default_file_entry};
-use super::model::GPath;
+use crate::util::GPath;
 const MEGA_TREE_URL: &str = "localhost:8000";//TODO: make it configable
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE :&str ="file";
