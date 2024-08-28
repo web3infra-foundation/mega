@@ -83,6 +83,11 @@ pub async fn get_or_create_remote_mega_tunnel(
     //Check if the tunnel exists
     let local_port = search_tunnel_inbound_port(ztm_agent_port, bound_name.clone()).await;
 
+    tracing::debug!(
+        "get_or_create_remote_mega_tunnel, local_port exist:{:?}",
+        local_port
+    );
+
     let local_port = match local_port {
         Some(local_port) => local_port,
         None => {
@@ -138,7 +143,7 @@ async fn search_tunnel_inbound_port(ztm_agent_port: u16, bound_name: String) -> 
         Ok(ep) => ep,
         Err(_) => return None,
     };
-
+    tracing::debug!("local_ep:{:?}", local_ep);
     //search inbound
     agent
         .get_ztm_app_tunnel_inbound_port(

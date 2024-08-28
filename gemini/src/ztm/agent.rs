@@ -369,29 +369,28 @@ impl ZTMAgent for LocalZTMAgent {
         let agent_port = self.agent_port;
         let agent_address = format!("http://127.0.0.1:{agent_port}");
         let url = format!(
-            "{agent_address}/api/meshes/{MESH_NAME}/apps/{provider}/{app_name}/api/endpoints/{ep_id}/inbound/tcp/{bound_name}"
+            "{agent_address}/api/meshes/{MESH_NAME}/apps/{provider}/{app_name}/api/endpoints/{ep_id}/inbound"
         );
-        tracing::info!("get_ztm_app_tunnel_inbound url: {}", url);
+        tracing::debug!("get_ztm_app_tunnel_inbound url: {}", url);
         let client = Client::new();
         let request_result = client.get(url).send().await;
         let response_text = match handle_response(request_result).await {
             Ok(s) => s,
-            Err(_) => {
+            Err(e) => {
+                tracing::error!("get_ztm_app_tunnel_inbound error: {}", e);
                 return None;
             }
         };
-        let ztm_app_inbound: ZTMAppInbound = match serde_json::from_str(response_text.as_str()) {
-            Ok(inbound) => inbound,
-            Err(_) => {
-                return None;
-            }
-        };
-        let listen = match ztm_app_inbound.listens.first() {
-            Some(listen) => listen,
-            None => {
-                return None;
-            }
-        };
+        let ztm_app_inbounds: Vec<ZTMAppInbound> =
+            match serde_json::from_str(response_text.as_str()) {
+                Ok(inbounds) => inbounds,
+                Err(e) => {
+                    tracing::error!("get_ztm_app_tunnel_inbound error: {}", e);
+                    return None;
+                }
+            };
+        let ztm_app_inbound = ztm_app_inbounds.iter().find(|x| x.name == bound_name)?;
+        let listen = ztm_app_inbound.listens.first()?;
         Some(listen.port)
     }
 
