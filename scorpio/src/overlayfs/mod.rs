@@ -31,7 +31,6 @@ pub type Inode = u64;
 pub type Handle = u64;
 pub const CURRENT_DIR: &str = ".";
 pub const PARENT_DIR: &str = "..";
-
 //type BoxedFileSystem = Box<dyn FileSystem<Inode = Inode, Handle = Handle> + Send + Sync>;
 pub type BoxedLayer = Box<dyn Layer<Inode = Inode, Handle = Handle> + Send + Sync>;
 const INODE_ALLOC_BATCH:u64 = 0x1_0000_0000;
@@ -484,7 +483,6 @@ impl OverlayInode {
     pub fn new() -> Self {
         OverlayInode::default()
     }
-
     // Allocate new OverlayInode based on one RealInode,
     // inode number is always 0 since only OverlayFs has global unique inode allocator.
     pub fn new_from_real_inode(name: &str, ino: u64, path: String, real_inode: RealInode) -> Self {
@@ -2182,6 +2180,7 @@ mod tests {
     use std::{path::Path, thread};
 
     use super::*;
+    use diff::FSdiff;
     use fuse_backend_rs::{api::server::Server, transport::{FuseChannel, FuseSession}};
     use super::super::passthrough::passthrough;
     use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
@@ -2251,14 +2250,12 @@ mod tests {
         // Set up test environment
         let args = Args {
             name: "test_overlay".to_string(),
-            mountpoint: "/tmp/true_temp".to_string(),
-            lowerdir: vec!["/tmp/lower".to_string()],
-            upperdir: "/tmp/upper".to_string(),
-            workdir: "/tmp/workdir".to_string(),
+            mountpoint: "/home/luxian/megatest/true_temp".to_string(),
+            lowerdir: vec!["/home/luxian/megatest/lower".to_string()],
+            upperdir: "/home/luxian/megatest/upper".to_string(),
+            workdir: "/home/luxian/megatest/workerdir".to_string(),
             log_level: "info".to_string(),
         };
-
-
 
         // Create lower layers
         let mut lower_layers = Vec::new();
@@ -2278,7 +2275,7 @@ mod tests {
         let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config,1).unwrap();
         // Import overlayfs
         overlayfs.import().unwrap();
-
+        overlayfs.diff();
         // Create fuse session
         let mut se = FuseSession::new(Path::new(&args.mountpoint), &args.name, "", false).unwrap();
         se.mount().unwrap();
