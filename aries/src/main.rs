@@ -50,7 +50,7 @@ async fn main() {
         ztm_agent.clone().start_ztm_agent();
         thread::sleep(time::Duration::from_secs(3));
         run_ztm_client(
-            "http://34.84.172.121/relay".to_string(),
+            "http://gitmono.org/relay".to_string(),
             config.clone(),
             peer_id,
             ztm_agent,
