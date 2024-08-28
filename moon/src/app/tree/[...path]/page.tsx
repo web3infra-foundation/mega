@@ -33,7 +33,7 @@ export default function Page({ params }: { params: { path: string[] } }) {
 }
 
 async function getDirectory(pathname: string) {
-    const res = await fetch(`http://localhost:3000/api/tree/commit-info?path=${pathname}`);
+    const res = await fetch(`/api/tree/commit-info?path=${pathname}`);
     const response = await res.json();
     const directory = response.data.data;
     return directory
@@ -43,7 +43,7 @@ async function getReadmeContent(pathname, directory) {
     var readmeContent = '';
     for (const project of directory || []) {
         if (project.name === 'README.md' && project.content_type === 'file') {
-            const res = await fetch(`http://localhost:3000/api/blob?path=${pathname}/README.md`);
+            const res = await fetch(`/api/blob?path=${pathname}/README.md`);
             const response = await res.json();
             readmeContent = response.data.data;
             break;

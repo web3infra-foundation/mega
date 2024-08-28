@@ -1,6 +1,5 @@
-'use server'
-
 import Image from "next/image";
+export const revalidate = 0
 
 export default async function Login() {
   const res = await fetch(`http://localhost:3000/api/env`);
