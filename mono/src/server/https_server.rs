@@ -173,7 +173,11 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
 }
 
 lazy_static! {
-    /// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md) discribe the server LFS discovery protocol
+    /// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
+    /// document describes the server LFS discovery protocol.
+    ///
+    /// The following regular expressions are used to match the LFS server discovery protocol.
+    ///
     static ref OBJECTS_REGEX: Regex = Regex::new(r"/objects/[a-z0-9]+$").unwrap();
     static ref LOCKS_REGEX: Regex = Regex::new(r"/locks$").unwrap();
 
