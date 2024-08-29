@@ -5,7 +5,7 @@ export const revalidate = 0
 
 
 export async function GET(request: NextRequest) {
-    const endpoint = process.env.MEGA_HOST;
+    const endpoint = process.env.MEGA_INTERNAL_HOST;
     const searchParams = request.nextUrl.searchParams
     const path = searchParams.get('path')
 
