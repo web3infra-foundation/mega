@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use axum::async_trait;
 use axum::response::Redirect;
+use axum::routing::post;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -15,6 +16,7 @@ use axum_extra::TypedHeader;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use common::model::CommonResult;
 use common::enums::SupportOauthType;
 use common::errors::MegaError;
 use github::GithubOauthService;
@@ -58,7 +60,7 @@ pub trait OauthHandler: Send + Sync {
 pub fn routers() -> Router<OauthServiceState> {
     Router::new()
         .route("/:oauth_type/authorize", get(redirect_authorize))
-        .route("/:oauth_type/callback", get(oauth_callback))
+        .route("/:oauth_type/callback", post(oauth_callback))
         .route("/:oauth_type/user", get(user))
 }
 
@@ -85,7 +87,7 @@ async fn oauth_callback(
     Path(oauth_type): Path<String>,
     Query(query): Query<OauthCallbackParams>,
     service_state: State<OauthServiceState>,
-) -> Result<Redirect, (StatusCode, String)> {
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
     let oauth_type: SupportOauthType = match oauth_type.parse::<SupportOauthType>() {
         Ok(value) => value,
         Err(err) => return Err((StatusCode::BAD_REQUEST, err)),
@@ -96,7 +98,7 @@ async fn oauth_callback(
 
     let redirect_uri = match sessions.get(&query.state) {
         Some(uri) => uri.clone(),
-        None => return Err((StatusCode::BAD_REQUEST, "Invalid state".to_string())),
+        None => return Ok(Json(CommonResult::failed("Invalid state"))),
     };
     let access_token = service_state
         .oauth_handler(oauth_type)
@@ -104,9 +106,7 @@ async fn oauth_callback(
         .await
         .unwrap();
     sessions.remove(&query.state);
-
-    let callback_url = format!("{}?access_token={}", redirect_uri, access_token);
-    Ok(Redirect::temporary(&callback_url))
+    Ok(Json(CommonResult::success(Some(access_token))))
 }
 
 async fn user(
