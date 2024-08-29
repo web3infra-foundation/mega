@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
-    const endpoint = process.env.MEGA_HOST;
+    const endpoint = process.env.MEGA_INTERNAL_HOST;
     const cookieStore = cookies();
     const access_token = cookieStore.get('access_token');
 
