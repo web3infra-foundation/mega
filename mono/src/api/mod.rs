@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use async_session::MemoryStore;
+use axum::extract::FromRef;
 use ceres::{
     api_service::{
         import_api_service::ImportApiService, mono_api_service::MonoApiService, ApiHandler,
@@ -8,15 +10,31 @@ use ceres::{
 };
 use common::model::CommonOptions;
 use jupiter::context::Context;
+use oauth2::basic::BasicClient;
 
 pub mod api_router;
 pub mod mr_router;
 pub mod oauth;
+pub mod user_router;
 
 #[derive(Clone)]
 pub struct MonoApiServiceState {
     pub context: Context,
     pub common: CommonOptions,
+    pub oauth_client: Option<BasicClient>,
+    pub store: Option<MemoryStore>,
+}
+
+impl FromRef<MonoApiServiceState> for MemoryStore {
+    fn from_ref(state: &MonoApiServiceState) -> Self {
+        state.store.clone().unwrap()
+    }
+}
+
+impl FromRef<MonoApiServiceState> for BasicClient {
+    fn from_ref(state: &MonoApiServiceState) -> Self {
+        state.oauth_client.clone().unwrap()
+    }
 }
 
 impl MonoApiServiceState {

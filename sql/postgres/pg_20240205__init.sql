@@ -268,7 +268,6 @@ CREATE TABLE IF NOT EXISTS "mq_storage" (
   "content" TEXT
 );
 
-
 CREATE TABLE IF NOT EXISTS "ztm_path_mapping" (
   "id" BIGINT PRIMARY KEY,
   "alias" TEXT NOT NULL,
@@ -276,4 +275,15 @@ CREATE TABLE IF NOT EXISTS "ztm_path_mapping" (
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
   CONSTRAINT uniq_alias UNIQUE (alias)
+);
+
+CREATE TABLE IF NOT EXISTS "user" (
+  "id" BIGINT PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "email" TEXT NOT NULL,
+  "is_github" BOOLEAN NOT NULL,
+  "ssh_keys" JSON NOT NULL, 
+  "created_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP NOT NULL,
+  CONSTRAINT uniq_email UNIQUE (email)
 );

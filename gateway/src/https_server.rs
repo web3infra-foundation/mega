@@ -132,6 +132,8 @@ pub async fn app(
         inner: MonoApiServiceState {
             context: context.clone(),
             common: common.clone(),
+            oauth_client: None,
+            store: None,
         },
         ztm,
         port,
@@ -140,6 +142,8 @@ pub async fn app(
     let mono_api_state = MonoApiServiceState {
         context: context.clone(),
         common: common.clone(),
+        oauth_client: None,
+        store: None,
     };
 
     pub fn mega_routers() -> Router<MegaApiServiceState> {

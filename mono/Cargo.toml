@@ -50,6 +50,9 @@ ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 lazy_static = { workspace = true }
 ctrlc = { workspace = true }
 shadow-rs = { workspace = true }
+oauth2 = "4.4.2"
+async-session = "3.0.0"
+http = "1.1.0"
 
 [dev-dependencies]
 reqwest = { workspace = true, features = ["stream", "json"] }

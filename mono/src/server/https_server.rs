@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -6,6 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Result;
+use async_session::MemoryStore;
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::http::{self, Request, StatusCode, Uri};
@@ -16,7 +16,6 @@ use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 use lazy_static::lazy_static;
 use regex::Regex;
-use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
@@ -30,7 +29,7 @@ use jupiter::context::Context;
 use jupiter::raw_storage::local_storage::LocalStorage;
 
 use crate::api::api_router::{self};
-use crate::api::oauth::{self, OauthServiceState};
+use crate::api::oauth::{self, oauth_client};
 use crate::api::MonoApiServiceState;
 use crate::lfs;
 
@@ -137,6 +136,8 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
     let api_state = MonoApiServiceState {
         context: context.clone(),
         common: common.clone(),
+        oauth_client: Some(oauth_client(context.config.oauth).unwrap()),
+        store: Some(MemoryStore::new()),
     };
 
     // add RequestDecompressionLayer for handle gzip encode
@@ -149,10 +150,7 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
         )
         .nest(
             "/auth",
-            oauth::routers().with_state(OauthServiceState {
-                context,
-                sessions: Arc::new(Mutex::new(HashMap::new())),
-            }),
+            oauth::routers().with_state(api_state.clone()),
         )
         // Using Regular Expressions for Path Matching in Protocol
         .route(
