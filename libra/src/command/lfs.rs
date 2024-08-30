@@ -3,6 +3,9 @@ use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use ceres::lfs::lfs_structs::LockListQuery;
+use crate::internal::head::Head;
+use crate::internal::protocol::lfs_client::LFS_CLIENT;
 use crate::utils::{lfs, path, util};
 use crate::utils::path_ext::PathExt;
 
@@ -16,6 +19,15 @@ pub enum LfsCmds {
     Untrack {
         path: Vec<String>,
     },
+    /// Lists currently locked files from the Git LFS server. (Current Branch)
+    Locks {
+        #[clap(long, short)]
+        id: Option<String>,
+        #[clap(long, short)]
+        path: Option<String>,
+        #[clap(long, short)]
+        limit: Option<u64>,
+    }
 }
 
 pub async fn execute(cmd: LfsCmds) {
@@ -42,6 +54,29 @@ pub async fn execute(cmd: LfsCmds) {
         LfsCmds::Untrack { path } => {
             let path = convert_patterns_to_workdir(path); //
             untrack_lfs_patterns(&attr_path, path).unwrap();
+        }
+        LfsCmds::Locks { id, path, limit } => {
+            let refspec = match Head::current().await {
+                Head::Branch(name) => format!("refs/heads/{}", name),
+                Head::Detached(_) => {
+                    println!("fatal: HEAD is detached");
+                    return;
+                }
+            };
+            tracing::debug!("refspec: {}", refspec);
+            let query = LockListQuery {
+                id: id.unwrap_or_default(),
+                path: path.unwrap_or_default(),
+                limit: limit.map(|l| l.to_string()).unwrap_or_default(),
+                cursor: "".to_string(),
+                refspec,
+            };
+            let locks = LFS_CLIENT.await.get_locks(query).await.locks;
+            if !locks.is_empty() {
+                for lock in locks {
+                    println!("{} {} {} {}", lock.id, lock.path, lock.locked_at, lock.owner.unwrap().name);
+                }
+            }
         }
     }
 }
