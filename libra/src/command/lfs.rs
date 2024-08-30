@@ -3,7 +3,9 @@ use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use reqwest::StatusCode;
 use ceres::lfs::lfs_structs::LockListQuery;
+use crate::command::ask_basic_auth;
 use crate::internal::head::Head;
 use crate::internal::protocol::lfs_client::LFS_CLIENT;
 use crate::utils::{lfs, path, util};
@@ -19,7 +21,7 @@ pub enum LfsCmds {
     Untrack {
         path: Vec<String>,
     },
-    /// Lists currently locked files from the Git LFS server. (Current Branch)
+    /// Lists currently locked files from the Libra LFS server. (Current Branch)
     Locks {
         #[clap(long, short)]
         id: Option<String>,
@@ -27,6 +29,11 @@ pub enum LfsCmds {
         path: Option<String>,
         #[clap(long, short)]
         limit: Option<u64>,
+    },
+    /// Set a file as "locked" on the Libra LFS server
+    Lock {
+        /// String path name of the locked file. This should be relative to the root of the repository working directory
+        path: String,
     }
 }
 
@@ -56,13 +63,7 @@ pub async fn execute(cmd: LfsCmds) {
             untrack_lfs_patterns(&attr_path, path).unwrap();
         }
         LfsCmds::Locks { id, path, limit } => {
-            let refspec = match Head::current().await {
-                Head::Branch(name) => format!("refs/heads/{}", name),
-                Head::Detached(_) => {
-                    println!("fatal: HEAD is detached");
-                    return;
-                }
-            };
+            let refspec = current_refspec().await.unwrap();
             tracing::debug!("refspec: {}", refspec);
             let query = LockListQuery {
                 id: id.unwrap_or_default(),
@@ -74,9 +75,45 @@ pub async fn execute(cmd: LfsCmds) {
             let locks = LFS_CLIENT.await.get_locks(query).await.locks;
             if !locks.is_empty() {
                 for lock in locks {
-                    println!("{} {} {} {}", lock.id, lock.path, lock.locked_at, lock.owner.unwrap().name);
+                    println!("{}\tID:{}", lock.path, lock.id);
                 }
             }
+        }
+        LfsCmds::Lock { path } => {
+            if !lfs::is_lfs_tracked(&path) {
+                eprintln!("fatal: {} is not an LFS tracked file", path);
+                return;
+            }
+
+            let refspec = current_refspec().await.unwrap();
+            let mut auth = None;
+            loop {
+                let resp = LFS_CLIENT.await.lock(path.clone(), refspec.clone(), auth.clone()).await;
+                let code = resp.status();
+                if code.is_success() {
+                    println!("Locked {}", path);
+                    return;
+                } else if code == StatusCode::FORBIDDEN {
+                    eprintln!("Forbidden: You must have push access to create a lock");
+                    auth = Some(ask_basic_auth());
+                    continue;
+                } else if code == StatusCode::CONFLICT {
+                    eprintln!("Conflict: already created lock");
+                } else if !code.is_success() {
+                    eprintln!("fatal: LFS lock failed. Code: {}, Message: {}", code, resp.text().await.unwrap());
+                }
+                break;
+            }
+        }
+    }
+}
+
+async fn current_refspec() -> Option<String> {
+    match Head::current().await {
+        Head::Branch(name) => Some(format!("refs/heads/{}", name)),
+        Head::Detached(_) => {
+            println!("fatal: HEAD is detached");
+            None
         }
     }
 }
