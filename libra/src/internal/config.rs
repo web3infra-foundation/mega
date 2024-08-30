@@ -56,6 +56,7 @@ impl Config {
     }
 
     /// Get remote repo name by branch name
+    /// - You may need to `[branch::set-upstream]` if return `None`
     pub async fn get_remote(branch: &str) -> Option<String> {
         // e.g. [branch "master"].remote = origin
         Config::get("branch", Some(branch), "remote").await

@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use url::Url;
-use ceres::lfs::lfs_structs::{BatchRequest, Representation, RequestVars};
+use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, Representation, RequestVars};
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
 use crate::internal::config::Config;
@@ -18,7 +18,8 @@ async_static! {
 }
 
 pub struct LFSClient {
-    pub url: Url,
+    pub batch_url: Url,
+    pub lfs_url: Url,
     pub client: Client,
 }
 
@@ -40,7 +41,8 @@ impl ProtocolClient for LFSClient {
             .build()
             .unwrap();
         Self {
-            url: lfs_server.join("/objects/batch").unwrap(),
+            batch_url: lfs_server.join("/objects/batch").unwrap(),
+            lfs_url: lfs_server,
             client,
         }
     }
@@ -93,7 +95,7 @@ impl LFSClient {
             enable_split: None,
         };
 
-        let mut request = self.client.post(self.url.clone()).json(&batch_request);
+        let mut request = self.client.post(self.batch_url.clone()).json(&batch_request);
         if let Some(auth) = auth {
             request = request.basic_auth(auth.username, Some(auth.password));
         }
@@ -162,7 +164,7 @@ impl LFSClient {
             enable_split: None,
         };
 
-        let request = self.client.post(self.url.clone()).json(&batch_request);
+        let request = self.client.post(self.batch_url.clone()).json(&batch_request);
         let response = request.send().await.unwrap();
 
         let resp = response.json::<LfsBatchResponse>().await.unwrap();
@@ -191,5 +193,31 @@ impl LFSClient {
             file.write_all(&chunk).await.unwrap();
         }
         println!("Downloaded."); // TODO: checksum
+    }
+}
+
+// LFS locks API
+impl LFSClient {
+    pub async fn get_locks(&self, query: LockListQuery) -> LockList {
+        let url = self.lfs_url.join("/locks").unwrap();
+        let mut request = self.client.get(url);
+        request = request.query(&[
+            ("id", query.id),
+            ("path", query.path),
+            ("limit", query.limit),
+            ("cursor", query.cursor),
+            ("refspec", query.refspec)
+        ]);
+        let response = request.send().await.unwrap();
+
+        if !response.status().is_success() {
+            eprintln!("fatal: LFS get locks failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
+            return LockList {
+                locks: Vec::new(),
+                next_cursor: String::default(),
+            };
+        }
+
+        response.json::<LockList>().await.unwrap()
     }
 }
