@@ -598,7 +598,7 @@ async fn lfs_add_lock(
             });
             let d = serde_json::to_string(&locks_from_data).unwrap();
 
-            d.clone_into(&mut val.data);
+            d.clone_into(&mut val.data); // FIXME: must turn into `ActiveModel` before modify, or update failed.
             let res = storage.update_lock(val).await;
             match res.is_ok() {
                 true => Ok(()),

@@ -1,11 +1,11 @@
 use std::path::Path;
 use async_static::async_static;
 use futures_util::StreamExt;
-use reqwest::Client;
+use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use url::Url;
-use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, Representation, RequestVars};
+use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars};
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
 use crate::internal::config::Config;
@@ -219,5 +219,19 @@ impl LFSClient {
         }
 
         response.json::<LockList>().await.unwrap()
+    }
+
+    /// lock an LFS file
+    /// - `refspec` is must in Mega Server, but optional in Git Doc
+    pub async fn lock(&self, path: String, refspec: String, basic_auth: Option<BasicAuth>) -> Response {
+        let url = self.lfs_url.join("/locks").unwrap();
+        let mut request = self.client.post(url).json(&LockRequest {
+            path,
+            refs: Ref { name: refspec },
+        });
+        if let Some(auth) = basic_auth {
+            request = request.basic_auth(auth.username, Some(auth.password));
+        }
+        request.send().await.unwrap()
     }
 }
