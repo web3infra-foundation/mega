@@ -177,7 +177,10 @@ pub async fn lfs_delete_lock(
     }
 }
 
-/// Process batch request.
+///
+///
+/// Reference:
+///     1. [Git LFS Batch API](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md)
 pub async fn lfs_process_batch(
     config: &LfsConfig,
     mut batch_vars: BatchRequest,
@@ -197,7 +200,7 @@ pub async fn lfs_process_batch(
         let found = meta.is_ok();
         let mut meta = meta.unwrap_or_default();
         if found && lfs_file_exist(config, &meta).await {
-            // originla download method, split mode use ``
+            // original download method, split mode use ``
             response_objects.push(represent(object, &meta, batch_vars.operation == "download", false, false, &server_url).await);
             continue;
         }

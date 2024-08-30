@@ -173,15 +173,22 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
 }
 
 lazy_static! {
-    //GET
+    /// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
+    /// document describes the server LFS discovery protocol.
+    ///
+    /// The following regular expressions are used to match the LFS server discovery protocol.
+    ///
     static ref OBJECTS_REGEX: Regex = Regex::new(r"/objects/[a-z0-9]+$").unwrap();
     static ref LOCKS_REGEX: Regex = Regex::new(r"/locks$").unwrap();
-    static ref INFO_REFS_REGEX: Regex = Regex::new(r"/info/refs$").unwrap();
-    //POST
+
     static ref REGEX_LOCKS_VERIFY: Regex = Regex::new(r"/locks/verify$").unwrap();
     static ref REGEX_UNLOCK: Regex = Regex::new(r"/unlock$").unwrap();
     static ref REGEX_OBJECTS_BATCH: Regex = Regex::new(r"/objects/batch$").unwrap();
-    static ref REGEX_OBJECTS_CHUNKIDS: Regex = Regex::new(r"objects/chunkids$").unwrap();
+
+    static ref REGEX_OBJECTS_CHUNKIDS: Regex = Regex::new(r"/objects/chunkids$").unwrap();
+
+    /// Git Protocol
+    static ref INFO_REFS_REGEX: Regex = Regex::new(r"/info/refs$").unwrap();
     static ref REGEX_GIT_UPLOAD_PACK: Regex = Regex::new(r"/git-upload-pack$").unwrap();
     static ref REGEX_GIT_RECEIVE_PACK: Regex = Regex::new(r"/git-receive-pack$").unwrap();
 }
