@@ -1,9 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct AuthorizeParams {
-    pub redirect_uri: String,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OauthCallbackParams {
@@ -26,3 +22,4 @@ pub struct GitHubUserJson {
     pub avatar_url: String,
     pub email: String,
 }
+
