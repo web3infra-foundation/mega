@@ -19,6 +19,7 @@ pub struct Config {
     pub pack: PackConfig,
     pub lfs: LFSConfig,
     // Not used in mega app
+    #[serde(default)]
     pub oauth: Option<OauthConfig>,
 }
 

@@ -295,4 +295,4 @@ CREATE TABLE IF NOT EXISTS "ssh_keys" (
   "created_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_user_id" ON "ssh_keys" ("user_id");
-CREATE INDEX "idx_ssh_key_expression" ON "ssh_keys"  ((left(ssh_key, 32)));
+CREATE INDEX "idx_ssh_key_expression" ON "ssh_keys" ("ssh_key");
