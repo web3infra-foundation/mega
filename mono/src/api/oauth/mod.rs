@@ -1,5 +1,3 @@
-use std::env;
-
 use anyhow::Context;
 use async_session::{MemoryStore, Session, SessionStore};
 use axum::{
@@ -11,21 +9,23 @@ use axum::{
     RequestPartsExt, Router,
 };
 use axum_extra::{headers, typed_header::TypedHeaderRejectionReason, TypedHeader};
+use callisto::user;
+use chrono::{Duration, Utc};
 use http::{header, request::Parts, StatusCode};
+use jupiter::storage::user_storage::UserStorage;
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
     ClientSecret, CsrfToken, RedirectUrl, Scope, TokenResponse, TokenUrl,
 };
 
 use common::config::OauthConfig;
-use model::{GitHubUserJson, OauthCallbackParams};
+use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
 
 use crate::api::MonoApiServiceState;
 
 pub mod model;
 
 static COOKIE_NAME: &str = "SESSION";
-
 
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
@@ -45,9 +45,11 @@ async fn github_auth(State(client): State<BasicClient>) -> impl IntoResponse {
 
 async fn login_authorized(
     Query(query): Query<OauthCallbackParams>,
-    State(store): State<MemoryStore>,
+    State(state): State<MonoApiServiceState>,
     State(oauth_client): State<BasicClient>,
 ) -> Result<impl IntoResponse, OauthError> {
+    let store: MemoryStore = MemoryStore::from_ref(&state);
+    let config = state.context.config.oauth.unwrap();
     // Get an auth token
     let token = oauth_client
         .exchange_code(AuthorizationCode::new(query.code.clone()))
@@ -64,20 +66,30 @@ async fn login_authorized(
         .send()
         .await
         .context("failed in sending request to target Url")?;
-    let mut user_data = GitHubUserJson::default();
+    let mut github_user = GitHubUserJson::default();
 
     if resp.status().is_success() {
-        user_data = resp
+        github_user = resp
             .json::<GitHubUserJson>()
             .await
             .context("failed to deserialize response as JSON")?;
     } else {
         tracing::error!("github:user_info:err {:?}", resp.text().await.unwrap());
     }
+
+
+    let user_data: user::Model = github_user.into();
+    let user_storage = state.context.services.user_storage.clone();
+    let user = user_storage.find_user_by_email(&user_data.email).await.unwrap();
+    if user.is_none() {
+        user_storage.save_user(user_data.clone()).await.unwrap();
+    }
+
     // Create a new session filled with user data
+    let login_user:LoginUser = user_data.into();
     let mut session = Session::new();
     session
-        .insert("user", &user_data)
+        .insert("user", &login_user)
         .context("failed in inserting serialized value into session")?;
 
     // Store session and get corresponding cookie
@@ -88,8 +100,10 @@ async fn login_authorized(
         .context("unexpected error retrieving cookie value")?;
 
     // Build the cookie
-    let cookie = format!("{COOKIE_NAME}={cookie}; SameSite=Lax; Path=/");
-
+    let cookie = format!(
+        "{COOKIE_NAME}={cookie}; Domain={}; SameSite=Lax; Path=/",
+        config.cookie_domain
+    );
     // Set cookie
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -97,16 +111,19 @@ async fn login_authorized(
         cookie.parse().context("failed to parse cookie")?,
     );
 
-    Ok((headers, Redirect::to("/")))
+    Ok((headers, Redirect::to(&config.ui_domain)))
 }
 
 async fn logout(
-    State(store): State<MemoryStore>,
+    State(state): State<MonoApiServiceState>,
     TypedHeader(cookies): TypedHeader<headers::Cookie>,
 ) -> Result<impl IntoResponse, OauthError> {
+    let store: MemoryStore = MemoryStore::from_ref(&state);
+    let config = state.context.config.oauth.unwrap();
     let cookie = cookies
         .get(COOKIE_NAME)
         .context("unexpected error getting cookie name")?;
+    let mut headers = HeaderMap::new();
 
     let session = match store
         .load_session(cookie.to_string())
@@ -115,7 +132,7 @@ async fn logout(
     {
         Some(s) => s,
         // No session active, just redirect
-        None => return Ok(Redirect::to("/")),
+        None => return Ok((headers, Redirect::to(&config.ui_domain))),
     };
 
     store
@@ -123,21 +140,29 @@ async fn logout(
         .await
         .context("failed to destroy session")?;
 
-    Ok(Redirect::to("/"))
+    // Expire cookie
+    let cookie = format!(
+        "{COOKIE_NAME}={cookie}; Expires={} Domain={}; SameSite=Lax; Path=/",
+        config.cookie_domain,
+        (Utc::now() - Duration::days(1)).to_rfc2822(),
+    );
+    headers.insert(
+        SET_COOKIE,
+        cookie.parse().context("failed to parse cookie")?,
+    );
+    Ok((headers, Redirect::to(&config.ui_domain)))
 }
 
 pub fn oauth_client(oauth_config: OauthConfig) -> Result<BasicClient, OauthError> {
     let client_id = oauth_config.github_client_id;
     let client_secret = oauth_config.github_client_secret;
+    let ui_domain = oauth_config.ui_domain;
 
-    let redirect_url = env::var("REDIRECT_URL")
-        .unwrap_or_else(|_| "http://localhost:8000/auth/authorized".to_string());
+    let redirect_url = format!("{}/auth/authorized", ui_domain);
 
-    let auth_url = env::var("AUTH_URL")
-        .unwrap_or_else(|_| "https://github.com/login/oauth/authorize".to_string());
+    let auth_url = "https://github.com/login/oauth/authorize".to_string();
 
-    let token_url = env::var("TOKEN_URL")
-        .unwrap_or_else(|_| "https://github.com/login/oauth/access_token".to_string());
+    let token_url = "https://github.com/login/oauth/access_token".to_string();
 
     Ok(BasicClient::new(
         ClientId::new(client_id),
@@ -159,9 +184,10 @@ impl IntoResponse for AuthRedirect {
 }
 
 #[async_trait]
-impl<S> FromRequestParts<S> for GitHubUserJson
+impl<S> FromRequestParts<S> for LoginUser
 where
     MemoryStore: FromRef<S>,
+    UserStorage: FromRef<S>,
     S: Send + Sync,
 {
     // If anything goes wrong or no session is found, redirect to the auth page
@@ -188,7 +214,7 @@ where
             .unwrap()
             .ok_or(AuthRedirect)?;
 
-        let user = session.get::<GitHubUserJson>("user").ok_or(AuthRedirect)?;
+        let user = session.get::<LoginUser>("user").ok_or(AuthRedirect)?;
 
         Ok(user)
     }

@@ -18,7 +18,8 @@ pub struct Config {
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
     pub lfs: LFSConfig,
-    pub oauth: OauthConfig,
+    // Not used in mega app
+    pub oauth: Option<OauthConfig>,
 }
 
 impl Config {
@@ -277,4 +278,6 @@ impl Default for LFSConfig {
 pub struct OauthConfig {
     pub github_client_id: String,
     pub github_client_secret: String,
+    pub ui_domain: String,
+    pub cookie_domain: String,
 }
