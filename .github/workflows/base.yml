@@ -55,7 +55,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
       - run: cargo build
-      - run: rustup component add clippy
+      # - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
