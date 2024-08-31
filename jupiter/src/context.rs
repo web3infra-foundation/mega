@@ -4,7 +4,8 @@ use common::config::Config;
 
 use crate::storage::{
     git_db_storage::GitDbStorage, init::database_connection, lfs_storage::LfsStorage,
-    mono_storage::MonoStorage, mq_storage::MQStorage, ztm_storage::ZTMStorage,
+    mono_storage::MonoStorage, mq_storage::MQStorage, user_storage::UserStorage,
+    ztm_storage::ZTMStorage,
 };
 
 #[derive(Clone)]
@@ -35,6 +36,7 @@ pub struct Service {
     pub lfs_storage: Arc<LfsStorage>,
     pub ztm_storage: Arc<ZTMStorage>,
     pub mq_storage: Arc<MQStorage>,
+    pub user_storage: UserStorage,
 }
 
 impl Service {
@@ -50,6 +52,7 @@ impl Service {
             lfs_storage: Arc::new(LfsStorage::new(connection.clone()).await),
             ztm_storage: Arc::new(ZTMStorage::new(connection.clone()).await),
             mq_storage: Arc::new(MQStorage::new(connection.clone()).await),
+            user_storage: UserStorage::new(connection.clone()).await,
         }
     }
 
@@ -64,6 +67,7 @@ impl Service {
             lfs_storage: Arc::new(LfsStorage::mock()),
             ztm_storage: Arc::new(ZTMStorage::mock()),
             mq_storage: Arc::new(MQStorage::mock()),
+            user_storage: UserStorage::mock(),
         })
     }
 }

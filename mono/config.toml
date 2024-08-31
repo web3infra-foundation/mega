@@ -49,6 +49,7 @@ big_obj_threshold = 1024
 # set the local path of the project storage
 raw_obj_local_path = "${base_dir}/objects"
 
+# set the local path of the lfs storage
 lfs_obj_local_path = "${base_dir}/lfs"
 
 obs_access_key = ""
@@ -80,6 +81,9 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 [lfs]
+# LFS Server url
+url = "http://localhost:8000"
+
 ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
 # Enable or disable splitting large files into smaller chunks
 enable_split = true  # Default is disabled. Set to true to enable file splitting.
@@ -91,3 +95,9 @@ split_size = 20971520 # Default size is 20MB (20971520 bytes)
 # GitHub OAuth application client id and secret
 github_client_id = ""
 github_client_secret = ""
+
+# Used redirect to ui after login
+ui_domain = "http://localhost:3000"
+
+# Set .gitmono.com on Production
+cookie_domain = "localhost"

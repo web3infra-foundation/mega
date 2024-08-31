@@ -69,7 +69,7 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         };
         tokio::spawn(async move { https_server::start_https(config_clone, https).await })
     } else {
-        tokio::task::spawn(async {})
+        panic!("start params should provide! run like 'mega service multi http https'")
     };
 
     let ssh_server = if service_type.contains(&StartCommand::Ssh) {

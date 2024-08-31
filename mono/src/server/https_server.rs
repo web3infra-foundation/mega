@@ -136,7 +136,7 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
     let api_state = MonoApiServiceState {
         context: context.clone(),
         common: common.clone(),
-        oauth_client: Some(oauth_client(context.config.oauth).unwrap()),
+        oauth_client: Some(oauth_client(context.config.oauth.unwrap()).unwrap()),
         store: Some(MemoryStore::new()),
     };
 

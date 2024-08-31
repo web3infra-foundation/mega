@@ -15,7 +15,7 @@ use common::model::CommonResult;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::mr_router;
-use crate::api::user_router;
+use crate::api::user::user_router;
 use crate::api::MonoApiServiceState;
 
 pub fn routers() -> Router<MonoApiServiceState> {

@@ -5,14 +5,19 @@ import styles from './BreadCrumb.module.css'
 
 const Bread = ({ path }) => {
     const router = useRouter();
-    const handleBreadcrumbClick = async (index) => {
-        router.push(`/tree/${path.slice(0, index + 1).join('/')}`);
-    };
-
-    const breadCrumbItems = path.map((path, index) => ({
-        title: path,
-        onClick: () => handleBreadcrumbClick(index),
-    }));
+    const breadCrumbItems = path.map((sub_path, index) => {
+        if (index == path.length - 1) {
+            return {
+                title: sub_path,
+            };
+        } else {
+            const href = '/tree/' + path.slice(0, index + 1).join('/');
+            return {
+                title: sub_path,
+                href: href,
+            };
+        }
+    });
 
     return (
         <Breadcrumb className={styles.breadCrumb}

@@ -281,9 +281,18 @@ CREATE TABLE IF NOT EXISTS "user" (
   "id" BIGINT PRIMARY KEY,
   "name" TEXT NOT NULL,
   "email" TEXT NOT NULL,
+  "avatar_url" TEXT NOT NULL,
   "is_github" BOOLEAN NOT NULL,
-  "ssh_keys" JSON NOT NULL, 
   "created_at" TIMESTAMP NOT NULL,
-  "updated_at" TIMESTAMP NOT NULL,
+  "updated_at" TIMESTAMP,
   CONSTRAINT uniq_email UNIQUE (email)
 );
+
+CREATE TABLE IF NOT EXISTS "ssh_keys" (
+  "id" BIGINT PRIMARY KEY,
+  "user_id" BIGINT NOT NULL,
+  "ssh_key" TEXT NOT NULL,
+  "created_at" TIMESTAMP NOT NULL
+);
+CREATE INDEX "idx_user_id" ON "ssh_keys" ("user_id");
+CREATE INDEX "idx_ssh_key_expression" ON "ssh_keys"  ((left(ssh_key, 32)));
