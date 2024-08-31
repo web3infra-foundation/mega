@@ -45,7 +45,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: | 
           sudo apt update
-          sudo apt install libwebkit2gtk-4.0-dev \
+          sudo apt install -y libwebkit2gtk-4.0-dev \
             build-essential \
             curl \
             wget \
