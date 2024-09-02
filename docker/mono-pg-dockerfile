@@ -8,7 +8,7 @@ FROM postgres:16
 # This warning indicates that sensitive data, such as passwords, should not be passed using ARG or ENV instructions
 # in the Dockerfile. This is a security best practice to prevent accidental exposure of sensitive information.
 #
-# However, since this Dockerfile is intended for use in a development environment, you can choose to ignore this warning.
+# However, since this `Dockerfile` is intended for use in a development environment, you can choose to ignore this warning, or raise a pull request to help us improving it.
 ENV POSTGRES_DB=mono
 ENV POSTGRES_USER=mono
 ENV POSTGRES_PASSWORD=mono
