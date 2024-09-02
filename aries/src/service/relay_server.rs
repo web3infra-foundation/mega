@@ -44,6 +44,9 @@ pub struct RelayOptions {
 
     #[arg(long, default_value_t = false)]
     pub only_agent: bool,
+
+    #[arg(long, short)]
+    pub config: Option<String>
 }
 
 #[derive(Clone)]
