@@ -10,6 +10,7 @@ use service::{
 };
 use std::{
     env,
+    path::PathBuf,
     thread::{self},
     time::{self},
 };
@@ -19,11 +20,20 @@ pub mod service;
 
 #[tokio::main]
 async fn main() {
-    // Get the current directory
-    let current_dir = env::current_dir().unwrap();
-    // Get the path to the config file in the current directory
-    let config_path = current_dir.join("config.toml");
 
+    ctrlc::set_handler(move || {
+        tracing::info!("Received Ctrl-C signal, exiting...");
+        std::process::exit(0);
+    })
+    .unwrap();
+
+    let option = RelayOptions::parse();
+    let config_path = PathBuf::from(
+        option
+            .config
+            .to_owned()
+            .unwrap_or("config.toml".to_string()),
+    );
     let config = if config_path.exists() {
         Config::new(config_path.to_str().unwrap()).unwrap()
     } else {
@@ -33,13 +43,6 @@ async fn main() {
 
     init_log(&config.log);
 
-    ctrlc::set_handler(move || {
-        tracing::info!("Received Ctrl-C signal, exiting...");
-        std::process::exit(0);
-    })
-    .unwrap();
-
-    let option = RelayOptions::parse();
     tracing::info!("{:?}", option);
 
     if option.only_agent {
