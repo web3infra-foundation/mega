@@ -67,9 +67,8 @@ impl RawStorage for LocalStorage {
         Ok(())
     }
 
-    async fn get_object(&self, repo_id: i64, object_id: &str) -> Result<Bytes, MegaError> {
+    async fn get_object(&self, object_id: &str) -> Result<Bytes, MegaError> {
         let path = Path::new(&self.base_path)
-            .join(repo_id.to_string())
             .join("objects")
             .join(self.transform_path(object_id));
         let mut file =
@@ -81,12 +80,10 @@ impl RawStorage for LocalStorage {
 
     async fn put_object(
         &self,
-        repo_id: i64,
         object_id: &str,
         body_content: &[u8],
     ) -> Result<String, MegaError> {
         let path = Path::new(&self.base_path)
-            .join(repo_id.to_string())
             .join("objects")
             .join(self.transform_path(object_id));
         let dir = path.parent().unwrap();
@@ -97,9 +94,8 @@ impl RawStorage for LocalStorage {
         Ok(path.to_str().unwrap().to_string())
     }
 
-    fn exist_object(&self, repo_id: i64, object_id: &str) -> bool {
+    fn exist_object(&self, object_id: &str) -> bool {
         let path = Path::new(&self.base_path)
-            .join(repo_id.to_string())
             .join("objects")
             .join(self.transform_path(object_id));
         Path::exists(&path)
@@ -124,9 +120,9 @@ mod tests {
         source.push("tests/objects");
 
         let local_storage = LocalStorage::init(source.clone());
-        assert!(local_storage.put_object(0, &oid, &content).await.is_ok());
+        assert!(local_storage.put_object(&oid, &content).await.is_ok());
 
-        assert!(local_storage.exist_object(0, &oid));
+        assert!(local_storage.exist_object(&oid));
     }
 
     #[tokio::test]
