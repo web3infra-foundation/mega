@@ -8,6 +8,7 @@ mod overlayfs;
 mod fuse;
 mod dicfuse;
 mod util;
+mod manager;
 
 use std::sync::Arc;
 use std::io::Result;
