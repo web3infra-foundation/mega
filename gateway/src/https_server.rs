@@ -17,10 +17,9 @@ use common::config::Config;
 use common::model::{CommonOptions, ZtmOptions};
 use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
 use jupiter::context::Context;
+use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
-use mono::server::https_server::{
-    get_method_router, post_method_router, put_method_router, AppState,
-};
+use mono::server::https_server::{get_method_router, post_method_router, AppState};
 
 use crate::api::{github_router, nostr_router, ztm_router, MegaApiServiceState};
 
@@ -158,6 +157,10 @@ pub async fn app(
     // add CorsLayer to add cors header
     Router::new()
         .nest(
+            "/",
+            lfs_router::routers().with_state(mono_api_state.clone()),
+        )
+        .nest(
             "/api/v1/mono",
             mono::api::api_router::routers().with_state(mono_api_state.clone()),
         )
@@ -166,12 +169,7 @@ pub async fn app(
             mega_routers().with_state(mega_api_state.clone()),
         )
         // Using Regular Expressions for Path Matching in Protocol
-        .route(
-            "/*path",
-            get(get_method_router)
-                .post(post_method_router)
-                .put(put_method_router),
-        )
+        .route("/*path", get(get_method_router).post(post_method_router))
         .layer(
             ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
                 http::header::AUTHORIZATION,

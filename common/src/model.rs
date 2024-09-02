@@ -17,15 +17,9 @@ pub struct ZtmOptions {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct GetParams {
+pub struct InfoRefsParams {
     pub service: Option<String>,
     pub refspec: Option<String>,
-    pub id: Option<String>,
-    pub path: Option<String>,
-    pub limit: Option<String>,
-    pub cursor: Option<String>,
-    pub identifier: Option<String>,
-    pub port: Option<u16>,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
