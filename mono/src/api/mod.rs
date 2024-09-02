@@ -16,6 +16,7 @@ pub mod api_router;
 pub mod mr_router;
 pub mod oauth;
 pub mod user;
+pub mod lfs;
 
 #[derive(Clone)]
 pub struct MonoApiServiceState {
