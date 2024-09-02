@@ -60,7 +60,7 @@ impl Default for Config {
             })
             .collect::<Vec<String>>()
             .join("\n");
-        
+
         // default config path: $MEGA_BASE_DIR/etc/config.toml
         // ensure the directory exists
         std::fs::create_dir_all(base_dir.join("etc")).unwrap();
@@ -206,7 +206,6 @@ pub struct StorageConfig {
     pub raw_obj_storage_type: String,
     pub big_obj_threshold: usize,
     pub raw_obj_local_path: PathBuf,
-    pub lfs_obj_local_path: PathBuf,
     pub obs_access_key: String,
     pub obs_secret_key: String,
     pub obs_region: String,
@@ -219,7 +218,6 @@ impl Default for StorageConfig {
             raw_obj_storage_type: String::from("LOCAL"),
             big_obj_threshold: 1024,
             raw_obj_local_path: PathBuf::from("/tmp/.mega/objects"),
-            lfs_obj_local_path: PathBuf::from("/tmp/.mega/lfs"),
             obs_access_key: String::new(),
             obs_secret_key: String::new(),
             obs_region: String::from("cn-east-3"),
@@ -262,6 +260,8 @@ impl Default for PackConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
+    pub url: String,
+    pub lfs_obj_local_path: PathBuf,
     pub enable_split: bool,
     pub split_size: usize,
 }
@@ -269,6 +269,8 @@ pub struct LFSConfig {
 impl Default for LFSConfig {
     fn default() -> Self {
         Self {
+            url: "http://localhost:8000".to_string(),
+            lfs_obj_local_path: PathBuf::from("/tmp/.mega/lfs"),
             enable_split: true,
             split_size: 1024 * 1024 * 1024,
         }
