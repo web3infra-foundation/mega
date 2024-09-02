@@ -133,7 +133,7 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
         // Using Regular Expressions for Path Matching in Protocol
         .route(
             "/*path",
-            get(get_method_router).post(post_method_router), // .put(put_method_router),
+            get(get_method_router).post(post_method_router),
         )
         .layer(
             ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
