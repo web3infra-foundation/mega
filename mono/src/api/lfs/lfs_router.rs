@@ -75,7 +75,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/locks/verify", post(list_locks_for_verification))
         .route("/locks/:id/unlock", post(delete_lock))
         .route("/objects/batch", post(lfs_process_batch))
-        .route("/objects/chunkids", get(lfs_fetch_chunk_ids))
+        .route("/objects/:object_id/chunks", get(lfs_fetch_chunk_ids))
 }
 
 pub async fn list_locks(
@@ -98,15 +98,8 @@ pub async fn list_locks(
 
 pub async fn list_locks_for_verification(
     state: State<MonoApiServiceState>,
-    // req: Request<Body>,
     Json(json): Json<VerifiableLockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    // tracing::info!("req: {:?}", req);
-
-    // let request = Json::from_request(req, &state)
-    //     .await
-    //     .unwrap_or_else(|_| Json(VerifiableLockRequest::default()));
-
     let result = handler::lfs_verify_lock(state.context.services.lfs_storage.clone(), json).await;
     match result {
         Ok(lock_list) => {
@@ -129,10 +122,6 @@ pub async fn create_lock(
     state: State<MonoApiServiceState>,
     Json(json): Json<LockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    // let request = Json::from_request(req, &state)
-    //     .await
-    //     .unwrap_or_else(|_| Json(LockRequest::default()));
-
     let result = handler::lfs_create_lock(state.context.services.lfs_storage.clone(), json).await;
     match result {
         Ok(lock) => {
@@ -217,19 +206,15 @@ pub async fn lfs_process_batch(
 
 pub async fn lfs_fetch_chunk_ids(
     state: State<MonoApiServiceState>,
+    Path(oid): Path<String>,
     Json(json): Json<RequestVars>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    // let request = Json::from_request(req, &state).await;
-    // if request.is_err() {
-    //     return Err((StatusCode::BAD_REQUEST, "Invalid request".to_string()));
-    // }
-    // let request = request.unwrap();
     let result = handler::lfs_fetch_chunk_ids(&state.context, &json).await;
     match result {
         Ok(response) => {
             let size = response.iter().fold(0, |acc, chunk| acc + chunk.size);
             let fetch_response = FetchchunkResponse {
-                oid: json.oid.clone(),
+                oid,
                 size,
                 chunks: response,
             };
@@ -254,12 +239,7 @@ pub async fn lfs_download_object(
     Path(oid): Path<String>,
 ) -> Result<Response, (StatusCode, String)> {
     // Load request parameters into struct.
-    let request_vars = RequestVars {
-        oid,
-        authorization: "".to_owned(),
-        ..Default::default()
-    };
-    let result = handler::lfs_download_object(state.context.clone(), &request_vars).await;
+    let result = handler::lfs_download_object(state.context.clone(), &oid).await;
     match result {
         Ok(bytes) => Ok(Response::builder().body(Body::from(bytes)).unwrap()),
         Err(err) => Ok({

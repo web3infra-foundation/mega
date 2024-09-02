@@ -192,7 +192,7 @@ pub async fn lfs_process_batch(
     let server_url = context.config.lfs.url.clone();
 
     for object in &batch_vars.objects {
-        let meta = lfs_get_meta(storage.clone(), object).await;
+        let meta = lfs_get_meta(storage.clone(), &object.oid).await;
         // Found
         let found = meta.is_ok();
         let mut meta = meta.unwrap_or_default();
@@ -249,7 +249,7 @@ pub async fn lfs_fetch_chunk_ids(
     }
     let storage = context.services.lfs_storage.clone();
 
-    let meta = lfs_get_meta(storage.clone(), fetch_vars)
+    let meta = lfs_get_meta(storage.clone(), &fetch_vars.oid)
         .await
         .map_err(|_| GitLFSError::GeneralError("".to_string()))?;
     assert!(meta.splited, "database didn't match the split mode");
@@ -301,7 +301,7 @@ pub async fn lfs_upload_object(
     let lfs_storage = context.services.lfs_storage.clone();
     let raw_storage = context.services.raw_storage.clone();
 
-    let meta = lfs_get_meta(lfs_storage.clone(), request_vars)
+    let meta = lfs_get_meta(lfs_storage.clone(), &request_vars.oid)
         .await
         .unwrap();
     if config.enable_split && meta.splited {
@@ -353,13 +353,13 @@ pub async fn lfs_upload_object(
 /// when server enable split,  if OID is a complete object, then splice the object and return it.
 pub async fn lfs_download_object(
     context: Context,
-    request_vars: &RequestVars,
+    oid: &String,
 ) -> Result<Bytes, GitLFSError> {
     let config = context.config.lfs;
     let stg = context.services.lfs_storage.clone();
     let raw_storage = context.services.raw_storage.clone();
     if config.enable_split {
-        let meta = lfs_get_meta(stg.clone(), request_vars).await;
+        let meta = lfs_get_meta(stg.clone(), oid).await;
         // let relation_db = context.services.lfs_storage.clone();
 
         match meta {
@@ -382,19 +382,18 @@ pub async fn lfs_download_object(
             }
             Err(_) => {
                 // check if the oid is a part of a split object, if so, return the part.
-                let sub_oid = request_vars.oid.clone();
-                if !lfs_check_sub_oid_exist(stg, &sub_oid).await.unwrap() {
+                if !lfs_check_sub_oid_exist(stg, oid).await.unwrap() {
                     return Err(GitLFSError::GeneralError(
                         "oid didn't belong to any object".to_string(),
                     ));
                 }
 
-                let bytes = raw_storage.get_object(&sub_oid).await.unwrap();
+                let bytes = raw_storage.get_object(oid).await.unwrap();
                 Ok(bytes)
             }
         }
     } else {
-        let meta = lfs_get_meta(stg, request_vars).await.unwrap();
+        let meta = lfs_get_meta(stg, oid).await.unwrap();
         let bytes = raw_storage.get_object(&meta.oid).await.unwrap();
         Ok(bytes)
     }
@@ -617,9 +616,9 @@ async fn lfs_add_lock(
 
 async fn lfs_get_meta(
     storage: Arc<LfsStorage>,
-    v: &RequestVars,
+    oid: &String,
 ) -> Result<MetaObject, GitLFSError> {
-    let result = storage.get_lfs_object(v.oid.clone()).await.unwrap();
+    let result = storage.get_lfs_object(oid.clone()).await.unwrap();
 
     match result {
         Some(val) => Ok(MetaObject {
