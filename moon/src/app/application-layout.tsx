@@ -42,13 +42,13 @@ import {
 } from '@heroicons/react/20/solid'
 import { Button } from '@/components/catalyst/button'
 import { useState, useEffect } from 'react'
-import { get_access_token } from '@/app/actions'
+import { get_session } from '@/app/actions'
 import { usePathname } from 'next/navigation'
 
 function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
-      <DropdownItem href="#">
+      <DropdownItem href="/user/profile">
         <UserCircleIcon />
         <DropdownLabel>My account</DropdownLabel>
       </DropdownItem>
@@ -62,7 +62,7 @@ function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' })
         <DropdownLabel>Share feedback</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem href="#">
+      <DropdownItem href="/auth/logout">
         <ArrowRightStartOnRectangleIcon />
         <DropdownLabel>Sign out</DropdownLabel>
       </DropdownItem>
@@ -72,8 +72,8 @@ function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' })
 
 interface User {
   avatar_url: string;
-  login: string;
-  id: number;
+  name: string;
+  user_id: number;
   email: string;
 }
 
@@ -83,29 +83,29 @@ export function ApplicationLayout({
   children: React.ReactNode
 }) {
   let pathname = usePathname()
-  const [token, setToken] = useState("");
+
+  const [session, setSession] = useState("");
   const [user, setUser] = useState<User | null>(null);
-  useEffect(() => {
-    fetch_token()
-    async function fetch_token() {
-      let res = await get_access_token();
-      if (res?.value) {
-        let token_value = res?.value;
-        setToken(token_value)
-      }
-    }
-  }, [])
 
   useEffect(() => {
-    if (token) {
-      fetchMessage();
+    fetch_session()
+    async function fetch_session() {
+      let res = await get_session();
+      if (res?.value) {
+        let val = res?.value;
+        setSession(val)
+      }
     }
-    async function fetchMessage() {
-      const response = await fetch('/api/auth/github/user');
+
+    if (session) {
+      fetchUser();
+    }
+    async function fetchUser() {
+      const response = await fetch('/api/user');
       const user = await response.json();
-      setUser(user.data);
+      setUser(user.data.data);
     }
-  }, [token])
+  }, [session])
 
   return (
     <SidebarLayout
@@ -113,7 +113,7 @@ export function ApplicationLayout({
         <Navbar>
           <NavbarSpacer />
           {
-            !token &&
+            !session &&
             <Button href="/login">Login</Button>
           }
           {
@@ -202,7 +202,7 @@ export function ApplicationLayout({
                   <span className="flex min-w-0 items-center gap-3">
                     <Avatar src={"" || user.avatar_url} slot="icon" initials="ME" className="size-10 bg-purple-500 text-white" />
                     <span className="min-w-0">
-                      <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">{user.login}</span>
+                      <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">{user.name}</span>
                       <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">
                         {user.email}
                       </span>

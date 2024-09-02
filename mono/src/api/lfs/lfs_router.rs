@@ -43,42 +43,47 @@
 //! when using these handlers in a web application to prevent unauthorized access.
 use axum::{
     body::Body,
-    extract::{FromRequest, State},
+    extract::{Path, Query, State},
     http::{Request, StatusCode},
     response::Response,
-    Json,
+    routing::{get, post, put},
+    Json, Router,
 };
+use futures::TryStreamExt;
 
 use ceres::lfs::{
     handler,
     lfs_structs::{
-        BatchResponse, FetchchunkResponse, LockList, LockListQuery, LockRequest, LockResponse,
-        RequestVars, UnlockRequest, UnlockResponse, VerifiableLockRequest,
+        BatchRequest, BatchResponse, FetchchunkResponse, LockList, LockListQuery, LockRequest,
+        LockResponse, RequestVars, UnlockRequest, UnlockResponse, VerifiableLockRequest,
     },
-    LfsConfig,
 };
-use common::{errors::GitLFSError, model::GetParams};
-use futures::TryStreamExt;
+use common::errors::GitLFSError;
 
-use crate::server::https_server::AppState;
+use crate::api::MonoApiServiceState;
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 
-pub async fn lfs_retrieve_lock(
-    config: &LfsConfig,
-    params: GetParams,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    // Load query parameters into struct.
-    let lock_list_query = LockListQuery {
-        path: params.path.unwrap_or_default(),
-        id: params.id.unwrap_or_default(),
-        cursor: params.cursor.unwrap_or_default(),
-        limit: params.limit.unwrap_or_default(),
-        refspec: params.refspec.unwrap_or_default(),
-    };
+/// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
+/// document describes the server LFS discovery protocol.
+pub fn routers() -> Router<MonoApiServiceState> {
+    Router::new()
+        .route("/objects/:object_id", get(lfs_download_object))
+        .route("/objects/:object_id", put(lfs_upload_object))
+        .route("/locks", get(list_locks))
+        .route("/locks", post(create_lock))
+        .route("/locks/verify", post(list_locks_for_verification))
+        .route("/locks/:id/unlock", post(delete_lock))
+        .route("/objects/batch", post(lfs_process_batch))
+        .route("/objects/chunkids", get(lfs_fetch_chunk_ids))
+}
 
+pub async fn list_locks(
+    state: State<MonoApiServiceState>,
+    Query(query): Query<LockListQuery>,
+) -> Result<Response<Body>, (StatusCode, String)> {
     let result: Result<LockList, GitLFSError> =
-        handler::lfs_retrieve_lock(config, lock_list_query).await;
+        handler::lfs_retrieve_lock(state.context.services.lfs_storage.clone(), query).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -91,18 +96,18 @@ pub async fn lfs_retrieve_lock(
     }
 }
 
-pub async fn lfs_verify_lock(
-    state: State<AppState>,
-    config: &LfsConfig,
-    req: Request<Body>,
+pub async fn list_locks_for_verification(
+    state: State<MonoApiServiceState>,
+    // req: Request<Body>,
+    Json(json): Json<VerifiableLockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    tracing::info!("req: {:?}", req);
+    // tracing::info!("req: {:?}", req);
 
-    let request = Json::from_request(req, &state)
-        .await
-        .unwrap_or_else(|_| Json(VerifiableLockRequest::default()));
+    // let request = Json::from_request(req, &state)
+    //     .await
+    //     .unwrap_or_else(|_| Json(VerifiableLockRequest::default()));
 
-    let result = handler::lfs_verify_lock(config, request.0).await;
+    let result = handler::lfs_verify_lock(state.context.services.lfs_storage.clone(), json).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -120,16 +125,15 @@ pub async fn lfs_verify_lock(
     }
 }
 
-pub async fn lfs_create_lock(
-    state: State<AppState>,
-    config: &LfsConfig,
-    req: Request<Body>,
+pub async fn create_lock(
+    state: State<MonoApiServiceState>,
+    Json(json): Json<LockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let request = Json::from_request(req, &state)
-        .await
-        .unwrap_or_else(|_| Json(LockRequest::default()));
+    // let request = Json::from_request(req, &state)
+    //     .await
+    //     .unwrap_or_else(|_| Json(LockRequest::default()));
 
-    let result = handler::lfs_create_lock(config, request.0).await;
+    let result = handler::lfs_create_lock(state.context.services.lfs_storage.clone(), json).await;
     match result {
         Ok(lock) => {
             let lock_response = LockResponse {
@@ -152,19 +156,13 @@ pub async fn lfs_create_lock(
     }
 }
 
-pub async fn lfs_delete_lock(
-    state: State<AppState>,
-    config: &LfsConfig,
-    path: &str,
-    req: Request<Body>,
+pub async fn delete_lock(
+    state: State<MonoApiServiceState>,
+    Path(id): Path<String>,
+    Json(json): Json<UnlockRequest>,
 ) -> Result<Response, (StatusCode, String)> {
-    let tokens: Vec<&str> = path.split('/').collect();
-    let id = tokens[tokens.len() - 2];
-    let request = Json::from_request(req, &state)
-        .await
-        .unwrap_or_else(|_| Json(UnlockRequest::default()));
-
-    let result = handler::lfs_delete_lock(config, id, request.0).await;
+    let result =
+        handler::lfs_delete_lock(state.context.services.lfs_storage.clone(), &id, json).await;
 
     match result {
         Ok(lock) => {
@@ -188,12 +186,10 @@ pub async fn lfs_delete_lock(
 }
 
 pub async fn lfs_process_batch(
-    state: State<AppState>,
-    config: &LfsConfig,
-    req: Request<Body>,
+    state: State<MonoApiServiceState>,
+    Json(json): Json<BatchRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let request = Json::from_request(req, &state).await.unwrap();
-    let result = handler::lfs_process_batch(config, request.0).await;
+    let result = handler::lfs_process_batch(&state.context, json).await;
 
     match result {
         Ok(response_objects) => {
@@ -220,21 +216,20 @@ pub async fn lfs_process_batch(
 }
 
 pub async fn lfs_fetch_chunk_ids(
-    state: State<AppState>,
-    config: &LfsConfig,
-    req: Request<Body>,
+    state: State<MonoApiServiceState>,
+    Json(json): Json<RequestVars>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let request = Json::from_request(req, &state).await;
-    if request.is_err() {
-        return Err((StatusCode::BAD_REQUEST, "Invalid request".to_string()));
-    }
-    let request = request.unwrap();
-    let result = handler::lfs_fetch_chunk_ids(config, &request).await;
+    // let request = Json::from_request(req, &state).await;
+    // if request.is_err() {
+    //     return Err((StatusCode::BAD_REQUEST, "Invalid request".to_string()));
+    // }
+    // let request = request.unwrap();
+    let result = handler::lfs_fetch_chunk_ids(&state.context, &json).await;
     match result {
         Ok(response) => {
             let size = response.iter().fold(0, |acc, chunk| acc + chunk.size);
             let fetch_response = FetchchunkResponse {
-                oid: request.oid.clone(),
+                oid: json.oid.clone(),
                 size,
                 chunks: response,
             };
@@ -255,17 +250,16 @@ pub async fn lfs_fetch_chunk_ids(
 }
 
 pub async fn lfs_download_object(
-    config: &LfsConfig,
-    path: &str,
+    state: State<MonoApiServiceState>,
+    Path(oid): Path<String>,
 ) -> Result<Response, (StatusCode, String)> {
-    let tokens: Vec<&str> = path.split('/').collect();
     // Load request parameters into struct.
     let request_vars = RequestVars {
-        oid: tokens[tokens.len() - 1].to_owned(),
+        oid,
         authorization: "".to_owned(),
         ..Default::default()
     };
-    let result = handler::lfs_download_object(config, &request_vars).await;
+    let result = handler::lfs_download_object(state.context.clone(), &request_vars).await;
     match result {
         Ok(bytes) => Ok(Response::builder().body(Body::from(bytes)).unwrap()),
         Err(err) => Ok({
@@ -278,14 +272,13 @@ pub async fn lfs_download_object(
 }
 
 pub async fn lfs_upload_object(
-    config: &LfsConfig,
-    path: &str,
+    state: State<MonoApiServiceState>,
+    Path(oid): Path<String>,
     req: Request<Body>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let tokens: Vec<&str> = path.split('/').collect();
     // Load request parameters into struct.
     let request_vars = RequestVars {
-        oid: tokens[tokens.len() - 1].to_string(),
+        oid,
         authorization: "".to_string(),
         ..Default::default()
     };
@@ -301,7 +294,7 @@ pub async fn lfs_upload_object(
         .await
         .unwrap();
 
-    let result = handler::lfs_upload_object(config, &request_vars, &body_bytes).await;
+    let result = handler::lfs_upload_object(&state.context, &request_vars, &body_bytes).await;
     match result {
         Ok(_) => Ok(Response::builder()
             .header("Content-Type", LFS_CONTENT_TYPE)

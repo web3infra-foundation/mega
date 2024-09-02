@@ -3,16 +3,14 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "ztm_path_mapping")]
+#[sea_orm(table_name = "ssh_keys")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
+    #[sea_orm(primary_key)]
     pub id: i64,
-    #[sea_orm(column_type = "Text", unique)]
-    pub alias: String,
+    pub user_id: i64,
     #[sea_orm(column_type = "Text")]
-    pub repo_path: String,
+    pub ssh_key: String,
     pub created_at: DateTime,
-    pub updated_at: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

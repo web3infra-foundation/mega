@@ -12,6 +12,25 @@ const nextConfig = {
             },
         ],
     },
+    async redirects() {
+        return [
+            {
+                source: '/auth/github',
+                destination: process.env.MEGA_HOST + '/auth/github',
+                permanent: false,
+            },
+            {
+                source: '/auth/authorized',
+                destination: process.env.MEGA_HOST + '/auth/authorized',
+                permanent: false,
+            },
+            {
+                source: '/auth/logout',
+                destination: process.env.MEGA_HOST + '/auth/logout',
+                permanent: false,
+            }
+        ]
+    },
     reactStrictMode: true,
     transpilePackages: [
         // antd & deps

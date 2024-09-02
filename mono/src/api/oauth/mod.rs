@@ -1,127 +1,244 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use axum::async_trait;
-use axum::response::Redirect;
-use axum::routing::post;
+use anyhow::Context;
+use async_session::{MemoryStore, Session, SessionStore};
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
+    async_trait,
+    extract::{FromRef, FromRequestParts, Query, State},
+    http::{header::SET_COOKIE, HeaderMap},
+    response::{IntoResponse, Redirect, Response},
     routing::get,
-    Json, Router,
+    RequestPartsExt, Router,
 };
-use axum_extra::headers::authorization::Bearer;
-use axum_extra::headers::Authorization;
-use axum_extra::TypedHeader;
-use tokio::sync::Mutex;
-use uuid::Uuid;
+use axum_extra::{headers, typed_header::TypedHeaderRejectionReason, TypedHeader};
+use callisto::user;
+use chrono::{Duration, Utc};
+use http::{header, request::Parts, StatusCode};
+use jupiter::storage::user_storage::UserStorage;
+use oauth2::{
+    basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
+    ClientSecret, CsrfToken, RedirectUrl, Scope, TokenResponse, TokenUrl,
+};
 
-use common::model::CommonResult;
-use common::enums::SupportOauthType;
-use common::errors::MegaError;
-use github::GithubOauthService;
-use jupiter::context::Context;
-use model::{AuthorizeParams, GitHubUserJson, OauthCallbackParams};
+use common::config::OauthConfig;
+use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
 
-pub mod github;
+use crate::api::MonoApiServiceState;
+
 pub mod model;
 
-#[derive(Clone)]
-pub struct OauthServiceState {
-    pub context: Context,
-    pub sessions: Arc<Mutex<HashMap<String, String>>>,
+static COOKIE_NAME: &str = "SESSION";
+
+pub fn routers() -> Router<MonoApiServiceState> {
+    Router::new()
+        .route("/github", get(github_auth))
+        .route("/authorized", get(login_authorized))
+        .route("/logout", get(logout))
 }
 
-impl OauthServiceState {
-    pub fn oauth_handler(&self, ouath_type: SupportOauthType) -> impl OauthHandler {
-        match ouath_type {
-            SupportOauthType::GitHub => GithubOauthService {
-                context: self.context.clone(),
-                client_id: self.context.config.oauth.github_client_id.clone(),
-                client_secret: self.context.config.oauth.github_client_secret.clone(),
-            },
-        }
+async fn github_auth(State(client): State<BasicClient>) -> impl IntoResponse {
+    // Issue for adding check to this example https://github.com/tokio-rs/axum/issues/2511
+    let (auth_url, _csrf_token) = client
+        .authorize_url(CsrfToken::new_random)
+        .add_scope(Scope::new("identify".to_string()))
+        .url();
+    Redirect::to(auth_url.as_ref())
+}
+
+async fn login_authorized(
+    Query(query): Query<OauthCallbackParams>,
+    State(state): State<MonoApiServiceState>,
+    State(oauth_client): State<BasicClient>,
+) -> Result<impl IntoResponse, OauthError> {
+    let store: MemoryStore = MemoryStore::from_ref(&state);
+    let config = state.context.config.oauth.unwrap();
+    // Get an auth token
+    let token = oauth_client
+        .exchange_code(AuthorizationCode::new(query.code.clone()))
+        .request_async(async_http_client)
+        .await
+        .context("failed in sending request request to authorization server")?;
+
+    // Fetch user data
+    let client = reqwest::Client::new();
+    let resp = client
+        .get("https://api.github.com/user")
+        .header("User-Agent", format!("Mega/{}", "0.0.1"))
+        .bearer_auth(token.access_token().secret())
+        .send()
+        .await
+        .context("failed in sending request to target Url")?;
+    let mut github_user = GitHubUserJson::default();
+
+    if resp.status().is_success() {
+        github_user = resp
+            .json::<GitHubUserJson>()
+            .await
+            .context("failed to deserialize response as JSON")?;
+    } else {
+        tracing::error!("github:user_info:err {:?}", resp.text().await.unwrap());
+    }
+
+
+    let user_data: user::Model = github_user.into();
+    let user_storage = state.context.services.user_storage.clone();
+    let user = user_storage.find_user_by_email(&user_data.email).await.unwrap();
+    if user.is_none() {
+        user_storage.save_user(user_data.clone()).await.unwrap();
+    }
+
+    // Create a new session filled with user data
+    let login_user:LoginUser = user_data.into();
+    let mut session = Session::new();
+    session
+        .insert("user", &login_user)
+        .context("failed in inserting serialized value into session")?;
+
+    // Store session and get corresponding cookie
+    let cookie = store
+        .store_session(session)
+        .await
+        .context("failed to store session")?
+        .context("unexpected error retrieving cookie value")?;
+
+    // Build the cookie
+    let cookie = format!(
+        "{COOKIE_NAME}={cookie}; Domain={}; SameSite=Lax; Path=/",
+        config.cookie_domain
+    );
+    // Set cookie
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SET_COOKIE,
+        cookie.parse().context("failed to parse cookie")?,
+    );
+
+    Ok((headers, Redirect::to(&config.ui_domain)))
+}
+
+async fn logout(
+    State(state): State<MonoApiServiceState>,
+    TypedHeader(cookies): TypedHeader<headers::Cookie>,
+) -> Result<impl IntoResponse, OauthError> {
+    let store: MemoryStore = MemoryStore::from_ref(&state);
+    let config = state.context.config.oauth.unwrap();
+    let cookie = cookies
+        .get(COOKIE_NAME)
+        .context("unexpected error getting cookie name")?;
+    let mut headers = HeaderMap::new();
+
+    let session = match store
+        .load_session(cookie.to_string())
+        .await
+        .context("failed to load session")?
+    {
+        Some(s) => s,
+        // No session active, just redirect
+        None => return Ok((headers, Redirect::to(&config.ui_domain))),
+    };
+
+    store
+        .destroy_session(session)
+        .await
+        .context("failed to destroy session")?;
+
+    // Expire cookie
+    let cookie = format!(
+        "{COOKIE_NAME}={cookie}; Expires={} Domain={}; SameSite=Lax; Path=/",
+        config.cookie_domain,
+        (Utc::now() - Duration::days(1)).to_rfc2822(),
+    );
+    headers.insert(
+        SET_COOKIE,
+        cookie.parse().context("failed to parse cookie")?,
+    );
+    Ok((headers, Redirect::to(&config.ui_domain)))
+}
+
+pub fn oauth_client(oauth_config: OauthConfig) -> Result<BasicClient, OauthError> {
+    let client_id = oauth_config.github_client_id;
+    let client_secret = oauth_config.github_client_secret;
+    let ui_domain = oauth_config.ui_domain;
+
+    let redirect_url = format!("{}/auth/authorized", ui_domain);
+
+    let auth_url = "https://github.com/login/oauth/authorize".to_string();
+
+    let token_url = "https://github.com/login/oauth/access_token".to_string();
+
+    Ok(BasicClient::new(
+        ClientId::new(client_id),
+        Some(ClientSecret::new(client_secret)),
+        AuthUrl::new(auth_url).context("failed to create new authorization server URL")?,
+        Some(TokenUrl::new(token_url).context("failed to create new token endpoint URL")?),
+    )
+    .set_redirect_uri(
+        RedirectUrl::new(redirect_url).context("failed to create new redirection URL")?,
+    ))
+}
+
+pub struct AuthRedirect;
+
+impl IntoResponse for AuthRedirect {
+    fn into_response(self) -> Response {
+        (StatusCode::UNAUTHORIZED, "Login in first").into_response()
     }
 }
 
 #[async_trait]
-pub trait OauthHandler: Send + Sync {
-    fn authorize_url(&self, params: &AuthorizeParams, state: &str) -> String;
+impl<S> FromRequestParts<S> for LoginUser
+where
+    MemoryStore: FromRef<S>,
+    UserStorage: FromRef<S>,
+    S: Send + Sync,
+{
+    // If anything goes wrong or no session is found, redirect to the auth page
+    type Rejection = AuthRedirect;
 
-    async fn access_token(
-        &self,
-        params: OauthCallbackParams,
-        redirect_uri: &str,
-    ) -> Result<String, MegaError>;
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let store = MemoryStore::from_ref(state);
 
-    async fn user_info(&self, access_token: &str) -> Result<GitHubUserJson, MegaError>;
+        let cookies = parts
+            .extract::<TypedHeader<headers::Cookie>>()
+            .await
+            .map_err(|e| match *e.name() {
+                header::COOKIE => match e.reason() {
+                    TypedHeaderRejectionReason::Missing => AuthRedirect,
+                    _ => panic!("unexpected error getting Cookie header(s): {e}"),
+                },
+                _ => panic!("unexpected error getting cookies: {e}"),
+            })?;
+        let session_cookie = cookies.get(COOKIE_NAME).ok_or(AuthRedirect)?;
+
+        let session = store
+            .load_session(session_cookie.to_string())
+            .await
+            .unwrap()
+            .ok_or(AuthRedirect)?;
+
+        let user = session.get::<LoginUser>("user").ok_or(AuthRedirect)?;
+
+        Ok(user)
+    }
 }
 
-pub fn routers() -> Router<OauthServiceState> {
-    Router::new()
-        .route("/:oauth_type/authorize", get(redirect_authorize))
-        .route("/:oauth_type/callback", post(oauth_callback))
-        .route("/:oauth_type/user", get(user))
+// Use anyhow, define error and enable '?'
+// For a simplified example of using anyhow in axum check /examples/anyhow-error-response
+#[derive(Debug)]
+pub struct OauthError(anyhow::Error);
+
+impl IntoResponse for OauthError {
+    fn into_response(self) -> Response {
+        tracing::error!("Application error: {:#}", self.0);
+        (StatusCode::INTERNAL_SERVER_ERROR, "Login in first").into_response()
+    }
 }
 
-async fn redirect_authorize(
-    Path(oauth_type): Path<String>,
-    Query(query): Query<AuthorizeParams>,
-    service_state: State<OauthServiceState>,
-) -> Result<Redirect, (StatusCode, String)> {
-    let oauth_type: SupportOauthType = match oauth_type.parse::<SupportOauthType>() {
-        Ok(value) => value,
-        Err(err) => return Err((StatusCode::BAD_REQUEST, err)),
-    };
-
-    let mut sessions = service_state.sessions.lock().await;
-    let state = Uuid::new_v4().to_string();
-    sessions.insert(state.clone(), query.redirect_uri.clone());
-    let auth_url = service_state
-        .oauth_handler(oauth_type)
-        .authorize_url(&query, &state);
-    Ok(Redirect::temporary(&auth_url))
-}
-
-async fn oauth_callback(
-    Path(oauth_type): Path<String>,
-    Query(query): Query<OauthCallbackParams>,
-    service_state: State<OauthServiceState>,
-) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
-    let oauth_type: SupportOauthType = match oauth_type.parse::<SupportOauthType>() {
-        Ok(value) => value,
-        Err(err) => return Err((StatusCode::BAD_REQUEST, err)),
-    };
-    // chcek state,
-    // TODO storage can be replaced by redis, otherwise invalid state can't be expired
-    let mut sessions = service_state.sessions.lock().await;
-
-    let redirect_uri = match sessions.get(&query.state) {
-        Some(uri) => uri.clone(),
-        None => return Ok(Json(CommonResult::failed("Invalid state"))),
-    };
-    let access_token = service_state
-        .oauth_handler(oauth_type)
-        .access_token(query.clone(), &redirect_uri)
-        .await
-        .unwrap();
-    sessions.remove(&query.state);
-    Ok(Json(CommonResult::success(Some(access_token))))
-}
-
-async fn user(
-    Path(oauth_type): Path<String>,
-    TypedHeader(Authorization::<Bearer>(token)): TypedHeader<Authorization<Bearer>>,
-    service_state: State<OauthServiceState>,
-) -> Result<Json<GitHubUserJson>, (StatusCode, String)> {
-    let oauth_type: SupportOauthType = match oauth_type.parse::<SupportOauthType>() {
-        Ok(value) => value,
-        Err(err) => return Err((StatusCode::BAD_REQUEST, err)),
-    };
-    let res = service_state
-        .oauth_handler(oauth_type)
-        .user_info(token.token())
-        .await
-        .unwrap();
-    Ok(Json(res))
+// This enables using `?` on functions that return `Result<_, anyhow::Error>` to turn them into
+// `Result<_, OauthError>`. That way you don't need to do that manually.
+impl<E> From<E> for OauthError
+where
+    E: Into<anyhow::Error>,
+{
+    fn from(err: E) -> Self {
+        Self(err.into())
+    }
 }

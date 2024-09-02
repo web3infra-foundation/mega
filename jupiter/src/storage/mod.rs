@@ -4,13 +4,14 @@ pub mod init;
 pub mod lfs_storage;
 pub mod mono_storage;
 pub mod mq_storage;
+pub mod user_storage;
 pub mod ztm_storage;
 
 use async_trait::async_trait;
+use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, EntityTrait};
 
 use callisto::import_refs;
 use common::errors::MegaError;
-use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, EntityTrait};
 ///
 /// This interface is designed to handle the commonalities between the database storage and
 /// file system storage.
@@ -23,7 +24,8 @@ pub trait GitStorageProvider: Send + Sync {
 
     async fn get_ref(&self, repo_id: i64) -> Result<Vec<import_refs::Model>, MegaError>;
 
-    async fn update_ref(&self, repo_id: i64, ref_name: &str, new_id: &str) -> Result<(), MegaError>;
+    async fn update_ref(&self, repo_id: i64, ref_name: &str, new_id: &str)
+        -> Result<(), MegaError>;
 
     // async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError>;
 
