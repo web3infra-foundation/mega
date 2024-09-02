@@ -34,7 +34,7 @@ For now, the entire open source community base on Git and GitHub. It's centraliz
 
 ## Quick Try Monorepo Engine with Docker
 
-For now, we are provide the run monorepo engine with docker, you can try it with the following steps:
+For now, the monorepo engine could be deployed on your host machine or insulated into containers. For deploying through docker, follow the steps below:
 
 1. Clone the project and build the docker images
 ```bash
@@ -45,7 +45,7 @@ docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-docke
 docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
 ```
 
-2. Init the volume for mono-engine and PostgreSQL
+2. Expand abbreviations, use initialize for mono-engine and PostgreSQL
 ```bash
 # Linux or MacOS
 ./docker/init-volume.sh /mnt/data ./docker/config.toml
