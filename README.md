@@ -45,7 +45,7 @@ docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-docke
 docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
 ```
 
-2. Expand abbreviations, use initialize for mono-engine and PostgreSQL
+2. Initialize for mono-engine and PostgreSQL
 ```bash
 # Linux or MacOS
 ./docker/init-volume.sh /mnt/data ./docker/config.toml
