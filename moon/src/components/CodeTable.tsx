@@ -8,8 +8,7 @@ import folderPic from '../../public/icons/folder.svg'
 import filePic from '../../public/icons/file.svg'
 import Image from 'next/image'
 import styles from './CodeTable.module.css'
-import { Input, Modal, Space, Table, TableProps } from 'antd/lib'
-import { useState } from 'react'
+import { Space, Table, TableProps } from 'antd/lib'
 
 export interface DataType {
     oid: string;
@@ -19,12 +18,8 @@ export interface DataType {
     date: number;
 }
 
-const CodeTable = ({ directory, readmeContent, treeIsShow }) => {
+const CodeTable = ({ directory, readmeContent }) => {
     const router = useRouter();
-    const fileCodeContainerStyle = treeIsShow ? { width: '80%', marginLeft: '17%', borderRadius: '0.5rem', marginTop: '10px' } : { width: '90%', margin: '0 auto', borderRadius: '0.5rem', marginTop: '10px' };
-    const [open, setOpen] = useState(false);
-    const [confirmLoading, setConfirmLoading] = useState(false);
-    const [modalText, setModalText] = useState('');
     const pathname = usePathname();
     let real_path = pathname.replace("/tree", "");
 
@@ -64,17 +59,7 @@ const CodeTable = ({ directory, readmeContent, treeIsShow }) => {
                     {date && formatDistance(fromUnixTime(date), new Date(), { addSuffix: true })}
                 </>
             )
-        },
-        {
-            title: 'Action',
-            key: 'action',
-            render: (_, record) => (
-                <Space size="middle">
-                    <a onClick={() => showModal(record.name)}>Publish</a>
-                    <a>Revoke</a>
-                </Space>
-            ),
-        },
+        }
     ];
 
     const handleFileClick = (file) => {
@@ -115,35 +100,10 @@ const CodeTable = ({ directory, readmeContent, treeIsShow }) => {
         }
     });
 
-    const showModal = (name) => {
-        setModalText(name);
-        setOpen(true);
-    };
-
-    const handleOk = () => {
-        setConfirmLoading(true);
-        setTimeout(() => {
-            setOpen(false);
-            setConfirmLoading(false);
-        }, 2000);
-    };
-
-    const handleCancel = () => {
-        setOpen(false);
-    };
 
     return (
-        <div className={styles.dirTable} style={fileCodeContainerStyle}>
+        <div className={styles.dirTable}>
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
-            <Modal
-                title="Did you want to publish repo to public?"
-                open={open}
-                onOk={handleOk}
-                confirmLoading={confirmLoading}
-                onCancel={handleCancel}
-            >
-                <Input showCount maxLength={20} placeholder={modalText} />
-            </Modal>
             {readmeContent && (
                 <div className={styles.markdownContent}>
                     <div className="markdown-body">

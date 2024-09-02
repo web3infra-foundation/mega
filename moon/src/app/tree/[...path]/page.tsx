@@ -4,6 +4,7 @@ import CodeTable from '@/components/CodeTable'
 import Bread from '@/components/BreadCrumb'
 import RepoTree from '@/components/RepoTree'
 import { useEffect, useState } from 'react'
+import { Flex, Layout } from "antd/lib";
 
 export default function Page({ params }: { params: { path: string[] } }) {
     const [directory, setDirectory] = useState([]);
@@ -23,12 +24,41 @@ export default function Page({ params }: { params: { path: string[] } }) {
         fetchData();
     }, [path]);
 
+    const treeStyle = {
+        borderRadius: 8,
+        overflow: 'hidden',
+        width: 'calc(20% - 8px)',
+        maxWidth: 'calc(20% - 8px)',
+        background: '#fff',
+    };
+
+    const codeStyle = {
+        borderRadius: 8,
+        overflow: 'hidden',
+        width: 'calc(80% - 8px)',
+        background: '#fff',
+    };
+
+    const breadStyle = {
+        minHeight: 30,
+        borderRadius: 8,
+        overflow: 'hidden',
+        width: 'calc(100% - 8px)',
+        background: '#fff',
+    };
+
     return (
-        <div>
-            <RepoTree directory={directory} />
-            <Bread path={params.path} />
-            <CodeTable directory={directory} readmeContent={readmeContent} treeIsShow={true} />
-        </div>
+        <Flex gap="middle" wrap>
+            <Layout style={breadStyle}>
+                <Bread path={params.path} />
+            </Layout>
+            <Layout style={treeStyle}>
+                <RepoTree directory={directory} />
+            </Layout>
+            <Layout style={codeStyle}>
+                <CodeTable directory={directory} readmeContent={readmeContent} />
+            </Layout>
+        </Flex>
     );
 }
 
