@@ -82,10 +82,10 @@ impl From<Message> for callisto::mq_storage::Model {
         use callisto::mq_storage::Model;
 
         let category = match val.evt {
-            EventType::ApiRequest(_) => "ApiRequestEvent".into(),
+            EventType::ApiRequest(_) => Some(String::from("ApiRequestEvent")),
 
             #[allow(unreachable_patterns)]
-            _ => "Unknown".into(),
+            _ => Some(String::from("Unknown")),
         };
 
         let content: Value = match val.evt {
@@ -108,7 +108,7 @@ impl From<callisto::mq_storage::Model> for Message {
     fn from(value: callisto::mq_storage::Model) -> Self {
         let id = value.id;
         let create_time = value.create_time.and_utc();
-        let evt = match value.category.as_str() {
+        let evt = match value.category.unwrap().as_str() {
             "ApiRequestEvent" => {
                 if let Some(s) = value.content {
                     let evt = serde_json::from_str(&s).unwrap();
