@@ -7,7 +7,6 @@
 In the root directory of your project, three environment variables are required in the `.env` file:
 
 - **MEGA_HOST**: Used for redirecting to public backend routes during the OAuth process.
-- **MOON_HOST**: Provides the callback URL to the authentication provider.
 - **MEGA_INTERNAL_HOST**: Utilized for internal API requests. Given that the application uses SSR and Next.js Route Handlers, this variable allows you to specify a domain name within the container network.
 
 ### Environment Handling
