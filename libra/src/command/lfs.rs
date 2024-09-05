@@ -5,7 +5,7 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use reqwest::StatusCode;
 use ceres::lfs::lfs_structs::LockListQuery;
-use crate::command::ask_basic_auth;
+use crate::command::{ask_basic_auth, status};
 use crate::internal::head::Head;
 use crate::internal::protocol::lfs_client::LFS_CLIENT;
 use crate::utils::{lfs, path, util};
@@ -34,6 +34,14 @@ pub enum LfsCmds {
     Lock {
         /// String path name of the locked file. This should be relative to the root of the repository working directory
         path: String,
+    },
+    /// Remove "locked" setting for a file on the Libra LFS server
+    Unlock {
+        path: String,
+        #[clap(long, short)]
+        force: bool,
+        #[clap(long, short)]
+        id: Option<String>
     }
 }
 
@@ -80,27 +88,67 @@ pub async fn execute(cmd: LfsCmds) {
             }
         }
         LfsCmds::Lock { path } => {
-            if !lfs::is_lfs_tracked(&path) {
-                eprintln!("fatal: {} is not an LFS tracked file", path);
+            // Only check existence
+            if !Path::new(&path).exists() {
+                eprintln!("fatal: pathspec '{}' did not match any files", path);
                 return;
             }
 
             let refspec = current_refspec().await.unwrap();
             let mut auth = None;
             loop {
-                let resp = LFS_CLIENT.await.lock(path.clone(), refspec.clone(), auth.clone()).await;
-                let code = resp.status();
+                let code = LFS_CLIENT.await.lock(path.clone(), refspec.clone(), auth.clone()).await;
                 if code.is_success() {
                     println!("Locked {}", path);
-                    return;
                 } else if code == StatusCode::FORBIDDEN {
                     eprintln!("Forbidden: You must have push access to create a lock");
                     auth = Some(ask_basic_auth());
                     continue;
                 } else if code == StatusCode::CONFLICT {
                     eprintln!("Conflict: already created lock");
-                } else if !code.is_success() {
-                    eprintln!("fatal: LFS lock failed. Code: {}, Message: {}", code, resp.text().await.unwrap());
+                }
+                break;
+            }
+        }
+        LfsCmds::Unlock { path, force, id } => {
+            if !force {
+                if !Path::new(&path).exists() {
+                    eprintln!("fatal: pathspec '{}' did not match any files", path);
+                    return;
+                }
+                if !status::is_clean().await {
+                    eprintln!("fatal: working tree not clean");
+                    return;
+                }
+            }
+            let refspec = current_refspec().await.unwrap();
+            let id = match id {
+                None => {
+                    // get id by path
+                    let locks = LFS_CLIENT.await.get_locks(LockListQuery {
+                        refspec: refspec.clone(),
+                        path: path.clone(),
+                        id: "".to_string(),
+                        cursor: "".to_string(),
+                        limit: "".to_string(),
+                    }).await.locks;
+                    if locks.is_empty() {
+                        eprintln!("fatal: no lock found for path '{}'", path);
+                        return;
+                    }
+                    locks[0].id.clone()
+                }
+                Some(id) => id
+            };
+            let mut auth = None;
+            loop {
+                let code = LFS_CLIENT.await.unlock(id.clone(), refspec.clone(), force, auth.clone()).await;
+                if code.is_success() {
+                    println!("Unlocked {}", path);
+                } else if code == StatusCode::FORBIDDEN {
+                    eprintln!("Forbidden: You must have push access to unlock");
+                    auth = Some(ask_basic_auth());
+                    continue;
                 }
                 break;
             }
