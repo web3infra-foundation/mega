@@ -1,11 +1,11 @@
 use std::path::Path;
 use async_static::async_static;
 use futures_util::StreamExt;
-use reqwest::{Client, Response, StatusCode};
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use url::Url;
-use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars};
+use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest};
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
 use crate::internal::config::Config;
@@ -223,7 +223,7 @@ impl LFSClient {
 
     /// lock an LFS file
     /// - `refspec` is must in Mega Server, but optional in Git Doc
-    pub async fn lock(&self, path: String, refspec: String, basic_auth: Option<BasicAuth>) -> Response {
+    pub async fn lock(&self, path: String, refspec: String, basic_auth: Option<BasicAuth>) -> StatusCode {
         let url = self.lfs_url.join("/locks").unwrap();
         let mut request = self.client.post(url).json(&LockRequest {
             path,
@@ -232,6 +232,28 @@ impl LFSClient {
         if let Some(auth) = basic_auth {
             request = request.basic_auth(auth.username, Some(auth.password));
         }
-        request.send().await.unwrap()
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if !resp.status().is_success() {
+            eprintln!("fatal: LFS lock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+        }
+        code
+    }
+
+    pub async fn unlock(&self, id: String, refspec: String, force: bool, basic_auth: Option<BasicAuth>) -> StatusCode {
+        let url = self.lfs_url.join(&format!("/locks/{}/unlock", id)).unwrap();
+        let mut request = self.client.post(url).json(&UnlockRequest {
+            force: Some(force),
+            refs: Ref { name: refspec },
+        });
+        if let Some(auth) = basic_auth.clone() {
+            request = request.basic_auth(auth.username, Some(auth.password));
+        }
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if !resp.status().is_success() {
+            eprintln!("fatal: LFS unlock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+        }
+        code
     }
 }
