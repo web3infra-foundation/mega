@@ -160,7 +160,7 @@ pub async fn git_receive_pack(
 }
 
 // Function to find the subsequence in a slice
-fn search_subsequence(chunk: &[u8], search: &[u8]) -> Option<usize> {
+pub fn search_subsequence(chunk: &[u8], search: &[u8]) -> Option<usize> {
     chunk.windows(search.len()).position(|s| s == search)
 }
 

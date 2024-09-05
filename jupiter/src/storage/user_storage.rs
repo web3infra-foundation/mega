@@ -41,11 +41,17 @@ impl UserStorage {
         Ok(())
     }
 
-    pub async fn save_ssh_key(&self, user_id: i64, ssh_key: &str) -> Result<(), MegaError> {
+    pub async fn save_ssh_key(
+        &self,
+        user_id: i64,
+        ssh_key: &str,
+        finger: &str,
+    ) -> Result<(), MegaError> {
         let model = ssh_keys::Model {
             id: generate_id(),
             user_id,
             ssh_key: ssh_key.to_owned(),
+            finger: finger.to_owned(),
             created_at: chrono::Utc::now().naive_utc(),
         };
         let a_model = model.into_active_model();
@@ -66,5 +72,16 @@ impl UserStorage {
             .exec(self.get_connection())
             .await?;
         Ok(())
+    }
+
+    pub async fn search_ssh_key_finger(
+        &self,
+        finger_print: &str,
+    ) -> Result<Vec<ssh_keys::Model>, MegaError> {
+        let res = ssh_keys::Entity::find()
+            .filter(ssh_keys::Column::Finger.eq(finger_print))
+            .all(self.get_connection())
+            .await?;
+        Ok(res)
     }
 }
