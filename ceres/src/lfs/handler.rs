@@ -616,9 +616,9 @@ async fn lfs_add_lock(
 
 async fn lfs_get_meta(
     storage: Arc<LfsStorage>,
-    oid: &String,
+    oid: &str,
 ) -> Result<MetaObject, GitLFSError> {
-    let result = storage.get_lfs_object(oid.clone()).await.unwrap();
+    let result = storage.get_lfs_object(oid.to_owned()).await.unwrap();
 
     match result {
         Some(val) => Ok(MetaObject {

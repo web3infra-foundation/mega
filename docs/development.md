@@ -49,7 +49,7 @@
 
    ```bash
    $ cd mega/sql/postgres
-   $ psql mega < pg_20240205_init.sql
+   $ psql mega < pg_YYYYMMDD_init.sql
    ```
 
    3. Create user and grant privileges.
@@ -142,7 +142,7 @@
 
    ```bash
    $ cd mega/sql/postgres
-   $ sudo -u postgres psql mega < pg_20240205__init.sql
+   $ sudo -u postgres psql mega < pg_YYYYMMDD__init.sql
    ```
 
    4.Create user and grant privileges.
@@ -204,7 +204,7 @@ When the codespace is ready, the PostgreSQL will be installed and started automa
 /etc/init.d/postgresql start
 
 sudo -u postgres psql mega -c "CREATE DATABASE mega;"
-sudo -u postgres psql mega < /workspaces/mega/sql/pg_20240205__init.sql
+sudo -u postgres psql mega < /workspaces/mega/sql/pg_YYYYMMDD__init.sql
 sudo -u postgres psql mega -c "CREATE USER mega WITH ENCRYPTED PASSWORD 'mega';"
 sudo -u postgres psql mega -c "GRANT ALL PRIVILEGES ON DATABASE mega TO mega;"
 sudo -u postgres psql mega -c "GRANT ALL ON ALL TABLES IN SCHEMA public to mega;"
