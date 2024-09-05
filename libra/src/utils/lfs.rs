@@ -7,6 +7,7 @@ use path_abs::{PathInfo, PathOps};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use sha2::{Digest, Sha256};
+use url::Url;
 use wax::Pattern;
 use crate::utils::{path, util};
 use crate::utils::path_ext::PathExt;
@@ -67,7 +68,9 @@ pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
 /// [doc: server-discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
 /// - like https://git-server.com/foo/bar.git/info/lfs
 /// - support ssh & https & git@ format
-pub fn generate_lfs_server_url(mut url: String) -> String {
+#[deprecated(note = "It's for git, not monorepo")]
+#[allow(dead_code)]
+pub fn generate_git_lfs_server_url(mut url: String) -> String {
     if url.ends_with('/') {
         url.pop();
     }
@@ -85,6 +88,24 @@ pub fn generate_lfs_server_url(mut url: String) -> String {
     }
 
     url
+}
+
+/// Generate Mono LFS Server Url from repo Url.
+/// - Just get domain with port
+/// ### Example
+/// https://github.com/git-lfs/git-lfs/blob/main/docs/api/locking.md -> https://github.com
+///
+/// http://localhost:8000/xxx/yyy -> http://localhost:8000
+pub fn generate_lfs_server_url(url: String) -> String {
+    let url = Url::parse(&url).unwrap();
+    match url.port() {
+        None => {
+            format!("{}://{}", url.scheme(), url.host().unwrap())
+        }
+        Some(port) => {
+            format!("{}://{}:{}", url.scheme(), url.host().unwrap(), port)
+        }
+    }
 }
 
 /// Generate LFS cache path, in `.libra/lfs/objects`
@@ -202,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_lfs_server_url() {
+    fn test_gen_git_lfs_server_url() {
         const LFS_SERVER_URL: &str = "https://github.com/web3infra-foundation/mega.git/info/lfs";
         let url = "https://github.com/web3infra-foundation/mega".to_owned();
         assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
@@ -215,6 +236,14 @@ mod tests {
 
         let url = "ssh://github.com/web3infra-foundation/mega.git".to_owned();
         assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
+    }
+
+    #[test]
+    fn test_gen_mono_lfs_server_url() {
+        const LFS_SERVER_URL: &str = "https://github.com/web3infra-foundation/mega.git/info/lfs";
+        assert_eq!(generate_lfs_server_url(LFS_SERVER_URL.to_owned()), "https://github.com");
+        const LOCAL_LFS_SERVER_URL: &str = "http://localhost:8000/xxx/yyy";
+        assert_eq!(generate_lfs_server_url(LOCAL_LFS_SERVER_URL.to_owned()), "http://localhost:8000");
     }
 
     #[test]
