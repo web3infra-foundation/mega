@@ -371,17 +371,6 @@ erDiagram
 
 ## 3. Prerequisites
 
-- You need to execute SQL files in a specific order to init the database.
-
-    For example using `PostgreSQL`, execute the files under `sql\postgres`:
-
-        pg_20240205__init.sql
-
-    or if you are using `Mysql`, execute the files under `sql\mysql`:
-
-        mysql_20231106__init.sql
-
-
 
 - Generating entities: 
 Entities can be generated from the database table structure with the following command
