@@ -43,6 +43,9 @@ ENV PATH=/root/.cargo/bin:$PATH
 COPY . .
 
 # build
+RUN cargo clean
+RUN git submodule deinit --all -f
+RUN git submodule update --init --recursive
 RUN if [ "$BUILD_TYPE" = "release" ]; then \
         cargo build -p aries --release; \
     else \

@@ -5,7 +5,7 @@ CONFIG_FILE="$MEGA_BASE_DIR/etc/config.toml"
 
 if [ -f "$CONFIG_FILE" ]; then
     echo "Using config file: $CONFIG_FILE"
-    exec /usr/local/bin/aries -c "$CONFIG_FILE"
+    exec /usr/local/bin/aries -c "$CONFIG_FILE" --host 0.0.0.0 --hub-host gitmono.org
 else
-    exec /usr/local/bin/aries 
+    exec /usr/local/bin/aries --host 0.0.0.0 --hub-host gitmono.org
 fi
