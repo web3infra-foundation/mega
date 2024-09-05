@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use russh_keys::parse_public_key_base64;
 
 use common::model::CommonResult;
 
@@ -32,11 +33,20 @@ async fn add_key(
     state: State<MonoApiServiceState>,
     Json(json): Json<AddSSHKey>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    let key_data = json
+        .ssh_key
+        .split_whitespace()
+        .nth(1)
+        .ok_or("Invalid key format")
+        .unwrap();
+
+    let key = parse_public_key_base64(key_data).unwrap();
+
     let res = state
         .context
         .services
         .user_storage
-        .save_ssh_key(user.user_id, &json.ssh_key)
+        .save_ssh_key(user.user_id, &json.ssh_key, &key.fingerprint())
         .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),

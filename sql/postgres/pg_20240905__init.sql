@@ -292,7 +292,8 @@ CREATE TABLE IF NOT EXISTS "ssh_keys" (
   "id" BIGINT PRIMARY KEY,
   "user_id" BIGINT NOT NULL,
   "ssh_key" TEXT NOT NULL,
+  "finger" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_user_id" ON "ssh_keys" ("user_id");
-CREATE INDEX "idx_ssh_key_expression" ON "ssh_keys"  ((left(ssh_key, 32)));
+CREATE INDEX "idx_ssh_key_finger" ON "ssh_keys" ((left(finger, 8)));

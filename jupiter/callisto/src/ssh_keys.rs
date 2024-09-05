@@ -10,6 +10,8 @@ pub struct Model {
     pub user_id: i64,
     #[sea_orm(column_type = "Text")]
     pub ssh_key: String,
+    #[sea_orm(column_type = "Text")]
+    pub finger: String,
     pub created_at: DateTime,
 }
 
