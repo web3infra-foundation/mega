@@ -1,18 +1,13 @@
 use std::{
-    env,
-    fs::File,
-    io::Read,
     path::{self, PathBuf},
     sync::Arc,
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use handlebars::Handlebars;
 
 use callisto::db_enums::StorageType;
 use common::errors::MegaError;
-use mercury::internal::pack::entry::Entry;
 
 use crate::raw_storage::local_storage::LocalStorage;
 
@@ -48,11 +43,10 @@ pub trait RawStorage: Sync + Send {
         ref_hash: &str,
     ) -> Result<(), MegaError>;
 
-    async fn get_object(&self, repo_id: i64, object_id: &str) -> Result<Bytes, MegaError>;
+    async fn get_object(&self, object_id: &str) -> Result<Bytes, MegaError>;
 
     async fn put_object(
         &self,
-        repo_id: i64,
         object_id: &str,
         body_content: &[u8],
     ) -> Result<String, MegaError>;
@@ -71,39 +65,39 @@ pub trait RawStorage: Sync + Send {
     // }
 
     // save a entry and return the b_link file
-    async fn convert_blink(&self, repo_id: i64, entry: &Entry) -> Result<Vec<u8>, MegaError> {
-        let location = self
-            .put_object(repo_id, &entry.hash.to_plain_str(), &entry.data)
-            .await
-            .unwrap();
-        let handlebars = Handlebars::new();
+    // async fn convert_blink(&self, entry: &Entry) -> Result<Vec<u8>, MegaError> {
+    //     let location = self
+    //         .put_object( &entry.hash.to_plain_str(), &entry.data)
+    //         .await
+    //         .unwrap();
+    //     let handlebars = Handlebars::new();
 
-        let path = env::current_dir().unwrap().join("b_link.txt");
-        let mut file = File::open(path).unwrap();
-        let mut template = String::new();
-        file.read_to_string(&mut template).unwrap();
+    //     let path = env::current_dir().unwrap().join("b_link.txt");
+    //     let mut file = File::open(path).unwrap();
+    //     let mut template = String::new();
+    //     file.read_to_string(&mut template).unwrap();
 
-        let mut context = serde_json::Map::new();
-        context.insert(
-            "objectType".to_string(),
-            serde_json::json!(entry.obj_type.to_string()),
-        );
-        context.insert(
-            "sha1".to_string(),
-            serde_json::json!(entry.hash.to_plain_str()),
-        );
-        context.insert(
-            "type".to_string(),
-            serde_json::json!(self.get_storage_type().to_string()),
-        );
-        context.insert("location".to_string(), serde_json::json!(location));
+    //     let mut context = serde_json::Map::new();
+    //     context.insert(
+    //         "objectType".to_string(),
+    //         serde_json::json!(entry.obj_type.to_string()),
+    //     );
+    //     context.insert(
+    //         "sha1".to_string(),
+    //         serde_json::json!(entry.hash.to_plain_str()),
+    //     );
+    //     context.insert(
+    //         "type".to_string(),
+    //         serde_json::json!(self.get_storage_type().to_string()),
+    //     );
+    //     context.insert("location".to_string(), serde_json::json!(location));
 
-        let rendered = handlebars.render_template(&template, &context).unwrap();
+    //     let rendered = handlebars.render_template(&template, &context).unwrap();
 
-        Ok(rendered.into_bytes())
-    }
+    //     Ok(rendered.into_bytes())
+    // }
 
-    fn exist_object(&self, repo_id: i64, object_id: &str) -> bool;
+    fn exist_object(&self, object_id: &str) -> bool;
 
     fn transform_path(&self, sha1: &str) -> String {
         if sha1.len() < 5 {

@@ -9,7 +9,7 @@ pub async fn init_mq(config: &Config) {
         None => 1,
     };
 
-    let mq = MessageQueue::new(12, seq, ctx);
+    let mq = MessageQueue::new(seq, ctx);
     mq.start();
 
     MQ.set(mq).unwrap();

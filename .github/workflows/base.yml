@@ -45,7 +45,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: | 
           sudo apt update
-          sudo apt install libwebkit2gtk-4.0-dev \
+          sudo apt install -y libwebkit2gtk-4.0-dev \
             build-essential \
             curl \
             wget \
@@ -81,6 +81,7 @@ jobs:
           git lfs install
           git config --global user.email "mega@github.com"
           git config --global user.name "Mega"
+          git config --global lfs.url http://localhost:8000
       - uses: actions-rs/cargo@v1
         with:
           command: test

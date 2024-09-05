@@ -63,28 +63,20 @@ impl GitFsStorage {
         }
     }
 
-    pub async fn save_entry(&self, repo_id: i64, entry_list: Vec<Entry>) -> Result<(), MegaError> {
+    pub async fn save_entry(&self, entry_list: Vec<Entry>) -> Result<(), MegaError> {
         for entry in entry_list {
             self.raw_storage
-                .put_object(repo_id, &entry.hash.to_plain_str(), &entry.data)
+                .put_object(&entry.hash.to_plain_str(), &entry.data)
                 .await
                 .unwrap();
         }
         Ok(())
     }
 
-    pub async fn get_entry_by_sha1(
-        &self,
-        repo_id: i64,
-        sha1_vec: Vec<&str>,
-    ) -> Result<Vec<Entry>, MegaError> {
+    pub async fn get_entry_by_sha1(&self, sha1_vec: Vec<&str>) -> Result<Vec<Entry>, MegaError> {
         let mut res: Vec<Entry> = Vec::new();
         for sha1 in sha1_vec {
-            let data = self
-                .raw_storage
-                .get_object(repo_id, sha1)
-                .await
-                .unwrap();
+            let data = self.raw_storage.get_object(sha1).await.unwrap();
             let (type_num, _) = utils::read_type_and_size(&mut Cursor::new(&data)).unwrap();
             let obj_type = ObjectType::from_u8(type_num).unwrap();
             let hash = SHA1::new(&data.to_vec());

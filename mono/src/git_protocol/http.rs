@@ -4,14 +4,13 @@ use anyhow::Result;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, Response, StatusCode};
 use bytes::{Bytes, BytesMut};
-use common::errors::ProtocolError;
 use futures::{stream, TryStreamExt};
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 
-use common::model::GetParams;
-
 use ceres::protocol::{smart, ServiceType, SmartProtocol};
+use common::errors::ProtocolError;
+use common::model::InfoRefsParams;
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
@@ -20,7 +19,7 @@ use ceres::protocol::{smart, ServiceType, SmartProtocol};
 // where $servicename MUST be the service name the client wishes to contact to complete the operation.
 // The request MUST NOT contain additional query parameters.
 pub async fn git_info_refs(
-    params: GetParams,
+    params: InfoRefsParams,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let service_name = params.service.unwrap();
@@ -161,7 +160,7 @@ pub async fn git_receive_pack(
 }
 
 // Function to find the subsequence in a slice
-fn search_subsequence(chunk: &[u8], search: &[u8]) -> Option<usize> {
+pub fn search_subsequence(chunk: &[u8], search: &[u8]) -> Option<usize> {
     chunk.windows(search.len()).position(|s| s == search)
 }
 

@@ -15,6 +15,7 @@ use common::model::CommonResult;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::mr_router;
+use crate::api::user::user_router;
 use crate::api::MonoApiServiceState;
 
 pub fn routers() -> Router<MonoApiServiceState> {
@@ -26,7 +27,10 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/tree", get(get_tree_info))
         .route("/blob", get(get_blob_object));
 
-    Router::new().merge(router).merge(mr_router::routers())
+    Router::new()
+        .merge(router)
+        .merge(mr_router::routers())
+        .merge(user_router::routers())
 }
 
 async fn get_blob_object(

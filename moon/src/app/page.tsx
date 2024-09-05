@@ -7,7 +7,7 @@ export default async function HomePage() {
 
   return (
     <div>
-      <CodeTable directory={directory} readmeContent={readmeContent} treeIsShow={false} />
+      <CodeTable directory={directory} readmeContent={readmeContent} />
     </div>
   );
 }

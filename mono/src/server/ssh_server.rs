@@ -4,9 +4,10 @@ use std::io::Read;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Result;
+use bytes::BytesMut;
 use clap::Args;
 
 use common::config::Config;
@@ -18,6 +19,7 @@ use russh_keys::key::KeyPair;
 
 use common::model::CommonOptions;
 use jupiter::context::Context;
+use tokio::sync::Mutex;
 
 use crate::git_protocol::ssh::SshServer;
 
@@ -32,7 +34,7 @@ pub struct SshOptions {
 
 #[derive(Args, Clone, Debug)]
 pub struct SshCustom {
-    #[arg(long, default_value_t = 8100)]
+    #[arg(long, default_value_t = 2222)]
     ssh_port: u16,
 
     #[arg(long, value_name = "FILE")]
@@ -77,7 +79,7 @@ pub async fn start_server(config: Config, command: &SshOptions) {
         id: 0,
         context,
         smart_protocol: None,
-        data_combined: Vec::new(),
+        data_combined: BytesMut::new(),
     };
     let server_url = format!("{}:{}", host, ssh_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();

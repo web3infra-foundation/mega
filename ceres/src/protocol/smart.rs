@@ -8,11 +8,9 @@ use tokio_stream::wrappers::ReceiverStream;
 use callisto::db_enums::RefType;
 use common::errors::ProtocolError;
 
-use crate::protocol::ZERO_ID;
-use crate::protocol::{
-    Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol,
-};
 use crate::protocol::import_refs::RefCommand;
+use crate::protocol::ZERO_ID;
+use crate::protocol::{Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol};
 
 const LF: char = '\n';
 
@@ -22,6 +20,7 @@ const NUL: char = '\0';
 
 pub const PKT_LINE_END_MARKER: &[u8; 4] = b"0000";
 
+// see https://git-scm.com/docs/protocol-capabilities
 // The atomic, report-status, report-status-v2, delete-refs, quiet,
 // and push-cert capabilities are sent and recognized by the receive-pack (push to server) process.
 const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet atomic no-thin ";
@@ -31,8 +30,7 @@ const RECEIVE_CAP_LIST: &str = "report-status report-status-v2 delete-refs quiet
 const COMMON_CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.1.0";
 
 // All other capabilities are only recognized by the upload-pack (fetch from server) process.
-const UPLOAD_CAP_LIST: &str =
-    "shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done include-tag ";
+const UPLOAD_CAP_LIST: &str = "multi_ack_detailed no-done include-tag ";
 
 impl SmartProtocol {
     /// # Retrieves the information about Git references (refs) for the specified service type.
@@ -401,8 +399,8 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 pub mod test {
     use bytes::{Bytes, BytesMut};
     use callisto::db_enums::RefType;
-    use crate::protocol::import_refs::{CommandType, RefCommand};
 
+    use crate::protocol::import_refs::{CommandType, RefCommand};
     use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
     use crate::protocol::{Capability, SmartProtocol};
 
