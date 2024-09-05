@@ -32,13 +32,37 @@ Mega will support code owners, which are a set of rules for defining who owns a 
 
 For now, the entire open source community base on Git and GitHub. It's centralized model, and it's not suitable for growing speed of open source world. Mega is working on build a decentralized open source collaboration model with [ZTM](https://github.com/flomesh-io/ztm)(Zero Trust Model) and decentralized social network like [Nostr](https://nostr.com), [Matrix](https://matrix.org) and [Mastodon](https://joinmastodon.org).
 
-## Quick Start
+## Quick Try Monorepo Engine with Docker
 
-### Quick Try
+For now, the monorepo engine could be deployed on your host machine or insulated into containers. For deploying through docker, follow the steps below:
 
-For now, we are developing on the macOS and Arch Linux. And quick start manuel in the [Quick start manuel to developing or testing](docs/development.md#quick-start-manuel-to-developing-or-testing).
+1. Clone the project and build the docker images
+```bash
+git clone https://github.com/web3infra-foundation/mega.git
+cd mega
+docker buildx build -t mono-pg:0.1-pre-release -f ./docker/mono-pg-dockerfile .
+docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-dockerfile .
+docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
+```
 
-### Quick Review of Architecture
+2. Initialize for mono-engine and PostgreSQL
+```bash
+# Linux or MacOS
+./docker/init-volume.sh /mnt/data ./docker/config.toml
+```
+
+3. Run the mono-engine and PostgreSQL with docker, and open the mono-ui in your browser with `http://localhost:3000`.
+```bash
+# create network
+docker network create mono-network
+
+# run postgres
+docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
+docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mono-engine:0.1-pre-release
+docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
+```
+
+## Quick Review of Architecture
 
 ![Mega Architect](docs/images/Mega_Bin_and_Modules.png)
 

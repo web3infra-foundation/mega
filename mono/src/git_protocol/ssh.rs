@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Duration, Utc};
 use futures::{stream, StreamExt};
-use russh::server::{self, Auth, Msg, Response, Session};
-use russh::{Channel, ChannelId};
+use russh::server::{self, Auth, Msg, Session};
+use russh::{Channel, ChannelId, MethodSet};
 use russh_keys::key;
 use tokio::io::AsyncReadExt;
 
@@ -17,6 +17,9 @@ use ceres::protocol::smart::{self};
 use ceres::protocol::ServiceType;
 use ceres::protocol::{SmartProtocol, TransportProtocol};
 use jupiter::context::Context;
+use tokio::sync::Mutex;
+
+use crate::git_protocol::http::search_subsequence;
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 #[allow(dead_code)]
@@ -26,9 +29,8 @@ pub struct SshServer {
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
     pub context: Context,
-    // TODO: consider is it a good choice to bind data here, find a better solution to bind data with ssh client
     pub smart_protocol: Option<SmartProtocol>,
-    pub data_combined: Vec<u8>,
+    pub data_combined: BytesMut,
 }
 
 impl server::Server for SshServer {
@@ -51,7 +53,7 @@ impl server::Handler for SshServer {
     ) -> Result<bool, Self::Error> {
         tracing::info!("SshServer::channel_open_session:{}", channel.id());
         {
-            let mut clients = self.clients.lock().unwrap();
+            let mut clients = self.clients.lock().await;
             clients.insert((self.id, channel.id()), channel);
         }
         Ok(true)
@@ -129,25 +131,24 @@ impl server::Handler for SshServer {
         user: &str,
         public_key: &key::PublicKey,
     ) -> Result<Auth, Self::Error> {
-        tracing::info!("auth_publickey: {} / {:?}", user, public_key);
-        Ok(Auth::Accept)
-    }
-
-    async fn auth_keyboard_interactive(
-        &mut self,
-        _: &str,
-        _: &str,
-        _: Option<Response<'async_trait>>,
-    ) -> Result<Auth, Self::Error> {
-        tracing::info!("auth_keyboard_interactive");
-        Ok(Auth::Accept)
-    }
-
-    // TODO! disable password auth
-    async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
-        tracing::info!("auth_password: {} / {}", user, password);
-        // in this example implementation, any username/password combination is accepted
-        Ok(Auth::Accept)
+        tracing::info!(
+            "auth_publickey: {} / {:?}/ {}",
+            user,
+            public_key.name(),
+            public_key.fingerprint()
+        );
+        let fingerprint = public_key.fingerprint();
+        let stg = self.context.services.user_storage.clone();
+        let res = stg.search_ssh_key_finger(&fingerprint).await.unwrap();
+        if !res.is_empty() {
+            tracing::info!("Client public key verified successfully!");
+            Ok(Auth::Accept)
+        } else {
+            tracing::warn!("Client public key verification failed!");
+            Ok(Auth::Reject {
+                proceed_with_methods: Some(MethodSet::PUBLICKEY),
+            })
+        }
     }
 
     async fn data(
@@ -168,7 +169,7 @@ impl server::Handler for SshServer {
                 self.handle_upload_pack(channel, data, session).await;
             }
             ServiceType::ReceivePack => {
-                self.data_combined.extend(data);
+                self.data_combined.extend_from_slice(data);
             }
         };
         session.channel_success(channel);
@@ -187,7 +188,7 @@ impl server::Handler for SshServer {
         }
 
         {
-            let mut clients = self.clients.lock().unwrap();
+            let mut clients = self.clients.lock().await;
             clients.remove(&(self.id, channel));
         }
         session.exit_status_request(channel, 0000);
@@ -226,16 +227,27 @@ impl SshServer {
 
     async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
+        let data = self.data_combined.split().freeze();
+        let mut data_stream = Box::pin(stream::once(async move { Ok(data) }));
+        let mut report_status = Bytes::new();
 
-        let data = self.data_combined.clone();
-        let stream = stream::once(async move {
-            Ok(Bytes::from(data))
-        });
-        let buf = smart_protocol
-            .git_receive_pack_stream(Box::pin(stream))
-            .await
-            .unwrap();
-        tracing::info!("report status: {:?}", buf);
-        session.data(channel, buf.to_vec().into());
+        while let Some(chunk) = data_stream.next().await {
+            let chunk = chunk.unwrap();
+
+            if let Some(pos) = search_subsequence(&chunk, b"PACK") {
+                smart_protocol.git_receive_pack_protocol(Bytes::copy_from_slice(&chunk[..pos]));
+                let remaining_bytes = Bytes::copy_from_slice(&chunk[pos..]);
+                let remaining_stream =
+                    stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
+                report_status = smart_protocol
+                    .git_receive_pack_stream(Box::pin(remaining_stream))
+                    .await
+                    .unwrap();
+                break;
+            }
+        }
+
+        tracing::info!("report status: {:?}", report_status);
+        session.data(channel, report_status.to_vec().into());
     }
 }
