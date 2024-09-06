@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
@@ -8,7 +7,7 @@ use russh_keys::parse_public_key_base64;
 
 use common::model::CommonResult;
 
-use crate::api::oauth::model::LoginUser;
+use crate::api::{error::ApiError, oauth::model::LoginUser};
 use crate::api::user::model::AddSSHKey;
 use crate::api::user::model::ListSSHKey;
 use crate::api::MonoApiServiceState;
@@ -16,15 +15,15 @@ use crate::api::MonoApiServiceState;
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
         .route("/user", get(user))
+        .route("/user/ssh", get(list_key))
         .route("/user/ssh", post(add_key))
         .route("/user/ssh/:key_id/delete", post(remove_key))
-        .route("/user/ssh/list", get(list_key))
 }
 
 async fn user(
     user: LoginUser,
     _: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<LoginUser>>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<LoginUser>>, ApiError> {
     Ok(Json(CommonResult::success(Some(user))))
 }
 
@@ -32,7 +31,7 @@ async fn add_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(json): Json<AddSSHKey>,
-) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<String>>, ApiError> {
     let key_data = json
         .ssh_key
         .split_whitespace()
@@ -40,7 +39,7 @@ async fn add_key(
         .ok_or("Invalid key format")
         .unwrap();
 
-    let key = parse_public_key_base64(key_data).unwrap();
+    let key = parse_public_key_base64(key_data)?;
 
     let res = state
         .context
@@ -56,15 +55,15 @@ async fn add_key(
 }
 
 async fn remove_key(
-    _: LoginUser,
+    user: LoginUser,
     state: State<MonoApiServiceState>,
     Path(key_id): Path<i64>,
-) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state
         .context
         .services
         .user_storage
-        .delete_ssh_key(key_id)
+        .delete_ssh_key(user.user_id, key_id)
         .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
@@ -76,7 +75,7 @@ async fn remove_key(
 async fn list_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<ListSSHKey>>>, (StatusCode, String)> {
+) -> Result<Json<CommonResult<Vec<ListSSHKey>>>, ApiError> {
     let res = state
         .context
         .services

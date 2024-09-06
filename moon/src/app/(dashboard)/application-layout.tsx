@@ -42,13 +42,12 @@ import {
 } from '@heroicons/react/20/solid'
 import { Button } from '@/components/catalyst/button'
 import { useState, useEffect } from 'react'
-import { get_session } from '@/app/actions'
 import { usePathname } from 'next/navigation'
 
 function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
-      <DropdownItem href="/user/profile">
+      <DropdownItem href="/user/keys">
         <UserCircleIcon />
         <DropdownLabel>My account</DropdownLabel>
       </DropdownItem>
@@ -84,28 +83,16 @@ export function ApplicationLayout({
 }) {
   let pathname = usePathname()
 
-  const [session, setSession] = useState("");
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    fetch_session()
-    async function fetch_session() {
-      let res = await get_session();
-      if (res?.value) {
-        let val = res?.value;
-        setSession(val)
-      }
-    }
-
-    if (session) {
-      fetchUser();
-    }
+    fetchUser();
     async function fetchUser() {
       const response = await fetch('/api/user');
       const user = await response.json();
       setUser(user.data.data);
     }
-  }, [session])
+  }, [])
 
   return (
     <SidebarLayout
@@ -113,7 +100,7 @@ export function ApplicationLayout({
         <Navbar>
           <NavbarSpacer />
           {
-            !session &&
+            !user &&
             <Button href="/login">Login</Button>
           }
           {

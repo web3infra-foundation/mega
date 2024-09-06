@@ -1,14 +1,15 @@
 'use client'
 
 import 'github-markdown-css/github-markdown-light.css'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Markdown from 'react-markdown'
 import { formatDistance, fromUnixTime } from 'date-fns'
-import folderPic from '../../public/icons/folder.svg'
-import filePic from '../../public/icons/file.svg'
-import Image from 'next/image'
 import styles from './CodeTable.module.css'
 import { Space, Table, TableProps } from 'antd/lib'
+import {
+    FolderIcon,
+    DocumentIcon,
+} from '@heroicons/react/20/solid'
 
 export interface DataType {
     oid: string;
@@ -20,9 +21,14 @@ export interface DataType {
 
 const CodeTable = ({ directory, readmeContent }) => {
     const router = useRouter();
+    const fileCodeContainerStyle = {
+        width: '100%',
+        margin: '0 auto',
+        borderRadius: '0.5rem',
+        marginTop: '10px'
+    };
     const pathname = usePathname();
     let real_path = pathname.replace("/tree", "");
-
     var columns: TableProps<DataType>['columns'] = [
         {
             title: 'Name',
@@ -32,13 +38,13 @@ const CodeTable = ({ directory, readmeContent }) => {
                 return <>
                     {record.content_type === "file" &&
                         <Space>
-                            <Image src={filePic} alt="File icon" className={styles.fileTableIcon} />
+                            <DocumentIcon className="size-6" />
                             <span onClick={() => handleFileClick(record)}>{record.name}</span>
                         </Space>
                     }
                     {record.content_type === "directory" &&
                         <Space>
-                            <Image src={folderPic} alt="File icon" className={styles.fileTableIcon} />
+                            <FolderIcon className="size-6" />
                             <a onClick={() => handleDirectoryClick(record)}>{record.name}</a>
                         </Space>}
                 </>
@@ -102,7 +108,7 @@ const CodeTable = ({ directory, readmeContent }) => {
 
 
     return (
-        <div className={styles.dirTable}>
+        <div style={fileCodeContainerStyle}>
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
             {readmeContent && (
                 <div className={styles.markdownContent}>
