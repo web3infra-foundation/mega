@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,
+    QueryFilter,
 };
 
 use callisto::{ssh_keys, user};
@@ -67,10 +68,15 @@ impl UserStorage {
         Ok(res)
     }
 
-    pub async fn delete_ssh_key(&self, id: i64) -> Result<(), MegaError> {
-        ssh_keys::Entity::delete_by_id(id)
-            .exec(self.get_connection())
+    pub async fn delete_ssh_key(&self, user_id: i64, id: i64) -> Result<(), MegaError> {
+        let res = ssh_keys::Entity::find()
+            .filter(ssh_keys::Column::Id.eq(id))
+            .filter(ssh_keys::Column::UserId.eq(user_id))
+            .one(self.get_connection())
             .await?;
+        if let Some(model) = res {
+            model.delete(self.get_connection()).await?;
+        }
         Ok(())
     }
 

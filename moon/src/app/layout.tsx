@@ -1,7 +1,6 @@
 import '@/styles/globals.css'
 import type { Metadata } from 'next'
 import type React from 'react'
-import { ApplicationLayout } from './application-layout'
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 
 export const metadata: Metadata = {
@@ -24,9 +23,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
       </head>
       <body>
-        <ApplicationLayout >
-          <AntdRegistry>{children}</AntdRegistry>
-        </ApplicationLayout>
+        <AntdRegistry>{children}</AntdRegistry>
       </body>
     </html>
   )
