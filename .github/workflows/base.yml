@@ -54,7 +54,8 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
-      - run: cargo build
+      - run: cargo build --bin mega
+      - run: cargo build --bin libra
       - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
@@ -118,3 +119,30 @@ jobs:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
       - run: cd ./scorpio && cargo clippy --all-targets --all-features -- -D warnings
+
+  moon-lint-and-build:
+    name: MOON Lint & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./moon/package.json
+
+      - name: Install dependencies
+        working-directory: ./moon
+        run: npm install 
+
+      - name: Run ESLint
+        working-directory: ./moon
+        run: npm run lint 
+
+      - name: Build Next.js application
+        working-directory: ./moon
+        run: npm run build
