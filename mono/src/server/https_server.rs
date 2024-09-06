@@ -131,10 +131,7 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
         )
         .nest("/auth", oauth::routers().with_state(api_state.clone()))
         // Using Regular Expressions for Path Matching in Protocol
-        .route(
-            "/*path",
-            get(get_method_router).post(post_method_router),
-        )
+        .route("/*path", get(get_method_router).post(post_method_router))
         .layer(
             ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
                 http::header::AUTHORIZATION,
