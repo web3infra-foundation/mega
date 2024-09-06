@@ -27,20 +27,12 @@ var routes = Object.entries({
     'GET': () => getFileData,
   },
 
-  '/api/endpoints/{ep}/services': {
-    'GET': () => getServices,
-  },
-
   '/api/endpoints/{ep}/apps/{app}': {
     'CONNECT': () => connectApp,
   },
 
   '/api/endpoints/{ep}/apps/{provider}/{app}': {
     'CONNECT': () => connectApp,
-  },
-
-  '/api/endpoints/{ep}/services/{proto}/{svc}': {
-    'CONNECT': () => connectService,
   },
 
   '/api/filesystem': {
@@ -50,27 +42,6 @@ var routes = Object.entries({
 
   '/api/filesystem/*': {
     'GET': () => getFileInfo,
-  },
-
-  '/api/apps': {
-    'POST': () => findCurrentEndpointSession() ? postAppStates : noSession,
-  },
-
-  '/api/apps/{app}': {
-    'GET': () => getAppState,
-  },
-
-  '/api/apps/{provider}/{app}': {
-    'GET': () => getAppState,
-  },
-
-  '/api/services': {
-    'GET': () => getServices,
-    'POST': () => findCurrentEndpointSession() ? postServices : noSession,
-  },
-
-  '/api/services/{proto}/{svc}': {
-    'GET': () => getService,
   },
 
   '/api/forward/{ep}/*': {
@@ -91,8 +62,34 @@ var routes = Object.entries({
   }
 )
 
+//
+// endpoints[uuid] = {
+//   id: 'uuid',
+//   name: 'ep-xxx',
+//   username: 'root',
+//   ip: 'x.x.x.x',
+//   port: 12345,
+//   via: '127.0.0.1:8888',
+//   hubs: ['x.x.x.x:8888'],
+//   heartbeat: 1723012345678,
+//   isConnected: true,
+// }
+//
+
 var endpoints = {}
 var sessions = {}
+
+//
+// files[pathname] = {
+//   '#': '012345678abcdef',  // hash
+//   '$': 12345,              // size
+//   'T': 1789012345678,      // time
+//   '+': 1789012345678,      // since
+//   '@': [],                 // sources
+// }
+//
+
+var files = {}
 
 var caCert = null
 var myCert = null
@@ -170,6 +167,7 @@ function endpointName(id) {
 }
 
 function isEndpointOnline(ep) {
+  if (!ep) return false
   if (!sessions[ep.id]?.size) return false
   if (ep.heartbeat + 30*1000 < Date.now()) return false
   return true
@@ -187,9 +185,11 @@ var $hubSelected = null
 var $pingID
 
 function start(listen) {
+  db.allFiles().forEach(f => {
+    files[f.pathname] = makeFileInfo(f.hash, f.size, f.time, f.since)
+  })
 
-
-  var username = "hub0"
+  var username = "root"
   var caAgent = new http.Agent('localhost:9999')
    caAgent.request('GET', '/api/certificates/ca').then(
     function (res) {
@@ -277,20 +277,31 @@ function start(listen) {
     
       console.info('Hub started at', listen)
     
-    }
-  )
+    })
 
-  
   function clearOutdatedEndpoints() {
-    Object.values(endpoints).filter(ep => isEndpointOutdated(ep)).forEach(
-      (ep) => {
-        console.info(`Endpoint ${ep.name} (uuid = ${ep.id}) outdated`)
-        if (sessions[ep.id]?.size === 0) {
-          delete endpoints[ep.id]
+    new Timeout(60).wait().then(() => {
+      var outdated = []
+      Object.values(endpoints).filter(ep => isEndpointOutdated(ep)).forEach(
+        (ep) => {
+          console.info(`Endpoint ${ep.name} (uuid = ${ep.id}) outdated`)
+          if (sessions[ep.id]?.size === 0) {
+            outdated.push(ep.id)
+            delete endpoints[ep.id]
+          }
         }
+      )
+      if (outdated.length > 0) {
+        outdated = Object.fromEntries(outdated.map(ep => [ep, true]))
+        Object.values(files).forEach(file => {
+          var sources = file['@']
+          if (sources.some(ep => ep in outdated)) {
+            file['@'] = sources.filter(ep => !(ep in outdated))
+          }
+        })
       }
-    )
-    new Timeout(60).wait().then(clearOutdatedEndpoints)
+      clearOutdatedEndpoints()
+    })
   }
 
   clearOutdatedEndpoints()
@@ -366,15 +377,46 @@ var getEndpoint = pipeline($=>$
 var getFilesystem = pipeline($=>$
   .replaceData()
   .replaceMessage(
-    function () {
-      var fs = {}
-      Object.values(endpoints).forEach(ep => {
-        if (!ep.files) return
-        ep.files.forEach(f => {
-          updateFileInfo(fs, f, ep.id)
-        })
-      })
-      return response(200, fs)
+    function (req) {
+      var url = new URL(req.head.path)
+      var since = url.searchParams.get('since')
+      if (since) {
+        var since = Number.parseFloat(since)
+        var until = Date.now()
+        return new Timeout(1.5).wait().then(
+          () => response(200, Object.fromEntries(
+            Object.entries(files).filter(
+              ([_, v]) => {
+                var t = v['+']
+                return since < t && t <= until
+              }
+            ).map(
+              ([k, v]) => [
+                k, {
+                  '#': v['#'],
+                  '$': v['$'],
+                  'T': v['T'],
+                  '+': v['+'],
+                }
+              ]
+            )
+          ))
+        )
+      } else {
+        return response(200, Object.fromEntries(
+          Object.entries(files).filter(
+            ([_, v]) => (v['$'] >= 0)
+          ).map(
+            ([k, v]) => [
+              k, {
+                '#': v['#'],
+                '$': v['$'],
+                'T': v['T'],
+              }
+            ]
+          )
+        ))
+      }
     }
   )
 )
@@ -383,23 +425,20 @@ var postFilesystem = pipeline($=>$
   .replaceMessage(
     function (req) {
       var body = JSON.decode(req.body)
-      $endpoint.files = Object.entries(body).map(
-        ([k, v]) => ({
-          pathname: k,
-          time: v['T'],
-          hash: v['#'],
-          size: v['$'],
-        })
+      var username = $endpoint.username
+      var prefixUser = `/users/${username}/`
+      var prefixShared = `/shared/${username}`
+      var matchAppUser = new http.Match(`/apps/{provider}/{appname}/users/${username}/*`)
+      var matchAppShared = new http.Match(`/apps/{provider}/{appname}/shared/${username}/*`)
+      var canUpdate = (path) => (
+        path.startsWith(prefixUser) ||
+        path.startsWith(prefixShared) ||
+        matchAppUser(path) ||
+        matchAppShared(path)
       )
-      return new Message({ status: 201 })
-    }
-  )
-)
-
-var postAppStates = pipeline($=>$
-  .replaceMessage(
-    function (req) {
-      $endpoint.apps = JSON.decode(req.body)
+      Object.entries(body).map(
+        ([k, v]) => updateFileInfo(k, v, $endpoint.id, canUpdate(k))
+      )
       return new Message({ status: 201 })
     }
   )
@@ -409,18 +448,12 @@ var getFileInfo = pipeline($=>$
   .replaceData()
   .replaceMessage(
     function () {
-      var fs = {}
       var pathname = '/' + $params['*']
-      Object.values(endpoints).forEach(ep => {
-        if (!ep.files) return
-        ep.files.forEach(f => {
-          if (f.pathname === pathname) {
-            updateFileInfo(fs, f, ep.id)
-          }
-        })
-      })
-      var info = fs[pathname]
-      return info ? response(200, info) : response(404)
+      var info = files[pathname]
+      if (!info || info['$'] < 0) return response(404)
+      var sources = info['@']
+      if (sources) info['@'] = sources.filter(ep => isEndpointOnline(endpoints[ep]))
+      return response(200, info)
     }
   )
 )
@@ -442,110 +475,11 @@ var getFileData = pipeline($=>$
   )
 )
 
-var getAppState = pipeline($=>$
-  .replaceData()
-  .replaceMessage(
-    function () {
-      var provider = $params.provider
-      var name = $params.app
-      var runners = []
-      Object.values(endpoints).forEach(ep => {
-        if (!isEndpointOnline(ep)) return
-        if (!ep.apps) return
-        var app = ep.apps.find(
-          a => a.name === name && (!provider || a.provider === provider)
-        )
-        if (app) {
-          runners.push({
-            id: ep.id,
-            name: ep.name,
-            username: app.username,
-          })
-        }
-      })
-      return response(200, { name, provider, endpoints: runners })
-    }
-  )
-)
-
-var getServices = pipeline($=>$
-  .replaceData()
-  .replaceMessage(
-    function () {
-      var services = []
-      var collect = (ep) => {
-        ep.services?.forEach?.(
-          function (svc) {
-            var name = svc.name
-            var protocol = svc.protocol
-            var s = services.find(s => s.name === name && s.protocol === protocol)
-            if (!s) services.push(s = { name, protocol, endpoints: [] })
-            s.endpoints.push({ id: ep.id, name: ep.name, users: svc.users })
-          }
-        )
-      }
-      if ($params.ep) {
-        var ep = endpoints[$params.ep]
-        if (ep && isEndpointOnline(ep)) collect(ep)
-      } else {
-        Object.values(endpoints).filter(isEndpointOnline).forEach(collect)
-      }
-      return response(200, services)
-    }
-  )
-)
-
-var postServices = pipeline($=>$
-  .replaceMessage(
-    function (req) {
-      var body = JSON.decode(req.body)
-      var time = body.time
-      var last = $endpoint.servicesUpdateTime
-      if (!last || last <= time) {
-        var services = body.services
-        var oldList = $endpoint.services || []
-        var newList = services instanceof Array ? services : []
-        var who = endpointName($endpoint.id)
-        console.info(`Received service list (length = ${newList.length}) from ${who}`)
-        newList.forEach(({ name, protocol }) => {
-          if (!oldList.some(s => s.name === name && s.protocol === protocol)) {
-            console.info(`Service ${name} published by ${who}`)
-          }
-        })
-        oldList.forEach(({ name, protocol }) => {
-          if (!newList.some(s => s.name === name && s.protocol === protocol)) {
-            console.info(`Service ${name} deleted by ${who}`)
-          }
-        })
-        $endpoint.services = newList
-        $endpoint.servicesUpdateTime = time
-      }
-      return new Message({ status: 201 })
-    }
-  )
-)
-
-var getService = pipeline($=>$
-  .replaceData()
-  .replaceMessage(
-    function () {
-      var name = $params.svc
-      var protocol = $params.proto
-      var providers = Object.values(endpoints).filter(
-        ep => isEndpointOnline(ep) && ep.services.some(s => s.name === name && s.protocol === protocol)
-      )
-      if (providers.length === 0) return response(404)
-      return response(200, {
-        name,
-        protocol,
-        endpoints: providers.map(({ id, name }) => ({ id, name })),
-      })
-    }
-  )
-)
-
 var muxToAgent = pipeline($=>$
-  .muxHTTP(() => $hubSelected, { version: 2 }).to($=>$
+  .muxHTTP(() => $hubSelected, {
+    version: 2,
+    ping: () => new Timeout(10).wait().then(new Data),
+  }).to($=>$
     .swap(() => $hubSelected)
   )
 )
@@ -598,31 +532,6 @@ var connectApp = pipeline($=>$
         path: $params.provider ? `/api/apps/${$params.provider}/${$params.app}${q}` : `/api/apps/${$params.app}${q}`,
       })
     }).to(muxToAgent)
-  )
-)
-
-var connectService = pipeline($=>$
-  .acceptHTTPTunnel(
-    function () {
-      var svc = $params.svc
-      var proto = $params.proto
-      var id = $params.ep
-      var ep = endpoints[id]
-      if (!ep) return response(404, 'Endpoint not found')
-      if (!canConnect($ctx.username, ep, proto, svc)) return response(403)
-      if (!ep.services.some(s => s.name === svc && s.protocol === proto)) return response(404, 'Service not found')
-      sessions[id]?.forEach?.(h => $hubSelected = h)
-      if (!$hubSelected) return response(404, 'Agent not found')
-      console.info(`Forward to ${svc} at ${endpointName(id)}`)
-      return response(200)
-    }
-  ).to($=>$
-    .connectHTTPTunnel(
-      () => new Message({
-        method: 'CONNECT',
-        path: `/api/services/${$params.proto}/${$params.svc}`,
-      })
-    ).to(muxToAgent)
   )
 )
 
@@ -720,55 +629,58 @@ function findCurrentEndpointSession() {
       ip: $ctx.ip,
       port: $ctx.port,
       via: $ctx.via,
-      services: [],
       hubs: [...myNames]
     }
+  } else {
+    $endpoint.username = $ctx.username
   }
   $endpoint.isConnected = true
   return true
 }
 
-function updateFileInfo(fs, f, ep) {
-  var e = (fs[f.pathname] ??= {
-    'T': 0,
-    '$': 0,
-    '#': null,
-    '@': null,
-  })
-  var t1 = e['T']
-  var h1 = e['#']
-  var t2 = f.time
-  var h2 = f.hash
-  if (h2 === h1) {
-    e['@'].push(ep)
-    e['T'] = Math.max(t1, t2)
-  } else if (t2 > t1) {
-    e['#'] = h2
-    e['$'] = f.size
-    e['@'] = [ep]
-    e['T'] = t2
+function makeFileInfo(hash, size, time, since) {
+  return {
+    '#': hash,
+    '$': size,
+    'T': time,
+    '+': since,
+    '@': [],
   }
 }
 
-function canSee(username, ep) {
-  if (username === 'root') return true
-  if (username === ep.username) return true
-  return false
+function updateFileInfo(pathname, f, ep, update) {
+  var e = files[pathname]
+  if (e || update) {
+    if (!e) e = files[pathname] = makeFileInfo('', 0, 0, 0)
+    var t1 = e['T']
+    var h1 = e['#']
+    var t2 = f['T']
+    var h2 = f['#']
+    if (h2 === h1) {
+      var sources = e['@']
+      if (!sources.includes(ep)) sources.push(ep)
+      if (update && t2 > t1) {
+        e['T'] = t2
+        e['+'] = Date.now()
+      }
+    } else if (t2 > t1 && update) {
+      e['#'] = h2
+      e['$'] = f['$']
+      e['T'] = t2
+      e['+'] = Date.now()
+      e['@'] = [ep]
+      db.setFile(pathname, {
+        hash: h2,
+        size: e['$'],
+        time: t2,
+        since: e['+'],
+      })
+    }
+  }
 }
 
 function canOperate(username, ep) {
-  if (username === 'root') return true
-  if (username === ep.username) return true
-  return false
-}
-
-function canConnect(username, ep, proto, svc) {
-  if (username === 'root') return true
-  if (username === ep.username) return true
-  var s = ep.services.find(({ protocol, name }) => (protocol === proto && name === svc))
-  if (!s) return false
-  if (!s.users) return true
-  return s.users.includes(username)
+  return (username === ep.username)
 }
 
 function response(status, body) {
