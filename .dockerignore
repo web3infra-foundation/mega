@@ -29,7 +29,8 @@ ztm_agent_db*
 # buck2 out
 buck-out
 
-# docker files
-docker/mega_mono_dockerfile
-docker/mega_moon_dockerfile
-docker/mega_pg_dockerfile
+# Dockderfile
+docker/mono-engine-dockerfile
+docker/mono-pg-dockerfile
+docker/mono-ui-dockerfile
+docker/aries-engine-dockerfile
