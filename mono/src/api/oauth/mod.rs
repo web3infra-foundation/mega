@@ -12,15 +12,16 @@ use axum_extra::{headers, typed_header::TypedHeaderRejectionReason, TypedHeader}
 use callisto::user;
 use chrono::{Duration, Utc};
 use http::{header, request::Parts, StatusCode};
-use jupiter::storage::user_storage::UserStorage;
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
     ClientSecret, CsrfToken, RedirectUrl, Scope, TokenResponse, TokenUrl,
 };
 
 use common::config::OauthConfig;
+use jupiter::storage::user_storage::UserStorage;
 use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
 
+use crate::api::error::ApiError;
 use crate::api::MonoApiServiceState;
 
 pub mod model;
@@ -47,7 +48,7 @@ async fn login_authorized(
     Query(query): Query<OauthCallbackParams>,
     State(state): State<MonoApiServiceState>,
     State(oauth_client): State<BasicClient>,
-) -> Result<impl IntoResponse, OauthError> {
+) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
     let config = state.context.config.oauth.unwrap();
     // Get an auth token
@@ -77,16 +78,22 @@ async fn login_authorized(
         tracing::error!("github:user_info:err {:?}", resp.text().await.unwrap());
     }
 
-
-    let user_data: user::Model = github_user.into();
+    let new_user: user::Model = github_user.into();
     let user_storage = state.context.services.user_storage.clone();
-    let user = user_storage.find_user_by_email(&user_data.email).await.unwrap();
-    if user.is_none() {
-        user_storage.save_user(user_data.clone()).await.unwrap();
+    let user = user_storage
+        .find_user_by_email(&new_user.email)
+        .await
+        .unwrap();
+
+    let login_user: LoginUser;
+    if let Some(user) = user {
+        // Create a new session filled with user data
+        login_user = user.into();
+    } else {
+        user_storage.save_user(new_user.clone()).await.unwrap();
+        login_user = new_user.into();
     }
 
-    // Create a new session filled with user data
-    let login_user:LoginUser = user_data.into();
     let mut session = Session::new();
     session
         .insert("user", &login_user)
@@ -99,9 +106,10 @@ async fn login_authorized(
         .context("failed to store session")?
         .context("unexpected error retrieving cookie value")?;
 
-    // Build the cookie
+    // SameSite=Lax: Allow GET, disable POST cookie send, prevent CSRF
+    // SameSite=None: allow Post cookie send
     let cookie = format!(
-        "{COOKIE_NAME}={cookie}; Domain={}; SameSite=Lax; Path=/",
+        "{COOKIE_NAME}={cookie}; Domain={}; SameSite=Lax; Secure; Path=/",
         config.cookie_domain
     );
     // Set cookie
@@ -117,7 +125,7 @@ async fn login_authorized(
 async fn logout(
     State(state): State<MonoApiServiceState>,
     TypedHeader(cookies): TypedHeader<headers::Cookie>,
-) -> Result<impl IntoResponse, OauthError> {
+) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
     let config = state.context.config.oauth.unwrap();
     let cookie = cookies
@@ -153,7 +161,7 @@ async fn logout(
     Ok((headers, Redirect::to(&config.ui_domain)))
 }
 
-pub fn oauth_client(oauth_config: OauthConfig) -> Result<BasicClient, OauthError> {
+pub fn oauth_client(oauth_config: OauthConfig) -> Result<BasicClient, ApiError> {
     let client_id = oauth_config.github_client_id;
     let client_secret = oauth_config.github_client_secret;
     let ui_domain = oauth_config.ui_domain;
@@ -217,28 +225,5 @@ where
         let user = session.get::<LoginUser>("user").ok_or(AuthRedirect)?;
 
         Ok(user)
-    }
-}
-
-// Use anyhow, define error and enable '?'
-// For a simplified example of using anyhow in axum check /examples/anyhow-error-response
-#[derive(Debug)]
-pub struct OauthError(anyhow::Error);
-
-impl IntoResponse for OauthError {
-    fn into_response(self) -> Response {
-        tracing::error!("Application error: {:#}", self.0);
-        (StatusCode::INTERNAL_SERVER_ERROR, "Login in first").into_response()
-    }
-}
-
-// This enables using `?` on functions that return `Result<_, anyhow::Error>` to turn them into
-// `Result<_, OauthError>`. That way you don't need to do that manually.
-impl<E> From<E> for OauthError
-where
-    E: Into<anyhow::Error>,
-{
-    fn from(err: E) -> Self {
-        Self(err.into())
     }
 }

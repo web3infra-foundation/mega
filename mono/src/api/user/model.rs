@@ -1,5 +1,6 @@
 use callisto::ssh_keys;
 use serde::{Deserialize, Serialize};
+use sea_orm::entity::prelude::*;
 
 #[derive(Debug, Deserialize)]
 pub struct AddSSHKey {
@@ -10,6 +11,8 @@ pub struct AddSSHKey {
 pub struct ListSSHKey {
     pub id: i64,
     pub ssh_key: String,
+    pub finger: String,
+    pub created_at: DateTime,
 }
 
 impl From<ssh_keys::Model> for ListSSHKey {
@@ -17,6 +20,8 @@ impl From<ssh_keys::Model> for ListSSHKey {
         Self {
             id: value.id,
             ssh_key: value.ssh_key,
+            finger: value.finger,
+            created_at: value.created_at,
         }
     }
 }
