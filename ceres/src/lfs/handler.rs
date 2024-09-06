@@ -492,10 +492,7 @@ async fn lfs_get_filtered_locks(
     cursor: &str,
     limit: &str,
 ) -> Result<(Vec<Lock>, String), GitLFSError> {
-    let mut locks = match lfs_get_locks(storage, refspec).await {
-        Ok(locks) => locks,
-        Err(_) => vec![],
-    };
+    let mut locks = (lfs_get_locks(storage, refspec).await).unwrap_or_default();
 
     tracing::debug!("Locks retrieved: {:?}", locks);
 

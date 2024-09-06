@@ -126,7 +126,7 @@ impl SmartProtocol {
                 }
             };
             if !read_first_line {
-                self.parse_capabilities(&String::from_utf8(dst[46..].to_vec()).unwrap());
+                self.parse_capabilities(core::str::from_utf8(&dst[46..]).unwrap());
                 read_first_line = true;
             }
         }
@@ -193,7 +193,7 @@ impl SmartProtocol {
             let (bytes_take, mut pkt_line) = read_pkt_line(&mut protocol_bytes);
             if bytes_take != 0 {
                 let command = self.parse_ref_command(&mut pkt_line);
-                self.parse_capabilities(&String::from_utf8(pkt_line.to_vec()).unwrap());
+                self.parse_capabilities(core::str::from_utf8(&pkt_line).unwrap());
                 tracing::debug!(
                     "parse ref_command: {:?}, with caps:{:?}",
                     command,
@@ -383,7 +383,7 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
         return (0, Bytes::new());
     }
     let pkt_length = bytes.copy_to_bytes(4);
-    let pkt_length = usize::from_str_radix(&String::from_utf8(pkt_length.to_vec()).unwrap(), 16)
+    let pkt_length = usize::from_str_radix(core::str::from_utf8(&pkt_length).unwrap(), 16)
         .unwrap_or_else(|_| panic!("{:?} is not a valid digit?", pkt_length));
     if pkt_length == 0 {
         return (0, Bytes::new());
