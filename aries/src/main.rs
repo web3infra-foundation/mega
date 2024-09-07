@@ -20,7 +20,6 @@ pub mod service;
 
 #[tokio::main]
 async fn main() {
-
     ctrlc::set_handler(move || {
         tracing::info!("Received Ctrl-C signal, exiting...");
         std::process::exit(0);
