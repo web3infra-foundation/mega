@@ -83,8 +83,8 @@ export default function (argv, { commands, notes, help, fallback }) {
     var opts = parseOptions(cmd.options, rest)
 
   } catch (err) {
-    var command = pattern.slice(0, best).join(' ')
-    throw `${err}. Type '${program} help ${command}' for help info.`
+    var command = ['help', ...pattern.slice(0, best)].join(' ')
+    throw `${err}. Type '${program} ${command}' for help info.`
   }
 
   return cmd.action({ ...args, ...opts })
@@ -92,7 +92,7 @@ export default function (argv, { commands, notes, help, fallback }) {
 
 function matchCommand(pattern, argv) {
   var i = argv.findIndex(
-    (arg, i) => arg.startsWith('-') || arg !== pattern[i]
+    (arg, i) => (arg.length > 1 && arg.startsWith('-')) || arg !== pattern[i]
   )
   return i < 0 ? argv.length : i
 }
@@ -101,7 +101,7 @@ function parseCommand(pattern, argv, rest) {
   var values = {}
   var i = argv.findIndex((arg, i) => {
     var tok = pattern[i]
-    if (arg.startsWith('-')) return true
+    if (arg.length > 1 && arg.startsWith('-')) return true
     if (!tok) throw `Excessive positional argument: ${arg}`
     if (tok.startsWith('[') || tok.startsWith('<')) {
       values[tok] = arg
@@ -131,7 +131,8 @@ function parseOptions(format, argv) {
           if (t.endsWith(',')) t = t.substring(0, t.length - 1)
           aliases.push(t)
         } else {
-          if (t.endsWith('...]') || t.endsWith('...>')) type = 'array'
+          if (t === '...') type = 'remainder array'
+          else if (t.endsWith('...]') || t.endsWith('...>')) type = 'array'
           else if (t.startsWith('[')) type = 'optional string'
           else if (t.startsWith('<')) type = 'string'
           else type = 'boolean'
@@ -147,7 +148,11 @@ function parseOptions(format, argv) {
 
   argv.forEach(arg => {
     if (currentOption) {
-      if (arg.startsWith('-')) {
+      if (options[currentOption]?.type === 'remainder array') {
+        addOption(currentOption, arg)
+        return
+      }
+      if (arg.length > 1 && arg.startsWith('-')) {
         endOption(currentOption)
         currentOption = undefined
       } else {
@@ -157,7 +162,7 @@ function parseOptions(format, argv) {
     }
     if (arg.startsWith('--')) {
       currentOption = arg
-    } else if (arg.startsWith('-')) {
+    } else if (arg.length > 1 && arg.startsWith('-')) {
       if (arg.length === 2) {
         currentOption = arg
       } else {
@@ -182,6 +187,7 @@ function parseOptions(format, argv) {
         option.value = value
         break
       case 'array':
+      case 'remainder array':
         option.value ??= []
         option.value.push(value)
         break
@@ -220,18 +226,15 @@ function parseOptions(format, argv) {
 function tokenize(str) {
   var tokens = str.split(' ').reduce(
     (a, b) => {
-      if (typeof a === 'string') a = [a]
       var last = a.pop()
-      if (last.startsWith('<')) {
-        a.push(`${last} ${b}`)
-      } else if (last.startsWith('[')) {
+      if (last && (last.startsWith('<') || last.startsWith('['))) {
         a.push(`${last} ${b}`)
       } else {
         a.push(last, b)
       }
       if (b.endsWith('>') || b.endsWith(']')) a.push('')
       return a
-    }
+    }, []
   )
   return tokens instanceof Array ? tokens.filter(t => t) : [tokens]
 }
@@ -239,6 +242,7 @@ function tokenize(str) {
 function stripIndentation(s, indent) {
   var lines = s.split('\n')
   if (lines[0].trim() === '') lines.shift()
+  if (lines[lines.length - 1].trim() === '') lines.pop()
   var depth = lines[0].length - lines[0].trimStart().length
   var padding = ' '.repeat(indent || 0)
   return lines.map(l => padding + l.substring(depth)).join('\n')

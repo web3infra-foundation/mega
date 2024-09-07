@@ -39,6 +39,7 @@ pub struct Agent {
 pub struct ZTMEndPoint {
     pub id: String,
     pub username: String,
+    pub name: String,
     pub online: bool,
     #[serde(rename = "isLocal")]
     pub is_local: bool,
@@ -216,7 +217,7 @@ impl ZTMAgent for LocalZTMAgent {
         match self.get_ztm_endpoints().await {
             Ok(ep_list) => {
                 for ele in ep_list {
-                    if ele.online && ele.username == peer_id {
+                    if ele.online && ele.name == peer_id {
                         return Ok(ele);
                     }
                 }
@@ -434,24 +435,25 @@ pub async fn run_ztm_client(
     agent: LocalZTMAgent,
     http_port: u16,
 ) {
-    let name = peer_id.clone();
-    let url = format!("{bootstrap_node}/api/v1/certificate?name={name}");
+    //TODO ztm permit control?
+    // let name = peer_id.clone();
+    let url = format!("{bootstrap_node}/api/v1/certificate?name=root");
     let request_result = reqwest::get(url).await;
     let response_text = match handle_response(request_result).await {
         Ok(s) => s,
         Err(s) => {
-            tracing::error!("GET {bootstrap_node}/api/v1/certificate?name={name} failed,{s}");
+            tracing::error!("GET {bootstrap_node}/api/v1/certificate?name=root failed,{s}");
             return;
         }
     };
-    let permit: ZTMUserPermit = match serde_json::from_slice(response_text.as_bytes()) {
+    let mut permit: ZTMUserPermit = match serde_json::from_slice(response_text.as_bytes()) {
         Ok(p) => p,
         Err(e) => {
             tracing::error!("{}", e);
             return;
         }
     };
-
+    permit.agent.name = peer_id.clone();
     // 2. join ztm mesh
     let mesh = match agent.connect_ztm_hub(permit.clone()).await {
         Ok(m) => m,
