@@ -130,7 +130,6 @@ impl LFSClient {
             transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
             objects: lfs_objs,
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
-            enable_split: None,
         };
 
         let mut request = self.client.post(self.batch_url.clone()).json(&batch_request);
@@ -200,7 +199,6 @@ impl LFSClient {
                 ..Default::default()
             }],
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
-            enable_split: None,
         };
 
         let request = self.client.post(self.batch_url.clone()).json(&batch_request);

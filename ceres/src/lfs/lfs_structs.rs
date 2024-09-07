@@ -88,7 +88,6 @@ pub struct BatchRequest {
     pub transfers: Vec<String>,
     pub objects: Vec<RequestVars>,
     pub hash_algo: String,
-    pub enable_split: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
