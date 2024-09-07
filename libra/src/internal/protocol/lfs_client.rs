@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 use async_static::async_static;
 use futures_util::StreamExt;
@@ -5,9 +6,10 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use url::Url;
-use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest};
+use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
+use crate::command;
 use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
@@ -59,7 +61,7 @@ impl LFSClient {
     }
 
     /// push LFS objects to remote server
-    pub async fn push_objects<'a, I>(&self, objs: I, auth: Option<BasicAuth>)
+    pub async fn push_objects<'a, I>(&self, objs: I, auth: Option<BasicAuth>) -> Result<(), ()>
     where
         I: IntoIterator<Item = &'a Entry>
     {
@@ -77,7 +79,7 @@ impl LFSClient {
             let path = lfs::lfs_object_path(oid);
             if !path.exists() {
                 eprintln!("fatal: LFS object not found: {}", oid);
-                return;
+                continue;
             }
             let size = path.metadata().unwrap().len() as i64;
             lfs_objs.push(RequestVars {
@@ -85,6 +87,42 @@ impl LFSClient {
                 size,
                 ..Default::default()
             })
+        }
+
+        // verify locks
+        match self.verify_locks(VerifiableLockRequest {
+            refs: Ref { name: command::lfs::current_refspec().await.unwrap() },
+            ..Default::default()
+        }, auth.clone()).await {
+            Ok((_, locks)) => {
+                tracing::debug!("LFS verify locks response:\n {:?}", locks);
+                let oids: HashSet<String> = lfs_oids.iter().map(|(oid, _)| oid.clone()).collect();
+                let ours = locks.ours.iter().filter(|l| {
+                    let oid = lfs::get_oid_by_path(&l.path);
+                    oids.contains(&oid)
+                }).collect::<Vec<_>>();
+                if !ours.is_empty() {
+                    println!("The following files are locked by you, consider unlocking them:");
+                    for lock in ours {
+                        println!("  - {}", lock.path);
+                    }
+                }
+                let theirs = locks.theirs.iter().filter(|l| {
+                    let oid = lfs::get_oid_by_path(&l.path);
+                    oids.contains(&oid)
+                }).collect::<Vec<_>>();
+                if !theirs.is_empty() {
+                    eprintln!("Locking failed: The following files are locked by another user:");
+                    for lock in theirs {
+                        eprintln!("  - {}", lock.path);
+                    }
+                    return Err(());
+                }
+            }
+            Err(_) => {
+                eprintln!("fatal: Get LFS verify locks failed");
+                return Err(());
+            }
         }
 
         let batch_request = BatchRequest {
@@ -110,6 +148,7 @@ impl LFSClient {
             self.upload_object(obj).await;
         }
         println!("LFS objects push completed.");
+        Ok(())
     }
 
     /// upload (PUT) one LFS file to remote server
@@ -255,5 +294,23 @@ impl LFSClient {
             eprintln!("fatal: LFS unlock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
         }
         code
+    }
+
+    /// List Locks for Verification
+    pub async fn verify_locks(&self, query: VerifiableLockRequest, basic_auth: Option<BasicAuth>)
+        -> Result<(StatusCode, VerifiableLockList), ()>
+    {
+        let url = self.lfs_url.join("/locks/verify").unwrap();
+        let mut request = self.client.post(url).json(&query);
+        if let Some(auth) = basic_auth {
+            request = request.basic_auth(auth.username, Some(auth.password));
+        }
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if !resp.status().is_success() {
+            eprintln!("fatal: LFS verify locks failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            return Err(());
+        }
+        Ok((code, resp.json::<VerifiableLockList>().await.unwrap()))
     }
 }

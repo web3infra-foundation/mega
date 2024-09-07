@@ -9,6 +9,7 @@ use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use sha2::{Digest, Sha256};
 use url::Url;
 use wax::Pattern;
+use mercury::internal::index::Index;
 use crate::utils::{path, util};
 use crate::utils::path_ext::PathExt;
 
@@ -117,6 +118,17 @@ pub fn lfs_object_path(oid: &str) -> PathBuf {
         .join(oid)
 }
 
+/// Get LFS file oid by path (through `Index`), NOT re-calculate
+pub fn get_oid_by_path(path: &str) -> String {
+    let index_file = path::index();
+    let index = Index::load(&index_file).unwrap();
+    let hash = index.get_hash(path, 0).unwrap();
+    let storage = util::objects_storage();
+    let data = storage.get(&hash).unwrap();
+    let (oid, _) = parse_pointer_data(&data).unwrap();
+    oid
+}
+
 /// Copy LFS file to `.libra/lfs/objects`
 /// - absolute path
 pub fn backup_lfs_file<P>(path: P, oid: &str) -> io::Result<()>
@@ -154,7 +166,7 @@ where
     Ok(file_hash)
 }
 
-/// Check if `data` is an LFS pointer, return `oid`
+/// Check if `data` is an LFS pointer, return `oid` & `size`
 pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     if data.len() > LFS_POINTER_MAX_SIZE {
         return None;
