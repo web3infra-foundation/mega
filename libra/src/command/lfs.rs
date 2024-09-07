@@ -156,7 +156,7 @@ pub async fn execute(cmd: LfsCmds) {
     }
 }
 
-async fn current_refspec() -> Option<String> {
+pub(crate) async fn current_refspec() -> Option<String> {
     match Head::current().await {
         Head::Branch(name) => Some(format!("refs/heads/{}", name)),
         Head::Detached(_) => {
