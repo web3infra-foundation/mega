@@ -1,6 +1,6 @@
 use std::{ffi::CString, fs};
 use std::path::Path;
-use libc::{self, stat, S_IFCHR};
+use libc::{self, stat};
 use mercury::hash::SHA1;
 
 fn collect_paths<P: AsRef<Path>>(path: P) -> Vec<String> {
@@ -36,10 +36,10 @@ fn is_whiteout_inode(path: &String) -> bool {
     
     false
 }
-
+#[allow(unused)]
 fn diff(lower: String, upper:String){
     let upper_changes = collect_paths(&lower); 
-    let root_len = lower.len();
+    let _root_len = lower.len();
     for node in upper_changes {
             if is_whiteout_inode(&node){
                 // delte a bolb from a tree .
