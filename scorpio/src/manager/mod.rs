@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use toml;
 
 mod diff;
 #[derive(Serialize,Deserialize)]
@@ -14,6 +13,7 @@ struct WorkDir{
     path:String,
     hash:String,
 }
+#[allow(unused)]
 impl ScorpioManager {
     fn from_toml(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(file_path)?;
