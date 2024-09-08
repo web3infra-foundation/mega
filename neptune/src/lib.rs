@@ -13,16 +13,16 @@ extern "C" {
 /// start ztm agent, like run pipy repo://ztm/agent --database=database --listen=0.0.0.0:listen_port
 /// ! only support to start one agent or one hub at one process
 pub fn start_agent(database: &str, listen_port: u16) {
-    let database = database.to_string();
+    let _database = database.to_string();
     tracing::info!("start pipy with port: {}", listen_port);
     let args = [
         CString::new("ztm-pipy").unwrap(),
         CString::new("repo://ztm/agent").unwrap(),
-        CString::new("--reuse-port").unwrap(),
+        // CString::new("--reuse-port").unwrap(),
         CString::new("--args").unwrap(),
-        // CString::new(format!("--database={}", database)).unwrap(),
-        CString::new(format!("--data={}", database)).unwrap(),
-        CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
+        CString::new("--data").unwrap(),
+        CString::new(database).unwrap(),
+        // CString::new(format!("--listen 0.0.0.0:{}", listen_port)).unwrap(),
     ];
     let c_args: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();
     unsafe {
