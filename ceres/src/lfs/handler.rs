@@ -238,7 +238,7 @@ pub async fn lfs_process_batch(
 /// else return an error.
 pub async fn lfs_fetch_chunk_ids(
     context: &Context,
-    fetch_vars: &RequestVars,
+    oid: &String,
 ) -> Result<Vec<ChunkRepresentation>, GitLFSError> {
     let config = context.config.lfs.clone();
 
@@ -249,13 +249,13 @@ pub async fn lfs_fetch_chunk_ids(
     }
     let storage = context.services.lfs_storage.clone();
 
-    let meta = lfs_get_meta(storage.clone(), &fetch_vars.oid)
+    let meta = lfs_get_meta(storage.clone(), oid)
         .await
         .map_err(|_| GitLFSError::GeneralError("".to_string()))?;
     assert!(meta.splited, "database didn't match the split mode");
 
     let relations = storage
-        .get_lfs_relations(fetch_vars.oid.clone())
+        .get_lfs_relations(oid.to_owned())
         .await
         .map_err(|_| GitLFSError::GeneralError("".to_string()))?;
 
@@ -272,10 +272,7 @@ pub async fn lfs_fetch_chunk_ids(
         let tmp_request_vars = RequestVars {
             oid: relation.sub_oid.clone(),
             size: relation.size,
-            authorization: fetch_vars.authorization.clone(),
-            password: fetch_vars.password.clone(),
-            user: fetch_vars.user.clone(),
-            repo: fetch_vars.repo.clone(),
+            ..Default::default()
         };
         response_objects.push(ChunkRepresentation {
             sub_oid: relation.sub_oid,
