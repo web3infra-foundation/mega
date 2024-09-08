@@ -19,13 +19,9 @@ RUN if [ "$BUILD_TYPE" != "release" ] && [ "$BUILD_TYPE" != "debug" ]; then \
 RUN apt-get update && apt-get install -y \
     cmake \
     clang \
-    build-essential
-
-RUN apt-get install -y \
+    build-essential \
     nodejs \
-    npm
-
-RUN apt-get install -y \
+    npm \
     curl \
     wget \
     file \
@@ -65,7 +61,7 @@ RUN chmod +x /usr/local/bin/start-aries.sh
 RUN chmod +x /usr/local/bin/aries
 COPY --from=builder /opt/mega/target/$BUILD_TYPE/libpipy.so /usr/local/lib/libpipy.so
 # refresh shared library cache
-RUN ldconfig 
+RUN ldconfig
 
 VOLUME /opt/mega
 
