@@ -18,13 +18,14 @@ git fetch
 
 # Check & Cleanup
 if ! git diff --quiet; then
-	count=0
+	count=1
 	echo "You have uncomitted changes, all the change will be resotred in $COUNTDOWN seconds!"
-	while [ $count -l $COUNTDOWN ]; do
-		echo "Restoring in $(( $COUNTDOWN - $count )), press Ctrl-C to exit..."
+	while [ $count -le $COUNTDOWN ]; do
 		sleep 1
+		echo "Restoring in $(( $COUNTDOWN - $count )), press Ctrl-C to exit..."
 		((count++))
 	done
+	git restore .
 fi
 
 # Patch
