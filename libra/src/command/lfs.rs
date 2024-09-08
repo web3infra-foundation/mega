@@ -3,14 +3,17 @@ use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use byte_unit::UnitType;
 use reqwest::StatusCode;
 use ceres::lfs::lfs_structs::LockListQuery;
+use mercury::internal::index::Index;
 use crate::command::{ask_basic_auth, status};
 use crate::internal::head::Head;
 use crate::internal::protocol::lfs_client::LFS_CLIENT;
 use crate::utils::{lfs, path, util};
 use crate::utils::path_ext::PathExt;
 
+/// [Docs](https://github.com/git-lfs/git-lfs/tree/main/docs/man)
 #[derive(Subcommand, Debug)]
 pub enum LfsCmds {
     /// View or add LFS paths to Libra Attributes (root)
@@ -42,6 +45,18 @@ pub enum LfsCmds {
         force: bool,
         #[clap(long, short)]
         id: Option<String>
+    },
+    /// Show information about Git LFS files in the index and working tree (current branch)
+    LsFiles {
+        /// Show the entire 64 character OID, instead of just first 10.
+        #[clap(long, short)]
+        long: bool,
+        /// Show the size of the LFS object between parenthesis at the end of a line.
+        #[clap(long, short)]
+        size: bool,
+        /// Show only the lfs tracked file names.
+        #[clap(long, short)]
+        name_only: bool,
     }
 }
 
@@ -151,6 +166,35 @@ pub async fn execute(cmd: LfsCmds) {
                     continue;
                 }
                 break;
+            }
+        }
+        LfsCmds::LsFiles { long, size, name_only} => {
+            let idx_file = path::index();
+            let index = Index::load(&idx_file).unwrap();
+            let entries = index.tracked_entries(0);
+            let storage = util::objects_storage();
+            for entry in entries {
+                if lfs::is_lfs_tracked(&entry.name) {
+                    let data = storage.get(&entry.hash).unwrap();
+                    if let Some((oid, lfs_size)) = lfs::parse_pointer_data(&data) {
+                        let path_abs = util::workdir_to_absolute(&entry.name);
+                        let is_pointer = lfs::parse_pointer_file(&path_abs).is_ok();
+                        let _type = if is_pointer { "-" } else { "*" };
+                        let oid = if long { oid } else { oid[..10].to_owned() };
+                        let tail = if size {
+                            let byte = byte_unit::Byte::from(lfs_size);
+                            let byte = byte.get_appropriate_unit(UnitType::Decimal);
+                            format!(" ({byte:.2})")
+                        } else {
+                            "".to_string()
+                        };
+                        if name_only {
+                            println!("{}{}", entry.name, tail);
+                        } else {
+                            println!("{} {} {}{}", oid, _type, entry.name, tail);
+                        }
+                    }
+                }
             }
         }
     }
