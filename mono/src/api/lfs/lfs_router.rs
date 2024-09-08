@@ -207,9 +207,8 @@ pub async fn lfs_process_batch(
 pub async fn lfs_fetch_chunk_ids(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
-    Json(json): Json<RequestVars>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_fetch_chunk_ids(&state.context, &json).await;
+    let result = handler::lfs_fetch_chunk_ids(&state.context, &oid).await;
     match result {
         Ok(response) => {
             let size = response.iter().fold(0, |acc, chunk| acc + chunk.size);
