@@ -1,0 +1,407 @@
+From afb90731865925957bc817414907f8070a5c3b6a Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Sun, 8 Sep 2024 20:19:20 +0800
+Subject: [PATCH] feat: basic support for working with mega
+
+---
+ Cargo.lock                                  |   9 ++
+ Cargo.toml                                  |   2 +
+ crates/mega_delegator/Cargo.toml            |  13 +++
+ crates/mega_delegator/src/mega_delegator.rs | 114 ++++++++++++++++++++
+ crates/project_panel/Cargo.toml             |   1 +
+ crates/project_panel/src/project_panel.rs   | 111 ++++++++++++++-----
+ 6 files changed, 223 insertions(+), 27 deletions(-)
+ create mode 100644 crates/mega_delegator/Cargo.toml
+ create mode 100644 crates/mega_delegator/src/mega_delegator.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 818c258aef..8a3597c041 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -6534,6 +6534,14 @@ dependencies = [
+  "objc",
+ ]
+ 
++[[package]]
++name = "mega_delegator"
++version = "0.1.0"
++dependencies = [
++ "isahc",
++ "lazy_static",
++]
++
+ [[package]]
+ name = "memchr"
+ version = "2.7.4"
+@@ -8105,6 +8113,7 @@ dependencies = [
+  "git",
+  "gpui",
+  "language",
++ "mega_delegator",
+  "menu",
+  "pretty_assertions",
+  "project",
+diff --git a/Cargo.toml b/Cargo.toml
+index 740aaa9c1a..9e37dc9522 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -60,6 +60,7 @@ members = [
+     "crates/markdown",
+     "crates/markdown_preview",
+     "crates/media",
++    "crates/mega_delegator",
+     "crates/menu",
+     "crates/multi_buffer",
+     "crates/node_runtime",
+@@ -229,6 +230,7 @@ lsp = { path = "crates/lsp" }
+ markdown = { path = "crates/markdown" }
+ markdown_preview = { path = "crates/markdown_preview" }
+ media = { path = "crates/media" }
++mega_delegator ={ path = "crates/mega_delegator" }
+ menu = { path = "crates/menu" }
+ multi_buffer = { path = "crates/multi_buffer" }
+ node_runtime = { path = "crates/node_runtime" }
+diff --git a/crates/mega_delegator/Cargo.toml b/crates/mega_delegator/Cargo.toml
+new file mode 100644
+index 0000000000..3d423e81ae
+--- /dev/null
++++ b/crates/mega_delegator/Cargo.toml
+@@ -0,0 +1,13 @@
++[package]
++name = "mega_delegator"
++version = "0.1.0"
++edition = "2021"
++publish = false
++license = "GPL-3.0-or-later"
++
++[lib]
++path = "src/mega_delegator.rs"
++
++[dependencies]
++lazy_static.workspace = true
++isahc.workspace = true
+diff --git a/crates/mega_delegator/src/mega_delegator.rs b/crates/mega_delegator/src/mega_delegator.rs
+new file mode 100644
+index 0000000000..fd6188c204
+--- /dev/null
++++ b/crates/mega_delegator/src/mega_delegator.rs
+@@ -0,0 +1,114 @@
++use std::{cell::RefCell, fs::File, process::{Child, Command, Stdio}, time::Duration};
++
++use isahc::config::Configurable;
++
++// In this module, we made these assumption to mega:
++// 1. running on port 8000
++// 2.
++
++pub enum MegaEvent {
++    MegaStart,
++    MegaStarted,
++    MegaStop,
++}
++
++#[derive(Debug, PartialEq)]
++pub enum MegaStatus {
++    MegaIdle,
++    MegaRunning,
++    MegaError,
++}
++
++pub struct MegaDelegator{
++    http_client: isahc::HttpClient,
++    holding: RefCell<Option<Child>>
++}
++
++impl MegaDelegator {
++    pub fn new() -> Self {
++        // TODO: In dev environment, asuuming mega and its config
++        // are right in the $PATH.
++
++        let client = isahc::HttpClient::builder().connect_timeout(Duration::from_secs(1)).build().unwrap();
++
++        Self {
++            http_client: client,
++            holding: RefCell::from(None)
++        }
++    }
++
++    pub fn status(&self) -> MegaStatus {
++        match *self.holding.borrow() {
++            Some(_) => {
++                match self.http_client.get("localhost:8000/api/v1/mono/status") {
++                    Ok(_) => MegaStatus::MegaRunning,
++                    Err(_) => MegaStatus::MegaIdle
++                }
++            }
++            None => MegaStatus::MegaError
++        }
++    }
++
++    pub fn start(&self) -> &Self {
++        match self.status() {
++            MegaStatus::MegaRunning
++            | MegaStatus::MegaIdle => return self,
++            _ => {}
++        }
++
++        let output_file = File::create("output.txt").expect("Unable to create file");
++        let mega_root = match std::env::var("MEGA_ROOT") {
++            Ok(s) => s,
++            Err(_) => String::new()
++        };
++
++        let child = Command::new(format!("{}/target/debug/mega", mega_root))
++        .args([
++            "--config",
++            format!("{}/mega/config.toml", mega_root).as_str(),
++            "service", "http"
++            ])
++        .stdout(Stdio::from(output_file.try_clone().expect("Failed to clone file")))
++        .stderr(Stdio::from(output_file))
++        .spawn()
++        .unwrap();
++
++        *self.holding.borrow_mut() = Some(child);
++
++        self
++    }
++
++    pub fn stop(&self) -> &Self {
++        if let Some(mut child) = self.holding.take() {
++            // There may be so many unexpected errors,
++            // so we simply ignore and leave.
++            if let Ok(()) = child.kill() {
++                let _ = child.wait();
++            }
++        }
++
++        *self.holding.borrow_mut() = None;
++        self
++    }
++
++    pub fn get_fuse_path(&self) -> &str {
++        "/tmp"
++    }
++}
++
++#[cfg(test)]
++mod test {
++    use std::{thread::sleep, time::Duration};
++
++    use crate::{MegaDelegator, MegaStatus};
++
++    #[test]
++    fn test_mega_start() {
++        let delegator = MegaDelegator::new();
++        delegator.start();
++
++        sleep(Duration::from_secs(10));
++
++        assert_eq!(delegator.status(), MegaStatus::MegaRunning);
++    }
++}
+diff --git a/crates/project_panel/Cargo.toml b/crates/project_panel/Cargo.toml
+index 5e11b60477..d6705f91b9 100644
+--- a/crates/project_panel/Cargo.toml
++++ b/crates/project_panel/Cargo.toml
+@@ -36,6 +36,7 @@ util.workspace = true
+ client.workspace = true
+ worktree.workspace = true
+ workspace.workspace = true
++mega_delegator.workspace = true
+ 
+ [dev-dependencies]
+ client = { workspace = true, features = ["test-support"] }
+diff --git a/crates/project_panel/src/project_panel.rs b/crates/project_panel/src/project_panel.rs
+index d9202fab07..598924e86e 100644
+--- a/crates/project_panel/src/project_panel.rs
++++ b/crates/project_panel/src/project_panel.rs
+@@ -1,6 +1,7 @@
+ mod project_panel_settings;
+ mod scrollbar;
+ use client::{ErrorCode, ErrorExt};
++use mega_delegator::{MegaDelegator, MegaEvent};
+ use scrollbar::ProjectPanelScrollbar;
+ use settings::{Settings, SettingsStore};
+ 
+@@ -34,6 +35,7 @@ use std::{
+     ops::Range,
+     path::{Path, PathBuf},
+     rc::Rc,
++    str::FromStr,
+     sync::Arc,
+     time::Duration,
+ };
+@@ -74,6 +76,7 @@ pub struct ProjectPanel {
+     show_scrollbar: bool,
+     scrollbar_drag_thumb_offset: Rc<Cell<Option<f32>>>,
+     hide_scrollbar_task: Option<Task<()>>,
++    mega_delegator: MegaDelegator,
+ }
+ 
+ #[derive(Clone, Debug)]
+@@ -148,6 +151,7 @@ actions!(
+         UnfoldDirectory,
+         FoldDirectory,
+         SelectParent,
++        ToggleMega
+     ]
+ );
+ 
+@@ -290,6 +294,7 @@ impl ProjectPanel {
+                 show_scrollbar: !Self::should_autohide_scrollbar(cx),
+                 hide_scrollbar_task: None,
+                 scrollbar_drag_thumb_offset: Default::default(),
++                mega_delegator: MegaDelegator::new(),
+             };
+             this.update_visible_entries(None, cx);
+ 
+@@ -2392,6 +2397,7 @@ impl Render for ProjectPanel {
+     fn render(&mut self, cx: &mut gpui::ViewContext<Self>) -> impl IntoElement {
+         let has_worktree = self.visible_entries.len() != 0;
+         let project = self.project.read(cx);
++        let ui_font = ThemeSettings::get_global(cx).ui_font.clone();
+ 
+         if has_worktree {
+             let items_count = self
+@@ -2400,7 +2406,7 @@ impl Render for ProjectPanel {
+                 .map(|(_, worktree_entries, _)| worktree_entries.len())
+                 .sum();
+ 
+-            h_flex()
++            v_flex()
+                 .id("project-panel")
+                 .group("project-panel")
+                 .size_full()
+@@ -2481,29 +2487,68 @@ impl Render for ProjectPanel {
+                 )
+                 .track_focus(&self.focus_handle)
+                 .child(
+-                    uniform_list(cx.view().clone(), "entries", items_count, {
+-                        |this, range, cx| {
+-                            let mut items = Vec::new();
+-                            this.for_each_visible_entry(range, cx, |id, details, cx| {
+-                                items.push(this.render_entry(id, details, cx));
+-                            });
+-                            items
+-                        }
+-                    })
+-                    .size_full()
+-                    .with_sizing_behavior(ListSizingBehavior::Infer)
+-                    .track_scroll(self.scroll_handle.clone()),
++                    h_flex()
++                        .m_1()
++                        .border_2()
++                        .border_color(cx.theme().colors().border)
++                        .rounded_md()
++                        .font(ui_font)
++                        .child(
++                            Button::new("stop_mega_button", "Stop Mega")
++                                .icon(IconName::Stop)
++                                .full_width()
++                                .style(ButtonStyle::Filled)
++                                .tooltip(move |cx| {
++                                    Tooltip::text("Stop Mega and unmount FUSE directories", cx)
++                                })
++                                .on_click(cx.listener(|this, _, cx| {
++                                    this.mega_delegator.stop();
++
++                                    if let Some(entry_id) = this.last_worktree_root_id {
++                                        let project = this.project.read(cx);
++
++                                        let worktree_id = if let Some(worktree) =
++                                            project.worktree_for_entry(entry_id, cx)
++                                        {
++                                            worktree.read(cx).id()
++                                        } else {
++                                            return;
++                                        };
++
++                                        this.project.update(cx, |project, cx| {
++                                            project.remove_worktree(worktree_id, cx)
++                                        });
++                                    }
++                                })),
++                        ),
++                )
++                .child(
++                    h_flex()
++                        .child(
++                            uniform_list(cx.view().clone(), "entries", items_count, {
++                                |this, range, cx| {
++                                    let mut items = Vec::new();
++                                    this.for_each_visible_entry(range, cx, |id, details, cx| {
++                                        items.push(this.render_entry(id, details, cx));
++                                    });
++                                    items
++                                }
++                            })
++                            .size_full()
++                            .with_sizing_behavior(ListSizingBehavior::Infer)
++                            .track_scroll(self.scroll_handle.clone()),
++                        )
++                        .children(self.render_scrollbar(items_count, cx))
++                        .children(self.context_menu.as_ref().map(|(menu, position, _)| {
++                            deferred(
++                                anchored()
++                                    .position(*position)
++                                    .anchor(gpui::AnchorCorner::TopLeft)
++                                    .child(menu.clone()),
++                            )
++                            .with_priority(1)
++                        })),
+                 )
+-                .children(self.render_scrollbar(items_count, cx))
+-                .children(self.context_menu.as_ref().map(|(menu, position, _)| {
+-                    deferred(
+-                        anchored()
+-                            .position(*position)
+-                            .anchor(gpui::AnchorCorner::TopLeft)
+-                            .child(menu.clone()),
+-                    )
+-                    .with_priority(1)
+-                }))
+         } else {
+             v_flex()
+                 .id("empty-project_panel")
+@@ -2511,14 +2556,24 @@ impl Render for ProjectPanel {
+                 .p_4()
+                 .track_focus(&self.focus_handle)
+                 .child(
+-                    Button::new("open_project", "Open a project")
++                    Button::new("start_mega", "Start Mega")
+                         .style(ButtonStyle::Filled)
+                         .full_width()
++                        .icon(IconName::ArrowRight)
+                         .key_binding(KeyBinding::for_action(&workspace::Open, cx))
+                         .on_click(cx.listener(|this, _, cx| {
+-                            this.workspace
+-                                .update(cx, |workspace, cx| workspace.open(&workspace::Open, cx))
+-                                .log_err();
++                            if let Some(task) = this
++                                .workspace
++                                .update(cx, |workspace, cx| {
++                                    let path = this.mega_delegator.start().get_fuse_path();
++                                    let buf = PathBuf::from_str(path).unwrap();
++                                    println!("Open workspace {}", path);
++                                    workspace.open_workspace_for_paths(true, vec![buf], cx)
++                                })
++                                .log_err()
++                            {
++                                task.detach_and_log_err(cx);
++                            }
+                         })),
+                 )
+                 .drag_over::<ExternalPaths>(|style, _, cx| {
+@@ -2580,6 +2635,8 @@ impl EventEmitter<Event> for ProjectPanel {}
+ 
+ impl EventEmitter<PanelEvent> for ProjectPanel {}
+ 
++impl EventEmitter<MegaEvent> for ProjectPanel {}
++
+ impl Panel for ProjectPanel {
+     fn position(&self, cx: &WindowContext) -> DockPosition {
+         match ProjectPanelSettings::get_global(cx).dock {
+-- 
+2.46.0
+
