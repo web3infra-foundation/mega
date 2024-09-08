@@ -187,6 +187,17 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     None
 }
 
+/// Read max LFS_POINTER_MAX_SIZE bytes
+pub fn parse_pointer_file(path: impl AsRef<Path>) -> io::Result<(String, u64)> {
+    let mut file = File::open(path)?;
+    let mut buffer = [0; LFS_POINTER_MAX_SIZE];
+    let bytes_read = file.read(&mut buffer)?;
+    if let Some((oid, size)) = parse_pointer_data(&buffer[..bytes_read]) {
+        return Ok((oid, size));
+    }
+    Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid LFS pointer file"))
+}
+
 /// Extract LFS patterns from `.libra_attributes` file
 pub fn extract_lfs_patterns(file_path: &str) -> io::Result<Vec<String>> {
     let path = Path::new(file_path);
