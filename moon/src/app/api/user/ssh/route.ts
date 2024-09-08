@@ -7,7 +7,7 @@ const endpoint = process.env.MEGA_INTERNAL_HOST;
 
 export async function POST(request: NextRequest) {
     const session = await verifySession()
-    if (!session) return null
+    if (!session) return Response.json({})
 
     const cookieHeader = request.headers.get('cookie') || '';
     const body = await request.json();
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) { 
     const session = await verifySession()
-    if (!session) return null
+    if (!session) return Response.json({})
 
     const cookieHeader = request.headers.get('cookie') || '';
 

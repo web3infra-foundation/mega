@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic' // defaults to auto
 
 export async function GET(request: NextRequest) {
     const session = await verifySession()
-    if (!session) return null
+    if (!session) return Response.json({});
     
     const endpoint = process.env.MEGA_INTERNAL_HOST;
     const cookieHeader = request.headers.get('cookie') || '';
