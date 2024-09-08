@@ -89,12 +89,23 @@ impl LFSClient {
             })
         }
 
-        // verify locks
-        match self.verify_locks(VerifiableLockRequest {
-            refs: Ref { name: command::lfs::current_refspec().await.unwrap() },
-            ..Default::default()
-        }, auth.clone()).await {
-            Ok((_, locks)) => {
+        { // verify locks
+            let (code, locks) = self.verify_locks(VerifiableLockRequest {
+                refs: Ref { name: command::lfs::current_refspec().await.unwrap() },
+                ..Default::default()
+            }, auth.clone()).await;
+
+            if code == StatusCode::FORBIDDEN {
+                eprintln!("fatal: Forbidden: You must have push access to verify locks");
+                return Err(());
+            } else if code == StatusCode::NOT_FOUND {
+                // By default, an LFS server that doesn't implement any locking endpoints should return 404.
+                // This response will not halt any Git pushes.
+            } else if !code.is_success() {
+                eprintln!("fatal: LFS verify locks failed. Status: {}", code);
+                return Err(());
+            } else {
+                // success
                 tracing::debug!("LFS verify locks response:\n {:?}", locks);
                 let oids: HashSet<String> = lfs_oids.iter().map(|(oid, _)| oid.clone()).collect();
                 let ours = locks.ours.iter().filter(|l| {
@@ -118,10 +129,6 @@ impl LFSClient {
                     }
                     return Err(());
                 }
-            }
-            Err(_) => {
-                eprintln!("fatal: Get LFS verify locks failed");
-                return Err(());
             }
         }
 
@@ -271,7 +278,7 @@ impl LFSClient {
         }
         let resp = request.send().await.unwrap();
         let code = resp.status();
-        if !resp.status().is_success() {
+        if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
             eprintln!("fatal: LFS lock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
         }
         code
@@ -288,7 +295,7 @@ impl LFSClient {
         }
         let resp = request.send().await.unwrap();
         let code = resp.status();
-        if !resp.status().is_success() {
+        if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
             eprintln!("fatal: LFS unlock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
         }
         code
@@ -296,7 +303,7 @@ impl LFSClient {
 
     /// List Locks for Verification
     pub async fn verify_locks(&self, query: VerifiableLockRequest, basic_auth: Option<BasicAuth>)
-        -> Result<(StatusCode, VerifiableLockList), ()>
+        -> (StatusCode, VerifiableLockList)
     {
         let url = self.lfs_url.join("/locks/verify").unwrap();
         let mut request = self.client.post(url).json(&query);
@@ -305,10 +312,16 @@ impl LFSClient {
         }
         let resp = request.send().await.unwrap();
         let code = resp.status();
-        if !resp.status().is_success() {
+        // By default, an LFS server that doesn't implement any locking endpoints should return 404.
+        // This response will not halt any Git pushes.
+        if !code.is_success() && code != StatusCode::NOT_FOUND && code != StatusCode::FORBIDDEN {
             eprintln!("fatal: LFS verify locks failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
-            return Err(());
+            return (code, VerifiableLockList {
+                ours: Vec::new(),
+                theirs: Vec::new(),
+                next_cursor: String::default(),
+            });
         }
-        Ok((code, resp.json::<VerifiableLockList>().await.unwrap()))
+        (code, resp.json::<VerifiableLockList>().await.unwrap())
     }
 }
