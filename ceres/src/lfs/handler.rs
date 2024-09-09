@@ -5,7 +5,8 @@ use anyhow::Result;
 use bytes::Bytes;
 use chrono::{prelude::*, Duration};
 use rand::prelude::*;
-
+use sea_orm::ActiveValue::Set;
+use sea_orm::IntoActiveModel;
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use common::errors::{GitLFSError, MegaError};
 use jupiter::context::Context;
@@ -554,7 +555,7 @@ async fn lfs_add_lock(
 
     match result {
         // Update
-        Some(mut val) => {
+        Some(val) => {
             let d = val.data.to_owned();
             let mut locks_from_data = if !d.is_empty() {
                 let locks_from_data: Vec<Lock> = serde_json::from_str(&d).unwrap();
@@ -572,7 +573,9 @@ async fn lfs_add_lock(
             });
             let d = serde_json::to_string(&locks_from_data).unwrap();
 
-            d.clone_into(&mut val.data); // FIXME: must turn into `ActiveModel` before modify, or update failed.
+            // must turn into `ActiveModel` before modify, or update failed.
+            let mut val = val.into_active_model();
+            val.data = Set(d);
             let res = storage.update_lock(val).await;
             match res.is_ok() {
                 true => Ok(()),
@@ -675,7 +678,7 @@ async fn delete_lock(
     let result = storage.get_lock_by_id(repo).await.unwrap();
     match result {
         // Exist, then delete.
-        Some(mut val) => {
+        Some(val) => {
             let d = val.data.to_owned();
             let locks_from_data = if !d.is_empty() {
                 let locks_from_data: Vec<Lock> = serde_json::from_str(&d).unwrap();
@@ -725,7 +728,8 @@ async fn delete_lock(
 
             // Update remaining locks.
             let data = serde_json::to_string(&new_locks).unwrap();
-            data.clone_into(&mut val.data);
+            let mut val = val.into_active_model();
+            val.data = Set(data);
             let res = storage.update_lock(val).await;
             match res.is_ok() {
                 true => Ok(lock_to_delete),
