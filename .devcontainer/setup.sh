@@ -14,10 +14,20 @@ apt-get install -y \
   fuse3 \
   libfuse3-dev \
   pkg-config \
-  postgresql
+  postgresql \
+  cmake \
+  clang \
+  nodejs \
+  npm \
+  wget \
+  file \
+  libgtk-3-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev \
+  ca-certificates
 
 ## Install rustup and common components
-curl https://sh.rustup.rs -sSf | sh -s -- -y 
+curl https://sh.rustup.rs -sSf | sh -s -- -y
 rustup install default
 rustup component add rustfmt
 rustup component add clippy
