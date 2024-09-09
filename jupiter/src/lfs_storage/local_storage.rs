@@ -5,10 +5,9 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use callisto::db_enums::StorageType;
 use common::errors::MegaError;
 
-use crate::raw_storage::RawStorage;
+use crate::lfs_storage::LfsStorage;
 
 #[derive(Default)]
 pub struct LocalStorage {
@@ -23,10 +22,7 @@ impl LocalStorage {
 }
 
 #[async_trait]
-impl RawStorage for LocalStorage {
-    fn get_storage_type(&self) -> StorageType {
-        StorageType::LocalFs
-    }
+impl LfsStorage for LocalStorage {
 
     async fn get_ref(&self, repo_id: i64, ref_name: &str) -> Result<String, MegaError> {
         let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
@@ -108,9 +104,8 @@ mod tests {
     use std::path::Path;
     use std::{env, path::PathBuf};
 
-    use crate::raw_storage::{local_storage::LocalStorage, RawStorage};
+    use crate::lfs_storage::{local_storage::LocalStorage, LfsStorage};
 
-    // #[test]
     #[tokio::test]
     async fn test_content_store() {
         let oid = "6ae8a75555209fd6c44157c0aed8016e763ff435a19cf186f76863140143ff72".to_owned();

@@ -6,10 +6,9 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use callisto::db_enums::StorageType;
 use common::errors::MegaError;
 
-use crate::raw_storage::local_storage::LocalStorage;
+use crate::lfs_storage::local_storage::LocalStorage;
 
 pub mod local_storage;
 
@@ -22,8 +21,7 @@ pub struct BlobLink {
 }
 
 #[async_trait]
-pub trait RawStorage: Sync + Send {
-    fn get_storage_type(&self) -> StorageType;
+pub trait LfsStorage: Sync + Send {
 
     async fn get_ref(&self, repo_id: i64, ref_name: &str) -> Result<String, MegaError>;
 
@@ -113,7 +111,7 @@ pub trait RawStorage: Sync + Send {
     }
 }
 
-pub async fn init(storage_type: String, base_path: PathBuf) -> Arc<dyn RawStorage> {
+pub async fn init(storage_type: String, base_path: PathBuf) -> Arc<dyn LfsStorage> {
     match storage_type.as_str() {
         "LOCAL" => {
             Arc::new(LocalStorage::init(base_path))
@@ -125,6 +123,6 @@ pub async fn init(storage_type: String, base_path: PathBuf) -> Arc<dyn RawStorag
     }
 }
 
-pub fn mock() -> Arc<dyn RawStorage> {
+pub fn mock() -> Arc<dyn LfsStorage> {
     Arc::new(LocalStorage::init(PathBuf::from("/")))
 }
