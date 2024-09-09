@@ -145,7 +145,7 @@ where
 }
 
 /// SHA256 without type
-/// TODO: performance optimization, 200MB 4s now, slower than `sha256sum`
+// TODO: performance optimization, 200MB 4s now, slower than `sha256sum`
 pub fn calc_lfs_file_hash<P>(path: P) -> io::Result<String>
 where
     P: AsRef<Path>,

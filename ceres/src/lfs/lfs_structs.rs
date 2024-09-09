@@ -104,7 +104,7 @@ pub struct FetchchunkResponse {
     pub chunks: Vec<ChunkRepresentation>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Link {
     pub href: String,
     pub header: HashMap<String, String>,
