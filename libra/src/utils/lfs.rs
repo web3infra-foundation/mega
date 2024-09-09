@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use path_abs::{PathInfo, PathOps};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
-use sha2::{Digest, Sha256};
+use ring::digest::{Context, SHA256};
 use url::Url;
 use wax::Pattern;
 use mercury::internal::index::Index;
@@ -145,13 +145,13 @@ where
 }
 
 /// SHA256 without type
-// TODO: performance optimization, 200MB 4s now, slower than `sha256sum`
+// `ring` crate is much faster than `sha2` crate ( > 10 times)
 pub fn calc_lfs_file_hash<P>(path: P) -> io::Result<String>
 where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
-    let mut hash = Sha256::new();
+    let mut hash = Context::new(&SHA256);
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
     let mut buffer = [0; 65536];
@@ -162,7 +162,7 @@ where
         }
         hash.update(&buffer[..n]);
     }
-    let file_hash = hex::encode(hash.finalize());
+    let file_hash = hex::encode(hash.finish().as_ref());
     Ok(file_hash)
 }
 
