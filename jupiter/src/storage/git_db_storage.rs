@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
 use futures::{stream, Stream, StreamExt};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -10,23 +9,15 @@ use sea_orm::{
 use sea_orm::{PaginatorTrait, QueryOrder};
 
 use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
-use common::config::StorageConfig;
 use common::errors::MegaError;
 use mercury::internal::object::GitObjectModel;
 use mercury::internal::pack::entry::Entry;
-
-use crate::{
-    raw_storage::{self, RawStorage},
-    storage::GitStorageProvider,
-};
 
 use crate::storage::batch_save_model;
 
 #[derive(Clone)]
 pub struct GitDbStorage {
-    pub raw_storage: Arc<dyn RawStorage>,
     pub connection: Arc<DatabaseConnection>,
-    pub raw_obj_threshold: usize,
 }
 
 #[derive(Debug)]
@@ -38,10 +29,22 @@ struct GitObjects {
     tags: Vec<git_tag::ActiveModel>,
 }
 
-#[async_trait]
-impl GitStorageProvider for GitDbStorage {
-    async fn save_ref(&self, repo_id: i64, mut refs: import_refs::Model) -> Result<(), MegaError> {
-        // let mut model: import_refs::Model = refs.clone().into();
+impl GitDbStorage {
+    pub fn get_connection(&self) -> &DatabaseConnection {
+        &self.connection
+    }
+
+    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
+        GitDbStorage { connection }
+    }
+
+    pub fn mock() -> Self {
+        GitDbStorage {
+            connection: Arc::new(DatabaseConnection::default()),
+        }
+    }
+
+    pub async fn save_ref(&self, repo_id: i64, mut refs: import_refs::Model) -> Result<(), MegaError> {
         refs.repo_id = repo_id;
         let a_model = refs.into_active_model();
         import_refs::Entity::insert(a_model)
@@ -51,7 +54,7 @@ impl GitStorageProvider for GitDbStorage {
         Ok(())
     }
 
-    async fn remove_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError> {
+    pub async fn remove_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError> {
         import_refs::Entity::delete_many()
             .filter(import_refs::Column::RepoId.eq(repo_id))
             .filter(import_refs::Column::RefName.eq(ref_name))
@@ -60,7 +63,7 @@ impl GitStorageProvider for GitDbStorage {
         Ok(())
     }
 
-    async fn get_ref(&self, repo_id: i64) -> Result<Vec<import_refs::Model>, MegaError> {
+    pub async fn get_ref(&self, repo_id: i64) -> Result<Vec<import_refs::Model>, MegaError> {
         let result = import_refs::Entity::find()
             .filter(import_refs::Column::RepoId.eq(repo_id))
             .order_by_asc(import_refs::Column::RefName)
@@ -69,7 +72,7 @@ impl GitStorageProvider for GitDbStorage {
         Ok(result)
     }
 
-    async fn update_ref(
+    pub async fn update_ref(
         &self,
         repo_id: i64,
         ref_name: &str,
@@ -87,29 +90,6 @@ impl GitStorageProvider for GitDbStorage {
         ref_data.updated_at = Set(chrono::Utc::now().naive_utc());
         ref_data.update(self.get_connection()).await.unwrap();
         Ok(())
-    }
-}
-
-impl GitDbStorage {
-    pub fn get_connection(&self) -> &DatabaseConnection {
-        &self.connection
-    }
-
-    pub async fn new(connection: Arc<DatabaseConnection>, config: StorageConfig) -> Self {
-        GitDbStorage {
-            connection,
-            raw_storage: raw_storage::init(config.raw_obj_storage_type, config.raw_obj_local_path)
-                .await,
-            raw_obj_threshold: config.big_obj_threshold,
-        }
-    }
-
-    pub fn mock() -> Self {
-        GitDbStorage {
-            connection: Arc::new(DatabaseConnection::default()),
-            raw_storage: raw_storage::mock(),
-            raw_obj_threshold: 1024,
-        }
     }
 
     pub async fn get_default_ref(
@@ -324,7 +304,7 @@ impl GitDbStorage {
     }
 
     pub async fn get_blobs_by_repo_id(
-        & self,
+        &self,
         repo_id: i64,
     ) -> Result<impl Stream<Item = Result<git_blob::Model, DbErr>> + '_ + Send, MegaError> {
         Ok(git_blob::Entity::find()
@@ -343,17 +323,6 @@ impl GitDbStorage {
             .filter(git_blob::Column::RepoId.eq(repo_id))
             .filter(git_blob::Column::BlobId.is_in(hashes))
             .all(self.get_connection())
-            .await
-            .unwrap())
-    }
-
-    pub async fn get_raw_blobs(
-        &self,
-        hashes: Vec<String>,
-    ) -> Result<impl Stream<Item = Result<raw_blob::Model, DbErr>> + '_ + Send, MegaError> {
-        Ok(raw_blob::Entity::find()
-            .filter(raw_blob::Column::Sha1.is_in(hashes))
-            .stream(self.get_connection())
             .await
             .unwrap())
     }

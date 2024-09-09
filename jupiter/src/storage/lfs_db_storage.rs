@@ -8,21 +8,21 @@ use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use common::errors::MegaError;
 
 #[derive(Clone)]
-pub struct LfsStorage {
+pub struct LfsDbStorage {
     pub connection: Arc<DatabaseConnection>,
 }
 
-impl LfsStorage {
+impl LfsDbStorage {
     pub fn get_connection(&self) -> &DatabaseConnection {
         &self.connection
     }
 
     pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
-        LfsStorage { connection }
+        LfsDbStorage { connection }
     }
 
     pub fn mock() -> Self {
-        LfsStorage {
+        LfsDbStorage {
             connection: Arc::new(DatabaseConnection::default()),
         }
     }

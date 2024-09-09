@@ -319,7 +319,7 @@ impl PackHandler for MonoRepo {
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
         self.context
             .services
-            .mono_storage
+            .raw_db_storage
             .get_raw_blobs_by_hashes(hashes)
             .await
     }

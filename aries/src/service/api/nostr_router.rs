@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
 
 use axum::{
     extract::{Query, State},
@@ -118,7 +115,7 @@ async fn recieve(
 }
 
 async fn transfer_event_to_subscribed_nodes(
-    storage: Arc<ZTMStorage>,
+    storage: ZTMStorage,
     nostr_event: NostrEvent,
     ztm_agent_port: u16,
 ) {
