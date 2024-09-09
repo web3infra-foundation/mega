@@ -11,6 +11,7 @@ use rand::Rng;
 use tempfile::TempDir;
 
 const PORT: u16 = 8000; // mega server port
+const LARGE_FILE_SIZE_MB: usize = 60;
 /// check if git lfs is installed
 fn check_git_lfs() -> bool {
     let status = Command::new("git")
@@ -22,12 +23,24 @@ fn check_git_lfs() -> bool {
 }
 
 fn run_git_cmd(args: &[&str]) {
-    let status = Command::new("git")
+    let output = Command::new("git")
         .args(args)
-        .status()
+        .output()
         .unwrap();
 
-    assert!(status.success(), "Git command failed: git {}", args.join(" "));
+    let status = output.status;
+    // assert!(status.success(), "Git command failed: git {}", args.join(" "));
+    if !status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!(
+            "Git command failed: git {}\nStatus: {}\nStdout: {}\nStderr: {}",
+            args.join(" "),
+            status,
+            stdout,
+            stderr
+        );
+    }
 }
 
 fn is_port_in_use(port: u16) -> bool {
@@ -79,7 +92,7 @@ fn lfs_push(url: &str) -> io::Result<()> {
     run_git_cmd(&["lfs", "track", "*.bin"]);
 
     // create large file
-    generate_large_file("large_file.bin", 60)?;
+    generate_large_file("large_file.bin", LARGE_FILE_SIZE_MB)?;
 
     // add & commit
     run_git_cmd(&["add", "."]);
@@ -99,7 +112,9 @@ fn lfs_clone(url: &str) -> io::Result<()> {
     // git clone url
     run_git_cmd(&["clone", url]);
 
-    assert!(Path::new("lfs/large_file.bin").exists(), "Failed to clone large file");
+    let file = Path::new("lfs/large_file.bin");
+    assert!(file.exists(), "Failed to clone large file");
+    assert_eq!(file.metadata()?.len(), LARGE_FILE_SIZE_MB as u64 * 1024 * 1024);
     Ok(())
 }
 
@@ -111,6 +126,10 @@ fn lfs_split_with_git() {
     env::set_var("MEGA_BASE_DIR", mega_dir.path());
     // start mega server at background
     run_mega_server();
+
+    // MonoRepo (mega)'s lfs.url is not compatible with git-lfs
+    let lfs_url = format!("http://localhost:{}", PORT);
+    run_git_cmd(&["config", "--global", "lfs.url", &lfs_url]);
 
     let url = &format!("http://localhost:{}/third-part/lfs.git", PORT);
     lfs_push(url).expect("Failed to push large file to mega server");

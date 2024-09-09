@@ -120,7 +120,11 @@ pub async fn execute(args: PushArgs) {
 
     { // upload lfs files
         let client = LFSClient::from_url(&url);
-        client.push_objects(&objs, auth.clone()).await;
+        let res = client.push_objects(&objs, auth.clone()).await;
+        if res.is_err() {
+            eprintln!("fatal: LFS files upload failed, stop pushing");
+            return;
+        }
     }
 
     // let (tx, rx) = mpsc::channel::<Entry>();

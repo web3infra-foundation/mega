@@ -108,6 +108,13 @@ pub async fn execute() {
     }
 }
 
+/// Check if the working tree is clean
+pub async fn is_clean() -> bool {
+    let staged = changes_to_be_committed().await;
+    let unstaged = changes_to_be_staged();
+    staged.is_empty() && unstaged.is_empty()
+}
+
 /**
  * Compare the difference between `index` and the last `Commit Tree`
  */
