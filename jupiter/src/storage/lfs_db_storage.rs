@@ -129,9 +129,9 @@ impl LfsDbStorage {
 
     pub async fn update_lock(
         &self,
-        lfs_lock: lfs_locks::Model,
+        lfs_lock: lfs_locks::ActiveModel,
     ) -> Result<lfs_locks::Model, MegaError> {
-        Ok(lfs_locks::Entity::update(lfs_lock.into_active_model())
+        Ok(lfs_locks::Entity::update(lfs_lock)
             .exec(self.get_connection())
             .await
             .unwrap())
