@@ -4,9 +4,10 @@ use async_static::async_static;
 use futures_util::StreamExt;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use url::Url;
-use ceres::lfs::lfs_structs::{BatchRequest, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
+use ceres::lfs::lfs_structs::{BatchRequest, FetchchunkResponse, Link, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
 use crate::command;
@@ -216,27 +217,71 @@ impl LFSClient {
 
         let link = resp.objects[0].actions.as_ref().unwrap().get("download").unwrap();
 
-        let mut request = self.client.get(link.href.clone());
-        for (k, v) in &link.header {
-            request = request.header(k, v);
-        }
+        let mut is_chunked = false;
+        // Chunk API
+        let links = match self.fetch_chunk_links(&link.href).await {
+            Ok(chunks) => {
+                is_chunked = true;
+                tracing::info!("LFS Chunk API supported.");
+                chunks
+            },
+            Err(_) => vec![link.clone()],
+        };
 
-        let response = request.send().await.unwrap();
-
-        if !response.status().is_success() {
-            eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
-            return;
-        }
-
-        println!("Downloading LFS file: {}", oid);
         let mut file = tokio::fs::File::create(path).await.unwrap();
-        let mut stream = response.bytes_stream();
+        let mut checksum = Sha256::new();
+        println!("Downloading LFS file: {}", oid);
+        let mut cnt = 0;
+        let total = links.len();
+        for link in links {
+            cnt += 1;
+            if is_chunked {
+                println!("- part: {}/{}", cnt, total);
+            }
 
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.unwrap();
-            file.write_all(&chunk).await.unwrap();
+            let mut request = self.client.get(&link.href);
+            for (k, v) in &link.header {
+                request = request.header(k, v);
+            }
+
+            let response = request.send().await.unwrap();
+            if !response.status().is_success() {
+                eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
+                return;
+            }
+
+            let mut stream = response.bytes_stream();
+
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.unwrap();
+                file.write_all(&chunk).await.unwrap();
+                checksum.update(&chunk);
+            }
         }
-        println!("Downloaded."); // TODO: checksum
+        let checksum = hex::encode(checksum.finalize());
+        if checksum == oid {
+            println!("Downloaded.");
+        } else {
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}", checksum, oid);
+        }
+    }
+
+    /// Only for MonoRepo (mega)
+    async fn fetch_chunk_links(&self, obj_link: &str) -> Result<Vec<Link>, ()> {
+        let request = self.client.get(obj_link.to_owned() + "/chunks");
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if code == StatusCode::NOT_FOUND {
+            tracing::info!("Remote LFS Server not support Chunks API");
+            return Err(());
+        } else if !code.is_success() {
+            tracing::debug!("fatal: LFS get chunk hrefs failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            return Err(());
+        }
+        let mut res = resp.json::<FetchchunkResponse>().await.unwrap();
+        // sort by offset
+        res.chunks.sort_by(|a, b| a.offset.cmp(&b.offset));
+        Ok(res.chunks.into_iter().map(|c| c.link).collect())
     }
 }
 
