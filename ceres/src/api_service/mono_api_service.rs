@@ -28,6 +28,10 @@ pub struct MonoApiService {
 
 #[async_trait]
 impl ApiHandler for MonoApiService {
+    fn get_context(&self) -> Context {
+        self.context.clone()
+    }
+
     /// Creates a new file or directory in the monorepo based on the provided file information.
     ///
     /// # Arguments
@@ -113,13 +117,6 @@ impl ApiHandler for MonoApiService {
         Ok(())
     }
 
-    async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
-        self.context
-            .services
-            .mono_storage
-            .get_raw_blob_by_hash(hash)
-            .await
-    }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
         Ok(path.to_path_buf())
