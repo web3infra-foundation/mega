@@ -97,8 +97,9 @@ pub async fn execute(cmd: LfsCmds) {
             };
             let locks = LFS_CLIENT.await.get_locks(query).await.locks;
             if !locks.is_empty() {
+                let max_path_len = locks.iter().map(|l| l.path.len()).max().unwrap();
                 for lock in locks {
-                    println!("{}\tID:{}", lock.path, lock.id);
+                    println!("{:<path_width$}\tID:{}", lock.path, lock.id, path_width = max_path_len);
                 }
             }
         }
