@@ -174,12 +174,14 @@ pub async fn execute(cmd: LfsCmds) {
             let entries = index.tracked_entries(0);
             let storage = util::objects_storage();
             for entry in entries {
-                if lfs::is_lfs_tracked(&entry.name) {
+                let path_abs = util::workdir_to_absolute(&entry.name);
+                if lfs::is_lfs_tracked(&path_abs) {
                     let data = storage.get(&entry.hash).unwrap();
                     if let Some((oid, lfs_size)) = lfs::parse_pointer_data(&data) {
-                        let path_abs = util::workdir_to_absolute(&entry.name);
                         let is_pointer = lfs::parse_pointer_file(&path_abs).is_ok();
-                        let _type = if is_pointer { "-" } else { "*" };
+                        // An asterisk (*) after the OID indicates a full object, a minus (-) indicates an LFS pointer.
+                        // or not exists (-)
+                        let _type = if is_pointer || !path_abs.exists() { "-" } else { "*" };
                         let oid = if long { oid } else { oid[..10].to_owned() };
                         let tail = if size {
                             let byte = byte_unit::Byte::from(lfs_size);
