@@ -7,12 +7,13 @@ use axum::async_trait;
 
 use callisto::raw_blob;
 use common::errors::MegaError;
-use jupiter::utils::converter::generate_git_keep_with_timestamp;
+use jupiter::{context::Context, utils::converter::generate_git_keep_with_timestamp};
 use mercury::{
     errors::GitError,
     internal::object::{
         commit::Commit,
         tree::{Tree, TreeItem, TreeItemMode},
+        ObjectTrait,
     },
 };
 
@@ -26,15 +27,32 @@ pub mod mono_api_service;
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
+    fn get_context(&self) -> Context;
+
     async fn create_monorepo_file(&self, file_info: CreateFileInfo) -> Result<(), GitError>;
 
-    async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError>;
+    async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
+        let context = self.get_context();
+        context
+            .services
+            .raw_db_storage
+            .get_raw_blob_by_hash(hash)
+            .await
+    }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError>;
 
     async fn get_root_commit(&self) -> Commit;
 
     async fn get_root_tree(&self) -> Tree;
+
+    async fn get_tree_as_data(&self, path: &Path) -> Result<Vec<u8>, GitError> {
+        let res = self.search_tree_by_path(path).await.unwrap();
+        if let Some(tree) = res {
+            return tree.to_data();
+        }
+        Ok(vec![])
+    }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree;
 
