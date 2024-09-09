@@ -30,7 +30,7 @@ lazy_static! {
 /// Check if a file is LFS tracked
 /// - support Glob pattern matching (TODO: support .gitignore patterns)
 /// - only check root attributes file now, should check all attributes files in sub-dirs
-/// - absolute path or relative path to workdir
+/// - absolute path
 pub fn is_lfs_tracked<P>(path: P) -> bool
 where
     P: AsRef<Path>,
