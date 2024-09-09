@@ -1,4 +1,4 @@
 pub mod context;
-pub mod raw_storage;
+pub mod lfs_storage;
 pub mod storage;
 pub mod utils;

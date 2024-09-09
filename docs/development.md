@@ -277,16 +277,6 @@ sqlx_logging = false
 ssh_key_path = "${base_dir}/ssh"
 
 [storage]
-# raw object stroage type, can be `local` or `remote`
-raw_obj_storage_type = "LOCAL"
-
-## If the object file size exceeds the threshold value, it will be handled by file storage instead of the database, Unit is KB
-big_obj_threshold = 1024
-
-# set the local path of the project storage
-raw_obj_local_path = "${base_dir}/objects"
-
-lfs_obj_local_path = "${base_dir}/lfs"
 
 obs_access_key = ""
 obs_secret_key = ""
@@ -323,6 +313,12 @@ hub = "http://127.0.0.1:8888"
 agent = "http://127.0.0.1:7777"
 
 [lfs]
+# LFS Server url
+url = "https://git.gitmono.com"
+
+# set the local path of the lfs storage
+lfs_obj_local_path = "${base_dir}/lfs"
+
 ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
 # Enable or disable splitting large files into smaller chunks
 enable_split = false  # Default is disabled. Set to true to enable file splitting.

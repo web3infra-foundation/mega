@@ -17,7 +17,7 @@ use callisto::{mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::{
     context::Context,
-    storage::{batch_save_model, GitStorageProvider},
+    storage::{batch_save_model},
 };
 use mercury::{
     errors::GitError,
@@ -81,6 +81,7 @@ impl PackHandler for ImportRepo {
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
         let storage = self.context.services.git_db_storage.clone();
+        let raw_storage = self.context.services.raw_db_storage.clone();
         let total = storage.get_obj_count_by_repo_id(self.repo.repo_id).await;
         let encoder = PackEncoder::new(total, 0, stream_tx);
         encoder.encode_async(entry_rx).await.unwrap();
@@ -125,11 +126,11 @@ impl PackHandler for ImportRepo {
 
             let mut blob_handler = vec![];
             for chunk in bids.chunks(10000) {
-                let stg_clone = storage.clone();
+                let raw_storage = raw_storage.clone();
                 let sender_clone = entry_tx.clone();
                 let chunk_clone = chunk.to_vec();
                 let handler = tokio::spawn(async move {
-                    let mut blob_stream = stg_clone.get_raw_blobs(chunk_clone).await.unwrap();
+                    let mut blob_stream = raw_storage.get_raw_blobs_stream(chunk_clone).await.unwrap();
                     while let Some(model) = blob_stream.next().await {
                         match model {
                             Ok(m) => {
@@ -279,7 +280,7 @@ impl PackHandler for ImportRepo {
     ) -> Result<Vec<raw_blob::Model>, MegaError> {
         self.context
             .services
-            .mono_storage
+            .raw_db_storage
             .get_raw_blobs_by_hashes(hashes)
             .await
     }

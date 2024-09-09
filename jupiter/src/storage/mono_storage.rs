@@ -12,21 +12,17 @@ use callisto::{
     mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tag, mega_tree,
     raw_blob,
 };
-use common::config::StorageConfig;
 use common::errors::MegaError;
 use common::utils::generate_id;
 use mercury::internal::object::MegaObjectModel;
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
 
-use crate::raw_storage::{self, RawStorage};
 use crate::storage::batch_save_model;
 use crate::utils::converter::MegaModelConverter;
 
 #[derive(Clone)]
 pub struct MonoStorage {
-    pub raw_storage: Arc<dyn RawStorage>,
     pub connection: Arc<DatabaseConnection>,
-    pub raw_obj_threshold: usize,
 }
 
 #[derive(Debug)]
@@ -43,20 +39,13 @@ impl MonoStorage {
         &self.connection
     }
 
-    pub async fn new(connection: Arc<DatabaseConnection>, config: StorageConfig) -> Self {
-        MonoStorage {
-            connection,
-            raw_storage: raw_storage::init(config.raw_obj_storage_type, config.raw_obj_local_path)
-                .await,
-            raw_obj_threshold: config.big_obj_threshold,
-        }
+    pub async fn new(connection: Arc<DatabaseConnection>) -> Self {
+        MonoStorage { connection }
     }
 
     pub fn mock() -> Self {
         MonoStorage {
             connection: Arc::new(DatabaseConnection::default()),
-            raw_storage: raw_storage::mock(),
-            raw_obj_threshold: 1024,
         }
     }
 
@@ -384,28 +373,6 @@ impl MonoStorage {
         Ok(mega_blob::Entity::find()
             .filter(mega_blob::Column::BlobId.is_in(hashes))
             .all(self.get_connection())
-            .await
-            .unwrap())
-    }
-
-    pub async fn get_raw_blobs_by_hashes(
-        &self,
-        hashes: Vec<String>,
-    ) -> Result<Vec<raw_blob::Model>, MegaError> {
-        Ok(raw_blob::Entity::find()
-            .filter(raw_blob::Column::Sha1.is_in(hashes))
-            .all(self.get_connection())
-            .await
-            .unwrap())
-    }
-
-    pub async fn get_raw_blob_by_hash(
-        &self,
-        hash: &str,
-    ) -> Result<Option<raw_blob::Model>, MegaError> {
-        Ok(raw_blob::Entity::find()
-            .filter(raw_blob::Column::Sha1.eq(hash))
-            .one(self.get_connection())
             .await
             .unwrap())
     }

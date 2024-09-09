@@ -124,7 +124,8 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
     // add TraceLayer for log record
     // add CorsLayer to add cors header
     Router::new()
-        .nest("/", lfs_router::routers().with_state(api_state.clone()))
+        .nest("/", lfs_router::routers())
+        .with_state(api_state.clone())
         .nest(
             "/api/v1",
             api_router::routers().with_state(api_state.clone()),
