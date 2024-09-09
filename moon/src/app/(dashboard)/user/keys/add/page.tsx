@@ -3,15 +3,43 @@
 import { Divider } from '@/components/catalyst/divider'
 import { Heading, Subheading } from '@/components/catalyst/heading'
 import { useState } from 'react'
-import { Input, Button } from "antd";
+import { Input, Button, message } from "antd";
+import { useRouter } from 'next/navigation';
 
 const { TextArea } = Input;
 
 export default function Settings() {
   const [ssh_key, setSSHKey] = useState('');
+  const [messageApi, contextHolder] = message.useMessage();
+  const router = useRouter();
+
+  const error = () => {
+    messageApi.open({
+      type: 'error',
+      content: 'Invalid SSH key format',
+    });
+  };
+
+  const save_ssh_key = async (ssh_key) => {
+    const res = await fetch('/api/user/ssh', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ssh_key: ssh_key
+      }),
+    });
+    if (!res.ok) {
+      error()
+    } else {
+      router.push('/user/keys')
+    }
+  }
 
   return (
     <form method="post" className="mx-auto max-w-4xl">
+      {contextHolder}
       <Heading>Add new SSH Key</Heading>
       <Divider className="my-10 mt-6" />
 
@@ -44,23 +72,10 @@ export default function Settings() {
         <Button>
           Reset
         </Button>
-        <Button type="primary" onClick={() => save_ssh_key(ssh_key)} >Save changes</Button>
+        <Button type="primary" disabled={!ssh_key} onClick={() => save_ssh_key(ssh_key)} >Save changes</Button>
       </div>
     </form>
   )
 }
 
 
-const save_ssh_key = async (ssh_key) => {
-
-  const res = await fetch('/api/user/ssh', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      ssh_key: ssh_key
-    }),
-  });
-  const response = await res.json();
-}

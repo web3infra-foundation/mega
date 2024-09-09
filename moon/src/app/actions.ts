@@ -22,12 +22,6 @@ export async function get_access_token() {
 }
 
 
-export async function get_session() {
-  const cookieStore = cookies()
-  const session = cookieStore.get('SESSION')
-  return session
-}
-
 // TODO encrypt access_token
 function encrypt(sessionData) {
   return sessionData

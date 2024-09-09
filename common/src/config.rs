@@ -203,9 +203,6 @@ impl Default for SshConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StorageConfig {
-    pub raw_obj_storage_type: String,
-    pub big_obj_threshold: usize,
-    pub raw_obj_local_path: PathBuf,
     pub obs_access_key: String,
     pub obs_secret_key: String,
     pub obs_region: String,
@@ -215,9 +212,6 @@ pub struct StorageConfig {
 impl Default for StorageConfig {
     fn default() -> Self {
         Self {
-            raw_obj_storage_type: String::from("LOCAL"),
-            big_obj_threshold: 1024,
-            raw_obj_local_path: PathBuf::from("/tmp/.mega/objects"),
             obs_access_key: String::new(),
             obs_secret_key: String::new(),
             obs_region: String::from("cn-east-3"),

@@ -6,8 +6,6 @@ use std::path::PathBuf;
 
 use axum::async_trait;
 
-use callisto::raw_blob;
-use common::errors::MegaError;
 use jupiter::context::Context;
 use mercury::errors::GitError;
 use mercury::internal::object::commit::Commit;
@@ -26,19 +24,16 @@ pub struct ImportApiService {
 
 #[async_trait]
 impl ApiHandler for ImportApiService {
+    fn get_context(&self) -> Context {
+        self.context.clone()
+    }
+
     async fn create_monorepo_file(&self, _: CreateFileInfo) -> Result<(), GitError> {
         return Err(GitError::CustomError(
             "import dir does not support create file".to_string(),
         ));
     }
 
-    async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Option<raw_blob::Model>, MegaError> {
-        self.context
-            .services
-            .mono_storage
-            .get_raw_blob_by_hash(hash)
-            .await
-    }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
         if let Ok(relative_path) = path.strip_prefix(self.repo.repo_path.clone()) {
@@ -49,9 +44,14 @@ impl ApiHandler for ImportApiService {
             ))
         }
     }
+
     async fn get_root_commit(&self) -> Commit {
         let storage = self.context.services.git_db_storage.clone();
-        let refs = storage.get_default_ref(self.repo.repo_id).await.unwrap().unwrap();
+        let refs = storage
+            .get_default_ref(self.repo.repo_id)
+            .await
+            .unwrap()
+            .unwrap();
         storage
             .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
             .await
@@ -62,7 +62,11 @@ impl ApiHandler for ImportApiService {
 
     async fn get_root_tree(&self) -> Tree {
         let storage = self.context.services.git_db_storage.clone();
-        let refs = storage.get_default_ref(self.repo.repo_id).await.unwrap().unwrap();
+        let refs = storage
+            .get_default_ref(self.repo.repo_id)
+            .await
+            .unwrap()
+            .unwrap();
 
         let root_commit = storage
             .get_commit_by_hash(self.repo.repo_id, &refs.ref_git_id)
@@ -178,59 +182,4 @@ impl ApiHandler for ImportApiService {
         }
         target_commit
     }
-}
-
-impl ImportApiService {
-    // pub async fn get_objects_data(
-    //     &self,
-    //     object_id: &str,
-    //     repo_path: &str,
-    // ) -> Result<Response, (StatusCode, String)> {
-    //     let node = match self.storage.get_node_by_hash(object_id, repo_path).await {
-    //         Ok(Some(node)) => node,
-    //         _ => return Err((StatusCode::NOT_FOUND, "Blob not found".to_string())),
-    //     };
-    //     let raw_data = match self.storage.get_obj_data_by_id(object_id).await {
-    //         Ok(Some(model)) => model,
-    //         _ => return Err((StatusCode::NOT_FOUND, "Blob not found".to_string())),
-    //     };
-    //     let file_name = format!("inline; filename=\"{}\"", node.name.unwrap());
-    //     let res = Response::builder()
-    //         .header("Content-Type", "application/octet-stream")
-    //         .header("Content-Disposition", file_name)
-    //         .body(raw_data.data.into())
-    //         .unwrap();
-    //     Ok(res)
-    // }
-
-    // pub async fn count_object_num(
-    //     &self,
-    //     repo_path: &str,
-    // ) -> Result<Json<GitTypeCounter>, (StatusCode, String)> {
-    //     let query_res = self.storage.count_obj_from_node(repo_path).await.unwrap();
-    //     let tree = query_res
-    //         .iter()
-    //         .find(|x| x.node_type == "tree")
-    //         .map(|x| x.count)
-    //         .unwrap_or_default()
-    //         .try_into()
-    //         .unwrap();
-    //     let blob = query_res
-    //         .iter()
-    //         .find(|x| x.node_type == "blob")
-    //         .map(|x| x.count)
-    //         .unwrap_or_default()
-    //         .try_into()
-    //         .unwrap();
-    //     let commit = self.storage.count_obj_from_commit(repo_path).await.unwrap().try_into().unwrap();
-    //     let counter = GitTypeCounter {
-    //         commit,
-    //         tree,
-    //         blob,
-    //         tag: 0,
-    //         ofs_delta: 0,
-    //         ref_delta: 0,
-    //     };
-    //     Ok(Json(counter))
-    // }
 }

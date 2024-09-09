@@ -4,3 +4,4 @@ runner = 'sudo -E'
 
 # dependencies
 sudo apt install libfuse-dev
+sudo apt install librust-openssl-dev

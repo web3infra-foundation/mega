@@ -1,40 +1,15 @@
 pub mod git_db_storage;
-pub mod git_fs_storage;
 pub mod init;
-pub mod lfs_storage;
+pub mod lfs_db_storage;
 pub mod mono_storage;
 pub mod mq_storage;
+pub mod raw_db_storage;
 pub mod user_storage;
 pub mod ztm_storage;
 
-use async_trait::async_trait;
 use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, EntityTrait};
 
-use callisto::import_refs;
 use common::errors::MegaError;
-///
-/// This interface is designed to handle the commonalities between the database storage and
-/// file system storage.
-///
-#[async_trait]
-pub trait GitStorageProvider: Send + Sync {
-    async fn save_ref(&self, repo_id: i64, refs: import_refs::Model) -> Result<(), MegaError>;
-
-    async fn remove_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError>;
-
-    async fn get_ref(&self, repo_id: i64) -> Result<Vec<import_refs::Model>, MegaError>;
-
-    async fn update_ref(&self, repo_id: i64, ref_name: &str, new_id: &str)
-        -> Result<(), MegaError>;
-
-    // async fn save_entry(&self, repo: &Repo, entry_list: Vec<Entry>) -> Result<(), MegaError>;
-
-    // async fn get_entry_by_sha1(
-    //     &self,
-    //     repo: Repo,
-    //     sha1_vec: Vec<&str>,
-    // ) -> Result<Vec<Entry>, MegaError>;
-}
 
 /// Performs batch saving of models in the database.
 ///

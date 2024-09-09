@@ -62,6 +62,20 @@ docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mo
 docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
 ```
 
+4. Try to upload a repository to mono-engine
+```bash
+git clone http://localhost:8000/project.git
+cd project
+git clone https://github.com/dagrs-dev/dagrs.git
+sudo rm -r dagrs/.git
+git add .
+git commit -a -m"Initial the dagrs project"
+git push
+```
+
+5. Check the repository in UI
+Open the mono-ui in your browser with `http://localhost:3000`, and you will see the `project` folder.
+
 ## Quick Review of Architecture
 
 ![Mega Architect](docs/images/Mega_Bin_and_Modules.png)

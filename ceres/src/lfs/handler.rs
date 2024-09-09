@@ -1,6 +1,5 @@
 use std::cmp::min;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -10,18 +9,17 @@ use rand::prelude::*;
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use common::errors::{GitLFSError, MegaError};
 use jupiter::context::Context;
-use jupiter::storage::lfs_storage::LfsStorage;
+use jupiter::storage::lfs_db_storage::LfsDbStorage;
 
+use crate::lfs::lfs_structs::ChunkRepresentation;
 use crate::lfs::lfs_structs::{
     BatchRequest, LockList, LockRequest, ObjectError, UnlockRequest, VerifiableLockList,
     VerifiableLockRequest,
 };
-
-use crate::lfs::lfs_structs::ChunkRepresentation;
 use crate::lfs::lfs_structs::{Link, Lock, LockListQuery, MetaObject, Representation, RequestVars};
 
 pub async fn lfs_retrieve_lock(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     query: LockListQuery,
 ) -> Result<LockList, GitLFSError> {
     let mut lock_list = LockList {
@@ -49,7 +47,7 @@ pub async fn lfs_retrieve_lock(
 }
 
 pub async fn lfs_verify_lock(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     req: VerifiableLockRequest,
 ) -> Result<VerifiableLockList, MegaError> {
     let mut limit = req.limit.unwrap_or(0);
@@ -88,7 +86,7 @@ pub async fn lfs_verify_lock(
 }
 
 pub async fn lfs_create_lock(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     req: LockRequest,
 ) -> Result<Lock, GitLFSError> {
     let res = lfs_get_filtered_locks(
@@ -139,7 +137,7 @@ pub async fn lfs_create_lock(
 }
 
 pub async fn lfs_delete_lock(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     id: &str,
     unlock_request: UnlockRequest,
 ) -> Result<Lock, GitLFSError> {
@@ -187,7 +185,7 @@ pub async fn lfs_process_batch(
         request.authorization = "".to_string();
     }
     let mut response_objects = Vec::<Representation>::new();
-    let storage = context.services.lfs_storage.clone();
+    let storage = context.services.lfs_db_storage.clone();
     let config = context.config.lfs.clone();
     let server_url = context.config.lfs.url.clone();
 
@@ -247,7 +245,7 @@ pub async fn lfs_fetch_chunk_ids(
             "Server didn't run in `split` mode, didn't support chunk ids".to_string(),
         ));
     }
-    let storage = context.services.lfs_storage.clone();
+    let storage = context.services.lfs_db_storage.clone();
 
     let meta = lfs_get_meta(storage.clone(), oid)
         .await
@@ -295,10 +293,10 @@ pub async fn lfs_upload_object(
     body_bytes: &[u8],
 ) -> Result<(), GitLFSError> {
     let config = context.config.lfs.clone();
+    let storage = context.services.lfs_db_storage.clone();
     let lfs_storage = context.services.lfs_storage.clone();
-    let raw_storage = context.services.raw_storage.clone();
 
-    let meta = lfs_get_meta(lfs_storage.clone(), &request_vars.oid)
+    let meta = lfs_get_meta(storage.clone(), &request_vars.oid)
         .await
         .unwrap();
     if config.enable_split && meta.splited {
@@ -309,9 +307,9 @@ pub async fn lfs_upload_object(
         for chunk in body_bytes.chunks(config.split_size) {
             // sha256
             let sub_id = sha256::digest(chunk);
-            let res = raw_storage.put_object(&sub_id, chunk).await;
+            let res = lfs_storage.put_object(&sub_id, chunk).await;
             if res.is_err() {
-                lfs_delete_meta(lfs_storage.clone(), request_vars)
+                lfs_delete_meta(storage.clone(), request_vars)
                     .await
                     .unwrap();
                 // TODO: whether/how to delete the uploaded blocks.
@@ -324,18 +322,17 @@ pub async fn lfs_upload_object(
         // save the relationship to database
         let mut offset = 0;
         for sub_id in sub_ids {
-            // let db = config.context.services.lfs_storage.clone();
             let size = min(config.split_size as i64, body_bytes.len() as i64 - offset);
-            lfs_put_relation(lfs_storage.clone(), &meta.oid, &sub_id, offset, size)
+            lfs_put_relation(storage.clone(), &meta.oid, &sub_id, offset, size)
                 .await
                 .unwrap();
             offset += size;
         }
     } else {
         // normal mode
-        let res = raw_storage.put_object(&meta.oid, body_bytes).await;
+        let res = lfs_storage.put_object(&meta.oid, body_bytes).await;
         if res.is_err() {
-            lfs_delete_meta(lfs_storage.clone(), request_vars)
+            lfs_delete_meta(storage.clone(), request_vars)
                 .await
                 .unwrap();
             return Err(GitLFSError::GeneralError(String::from(
@@ -348,13 +345,10 @@ pub async fn lfs_upload_object(
 
 /// Download object from storage.
 /// when server enable split,  if OID is a complete object, then splice the object and return it.
-pub async fn lfs_download_object(
-    context: Context,
-    oid: &String,
-) -> Result<Bytes, GitLFSError> {
+pub async fn lfs_download_object(context: Context, oid: &String) -> Result<Bytes, GitLFSError> {
     let config = context.config.lfs;
-    let stg = context.services.lfs_storage.clone();
-    let raw_storage = context.services.raw_storage.clone();
+    let stg = context.services.lfs_db_storage.clone();
+    let lfs_storage = context.services.lfs_storage.clone();
     if config.enable_split {
         let meta = lfs_get_meta(stg.clone(), oid).await;
         // let relation_db = context.services.lfs_storage.clone();
@@ -370,7 +364,7 @@ pub async fn lfs_download_object(
                 }
                 let mut bytes = vec![0u8; meta.size as usize];
                 for relation in relations {
-                    let sub_bytes = raw_storage.get_object(&relation.sub_oid).await.unwrap();
+                    let sub_bytes = lfs_storage.get_object(&relation.sub_oid).await.unwrap();
                     let offset = relation.offset as usize;
                     let size = relation.size as usize;
                     bytes[offset..offset + size].copy_from_slice(&sub_bytes);
@@ -385,13 +379,13 @@ pub async fn lfs_download_object(
                     ));
                 }
 
-                let bytes = raw_storage.get_object(oid).await.unwrap();
+                let bytes = lfs_storage.get_object(oid).await.unwrap();
                 Ok(bytes)
             }
         }
     } else {
         let meta = lfs_get_meta(stg, oid).await.unwrap();
-        let bytes = raw_storage.get_object(&meta.oid).await.unwrap();
+        let bytes = lfs_storage.get_object(&meta.oid).await.unwrap();
         Ok(bytes)
     }
 }
@@ -464,35 +458,29 @@ fn create_link(href: &str, header: &HashMap<String, String>) -> Link {
 /// check if meta file exist in storage.
 async fn lfs_file_exist(context: &Context, meta: &MetaObject) -> bool {
     let config = context.config.lfs.clone();
-    let storage = context.services.lfs_storage.clone();
-    let raw_storage = context.services.raw_storage.clone();
+    let storage = context.services.lfs_db_storage.clone();
+    let lfs_storage = context.services.lfs_storage.clone();
     if meta.splited && config.enable_split {
-        let relations = storage
-            .get_lfs_relations(meta.oid.clone())
-            .await
-            .unwrap();
+        let relations = storage.get_lfs_relations(meta.oid.clone()).await.unwrap();
         if relations.is_empty() {
             return false;
         }
         relations
             .iter()
-            .all(|relation| raw_storage.exist_object(&relation.sub_oid))
+            .all(|relation| lfs_storage.exist_object(&relation.sub_oid))
     } else {
-        raw_storage.exist_object(&meta.oid)
+        lfs_storage.exist_object(&meta.oid)
     }
 }
 
 async fn lfs_get_filtered_locks(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     refspec: &str,
     path: &str,
     cursor: &str,
     limit: &str,
 ) -> Result<(Vec<Lock>, String), GitLFSError> {
-    let mut locks = match lfs_get_locks(storage, refspec).await {
-        Ok(locks) => locks,
-        Err(_) => vec![],
-    };
+    let mut locks = (lfs_get_locks(storage, refspec).await).unwrap_or_default();
 
     tracing::debug!("Locks retrieved: {:?}", locks);
 
@@ -542,7 +530,10 @@ async fn lfs_get_filtered_locks(
     Ok((locks, next))
 }
 
-async fn lfs_get_locks(storage: Arc<LfsStorage>, refspec: &str) -> Result<Vec<Lock>, GitLFSError> {
+async fn lfs_get_locks(
+    storage: LfsDbStorage,
+    refspec: &str,
+) -> Result<Vec<Lock>, GitLFSError> {
     let result = storage.get_lock_by_id(refspec).await.unwrap();
     match result {
         Some(val) => {
@@ -555,7 +546,7 @@ async fn lfs_get_locks(storage: Arc<LfsStorage>, refspec: &str) -> Result<Vec<Lo
 }
 
 async fn lfs_add_lock(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     repo: &str,
     locks: Vec<Lock>,
 ) -> Result<(), GitLFSError> {
@@ -611,10 +602,7 @@ async fn lfs_add_lock(
     }
 }
 
-async fn lfs_get_meta(
-    storage: Arc<LfsStorage>,
-    oid: &str,
-) -> Result<MetaObject, GitLFSError> {
+async fn lfs_get_meta(storage: LfsDbStorage, oid: &str) -> Result<MetaObject, GitLFSError> {
     let result = storage.get_lfs_object(oid.to_owned()).await.unwrap();
 
     match result {
@@ -629,7 +617,7 @@ async fn lfs_get_meta(
 }
 
 async fn lfs_put_meta(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     v: &RequestVars,
     splited: bool,
 ) -> Result<MetaObject, GitLFSError> {
@@ -666,7 +654,7 @@ async fn lfs_put_meta(
     }
 }
 
-async fn lfs_delete_meta(storage: Arc<LfsStorage>, v: &RequestVars) -> Result<(), GitLFSError> {
+async fn lfs_delete_meta(storage: LfsDbStorage, v: &RequestVars) -> Result<(), GitLFSError> {
     let res = storage.delete_lfs_object(v.oid.to_owned()).await;
     lfs_delete_all_relations(storage.clone(), &v.oid)
         .await
@@ -678,7 +666,7 @@ async fn lfs_delete_meta(storage: Arc<LfsStorage>, v: &RequestVars) -> Result<()
 }
 
 async fn delete_lock(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     repo: &str,
     _user: Option<String>,
     id: &str,
@@ -751,7 +739,7 @@ async fn delete_lock(
 
 /// put relation, ignore if already exist.
 async fn lfs_put_relation(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     ori_oid: &String,
     sub_oid: &String,
     offset: i64,
@@ -778,7 +766,7 @@ async fn lfs_put_relation(
 
 /// delete all relations of an object if it exists. do nothing if not.
 async fn lfs_delete_all_relations(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     ori_oid: &String,
 ) -> Result<(), GitLFSError> {
     let relations = storage.get_lfs_relations(ori_oid.to_owned()).await.unwrap();
@@ -789,7 +777,7 @@ async fn lfs_delete_all_relations(
 }
 
 async fn lfs_check_sub_oid_exist(
-    storage: Arc<LfsStorage>,
+    storage: LfsDbStorage,
     sub_oid: &String,
 ) -> Result<bool, GitLFSError> {
     let result = storage.get_lfs_relations_ori_oid(sub_oid).await.unwrap();

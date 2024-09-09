@@ -83,7 +83,7 @@ pub async fn list_locks(
     Query(query): Query<LockListQuery>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let result: Result<LockList, GitLFSError> =
-        handler::lfs_retrieve_lock(state.context.services.lfs_storage.clone(), query).await;
+        handler::lfs_retrieve_lock(state.context.services.lfs_db_storage.clone(), query).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -100,7 +100,7 @@ pub async fn list_locks_for_verification(
     state: State<MonoApiServiceState>,
     Json(json): Json<VerifiableLockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_verify_lock(state.context.services.lfs_storage.clone(), json).await;
+    let result = handler::lfs_verify_lock(state.context.services.lfs_db_storage.clone(), json).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -122,7 +122,7 @@ pub async fn create_lock(
     state: State<MonoApiServiceState>,
     Json(json): Json<LockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_create_lock(state.context.services.lfs_storage.clone(), json).await;
+    let result = handler::lfs_create_lock(state.context.services.lfs_db_storage.clone(), json).await;
     match result {
         Ok(lock) => {
             let lock_response = LockResponse {
@@ -151,7 +151,7 @@ pub async fn delete_lock(
     Json(json): Json<UnlockRequest>,
 ) -> Result<Response, (StatusCode, String)> {
     let result =
-        handler::lfs_delete_lock(state.context.services.lfs_storage.clone(), &id, json).await;
+        handler::lfs_delete_lock(state.context.services.lfs_db_storage.clone(), &id, json).await;
 
     match result {
         Ok(lock) => {
