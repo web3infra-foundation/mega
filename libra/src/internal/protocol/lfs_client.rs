@@ -3,8 +3,8 @@ use std::path::Path;
 use async_static::async_static;
 use futures_util::StreamExt;
 use reqwest::{Client, StatusCode};
+use ring::digest::{Context, SHA256};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use url::Url;
 use ceres::lfs::lfs_structs::{BatchRequest, FetchchunkResponse, Link, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
@@ -229,7 +229,7 @@ impl LFSClient {
         };
 
         let mut file = tokio::fs::File::create(path).await.unwrap();
-        let mut checksum = Sha256::new();
+        let mut checksum = Context::new(&SHA256);
         println!("Downloading LFS file: {}", oid);
         let mut cnt = 0;
         let total = links.len();
@@ -258,7 +258,7 @@ impl LFSClient {
                 checksum.update(&chunk);
             }
         }
-        let checksum = hex::encode(checksum.finalize());
+        let checksum = hex::encode(checksum.finish().as_ref());
         if checksum == oid {
             println!("Downloaded.");
         } else {

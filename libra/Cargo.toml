@@ -38,7 +38,7 @@ indicatif = "0.17.8"
 wax = "0.6.0"
 lazy_static = { workspace = true }
 regex = { workspace = true }
-sha2 = "0.10.8"
+ring = "0.17.8"
 hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
