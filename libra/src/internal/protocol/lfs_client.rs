@@ -1,13 +1,16 @@
+use std::collections::HashSet;
 use std::path::Path;
 use async_static::async_static;
 use futures_util::StreamExt;
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
+use ring::digest::{Context, SHA256};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use url::Url;
-use ceres::lfs::lfs_structs::{BatchRequest, Representation, RequestVars};
+use ceres::lfs::lfs_structs::{BatchRequest, FetchchunkResponse, Link, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
+use crate::command;
 use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
@@ -18,7 +21,8 @@ async_static! {
 }
 
 pub struct LFSClient {
-    pub url: Url,
+    pub batch_url: Url,
+    pub lfs_url: Url,
     pub client: Client,
 }
 
@@ -40,7 +44,8 @@ impl ProtocolClient for LFSClient {
             .build()
             .unwrap();
         Self {
-            url: lfs_server.join("/objects/batch").unwrap(),
+            batch_url: lfs_server.join("/objects/batch").unwrap(),
+            lfs_url: lfs_server,
             client,
         }
     }
@@ -57,7 +62,7 @@ impl LFSClient {
     }
 
     /// push LFS objects to remote server
-    pub async fn push_objects<'a, I>(&self, objs: I, auth: Option<BasicAuth>)
+    pub async fn push_objects<'a, I>(&self, objs: I, auth: Option<BasicAuth>) -> Result<(), ()>
     where
         I: IntoIterator<Item = &'a Entry>
     {
@@ -75,7 +80,7 @@ impl LFSClient {
             let path = lfs::lfs_object_path(oid);
             if !path.exists() {
                 eprintln!("fatal: LFS object not found: {}", oid);
-                return;
+                continue;
             }
             let size = path.metadata().unwrap().len() as i64;
             lfs_objs.push(RequestVars {
@@ -85,15 +90,57 @@ impl LFSClient {
             })
         }
 
+        { // verify locks
+            let (code, locks) = self.verify_locks(VerifiableLockRequest {
+                refs: Ref { name: command::lfs::current_refspec().await.unwrap() },
+                ..Default::default()
+            }, auth.clone()).await;
+
+            if code == StatusCode::FORBIDDEN {
+                eprintln!("fatal: Forbidden: You must have push access to verify locks");
+                return Err(());
+            } else if code == StatusCode::NOT_FOUND {
+                // By default, an LFS server that doesn't implement any locking endpoints should return 404.
+                // This response will not halt any Git pushes.
+            } else if !code.is_success() {
+                eprintln!("fatal: LFS verify locks failed. Status: {}", code);
+                return Err(());
+            } else {
+                // success
+                tracing::debug!("LFS verify locks response:\n {:?}", locks);
+                let oids: HashSet<String> = lfs_oids.iter().map(|(oid, _)| oid.clone()).collect();
+                let ours = locks.ours.iter().filter(|l| {
+                    let oid = lfs::get_oid_by_path(&l.path);
+                    oids.contains(&oid)
+                }).collect::<Vec<_>>();
+                if !ours.is_empty() {
+                    println!("The following files are locked by you, consider unlocking them:");
+                    for lock in ours {
+                        println!("  - {}", lock.path);
+                    }
+                }
+                let theirs = locks.theirs.iter().filter(|l| {
+                    let oid = lfs::get_oid_by_path(&l.path);
+                    oids.contains(&oid)
+                }).collect::<Vec<_>>();
+                if !theirs.is_empty() {
+                    eprintln!("Locking failed: The following files are locked by another user:");
+                    for lock in theirs {
+                        eprintln!("  - {}", lock.path);
+                    }
+                    return Err(());
+                }
+            }
+        }
+
         let batch_request = BatchRequest {
             operation: "upload".to_string(),
             transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
             objects: lfs_objs,
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
-            enable_split: None,
         };
 
-        let mut request = self.client.post(self.url.clone()).json(&batch_request);
+        let mut request = self.client.post(self.batch_url.clone()).json(&batch_request);
         if let Some(auth) = auth {
             request = request.basic_auth(auth.username, Some(auth.password));
         }
@@ -108,6 +155,7 @@ impl LFSClient {
             self.upload_object(obj).await;
         }
         println!("LFS objects push completed.");
+        Ok(())
     }
 
     /// upload (PUT) one LFS file to remote server
@@ -159,10 +207,9 @@ impl LFSClient {
                 ..Default::default()
             }],
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
-            enable_split: None,
         };
 
-        let request = self.client.post(self.url.clone()).json(&batch_request);
+        let request = self.client.post(self.batch_url.clone()).json(&batch_request);
         let response = request.send().await.unwrap();
 
         let resp = response.json::<LfsBatchResponse>().await.unwrap();
@@ -170,26 +217,156 @@ impl LFSClient {
 
         let link = resp.objects[0].actions.as_ref().unwrap().get("download").unwrap();
 
-        let mut request = self.client.get(link.href.clone());
-        for (k, v) in &link.header {
-            request = request.header(k, v);
-        }
+        let mut is_chunked = false;
+        // Chunk API
+        let links = match self.fetch_chunk_links(&link.href).await {
+            Ok(chunks) => {
+                is_chunked = true;
+                tracing::info!("LFS Chunk API supported.");
+                chunks
+            },
+            Err(_) => vec![link.clone()],
+        };
 
+        let mut file = tokio::fs::File::create(path).await.unwrap();
+        let mut checksum = Context::new(&SHA256);
+        println!("Downloading LFS file: {}", oid);
+        let mut cnt = 0;
+        let total = links.len();
+        for link in links {
+            cnt += 1;
+            if is_chunked {
+                println!("- part: {}/{}", cnt, total);
+            }
+
+            let mut request = self.client.get(&link.href);
+            for (k, v) in &link.header {
+                request = request.header(k, v);
+            }
+
+            let response = request.send().await.unwrap();
+            if !response.status().is_success() {
+                eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
+                return;
+            }
+
+            let mut stream = response.bytes_stream();
+
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk.unwrap();
+                file.write_all(&chunk).await.unwrap();
+                checksum.update(&chunk);
+            }
+        }
+        let checksum = hex::encode(checksum.finish().as_ref());
+        if checksum == oid {
+            println!("Downloaded.");
+        } else {
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}", checksum, oid);
+        }
+    }
+
+    /// Only for MonoRepo (mega)
+    async fn fetch_chunk_links(&self, obj_link: &str) -> Result<Vec<Link>, ()> {
+        let request = self.client.get(obj_link.to_owned() + "/chunks");
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if code == StatusCode::NOT_FOUND {
+            tracing::info!("Remote LFS Server not support Chunks API");
+            return Err(());
+        } else if !code.is_success() {
+            tracing::debug!("fatal: LFS get chunk hrefs failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            return Err(());
+        }
+        let mut res = resp.json::<FetchchunkResponse>().await.unwrap();
+        // sort by offset
+        res.chunks.sort_by(|a, b| a.offset.cmp(&b.offset));
+        Ok(res.chunks.into_iter().map(|c| c.link).collect())
+    }
+}
+
+// LFS locks API
+impl LFSClient {
+    pub async fn get_locks(&self, query: LockListQuery) -> LockList {
+        let url = self.lfs_url.join("/locks").unwrap();
+        let mut request = self.client.get(url);
+        request = request.query(&[
+            ("id", query.id),
+            ("path", query.path),
+            ("limit", query.limit),
+            ("cursor", query.cursor),
+            ("refspec", query.refspec)
+        ]);
         let response = request.send().await.unwrap();
 
         if !response.status().is_success() {
-            eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
-            return;
+            eprintln!("fatal: LFS get locks failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
+            return LockList {
+                locks: Vec::new(),
+                next_cursor: String::default(),
+            };
         }
 
-        println!("Downloading LFS file: {}", oid);
-        let mut file = tokio::fs::File::create(path).await.unwrap();
-        let mut stream = response.bytes_stream();
+        response.json::<LockList>().await.unwrap()
+    }
 
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.unwrap();
-            file.write_all(&chunk).await.unwrap();
+    /// lock an LFS file
+    /// - `refspec` is must in Mega Server, but optional in Git Doc
+    pub async fn lock(&self, path: String, refspec: String, basic_auth: Option<BasicAuth>) -> StatusCode {
+        let url = self.lfs_url.join("/locks").unwrap();
+        let mut request = self.client.post(url).json(&LockRequest {
+            path,
+            refs: Ref { name: refspec },
+        });
+        if let Some(auth) = basic_auth {
+            request = request.basic_auth(auth.username, Some(auth.password));
         }
-        println!("Downloaded."); // TODO: checksum
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
+            eprintln!("fatal: LFS lock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+        }
+        code
+    }
+
+    pub async fn unlock(&self, id: String, refspec: String, force: bool, basic_auth: Option<BasicAuth>) -> StatusCode {
+        let url = self.lfs_url.join(&format!("/locks/{}/unlock", id)).unwrap();
+        let mut request = self.client.post(url).json(&UnlockRequest {
+            force: Some(force),
+            refs: Ref { name: refspec },
+        });
+        if let Some(auth) = basic_auth.clone() {
+            request = request.basic_auth(auth.username, Some(auth.password));
+        }
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
+            eprintln!("fatal: LFS unlock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+        }
+        code
+    }
+
+    /// List Locks for Verification
+    pub async fn verify_locks(&self, query: VerifiableLockRequest, basic_auth: Option<BasicAuth>)
+        -> (StatusCode, VerifiableLockList)
+    {
+        let url = self.lfs_url.join("/locks/verify").unwrap();
+        let mut request = self.client.post(url).json(&query);
+        if let Some(auth) = basic_auth {
+            request = request.basic_auth(auth.username, Some(auth.password));
+        }
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        // By default, an LFS server that doesn't implement any locking endpoints should return 404.
+        // This response will not halt any Git pushes.
+        if !code.is_success() && code != StatusCode::NOT_FOUND && code != StatusCode::FORBIDDEN {
+            eprintln!("fatal: LFS verify locks failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            return (code, VerifiableLockList {
+                ours: Vec::new(),
+                theirs: Vec::new(),
+                next_cursor: String::default(),
+            });
+        }
+        (code, resp.json::<VerifiableLockList>().await.unwrap())
     }
 }

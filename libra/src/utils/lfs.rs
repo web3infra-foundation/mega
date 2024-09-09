@@ -6,8 +6,10 @@ use lazy_static::lazy_static;
 use path_abs::{PathInfo, PathOps};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
-use sha2::{Digest, Sha256};
+use ring::digest::{Context, SHA256};
+use url::Url;
 use wax::Pattern;
+use mercury::internal::index::Index;
 use crate::utils::{path, util};
 use crate::utils::path_ext::PathExt;
 
@@ -28,7 +30,7 @@ lazy_static! {
 /// Check if a file is LFS tracked
 /// - support Glob pattern matching (TODO: support .gitignore patterns)
 /// - only check root attributes file now, should check all attributes files in sub-dirs
-/// - absolute path or relative path to workdir
+/// - absolute path
 pub fn is_lfs_tracked<P>(path: P) -> bool
 where
     P: AsRef<Path>,
@@ -67,7 +69,9 @@ pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
 /// [doc: server-discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
 /// - like https://git-server.com/foo/bar.git/info/lfs
 /// - support ssh & https & git@ format
-pub fn generate_lfs_server_url(mut url: String) -> String {
+#[deprecated(note = "It's for git, not monorepo")]
+#[allow(dead_code)]
+pub fn generate_git_lfs_server_url(mut url: String) -> String {
     if url.ends_with('/') {
         url.pop();
     }
@@ -87,6 +91,24 @@ pub fn generate_lfs_server_url(mut url: String) -> String {
     url
 }
 
+/// Generate Mono LFS Server Url from repo Url.
+/// - Just get domain with port
+/// ### Example
+/// https://github.com/git-lfs/git-lfs/blob/main/docs/api/locking.md -> https://github.com
+///
+/// http://localhost:8000/xxx/yyy -> http://localhost:8000
+pub fn generate_lfs_server_url(url: String) -> String {
+    let url = Url::parse(&url).unwrap();
+    match url.port() {
+        None => {
+            format!("{}://{}", url.scheme(), url.host().unwrap())
+        }
+        Some(port) => {
+            format!("{}://{}:{}", url.scheme(), url.host().unwrap(), port)
+        }
+    }
+}
+
 /// Generate LFS cache path, in `.libra/lfs/objects`
 pub fn lfs_object_path(oid: &str) -> PathBuf {
     util::storage_path()
@@ -94,6 +116,17 @@ pub fn lfs_object_path(oid: &str) -> PathBuf {
         .join(&oid[..2])
         .join(&oid[2..4])
         .join(oid)
+}
+
+/// Get LFS file oid by path (through `Index`), NOT re-calculate
+pub fn get_oid_by_path(path: &str) -> String {
+    let index_file = path::index();
+    let index = Index::load(&index_file).unwrap();
+    let hash = index.get_hash(path, 0).unwrap();
+    let storage = util::objects_storage();
+    let data = storage.get(&hash).unwrap();
+    let (oid, _) = parse_pointer_data(&data).unwrap();
+    oid
 }
 
 /// Copy LFS file to `.libra/lfs/objects`
@@ -112,13 +145,13 @@ where
 }
 
 /// SHA256 without type
-/// TODO: performance optimization, 200MB 4s now, slower than `sha256sum`
+// `ring` crate is much faster than `sha2` crate ( > 10 times)
 pub fn calc_lfs_file_hash<P>(path: P) -> io::Result<String>
 where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
-    let mut hash = Sha256::new();
+    let mut hash = Context::new(&SHA256);
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
     let mut buffer = [0; 65536];
@@ -129,11 +162,11 @@ where
         }
         hash.update(&buffer[..n]);
     }
-    let file_hash = hex::encode(hash.finalize());
+    let file_hash = hex::encode(hash.finish().as_ref());
     Ok(file_hash)
 }
 
-/// Check if `data` is an LFS pointer, return `oid`
+/// Check if `data` is an LFS pointer, return `oid` & `size`
 pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     if data.len() > LFS_POINTER_MAX_SIZE {
         return None;
@@ -152,6 +185,17 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
         }
     }
     None
+}
+
+/// Read max LFS_POINTER_MAX_SIZE bytes
+pub fn parse_pointer_file(path: impl AsRef<Path>) -> io::Result<(String, u64)> {
+    let mut file = File::open(path)?;
+    let mut buffer = [0; LFS_POINTER_MAX_SIZE];
+    let bytes_read = file.read(&mut buffer)?;
+    if let Some((oid, size)) = parse_pointer_data(&buffer[..bytes_read]) {
+        return Ok((oid, size));
+    }
+    Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid LFS pointer file"))
 }
 
 /// Extract LFS patterns from `.libra_attributes` file
@@ -202,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_lfs_server_url() {
+    fn test_gen_git_lfs_server_url() {
         const LFS_SERVER_URL: &str = "https://github.com/web3infra-foundation/mega.git/info/lfs";
         let url = "https://github.com/web3infra-foundation/mega".to_owned();
         assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
@@ -215,6 +259,14 @@ mod tests {
 
         let url = "ssh://github.com/web3infra-foundation/mega.git".to_owned();
         assert_eq!(generate_lfs_server_url(url), LFS_SERVER_URL);
+    }
+
+    #[test]
+    fn test_gen_mono_lfs_server_url() {
+        const LFS_SERVER_URL: &str = "https://github.com/web3infra-foundation/mega.git/info/lfs";
+        assert_eq!(generate_lfs_server_url(LFS_SERVER_URL.to_owned()), "https://github.com");
+        const LOCAL_LFS_SERVER_URL: &str = "http://localhost:8000/xxx/yyy";
+        assert_eq!(generate_lfs_server_url(LOCAL_LFS_SERVER_URL.to_owned()), "http://localhost:8000");
     }
 
     #[test]

@@ -88,7 +88,6 @@ pub struct BatchRequest {
     pub transfers: Vec<String>,
     pub objects: Vec<RequestVars>,
     pub hash_algo: String,
-    pub enable_split: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -105,7 +104,7 @@ pub struct FetchchunkResponse {
     pub chunks: Vec<ChunkRepresentation>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Link {
     pub href: String,
     pub header: HashMap<String, String>,
@@ -192,9 +191,14 @@ pub struct VerifiableLockList {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LockListQuery {
+    #[serde(default)]
     pub path: String,
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub cursor: String,
+    #[serde(default)]
     pub limit: String,
+    #[serde(default)]
     pub refspec: String,
 }

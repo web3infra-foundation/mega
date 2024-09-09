@@ -5,7 +5,8 @@ use anyhow::Result;
 use bytes::Bytes;
 use chrono::{prelude::*, Duration};
 use rand::prelude::*;
-
+use sea_orm::ActiveValue::Set;
+use sea_orm::IntoActiveModel;
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use common::errors::{GitLFSError, MegaError};
 use jupiter::context::Context;
@@ -236,7 +237,7 @@ pub async fn lfs_process_batch(
 /// else return an error.
 pub async fn lfs_fetch_chunk_ids(
     context: &Context,
-    fetch_vars: &RequestVars,
+    oid: &String,
 ) -> Result<Vec<ChunkRepresentation>, GitLFSError> {
     let config = context.config.lfs.clone();
 
@@ -247,13 +248,13 @@ pub async fn lfs_fetch_chunk_ids(
     }
     let storage = context.services.lfs_db_storage.clone();
 
-    let meta = lfs_get_meta(storage.clone(), &fetch_vars.oid)
+    let meta = lfs_get_meta(storage.clone(), oid)
         .await
         .map_err(|_| GitLFSError::GeneralError("".to_string()))?;
     assert!(meta.splited, "database didn't match the split mode");
 
     let relations = storage
-        .get_lfs_relations(fetch_vars.oid.clone())
+        .get_lfs_relations(oid.to_owned())
         .await
         .map_err(|_| GitLFSError::GeneralError("".to_string()))?;
 
@@ -270,10 +271,7 @@ pub async fn lfs_fetch_chunk_ids(
         let tmp_request_vars = RequestVars {
             oid: relation.sub_oid.clone(),
             size: relation.size,
-            authorization: fetch_vars.authorization.clone(),
-            password: fetch_vars.password.clone(),
-            user: fetch_vars.user.clone(),
-            repo: fetch_vars.repo.clone(),
+            ..Default::default()
         };
         response_objects.push(ChunkRepresentation {
             sub_oid: relation.sub_oid,
@@ -557,7 +555,7 @@ async fn lfs_add_lock(
 
     match result {
         // Update
-        Some(mut val) => {
+        Some(val) => {
             let d = val.data.to_owned();
             let mut locks_from_data = if !d.is_empty() {
                 let locks_from_data: Vec<Lock> = serde_json::from_str(&d).unwrap();
@@ -575,7 +573,9 @@ async fn lfs_add_lock(
             });
             let d = serde_json::to_string(&locks_from_data).unwrap();
 
-            d.clone_into(&mut val.data);
+            // must turn into `ActiveModel` before modify, or update failed.
+            let mut val = val.into_active_model();
+            val.data = Set(d);
             let res = storage.update_lock(val).await;
             match res.is_ok() {
                 true => Ok(()),
@@ -678,7 +678,7 @@ async fn delete_lock(
     let result = storage.get_lock_by_id(repo).await.unwrap();
     match result {
         // Exist, then delete.
-        Some(mut val) => {
+        Some(val) => {
             let d = val.data.to_owned();
             let locks_from_data = if !d.is_empty() {
                 let locks_from_data: Vec<Lock> = serde_json::from_str(&d).unwrap();
@@ -728,7 +728,8 @@ async fn delete_lock(
 
             // Update remaining locks.
             let data = serde_json::to_string(&new_locks).unwrap();
-            data.clone_into(&mut val.data);
+            let mut val = val.into_active_model();
+            val.data = Set(data);
             let res = storage.update_lock(val).await;
             match res.is_ok() {
                 true => Ok(lock_to_delete),
