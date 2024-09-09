@@ -191,9 +191,14 @@ pub struct VerifiableLockList {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LockListQuery {
+    #[serde(default)]
     pub path: String,
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub cursor: String,
+    #[serde(default)]
     pub limit: String,
+    #[serde(default)]
     pub refspec: String,
 }
