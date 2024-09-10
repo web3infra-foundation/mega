@@ -66,11 +66,6 @@ pub async fn execute(args: PushArgs) {
         }
     };
     let repo_url = Config::get_remote_url(&repository).await;
-    if repo_url.is_none() {
-        eprintln!("fatal: remote '{}' not found, please use 'libra remote add'", repository);
-        return;
-    }
-    let repo_url = repo_url.unwrap();
 
     let branch = args.refspec.unwrap_or(branch);
     let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_plain_str();
