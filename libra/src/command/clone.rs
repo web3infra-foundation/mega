@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 use std::{env, fs};
-
+use std::cell::Cell;
 use crate::command;
 use crate::command::restore::RestoreArgs;
 use crate::internal::branch::Branch;
 use crate::internal::config::{Config, RemoteConfig};
 use crate::internal::head::Head;
 use clap::Parser;
-
+use colored::Colorize;
+use scopeguard::defer;
 use crate::utils::path_ext::PathExt;
 use crate::utils::util;
 
@@ -59,6 +60,15 @@ pub async fn execute(args: CloneArgs) {
         println!("Cloning into '{}'", repo_name);
     }
 
+    let is_success = Cell::new(false);
+    // clean up the directory if panic
+    defer! {
+        if !is_success.get() {
+            fs::remove_dir_all(&local_path).unwrap();
+            eprintln!("{}", "fatal: clone failed, delete repo directory automatically".red());
+        }
+    }
+
     // CAUTION: change [current_dir] to the repo directory
     env::set_current_dir(&local_path).unwrap();
     command::init::execute().await;
@@ -72,6 +82,8 @@ pub async fn execute(args: CloneArgs) {
 
     /* setup */
     setup(remote_repo.clone()).await;
+
+    is_success.set(true);
 }
 
 async fn setup(remote_repo: String) {
