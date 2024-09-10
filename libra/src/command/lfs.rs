@@ -3,7 +3,6 @@ use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use byte_unit::UnitType;
 use reqwest::StatusCode;
 use ceres::lfs::lfs_structs::LockListQuery;
 use mercury::internal::index::Index;
@@ -185,8 +184,7 @@ pub async fn execute(cmd: LfsCmds) {
                         let _type = if is_pointer || !path_abs.exists() { "-" } else { "*" };
                         let oid = if long { oid } else { oid[..10].to_owned() };
                         let tail = if size {
-                            let byte = byte_unit::Byte::from(lfs_size);
-                            let byte = byte.get_appropriate_unit(UnitType::Decimal);
+                            let byte = util::auto_unit_bytes(lfs_size);
                             format!(" ({byte:.2})")
                         } else {
                             "".to_string()

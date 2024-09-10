@@ -318,6 +318,15 @@ pub fn get_repo_name_from_url(mut url: &str) -> Option<&str> {
     Some(&url[repo_start..repo_end])
 }
 
+/// Find the appropriate unit and value for Bytes.
+/// ### Examples
+/// - 1024 bytes -> 1 KiB
+/// - 1024 * 1024 bytes -> 1 MiB
+pub fn auto_unit_bytes(bytes: u64) -> byte_unit::AdjustedByte {
+    let bytes = byte_unit::Byte::from(bytes);
+    bytes.get_appropriate_unit(byte_unit::UnitType::Binary)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
