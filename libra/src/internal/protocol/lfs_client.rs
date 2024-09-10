@@ -57,7 +57,7 @@ impl LFSClient {
         let url = Config::get_current_remote_url().await;
         match url {
             Some(url) => LFSClient::from_url(&Url::parse(&url).unwrap()),
-            None => panic!("fatal: current remote url not found"),
+            None => panic!("fatal: no remote set for current branch, use `libra branch --set-upstream-to <remote>/<branch>`"),
         }
     }
 

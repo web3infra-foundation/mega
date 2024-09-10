@@ -63,22 +63,29 @@ impl Config {
     }
 
     /// Get remote repo name of current branch
-    pub async fn get_current_remote() -> Option<String> {
+    pub async fn get_current_remote() -> Result<Option<String>, ()> {
         match Head::current().await {
             Head::Branch(name) => {
-                Config::get_remote(&name).await
+                Ok(Config::get_remote(&name).await)
             },
-            Head::Detached(_) => None,
+            Head::Detached(_) => {
+                eprintln!("fatal: HEAD is detached, cannot get remote");
+                Err(())
+            },
         }
     }
 
-    pub async fn get_remote_url(remote: &str) -> Option<String> {
-        Config::get("remote", Some(remote), "url").await
+    pub async fn get_remote_url(remote: &str) -> String {
+        match Config::get("remote", Some(remote), "url").await {
+            Some(url) => url,
+            None => panic!("fatal: No URL configured for remote '{}'.", remote),
+        }
     }
 
+    /// return `None` if no remote is set
     pub async fn get_current_remote_url() -> Option<String> {
-        match Config::get_current_remote().await {
-            Some(remote) => Config::get_remote_url(&remote).await,
+        match Config::get_current_remote().await.unwrap() {
+            Some(remote) => Some(Config::get_remote_url(&remote).await),
             None => None,
         }
     }
