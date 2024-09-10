@@ -1,4 +1,4 @@
-//! 
+//!
 //! ## Reference
 //! 1. Git Pack-Format [Introduce](https://git-scm.com/docs/pack-format)
 //!
@@ -12,14 +12,14 @@ pub mod cache_object;
 pub mod entry;
 pub mod channel_reader;
 
-use crate::hash::SHA1;
 use threadpool::ThreadPool;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
+
+use crate::hash::SHA1;
 use crate::internal::object::ObjectTrait;
 use crate::internal::pack::waitlist::Waitlist;
-
-use self::cache::Caches;
+use crate::cache::Caches;
 
 const DEFAULT_TMP_DIR: &str = "./.cache_temp";
 pub struct Pack {
