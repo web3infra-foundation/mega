@@ -17,8 +17,8 @@ use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
 
-use crate::cache::_Cache;
 use crate::internal::pack::cache::Caches;
+use crate::internal::pack::cache::_Cache;
 use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;

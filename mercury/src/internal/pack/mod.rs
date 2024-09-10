@@ -19,7 +19,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::hash::SHA1;
 use crate::internal::object::ObjectTrait;
 use crate::internal::pack::waitlist::Waitlist;
-use crate::cache::Caches;
+use crate::internal::pack::cache::Caches;
 
 const DEFAULT_TMP_DIR: &str = "./.cache_temp";
 pub struct Pack {
