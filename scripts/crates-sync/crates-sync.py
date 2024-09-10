@@ -1,12 +1,12 @@
-import os  # For file and directory operations
-import sys  # For system-specific parameters and functions
-import json  # For JSON parsing
-import urllib.request  # For downloading files from URLs
-import tarfile  # For handling tar archives
-import subprocess  # For running system commands
-import shutil  # For high-level file operations
-from collections import defaultdict  # For creating dictionaries with default values
-from packaging import version  # For parsing and comparing version numbers
+import os
+import sys
+import json
+import urllib.request
+import tarfile
+import subprocess
+import shutil
+from collections import defaultdict
+from packaging import version
 
 def ensure_directory(path):
     # Create a directory if it doesn't exist
@@ -77,8 +77,20 @@ def extract_crate(crate_path, extract_path):
                 print(f"Warning: Empty crate file {crate_path}. Skipping extraction.")
                 return False
 
-            # Extract directly to the target directory
-            safe_extract(tar, extract_path)
+            # Create a temporary directory for extraction
+            temp_extract_path = extract_path + "_temp"
+            ensure_directory(temp_extract_path)
+
+            # Extract to the temporary directory
+            safe_extract(tar, temp_extract_path)
+
+            # Move contents from the nested directory to the target directory
+            nested_dir = os.path.join(temp_extract_path, os.listdir(temp_extract_path)[0])
+            for item in os.listdir(nested_dir):
+                shutil.move(os.path.join(nested_dir, item), extract_path)
+
+            # Remove the temporary directory
+            shutil.rmtree(temp_extract_path)
 
         print(f"Extracted version to {extract_path}")
         return True
