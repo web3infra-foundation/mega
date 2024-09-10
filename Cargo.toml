@@ -33,6 +33,7 @@ saturn = { path = "saturn" }
 taurus = { path = "taurus" }
 mega = { path = "mega" }
 mono = { path = "mono" }
+libra = { path = "libra" }
 
 anyhow = "1.0.87"
 serde = "1.0.210"

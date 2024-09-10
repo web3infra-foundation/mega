@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 mercury = { workspace = true }
 ceres = { workspace = true }
+
 sea-orm = { workspace = true, features = [
     "sqlx-sqlite",
     "runtime-tokio-rustls",
