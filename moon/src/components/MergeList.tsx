@@ -5,7 +5,7 @@ import { MergeOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
 interface MrInfoItem {
-    id: number,
+    mr_link: string,
     title: string,
     status: string,
     open_timestamp: number,
@@ -55,7 +55,7 @@ const MergeList: React.FC<MergeListProps> = ({ mrList }) => {
                         avatar={
                             <MergeOutlined twoToneColor="#eb2f96" />
                         }
-                        title={<Link href={`/mr/${item.id}`}>{`MR ${item.id} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
+                        title={<Link href={`/mr/${item.mr_link}`}>{`MR ${item.mr_link} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
                         description={getDescription(item)}
                     />
                 </List.Item>
