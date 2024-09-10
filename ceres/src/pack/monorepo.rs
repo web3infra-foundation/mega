@@ -11,12 +11,13 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future::join_all;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::raw_blob;
 use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
-use jupiter::context::Context;
+use jupiter::{context::Context, storage::mono_storage::MonoStorage};
 use mercury::internal::pack::encode::PackEncoder;
 use mercury::{
     errors::GitError,
@@ -28,7 +29,7 @@ use mercury::{
 };
 
 use crate::{
-    pack::handler::PackHandler,
+    pack::PackHandler,
     protocol::{
         import_refs::{RefCommand, Refs},
         mega_refs::MegaRefs,
@@ -39,8 +40,8 @@ use crate::{
 pub struct MonoRepo {
     pub context: Context,
     pub path: PathBuf,
-    pub from_hash: Option<String>,
-    pub to_hash: Option<String>,
+    pub from_hash: String,
+    pub to_hash: String,
 }
 
 #[async_trait]
@@ -121,50 +122,32 @@ impl PackHandler for MonoRepo {
 
     async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.mono_storage.clone();
-
-        let (mut mr, mr_exist) = self.get_mr().await;
-
-        let mut unpack_res = Ok(());
-        if mr_exist {
-            if mr.from_hash == self.from_hash.clone().unwrap() {
-                let to_hash = self.to_hash.clone().unwrap();
-                if mr.to_hash != to_hash {
-                    let comment = self.comment_for_force_update(&mr.to_hash, &to_hash);
-                    mr.to_hash = to_hash;
-                    storage
-                        .add_mr_comment(mr.id, 0, Some(comment))
-                        .await
-                        .unwrap();
-                    unpack_res = self.save_entry(receiver).await;
-                    if unpack_res.is_err() {
-                        mr.close();
-                        storage
-                            .add_mr_comment(
-                                mr.id,
-                                0,
-                                Some("Mega closed MR due to multi commit detected".to_string()),
-                            )
-                            .await
-                            .unwrap();
-                    }
-                } else {
-                    tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
+        let path_str = self.path.to_str().unwrap();
+        match storage.get_open_mr_by_path(path_str).await.unwrap() {
+            Some(mr) => {
+                let mut mr = mr.into();
+                self.handle_existing_mr(&mut mr, &storage, receiver).await
+            }
+            None => {
+                let mr_link: String = thread_rng()
+                    .sample_iter(&Alphanumeric)
+                    .take(8)
+                    .map(char::from)
+                    .collect();
+                let mr = MergeRequest {
+                    path: path_str.to_owned(),
+                    from_hash: self.from_hash.clone(),
+                    to_hash: self.to_hash.clone(),
+                    mr_link: mr_link.to_uppercase(),
+                    ..Default::default()
+                };
+                let unpack_res = self.save_entry(receiver).await;
+                if unpack_res.is_ok() {
+                    storage.save_mr(mr.clone().into()).await.unwrap();
                 }
-            } else {
-                mr.close();
-                storage
-                    .add_mr_comment(mr.id, 0, Some("Mega closed MR due to conflict".to_string()))
-                    .await
-                    .unwrap();
+                unpack_res
             }
-            storage.update_mr(mr.clone().into()).await.unwrap();
-        } else {
-            unpack_res = self.save_entry(receiver).await;
-            if unpack_res.is_ok() {
-                storage.save_mr(mr.clone().into()).await.unwrap();
-            }
-        };
-        unpack_res
+        }
     }
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
@@ -345,24 +328,50 @@ impl PackHandler for MonoRepo {
 }
 
 impl MonoRepo {
-    async fn get_mr(&self) -> (MergeRequest, bool) {
-        let storage = self.context.services.mono_storage.clone();
+    async fn handle_existing_mr(
+        &self,
+        mr: &mut MergeRequest,
+        storage: &MonoStorage,
+        receiver: Receiver<Entry>,
+    ) -> Result<(), GitError> {
+        if mr.from_hash == self.from_hash {
+            if mr.to_hash != self.to_hash {
+                let comment = self.comment_for_force_update(&mr.to_hash, &self.to_hash);
+                mr.to_hash = self.to_hash.clone();
+                storage
+                    .add_mr_comment(&mr.mr_link, 0, Some(comment))
+                    .await
+                    .unwrap();
 
-        let mr = storage
-            .get_open_mr(self.path.to_str().unwrap())
-            .await
-            .unwrap();
-        if let Some(mr) = mr {
-            (mr.into(), true)
+                let unpack_res = self.save_entry(receiver).await;
+                if unpack_res.is_err() {
+                    mr.close();
+                    storage
+                        .add_mr_comment(
+                            &mr.mr_link,
+                            0,
+                            Some("Mega closed MR due to multi commit detected".to_string()),
+                        )
+                        .await
+                        .unwrap();
+                }
+            } else {
+                tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
+            }
         } else {
-            let mr = MergeRequest {
-                path: self.path.to_str().unwrap().to_owned(),
-                from_hash: self.from_hash.clone().unwrap(),
-                to_hash: self.to_hash.clone().unwrap(),
-                ..Default::default()
-            };
-            (mr, false)
+            mr.close();
+            storage
+                .add_mr_comment(
+                    &mr.mr_link,
+                    0,
+                    Some("Mega closed MR due to conflict".to_string()),
+                )
+                .await
+                .unwrap();
         }
+
+        storage.update_mr(mr.clone().into()).await.unwrap();
+        Ok(())
     }
 
     fn comment_for_force_update(&self, from: &str, to: &str) -> String {

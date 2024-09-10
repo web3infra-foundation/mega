@@ -13,7 +13,7 @@ const MRDetailPage = ({ mrDetail }) => {
         const fetchFileList = async () => {
             set_to_loading(2)
             try {
-                const res = await fetch(`/api/mr/${mrDetail.id}/files`);
+                const res = await fetch(`/api/mr/${mrDetail.mr_link}/files`);
                 const result = await res.json();
                 setFileData(result.data.data);
             } catch (err) {
@@ -22,7 +22,7 @@ const MRDetailPage = ({ mrDetail }) => {
                 cancel_loading(2)
             }
         };
-        if (!mrDetail || !mrDetail.id) {
+        if (!mrDetail || !mrDetail.mr_link) {
             return;
         }
         fetchFileList();
@@ -45,9 +45,9 @@ const MRDetailPage = ({ mrDetail }) => {
         });
     }
 
-    const approve_mr = async (index: number, id: number) => {
+    const approve_mr = async (index: number, mr_link: string) => {
         set_to_loading(index);
-        const res = await fetch(`/api/mr/${id}/merge`,{
+        const res = await fetch(`/api/mr/${mr_link}/merge`,{
             method: 'POST',
         });
         if (res) {
@@ -66,7 +66,7 @@ const MRDetailPage = ({ mrDetail }) => {
                 <Button
                     type="primary"
                     loading={loadings[1]}
-                    onClick={() => approve_mr(1, mrDetail.id)}
+                    onClick={() => approve_mr(1, mrDetail.mr_link)}
                 >
                     Merge MR
                 </Button>
@@ -75,7 +75,7 @@ const MRDetailPage = ({ mrDetail }) => {
             <Card
                 style={{ marginTop: 16 }}
                 type="inner"
-                title={mrDetail.id}
+                title={mrDetail.mr_link}
                 extra={<a href="#">More</a>}
             >
                 <List
