@@ -3,6 +3,7 @@
 import CodeTable from '@/components/CodeTable'
 import Bread from '@/components/BreadCrumb'
 import RepoTree from '@/components/RepoTree'
+import CloneTabs from '@/components/CloneTabs'
 import { useEffect, useState } from 'react'
 import { Flex, Layout } from "antd/lib";
 
@@ -51,6 +52,9 @@ export default function Page({ params }: { params: { path: string[] } }) {
         <Flex gap="middle" wrap>
             <Layout style={breadStyle}>
                 <Bread path={params.path} />
+                <Flex justify={'flex-end'} >
+                    <CloneTabs/>
+                </Flex>
             </Layout>
             <Layout style={treeStyle}>
                 <RepoTree directory={directory} />

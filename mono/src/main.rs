@@ -1,12 +1,15 @@
-//! Mega is an engine for managing a monorepo. It functions similarly to Google's Piper and helps to streamline Git
-//! and trunk-based development for large-scale projects. And this is the main entry point for the application.
+//! Mono is an engine for managing a monorepo. It functions similarly to Google's Piper and helps to streamline Git
+//! and trunk-based development for large-scale projects.
+//!
+//! And this is the main entry point for the application.
 
 use shadow_rs::shadow;
 shadow!(build);
 
-pub mod api;
 mod cli;
 mod commands;
+
+pub mod api;
 pub mod git_protocol;
 pub mod server;
 

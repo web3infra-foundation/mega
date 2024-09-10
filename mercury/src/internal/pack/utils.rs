@@ -2,26 +2,27 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
 use sha1::{Digest, Sha1};
+
 use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
 
 /// Checks if the reader has reached EOF (end of file).
-/// 
+///
 /// It attempts to read a single byte from the reader into a buffer.
-/// If `Ok(0)` is returned, it means no byte was read, indicating 
+/// If `Ok(0)` is returned, it means no byte was read, indicating
 /// that the end of the stream has been reached and there is no more
 /// data left to read.
 ///
 /// Any other return value means that data was successfully read, so
-/// the reader has not reached the end yet.  
+/// the reader has not reached the end yet.
 ///
 /// # Arguments
-/// 
-/// * `reader` - The reader to check for EOF state  
+///
+/// * `reader` - The reader to check for EOF state
 ///   It must implement the `std::io::Read` trait
 ///
-/// # Returns  
-/// 
+/// # Returns
+///
 /// true if the reader reached EOF, false otherwise
 #[allow(unused)]
 pub fn is_eof(reader: &mut dyn Read) -> bool {
@@ -102,7 +103,7 @@ pub fn read_type_and_varint_size<R: Read>(stream: &mut R, offset: &mut usize) ->
 }
 
 /// Reads a variable-length integer (VarInt) encoded in little-endian format from a source implementing the Read trait.
-/// 
+///
 /// The VarInt encoding uses the most significant bit (MSB) of each byte as a continuation bit.
 /// The continuation bit being 1 indicates that there are following bytes.
 /// The actual integer value is encoded in the remaining 7 bits of each byte.
@@ -122,7 +123,7 @@ pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
     // Bit shift for the next byte
     let mut shift = 0;
     // Number of bytes read
-    let mut offset = 0; 
+    let mut offset = 0;
 
     loop {
         // A buffer to read a single byte
@@ -131,19 +132,19 @@ pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
         reader.read_exact(&mut buf)?;
 
         // The byte just read
-        let byte = buf[0]; 
-        if shift > 63 { 
+        let byte = buf[0];
+        if shift > 63 {
             // VarInt too long for u64
             return Err(io::Error::new(io::ErrorKind::InvalidData, "VarInt too long"));
         }
 
         // Take the lower 7 bits of the byte
-        let byte_value = (byte & 0x7F) as u64; 
+        let byte_value = (byte & 0x7F) as u64;
         // Add the byte value to the result, considering the shift
-        value |= byte_value << shift; 
+        value |= byte_value << shift;
 
         // Increment the byte count
-        offset += 1; 
+        offset += 1;
         // Check if the MSB is 0 (last byte)
         if byte & 0x80 == 0 {
             break;
@@ -315,7 +316,7 @@ mod tests {
         assert!(is_eof(&mut reader));
     }
 
-    #[test] 
+    #[test]
     fn not_eof() {
         let mut reader = Cursor::new(&b"abc"[..]);
         assert!(!is_eof(&mut reader));
@@ -336,9 +337,9 @@ mod tests {
                 Err(io::Error::new(io::ErrorKind::Other, "error"))
             }
         }
-        
+
         let mut reader = BrokenReader;
-        assert!(!is_eof(&mut reader)); 
+        assert!(!is_eof(&mut reader));
     }
 
     // Test case for a byte without a continuation bit (most significant bit is 0)
@@ -423,7 +424,7 @@ mod tests {
 
         assert_eq!(offset, 1); // Offset is 1
         assert_eq!(type_bits, 1); // Expected type is 1
-        // Expected size is 15 
+        // Expected size is 15
         assert_eq!(size, 15);
     }
 
@@ -483,7 +484,7 @@ mod tests {
 
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_read_offset_encoding(){
         let data:Vec<u8> = vec![0b_1101_0101,0b_0000_0101];
