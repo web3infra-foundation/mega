@@ -5,10 +5,11 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{fs, io};
 use std::{ops::Deref, sync::Arc};
 
-use crate::internal::pack::utils;
 use lru_mem::{HeapSize, MemSize};
 use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
+
+use crate::internal::pack::utils;
 use crate::{hash::SHA1, internal::object::types::ObjectType};
 use crate::internal::pack::entry::Entry;
 

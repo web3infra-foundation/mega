@@ -1,4 +1,3 @@
-
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -6,14 +5,14 @@ use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
 
-use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder};
-use crate::time_it;
 use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
-use crate::hash::SHA1;
 
-use super::cache_object::FileLoadStore;
+use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder};
+use crate::time_it;
+use crate::hash::SHA1;
+use crate::cache_object::FileLoadStore;
 
 
 pub trait _Cache {
