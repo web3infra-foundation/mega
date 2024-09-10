@@ -12,8 +12,11 @@ use std::{
     str::FromStr,
 };
 
-use callisto::{git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob};
 use sha1::Digest;
+
+use callisto::{
+    git_blob, git_commit, git_tag, git_tree, mega_blob, mega_commit, mega_tag, mega_tree, raw_blob,
+};
 
 use crate::internal::object::types::ObjectType;
 use crate::internal::object::{blob::Blob, commit::Commit, tag::Tag, tree::Tree};
@@ -37,7 +40,11 @@ pub trait ObjectTrait: Send + Sync + Display {
         read.read_to_end(&mut content).unwrap();
         let h = read.hash.clone();
         let hash_str = h.finalize();
-        Self::from_bytes(&content, SHA1::from_str(&format!("{:x}", hash_str)).unwrap()).unwrap()
+        Self::from_bytes(
+            &content,
+            SHA1::from_str(&format!("{:x}", hash_str)).unwrap(),
+        )
+        .unwrap()
     }
 
     /// Returns the type of the object.
