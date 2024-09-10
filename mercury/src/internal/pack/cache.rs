@@ -9,11 +9,9 @@ use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
 
-use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder};
 use crate::time_it;
 use crate::hash::SHA1;
-use crate::cache_object::FileLoadStore;
-
+use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder, FileLoadStore};
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
