@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
-
+use colored::Colorize;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
@@ -38,6 +38,9 @@ impl TreeExt for Tree {
         let mut items = Vec::new();
         for item in self.tree_items.iter() {
             if item.mode != TreeItemMode::Tree { // Not Tree, maybe Blob, link, etc.
+                if item.mode == TreeItemMode::Commit { // submodule
+                    eprintln!("{}", "Warning: Submodule is not supported yet".red());
+                }
                 items.push((PathBuf::from(item.name.clone()), item.id));
             } else {
                 let sub_tree = Tree::load(&item.id);
