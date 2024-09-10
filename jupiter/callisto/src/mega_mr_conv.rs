@@ -9,7 +9,7 @@ use crate::db_enums::ConvType;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    pub mr_id: i64,
+    pub mr_link: String,
     pub user_id: i64,
     pub conv_type: ConvType,
     pub created_at: DateTime,

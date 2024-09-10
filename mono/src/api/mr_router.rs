@@ -16,18 +16,18 @@ use crate::api::MonoApiServiceState;
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
         .route("/mr/list", get(get_mr_list))
-        .route("/mr/:mr_id/detail", get(mr_detail))
-        .route("/mr/:mr_id/merge", post(merge))
-        .route("/mr/:mr_id/files", get(get_mr_files))
+        .route("/mr/:mr_link/detail", get(mr_detail))
+        .route("/mr/:mr_link/merge", post(merge))
+        .route("/mr/:mr_link/files", get(get_mr_files))
 }
 
 async fn merge(
-    Path(mr_id): Path<i64>,
+    Path(mr_link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
 
-    let res = state.monorepo().merge_mr(mr_id).await;
+    let res = state.monorepo().merge_mr(&mr_link).await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
@@ -51,11 +51,11 @@ async fn get_mr_list(
 }
 
 async fn mr_detail(
-    Path(mr_id): Path<i64>,
+    Path(mr_link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Option<MRDetail>>>, ApiError> {
     ApiRequestEvent::notify(ApiType::MergeDetail, &state.0.context.config);
-    let res = state.monorepo().mr_detail(mr_id).await;
+    let res = state.monorepo().mr_detail(&mr_link).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
         Err(err) => CommonResult::failed(&err.to_string()),
@@ -64,11 +64,11 @@ async fn mr_detail(
 }
 
 async fn get_mr_files(
-    Path(mr_id): Path<i64>,
+    Path(mr_link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<PathBuf>>>, ApiError> {
     ApiRequestEvent::notify(ApiType::MergeFiles, &state.0.context.config);
-    let res = state.monorepo().mr_tree_files(mr_id).await;
+    let res = state.monorepo().mr_tree_files(&mr_link).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
         Err(err) => CommonResult::failed(&err.to_string()),

@@ -214,21 +214,21 @@ impl MonoApiService {
         Ok(mr_list.into_iter().map(|m| m.into()).collect())
     }
 
-    pub async fn mr_detail(&self, mr_id: i64) -> Result<Option<MRDetail>, MegaError> {
+    pub async fn mr_detail(&self, mr_link: &str) -> Result<Option<MRDetail>, MegaError> {
         let storage = self.context.services.mono_storage.clone();
-        let model = storage.get_mr(mr_id).await.unwrap();
+        let model = storage.get_mr(mr_link).await.unwrap();
         if let Some(model) = model {
             let mut detail: MRDetail = model.into();
-            let conversions = storage.get_mr_conversations(mr_id).await.unwrap();
+            let conversions = storage.get_mr_conversations(mr_link).await.unwrap();
             detail.conversions = conversions.into_iter().map(|x| x.into()).collect();
             return Ok(Some(detail));
         }
         Ok(None)
     }
 
-    pub async fn mr_tree_files(&self, mr_id: i64) -> Result<Vec<PathBuf>, MegaError> {
+    pub async fn mr_tree_files(&self, mr_link: &str) -> Result<Vec<PathBuf>, MegaError> {
         let storage = self.context.services.mono_storage.clone();
-        let model = storage.get_mr(mr_id).await.unwrap();
+        let model = storage.get_mr(mr_link).await.unwrap();
         if let Some(model) = model {
             let to_tree_id = storage
                 .get_commit_by_hash(&model.to_hash)
@@ -281,9 +281,9 @@ impl MonoApiService {
         Err(MegaError::with_message("Can not find related MR by id"))
     }
 
-    pub async fn merge_mr(&self, mr_id: i64) -> Result<(), MegaError> {
+    pub async fn merge_mr(&self, mr_link: &str) -> Result<(), MegaError> {
         let storage = self.context.services.mono_storage.clone();
-        if let Some(model) = storage.get_open_mr_by_id(mr_id).await.unwrap() {
+        if let Some(model) = storage.get_open_mr_by_link(mr_link).await.unwrap() {
             let mut mr: MergeRequest = model.into();
             let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -301,7 +301,7 @@ impl MonoApiService {
 
                 // add conversation
                 storage
-                    .add_mr_conversation(mr.id, 0, ConvType::Merged)
+                    .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged)
                     .await
                     .unwrap();
                 if mr.path != "/" {
