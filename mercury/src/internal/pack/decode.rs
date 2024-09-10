@@ -5,24 +5,24 @@ use std::sync::{Arc, mpsc};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
+
 use axum::Error;
 use bytes::Bytes;
-
 use flate2::bufread::ZlibDecoder;
 use futures_util::{Stream, StreamExt};
 use threadpool::ThreadPool;
+use uuid::Uuid;
 
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
 
-use super::cache::_Cache;
 use crate::internal::pack::cache::Caches;
+use crate::internal::pack::cache::_Cache;
 use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
-use uuid::Uuid;
 use crate::internal::pack::channel_reader::ChannelReader;
 use crate::internal::pack::entry::Entry;
 
@@ -458,7 +458,7 @@ impl Pack {
         // if self.clean_tmp {
         //     self.caches.remove_tmp_dir();
         // }
-        
+
         Ok(())
     }
 
