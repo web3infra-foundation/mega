@@ -124,28 +124,7 @@ export function ApplicationLayout({
               <DropdownButton as={SidebarItem}>
                 <Avatar src="/images/megaLogo.png" />
                 <SidebarLabel>Mega</SidebarLabel>
-                <ChevronDownIcon />
               </DropdownButton>
-              <DropdownMenu className="min-w-80 lg:min-w-64" anchor="bottom start">
-                <DropdownItem href="/settings">
-                  <Cog8ToothIcon />
-                  <DropdownLabel>Settings</DropdownLabel>
-                </DropdownItem>
-                <DropdownDivider />
-                <DropdownItem href="#">
-                  <Avatar slot="icon" initials="AD" className="bg-purple-500 text-white" />
-                  <DropdownLabel>Admin</DropdownLabel>
-                </DropdownItem>
-                <DropdownItem href="#">
-                  <Avatar slot="icon" initials="BE" className="bg-purple-500 text-white" />
-                  <DropdownLabel>Big Events</DropdownLabel>
-                </DropdownItem>
-                <DropdownDivider />
-                <DropdownItem href="#">
-                  <PlusIcon />
-                  <DropdownLabel>New team&hellip;</DropdownLabel>
-                </DropdownItem>
-              </DropdownMenu>
             </Dropdown>
           </SidebarHeader>
 
@@ -163,19 +142,15 @@ export function ApplicationLayout({
                 <TicketIcon />
                 <SidebarLabel>Merge Request</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
-                <Cog6ToothIcon />
-                <SidebarLabel>Settings</SidebarLabel>
-              </SidebarItem>
             </SidebarSection>
             <SidebarSpacer />
 
             <SidebarSection>
-              <SidebarItem href="#">
+              <SidebarItem href="/support">
                 <QuestionMarkCircleIcon />
                 <SidebarLabel>Support</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="#">
+              <SidebarItem href="/changelog">
                 <SparklesIcon />
                 <SidebarLabel>Changelog</SidebarLabel>
               </SidebarItem>
@@ -187,7 +162,7 @@ export function ApplicationLayout({
               <Dropdown>
                 <DropdownButton as={SidebarItem}>
                   <span className="flex min-w-0 items-center gap-3">
-                    <Avatar src={user.avatar_url} slot="icon" initials="ME" className="size-10 bg-purple-500 text-white" />
+                    <Avatar src={user.avatar_url} slot="icon" className="size-10  text-white" />
                     <span className="min-w-0">
                       <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">{user.name}</span>
                       <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">

@@ -9,6 +9,7 @@ pub struct MrInfoItem {
     pub status: String,
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
+    pub updated_at: i64,
 }
 
 impl From<mega_mr::Model> for MrInfoItem {
@@ -19,6 +20,7 @@ impl From<mega_mr::Model> for MrInfoItem {
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
             merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),
+            updated_at: value.updated_at.and_utc().timestamp(),
         }
     }
 }
