@@ -15,10 +15,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob};
 use common::errors::MegaError;
-use jupiter::{
-    context::Context,
-    storage::batch_save_model,
-};
+use jupiter::{context::Context, storage::batch_save_model};
 use mercury::{
     errors::GitError,
     internal::{
@@ -30,12 +27,17 @@ use mercury::{hash::SHA1, internal::pack::encode::PackEncoder};
 
 use crate::{
     api_service::{mono_api_service::MonoApiService, ApiHandler},
-    pack::PackHandler, protocol::{import_refs::{CommandType, RefCommand, Refs}, repo::Repo},
+    pack::PackHandler,
+    protocol::{
+        import_refs::{CommandType, RefCommand, Refs},
+        repo::Repo,
+    },
 };
 
 pub struct ImportRepo {
     pub context: Context,
     pub repo: Repo,
+    pub command_list: Vec<RefCommand>,
 }
 
 #[async_trait]
@@ -54,7 +56,6 @@ impl PackHandler for ImportRepo {
     }
 
     async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
-        self.create_monorepo_parent().await.unwrap();
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
@@ -64,14 +65,21 @@ impl PackHandler for ImportRepo {
                 let stg_clone = storage.clone();
                 let repo_clone = self.repo.clone();
                 let handle = tokio::spawn(async move {
-                    stg_clone.save_entry(repo_clone.repo_id, entry_list).await.unwrap();
+                    stg_clone
+                        .save_entry(repo_clone.repo_id, entry_list)
+                        .await
+                        .unwrap();
                 });
                 join_tasks.push(handle);
                 entry_list = vec![];
             }
         }
         join_all(join_tasks).await;
-        storage.save_entry(self.repo.repo_id, entry_list).await.unwrap();
+        storage
+            .save_entry(self.repo.repo_id, entry_list)
+            .await
+            .unwrap();
+        self.attach_to_monorepo_parent().await.unwrap();
         Ok(())
     }
 
@@ -130,7 +138,8 @@ impl PackHandler for ImportRepo {
                 let sender_clone = entry_tx.clone();
                 let chunk_clone = chunk.to_vec();
                 let handler = tokio::spawn(async move {
-                    let mut blob_stream = raw_storage.get_raw_blobs_stream(chunk_clone).await.unwrap();
+                    let mut blob_stream =
+                        raw_storage.get_raw_blobs_stream(chunk_clone).await.unwrap();
                     while let Some(model) = blob_stream.next().await {
                         match model {
                             Ok(m) => {
@@ -289,9 +298,15 @@ impl PackHandler for ImportRepo {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {
             CommandType::Create => {
-                storage.save_ref(self.repo.repo_id, refs.clone().into()).await.unwrap();
+                storage
+                    .save_ref(self.repo.repo_id, refs.clone().into())
+                    .await
+                    .unwrap();
             }
-            CommandType::Delete => storage.remove_ref(self.repo.repo_id, &refs.ref_name).await.unwrap(),
+            CommandType::Delete => storage
+                .remove_ref(self.repo.repo_id, &refs.ref_name)
+                .await
+                .unwrap(),
             CommandType::Update => {
                 storage
                     .update_ref(self.repo.repo_id, &refs.ref_name, &refs.new_id)
@@ -314,13 +329,16 @@ impl PackHandler for ImportRepo {
 
     async fn check_default_branch(&self) -> bool {
         let storage = self.context.services.git_db_storage.clone();
-        storage.default_branch_exist(self.repo.repo_id).await.unwrap()
+        storage
+            .default_branch_exist(self.repo.repo_id)
+            .await
+            .unwrap()
     }
 }
 
 impl ImportRepo {
-    // create monorepo parent for preserve import repo
-    async fn create_monorepo_parent(&self) -> Result<(), GitError> {
+    // attach import repo to monorepo parent tree
+    async fn attach_to_monorepo_parent(&self) -> Result<(), GitError> {
         let path = PathBuf::from(self.repo.repo_path.clone());
         let mono_api_service = MonoApiService {
             context: self.context.clone(),
@@ -329,13 +347,21 @@ impl ImportRepo {
         let save_trees = mono_api_service.search_and_create_tree(&path).await?;
 
         let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();
+        let commit_id = &self.command_list.first().unwrap().new_id;
+        let latest_commit: Commit = self
+            .context
+            .services
+            .git_db_storage
+            .get_commit_by_hash(self.repo.repo_id, commit_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+        let commit_msg = latest_commit.format_message();
         let new_commit = Commit::from_tree_id(
             save_trees.back().unwrap().id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
-            &format!(
-                "push thrid-part crates {:?} commit",
-                path.file_name().unwrap()
-            ),
+            &commit_msg,
         );
 
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
