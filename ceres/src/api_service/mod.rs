@@ -76,7 +76,7 @@ pub trait ApiHandler: Send + Sync {
         &self,
         path: &Path,
         commit: Commit,
-        target: TreeItem,
+        target: &TreeItem,
     ) -> Commit;
 
     async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<String, GitError> {
@@ -166,9 +166,9 @@ pub trait ApiHandler: Send + Sync {
                         let commit = if let Some(commit) = commit_map.get(commit_id) {
                             commit
                         } else {
-                            tracing::error!("failed fecth commit: {}", commit_id);
+                            tracing::warn!("failed fecth commit: {}", commit_id);
                             &self
-                                .traverse_commit_history(&path, self.get_root_commit().await, item)
+                                .traverse_commit_history(&path, self.get_root_commit().await, &item)
                                 .await
                         };
                         info.oid = commit.id.to_plain_str();
@@ -177,6 +177,12 @@ pub trait ApiHandler: Send + Sync {
                     }
                     items.push(info);
                 }
+                // sort with type and date
+                items.sort_by(|a, b| {
+                    a.content_type
+                        .cmp(&b.content_type)
+                        .then(b.date.cmp(&a.date))
+                });
                 Ok(items)
             }
             None => Ok(Vec::new()),
@@ -385,7 +391,7 @@ pub trait ApiHandler: Send + Sync {
         &self,
         root_tree: &Tree,
         path: &Path,
-        target: TreeItem,
+        target: &TreeItem,
     ) -> Result<bool, GitError> {
         let relative_path = self.strip_relative(path).unwrap();
         let mut search_tree = root_tree.clone();
@@ -406,7 +412,7 @@ pub trait ApiHandler: Send + Sync {
             }
         }
         // check item exist under search tree
-        if search_tree.tree_items.into_iter().any(|x| x == target) {
+        if search_tree.tree_items.iter().any(|x| x == target) {
             return Ok(true);
         }
         Ok(false)
