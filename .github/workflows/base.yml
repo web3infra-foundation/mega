@@ -84,6 +84,10 @@ jobs:
           git config --global lfs.url http://localhost:8000
       - uses: actions-rs/cargo@v1
         with:
+          command: build
+          args: --bin mega --bin libra
+      - uses: actions-rs/cargo@v1
+        with:
           command: test
           args: --workspace --test '*' -- --nocapture
 
