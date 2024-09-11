@@ -103,7 +103,7 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn get_open_mr(&self, path: &str) -> Result<Option<mega_mr::Model>, MegaError> {
+    pub async fn get_open_mr_by_path(&self, path: &str) -> Result<Option<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Path.eq(path))
             .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
@@ -126,37 +126,35 @@ impl MonoStorage {
         Ok(model)
     }
 
-    pub async fn get_mr(&self, mr_id: i64) -> Result<Option<mega_mr::Model>, MegaError> {
-        let model = mega_mr::Entity::find_by_id(mr_id)
+    pub async fn get_mr(&self, mr_link: &str) -> Result<Option<mega_mr::Model>, MegaError> {
+        let model = mega_mr::Entity::find()
+            .filter(mega_mr::Column::MrLink.eq(mr_link))
             .one(self.get_connection())
             .await
             .unwrap();
         Ok(model)
     }
 
-    pub async fn get_open_mr_by_id(&self, mr_id: i64) -> Result<Option<mega_mr::Model>, MegaError> {
-        let model = mega_mr::Entity::find_by_id(mr_id)
+    pub async fn get_open_mr_by_link(
+        &self,
+        mr_link: &str,
+    ) -> Result<Option<mega_mr::Model>, MegaError> {
+        let model = mega_mr::Entity::find()
+            .filter(mega_mr::Column::MrLink.eq(mr_link))
             .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
             .one(self.get_connection())
             .await
             .unwrap();
-        // if let Some(model) = model {
-        //     let mr: MergeRequest = model.into();
-        //     return Ok(Some(mr));
-        // }
-        // Ok(None)
         Ok(model)
     }
 
     pub async fn save_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        // let model: mega_mr::Model = mr.into();
         let a_model = mr.into_active_model();
         a_model.insert(self.get_connection()).await.unwrap();
         Ok(())
     }
 
     pub async fn update_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        // let model: mega_mr::Model = mr.into();
         let mut a_model = mr.into_active_model();
         a_model = a_model.reset_all();
         a_model.created_at = NotSet;
@@ -166,10 +164,10 @@ impl MonoStorage {
 
     pub async fn get_mr_conversations(
         &self,
-        mr_id: i64,
+        mr_link: &str,
     ) -> Result<Vec<mega_mr_conv::Model>, MegaError> {
         let model = mega_mr_conv::Entity::find()
-            .filter(mega_mr_conv::Column::MrId.eq(mr_id))
+            .filter(mega_mr_conv::Column::MrLink.eq(mr_link))
             .all(self.get_connection())
             .await;
         Ok(model?)
@@ -177,13 +175,13 @@ impl MonoStorage {
 
     pub async fn add_mr_conversation(
         &self,
-        mr_id: i64,
+        mr_link: &str,
         user_id: i64,
         conv_type: ConvType,
     ) -> Result<i64, MegaError> {
         let conversation = mega_mr_conv::Model {
             id: generate_id(),
-            mr_id,
+            mr_link: mr_link.to_owned(),
             user_id,
             conv_type,
             created_at: chrono::Utc::now().naive_utc(),
@@ -196,12 +194,12 @@ impl MonoStorage {
 
     pub async fn add_mr_comment(
         &self,
-        mr_id: i64,
+        mr_link: &str,
         user_id: i64,
         comment: Option<String>,
     ) -> Result<(), MegaError> {
         let conv_id = self
-            .add_mr_conversation(mr_id, user_id, ConvType::Comment)
+            .add_mr_conversation(mr_link, user_id, ConvType::Comment)
             .await
             .unwrap();
         let comment = mega_mr_comment::Model {

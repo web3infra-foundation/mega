@@ -108,7 +108,7 @@ export function ApplicationLayout({
             <NavbarSection>
               <Dropdown>
                 <DropdownButton as={NavbarItem}>
-                  <Avatar src={"" || user.avatar_url} />
+                  <Avatar src={user.avatar_url} />
                 </DropdownButton>
                 <AccountDropdownMenu anchor="bottom end" />
               </Dropdown>
@@ -187,7 +187,7 @@ export function ApplicationLayout({
               <Dropdown>
                 <DropdownButton as={SidebarItem}>
                   <span className="flex min-w-0 items-center gap-3">
-                    <Avatar src={"" || user.avatar_url} slot="icon" initials="ME" className="size-10 bg-purple-500 text-white" />
+                    <Avatar src={user.avatar_url} slot="icon" initials="ME" className="size-10 bg-purple-500 text-white" />
                     <span className="min-w-0">
                       <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">{user.name}</span>
                       <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">

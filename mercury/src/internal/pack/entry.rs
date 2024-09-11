@@ -1,4 +1,5 @@
 use std::hash::{Hash, Hasher};
+
 use serde::{Deserialize, Serialize};
 
 use crate::hash::SHA1;

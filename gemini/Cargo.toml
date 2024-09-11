@@ -12,6 +12,12 @@ path = "src/lib.rs"
 
 [dependencies]
 common = { workspace = true }
+callisto = { workspace = true }
+vault = { workspace = true }
+jupiter = { workspace = true }
+neptune = { workspace = true }
+ceres = { workspace = true }
+
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,9 +25,4 @@ reqwest = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 chrono = { workspace = true }
-jupiter = { workspace = true }
-vault = { workspace = true }
-callisto = { workspace = true }
-ceres = { workspace = true }
-neptune = { workspace = true }
 secp256k1 = { version = "0.29.0", features = ["serde", "rand","hashes"] }
