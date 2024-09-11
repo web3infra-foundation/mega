@@ -10,7 +10,7 @@ use import_refs::RefCommand;
 use jupiter::context::Context;
 use repo::Repo;
 
-use crate::pack::{handler::PackHandler, import_repo::ImportRepo, monorepo::MonoRepo};
+use crate::pack::{PackHandler, import_repo::ImportRepo, monorepo::MonoRepo};
 
 pub mod smart;
 pub mod repo;
@@ -177,16 +177,16 @@ impl SmartProtocol {
             let mut res = MonoRepo {
                 context: self.context.clone(),
                 path: self.path.clone(),
-                from_hash: None,
-                to_hash: None,
+                from_hash: String::new(),
+                to_hash: String::new(),
             };
             if let Some(command) = self
                 .command_list
                 .iter()
                 .find(|x| x.ref_type == RefType::Branch)
             {
-                res.from_hash = Some(command.old_id.clone());
-                res.to_hash = Some(command.new_id.clone());
+                res.from_hash = command.old_id.clone();
+                res.to_hash = command.new_id.clone();
             }
             Ok(Arc::new(res))
         }

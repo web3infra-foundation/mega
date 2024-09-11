@@ -4,7 +4,7 @@ use callisto::{mega_mr, mega_mr_conv};
 
 #[derive(Serialize, Deserialize)]
 pub struct MrInfoItem {
-    pub id: i64,
+    pub mr_link: String,
     pub title: String,
     pub status: String,
     pub open_timestamp: i64,
@@ -14,7 +14,7 @@ pub struct MrInfoItem {
 impl From<mega_mr::Model> for MrInfoItem {
     fn from(value: mega_mr::Model) -> Self {
         Self {
-            id: value.id,
+            mr_link: value.mr_link,
             title: String::new(),
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
@@ -26,6 +26,7 @@ impl From<mega_mr::Model> for MrInfoItem {
 #[derive(Serialize, Deserialize)]
 pub struct MRDetail {
     pub id: i64,
+    pub mr_link: String,
     pub title: String,
     pub status: String,
     pub open_timestamp: i64,
@@ -45,6 +46,7 @@ impl From<mega_mr::Model> for MRDetail {
     fn from(value: mega_mr::Model) -> Self {
         Self {
             id: value.id,
+            mr_link: value.mr_link,
             title: String::new(),
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
