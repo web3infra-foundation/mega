@@ -10,6 +10,7 @@ interface MrInfoItem {
     status: string,
     open_timestamp: number,
     merge_timestamp: number | null,
+    updated_at: number,
 }
 
 interface MergeListProps {
@@ -25,7 +26,7 @@ const MergeList: React.FC<MergeListProps> = ({ mrList }) => {
             case 'merged':
                 return <Tag color="purple">merged</Tag>;
             case 'closed':
-                return <Tag color="failed">closed</Tag>;
+                return <Tag color="error">closed</Tag>;
         }
     };
 
@@ -40,7 +41,7 @@ const MergeList: React.FC<MergeListProps> = ({ mrList }) => {
                     return "";
                 }
             case 'closed':
-                return <Tag color="failed">closed</Tag>;
+                return (`MR ${item.mr_link} by Admin was closed ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}` )
         }
     }
 

@@ -22,7 +22,8 @@ pub struct GitHubUserJson {
     pub login: String,
     pub id: u32,
     pub avatar_url: String,
-    pub email: String,
+    // email can be null from github
+    pub email: Option<String>,
 }
 
 impl From<GitHubUserJson> for user::Model {
@@ -30,7 +31,7 @@ impl From<GitHubUserJson> for user::Model {
         Self {
             id: generate_id(),
             name: value.login,
-            email: value.email,
+            email: value.email.unwrap_or_default(),
             avatar_url: value.avatar_url,
             is_github: true,
             created_at: chrono::Utc::now().naive_utc(),

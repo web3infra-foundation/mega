@@ -172,6 +172,7 @@ impl SmartProtocol {
             Ok(Arc::new(ImportRepo {
                 context: self.context.clone(),
                 repo,
+                command_list: self.command_list.clone(),
             }))
         } else {
             let mut res = MonoRepo {

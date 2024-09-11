@@ -43,8 +43,8 @@ export default function KeysPage() {
             console.error('Error fetching data:', error);
         }
     };
-    useEffect(() => {
 
+    useEffect(() => {
         fetchData();
     }, []);
 
