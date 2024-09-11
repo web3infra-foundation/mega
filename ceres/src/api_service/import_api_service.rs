@@ -150,7 +150,7 @@ impl ApiHandler for ImportApiService {
         &self,
         path: &Path,
         start_commit: Commit,
-        target: TreeItem,
+        target: &TreeItem,
     ) -> Commit {
         let mut target_commit = start_commit.clone();
         let mut visited = HashSet::new();
@@ -162,7 +162,7 @@ impl ApiHandler for ImportApiService {
         while let Some(commit) = p_stack.pop_front() {
             let root_tree = self.get_tree_by_hash(&commit.tree_id.to_plain_str()).await;
             let reachable = self
-                .reachable_in_tree(&root_tree, path, target.clone())
+                .reachable_in_tree(&root_tree, path, target)
                 .await
                 .unwrap();
             if reachable {
