@@ -190,7 +190,7 @@ impl ApiHandler for MonoApiService {
         Ok(commits.into_iter().map(|x| x.into()).collect())
     }
 
-    async fn traverse_commit_history(&self, _: &Path, _: Commit, _: TreeItem) -> Commit {
+    async fn traverse_commit_history(&self, _: &Path, _: Commit, _: &TreeItem) -> Commit {
         unreachable!()
     }
 }

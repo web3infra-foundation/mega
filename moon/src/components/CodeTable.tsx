@@ -36,17 +36,11 @@ const CodeTable = ({ directory, readmeContent }) => {
             key: 'name',
             render: (_, record) => {
                 return <>
-                    {record.content_type === "file" &&
-                        <Space>
-                            <DocumentIcon className="size-6" />
-                            <span onClick={() => handleFileClick(record)}>{record.name}</span>
-                        </Space>
-                    }
-                    {record.content_type === "directory" &&
-                        <Space>
-                            <FolderIcon className="size-6" />
-                            <a onClick={() => handleDirectoryClick(record)}>{record.name}</a>
-                        </Space>}
+                    <Space>
+                        {record.content_type === "directory" && <FolderIcon className="size-6" />}
+                        {record.content_type === "file" && <DocumentIcon className="size-6" />}
+                        <a>{record.name}</a>
+                    </Space>
                 </>
             }
         },
@@ -67,23 +61,22 @@ const CodeTable = ({ directory, readmeContent }) => {
             )
         }
     ];
-
-    const handleFileClick = (file) => {
-        const newPath = `/blob/${real_path}/${file.name}`;
-        router.push(newPath);
-    };
-
-    const handleDirectoryClick = async (directory) => {
-        var newPath = '';
-        if (real_path === '/') {
-            newPath = `/tree/${directory.name}`;
+    const handleRowClick = (record) => {
+        if (record.content_type === "file") {
+            const newPath = `/blob/${real_path}/${record.name}`;
+            router.push(newPath);
         } else {
-            newPath = `/tree/${real_path}/${directory.name}`;
+            var newPath = '';
+            if (real_path === '/') {
+                newPath = `/tree/${record.name}`;
+            } else {
+                newPath = `/tree/${real_path}/${record.name}`;
+            }
+            router.push(
+                newPath,
+            );
         }
-        router.push(
-            newPath,
-        );
-    };
+    }
 
     const handleGoBack = () => {
         const safePath = real_path.split('/');
@@ -95,21 +88,17 @@ const CodeTable = ({ directory, readmeContent }) => {
         }
     };
 
-    // sort by file type, render folder type first
-    const sortedDir = directory.sort((a, b) => {
-        if (a.content_type === 'directory' && b.content_type === 'file') {
-            return -1;
-        } else if (a.content_type === 'file' && b.content_type === 'directory') {
-            return 1;
-        } else {
-            return 0;
-        }
-    });
-
-
     return (
         <div style={fileCodeContainerStyle}>
-            <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr} pagination={false} columns={columns} dataSource={sortedDir} />
+            <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr}
+                pagination={false} columns={columns}
+                dataSource={directory} rowKey="oid"
+                onRow={(record) => {
+                    return {
+                        onClick: (event) => { handleRowClick(record) }
+                    };
+                }}
+            />
             {readmeContent && (
                 <div className={styles.markdownContent}>
                     <div className="markdown-body">
