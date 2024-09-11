@@ -1,7 +1,7 @@
 use std::io;
 use std::vec;
 use std::{collections::HashSet, fs, io::Write};
-
+use std::time::Instant;
 use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
 use indicatif::ProgressBar;
@@ -22,6 +22,7 @@ use crate::{
     },
     utils::{self, path_ext::PathExt},
 };
+use crate::utils::util;
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
@@ -105,6 +106,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
     let mut pack_data = Vec::new();
     let mut reach_pack = false;
     let bar = ProgressBar::new_spinner();
+    let time = Instant::now();
     loop {
         let (len, data) = read_pkt_line(&mut reader).await.unwrap();
         if len == 0 {
@@ -115,6 +117,10 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
             tracing::debug!("Receiving PACK data...");
         }
         if reach_pack { // 2.PACK data
+            let bytes_per_sec = pack_data.len() as f64 / time.elapsed().as_secs_f64();
+            let total = util::auto_unit_bytes(pack_data.len() as u64);
+            let bps = util::auto_unit_bytes(bytes_per_sec as u64);
+            bar.set_message(format!("Receiving objects: {total:.2} | {bps:.2}/s"));
             bar.tick();
             // Side-Band Capability, should be enabled if Server Support
             let code = data[0];

@@ -66,11 +66,6 @@ pub async fn execute(args: PushArgs) {
         }
     };
     let repo_url = Config::get_remote_url(&repository).await;
-    if repo_url.is_none() {
-        eprintln!("fatal: remote '{}' not found, please use 'libra remote add'", repository);
-        return;
-    }
-    let repo_url = repo_url.unwrap();
 
     let branch = args.refspec.unwrap_or(branch);
     let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_plain_str();
@@ -301,7 +296,7 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> { 
                 }
                 _ => { // TODO: submodule (TreeItemMode: Commit)
                     if item.mode == TreeItemMode::Commit { // (160000)| Gitlink (Submodule)
-                        eprintln!("fatal: submodule not supported");
+                        eprintln!("{}", "Warning: Submodule is not supported yet".red());
                     }
                     let blob = Blob::load(&item.id);
                     objs.insert(blob.into());
