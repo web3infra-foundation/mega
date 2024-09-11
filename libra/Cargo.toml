@@ -46,6 +46,7 @@ serde_json = { workspace = true }
 async_static = "0.1.3"
 once_cell = "1.19.0"
 byte-unit = "5.1.4"
+scopeguard = "1.2.0"
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"

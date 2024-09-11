@@ -57,7 +57,7 @@ impl LFSClient {
         let url = Config::get_current_remote_url().await;
         match url {
             Some(url) => LFSClient::from_url(&Url::parse(&url).unwrap()),
-            None => panic!("fatal: current remote url not found"),
+            None => panic!("fatal: no remote set for current branch, use `libra branch --set-upstream-to <remote>/<branch>`"),
         }
     }
 
@@ -152,24 +152,24 @@ impl LFSClient {
 
         // TODO: parallel upload
         for obj in resp.objects {
-            self.upload_object(obj).await;
+            self.upload_object(obj).await?;
         }
         println!("LFS objects push completed.");
         Ok(())
     }
 
     /// upload (PUT) one LFS file to remote server
-    async fn upload_object(&self, object: Representation) {
+    async fn upload_object(&self, object: Representation) -> Result<(), ()> {
         if let Some(err) = object.error {
             eprintln!("fatal: LFS upload failed. Code: {}, Message: {}", err.code, err.message);
-            return;
+            return Err(());
         }
 
         if let Some(actions) = object.actions {
             let upload_link = actions.get("upload");
             if upload_link.is_none() {
                 eprintln!("fatal: LFS upload failed. No upload action found");
-                return;
+                return Err(());
             }
 
             let link = upload_link.unwrap();
@@ -188,12 +188,13 @@ impl LFSClient {
                 .unwrap();
             if !resp.status().is_success() {
                 eprintln!("fatal: LFS upload failed. Status: {}, Message: {}", resp.status(), resp.text().await.unwrap());
-                return;
+                return Err(());
             }
             println!("Uploaded.");
         } else {
             tracing::debug!("LFS file {} already exists on remote server", object.oid);
         }
+        Ok(())
     }
 
     /// download (GET) one LFS file from remote server
@@ -262,7 +263,10 @@ impl LFSClient {
         if checksum == oid {
             println!("Downloaded.");
         } else {
-            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}", checksum, oid);
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}. Fallback to pointer file.", checksum, oid);
+            let pointer = lfs::format_pointer_string(oid, size);
+            file.set_len(0).await.unwrap(); // clear
+            file.write_all(pointer.as_bytes()).await.unwrap();
         }
     }
 

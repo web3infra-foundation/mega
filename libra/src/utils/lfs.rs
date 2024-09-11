@@ -59,9 +59,12 @@ pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
     // calc file hash without type
     let oid = calc_lfs_file_hash(path).unwrap();
 
-    let pointer = format!("version {}\noid {}:{}\nsize {}\n",
-                          LFS_VERSION, LFS_HASH_ALGO, oid, path.metadata().unwrap().len());
+    let pointer = format_pointer_string(&oid, path.metadata().unwrap().len());
     (pointer, oid)
+}
+
+pub fn format_pointer_string(oid: &str, size: u64) -> String {
+    format!("version {}\noid {}:{}\nsize {}\n", LFS_VERSION, LFS_HASH_ALGO, oid, size)
 }
 
 /// Generate LFS Server Url from repo Url.
