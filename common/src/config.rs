@@ -209,12 +209,14 @@ impl Default for StorageConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
     pub import_dir: PathBuf,
+    pub disable_http_push: bool,
 }
 
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
             import_dir: PathBuf::from("/third-part"),
+            disable_http_push: false,
         }
     }
 }

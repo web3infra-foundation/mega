@@ -145,8 +145,7 @@ pub async fn app(config: Config, host: String, port: u16, common: CommonOptions)
 }
 
 lazy_static! {
-    /// The following regular expressions are used to match the LFS server discovery protocol.
-    /// Git Protocol
+    /// The following regular expressions are used to match the Git server protocol.
     static ref INFO_REFS_REGEX: Regex = Regex::new(r"/info/refs$").unwrap();
     static ref REGEX_GIT_UPLOAD_PACK: Regex = Regex::new(r"/git-upload-pack$").unwrap();
     static ref REGEX_GIT_RECEIVE_PACK: Regex = Regex::new(r"/git-receive-pack$").unwrap();
@@ -186,6 +185,12 @@ pub async fn post_method_router(
         pack_protocol.service_type = Some(ServiceType::UploadPack);
         crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
     } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
+        if state.context.config.monorepo.disable_http_push {
+            return Err((
+                StatusCode::FORBIDDEN,
+                String::from("HTTP Push Has Been Disabled"),
+            ))
+        }
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
             state.context.clone(),
