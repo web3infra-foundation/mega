@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 
 mod diff;
+mod fetch;
+
 #[derive(Serialize,Deserialize)]
 struct  ScorpioManager{
     url:String,
@@ -73,4 +75,7 @@ mod tests {
         assert!(content.contains("hash = \"hash1\""));
        
     }
+
+
+    
 }

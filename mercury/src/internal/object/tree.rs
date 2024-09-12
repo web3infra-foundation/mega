@@ -15,13 +15,13 @@
 //! operations like merging and rebasing more quickly and accurately.
 //!
 use std::fmt::Display;
-
+use std::hash::Hash;
 use colored::Colorize;
-
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
+
 
 /// In Git, the mode field in a tree object's entry specifies the type of the object represented by
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
@@ -261,7 +261,13 @@ impl Tree {
         })
     }
 }
-
+impl TryFrom<&[u8]> for Tree{
+    type Error = GitError;
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error>  {
+        let h = SHA1::from_type_and_data(ObjectType::Tree, data);
+        Tree::from_bytes(data, h)
+    }
+}
 impl ObjectTrait for Tree {
     fn from_bytes(data: &[u8], hash: SHA1) -> Result<Self, GitError>
     where
