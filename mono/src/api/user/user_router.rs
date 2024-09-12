@@ -7,10 +7,10 @@ use russh_keys::parse_public_key_base64;
 
 use common::model::CommonResult;
 
-use crate::api::{error::ApiError, oauth::model::LoginUser};
 use crate::api::user::model::AddSSHKey;
 use crate::api::user::model::ListSSHKey;
 use crate::api::MonoApiServiceState;
+use crate::api::{error::ApiError, oauth::model::LoginUser};
 
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
@@ -32,20 +32,24 @@ async fn add_key(
     state: State<MonoApiServiceState>,
     Json(json): Json<AddSSHKey>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let key_data = json
-        .ssh_key
-        .split_whitespace()
-        .nth(1)
-        .ok_or("Invalid key format")
-        .unwrap();
-
-    let key = parse_public_key_base64(key_data)?;
+    let ssh_key: Vec<&str> = json.ssh_key.split_whitespace().collect();
+    let key = parse_public_key_base64(ssh_key.get(1).ok_or("Invalid key format").unwrap())?;
+    let title = if !json.title.is_empty() {
+        json.title
+    } else {
+        ssh_key
+            .get(2)
+            .ok_or("Invalid key format")
+            .unwrap()
+            .to_owned()
+            .to_owned()
+    };
 
     let res = state
         .context
         .services
         .user_storage
-        .save_ssh_key(user.user_id, &json.ssh_key, &key.fingerprint())
+        .save_ssh_key(user.user_id, &title, &json.ssh_key, &key.fingerprint())
         .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
