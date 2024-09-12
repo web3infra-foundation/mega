@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 const { TextArea } = Input;
 
 export default function Settings() {
+  const [title, setTitle] = useState('');
   const [ssh_key, setSSHKey] = useState('');
   const [messageApi, contextHolder] = message.useMessage();
   const router = useRouter();
@@ -20,13 +21,14 @@ export default function Settings() {
     });
   };
 
-  const save_ssh_key = async (ssh_key) => {
+  const save_ssh_key = async (title, ssh_key) => {
     const res = await fetch('/api/user/ssh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        title: title,
         ssh_key: ssh_key
       }),
     });
@@ -48,7 +50,7 @@ export default function Settings() {
           <Subheading>Title</Subheading>
         </div>
         <div>
-          <Input aria-label="title" name="title"
+          <Input aria-label="title" name="title" value={title} onChange={(e) => setTitle(e.target.value)}
           />
         </div>
       </section>
@@ -72,7 +74,7 @@ export default function Settings() {
         <Button>
           Reset
         </Button>
-        <Button type="primary" disabled={!ssh_key} onClick={() => save_ssh_key(ssh_key)} >Save changes</Button>
+        <Button type="primary" disabled={!ssh_key} onClick={() => save_ssh_key(title, ssh_key)} >Save changes</Button>
       </div>
     </form>
   )

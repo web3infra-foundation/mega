@@ -291,6 +291,7 @@ CREATE TABLE IF NOT EXISTS "user" (
 CREATE TABLE IF NOT EXISTS "ssh_keys" (
   "id" BIGINT PRIMARY KEY,
   "user_id" BIGINT NOT NULL,
+  "title" TEXT NOT NULL,
   "ssh_key" TEXT NOT NULL,
   "finger" TEXT NOT NULL,
   "created_at" TIMESTAMP NOT NULL
