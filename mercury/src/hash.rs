@@ -104,7 +104,7 @@ impl SHA1 {
         SHA1(result)
     }
 
-    pub fn from_type_and_data(object_type: ObjectType, data: &Vec<u8>) -> SHA1 {
+    pub fn from_type_and_data(object_type: ObjectType, data: &[u8]) -> SHA1 {
         let mut d: Vec<u8> = Vec::new();
         d.extend(object_type.to_data().unwrap());
         d.push(b' ');
