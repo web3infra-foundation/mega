@@ -14,6 +14,7 @@ interface KeyItem {
     ssh_key: string,
     created_at: string,
     finger: string,
+    title: string,
 }
 
 export default function KeysPage() {
@@ -80,7 +81,13 @@ export default function KeysPage() {
                             avatar={
                                 <KeyIcon className="size-6" />
                             }
-                            title={`SHA256:${item.finger}`}
+                            title={
+                                <>
+                                    {item.title}
+                                    <br />
+                                    SHA256: {item.finger}
+                                </>
+                            }
                             description={`Added on ${format(new Date(item.created_at), "MMM dd,yyyy")}`}
                         />
                         <Button danger onClick={() => delete_ssh_key(item.id)} >Delete</Button>

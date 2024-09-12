@@ -45,12 +45,14 @@ impl UserStorage {
     pub async fn save_ssh_key(
         &self,
         user_id: i64,
+        title: &str,
         ssh_key: &str,
         finger: &str,
     ) -> Result<(), MegaError> {
         let model = ssh_keys::Model {
             id: generate_id(),
             user_id,
+            title: title.to_owned(),
             ssh_key: ssh_key.to_owned(),
             finger: finger.to_owned(),
             created_at: chrono::Utc::now().naive_utc(),

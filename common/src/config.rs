@@ -13,7 +13,6 @@ pub struct Config {
     pub base_dir: PathBuf,
     pub log: LogConfig,
     pub database: DbConfig,
-    pub ssh: SshConfig,
     pub storage: StorageConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
@@ -189,19 +188,6 @@ impl Default for DbConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SshConfig {
-    pub ssh_key_path: PathBuf,
-}
-
-impl Default for SshConfig {
-    fn default() -> Self {
-        Self {
-            ssh_key_path: PathBuf::from("/tmp/.mega/ssh"),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StorageConfig {
     pub obs_access_key: String,
     pub obs_secret_key: String,
@@ -223,12 +209,14 @@ impl Default for StorageConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
     pub import_dir: PathBuf,
+    pub disable_http_push: bool,
 }
 
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
             import_dir: PathBuf::from("/third-part"),
+            disable_http_push: false,
         }
     }
 }

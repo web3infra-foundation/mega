@@ -36,9 +36,6 @@ min_connection = 8
 sqlx_logging = false
 
 
-[ssh]
-ssh_key_path = "${base_dir}/etc/ssh"
-
 [storage]
 
 obs_access_key = ""
@@ -56,6 +53,7 @@ obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
 ## Mega treats files under this directory as import repo and other directories as monorepo
 import_dir = "/third-part"
 
+disable_http_push = false
 
 [pack]
 # The maximum memory used by decode, Unit is GB
