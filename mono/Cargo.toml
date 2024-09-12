@@ -18,6 +18,7 @@ callisto = { workspace = true }
 jupiter = { workspace = true }
 ceres = { workspace = true }
 taurus = { workspace = true }
+vault = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

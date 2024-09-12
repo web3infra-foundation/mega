@@ -13,7 +13,6 @@ pub struct Config {
     pub base_dir: PathBuf,
     pub log: LogConfig,
     pub database: DbConfig,
-    pub ssh: SshConfig,
     pub storage: StorageConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
@@ -184,19 +183,6 @@ impl Default for DbConfig {
             max_connection: 32,
             min_connection: 16,
             sqlx_logging: false,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SshConfig {
-    pub ssh_key_path: PathBuf,
-}
-
-impl Default for SshConfig {
-    fn default() -> Self {
-        Self {
-            ssh_key_path: PathBuf::from("/tmp/.mega/ssh"),
         }
     }
 }

@@ -273,9 +273,6 @@ min_connection = 16
 sqlx_logging = false
 
 
-[ssh]
-ssh_key_path = "${base_dir}/ssh"
-
 [storage]
 
 obs_access_key = ""
