@@ -22,9 +22,7 @@ fn main() {
     match res {
         Ok(_) => {}
         Err(e) => {
-            if let GitError::RepoNotFound = e {
-                return;
-            } else {
+            if !matches!(e, GitError::RepoNotFound) {
                 eprintln!("Error: {:?}", e);
             }
         }
