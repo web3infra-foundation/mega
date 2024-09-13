@@ -1,6 +1,12 @@
+use anyhow::Result;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use thiserror::Error;
 
-use anyhow::Result;
+use crate::model::CommonResult;
 
 pub type MegaResult = Result<(), MegaError>;
 
@@ -75,7 +81,6 @@ pub enum GitLFSError {
     GeneralError(String),
 }
 
-
 #[derive(Debug, Error)]
 pub enum ProtocolError {
     #[error("{0}")]
@@ -84,6 +89,36 @@ pub enum ProtocolError {
     Deny(String),
     #[error("Repository not found: {0}")]
     NotFound(String),
+    #[error("Invalid Input: {0}")]
+    InvalidInput(String),
+    #[error("HTTP Push Has Been Disabled")]
+    Disabled,
+}
+
+impl IntoResponse for ProtocolError {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            ProtocolError::Deny(err) => {
+                // This error is caused by bad user input so don't log it
+                (StatusCode::UNAUTHORIZED, err)
+            }
+            ProtocolError::NotFound(err) => {
+                // Because `TraceLayer` wraps each request in a span that contains the request
+                // method, uri, etc we don't need to include those details here
+                // tracing::error!(%err, "error");
+
+                // Don't expose any details about the error to the client
+                (StatusCode::NOT_FOUND, err)
+            }
+            ProtocolError::InvalidInput(err) => (StatusCode::BAD_REQUEST, err),
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Something went wrong".to_owned(),
+            ),
+        };
+
+        (status, Json(CommonResult::<String>::failed(&message))).into_response()
+    }
 }
 
 #[cfg(test)]
