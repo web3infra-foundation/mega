@@ -74,6 +74,11 @@ enum Commands {
 /// - `args`: parse from command line if it's `None`, otherwise parse from the given args
 #[tokio::main]
 pub async fn parse(args: Option<&[&str]>) -> Result<(), GitError> {
+    parse_async(args).await
+}
+
+/// `async` version of the [parse] function
+pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
     let args = match args {
         Some(args) => Cli::try_parse_from(args).map_err(|e| GitError::InvalidArgument(e.to_string()))?,
         None => Cli::parse(),
