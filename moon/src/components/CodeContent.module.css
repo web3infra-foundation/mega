@@ -1,7 +1,3 @@
-.codeShowContainer {
-    border-radius: 1rem;
-    padding-top: 70px;
-}
 
 .codeLineNumber {
     margin-left: 15px;
@@ -12,7 +8,6 @@
     background-color: rgba(53, 53, 53, 0.103);
     display: flex;
     position: absolute;
-    width: 80%;
     height: 50px;
     border-top-left-radius: 1rem;
     border-top-right-radius: 1rem;
@@ -33,8 +28,6 @@
 }
 
 .fileCodeContainer {
-    width: 80%;
-    margin-left: 18%;
     border-radius: 0.5rem;
     margin-top: 10px;
 
