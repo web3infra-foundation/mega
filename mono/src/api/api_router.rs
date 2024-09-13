@@ -14,7 +14,7 @@ use ceres::{
         tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem},
     },
 };
-use common::model::CommonResult;
+use common::{errors::ProtocolError, model::CommonResult};
 use http::StatusCode;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
@@ -32,8 +32,8 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/tree", get(get_tree_info))
         .route("/blob", get(get_blob_string))
         .route("/file/blob/:object_id", get(get_blob_file))
-        .route("/file/tree", get(get_tree_file));
-
+        .route("/file/tree", get(get_tree_file))
+        .route("/path-can-clone", get(path_can_be_cloned));
     Router::new()
         .merge(router)
         .merge(mr_router::routers())
@@ -47,7 +47,7 @@ async fn get_blob_string(
     ApiRequestEvent::notify(ApiType::Blob, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
-        .await
+        .await?
         .get_blob_as_string(query.path.into())
         .await;
 
@@ -69,7 +69,7 @@ async fn create_file(
     ApiRequestEvent::notify(ApiType::CreateFile, &state.0.context.config);
     let res = state
         .api_handler(json.path.clone().into())
-        .await
+        .await?
         .create_monorepo_file(json.clone())
         .await;
     let res = match res {
@@ -86,7 +86,7 @@ async fn get_latest_commit(
     ApiRequestEvent::notify(ApiType::LastestCommit, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
-        .await
+        .await?
         .get_latest_commit(query.path.into())
         .await?;
     Ok(Json(res))
@@ -99,7 +99,7 @@ async fn get_tree_info(
     ApiRequestEvent::notify(ApiType::TreeInfo, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
-        .await
+        .await?
         .get_tree_info(query.path.into())
         .await;
     let res = match res {
@@ -112,11 +112,11 @@ async fn get_tree_info(
 async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
+) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ProtocolError> {
     ApiRequestEvent::notify(ApiType::CommitInfo, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
-        .await
+        .await?
         .get_tree_commit_info(query.path.into())
         .await;
     let res = match res {
@@ -155,7 +155,7 @@ pub async fn get_tree_file(
 ) -> Result<Response, ApiError> {
     let res = state
         .api_handler(query.path.clone().into())
-        .await
+        .await?
         .get_tree_as_data(std::path::Path::new(&query.path))
         .await;
 
@@ -173,4 +173,12 @@ pub async fn get_tree_file(
                 .unwrap()
         }),
     }
+}
+
+async fn path_can_be_cloned(
+    Query(query): Query<BlobContentQuery>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<bool>>, ApiError> {
+    let res = state.api_handler(query.path.clone().into()).await.is_ok();
+    Ok(Json(CommonResult::success(Some(res))))
 }
