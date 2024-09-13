@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use anyhow::Result;
 use axum::body::Body;
-use axum::http::{HeaderValue, Request, Response, StatusCode};
+use axum::http::{HeaderValue, Request, Response};
 use bytes::{Bytes, BytesMut};
 use futures::{stream, TryStreamExt};
 use tokio::io::AsyncReadExt;
@@ -21,19 +21,19 @@ use common::model::InfoRefsParams;
 pub async fn git_info_refs(
     params: InfoRefsParams,
     mut pack_protocol: SmartProtocol,
-) -> Result<Response<Body>, (StatusCode, String)> {
+) -> Result<Response<Body>, ProtocolError> {
     let service_name = params.service.unwrap();
     pack_protocol.service_type = Some(service_name.parse::<ServiceType>().unwrap());
 
-    let response = match pack_protocol.git_info_refs().await {
-        Ok(pkt_line_stream) => Response::builder()
-            .body(Body::from(pkt_line_stream.freeze()))
-            .unwrap(),
-        Err(err) => return Ok(handler_err(err)),
-    };
+    let pkt_line_stream = pack_protocol.git_info_refs().await?;
 
     let content_type = format!("application/x-{}-advertisement", service_name);
-    let response = add_default_header(content_type, response);
+    let response = add_default_header(
+        content_type,
+        Response::builder()
+            .body(Body::from(pkt_line_stream.freeze()))
+            .unwrap(),
+    );
     Ok(response)
 }
 
@@ -60,7 +60,7 @@ pub async fn git_info_refs(
 pub async fn git_upload_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
-) -> Result<Response<Body>, (StatusCode, String)> {
+) -> Result<Response<Body>, ProtocolError> {
     let upload_request: BytesMut = req
         .into_body()
         .into_data_stream()
@@ -71,42 +71,37 @@ pub async fn git_upload_pack(
         .await
         .unwrap();
     tracing::debug!("bytes from client: {:?}", upload_request);
-    let response = match pack_protocol
+    let (mut send_pack_data, protocol_buf) = pack_protocol
         .git_upload_pack(&mut upload_request.freeze())
-        .await
-    {
-        Ok((mut send_pack_data, protocol_buf)) => {
-            let body_stream = async_stream::stream! {
-                tracing::info!("send ack/nak message buf: {:?}", &protocol_buf);
-                yield Ok::<_, Infallible>(Bytes::copy_from_slice(&protocol_buf));
-                // send packdata with sideband64k
-                while let Some(chunk) = send_pack_data.next().await {
-                    let mut reader = chunk.as_slice();
-                    loop {
-                        let mut temp = BytesMut::new();
-                        temp.reserve(65500);
-                        let length = reader.read_buf(&mut temp).await.unwrap();
-                        if length == 0 {
-                            break;
-                        }
-                        let bytes_out = pack_protocol.build_side_band_format(temp, length);
-                        // tracing::info!("send pack file: length: {:?}", bytes_out.len());
-                        yield Ok::<_, Infallible>(bytes_out.freeze());
-                    }
+        .await?;
+
+    let body_stream = async_stream::stream! {
+        tracing::info!("send ack/nak message buf: {:?}", &protocol_buf);
+        yield Ok::<_, Infallible>(Bytes::copy_from_slice(&protocol_buf));
+        // send packdata with sideband64k
+        while let Some(chunk) = send_pack_data.next().await {
+            let mut reader = chunk.as_slice();
+            loop {
+                let mut temp = BytesMut::new();
+                temp.reserve(65500);
+                let length = reader.read_buf(&mut temp).await.unwrap();
+                if length == 0 {
+                    break;
                 }
-                let bytes_out = Bytes::from_static(smart::PKT_LINE_END_MARKER);
-                tracing::info!("send back pkt-flush line '0000', actually: {:?}", bytes_out);
-                yield Ok::<_, Infallible>(bytes_out);
-            };
-            Response::builder()
-                .body(Body::from_stream(body_stream))
-                .unwrap()
+                let bytes_out = pack_protocol.build_side_band_format(temp, length);
+                // tracing::info!("send pack file: length: {:?}", bytes_out.len());
+                yield Ok::<_, Infallible>(bytes_out.freeze());
+            }
         }
-        Err(err) => return Ok(handler_err(err)),
+        let bytes_out = Bytes::from_static(smart::PKT_LINE_END_MARKER);
+        tracing::info!("send back pkt-flush line '0000', actually: {:?}", bytes_out);
+        yield Ok::<_, Infallible>(bytes_out);
     };
     let response = add_default_header(
         String::from("application/x-git-upload-pack-result"),
-        response,
+        Response::builder()
+            .body(Body::from_stream(body_stream))
+            .unwrap(),
     );
     Ok(response)
 }
@@ -129,7 +124,7 @@ pub async fn git_upload_pack(
 pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
-) -> Result<Response<Body>, (StatusCode, String)> {
+) -> Result<Response<Body>, ProtocolError> {
     // Convert the request body into a data stream.
     let mut data_stream = req.into_body().into_data_stream();
     let mut report_status = Bytes::new();
@@ -177,23 +172,6 @@ fn add_default_header<T>(content_type: String, mut response: Response<T>) -> Res
         HeaderValue::from_static("no-cache, max-age=0, must-revalidate"),
     );
     response
-}
-
-fn handler_err(err: ProtocolError) -> Response<Body> {
-    match err {
-        ProtocolError::NotFound(err) => Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::from(err.to_string()))
-            .unwrap(),
-        ProtocolError::Deny(err) => Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Body::from(err.to_string()))
-            .unwrap(),
-        _ => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::empty())
-            .unwrap(),
-    }
 }
 
 #[cfg(test)]
