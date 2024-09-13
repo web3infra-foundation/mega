@@ -45,6 +45,9 @@ pub enum GitError {
     #[error("The `{0}` is not a valid index header.")]
     InvalidIndexHeader(String),
 
+    #[error("Argument parse failed: {0}")]
+    InvalidArgument(String),
+
     #[error("IO Error: {0}")]
     IOError(#[from] std::io::Error),
 
@@ -77,6 +80,9 @@ pub enum GitError {
 
     #[error("Can't find specific object: {0}")]
     ObjectNotFound(String),
+
+    #[error("Repository not found")]
+    RepoNotFound,
 
     #[error("UnAuthorized: {0}")]
     UnAuthorized(String),
