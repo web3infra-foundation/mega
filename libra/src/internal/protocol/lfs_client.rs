@@ -1,20 +1,20 @@
-use std::collections::HashSet;
-use std::path::Path;
-use async_static::async_static;
-use futures_util::StreamExt;
-use reqwest::{Client, StatusCode};
-use ring::digest::{Context, SHA256};
-use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
-use url::Url;
-use ceres::lfs::lfs_structs::{BatchRequest, FetchchunkResponse, Link, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
-use mercury::internal::object::types::ObjectType;
-use mercury::internal::pack::entry::Entry;
 use crate::command;
 use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::lfs;
+use async_static::async_static;
+use ceres::lfs::lfs_structs::{BatchRequest, FetchchunkResponse, Link, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
+use futures_util::StreamExt;
+use mercury::internal::object::types::ObjectType;
+use mercury::internal::pack::entry::Entry;
+use reqwest::{Client, StatusCode};
+use ring::digest::{Context, SHA256};
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::path::Path;
+use tokio::io::AsyncWriteExt;
+use url::Url;
 
 async_static! {
     pub static ref LFS_CLIENT: LFSClient = LFSClient::new().await;
@@ -37,14 +37,17 @@ struct LfsBatchResponse {
 impl ProtocolClient for LFSClient {
     /// Construct LFSClient from a given Repo URL.
     fn from_url(repo_url: &Url) -> Self {
-        let lfs_server = Url::parse(&lfs::generate_lfs_server_url(repo_url.to_string())).unwrap();
+        // The trailing slash is MUST, or `join()` method will replace the last segment.
+        // like: Url("/info/lfs").join("objects/batch") => "/info/objects/batch"
+        let lfs_server = lfs::generate_lfs_server_url(repo_url.to_string()) + "/"; // IMPORTANT
+        let lfs_server = Url::parse(&lfs_server).unwrap();
         let client = Client::builder()
-            .http1_only()
-            .default_headers(lfs::LFS_HEADERS.clone())
+            .default_headers(lfs::LFS_HEADERS.clone()) //  will be overwritten by `json()`, careful!
             .build()
             .unwrap();
         Self {
-            batch_url: lfs_server.join("/objects/batch").unwrap(),
+            // Caution: DO NOT start with `/`, or path after domain will be replaced.
+            batch_url: lfs_server.join("objects/batch").unwrap(),
             lfs_url: lfs_server,
             client,
         }
@@ -140,7 +143,10 @@ impl LFSClient {
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
         };
 
-        let mut request = self.client.post(self.batch_url.clone()).json(&batch_request);
+        let mut request = self.client
+            .post(self.batch_url.clone())
+            .json(&batch_request)
+            .headers(lfs::LFS_HEADERS.clone());
         if let Some(auth) = auth {
             request = request.basic_auth(auth.username, Some(auth.password));
         }
@@ -173,7 +179,7 @@ impl LFSClient {
             }
 
             let link = upload_link.unwrap();
-            let mut request = self.client.put(link.href.clone());
+            let mut request = self.client.put(&link.href);
             for (k, v) in &link.header {
                 request = request.header(k, v);
             }
@@ -210,11 +216,15 @@ impl LFSClient {
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
         };
 
-        let request = self.client.post(self.batch_url.clone()).json(&batch_request);
+        let request = self.client
+            .post(self.batch_url.clone())
+            .json(&batch_request)
+            .headers(lfs::LFS_HEADERS.clone());
         let response = request.send().await.unwrap();
 
-        let resp = response.json::<LfsBatchResponse>().await.unwrap();
-        tracing::debug!("LFS download response:\n {:#?}", serde_json::to_value(&resp).unwrap());
+        let text = response.text().await.unwrap();
+        tracing::debug!("LFS download response:\n {:#?}", serde_json::from_str::<serde_json::Value>(&text).unwrap());
+        let resp = serde_json::from_str::<LfsBatchResponse>(&text).unwrap();
 
         let link = resp.objects[0].actions.as_ref().unwrap().get("download").unwrap();
 
@@ -253,7 +263,7 @@ impl LFSClient {
 
             let mut stream = response.bytes_stream();
 
-            while let Some(chunk) = stream.next().await {
+            while let Some(chunk) = stream.next().await { // TODO: progress bar
                 let chunk = chunk.unwrap();
                 file.write_all(&chunk).await.unwrap();
                 checksum.update(&chunk);
@@ -272,11 +282,15 @@ impl LFSClient {
 
     /// Only for MonoRepo (mega)
     async fn fetch_chunk_links(&self, obj_link: &str) -> Result<Vec<Link>, ()> {
-        let request = self.client.get(obj_link.to_owned() + "/chunks");
+        let mut url = Url::parse(obj_link).unwrap();
+        let path = url.path().trim_end_matches('/');
+        url.set_path(&(path.to_owned() + "/chunks")); // reserve query params (for GitHub link)
+
+        let request = self.client.get(url);
         let resp = request.send().await.unwrap();
         let code = resp.status();
-        if code == StatusCode::NOT_FOUND {
-            tracing::info!("Remote LFS Server not support Chunks API");
+        if code == StatusCode::NOT_FOUND || code == StatusCode::FORBIDDEN { // GitHub maybe return 403
+            tracing::info!("Remote LFS Server not support Chunks API, or forbidden.");
             return Err(());
         } else if !code.is_success() {
             tracing::debug!("fatal: LFS get chunk hrefs failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
@@ -292,7 +306,7 @@ impl LFSClient {
 // LFS locks API
 impl LFSClient {
     pub async fn get_locks(&self, query: LockListQuery) -> LockList {
-        let url = self.lfs_url.join("/locks").unwrap();
+        let url = self.lfs_url.join("locks").unwrap();
         let mut request = self.client.get(url);
         request = request.query(&[
             ("id", query.id),
@@ -317,7 +331,7 @@ impl LFSClient {
     /// lock an LFS file
     /// - `refspec` is must in Mega Server, but optional in Git Doc
     pub async fn lock(&self, path: String, refspec: String, basic_auth: Option<BasicAuth>) -> StatusCode {
-        let url = self.lfs_url.join("/locks").unwrap();
+        let url = self.lfs_url.join("locks").unwrap();
         let mut request = self.client.post(url).json(&LockRequest {
             path,
             refs: Ref { name: refspec },
@@ -334,7 +348,7 @@ impl LFSClient {
     }
 
     pub async fn unlock(&self, id: String, refspec: String, force: bool, basic_auth: Option<BasicAuth>) -> StatusCode {
-        let url = self.lfs_url.join(&format!("/locks/{}/unlock", id)).unwrap();
+        let url = self.lfs_url.join(&format!("locks/{}/unlock", id)).unwrap();
         let mut request = self.client.post(url).json(&UnlockRequest {
             force: Some(force),
             refs: Ref { name: refspec },
@@ -354,7 +368,7 @@ impl LFSClient {
     pub async fn verify_locks(&self, query: VerifiableLockRequest, basic_auth: Option<BasicAuth>)
         -> (StatusCode, VerifiableLockList)
     {
-        let url = self.lfs_url.join("/locks/verify").unwrap();
+        let url = self.lfs_url.join("locks/verify").unwrap();
         let mut request = self.client.post(url).json(&query);
         if let Some(auth) = basic_auth {
             request = request.basic_auth(auth.username, Some(auth.password));
@@ -372,5 +386,43 @@ impl LFSClient {
             });
         }
         (code, resp.json::<VerifiableLockList>().await.unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_request_vars() {
+        let vars = RequestVars {
+            oid: "123".to_string(),
+            size: 123,
+            ..Default::default()
+        };
+        println!("{:?}", serde_json::to_string(&vars).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_github_batch() {
+        let batch_request = BatchRequest {
+            operation: "download".to_string(),
+            transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
+            objects: vec![RequestVars {
+                oid: "01cb1483670f1c497412f25f9f8f7dde31a8fab0960291035af03939ae1dfa6b".to_string(),
+                size: 104103,
+                ..Default::default()
+            }],
+            hash_algo: lfs::LFS_HASH_ALGO.to_string(),
+        };
+        let lfs_client = LFSClient::from_url(&Url::parse("https://github.com/web3infra-foundation/mega.git").unwrap());
+        let request = lfs_client.client
+            .post(lfs_client.batch_url.clone())
+            .json(&batch_request)
+            .headers(lfs::LFS_HEADERS.clone());
+        println!("Request {:?}", request);
+        let response = request.send().await.unwrap();
+        let text = response.text().await.unwrap();
+        println!("Text {:?}", text);
+        let _resp = serde_json::from_str::<LfsBatchResponse>(&text).unwrap();
     }
 }

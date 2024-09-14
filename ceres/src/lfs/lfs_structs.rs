@@ -23,13 +23,13 @@ pub struct MetaObject {
 pub struct RequestVars {
     pub oid: String,
     pub size: i64,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub user: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub password: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub repo: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub authorization: String,
 }
 
@@ -107,6 +107,7 @@ pub struct FetchchunkResponse {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Link {
     pub href: String,
+    #[serde(default)] // Optional field
     pub header: HashMap<String, String>,
     pub expires_at: String,
 }

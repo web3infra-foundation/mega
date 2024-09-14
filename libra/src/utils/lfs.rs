@@ -112,6 +112,7 @@ fn generate_mono_lfs_server_url(url: String) -> String {
 
 /// Generate LFS Server Url from repo Url.
 /// - Automatically detect git or mono repo by domain
+/// - Caution: without trailing slash `/`
 pub fn generate_lfs_server_url(url_str: String) -> String {
     let url = Url::parse(&url_str);
     if url.is_err() {
