@@ -165,3 +165,182 @@ certbot certonly -d "*.gitxxx.org" -d gitxxx.org --manual --preferred-challenges
 ```bash
 ls /etc/letsencrypt/live/gitxxx.org
 ```
+
+## Deply Mono Engine with Kubernetes
+
+[1] Create Persistent Volume and Persistent Volume Claim
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pg-data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /tmp/data/mono/pg-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pg-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mono-data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /tmp/data/mono/mono-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mono-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+[2] Create Deployment and Service for Mono Engine and Postgres
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mono-pg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mono-pg
+  template:
+    metadata:
+      labels:
+        app: mono-pg
+    spec:
+      containers:
+        - name: mono-pg
+          image: mono-pg:0.1-pre-release
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: pg-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: pg-data
+          persistentVolumeClaim:
+            claimName: pg-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mono-pg-service
+spec:
+  selector:
+    app: mono-pg
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: NodePort
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mono-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mono-engine
+  template:
+    metadata:
+      labels:
+        app: mono-engine
+    spec:
+      containers:
+        - name: mono-engine
+          image: mono-engine:0.1-pre-release
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: mono-data
+              mountPath: /opt/mega
+      volumes:
+        - name: mono-data
+          persistentVolumeClaim:
+            claimName: mono-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mono-engine-service
+spec:
+  selector:
+    app: mono-engine
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: NodePort
+```
+
+[3] Create Deployment and Service for Mono UI
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mono-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mono-ui
+  template:
+    metadata:
+      labels:
+        app: mono-ui
+    spec:
+      containers:
+        - name: mono-ui
+          image: mono-ui:0.1-pre-release
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MEGA_INTERNAL_HOST
+              value: http://mono-engine-service:8000
+            - name: MEGA_HOST
+              value: http://localhost:8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mono-ui-service
+spec:
+  selector:
+    app: mono-ui
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: NodePort
+```
