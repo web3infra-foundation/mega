@@ -22,6 +22,7 @@ serde = { version = "1.0.203", features = ["derive"] }
 fuse-backend-rs = { version = "0.12.0"}
 tokio = { version = "1.38.1", features = ["full"] }
 vm-memory = { version = "0.10", features = ["backend-mmap", "backend-bitmap"] }
+env_logger = "0.11.5"
 
 [features]
 async-io = []
