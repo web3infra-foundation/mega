@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
-use clap::Parser;
-use mercury::internal::object::blob::Blob;
 use crate::command::status;
-use mercury::internal::index::{Index, IndexEntry};
 use crate::utils::object_ext::BlobExt;
+use clap::Parser;
+use mercury::internal::index::{Index, IndexEntry};
+use mercury::internal::object::blob::Blob;
+use std::path::{Path, PathBuf};
 
 use crate::utils::{lfs, path, util};
 
@@ -19,7 +19,7 @@ pub struct AddArgs {
     #[clap(short = 'A', long, group = "mode")]
     pub all: bool,
 
-    /// Update the index just where it already has an entry matching <pathspec>.
+    /// Update the index just where it already has an entry matching **pathspec**.
     /// This removes as well as modifies index entries to match the working tree, but adds no new files.
     #[clap(short, long, group = "mode")]
     pub update: bool,
@@ -49,7 +49,7 @@ pub async fn execute(args: AddArgs) {
 
     // index vs worktree
     let mut changes = status::changes_to_be_staged(); // to workdir
-    // filter paths to fit `pathspec` that user inputs
+                                                      // filter paths to fit `pathspec` that user inputs
     changes.new = util::filter_to_fit_paths(&changes.new, &paths);
     // if `--all` & <pathspec> is given, it will update `index` as well, so no need to filter `deleted` & `modified`
     if args.pathspec.is_empty() || !args.all {
@@ -78,13 +78,21 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
     if !util::is_sub_path(file, &workdir) {
         // file is not in the working directory
         // TODO check this earlier, once fatal occurs, nothing should be done
-        println!("fatal: '{}' is outside workdir at '{}'", file.display(), workdir.display());
+        println!(
+            "fatal: '{}' is outside workdir at '{}'",
+            file.display(),
+            workdir.display()
+        );
         return;
     }
     if util::is_sub_path(file, util::storage_path()) {
         // file is in `.libra`
         // Git won't print this
-        println!("warning: '{}' is inside '{}' repo, which will be ignored by `add`", file.display(), util::ROOT_DIR);
+        println!(
+            "warning: '{}' is inside '{}' repo, which will be ignored by `add`",
+            file.display(),
+            util::ROOT_DIR
+        );
         return;
     }
 
@@ -97,11 +105,15 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
             if verbose {
                 println!("removed: {}", file_str);
             }
-        } else { // FIXME: unreachable code! This situation is not included in `status::changes_to_be_staged()`
+        } else {
+            // FIXME: unreachable code! This situation is not included in `status::changes_to_be_staged()`
             // FIXME: should check files in original input paths
             // TODO do this check earlier, once fatal occurs, nothing should be done
             // file is not tracked && not exists, which means wrong pathspec
-            println!("fatal: pathspec '{}' did not match any files", file.display());
+            println!(
+                "fatal: pathspec '{}' did not match any files",
+                file.display()
+            );
         }
     } else {
         // file exists
