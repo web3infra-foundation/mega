@@ -20,7 +20,9 @@ impl GPath{
     pub fn name(&self) -> String{
         self.path.last().unwrap().clone()
     }
-
+    pub fn part(&self,i:usize,j :usize) ->String{
+        self.path[i..j].join("/")
+    }
 }
 
 impl From<String> for GPath{
