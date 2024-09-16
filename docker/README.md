@@ -17,6 +17,9 @@ docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
 
 # build aries engine image
 docker buildx build -t aries-engine:0.1-pre-release -f ./docker/aries-engine-dockerfile .
+
+# build mega engine image
+docker buildx build -t mega-engine:0.1-pre-release -f ./docker/mega-engine-dockerfile .
 ```
 
 ## Test Mono Engine
@@ -122,8 +125,9 @@ server {
 docker network create aries-network
 
 # run postgres and aries engine
-docker run --rm -it -d --name mono-pg --network aries-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-docker run --rm -it -d --name aries-engine --network aries-network -v /tmp/data/mono/mono-data:/opt/mega -p 8001:8001 -p 8888:8888 aries-engine:0.1-pre-release
+docker run --rm -it -d --name mono-pg --network aries-network -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
+docker run --rm -it -d --name aries-engine --network aries-network -e HUB_HOST=aries-engine  -v /mnt/data/mono/mono-data:/opt/mega -p 8001:8001 -p 8888:8888 aries-engine:0.1-pre-release
+docker run --rm -it -d --name mega-engine --network aries-network -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 mega-engine:0.1-pre-release
 ```
 
 [3] Nginx configuration for Aries
