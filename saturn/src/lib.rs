@@ -5,7 +5,7 @@ mod util;
 
 #[cfg(test)]
 mod test {
-    use std::fs;
+    use std::{fs, sync::Once};
 
     use cedar_policy::{Authorizer, Context, Entities, PolicySet, Request};
 
@@ -14,6 +14,16 @@ mod test {
         entitystore::EntityStore,
         util::EntityUid,
     };
+
+    static INIT: Once = Once::new();
+
+    fn init_tracing() {
+        INIT.call_once(|| {
+            tracing_subscriber::fmt()
+                .pretty()
+                .init();
+        });
+    }
 
     #[test]
     fn test_without_entity() {
@@ -25,14 +35,7 @@ mod test {
         let action = r#"Action::"view""#.parse().unwrap();
         let alice = r#"User::"alice""#.parse().unwrap();
         let file = r#"File::"93""#.parse().unwrap();
-        let request = Request::new(
-            Some(alice),
-            Some(action),
-            Some(file),
-            Context::empty(),
-            None,
-        )
-        .unwrap();
+        let request = Request::new(alice, action, file, Context::empty(), None).unwrap();
 
         let entities = Entities::empty();
         let authorizer = Authorizer::new();
@@ -44,8 +47,7 @@ mod test {
         let action = r#"Action::"view""#.parse().unwrap();
         let bob = r#"User::"bob""#.parse().unwrap();
         let file = r#"File::"93""#.parse().unwrap();
-        let request =
-            Request::new(Some(bob), Some(action), Some(file), Context::empty(), None).unwrap();
+        let request = Request::new(bob, action, file, Context::empty(), None).unwrap();
 
         let answer = authorizer.is_authorized(&request, &policy, &entities);
 
@@ -59,7 +61,7 @@ mod test {
 
     #[test]
     fn test_project_path_policy() {
-        tracing_subscriber::fmt().pretty().init();
+        init_tracing();
         let entities_path = "./test/project/.mega.json";
         let entities_file = fs::File::open(entities_path).unwrap();
         let entities = serde_json::from_reader(entities_file).unwrap();
@@ -128,7 +130,7 @@ mod test {
 
     #[test]
     fn test_private_path_policy() {
-        tracing_subscriber::fmt().pretty().init();
+        init_tracing();
         let parent_entities_file = fs::File::open("./test/project/.mega.json").unwrap();
         let parent_entities: EntityStore = serde_json::from_reader(parent_entities_file).unwrap();
 
