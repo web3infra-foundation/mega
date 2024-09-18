@@ -94,8 +94,8 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         .iter()
         .filter(|r| r._ref.starts_with("refs/heads"))
         .map(|r| r._hash.clone())
-        .collect();
-    let have = current_have().await;
+        .collect::<Vec<_>>();
+    let have = current_have().await; // TODO: return `DiscRef` rather than only hash, to compare `have` & `want` more accurately
 
     let mut result_stream = http_client
         .fetch_objects(&have, &want, auth.to_owned())
@@ -156,21 +156,28 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         let checksum = checksum.to_plain_str();
         println!("checksum: {}", checksum);
 
-        let pack_file = utils::path::objects()
-            .join("pack")
-            .join(format!("pack-{}.pack", checksum));
-        let mut file = fs::File::create(pack_file.clone()).unwrap();
-        file.write_all(&pack_data).expect("write failed");
+        if pack_data.len() > 32 { // 12 header + 20 hash
+            let pack_file = utils::path::objects()
+                .join("pack")
+                .join(format!("pack-{}.pack", checksum));
+            let mut file = fs::File::create(pack_file.clone()).unwrap();
+            file.write_all(&pack_data).expect("write failed");
 
-        pack_file.to_string_or_panic()
+            Some(pack_file.to_string_or_panic())
+        } else {
+            tracing::debug!("Empty pack file");
+            None
+        }
     };
 
-    /* build .idx file from PACK */
-    index_pack::execute(IndexPackArgs {
-        pack_file,
-        index_file: None,
-        index_version: None,
-    });
+    if let Some(pack_file) = pack_file {
+        /* build .idx file from PACK */
+        index_pack::execute(IndexPackArgs {
+            pack_file,
+            index_file: None,
+            index_version: None,
+        });
+    }
 
     /* update reference  */
     for reference in refs.iter().filter(|r| r._ref.starts_with("refs/heads")) {
