@@ -63,7 +63,10 @@ mod tests {
             works: vec![WorkDir {
                 path: "/path/to/work1".to_string(),
                 hash: "hash1".to_string(),
-            }],
+            },WorkDir {
+                path: "/path/to/work2".to_string(),
+                hash: "hash2".to_string(),
+            }]
         };
 
         manager.to_toml(TEST_FILE).expect("Failed to write TOML");

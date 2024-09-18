@@ -1,14 +1,14 @@
 use std::io::Result;
 use fuse_backend_rs::{abi::fuse_abi::FsOptions, api::filesystem::{Context, Entry, FileSystem}};
 
-// LoggingFileSystem . provide log info for a filesystem trait.\
+// LoggingFileSystem . provide log info for a filesystem trait.
 #[allow(unused)]
 struct LoggingFileSystem<FS: FileSystem> {
     inner: FS,
 }
 #[allow(unused)]
 impl<FS: FileSystem> LoggingFileSystem<FS> {
-    // 创建一个新的 LoggingFileSystem wrapper
+    // create a new  LoggingFileSystem wrapper
     pub fn new(inner: FS) -> Self {
         LoggingFileSystem { inner }
     }
@@ -296,7 +296,7 @@ mod tests{
     use fuse_backend_rs::{api::server::Server, transport::{FuseChannel, FuseSession}};
     use signal_hook::iterator::Signals;
 
-    use crate::{passthrough, FuseServer};
+    use crate::{passthrough, server::FuseServer};
     use super::LoggingFileSystem;
     
     #[test]
