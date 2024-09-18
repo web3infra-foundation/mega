@@ -7,6 +7,7 @@ use reqwest::Client;
 use tokio::sync::Mutex;
 use tokio::time;
 
+
 use crate::util::GPath;
 const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
 #[allow(unused)]
@@ -23,7 +24,7 @@ async fn worker_thread(
     loop {
         let path = tokio::select! {
             _ = time::sleep(timeout_duration) => {
-                // 如果超时且没有获取到路径，则结束线程
+                // If timeout and no more tree, finish this thread.
                 println!("Timeout occurred while waiting for path");
                 break;
             },
@@ -41,7 +42,7 @@ async fn worker_thread(
             }
         };
 
-        // 处理路径
+        // deal with  path .
         let url = format!("{}{}", BASE_URL, path);
         match client.get(&url).send().await {
             Ok(response) => {
@@ -114,6 +115,22 @@ async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<
     
     Ok(())
 }
+
+#[allow(unused)]
+async fn fetch_tree(path: GPath) -> Result<Tree, Box<dyn std::error::Error>> {
+    let url = format!("{}{}", BASE_URL, path);
+    let response = reqwest::get(&url).await?;
+    
+    if response.status().is_success() {
+        let bytes = response.bytes().await?;
+        let tree = Tree::try_from(&bytes[..])?;
+        Ok(tree)
+    } else {
+        Err(format!("Failed to fetch tree: {}", response.status()).into())
+    }
+}
+          
+
 #[cfg(test)]
 mod tests2 {
     use reqwest::Client;
@@ -124,32 +141,32 @@ mod tests2 {
     use std::fs::File;
     #[tokio::test]
     async fn test_fetch_octet_stream() -> Result<(), Box<dyn Error>> {
-        // 创建 HTTP 客户端
+        // Create an HTTP client
         let client = Client::new();
         
-        // 使用环境变量中的 URL 或者本地测试 URL
+        // Use the URL from environment variables or local test URL
         let url = "http://localhost:8000/api/v1/file/tree?path=/third-part/";
         
-        // 发送 GET 请求
+        // Send GET request
         let response = client.get(url).send().await?;
         
-        // 确保响应状态是成功的
+        // Ensure that the response status is successful
         if response.status().is_success() {
-            // 获取响应体的二进制数据
+            // Get the binary data from the response body
             let content = response.bytes().await?;
             
-            // 将内容存入 Vec<u8>
+            // Store the content in a Vec<u8>
             let data: Vec<u8> = content.to_vec();
             let tree = Tree::try_from(&data[..]).unwrap();
-            // 输出数据长度用于测试断言
+            // Print the data length for testing assertions
             // println!("Received {} bytes of data", data.len());
             
-            // // 这里可以添加更多的断言或验证逻辑
+            // // You can add more assertions or validation logic here
             // assert!(!data.is_empty(), "Data should not be empty");
 
-                println!("{}",tree);
-            // 可能还可以验证数据的具体内容
-            // assert_eq!(data, expected_data); // 你需要定义 expected_data
+            println!("{}",tree);
+            // You can also validate the specific content of the data
+            // assert_eq!(data, expected_data); // You need to define expected_data
             
         } else {
             eprintln!("Request failed with status: {}", response.status());
@@ -191,34 +208,31 @@ mod tests2 {
         assert!(queue.len() == 0);
 
     }
-
     #[tokio::test]
-    async fn test_fetch_octet_file(){
-    // 创建 HTTP 客户端
-    let client = Client::new();
-            
-    // 使用环境变量中的 URL 或者本地测试 URL
-    let url = "http://localhost:8000/api/v1/file/blob/d12d12579799a658b29808fe695abd919a033ac9";
-    
-    // 发送 GET 请求
-    let response = client.get(url).send().await.unwrap();
- 
-        // 确保响应状态是成功的
+    async fn test_fetch_octet_file() {
+        // Create an HTTP client
+        let client = Client::new();
+
+        // Use the URL from environment variables or local test URL
+        let url = "http://localhost:8000/api/v1/file/blob/d12d12579799a658b29808fe695abd919a033ac9";
+
+        // Send a GET request
+        let response = client.get(url).send().await.unwrap();
+
+        // Ensure that the response status is successful
         if response.status().is_success() {
-            // 获取响应体的二进制数据
+            // Get the binary data from the response body
             let content = response.bytes().await.unwrap();
-            
-            // 将内容存入 Vec<u8>
+
+            // Store the content in a Vec<u8>
             let data: Vec<u8> = content.to_vec();
             use std::io::prelude::*;
-            // 保存数据到文件
+            // Save the data to a file
             let mut file = File::create("output.txt").unwrap();
             file.write_all(&data).unwrap();
 
-            // 打印保存的文件路径
+            // Print the path to the saved file
             println!("Data saved to output.txt");
-
-    
         } else {
             eprintln!("Request failed with status: {}", response.status());
         }
