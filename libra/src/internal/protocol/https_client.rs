@@ -5,15 +5,15 @@ use ceres::protocol::ServiceType;
 use ceres::protocol::ServiceType::UploadPack;
 use futures_util::{StreamExt, TryStreamExt};
 use mercury::errors::GitError;
+use mercury::hash::SHA1;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::{Body, Response};
 use std::io::Error as IoError;
 use tokio_util::bytes::BytesMut;
 use url::Url;
-use mercury::hash::SHA1;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
-/// Only support `SmartProtocol` now, see https://www.git-scm.com/docs/http-protocol for protocol details.
+/// Only support `SmartProtocol` now, see [http-protocol](https://www.git-scm.com/docs/http-protocol) for protocol details.
 pub struct HttpsClient {
     pub(crate) url: Url,
     pub(crate) client: reqwest::Client,
