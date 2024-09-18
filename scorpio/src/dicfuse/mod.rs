@@ -12,14 +12,12 @@ use store::{DictionaryStore, IntoEntry};
 
 pub struct Dicfuse{
     store: Arc<DictionaryStore>,
-    //runtime: Arc<tokio::runtime::Runtime>,
 }
 #[allow(unused)]
 impl Dicfuse{
     pub fn new() -> Self {
         Self {
             store: DictionaryStore::new().into(), // Assuming DictionaryStore has a new() method
-            //runtime: tokio::runtime::Runtime::new().unwrap().into(), // Create a new runtime
         }
     }
     fn spawn<F, Fut, O>(&self, f: F) -> JoinHandle<O>
@@ -324,52 +322,14 @@ impl FileSystem for Dicfuse{
 
 #[cfg(test)]
 mod tests {
-    use std::{io, path::Path, sync::Arc,thread};
+    use std::{path::Path, sync::Arc,thread};
 
     use fuse_backend_rs::{ api::server::Server, transport::{FuseChannel, FuseSession}};
     use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
+    use crate::server::FuseServer;
+
     use super::Dicfuse;
-
-
-    pub struct DicFuseServer {
-        server: Arc<Server<Arc<Dicfuse>>>,
-        ch: FuseChannel,
-    }
-    impl DicFuseServer {
-        pub fn svc_loop(&mut self) -> Result<(),io::Error> {
-            let _ebadf = std::io::Error::from_raw_os_error(libc::EBADF);
-            println!("entering server loop");
-            loop {
-                if let Some((reader, writer)) = self
-                    .ch
-                    .get_request()
-                    .map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?
-                {
-                    if let Err(e) = self
-                        .server
-                        .handle_message(reader, writer.into(), None, None)
-                    {
-                        match e {
-                            fuse_backend_rs::Error::EncodeMessage(_ebadf) => {
-                                break;
-                            }
-                            _ => {
-                                print!("Handling fuse message failed");
-                                continue;
-                            }
-                        }
-                    }
-                } else {
-                    print!("fuse server exits");
-                    break;
-                }
-            }
-            Ok(())
-        }
-    
-
-    }
 
     #[test]
     fn test_svc_loop_success() {
@@ -382,7 +342,7 @@ mod tests {
         println!("start fs servers");
         let server = Arc::new(Server::new(dicfuse.clone()));
 
-        let mut dicfuse_server = DicFuseServer { server, ch };
+        let mut dicfuse_server = FuseServer { server, ch };
 
         // Spawn server thread
         let handle = thread::spawn(move || {
