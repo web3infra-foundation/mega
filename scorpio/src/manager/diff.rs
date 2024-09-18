@@ -25,12 +25,12 @@ fn collect_paths<P: AsRef<Path>>(path: P) -> Vec<String> {
 fn is_whiteout_inode(path: &String) -> bool {
     let c_path = CString::new(path.as_bytes()).expect("CString::new failed");
     let mut stat_buf: stat = unsafe { std::mem::zeroed() };
-    // 调用 libc 的 stat 函数获取文件状态
+    // Call the stat function from libc to get the file status
     let result = unsafe { libc::stat(c_path.as_ptr(), &mut stat_buf) };
     
-    // 检查 stat 调用是否成功
+    // Check if the stat call was successful
     if result == 0 {
-        // 检查文件模式是否为字符设备
+        // Check if the file mode is a character device
         return stat_buf.st_mode == (libc::S_IFCHR | 0o777) ;
     }
     
@@ -73,34 +73,32 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_is_whiteout_inode() {
-        // 创建一个临时文件
-        let temp_file_path = "temp_file.txt";
-        let _file = File::create(temp_file_path).expect("Unable to create file");
-        
-        // 检查该文件是否为字符设备
-        assert!(!is_whiteout_inode(&temp_file_path.to_string()));
-        
-        // 清理临时文件
-        std::fs::remove_file(temp_file_path).expect("Unable to delete file");
-    }
+        #[test]
+        fn test_is_whiteout_inode() {
+            // Create a temporary file
+            let temp_file_path = "temp_file.txt";
+            let _file = File::create(temp_file_path).expect("Unable to create file");
+            
+            // Check if the file is a character device
+            assert!(!is_whiteout_inode(&temp_file_path.to_string()));
+            
+            // Clean up the temporary file
+            std::fs::remove_file(temp_file_path).expect("Unable to delete file");
+        }
 
+        #[test]
+        fn test_is_whiteout_inode_non() {
+            // Create a temporary file
+            let temp_file_path = "/home/luxian/megatest/upper/a/hello";
+            // Check if the file is a character device
+            assert!(is_whiteout_inode(&temp_file_path.to_string()));
+            
+        }
 
-    #[test]
-    fn test_is_whiteout_inode_non() {
-        // 创建一个临时文件
-        let temp_file_path = "/home/luxian/megatest/upper/a/hello";
-        // 检查该文件是否为字符设备
-        assert!(is_whiteout_inode(&temp_file_path.to_string()));
-        
-    }
-
-
-    #[test]
-    fn test_is_whiteout_inode_invalid_path() {
-        // 测试无效路径
-        let invalid_path = "/invalid/path/to/file";
-        assert!(!is_whiteout_inode(&invalid_path.to_string()));
-    }
+        #[test]
+        fn test_is_whiteout_inode_invalid_path() {
+            // Test with an invalid path
+            let invalid_path = "/invalid/path/to/file";
+            assert!(!is_whiteout_inode(&invalid_path.to_string()));
+        }
 }
