@@ -104,6 +104,35 @@ pub async fn start_http(config: Config, options: HttpOptions) {
         .unwrap();
 }
 
+/// This is the main entry for the mono server.
+/// It is responsible for creating the main router and setting up the necessary middleware.
+///
+/// The main router is composed of three nested routers:
+/// 1. The LFS router nested in the `/`:
+///   - GET or PUT `/objects/:object_id`
+///   - GET or PUT `/locks`
+///   - POST       `/locks/verify`
+///   - POST       `/locks/:id/unlock`
+///   - GET        `/objects/:object_id/chunks/:chunk_id`
+///   - POST       `/objects/batch`
+/// 2. The API router nested in the `/api/v1`:
+///   - GET        `/api/v1/status`
+///   - POST       `/api/v1/create-file`
+///   - GET        `/api/v1/latest-commit`
+///   - GET        `/api/v1/tree/commit-info`
+///   - GET        `/api/v1/tree`
+///   - GET        `/api/v1/blob`
+///   - GET        `/api/v1/file/blob/:object_id`
+///   - GET        `/api/v1/file/tree`
+///   - GET        `/api/v1/path-can-clone`
+/// 3. The OAuth router nested in the `/auth`:
+///   - GET        `/auth/github`
+///   - GET        `/auth/authorized`
+///   - GET        `/auth/logout`
+/// 4. The other routers for the git protocol:
+///   - GET        end of `Regex::new(r"/info/refs$")`
+///   - POST       end of `Regex::new(r"/git-upload-pack$")`
+///   - POST       end of `Regex::new(r"/git-receive-pack$")`
 pub async fn app(config: Config, host: String, port: u16, common: CommonOptions) -> Router {
     let context = Context::new(config.clone()).await;
     context.services.mono_storage.init_monorepo().await;

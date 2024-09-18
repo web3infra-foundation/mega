@@ -1,11 +1,12 @@
-import os  # For file and directory operations
-import sys  # For system-specific parameters and functions
-import json  # For JSON parsing
-import urllib.request  # For downloading files from URLs
-import tarfile  # For handling tar archives
-import subprocess  # For running system commands
-import shutil  # For high-level file operations
-from collections import defaultdict  # For creating dictionaries with default values
+import os
+import sys
+import json
+import urllib.request
+import tarfile
+import subprocess
+import shutil
+from collections import defaultdict
+from datetime import datetime, timedelta
 
 # ANSI color codes
 GREEN = '\033[92m'
@@ -29,7 +30,7 @@ def ensure_directory(path):
     # Create a directory if it doesn't exist
     if not os.path.exists(path):
         os.makedirs(path)
-        print_blue(f"Created directory: {path}")
+        print(f"Created directory: {path}")
 
 def check_and_download_crate(crates_dir, crate_name, crate_version, dl_base_url):
     # Construct the filename and path for the crate
@@ -41,7 +42,7 @@ def check_and_download_crate(crates_dir, crate_name, crate_version, dl_base_url)
         ensure_directory(os.path.dirname(crate_path))  # Ensure the directory exists
         download_url = f"{dl_base_url}/{crate_name}/{crate_filename}"
         try:
-            print_green(f"Downloading: {download_url}")
+            print_red(f"Downloading: {download_url}")
             urllib.request.urlretrieve(download_url, crate_path)  # Download the file
             print_red(f"Downloaded: {crate_path}")
         except Exception as e:
@@ -58,11 +59,16 @@ def run_git_command(repo_path, command):
         print_red(f"Command output: {e.output}")
         return None
 
-def init_git_repo(repo_path):
+def init_git_repo(repo_path, git_base_url):
     # Initialize a git repository if it doesn't exist
     if not os.path.exists(os.path.join(repo_path, '.git')):
         run_git_command(repo_path, ['git', 'init', '-b', 'main'])
-        print(f"Initialized git repository in {repo_path}")
+        print_blue(f"Initialized git repository in {repo_path}")
+
+        # Set the LFS domain
+        lfs_url = f"{git_base_url}"
+        run_git_command(repo_path, ['git', 'config', 'lfs.url', lfs_url])
+        print_blue(f"Set LFS domain to: {lfs_url}")
 
 def extract_crate(crate_path, extract_path):
     def is_within_directory(directory, target):
@@ -116,6 +122,10 @@ def extract_crate(crate_path, extract_path):
         return False
 
 def process_crate_version(crate_name, version, crate_path, git_repos_dir, git_base_url):
+    # Record start time for the entire crate
+    crate_start_time = datetime.now()
+    print_blue(f"Started processing crate {crate_name} at {crate_start_time}")
+
     # Process a specific version of a crate
     repo_path = os.path.join(git_repos_dir, crate_name, version)
     ensure_directory(repo_path)
@@ -126,7 +136,7 @@ def process_crate_version(crate_name, version, crate_path, git_repos_dir, git_ba
         return
 
     # Initialize git repo
-    init_git_repo(repo_path)
+    init_git_repo(repo_path, git_base_url)
 
     # Add all files to git
     run_git_command(repo_path, ['git', 'add', '.'])
@@ -145,6 +155,15 @@ def process_crate_version(crate_name, version, crate_path, git_repos_dir, git_ba
         print_red(f"Warning: Failed to push {crate_name} version {version} to remote repository.")
     else:
         print_green(f"Successfully pushed {crate_name} version {version} to remote repository.")
+
+    # Record end time and calculate duration for the entire crate
+    crate_end_time = datetime.now()
+    crate_duration = crate_end_time - crate_start_time
+    print_blue(f"Finished processing crate {crate_name} at {crate_end_time}")
+    print_blue(f"Total processing time for crate {crate_name}: {crate_duration}")
+
+    # Print separator
+    print("------------------")
 
 def process_crate(crate_name, versions, crates_dir, git_repos_dir, dl_base_url, git_base_url):
     # Process all versions of a crate

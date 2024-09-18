@@ -1,17 +1,17 @@
-use std::fs::File;
-use std::{fs, io};
-use std::io::{BufRead, BufReader, Read};
-use std::path::{Path, PathBuf};
+use crate::utils::path_ext::PathExt;
+use crate::utils::{path, util};
 use lazy_static::lazy_static;
+use mercury::internal::index::Index;
 use path_abs::{PathInfo, PathOps};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use ring::digest::{Context, SHA256};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read};
+use std::path::{Path, PathBuf};
+use std::{fs, io};
 use url::Url;
 use wax::Pattern;
-use mercury::internal::index::Index;
-use crate::utils::{path, util};
-use crate::utils::path_ext::PathExt;
 
 lazy_static! {
     static ref LFS_PATTERNS: Vec<String> = { // cache
@@ -64,13 +64,16 @@ pub fn generate_pointer_file(path: impl AsRef<Path>) -> (String, String) {
 }
 
 pub fn format_pointer_string(oid: &str, size: u64) -> String {
-    format!("version {}\noid {}:{}\nsize {}\n", LFS_VERSION, LFS_HASH_ALGO, oid, size)
+    format!(
+        "version {}\noid {}:{}\nsize {}\n",
+        LFS_VERSION, LFS_HASH_ALGO, oid, size
+    )
 }
 
 /// Generate LFS Server Url from repo Url.
 /// By default, Git LFS will append `.git/info/lfs` to the end of a Git remote url to build the LFS server URL.
 /// [doc: server-discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
-/// - like https://git-server.com/foo/bar.git/info/lfs
+/// - like `https://git-server.com/foo/bar.git/info/lfs`
 /// - support ssh & https & git@ format
 #[deprecated(note = "It's for git, not monorepo")]
 #[allow(dead_code)]
@@ -96,10 +99,6 @@ pub fn generate_git_lfs_server_url(mut url: String) -> String {
 
 /// Generate Mono LFS Server Url from repo Url.
 /// - Just get domain with port
-/// ### Example
-/// https://github.com/git-lfs/git-lfs/blob/main/docs/api/locking.md -> https://github.com
-///
-/// http://localhost:8000/xxx/yyy -> http://localhost:8000
 pub fn generate_lfs_server_url(url: String) -> String {
     let url = Url::parse(&url).unwrap();
     match url.port() {
@@ -175,7 +174,9 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
         return None;
     }
     // Start with format `version ...`
-    if let Some(data) = data.strip_prefix(format!("version {}\noid {}:", LFS_VERSION, LFS_HASH_ALGO).as_bytes()) {
+    if let Some(data) =
+        data.strip_prefix(format!("version {}\noid {}:", LFS_VERSION, LFS_HASH_ALGO).as_bytes())
+    {
         if data[LFS_OID_LEN] == b'\n' {
             // check `oid` length
             let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
@@ -198,7 +199,10 @@ pub fn parse_pointer_file(path: impl AsRef<Path>) -> io::Result<(String, u64)> {
     if let Some((oid, size)) = parse_pointer_data(&buffer[..bytes_read]) {
         return Ok((oid, size));
     }
-    Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid LFS pointer file"))
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "Invalid LFS pointer file",
+    ))
 }
 
 /// Extract LFS patterns from `.libra_attributes` file
@@ -237,14 +241,16 @@ mod tests {
 
     #[test]
     fn test_generate_pointer_file() {
-        let path = Path::new("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let path =
+            Path::new("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
         let (pointer, _oid) = generate_pointer_file(path);
         print!("{}", pointer);
     }
 
     #[test]
     fn test_is_pointer_file() {
-        let data = b"version https://git-lfs.github.com/spec/v1\noid sha256:1234567890abcdef\nsize 1234\n";
+        let data =
+            b"version https://git-lfs.github.com/spec/v1\noid sha256:1234567890abcdef\nsize 1234\n";
         assert!(parse_pointer_data(data).is_some());
     }
 
@@ -267,9 +273,15 @@ mod tests {
     #[test]
     fn test_gen_mono_lfs_server_url() {
         const LFS_SERVER_URL: &str = "https://github.com/web3infra-foundation/mega.git/info/lfs";
-        assert_eq!(generate_lfs_server_url(LFS_SERVER_URL.to_owned()), "https://github.com");
+        assert_eq!(
+            generate_lfs_server_url(LFS_SERVER_URL.to_owned()),
+            "https://github.com"
+        );
         const LOCAL_LFS_SERVER_URL: &str = "http://localhost:8000/xxx/yyy";
-        assert_eq!(generate_lfs_server_url(LOCAL_LFS_SERVER_URL.to_owned()), "http://localhost:8000");
+        assert_eq!(
+            generate_lfs_server_url(LOCAL_LFS_SERVER_URL.to_owned()),
+            "http://localhost:8000"
+        );
     }
 
     #[test]
@@ -280,7 +292,10 @@ size 10
 "#;
         let res = parse_pointer_data(data.as_bytes()).unwrap();
         println!("{:?}", res);
-        assert_eq!(res.0, "4859402c258b836d02e955d1090e29f586e58b2040504d68afec3d8d43757bba");
+        assert_eq!(
+            res.0,
+            "4859402c258b836d02e955d1090e29f586e58b2040504d68afec3d8d43757bba"
+        );
         assert_eq!(res.1, 10);
     }
 }

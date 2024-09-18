@@ -371,49 +371,12 @@ impl FileSystem for MegaFuse{
 mod tests{
     use std::{path::Path, thread};
 
+    use crate::server::FuseServer;
+
     use super::*;
     use fuse_backend_rs::{api::server::Server, transport::{FuseChannel, FuseSession}};
     use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
     
-
-    pub struct DicFuseServer {
-        server: Arc<Server<Arc<MegaFuse>>>,
-        ch: FuseChannel,
-    }
-    impl DicFuseServer {
-        pub fn svc_loop(&mut self) -> Result<()> {
-            let _ebadf = std::io::Error::from_raw_os_error(libc::EBADF);
-            println!("entering server loop");
-            loop {
-                if let Some((reader, writer)) = self
-                    .ch
-                    .get_request()
-                    .map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?
-                {
-                    if let Err(e) = self
-                        .server
-                        .handle_message(reader, writer.into(), None, None)
-                    {
-                        match e {
-                            fuse_backend_rs::Error::EncodeMessage(_ebadf) => {
-                                break;
-                            }
-                            _ => {
-                                print!("Handling fuse message failed");
-                                continue;
-                            }
-                        }
-                    }
-                } else {
-                    print!("fuse server exits");
-                    break;
-                }
-            }
-            Ok(())
-        }
-    
-
-    }
     #[test]
     pub fn test_dic_ovlfs(){
         let megafuse = Arc::new(MegaFuse::new());
@@ -426,7 +389,7 @@ mod tests{
         println!("start fs servers");
         let server = Arc::new(Server::new(megafuse.clone()));
 
-        let mut fuse_server = DicFuseServer { server, ch };
+        let mut fuse_server = FuseServer { server, ch };
 
         // Spawn server thread
         let handle = thread::spawn(move || {

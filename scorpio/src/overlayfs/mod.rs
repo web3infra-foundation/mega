@@ -2179,10 +2179,11 @@ impl BackendFileSystem for OverlayFs {
 mod tests {
     use std::{path::Path, thread};
 
+    use crate::{passthrough::new_passthroughfs_layer, server::FuseServer};
+
     use super::*;
     use diff::FSdiff;
     use fuse_backend_rs::{api::server::Server, transport::{FuseChannel, FuseSession}};
-    use super::super::passthrough::passthrough;
     use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
     #[derive(Debug, Default)]
     pub struct Args {
@@ -2195,55 +2196,6 @@ mod tests {
         log_level: String,
     }
     
-    pub struct FuseServer {
-        server: Arc<Server<Arc<OverlayFs>>>,
-        ch: FuseChannel,
-    }
-    impl FuseServer {
-        pub fn svc_loop(&mut self) -> Result<()> {
-            let _ebadf = std::io::Error::from_raw_os_error(libc::EBADF);
-            println!("entering server loop");
-            loop {
-                if let Some((reader, writer)) = self
-                    .ch
-                    .get_request()
-                    .map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?
-                {
-                    if let Err(e) = self
-                        .server
-                        .handle_message(reader, writer.into(), None, None)
-                    {
-                        match e {
-                            fuse_backend_rs::Error::EncodeMessage(_ebadf) => {
-                                break;
-                            }
-                            _ => {
-                                print!("Handling fuse message failed");
-                                continue;
-                            }
-                        }
-                    }
-                } else {
-                    print!("fuse server exits");
-                    break;
-                }
-            }
-            Ok(())
-        }
-    }
-    
-    fn new_passthroughfs_layer(rootdir: &str) -> Result<BoxedLayer> {
-        let config = fuse_backend_rs::passthrough::Config { 
-            root_dir: String::from(rootdir), 
-            // enable xattr`
-            xattr: true, 
-            do_import: true, 
-            ..Default::default() };
-
-        let fs = Box::new(passthrough::PassthroughFs::<()>::new(config)?);
-        fs.import()?;
-        Ok(fs as BoxedLayer)
-    }
     #[test]
     fn test_overlayfs() {
 
