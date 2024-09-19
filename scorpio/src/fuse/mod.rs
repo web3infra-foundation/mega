@@ -1,14 +1,14 @@
 use fuse_backend_rs::{abi::fuse_abi::{CreateIn, FsOptions, OpenOptions, SetattrValid}, api::filesystem::{Context, DirEntry, Entry, FileSystem, GetxattrReply, Layer, ListxattrReply, ZeroCopyReader, ZeroCopyWriter}};
 use inode_alloc::InodeAlloc;
 use libc::{stat64, statvfs64};
-use std::{collections::HashMap, ffi::CStr, io::Result, sync::{Arc, Mutex}, time::Duration};
-use crate::{dicfuse::Dicfuse, overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
+use std::{collections::HashMap, ffi::CStr, io::Result, path::{Path, PathBuf}, sync::{Arc, Mutex}, time::Duration};
+use crate::{dicfuse::Dicfuse, manager::ScorpioManager, overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
 
 mod inode_alloc;
 
 pub use inode_alloc::READONLY_INODE;
 #[allow(unused)]
-struct MegaFuse{
+pub struct MegaFuse{
     dic: Arc<Dicfuse>,
     overlayfs:Mutex<HashMap<u64,Arc<OverlayFs>>>, // Inode -> overlayyfs 
     inodes_alloc: InodeAlloc,
@@ -38,6 +38,12 @@ macro_rules! select_filesystem {
         }
     }
 }
+
+impl Default for MegaFuse {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[allow(unused)]
 impl MegaFuse{
     pub fn new() -> Self{
@@ -47,27 +53,56 @@ impl MegaFuse{
             inodes_alloc: InodeAlloc::new(),
         }
     }
-    pub fn mount(&self,inode:u64){
+    pub fn new_from_manager(manager: &ScorpioManager) -> Arc<MegaFuse> {
+        let megafuse = Arc::new(MegaFuse::new());
+        for dir in &manager.works {
+            let _lower = PathBuf::from(&manager.lower_path).join(&dir.hash);
+            let _upper = PathBuf::from(&manager.upper_path).join(&dir.hash);
+            megafuse.overlay_mount(dir.node, &_lower, &_upper);
+        }
+        megafuse
+    }
 
-        let mountpoint="/home/luxian/megatest/true_temp".to_string();
-        let lowerdir=vec!["/home/luxian/megatest/lower".to_string()];
-        let upperdir="/home/luxian/megatest/upper".to_string();
-        let workdir="/home/luxian/megatest/workerdir".to_string();
- 
-        let  config = config::Config { 
-            work: workdir.clone(), 
-            mountpoint: mountpoint.clone(), 
-            do_import: true, 
-            ..Default::default() };
+    // TODO: add pass parameter: lower-dir and upper-dir.
+    fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, lower: P, upper: P) {
+        let lowerdir = vec![lower.as_ref().to_string_lossy().to_string()];
+        let upperdir = upper.as_ref().to_string_lossy().to_string();
+
+        let config = config::Config {
+            work: String::new(),
+            mountpoint: String::new(),
+            do_import: true,
+            ..Default::default()
+        };
         // Create lower layers
         let mut lower_layers = Vec::new();
         for lower in &lowerdir {
-            let layer: Box<dyn Layer<Inode = u64, Handle = u64> + Send + Sync> = new_passthroughfs_layer(lower).unwrap();
-            lower_layers.push(Arc::new(layer));
+            let lower_path = Path::new(lower);
+            if lower_path.exists() {
+                let layer: Box<dyn Layer<Inode = u64, Handle = u64> + Send + Sync> =
+                    new_passthroughfs_layer(lower).unwrap();
+                lower_layers.push(Arc::new(layer));
+                // Rest of the code...
+            } else {
+                panic!("Lower directory does not exist: {}", lower);
+            }
+        }
+        // Check if the upper directory exists
+        let upper_path = Path::new(&upperdir);
+        if !upper_path.exists() {
+            // Create the upper directory if it doesn't exist
+            std::fs::create_dir_all(&upperdir).unwrap();
+        } else {
+            // Clear the contents of the upper directory
+            let entries = std::fs::read_dir(&upperdir).unwrap();
+            for entry in entries {
+                let entry = entry.unwrap();
+                std::fs::remove_file(entry.path()).unwrap();
+            }
         }
         // Create upper layer
         let upper_layer = Arc::new(new_passthroughfs_layer(&upperdir).unwrap());
-        let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config,inode).unwrap();
+        let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode).unwrap();
 
         self.overlayfs.lock().unwrap().insert(inode, Arc::new(overlayfs));
     }
@@ -367,6 +402,8 @@ impl FileSystem for MegaFuse{
     }
 }
 
+
+
 #[cfg(test)]
 mod tests{
     use std::{path::Path, thread};
@@ -380,7 +417,6 @@ mod tests{
     #[test]
     pub fn test_dic_ovlfs(){
         let megafuse = Arc::new(MegaFuse::new());
-        megafuse.mount(4);
        // dicfuse.init(FsOptions::empty()).unwrap();
         // Create fuse session
         let mut se = FuseSession::new(Path::new(&"/home/luxian/megatest/dictest"), "dic", "", false).unwrap();
