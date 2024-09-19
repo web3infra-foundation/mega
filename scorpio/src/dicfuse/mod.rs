@@ -1,5 +1,3 @@
-
-pub mod model;
 mod store;
 mod fuse;
 
@@ -336,7 +334,7 @@ mod tests {
         let dicfuse = Arc::new(Dicfuse::new());
        // dicfuse.init(FsOptions::empty()).unwrap();
         // Create fuse session
-        let mut se = FuseSession::new(Path::new(&"/tmp/dictest"), "dic", "", true).unwrap();
+        let mut se = FuseSession::new(Path::new(&"/home/luxian/megatest/dictest"), "dic", "", true).unwrap();
         se.mount().unwrap();
         let ch: FuseChannel = se.new_channel().unwrap();
         println!("start fs servers");

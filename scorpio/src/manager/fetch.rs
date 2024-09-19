@@ -1,14 +1,53 @@
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, sync::Arc, time::Duration};
 use mercury::hash::SHA1;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 use reqwest::Client;
+use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::time;
 
 
 use crate::util::GPath;
+
+use super::ScorpioManager;
+pub trait CheckHash{
+    fn check(&mut self);
+}
+
+impl CheckHash for ScorpioManager{
+    fn check(&mut self) {
+        let rt = Runtime::new().unwrap();
+        let mut handlers = Vec::new();
+
+        for work in &mut self.works {
+            // if the config hash is null or empty , mean that it's a new config work node path .
+            if work.hash.is_empty() {
+                let p = GPath::from(work.path.to_string());
+                // Get the tree and its hash value, for name dictionary .
+                let tree = rt.block_on(async {
+                    fetch_tree(&p).await
+                }).unwrap();
+                work.hash = tree.id.to_plain_str();
+                // the lower path is store file path for remote code version . 
+                let _lower = PathBuf::from(&self.lower_path).join(&work.hash);
+                handlers.push(rt.spawn(async move {
+                    fetch_code(&p, _lower).await;
+                }));
+            }
+        }
+        // if have new config path , finish all handlers and write back the config file
+        if !handlers.is_empty(){
+            for handle in handlers {
+                let _ = rt.block_on(handle);
+            }
+            let _ = self.to_toml("config.toml"); //TODO: configabel.
+        }
+
+    }
+}
+
 const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
 #[allow(unused)]
 #[allow(clippy::blocks_in_conditions)]
@@ -91,10 +130,43 @@ async fn worker_thread(
         }
     }
 }
-
+async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
+    let queue = Arc::new(Mutex::new(VecDeque::new()));
+    let queue_clone = queue.clone();
+   
+    let p = path.clone();
+    let _handle = tokio::spawn(async move {
+        // Initialize the queue with a path
+        let mut queue = queue_clone.lock().await;
+        queue.push_back( p);
+    });
+    let mut handles = vec![];
+    let target_path: Arc<PathBuf> = Arc::new(save_path.as_ref().to_path_buf());
+    
+    // Create the save_path directory if it doesn't exist
+    tokio::fs::create_dir_all(&save_path).await.unwrap();
+    
+    for i in 0..10 {
+        let p: GPath = path.clone();
+        let queue_clone = queue.clone();
+        let o = target_path.clone();
+        let handle = tokio::spawn(async move {
+            worker_thread(i, p, &o, queue_clone).await;
+        });
+        handles.push(handle);
+    }
+    // Clean up workers (depends on how you implement worker_thread termination)
+    for handle in handles {
+        let _ = handle.await;
+    }
+    
+    // Check if the queue has been populated
+    let queue = queue.lock().await;
+    assert!(queue.len() == 0);
+}
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-     let url = format!("http://localhost:8000/api/v1/file/blob/{}",url.to_plain_str());
+     let url = format!("http://localhost:8000/api/v1/file/blob/{}",url.to_plain_str());//TODO: configabel.
     // Send GET request
     let response = client.get(url).send().await?;
     
@@ -117,7 +189,7 @@ async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<
 }
 
 #[allow(unused)]
-async fn fetch_tree(path: GPath) -> Result<Tree, Box<dyn std::error::Error>> {
+async fn fetch_tree(path: &GPath) -> Result<Tree, Box<dyn std::error::Error>> {
     let url = format!("{}{}", BASE_URL, path);
     let response = reqwest::get(&url).await?;
     
