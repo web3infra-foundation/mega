@@ -1,0 +1,14 @@
+url = "http://localhost:8000"
+mount_path = "/home/luxian/megadir/mount"
+lower_path = "/home/luxian/megadir/lower"
+upper_path = "/home/luxian/megadir/upper"
+
+[[works]]
+path = "third-part/mega/libra"
+node = 26
+hash = "4a3bec47e31fc5442b9f9c42f519788e565ea485"
+
+[[works]]
+path = "third-part/mega/scorpio"
+node = 17
+hash = "1b70e8bf4d39d6f5e9dd1637aaa2c221e2d00a27"

@@ -2,28 +2,31 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 
 mod diff;
-mod fetch;
+pub mod fetch;
 
 #[derive(Serialize,Deserialize)]
-struct  ScorpioManager{
-    url:String,
-    mount_path:String,
-    works:Vec<WorkDir>,
+pub struct  ScorpioManager{
+    pub url:String,
+    pub mount_path:String,
+    pub lower_path:String,// the path to store init code (or remote code), name is hash value . 
+    pub upper_path:String,// the path to store the workspace code (or changed code , upper code)
+    pub works:Vec<WorkDir>,
 }
 #[derive(Serialize,Deserialize)]
-struct WorkDir{
-    path:String,
-    hash:String,
+pub struct WorkDir{
+    pub path:String,
+    pub node:u64,
+    pub hash:String,
 }
 #[allow(unused)]
 impl ScorpioManager {
-    fn from_toml(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_toml(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(file_path)?;
         let manager: ScorpioManager = toml::de::from_str(&content)?;
         Ok(manager)
     }
 
-    fn to_toml(&self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn to_toml(&self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let content = toml::ser::to_string(self)?;
         fs::write(file_path, content)?;
         Ok(())
@@ -60,13 +63,11 @@ mod tests {
         let manager = ScorpioManager {
             url: "http://example.com".to_string(),
             mount_path: "/mnt/example".to_string(),
-            works: vec![WorkDir {
-                path: "/path/to/work1".to_string(),
-                hash: "hash1".to_string(),
-            },WorkDir {
-                path: "/path/to/work2".to_string(),
-                hash: "hash2".to_string(),
-            }]
+            works: vec![
+                WorkDir {path:"/path/to/work1".to_string(),hash:"hash1".to_string(), node: 4 },
+                WorkDir {path:"/path/to/work2".to_string(),hash:"hash2".to_string(), node: 5 }],
+            lower_path: "/path/to/lower".to_string(),
+            upper_path: "/path/to/upper".to_string(),
         };
 
         manager.to_toml(TEST_FILE).expect("Failed to write TOML");

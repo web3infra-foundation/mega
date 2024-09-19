@@ -1,10 +1,22 @@
-use std::sync::Arc;
+use std::{path::Path, sync::Arc, thread::JoinHandle};
 
-use fuse_backend_rs::{api::{filesystem::FileSystem, server::Server}, transport::FuseChannel};
+use fuse_backend_rs::{api::{filesystem::FileSystem, server::Server}, transport::{FuseChannel, FuseSession}};
 #[allow(unused)]
 pub struct FuseServer<T: FileSystem + Send + Sync> {
     pub server: Arc<Server<T>>,
     pub ch: FuseChannel,
+}
+pub fn run<T: FileSystem + Send + Sync+ 'static>(fuse:Arc<T>,path:&str )->JoinHandle<Result<(), std::io::Error>>{
+    let mut se = FuseSession::new(Path::new(path), "dic", "", false).unwrap();
+    se.mount().unwrap();
+    let ch: FuseChannel = se.new_channel().unwrap();
+    let server = Arc::new(Server::new(fuse));
+    let mut fuse_server = FuseServer { server, ch };
+    // Spawn server thread
+    std::thread::spawn( move || {
+        fuse_server.svc_loop()
+    })
+
 }
 #[allow(unused)]
 impl <FS:FileSystem+ Send + Sync>FuseServer<FS> {
