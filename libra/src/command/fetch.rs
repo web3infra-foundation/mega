@@ -24,10 +24,14 @@ use crate::{
 };
 use crate::utils::util;
 
+const DEFAULT_REMOTE: &str = "origin";
+
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
     #[clap(long, short, group = "sub")]
     repository: Option<String>,
+
+    // TODO: refspec
 
     #[clap(long, short, group = "sub")]
     all: bool,
@@ -45,7 +49,13 @@ pub async fn execute(args: FetchArgs) {
     } else {
         let remote = match args.repository {
             Some(remote) => remote,
-            None => "origin".to_string(), // todo: get default remote
+            None => Config::get_current_remote().await.unwrap_or_else(|_| {
+                eprintln!("fatal: HEAD is detached");
+                Some(DEFAULT_REMOTE.to_owned())
+            }).unwrap_or_else(|| {
+                eprintln!("fatal: No remote configured for current branch");
+                DEFAULT_REMOTE.to_owned()
+            }),
         };
         let remote_config = Config::remote_config(&remote).await;
         match remote_config {
