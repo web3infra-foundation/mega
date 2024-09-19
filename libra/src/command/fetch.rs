@@ -28,13 +28,13 @@ const DEFAULT_REMOTE: &str = "origin";
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
-    #[clap(long, short, group = "sub")]
-    repository: Option<String>,
+    #[clap(group = "sub")]
+    pub repository: Option<String>,
 
     // TODO: refspec
 
     #[clap(long, short, group = "sub")]
-    all: bool,
+    pub all: bool,
 }
 
 pub async fn execute(args: FetchArgs) {
