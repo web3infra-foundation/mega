@@ -5,11 +5,15 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 pub struct PullArgs {
     repository: Option<String>,
+
+    #[clap(requires("repository"))]
+    refspec: Option<String>,
 }
 
 pub async fn execute(args: PullArgs) {
     fetch::execute(fetch::FetchArgs {
         repository: args.repository,
+        refspec: args.refspec,
         all: false,
     }).await;
 
