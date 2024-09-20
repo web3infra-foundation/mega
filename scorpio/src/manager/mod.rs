@@ -3,13 +3,13 @@ use std::fs;
 
 mod diff;
 pub mod fetch;
+pub mod store;
 
 #[derive(Serialize,Deserialize)]
 pub struct  ScorpioManager{
     pub url:String,
     pub mount_path:String,
-    pub lower_path:String,// the path to store init code (or remote code), name is hash value . 
-    pub upper_path:String,// the path to store the workspace code (or changed code , upper code)
+    pub store_path:String,// the path to store init code (or remote code), name is hash value . 
     pub works:Vec<WorkDir>,
 }
 #[derive(Serialize,Deserialize)]
@@ -66,8 +66,7 @@ mod tests {
             works: vec![
                 WorkDir {path:"/path/to/work1".to_string(),hash:"hash1".to_string(), node: 4 },
                 WorkDir {path:"/path/to/work2".to_string(),hash:"hash2".to_string(), node: 5 }],
-            lower_path: "/path/to/lower".to_string(),
-            upper_path: "/path/to/upper".to_string(),
+            store_path: "/path/to/lower".to_string(),
         };
 
         manager.to_toml(TEST_FILE).expect("Failed to write TOML");
