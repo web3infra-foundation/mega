@@ -71,10 +71,6 @@ impl MonoApiServiceState {
                     repo,
                 }));
             }
-            return Err(ProtocolError::InvalidInput(format!(
-                "Invalid Path{}",
-                path.to_str().unwrap()
-            )));
         }
         Ok(Box::new(MonoApiService {
             context: self.context.clone(),
