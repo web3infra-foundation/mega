@@ -28,12 +28,13 @@ const DEFAULT_REMOTE: &str = "origin";
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
-    #[clap(group = "sub")]
     pub repository: Option<String>,
 
-    // TODO: refspec
+    #[clap(requires("repository"))]
+    pub refspec: Option<String>,
 
-    #[clap(long, short, group = "sub")]
+    /// Fetch all remotes.
+    #[clap(long, short, conflicts_with("repository"))]
     pub all: bool,
 }
 
@@ -43,7 +44,7 @@ pub async fn execute(args: FetchArgs) {
     if args.all {
         let remotes = Config::all_remote_configs().await;
         let tasks = remotes.into_iter().map(|remote| async move {
-            fetch_repository(&remote).await;
+            fetch_repository(&remote, None).await;
         });
         futures::future::join_all(tasks).await;
     } else {
@@ -59,17 +60,24 @@ pub async fn execute(args: FetchArgs) {
         };
         let remote_config = Config::remote_config(&remote).await;
         match remote_config {
-            Some(remote_config) => fetch_repository(&remote_config).await,
+            Some(remote_config) => fetch_repository(&remote_config, args.refspec).await,
             None => {
                 tracing::error!("remote config '{}' not found", remote);
-                eprintln!("fatal: '{}' does not appear to be a git repository", remote);
+                eprintln!("fatal: '{}' does not appear to be a libra repository", remote);
             }
         }
     }
 }
 
-pub async fn fetch_repository(remote_config: &RemoteConfig) {
-    println!("fetching from {}", remote_config.name);
+/// Fetch from remote repository
+/// - `branch` is optional, if `None`, fetch all branches
+pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<String>) {
+    println!("fetching from {}{}", remote_config.name,
+             if let Some(branch) = &branch {
+                format!(" ({})", branch)
+            } else {
+                "".to_owned()
+            });
 
     // fetch remote
     let url = match Url::parse(&remote_config.url) {
@@ -100,9 +108,26 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
         return;
     }
 
-    let want = refs
-        .iter()
+    let remote_head = refs.iter().find(|r| r._ref == "HEAD").cloned();
+    // remote branches
+    let mut ref_heads = refs // DO NOT use `refs` later
+        .into_iter()
         .filter(|r| r._ref.starts_with("refs/heads"))
+        .collect::<Vec<_>>();
+
+    // filter by branch
+    if let Some(ref branch) = branch {
+        let branch = format!("refs/heads/{}", branch);
+        ref_heads.retain(|r| r._ref == branch);
+
+        if ref_heads.is_empty() {
+            eprintln!("fatal: '{}' not found in remote", branch);
+            return;
+        }
+    }
+
+    let want = ref_heads
+        .iter()
         .map(|r| r._hash.clone())
         .collect::<Vec<_>>();
     let have = current_have().await; // TODO: return `DiscRef` rather than only hash, to compare `have` & `want` more accurately
@@ -190,25 +215,29 @@ pub async fn fetch_repository(remote_config: &RemoteConfig) {
     }
 
     /* update reference  */
-    for reference in refs.iter().filter(|r| r._ref.starts_with("refs/heads")) {
-        let branch_name = reference._ref.replace("refs/heads/", "");
+    for r in &ref_heads {
+        let branch_name = r._ref.strip_prefix("refs/heads/").unwrap();
         let remote = Some(remote_config.name.as_str());
-        Branch::update_branch(&branch_name, &reference._hash, remote).await;
+        Branch::update_branch(&branch_name, &r._hash, remote).await;
     }
-    let remote_head = refs.iter().find(|r| r._ref == "HEAD");
     match remote_head {
         Some(remote_head) => {
-            let remote_head_name = refs
+            let remote_head_ref = ref_heads
                 .iter()
-                .find(|r| r._ref.starts_with("refs/heads") && r._hash == remote_head._hash);
+                .find(|r| r._hash == remote_head._hash);
 
-            match remote_head_name {
-                Some(remote_head_name) => {
-                    let remote_head_name = remote_head_name._ref.replace("refs/heads/", "");
-                    Head::update(Head::Branch(remote_head_name), Some(&remote_config.name)).await;
+            match remote_head_ref {
+                Some(remote_head_ref) => {
+                    let remote_head_branch = remote_head_ref._ref.strip_prefix("refs/heads/").unwrap();
+                    Head::update(Head::Branch(remote_head_branch.to_owned()), Some(&remote_config.name)).await;
                 }
                 None => {
-                    panic!("remote HEAD not found")
+                    if branch.is_none() {
+                        eprintln!("remote HEAD not found");
+                    } else {
+                        // normal: remote HEAD usually points to master
+                        tracing::debug!("Specified branch not found in remote HEAD");
+                    }
                 }
             }
         }

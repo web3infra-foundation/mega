@@ -53,8 +53,8 @@ type DiscRef = DiscoveredReference;
 // protocol details: https://www.git-scm.com/docs/http-protocol
 // capability declarations: https://www.git-scm.com/docs/protocol-capabilities
 impl HttpsClient {
-    /// GET $GIT_URL/info/refs?service=git-upload-pack HTTP/1.0
-    /// discover the references of the remote repository before fetching the objects.
+    /// GET $GIT_URL/info/refs?service=git-upload-pack HTTP/1.0<br>
+    /// Discover the references of the remote repository before fetching the objects.
     /// the first ref named HEAD as default ref.
     /// ## Args
     /// - auth: (username, password)
