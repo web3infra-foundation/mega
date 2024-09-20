@@ -56,17 +56,18 @@ impl MegaFuse{
     pub fn new_from_manager(manager: &ScorpioManager) -> Arc<MegaFuse> {
         let megafuse = Arc::new(MegaFuse::new());
         for dir in &manager.works {
-            let _lower = PathBuf::from(&manager.lower_path).join(&dir.hash);
-            let _upper = PathBuf::from(&manager.upper_path).join(&dir.hash);
-            megafuse.overlay_mount(dir.node, &_lower, &_upper);
+            let _lower = PathBuf::from(&manager.store_path).join(&dir.hash);
+            megafuse.overlay_mount(dir.node, &_lower);
         }
         megafuse
     }
 
     // TODO: add pass parameter: lower-dir and upper-dir.
-    fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, lower: P, upper: P) {
-        let lowerdir = vec![lower.as_ref().to_string_lossy().to_string()];
-        let upperdir = upper.as_ref().to_string_lossy().to_string();
+    fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, store_path: P) {
+        let lower = store_path.as_ref().join("lower");
+        let upper = store_path.as_ref().join("upper");
+        let lowerdir = vec![lower];
+        let upperdir = upper;
 
         let config = config::Config {
             work: String::new(),
@@ -80,11 +81,11 @@ impl MegaFuse{
             let lower_path = Path::new(lower);
             if lower_path.exists() {
                 let layer: Box<dyn Layer<Inode = u64, Handle = u64> + Send + Sync> =
-                    new_passthroughfs_layer(lower).unwrap();
+                    new_passthroughfs_layer(lower.to_str().unwrap()).unwrap();
                 lower_layers.push(Arc::new(layer));
                 // Rest of the code...
             } else {
-                panic!("Lower directory does not exist: {}", lower);
+                panic!("Lower directory does not exist: {}", lower.to_str().unwrap());
             }
         }
         // Check if the upper directory exists
@@ -101,7 +102,7 @@ impl MegaFuse{
             }
         }
         // Create upper layer
-        let upper_layer = Arc::new(new_passthroughfs_layer(&upperdir).unwrap());
+        let upper_layer = Arc::new(new_passthroughfs_layer(upperdir.to_str().unwrap()).unwrap());
         let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode).unwrap();
 
         self.overlayfs.lock().unwrap().insert(inode, Arc::new(overlayfs));
