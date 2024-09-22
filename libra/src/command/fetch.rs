@@ -218,7 +218,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     for r in &ref_heads {
         let branch_name = r._ref.strip_prefix("refs/heads/").unwrap();
         let remote = Some(remote_config.name.as_str());
-        Branch::update_branch(&branch_name, &r._hash, remote).await;
+        Branch::update_branch(branch_name, &r._hash, remote).await;
     }
     match remote_head {
         Some(remote_head) => {
