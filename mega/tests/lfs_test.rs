@@ -85,6 +85,9 @@ fn run_mega_server(data_dir: &Path) -> Child {
     if !MEGA.exists() {
         panic!("mega binary not found in \"target/debug/\", skip lfs test");
     }
+    if is_port_in_use(PORT) {
+        panic!("port {} is already in use", PORT);
+    }
 
     // env var can be shared between parent and child process
     env::set_var("MEGA_BASE_DIR", data_dir);

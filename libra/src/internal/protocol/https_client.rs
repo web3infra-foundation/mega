@@ -53,8 +53,8 @@ type DiscRef = DiscoveredReference;
 // protocol details: https://www.git-scm.com/docs/http-protocol
 // capability declarations: https://www.git-scm.com/docs/protocol-capabilities
 impl HttpsClient {
-    /// GET $GIT_URL/info/refs?service=git-upload-pack HTTP/1.0
-    /// discover the references of the remote repository before fetching the objects.
+    /// GET $GIT_URL/info/refs?service=git-upload-pack HTTP/1.0<br>
+    /// Discover the references of the remote repository before fetching the objects.
     /// the first ref named HEAD as default ref.
     /// ## Args
     /// - auth: (username, password)
@@ -155,10 +155,10 @@ impl HttpsClient {
         Ok(ref_list)
     }
 
-    /// POST $GIT_URL/git-upload-pack HTTP/1.0
-    /// Fetch the objects from the remote repository, which is specified by `have` and `want`.
+    /// POST $GIT_URL/git-upload-pack HTTP/1.0<br>
+    /// Fetch the objects from the remote repository, which is specified by `have` and `want`.<br>
     /// `have` is the list of objects' hashes that the client already has, and `want` is the list of objects that the client wants.
-    /// Obtain the `want` references from the `discovery_reference` method.
+    /// Obtain the `want` references from the `discovery_reference` method.<br>
     /// If the returned stream is empty, it may be due to incorrect refs or an incorrect format.
     // TODO support some necessary options
     pub async fn fetch_objects(

@@ -63,6 +63,7 @@ impl Config {
     }
 
     /// Get remote repo name of current branch
+    /// - `Error` if `HEAD` is detached
     pub async fn get_current_remote() -> Result<Option<String>, ()> {
         match Head::current().await {
             Head::Branch(name) => {

@@ -75,9 +75,7 @@ pub fn format_pointer_string(oid: &str, size: u64) -> String {
 /// [doc: server-discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
 /// - like `https://git-server.com/foo/bar.git/info/lfs`
 /// - support ssh & https & git@ format
-#[deprecated(note = "It's for git, not monorepo")]
-#[allow(dead_code)]
-pub fn generate_git_lfs_server_url(mut url: String) -> String {
+fn generate_git_lfs_server_url(mut url: String) -> String {
     if url.ends_with('/') {
         url.pop();
     }
@@ -99,7 +97,11 @@ pub fn generate_git_lfs_server_url(mut url: String) -> String {
 
 /// Generate Mono LFS Server Url from repo Url.
 /// - Just get domain with port
-pub fn generate_lfs_server_url(url: String) -> String {
+/// ### Example
+/// https://github.com/git-lfs/git-lfs/blob/main/docs/api/locking.md -> https://github.com
+///
+/// http://localhost:8000/xxx/yyy -> http://localhost:8000
+fn generate_mono_lfs_server_url(url: String) -> String {
     let url = Url::parse(&url).unwrap();
     match url.port() {
         None => {
@@ -107,6 +109,31 @@ pub fn generate_lfs_server_url(url: String) -> String {
         }
         Some(port) => {
             format!("{}://{}:{}", url.scheme(), url.host().unwrap(), port)
+        }
+    }
+}
+
+/// Generate LFS Server Url from repo Url.
+/// - Automatically detect git or mono repo by domain
+/// - Caution: without trailing slash `/`
+pub fn generate_lfs_server_url(url_str: String) -> String {
+    let url = Url::parse(&url_str);
+    if url.is_err() {
+        // maybe start with `git@`
+        return generate_git_lfs_server_url(url_str);
+    }
+    let url = url.unwrap();
+    match url.domain() {
+        Some(domain) => {
+            if domain == "github.com" || domain == "gitee.com" {
+                generate_git_lfs_server_url(url_str)
+            } else {
+                generate_mono_lfs_server_url(url_str)
+            }
+        }
+        None => {
+            // IP address, like http://127.0.0.1:8000
+            generate_mono_lfs_server_url(url_str)
         }
     }
 }
@@ -272,12 +299,16 @@ mod tests {
 
     #[test]
     fn test_gen_mono_lfs_server_url() {
-        const LFS_SERVER_URL: &str = "https://github.com/web3infra-foundation/mega.git/info/lfs";
+        const LFS_SERVER_URL: &str = "https://gitmono.com/web3infra-foundation/mega.git/info/lfs";
         assert_eq!(
             generate_lfs_server_url(LFS_SERVER_URL.to_owned()),
-            "https://github.com"
+            "https://gitmono.com"
         );
         const LOCAL_LFS_SERVER_URL: &str = "http://localhost:8000/xxx/yyy";
+        assert_eq!(
+            Url::parse(LOCAL_LFS_SERVER_URL).unwrap().domain().unwrap(),
+            "localhost"
+        );
         assert_eq!(
             generate_lfs_server_url(LOCAL_LFS_SERVER_URL.to_owned()),
             "http://localhost:8000"
