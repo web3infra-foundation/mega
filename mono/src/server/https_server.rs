@@ -6,7 +6,7 @@ use anyhow::Result;
 use async_session::MemoryStore;
 use axum::body::Body;
 use axum::extract::{Query, State};
-use axum::http::{self, Request, StatusCode, Uri};
+use axum::http::{self, Request, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
@@ -21,6 +21,7 @@ use tower_http::trace::TraceLayer;
 
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::config::Config;
+use common::errors::ProtocolError;
 use common::model::{CommonOptions, InfoRefsParams};
 use jupiter::context::Context;
 
@@ -103,6 +104,35 @@ pub async fn start_http(config: Config, options: HttpOptions) {
         .unwrap();
 }
 
+/// This is the main entry for the mono server.
+/// It is responsible for creating the main router and setting up the necessary middleware.
+///
+/// The main router is composed of three nested routers:
+/// 1. The LFS router nested in the `/`:
+///   - GET or PUT `/objects/:object_id`
+///   - GET or PUT `/locks`
+///   - POST       `/locks/verify`
+///   - POST       `/locks/:id/unlock`
+///   - GET        `/objects/:object_id/chunks/:chunk_id`
+///   - POST       `/objects/batch`
+/// 2. The API router nested in the `/api/v1`:
+///   - GET        `/api/v1/status`
+///   - POST       `/api/v1/create-file`
+///   - GET        `/api/v1/latest-commit`
+///   - GET        `/api/v1/tree/commit-info`
+///   - GET        `/api/v1/tree`
+///   - GET        `/api/v1/blob`
+///   - GET        `/api/v1/file/blob/:object_id`
+///   - GET        `/api/v1/file/tree`
+///   - GET        `/api/v1/path-can-clone`
+/// 3. The OAuth router nested in the `/auth`:
+///   - GET        `/auth/github`
+///   - GET        `/auth/authorized`
+///   - GET        `/auth/logout`
+/// 4. The other routers for the git protocol:
+///   - GET        end of `Regex::new(r"/info/refs$")`
+///   - POST       end of `Regex::new(r"/git-upload-pack$")`
+///   - POST       end of `Regex::new(r"/git-receive-pack$")`
 pub async fn app(config: Config, host: String, port: u16, common: CommonOptions) -> Router {
     let context = Context::new(config.clone()).await;
     context.services.mono_storage.init_monorepo().await;
@@ -155,7 +185,7 @@ pub async fn get_method_router(
     state: State<AppState>,
     Query(params): Query<InfoRefsParams>,
     uri: Uri,
-) -> Result<Response<Body>, (StatusCode, String)> {
+) -> Result<Response<Body>, ProtocolError> {
     if INFO_REFS_REGEX.is_match(uri.path()) {
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
@@ -164,9 +194,8 @@ pub async fn get_method_router(
         );
         crate::git_protocol::http::git_info_refs(params, pack_protocol).await
     } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            String::from("Operation not supported\n"),
+        Err(ProtocolError::NotFound(
+            "Operation not supported".to_owned(),
         ))
     }
 }
@@ -175,7 +204,7 @@ pub async fn post_method_router(
     state: State<AppState>,
     uri: Uri,
     req: Request<Body>,
-) -> Result<Response, (StatusCode, String)> {
+) -> Result<Response, ProtocolError> {
     if REGEX_GIT_UPLOAD_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-upload-pack"),
@@ -186,10 +215,7 @@ pub async fn post_method_router(
         crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
     } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
         if state.context.config.monorepo.disable_http_push {
-            return Err((
-                StatusCode::FORBIDDEN,
-                String::from("HTTP Push Has Been Disabled"),
-            ))
+            return Err(ProtocolError::Disabled);
         }
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
@@ -199,10 +225,9 @@ pub async fn post_method_router(
         pack_protocol.service_type = Some(ServiceType::ReceivePack);
         crate::git_protocol::http::git_receive_pack(req, pack_protocol).await
     } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            String::from("Operation not supported"),
-        ))
+        return Err(ProtocolError::NotFound(
+            "Operation not supported".to_owned(),
+        ));
     }
 }
 

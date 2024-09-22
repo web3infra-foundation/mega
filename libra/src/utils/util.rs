@@ -32,7 +32,6 @@ pub fn cur_dir() -> PathBuf {
 /// Try to get the storage path of the repository, which is the path of the `.libra` directory
 /// - if the current directory is not a repository, return an error
 pub fn try_get_storage_path() -> Result<PathBuf, io::Error> {
-    /*递归获取储存库 */
     let mut cur_dir = env::current_dir()?;
     loop {
         let mut libra = cur_dir.clone();
@@ -96,7 +95,9 @@ pub fn workdir_to_absolute(path: impl AsRef<Path>) -> PathBuf {
 /// - Not check existence
 /// - `true` if path == parent
 pub fn is_sub_path<P, B>(path: P, parent: B) -> bool
-where P: AsRef<Path>, B: AsRef<Path>
+where
+    P: AsRef<Path>,
+    B: AsRef<Path>,
 {
     let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
     let parent_abs = PathAbs::new(parent.as_ref()).unwrap();
@@ -307,8 +308,8 @@ pub fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
 }
 
 /// Get the repository name from the url
-/// - e.g. https://github.com/web3infra-foundation/mega.git/ -> mega
-/// - e.g. https://github.com/web3infra-foundation/mega.git -> mega
+/// - e.g. `https://github.com/web3infra-foundation/mega.git/` -> mega
+/// - e.g. `https://github.com/web3infra-foundation/mega.git` -> mega
 pub fn get_repo_name_from_url(mut url: &str) -> Option<&str> {
     if url.ends_with('/') {
         url = &url[..url.len() - 1];
