@@ -3,12 +3,19 @@ use crate::internal::{config::Config, head::Head};
 use super::{fetch, merge};
 use clap::Parser;
 #[derive(Parser, Debug)]
-pub struct PullArgs;
+pub struct PullArgs {
+    repository: Option<String>,
+
+    #[clap(requires("repository"))]
+    refspec: Option<String>,
+}
 
 pub async fn execute(args: PullArgs) {
-    let _ = args;
-    let fetch_args = fetch::FetchArgs::parse_from(Vec::<String>::new());
-    fetch::execute(fetch_args).await;
+    fetch::execute(fetch::FetchArgs {
+        repository: args.repository,
+        refspec: args.refspec,
+        all: false,
+    }).await;
 
     let head = Head::current().await;
     match head {
