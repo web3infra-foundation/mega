@@ -1,39 +1,89 @@
 
+use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, sync::Arc, time::Duration};
+use mercury::hash::SHA1;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 use reqwest::Client;
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::time;
+use async_recursion::async_recursion;
 
+use crate::manager::store::store_trees;
 use crate::util::GPath;
+
+use super::ScorpioManager;
+pub trait CheckHash{
+    fn check(&mut self);
+}
+
+impl CheckHash for ScorpioManager{
+    fn check(&mut self) {
+        let rt = Runtime::new().unwrap();
+        let mut handlers = Vec::new();
+
+        for work in &mut self.works {
+            // if the config hash is null or empty , mean that it's a new config work node path .
+            if work.hash.is_empty() {
+                let p = GPath::from(work.path.to_string());
+                // Get the tree and its hash value, for name dictionary .
+                let tree = rt.block_on(async {
+                    fetch_tree(&p).await
+                }).unwrap();
+                work.hash = tree.id.to_plain_str();
+                // the lower path is store file path for remote code version . 
+                let _lower = PathBuf::from(&self.store_path).join(&work.hash).join("lower");
+                handlers.push(rt.spawn(async move {
+                    fetch_code(&p, _lower).await;
+                }));
+            }
+        }
+        // if have new config path , finish all handlers and write back the config file
+        if !handlers.is_empty(){
+            for handle in handlers {
+                let _ = rt.block_on(handle);
+            }
+            let _ = self.to_toml("config.toml"); //TODO: configabel.
+        }
+
+    }
+}
+
 const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
 #[allow(unused)]
 #[allow(clippy::blocks_in_conditions)]
 async fn worker_thread(
-    shared_queue: Arc<Mutex<VecDeque<GPath>>>
+    id:u32,
+    root_path:GPath,
+    target_path:&Path,
+    shared_queue: Arc<Mutex<VecDeque<GPath>>>,
+    send_tree :Sender<Tree>,
 ) {
     let client = Client::new();
-    let mut interval = time::interval(Duration::from_secs(5));
+    let mut interval = time::interval(Duration::from_millis(50)); // 设定检查间隔时间
+    let timeout_duration = Duration::from_millis(300);
     loop {
-        // 尝试从队列中获取路径，超时设置为 5 秒
-        let path = match time::timeout(Duration::from_secs(5), async {
-            let mut queue = shared_queue.lock().await;
-            queue.pop_front()
-        }).await {
-            Ok(Some(path)) => path,
-            Ok(None) => {
-                // 如果队列为空，继续等待
-                interval.tick().await;
-                continue;
-            },
-            Err(_) => {
-                // 处理超时错误（例如：可以选择打印日志或退出）
+        let path = tokio::select! {
+            _ = time::sleep(timeout_duration) => {
+                // If timeout and no more tree, finish this thread.
                 println!("Timeout occurred while waiting for path");
-                continue;
+                break;
             },
+            path = async {
+                loop{
+                    {
+                        let mut queue = shared_queue.lock().await;
+                        if let Some(pa) = queue.pop_front(){
+                            break pa;
+                        }
+                    }
+                }
+            } => {
+                path
+            }
         };
-
-        // 处理路径
+        // deal with  path .
         let url = format!("{}{}", BASE_URL, path);
         match client.get(&url).send().await {
             Ok(response) => {
@@ -42,18 +92,25 @@ async fn worker_thread(
                         Ok(bytes) => {
                             match Tree::try_from(&bytes[..]) {
                                 Ok(tree) => {
-                                    trace!("path:{},new tree:{}",path,tree );
+                                    trace!("ID:{},path:{}",id,path);
+                                    send_tree.send(tree.clone()).await;
+                                    //trace!("path:{},new tree:{}",path,tree );
                                     for item in tree.tree_items {
+
+                                        let mut subpath = path.clone();// New path ->  mono/repo/dirpath
+                                        subpath.push(item.name);
+                                        let real_path = target_path.join(subpath.part(root_path.path.len(), subpath.path.len()));
                                         if item.mode == TreeItemMode::Tree {
-                                            let mut subpath = path.clone();
-                                            subpath.push(item.name);
                                             {
                                                 let mut queue = shared_queue.lock().await;
                                                 queue.push_back(subpath);
                                             }
-                                            
+                                            // mkdir 
+                                            tokio::fs::create_dir_all(real_path).await.unwrap();
                                         } else {
-                                            // 处理文件
+                                            
+                                            // TODO: fetch file and save to target path. about file fetch api, refer to test_fetch_octet_stream() test func. 
+                                            fetch_and_save_file(&item.id,real_path).await.unwrap();
                                         }
                                     }
                                 },
@@ -74,47 +131,201 @@ async fn worker_thread(
                 println!("Failed to send request: {:?}", e);
             },
         }
-
-        // 等待下一次轮询
-        interval.tick().await;
     }
 }
 
+#[async_recursion]
+async fn worker_ro_thread(    
+    root_path:GPath,
+    target_path:Arc<PathBuf>,
+    path:GPath,
+    send_tree :Sender<(GPath,Tree)>
+){
+        let tree = fetch_tree(&path).await.unwrap();
+        trace!("path:{}",path);
+        let _ = send_tree.send((path.clone(),tree.clone())).await;
+        let mut handlers = Vec::new();
+        //trace!("path:{},new tree:{}",path,tree );
+        for item in tree.tree_items {
+            let mut subpath = path.clone();// New path ->  mono/repo/dirpath
+            subpath.push(item.name);
+            let real_path = target_path.join(subpath.part(root_path.path.len(), subpath.path.len()));
+            if item.mode == TreeItemMode::Tree {
+                {
+                    let root_path = root_path.clone();
+                    let _path = target_path.clone();
+                    let send_tree = send_tree.clone();
+                    handlers.push(
+                        tokio::spawn(async move {
+                            worker_ro_thread(root_path,_path,subpath,send_tree.clone()).await
+                        })
+                    );
+                }
+                // mkdir 
+                tokio::fs::create_dir_all(real_path).await.unwrap();
+            } else {
+                
+                // TODO: fetch file and save to target path. about file fetch api, refer to test_fetch_octet_stream() test func. 
+                let e = fetch_and_save_file(&item.id,real_path).await;
+                println!("{:?}",e);
+            }
+        }
+        for h in handlers{
+            let _ = h.await;
+        }
+      
+}
+async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
+
+    let target_path: Arc<PathBuf> = Arc::new(save_path.as_ref().to_path_buf());
+    
+    // Create the save_path directory if it doesn't exist
+    tokio::fs::create_dir_all(&save_path).await.unwrap();
+    let rece;
+    let handle;
+    {
+        let (send,_rece) = tokio::sync::mpsc::channel::<(GPath,Tree)>(100);
+        rece = _rece;
+
+        let p: GPath = path.clone();
+        let sc = send.clone();
+        let ps=target_path.clone()  ;
+        handle = tokio::spawn(async move {
+            worker_ro_thread( p.clone(), ps,p ,sc).await;
+        });
+    }
+
+   
+
+    let storepath = save_path.as_ref().parent().unwrap().join("tree.db");
+    store_trees(storepath.to_str().unwrap(), rece).await;
+    
+    // Clean up workers (depends on how you implement worker_thread termination)
+    let _ = handle.await;
+    
+    print!("finish ...")
+}
+
+
+
+// async fn fetch_code_nore(path:&GPath, save_path : impl AsRef<Path>){
+    
+//         let queue = Arc::new(Mutex::new(VecDeque::new()));
+//         let queue_clone = queue.clone();
+       
+//         let p = path.clone();
+//         let _handle = tokio::spawn(async move {
+//             // Initialize the queue with a path
+//             let mut queue = queue_clone.lock().await;
+//             queue.push_back( p);
+//         });
+//         let mut handles = vec![];
+//         let target_path: Arc<PathBuf> = Arc::new(save_path.as_ref().to_path_buf());
+        
+//         // Create the save_path directory if it doesn't exist
+//         tokio::fs::create_dir_all(&save_path).await.unwrap();
+//         let rece;
+//         {
+//             let (s,r) = tokio::sync::mpsc::channel::<Tree>(100);
+//             rece = r;
+//             for i in 0..10 {
+//                 let p: GPath = path.clone();
+//                 let queue_clone = queue.clone();
+//                 let o = target_path.clone();
+//                 let ss = s.clone();
+//                 let handle = tokio::spawn(async move {
+//                     worker_thread(i, p, &o, queue_clone,ss).await;
+//                 });
+//                 handles.push(handle);
+//             }
+//         }
+
+//         // Clean up workers (depends on how you implement worker_thread termination)
+//         for handle in handles {
+//             let _ = handle.await;
+//         }
+//         let storepath = save_path.as_ref().parent().unwrap().join("tree.db");
+//         store::store_trees(storepath.to_str().unwrap(), rece).await;
+//         // Check if the queue has been populated
+//         let queue = queue.lock().await;
+//         assert!(queue.len() == 0);
+     
+// }
+
+
+async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
+     let url = format!("http://localhost:8000/api/v1/file/blob/{}",url.to_plain_str());//TODO: configabel.
+    // Send GET request
+    let response = client.get(url).send().await?;
+    
+    // Ensure that the response status is successful
+    if response.status().is_success() {
+        // Get the binary data from the response body
+        let content = response.bytes().await?;
+        
+        // Store the content in a Vec<u8>
+        let data: Vec<u8> = content.to_vec();
+        
+        // Save the data to a file
+        tokio::fs::write(save_path, data).await?;
+        
+    } else {
+        eprintln!("Request failed with status: {}", response.status());
+    }
+    
+    Ok(())
+}
+
+#[allow(unused)]
+async fn fetch_tree(path: &GPath) -> Result<Tree, Box<dyn std::error::Error>> {
+    let url = format!("{}{}", BASE_URL, path);
+    let response = reqwest::get(&url).await?;
+    
+    if response.status().is_success() {
+        let bytes = response.bytes().await?;
+        let tree = Tree::try_from(&bytes[..])?;
+        Ok(tree)
+    } else {
+        Err(format!("Failed to fetch tree: {}", response.status()).into())
+    }
+}
+          
+
 #[cfg(test)]
-mod tests2 {
+mod tests {
     use reqwest::Client;
-    use tokio::{sync::Mutex, time};
-    use std::{collections::VecDeque, error::Error, sync::Arc};
+    use std::error::Error;
     use mercury::internal::object::tree::Tree;
-    use crate::{manager::fetch::worker_thread, util::GPath};
+    use std::fs::File;
     #[tokio::test]
     async fn test_fetch_octet_stream() -> Result<(), Box<dyn Error>> {
-        // 创建 HTTP 客户端
+        // Create an HTTP client
         let client = Client::new();
         
-        // 使用环境变量中的 URL 或者本地测试 URL
+        // Use the URL from environment variables or local test URL
         let url = "http://localhost:8000/api/v1/file/tree?path=/third-part/";
         
-        // 发送 GET 请求
+        // Send GET request
         let response = client.get(url).send().await?;
         
-        // 确保响应状态是成功的
+        // Ensure that the response status is successful
         if response.status().is_success() {
-            // 获取响应体的二进制数据
+            // Get the binary data from the response body
             let content = response.bytes().await?;
             
-            // 将内容存入 Vec<u8>
+            // Store the content in a Vec<u8>
             let data: Vec<u8> = content.to_vec();
             let tree = Tree::try_from(&data[..]).unwrap();
-            // 输出数据长度用于测试断言
+            // Print the data length for testing assertions
             // println!("Received {} bytes of data", data.len());
             
-            // // 这里可以添加更多的断言或验证逻辑
+            // // You can add more assertions or validation logic here
             // assert!(!data.is_empty(), "Data should not be empty");
 
-                println!("{}",tree);
-            // 可能还可以验证数据的具体内容
-            // assert_eq!(data, expected_data); // 你需要定义 expected_data
+            println!("{}",tree);
+            // You can also validate the specific content of the data
+            // assert_eq!(data, expected_data); // You need to define expected_data
             
         } else {
             eprintln!("Request failed with status: {}", response.status());
@@ -123,35 +334,35 @@ mod tests2 {
         
         Ok(())
     }
+
     #[tokio::test]
-    async fn test_fetch_tree( ){
-        let queue = Arc::new(Mutex::new(VecDeque::new()));
-        let queue_clone = queue.clone();
-        let _handle = tokio::spawn(async move {
-            // Initialize the queue with a path
-            let mut queue = queue_clone.lock().await;
-            let mut path = GPath::new();
-            path.push(String::from("third-part"));
-            queue.push_back(path);
-        });
-        let mut handles = vec![];
-        for _ in 0..6 {
-            let queue_clone = queue.clone();
-            let handle = tokio::spawn(worker_thread(queue_clone));
-            handles.push(handle);
-        }
-        // Wait for a while to let the workers process
-        time::sleep(std::time::Duration::from_secs(5)).await;
+    async fn test_fetch_octet_file() {
+        // Create an HTTP client
+        let client = Client::new();
 
-                    // Clean up workers (depends on how you implement worker_thread termination)
-        for handle in handles {
-            let _ = handle.await;
-        }
-        
-        // Check if the queue has been populated
-        let queue = queue.lock().await;
-        assert!(queue.len() > 0);
+        // Use the URL from environment variables or local test URL
+        let url = "http://localhost:8000/api/v1/file/blob/d12d12579799a658b29808fe695abd919a033ac9";
 
-        
+        // Send a GET request
+        let response = client.get(url).send().await.unwrap();
+
+        // Ensure that the response status is successful
+        if response.status().is_success() {
+            // Get the binary data from the response body
+            let content = response.bytes().await.unwrap();
+
+            // Store the content in a Vec<u8>
+            let data: Vec<u8> = content.to_vec();
+            use std::io::prelude::*;
+            // Save the data to a file
+            let mut file = File::create("output.txt").unwrap();
+            file.write_all(&data).unwrap();
+
+            // Print the path to the saved file
+            println!("Data saved to output.txt");
+        } else {
+            eprintln!("Request failed with status: {}", response.status());
+        }
     }
+
 }

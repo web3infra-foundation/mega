@@ -10,7 +10,7 @@ use ceres::{
     },
     protocol::repo::Repo,
 };
-use common::model::CommonOptions;
+use common::{errors::ProtocolError, model::CommonOptions};
 use jupiter::{context::Context, storage::user_storage::UserStorage};
 
 pub mod api_router;
@@ -54,7 +54,7 @@ impl MonoApiServiceState {
         }
     }
 
-    async fn api_handler(&self, path: PathBuf) -> Box<dyn ApiHandler> {
+    async fn api_handler(&self, path: PathBuf) -> Result<Box<dyn ApiHandler>, ProtocolError> {
         let import_dir = self.context.config.monorepo.import_dir.clone();
         if path.starts_with(&import_dir) && path != import_dir {
             if let Some(model) = self
@@ -66,14 +66,14 @@ impl MonoApiServiceState {
                 .unwrap()
             {
                 let repo: Repo = model.into();
-                return Box::new(ImportApiService {
+                return Ok(Box::new(ImportApiService {
                     context: self.context.clone(),
                     repo,
-                });
+                }));
             }
         }
-        Box::new(MonoApiService {
+        Ok(Box::new(MonoApiService {
             context: self.context.clone(),
-        })
+        }))
     }
 }

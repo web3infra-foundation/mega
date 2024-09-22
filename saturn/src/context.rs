@@ -1,5 +1,5 @@
 use cedar_policy::{
-    Authorizer, Context, Decision, Diagnostics, HumanSchemaError, ParseErrors, PolicySet,
+    Authorizer, CedarSchemaError, Context, Decision, Diagnostics, ParseErrors, PolicySet,
     PolicySetError, Request, Schema, SchemaError, ValidationMode, Validator,
 };
 use itertools::Itertools;
@@ -24,7 +24,7 @@ pub enum ContextError {
     #[error("Error Parsing Json Schema: {0}")]
     JsonSchema(#[from] SchemaError),
     #[error("Error Parsing Human-readable Schema: {0}")]
-    CedarSchema(#[from] HumanSchemaError),
+    CedarSchema(#[from] CedarSchemaError),
     #[error("Error Parsing PolicySet: {0}")]
     Policy(#[from] ParseErrors),
     #[error("Error Processing PolicySet: {0}")]
@@ -91,9 +91,9 @@ impl AppContext {
     ) -> Result<(), Error> {
         let es = self.entities.as_entities(&self.schema);
         let q = Request::new(
-            Some(principal.as_ref().clone().into()),
-            Some(action.as_ref().clone().into()),
-            Some(resource.as_ref().clone().into()),
+            principal.as_ref().clone().into(),
+            action.as_ref().clone().into(),
+            resource.as_ref().clone().into(),
             context,
             Some(&self.schema),
         )

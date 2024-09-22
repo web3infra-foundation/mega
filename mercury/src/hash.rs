@@ -44,7 +44,11 @@ impl Display for SHA1 {
         write!(f, "{}", self.to_plain_str().red().bold())
     }
 }
-
+impl AsRef<[u8]> for SHA1{
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 /// Implementation of the `FromStr` trait for the `SHA1` type.
 ///
 /// To effectively use the `from_str` method for converting a string to a `SHA1` object, consider the following:
