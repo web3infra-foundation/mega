@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use axum::{
     body::Body,
     extract::{Path, Query, State},
@@ -5,6 +7,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use http::StatusCode;
 
 use ceres::{
     api_service::ApiHandler,
@@ -15,7 +18,6 @@ use ceres::{
     },
 };
 use common::{errors::ProtocolError, model::CommonResult};
-use http::StatusCode;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::error::ApiError;
@@ -29,11 +31,11 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/create-file", post(create_file))
         .route("/latest-commit", get(get_latest_commit))
         .route("/tree/commit-info", get(get_tree_commit_info))
+        .route("/tree/path-can-clone", get(path_can_be_cloned))
         .route("/tree", get(get_tree_info))
         .route("/blob", get(get_blob_string))
         .route("/file/blob/:object_id", get(get_blob_file))
-        .route("/file/tree", get(get_tree_file))
-        .route("/path-can-clone", get(path_can_be_cloned));
+        .route("/file/tree", get(get_tree_file));
     Router::new()
         .merge(router)
         .merge(mr_router::routers())
@@ -179,6 +181,20 @@ async fn path_can_be_cloned(
     Query(query): Query<BlobContentQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<bool>>, ApiError> {
-    let res = state.api_handler(query.path.clone().into()).await.is_ok();
+    let path: PathBuf = query.path.clone().into();
+    let import_dir = state.context.config.monorepo.import_dir.clone();
+    let res = if path.starts_with(&import_dir) {
+        state
+            .context
+            .services
+            .git_db_storage
+            .find_git_repo_exact_match(path.to_str().unwrap())
+            .await
+            .unwrap()
+            .is_some()
+    } else {
+        // any path under monorepo can be cloned
+        true
+    };
     Ok(Json(CommonResult::success(Some(res))))
 }
