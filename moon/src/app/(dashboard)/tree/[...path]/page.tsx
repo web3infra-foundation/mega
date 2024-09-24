@@ -11,6 +11,7 @@ export default function Page({ params }: { params: { path: string[] } }) {
     const [directory, setDirectory] = useState([]);
     const [readmeContent, setReadmeContent] = useState("");
     const [cloneBtn, setCloneBtn] = useState(true);
+    const [endpoint, setEndPoint] = useState("");
     let path = '/' + params.path.join('/');
     useEffect(() => {
         const fetchData = async () => {
@@ -21,6 +22,8 @@ export default function Page({ params }: { params: { path: string[] } }) {
                 setReadmeContent(readmeContent);
                 let shown_clone_btn = await pathCanClone(path);
                 setCloneBtn(shown_clone_btn);
+                let endpoint =  await getEndpoint();
+                setEndPoint(endpoint);
             } catch (error) {
                 console.error('Error fetching data:', error);
             }
@@ -58,7 +61,7 @@ export default function Page({ params }: { params: { path: string[] } }) {
                 {
                     cloneBtn &&
                     <Flex justify={'flex-end'} >
-                        <CloneTabs />
+                        <CloneTabs endpoint= {endpoint}/>
                     </Flex>
                 }
             </Layout>
@@ -97,4 +100,12 @@ async function pathCanClone(pathname: string) {
     const response = await res.json();
     const shown_clone_btn = response.data.data;
     return shown_clone_btn
+}
+
+
+async function getEndpoint() {
+    const res = await fetch(`/host`);
+    const response = await res.json();
+    const data = response.endpoint;
+    return data
 }

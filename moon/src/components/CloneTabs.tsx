@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs, TabsProps, Button, Space, Popover, Input } from 'antd';
-import {
-    CodeBracketIcon,
-} from '@heroicons/react/16/solid'
 import copy from 'copy-to-clipboard';
 import { CopyOutlined, CheckOutlined, DownloadOutlined } from '@ant-design/icons';
 import { usePathname } from 'next/navigation';
 
 
-const CloneTabs: React.FC = () => {
+const CloneTabs = ({ endpoint }) => {
     const pathname = usePathname();
     const [text, setText] = useState<string>(pathname);
     const [copied, setCopied] = useState<boolean>(false);
@@ -19,15 +16,15 @@ const CloneTabs: React.FC = () => {
     };
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const domain = window.location.origin;
+        if (endpoint) {
+            const url = new URL(endpoint);
             if (active_tab === '1') {
-                setText(`${domain}${pathname.replace('/tree', '')}.git`);
+                setText(`${url.href}${pathname.replace('/tree/', '')}.git`);
             } else {
-                setText(`ssh://git@${window.location.hostname}:${pathname.replace('/tree', '')}.git`);
+                setText(`ssh://git@${url.host}${pathname.replace('/tree', '')}.git`);
             }
         }
-    }, [pathname, active_tab]);
+    }, [pathname, active_tab, endpoint]);
 
 
 
