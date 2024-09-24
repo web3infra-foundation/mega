@@ -93,6 +93,11 @@ impl LFSClient {
             })
         }
 
+        if lfs_objs.is_empty() {
+            tracing::info!("No LFS objects to push.");
+            return Ok(());
+        }
+
         { // verify locks
             let (code, locks) = self.verify_locks(VerifiableLockRequest {
                 refs: Ref { name: command::lfs::current_refspec().await.unwrap() },
