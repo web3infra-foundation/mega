@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS "mega_tag" (
 CREATE TABLE IF NOT EXISTS "mega_mr" (
   "id" BIGINT PRIMARY KEY,
   "mr_link" VARCHAR(40) NOT NULL,
+  "title" VARCHAR(80) NOT NULL,
   "merge_date" TIMESTAMP,
   "status" VARCHAR(20) NOT NULL,
   "path" TEXT NOT NULL,
@@ -57,19 +58,12 @@ CREATE TABLE IF NOT EXISTS "mega_mr_conv" (
   "mr_link" VARCHAR(20) NOT NULL,
   "user_id" BIGINT NOT NULL,
   "conv_type"  VARCHAR(20) NOT NULL,
+  "comment" TEXT,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_conversation" ON "mega_mr_conv" ("mr_link");
 
-
-CREATE TABLE IF NOT EXISTS "mega_mr_comment" (
-  "id" BIGINT PRIMARY KEY,
-  "conv_id" BIGINT NOT NULL,
-  "comment" TEXT,
-  "edited" BOOLEAN NOT NULL
-);
-CREATE INDEX "idx_comment_id" ON "mega_mr_comment" ("conv_id");
 
 CREATE TABLE IF NOT EXISTS "mega_issue" (
   "id" BIGINT PRIMARY KEY,

@@ -207,7 +207,6 @@ impl MonoApiService {
             vec![MergeStatus::Closed, MergeStatus::Merged]
         } else {
             vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
-            // return Err(MegaError::with_message("Invalid status name"));
         };
         let storage = self.context.services.mono_storage.clone();
         let mr_list = storage.get_mr_by_status(status).await.unwrap();
@@ -301,7 +300,7 @@ impl MonoApiService {
 
                 // add conversation
                 storage
-                    .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged)
+                    .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged, None)
                     .await
                     .unwrap();
                 if mr.path != "/" {

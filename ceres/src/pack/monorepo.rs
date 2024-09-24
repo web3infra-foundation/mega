@@ -15,10 +15,10 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::raw_blob;
+use callisto::{db_enums::ConvType, raw_blob};
 use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
 use jupiter::{context::Context, storage::mono_storage::MonoStorage};
-use mercury::internal::pack::encode::PackEncoder;
+use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
 use mercury::{
     errors::GitError,
     hash::SHA1,
@@ -123,30 +123,33 @@ impl PackHandler for MonoRepo {
     async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
         let storage = self.context.services.mono_storage.clone();
         let path_str = self.path.to_str().unwrap();
-        match storage.get_open_mr_by_path(path_str).await.unwrap() {
-            Some(mr) => {
-                let mut mr = mr.into();
-                self.handle_existing_mr(&mut mr, &storage, receiver).await
-            }
-            None => {
-                let mr_link: String = thread_rng()
-                    .sample_iter(&Alphanumeric)
-                    .take(8)
-                    .map(char::from)
-                    .collect();
-                let mr = MergeRequest {
-                    path: path_str.to_owned(),
-                    from_hash: self.from_hash.clone(),
-                    to_hash: self.to_hash.clone(),
-                    mr_link: mr_link.to_uppercase(),
-                    ..Default::default()
-                };
-                let unpack_res = self.save_entry(receiver).await;
-                if unpack_res.is_ok() {
-                    storage.save_mr(mr.clone().into()).await.unwrap();
+
+        let unpack_res = self.save_entry(receiver).await;
+        match unpack_res {
+            Ok(title) => match storage.get_open_mr_by_path(path_str).await.unwrap() {
+                Some(mr) => {
+                    let mut mr = mr.into();
+                    self.handle_existing_mr(&mut mr, &storage).await
                 }
-                unpack_res
-            }
+                None => {
+                    let mr_link: String = thread_rng()
+                        .sample_iter(&Alphanumeric)
+                        .take(8)
+                        .map(char::from)
+                        .collect();
+                    let mr = MergeRequest {
+                        path: path_str.to_owned(),
+                        from_hash: self.from_hash.clone(),
+                        to_hash: self.to_hash.clone(),
+                        mr_link: mr_link.to_uppercase(),
+                        title,
+                        ..Default::default()
+                    };
+                    storage.save_mr(mr.clone().into()).await.unwrap();
+                    Ok(())
+                }
+            },
+            Err(err) => Err(err),
         }
     }
 
@@ -332,38 +335,25 @@ impl MonoRepo {
         &self,
         mr: &mut MergeRequest,
         storage: &MonoStorage,
-        receiver: Receiver<Entry>,
     ) -> Result<(), GitError> {
         if mr.from_hash == self.from_hash {
             if mr.to_hash != self.to_hash {
                 let comment = self.comment_for_force_update(&mr.to_hash, &self.to_hash);
                 mr.to_hash = self.to_hash.clone();
                 storage
-                    .add_mr_comment(&mr.mr_link, 0, Some(comment))
+                    .add_mr_conversation(&mr.mr_link, 0, ConvType::Comment, Some(comment))
                     .await
                     .unwrap();
-
-                let unpack_res = self.save_entry(receiver).await;
-                if unpack_res.is_err() {
-                    mr.close();
-                    storage
-                        .add_mr_comment(
-                            &mr.mr_link,
-                            0,
-                            Some("Mega closed MR due to multi commit detected".to_string()),
-                        )
-                        .await
-                        .unwrap();
-                }
             } else {
                 tracing::info!("repeat commit with mr: {}, do nothing", mr.id);
             }
         } else {
             mr.close();
             storage
-                .add_mr_comment(
+                .add_mr_conversation(
                     &mr.mr_link,
                     0,
+                    ConvType::Comment,
                     Some("Mega closed MR due to conflict".to_string()),
                 )
                 .await
@@ -382,15 +372,18 @@ impl MonoRepo {
         )
     }
 
-    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
+    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<String, GitError> {
         let storage = self.context.services.mono_storage.clone();
         let mut entry_list = Vec::new();
         let mut join_tasks = vec![];
         let mut current_commit_id = String::new();
+        let mut mr_title = String::new();
         for entry in receiver {
             if current_commit_id.is_empty() {
                 if entry.obj_type == ObjectType::Commit {
                     current_commit_id = entry.hash.to_plain_str();
+                    let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
+                    mr_title = commit.format_message();
                 }
             } else {
                 if entry.obj_type == ObjectType::Commit {
@@ -415,6 +408,6 @@ impl MonoRepo {
             .save_entry(&current_commit_id, entry_list)
             .await
             .unwrap();
-        Ok(())
+        Ok(mr_title)
     }
 }
