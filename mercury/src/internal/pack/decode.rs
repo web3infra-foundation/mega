@@ -492,7 +492,7 @@ impl Pack {
         // DO NOT use thread::spawn, because it will block tokio runtime (if single-threaded runtime, like in tests)
         tokio::task::spawn_blocking(move || {
             self.decode(&mut reader, move |entry, _| {
-                sender.send(entry).unwrap();
+                if sender.send(entry).is_ok() {}
             }).unwrap();
             self
         }).await.unwrap()

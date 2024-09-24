@@ -10,6 +10,8 @@ import { Flex, Layout } from "antd/lib";
 export default function Page({ params }: { params: { path: string[] } }) {
     const [directory, setDirectory] = useState([]);
     const [readmeContent, setReadmeContent] = useState("");
+    const [cloneBtn, setCloneBtn] = useState(true);
+    const [endpoint, setEndPoint] = useState("");
     let path = '/' + params.path.join('/');
     useEffect(() => {
         const fetchData = async () => {
@@ -18,6 +20,10 @@ export default function Page({ params }: { params: { path: string[] } }) {
                 setDirectory(directory);
                 let readmeContent = await getReadmeContent(path, directory);
                 setReadmeContent(readmeContent);
+                let shown_clone_btn = await pathCanClone(path);
+                setCloneBtn(shown_clone_btn);
+                let endpoint =  await getEndpoint();
+                setEndPoint(endpoint);
             } catch (error) {
                 console.error('Error fetching data:', error);
             }
@@ -52,9 +58,12 @@ export default function Page({ params }: { params: { path: string[] } }) {
         <Flex gap="middle" wrap>
             <Layout style={breadStyle}>
                 <Bread path={params.path} />
-                <Flex justify={'flex-end'} >
-                    <CloneTabs/>
-                </Flex>
+                {
+                    cloneBtn &&
+                    <Flex justify={'flex-end'} >
+                        <CloneTabs endpoint= {endpoint}/>
+                    </Flex>
+                }
             </Layout>
             <Layout style={treeStyle}>
                 <RepoTree directory={directory} />
@@ -84,4 +93,19 @@ async function getReadmeContent(pathname, directory) {
         }
     }
     return readmeContent
+}
+
+async function pathCanClone(pathname: string) {
+    const res = await fetch(`/api/tree/path-can-clone?path=${pathname}`);
+    const response = await res.json();
+    const shown_clone_btn = response.data.data;
+    return shown_clone_btn
+}
+
+
+async function getEndpoint() {
+    const res = await fetch(`/host`);
+    const response = await res.json();
+    const data = response.endpoint;
+    return data
 }
