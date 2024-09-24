@@ -40,6 +40,7 @@ pub struct MRDetail {
 pub struct MRConversion {
     pub user_id: i64,
     pub conv_type: String,
+    pub comment: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -49,7 +50,7 @@ impl From<mega_mr::Model> for MRDetail {
         Self {
             id: value.id,
             mr_link: value.mr_link,
-            title: String::new(),
+            title: value.title,
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
             merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),
@@ -63,6 +64,7 @@ impl From<mega_mr_conv::Model> for MRConversion {
         Self {
             user_id: value.user_id,
             conv_type: value.conv_type.to_string(),
+            comment: value.comment,
             created_at: value.created_at.and_utc().timestamp(),
             updated_at: value.updated_at.and_utc().timestamp(),
         }

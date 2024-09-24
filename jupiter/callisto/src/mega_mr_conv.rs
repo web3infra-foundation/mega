@@ -12,6 +12,8 @@ pub struct Model {
     pub mr_link: String,
     pub user_id: i64,
     pub conv_type: ConvType,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub comment: Option<String>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }

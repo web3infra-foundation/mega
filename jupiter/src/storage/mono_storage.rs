@@ -9,7 +9,7 @@ use sea_orm::{
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    mega_blob, mega_commit, mega_mr, mega_mr_comment, mega_mr_conv, mega_refs, mega_tag, mega_tree,
+    mega_blob, mega_commit, mega_mr, mega_mr_conv, mega_refs, mega_tag, mega_tree,
     raw_blob,
 };
 use common::errors::MegaError;
@@ -178,39 +178,20 @@ impl MonoStorage {
         mr_link: &str,
         user_id: i64,
         conv_type: ConvType,
+        comment: Option<String>,
     ) -> Result<i64, MegaError> {
         let conversation = mega_mr_conv::Model {
             id: generate_id(),
             mr_link: mr_link.to_owned(),
             user_id,
             conv_type,
+            comment,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
         let conversation = conversation.into_active_model();
         let res = conversation.insert(self.get_connection()).await.unwrap();
         Ok(res.id)
-    }
-
-    pub async fn add_mr_comment(
-        &self,
-        mr_link: &str,
-        user_id: i64,
-        comment: Option<String>,
-    ) -> Result<(), MegaError> {
-        let conv_id = self
-            .add_mr_conversation(mr_link, user_id, ConvType::Comment)
-            .await
-            .unwrap();
-        let comment = mega_mr_comment::Model {
-            id: generate_id(),
-            conv_id,
-            comment,
-            edited: false,
-        };
-        let comment = comment.into_active_model();
-        comment.insert(self.get_connection()).await.unwrap();
-        Ok(())
     }
 
     pub async fn save_entry(
