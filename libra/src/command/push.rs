@@ -238,8 +238,8 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
         if parents.is_empty() {
             if root_commit.is_none() {
                 root_commit = Some(commit.id);
-            } else {
-                eprintln!("fatal: multiple root commits");
+            } else if root_commit != Some(commit.id) {
+                eprintln!("{}", "fatal: multiple root commits".red());
             }
         }
         for parent in parents.iter() {
