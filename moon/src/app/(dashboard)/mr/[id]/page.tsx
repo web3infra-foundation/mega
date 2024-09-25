@@ -1,9 +1,10 @@
 'use client'
 import { useEffect, useState } from "react";
-import { Card, Button, List, Tabs, TabsProps, Space, Timeline } from 'antd/lib';
+import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
 import { useRouter } from 'next/navigation';
 import { CommentOutlined, MergeOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
+import RichEditor from "@/components/rich-editor/RichEditor";
 
 interface MRDetail {
     status: string,
@@ -18,12 +19,15 @@ interface Conversation {
 }
 
 export default function MRDetailPage({ params }: { params: { id: string } }) {
+
+    const [editorState, setEditorState] = useState("");
+
     const [mrDetail, setMrDetail] = useState<MRDetail>(
         {
-            status: "", 
-            conversions: [], 
+            status: "",
+            conversions: [],
             title: "",
-          }
+        }
     );
     const router = useRouter();
     const [filedata, setFileData] = useState([]);
@@ -62,15 +66,26 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
         });
     }
 
-    const approve_mr = async (index: number, mr_link: string) => {
-        set_to_loading(index);
-        const res = await fetch(`/api/mr/${mr_link}/merge`, {
+    const approve_mr = async () => {
+        set_to_loading(1);
+        const res = await fetch(`/api/mr/${params.id}/merge`, {
             method: 'POST',
         });
         if (res) {
-            cancel_loading(index);
+            cancel_loading(1);
         }
     };
+
+    async function save_comment(comment) {
+        set_to_loading(3);
+        const res = await fetch(`/api/mr/${params.id}/comment`, {
+            method: 'POST',
+            body: comment,
+        });
+        if (res) {
+            cancel_loading(3);
+        }
+    }
 
     let conv_items = mrDetail?.conversions.map(conv => {
         let icon;
@@ -94,8 +109,13 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
             key: '1',
             label: 'Conversation',
             children:
-                <Space style={{ width: '100%' }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
                     <Timeline items={conv_items} />
+                    <h1>Add a comment</h1>
+                    <RichEditor setEditorState={setEditorState} />
+                    <Flex justify={"flex-end"}>
+                        <Button onClick={() => save_comment(editorState)}>Comment</Button>
+                    </Flex>
                 </Space>
         },
         {
@@ -124,7 +144,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
                 <Button
                     type="primary"
                     loading={loadings[1]}
-                    onClick={() => approve_mr(1, params.id)}
+                    onClick={() => approve_mr}
                 >
                     Merge MR
                 </Button>
