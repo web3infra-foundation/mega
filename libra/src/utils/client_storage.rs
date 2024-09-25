@@ -3,13 +3,14 @@ use std::collections::HashSet;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use byteorder::{BigEndian, ReadBytesExt};
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-
+use lru_mem::LruCache;
+use once_cell::sync::Lazy;
 use mercury::internal::pack::cache_object::CacheObject;
 use mercury::internal::pack::Pack;
 use mercury::errors::GitError;
@@ -18,6 +19,10 @@ use mercury::internal::object::types::ObjectType;
 use mercury::utils::read_sha1;
 
 use crate::command;
+static PACK_OBJ_CACHE: Lazy<Mutex<LruCache<String, CacheObject>>> = Lazy::new(|| {
+    // `lazy_static!` may affect IDE's code completion
+    Mutex::new(LruCache::new(1024 * 1024 * 200))
+});
 
 #[derive(Default)]
 pub struct ClientStorage {
@@ -54,7 +59,7 @@ impl ClientStorage {
             let (obj_type, _, _) = Self::parse_header(&data);
             ObjectType::from_string(&obj_type)
         } else {
-            self.get_from_pack(obj_id).unwrap()
+            self.get_from_pack(obj_id)?
                 .map(|x| x.1)
                 .ok_or(GitError::ObjectNotFound(obj_id.to_plain_str()))
         }
@@ -163,7 +168,7 @@ impl ClientStorage {
             Ok(data[end_of_header + 1..].to_vec())
         } else {
             // Ok(self.get_from_pack(object_id)?.unwrap().0)
-            self.get_from_pack(object_id).unwrap()
+            self.get_from_pack(object_id)?
                 .map(|x| x.0)
                 .ok_or(GitError::ObjectNotFound(object_id.to_plain_str()))
         }
@@ -308,19 +313,26 @@ impl ClientStorage {
 
     /// Read object from pack file, with offset
     fn read_pack_obj(pack_file: &Path, offset: u64) -> Result<CacheObject, GitError> {
+        let cache_key = format!("{:?}-{}", pack_file.file_name().unwrap(), offset);
+        // read cache
+        if let Some(cached) = PACK_OBJ_CACHE.lock().unwrap().get(&cache_key) {
+            return Ok(cached.clone());
+        }
+
         let file = fs::File::open(pack_file)?;
         let mut pack_reader = io::BufReader::new(&file);
         pack_reader.seek(io::SeekFrom::Start(offset))?;
         let mut pack = Pack::new(None, None, None, false);
-        let mut offset = offset as usize;
-        let obj = pack.decode_pack_object(&mut pack_reader, &mut offset)?;
-        match obj.obj_type {
+        let obj = {
+            let mut offset = offset as usize;
+            pack.decode_pack_object(&mut pack_reader, &mut offset)? // offset will be updated!
+        };
+        let full_obj = match obj.obj_type {
             ObjectType::OffsetDelta => {
                 let base_offset = obj.base_offset;
                 let base_obj = Self::read_pack_obj(pack_file, base_offset as u64)?;
                 let base_obj = Arc::new(base_obj);
-                let new_obj = Pack::rebuild_delta(obj, base_obj);
-                Ok(new_obj)
+                Pack::rebuild_delta(obj, base_obj) // new obj
             }
             ObjectType::HashDelta => {
                 let base_hash = obj.base_ref;
@@ -329,11 +341,15 @@ impl ClientStorage {
 
                 let base_obj = Self::read_pack_obj(pack_file, base_offset)?;
                 let base_obj = Arc::new(base_obj);
-                let new_obj = Pack::rebuild_delta(obj, base_obj);
-                Ok(new_obj)
+                Pack::rebuild_delta(obj, base_obj) // new obj
             },
-            _ => Ok(obj),
+            _ => obj,
+        };
+        // write cache
+        if PACK_OBJ_CACHE.lock().unwrap().insert(cache_key, full_obj.clone()).is_err() {
+            eprintln!("Warn: EntryTooLarge");
         }
+        Ok(full_obj)
     }
 }
 
