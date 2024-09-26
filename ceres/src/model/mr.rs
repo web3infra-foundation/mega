@@ -38,6 +38,7 @@ pub struct MRDetail {
 
 #[derive(Serialize, Deserialize)]
 pub struct MRConversion {
+    pub id: i64,
     pub user_id: i64,
     pub conv_type: String,
     pub comment: Option<String>,
@@ -62,6 +63,7 @@ impl From<mega_mr::Model> for MRDetail {
 impl From<mega_mr_conv::Model> for MRConversion {
     fn from(value: mega_mr_conv::Model) -> Self {
         Self {
+            id: value.id,
             user_id: value.user_id,
             conv_type: value.conv_type.to_string(),
             comment: value.comment,
