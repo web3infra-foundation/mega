@@ -9,8 +9,7 @@ use sea_orm::{
 
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
-    mega_blob, mega_commit, mega_mr, mega_mr_conv, mega_refs, mega_tag, mega_tree,
-    raw_blob,
+    mega_blob, mega_commit, mega_mr, mega_mr_conv, mega_refs, mega_tag, mega_tree, raw_blob,
 };
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -103,7 +102,10 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn get_open_mr_by_path(&self, path: &str) -> Result<Option<mega_mr::Model>, MegaError> {
+    pub async fn get_open_mr_by_path(
+        &self,
+        path: &str,
+    ) -> Result<Option<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Path.eq(path))
             .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
@@ -171,6 +173,14 @@ impl MonoStorage {
             .all(self.get_connection())
             .await;
         Ok(model?)
+    }
+
+    pub async fn remove_mr_conversation(&self, id: i64) -> Result<(), MegaError> {
+        mega_mr_conv::Entity::delete_by_id(id)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
     }
 
     pub async fn add_mr_conversation(

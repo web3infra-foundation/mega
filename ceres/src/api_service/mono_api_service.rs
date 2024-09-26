@@ -327,12 +327,18 @@ impl MonoApiService {
 
     pub async fn comment(&self, mr_link: &str, comment: String) -> Result<(), MegaError> {
         let storage = self.context.services.mono_storage.clone();
-        if let Some(model) = storage.get_open_mr_by_link(mr_link).await.unwrap() {
+        if let Some(model) = storage.get_mr(mr_link).await.unwrap() {
             storage
                 .add_mr_conversation(&model.mr_link, 0, ConvType::Comment, Some(comment))
                 .await
                 .unwrap();
         }
+        Ok(())
+    }
+
+    pub async fn delete_comment(&self, id: i64) -> Result<(), MegaError> {
+        let storage = self.context.services.mono_storage.clone();
+        storage.remove_mr_conversation(id).await.unwrap();
         Ok(())
     }
 
