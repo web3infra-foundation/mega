@@ -58,6 +58,54 @@ fn encode_offset(mut value: usize) -> Vec<u8> {
     bytes
 }
 
+/// Encode one object, and update the hash
+/// @offset: offset of this object if it's a delta object. For other object, it's None
+fn encode_one_object(entry: &Entry, offset: Option<usize>) -> Result<Vec<u8>, GitError> {
+    // try encode as delta
+    let obj_data = &entry.data;
+    let obj_data_len = obj_data.len();
+    let obj_type_number = entry.obj_type.to_u8();
+
+    let mut encoded_data = Vec::new();
+
+    // **header** encoding
+    let mut header_data = vec![(0x80 | (obj_type_number << 4)) + (obj_data_len & 0x0f) as u8];
+    let mut size = obj_data_len >> 4; // 4 bit has been used in first byte
+    if size > 0 {
+        while size > 0 {
+            if size >> 7 > 0 {
+                header_data.push((0x80 | size) as u8);
+                size >>= 7;
+            } else {
+                header_data.push(size as u8);
+                break;
+            }
+        }
+    } else {
+        header_data.push(0);
+    }
+    encoded_data.extend(header_data);
+
+    // **offset** encoding
+    if entry.obj_type == ObjectType::OffsetDelta {
+        let offset_data = encode_offset(offset.unwrap());
+        encoded_data.extend(offset_data);
+    } else if entry.obj_type == ObjectType::HashDelta {
+        unreachable!("unsupported type")
+    }
+
+    // **data** encoding, need zlib compress
+    let mut inflate = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    inflate
+        .write_all(obj_data)
+        .expect("zlib compress should never failed");
+    inflate.flush().expect("zlib flush should never failed");
+    let compressed_data = inflate.finish().expect("zlib compress should never failed");
+    // self.write_all_and_update(&compressed_data).await;
+    encoded_data.extend(compressed_data);
+    Ok(encoded_data)
+}
+
 impl PackEncoder {
     pub fn new(object_number: usize, window_size: usize, sender: mpsc::Sender<Vec<u8>>) -> Self {
         PackEncoder {
@@ -112,7 +160,11 @@ impl PackEncoder {
                     self.process_index += 1;
                     // push window after encode to void diff by self
                     let offset = self.inner_offset;
-                    self.encode_one_object(&entry).await?;
+                    let mut try_delta_entry = entry.clone();
+                    let try_delfa_offset = self.try_as_offset_delta(&mut try_delta_entry);
+                    let obj_data = encode_one_object(&try_delta_entry, try_delfa_offset)?;
+
+                    self.write_all_and_update(&obj_data).await;
                     self.window.push_back((entry, offset));
                     if self.window.len() > self.window_size {
                         self.window.pop_front();
@@ -140,9 +192,9 @@ impl PackEncoder {
 
     /// Try to encode as delta using objects in window
     /// # Returns
-    /// - Return (delta entry, offset) if success make delta
-    /// - Return (origin Entry,None) if didn't delta,
-    fn try_as_offset_delta(&mut self, entry: &Entry) -> (Entry, Option<usize>) {
+    /// - Return (offset) if success make delta
+    /// - Return (None) if didn't delta,
+    fn try_as_offset_delta(&mut self, entry: &mut Entry) -> Option<usize> {
         let mut best_base: Option<&(Entry, usize)> = None;
         let mut best_rate: f64 = 0.0;
         for try_base in self.window.iter() {
@@ -159,16 +211,12 @@ impl PackEncoder {
             let best_base = best_base.unwrap(); // must some if best rate > 0
             let delta = delta::encode(&best_base.0.data, &entry.data);
             let offset = self.inner_offset - best_base.1;
-            (
-                Entry {
-                    data: delta,
-                    obj_type: ObjectType::OffsetDelta,
-                    ..entry.clone()
-                },
-                Some(offset),
-            )
+            entry.obj_type = ObjectType::OffsetDelta;
+            entry.data = delta;
+
+            Some(offset)
         } else {
-            (entry.clone(), None)
+            None
         }
     }
 
@@ -177,51 +225,6 @@ impl PackEncoder {
         self.inner_hash.update(data);
         self.inner_offset += data.len();
         self.send_data(data.to_vec()).await;
-    }
-
-    /// Encode one object, and update the hash
-    async fn encode_one_object(&mut self, entry: &Entry) -> Result<(), GitError> {
-        // try encode as delta
-        let (entry, offset) = self.try_as_offset_delta(entry);
-        let obj_data = entry.data;
-        let obj_data_len = obj_data.len();
-        let obj_type_number = entry.obj_type.to_u8();
-
-        // **header** encoding
-        let mut header_data = vec![(0x80 | (obj_type_number << 4)) + (obj_data_len & 0x0f) as u8];
-        let mut size = obj_data_len >> 4; // 4 bit has been used in first byte
-        if size > 0 {
-            while size > 0 {
-                if size >> 7 > 0 {
-                    header_data.push((0x80 | size) as u8);
-                    size >>= 7;
-                } else {
-                    header_data.push(size as u8);
-                    break;
-                }
-            }
-        } else {
-            header_data.push(0);
-        }
-        self.write_all_and_update(&header_data).await;
-
-        // **offset** encoding
-        if entry.obj_type == ObjectType::OffsetDelta {
-            let offset_data = encode_offset(offset.unwrap());
-            self.write_all_and_update(&offset_data).await;
-        } else if entry.obj_type == ObjectType::HashDelta {
-            unreachable!("unsupported type")
-        }
-
-        // **data** encoding, need zlib compress
-        let mut inflate = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-        inflate
-            .write_all(&obj_data)
-            .expect("zlib compress should never failed");
-        inflate.flush().expect("zlib flush should never failed");
-        let compressed_data = inflate.finish().expect("zlib compress should never failed");
-        self.write_all_and_update(&compressed_data).await;
-        Ok(())
     }
 
     /// async version of encode, result data will be returned by JoinHandle.
