@@ -135,6 +135,12 @@ def process_crate_version(num, crate_name, version, crate_path, git_repos_dir, g
         print_red(f"Skipping processing for {crate_name} version {version} due to extraction failure.")
         return
 
+    # Check for .gitattributes file and remove if it exists
+    gitattributes_path = os.path.join(repo_path, '.gitattributes')
+    if os.path.exists(gitattributes_path):
+        os.remove(gitattributes_path)
+        print_blue(f"Removed .gitattributes file from {repo_path}")
+
     # Initialize git repo
     init_git_repo(repo_path, git_base_url)
 
