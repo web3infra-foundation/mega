@@ -633,26 +633,10 @@ mod tests {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
     use tokio_util::io::ReaderStream;
-    use tracing_subscriber::util::SubscriberInitExt;
 
+    use crate::internal::pack::tests::init_logger;
     use crate::internal::pack::Pack;
     use futures_util::TryStreamExt;
-
-    fn init_logger() {
-        let _ = tracing_subscriber::fmt::Subscriber::builder()
-            .with_target(false)
-            .without_time()
-            .finish()
-            .try_init();// avoid multi-init
-
-        // CAUTION: This two is same
-        // 1.
-        // tracing_subscriber::fmt().init();
-        //
-        // 2.
-        // env::set_var("RUST_LOG", "debug"); // must be set if use `fmt::init()`, or no output
-        // tracing_subscriber::fmt::init();
-    }
 
     #[test]
     fn test_pack_check_header() {
