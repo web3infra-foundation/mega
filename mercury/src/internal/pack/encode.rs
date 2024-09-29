@@ -2,11 +2,13 @@ use std::collections::VecDeque;
 use std::io::Write;
 
 use flate2::write::ZlibEncoder;
+use rayon::prelude::*;
 use sha1::{Digest, Sha1};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use crate::internal::object::types::ObjectType;
+use crate::time_it;
 use crate::{errors::GitError, hash::SHA1, internal::pack::entry::Entry};
 
 const MIN_DELTA_RATE: f64 = 0.5; // minimum delta rate can accept
@@ -190,6 +192,78 @@ impl PackEncoder {
         Ok(())
     }
 
+    /// Parallel encode with rayon, only works when window_size == 0 (no delta)
+    pub async fn parallel_encode(
+        &mut self,
+        mut entry_rx: mpsc::Receiver<Entry>,
+    ) -> Result<(), GitError> {
+        if self.window_size != 0 {
+            return Err(GitError::PackEncodeError(
+                "parallel encode only works when window_size == 0".to_string(),
+            ));
+        }
+
+        let head = encode_header(self.object_number);
+        self.send_data(head.clone()).await;
+        self.inner_hash.update(&head);
+
+        // ensure only one decode can only invoke once
+        if self.start_encoding {
+            return Err(GitError::PackEncodeError(
+                "encoding operation is already in progress".to_string(),
+            ));
+        }
+
+        let batch_size = usize::max(1000, entry_rx.max_capacity() / 10); // A temporary value, not optimized
+        tracing::info!("encode with batch size: {}", batch_size);
+        loop {
+            let mut batch_entries = Vec::with_capacity(batch_size);
+            time_it!("parallel encode: receive batch", {
+                for _ in 0..batch_size {
+                    match entry_rx.recv().await {
+                        Some(entry) => {
+                            batch_entries.push(entry);
+                            self.process_index += 1;
+                        }
+                        None => break,
+                    }
+                }
+            });
+
+            if batch_entries.is_empty() {
+                break;
+            }
+
+            // use `collect` will return result in order, refs: https://github.com/rayon-rs/rayon/issues/551#issuecomment-371657900
+            let batch_result: Vec<Vec<u8>> = time_it!("parallel encode: encode batch", {
+                batch_entries
+                    .par_iter()
+                    .map(|entry| encode_one_object(entry, None).unwrap())
+                    .collect()
+            });
+
+            time_it!("parallel encode: write batch", {
+                for obj_data in batch_result {
+                    self.write_all_and_update(&obj_data).await;
+                }
+            });
+        }
+
+        if self.process_index != self.object_number {
+            panic!(
+                "not all objects are encoded, process:{}, total:{}",
+                self.process_index, self.object_number
+            );
+        }
+
+        // hash signature
+        let hash_result = self.inner_hash.clone().finalize();
+        self.final_hash = Some(SHA1::from_bytes(&hash_result));
+        self.send_data((hash_result).to_vec()).await;
+        self.drop_sender();
+        Ok(())
+    }
+
     /// Try to encode as delta using objects in window
     /// # Returns
     /// - Return (offset) if success make delta
@@ -233,18 +307,43 @@ impl PackEncoder {
         mut self,
         rx: mpsc::Receiver<Entry>,
     ) -> Result<JoinHandle<()>, GitError> {
-        Ok(tokio::spawn(async move { self.encode(rx).await.unwrap() }))
+        Ok(tokio::spawn(async move {
+            if self.window_size == 0 {
+                self.parallel_encode(rx).await.unwrap()
+            } else {
+                self.encode(rx).await.unwrap()
+            }
+        }))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::sync::Arc;
+    // use tokio::{Arc, Mutex};
     use std::{io::Cursor, path::PathBuf};
 
+    use tokio::sync::Mutex;
+
     use crate::internal::object::blob::Blob;
-    use crate::internal::pack::Pack;
+    use crate::internal::pack::{tests::init_logger, Pack};
+    use crate::time_it;
 
     use super::*;
+
+    fn check_format(data: &Vec<u8>) {
+        let mut p = Pack::new(
+            None,
+            Some(1024 * 1024 * 1024 * 6), // 6GB
+            Some(PathBuf::from("/tmp/.cache_temp")),
+            true,
+        );
+        let mut reader = Cursor::new(data);
+        tracing::debug!("start check format");
+        p.decode(&mut reader, |_, _| {})
+            .expect("pack file format error");
+    }
 
     #[tokio::test]
     async fn test_pack_encoder() {
@@ -271,26 +370,114 @@ mod tests {
             result
         }
 
-        fn check_format(data: Vec<u8>) {
-            let mut p = Pack::new(
-                None,
-                Some(1024 * 20),
-                Some(PathBuf::from("/tmp/.cache_temp")),
-                true,
-            );
-            let mut reader = Cursor::new(data);
-            p.decode(&mut reader, |_, _| {})
-                .expect("pack file format error");
-        }
         // without delta
         let pack_without_delta = encode_once(0).await;
         let pack_without_delta_size = pack_without_delta.len();
-        check_format(pack_without_delta);
+        check_format(&pack_without_delta);
 
         // with delta
         let pack_with_delta = encode_once(3).await;
         assert_ne!(pack_with_delta.len(), pack_without_delta_size);
-        check_format(pack_with_delta);
+        check_format(&pack_with_delta);
+    }
+
+    async fn get_entries_for_test() -> Arc<Mutex<Vec<Entry>>> {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+
+        // decode pack file to get entries
+        let mut p = Pack::new(
+            None,
+            Some(1024 * 1024 * 1024 * 6),
+            Some(PathBuf::from("/tmp/.cache_temp")),
+            true,
+        );
+
+        let f = std::fs::File::open(source).unwrap();
+        tracing::info!("pack file size: {}", f.metadata().unwrap().len());
+        let mut reader = std::io::BufReader::new(f);
+        let entries = Arc::new(Mutex::new(Vec::new()));
+        let entries_clone = entries.clone();
+        p.decode(&mut reader, move |entry, _| {
+            let mut entries = entries_clone.blocking_lock();
+            entries.push(entry);
+        })
+        .unwrap();
+        assert_eq!(p.number, entries.lock().await.len());
+        tracing::info!("total entries: {}", p.number);
+        drop(p);
+
+        entries
+    }
+
+    #[tokio::test]
+    async fn test_pack_encoder_parallel_large_file() {
+        init_logger();
+        let entries = get_entries_for_test().await;
+        let entries_number = entries.lock().await.len();
+
+        // encode entries with parallel
+        let (tx, mut rx) = mpsc::channel(1_000_000);
+        let (entry_tx, entry_rx) = mpsc::channel::<Entry>(1_000_000);
+
+        let mut encoder = PackEncoder::new(entries_number, 0, tx);
+        tokio::spawn(async move {
+            time_it!("test parallel encode", {
+                encoder.parallel_encode(entry_rx).await.unwrap();
+            });
+        });
+
+        // spawn a task to send entries
+        tokio::spawn(async move {
+            let entries = entries.lock().await;
+            for entry in entries.iter() {
+                entry_tx.send(entry.clone()).await.unwrap();
+            }
+            drop(entry_tx);
+            tracing::info!("all entries sent");
+        });
+
+        let mut result = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            result.extend(chunk);
+        }
+        tracing::info!("new pack file size: {}", result.len());
+
+        // check format
+        check_format(&result);
+    }
+
+    #[tokio::test]
+    async fn test_pack_encoder_large_file() {
+        init_logger();
+        let entries = get_entries_for_test().await;
+        let entries_number = entries.lock().await.len();
+
+        // encode entries
+        let (tx, mut rx) = mpsc::channel(100_000);
+        let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
+
+        let mut encoder = PackEncoder::new(entries_number, 0, tx);
+        tokio::spawn(async move {
+            time_it!("test encode no parallel", {
+                encoder.encode(entry_rx).await.unwrap();
+            });
+        });
+
+        // spawn a task to send entries
+        tokio::spawn(async move {
+            let entries = entries.lock().await;
+            for entry in entries.iter() {
+                entry_tx.send(entry.clone()).await.unwrap();
+            }
+            drop(entry_tx);
+            tracing::info!("all entries sent");
+        });
+
+        // only receive data
+        while (rx.recv().await).is_some() {
+            // do nothing
+        }
     }
 
     #[test]
