@@ -59,14 +59,13 @@ def run_git_command(repo_path, command):
         print_red(f"Command output: {e.output}")
         return None
 
-def init_git_repo(repo_path, git_base_url):
+def init_git_repo(repo_path, git_base_url, lfs_url):
     # Initialize a git repository if it doesn't exist
     if not os.path.exists(os.path.join(repo_path, '.git')):
         run_git_command(repo_path, ['git', 'init', '-b', 'main'])
         print_blue(f"Initialized git repository in {repo_path}")
 
         # Set the LFS domain
-        lfs_url = f"{git_base_url}"
         run_git_command(repo_path, ['git', 'config', 'lfs.url', lfs_url])
         print_blue(f"Set LFS domain to: {lfs_url}")
 
@@ -121,7 +120,7 @@ def extract_crate(crate_path, extract_path):
         print_red(f"Warning: Failed to read crate file {crate_path}. Skipping extraction.")
         return False
 
-def process_crate_version(num, crate_name, version, crate_path, git_repos_dir, git_base_url):
+def process_crate_version(num, crate_name, version, crate_path, git_repos_dir, git_base_url, lfs_url):
     # Record start time for the entire crate
     crate_start_time = datetime.now()
     print_blue(f"Started processing the crate {crate_name} at {crate_start_time}")
@@ -135,8 +134,14 @@ def process_crate_version(num, crate_name, version, crate_path, git_repos_dir, g
         print_red(f"Skipping processing for {crate_name} version {version} due to extraction failure.")
         return
 
+    # Check for .gitattributes file and remove if it exists
+    gitattributes_path = os.path.join(repo_path, '.gitattributes')
+    if os.path.exists(gitattributes_path):
+        os.remove(gitattributes_path)
+        print_blue(f"Removed .gitattributes file from {repo_path}")
+
     # Initialize git repo
-    init_git_repo(repo_path, git_base_url)
+    init_git_repo(repo_path, git_base_url, lfs_url)
 
     # Add all files to git
     run_git_command(repo_path, ['git', 'add', '.'])
@@ -165,7 +170,7 @@ def process_crate_version(num, crate_name, version, crate_path, git_repos_dir, g
     # Print separator
     print("------------------")
 
-def process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_url, git_base_url):
+def process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_url, git_base_url, lfs_url):
     # Process all versions of a crate
     for v in versions:
         repo_path = os.path.join(git_repos_dir, crate_name, v)
@@ -174,12 +179,12 @@ def process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_
             continue
 
         crate_path = check_and_download_crate(crates_dir, crate_name, v, dl_base_url)
-        process_crate_version(num, crate_name, v, crate_path, git_repos_dir, git_base_url)
+        process_crate_version(num, crate_name, v, crate_path, git_repos_dir, git_base_url, lfs_url)
         num += 1
 
     print_blue(f"Finished processing  {crate_name}")
 
-def scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url):
+def scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url, lfs_url):
     # Scan the crates.io index and process all crates
     crates = defaultdict(set)
     dl_base_url = None
@@ -229,21 +234,31 @@ def scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url)
 
     # Process each crate
     for crate_name, versions in crates.items():
-        process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_url, git_base_url)
+        process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_url, git_base_url, lfs_url)
         num += len(versions)
 
     return len(crates)
 
 def main():
+    # Record start time for the entire process
+    total_start_time = datetime.now()
+    print_blue(f"Started entire process at {total_start_time}")
+
     # Main function to run the script
-    if len(sys.argv) != 5:
-        print_red("Usage: python script.py <path_to_crates.io-index> <path_to_crates_directory> <path_to_git_repos_directory> <git_base_url>")
+    if len(sys.argv) != 6:
+        print_red("Usage: python script.py <path_to_crates.io-index> <path_to_crates_directory> <path_to_git_repos_directory> <git_base_url> <lfs_url>")
         sys.exit(1)
 
-    index_path, crates_dir, git_repos_dir, git_base_url = sys.argv[1:5]
+    index_path, crates_dir, git_repos_dir, git_base_url, lfs_url = sys.argv[1:6]
 
-    total_crates = scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url)
+    total_crates = scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url, lfs_url)
+
+    # Record end time and calculate duration for the entire process
+    total_end_time = datetime.now()
+    total_duration = total_end_time - total_start_time
     print_blue(f"\nTotal number of crates processed: {total_crates}")
+    print_blue(f"Finished entire process at {total_end_time}")
+    print_blue(f"Total processing time: {total_duration}")
 
 if __name__ == "__main__":
     main()  # Run the main function if this script is executed directly

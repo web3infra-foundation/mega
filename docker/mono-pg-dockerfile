@@ -1,4 +1,4 @@
-FROM postgres:16
+FROM postgres:17
 
 # When running the `docker buildx build` command, you may encounter the following warning:
 #
@@ -17,6 +17,6 @@ EXPOSE 5432
 
 # Add the database initialization script to the container
 # When the container starts, PostgreSQL will automatically execute all .sql files in the docker-entrypoint-initdb.d/ directory
-COPY ./sql/postgres/pg_20240912__init.sql /docker-entrypoint-initdb.d/
+COPY ./sql/postgres/pg_20240923__init.sql /docker-entrypoint-initdb.d/
 
 CMD ["postgres"]

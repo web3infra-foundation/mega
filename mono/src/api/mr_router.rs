@@ -6,6 +6,8 @@ use axum::{
     Json, Router,
 };
 
+use bytes::Bytes;
+
 use ceres::model::mr::{MRDetail, MrInfoItem};
 use common::model::CommonResult;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
@@ -19,6 +21,8 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/mr/:mr_link/detail", get(mr_detail))
         .route("/mr/:mr_link/merge", post(merge))
         .route("/mr/:mr_link/files", get(get_mr_files))
+        .route("/mr/:mr_link/comment", post(save_comment))
+        .route("/mr/comment/:conv_id/delete", post(delete_comment))
 }
 
 async fn merge(
@@ -71,6 +75,33 @@ async fn get_mr_files(
     let res = state.monorepo().mr_tree_files(&mr_link).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
+async fn save_comment(
+    Path(mr_link): Path<String>,
+    state: State<MonoApiServiceState>,
+    body: Bytes,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let json_string =
+        String::from_utf8(body.to_vec()).unwrap_or_else(|_| "Invalid UTF-8".to_string());
+    let res = state.monorepo().comment(&mr_link, json_string).await;
+    let res = match res {
+        Ok(_) => CommonResult::success(None),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
+async fn delete_comment(
+    Path(conv_id): Path<i64>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let res = state.monorepo().delete_comment(conv_id).await;
+    let res = match res {
+        Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))
