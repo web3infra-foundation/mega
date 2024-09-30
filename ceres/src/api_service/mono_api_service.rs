@@ -117,7 +117,6 @@ impl ApiHandler for MonoApiService {
         Ok(())
     }
 
-
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
         Ok(path.to_path_buf())
     }
@@ -207,7 +206,6 @@ impl MonoApiService {
             vec![MergeStatus::Closed, MergeStatus::Merged]
         } else {
             vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
-            // return Err(MegaError::with_message("Invalid status name"));
         };
         let storage = self.context.services.mono_storage.clone();
         let mr_list = storage.get_mr_by_status(status).await.unwrap();
@@ -301,7 +299,7 @@ impl MonoApiService {
 
                 // add conversation
                 storage
-                    .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged)
+                    .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged, None)
                     .await
                     .unwrap();
                 if mr.path != "/" {
@@ -324,6 +322,23 @@ impl MonoApiService {
         } else {
             return Err(MegaError::with_message("Invalid mr id"));
         }
+        Ok(())
+    }
+
+    pub async fn comment(&self, mr_link: &str, comment: String) -> Result<(), MegaError> {
+        let storage = self.context.services.mono_storage.clone();
+        if let Some(model) = storage.get_mr(mr_link).await.unwrap() {
+            storage
+                .add_mr_conversation(&model.mr_link, 0, ConvType::Comment, Some(comment))
+                .await
+                .unwrap();
+        }
+        Ok(())
+    }
+
+    pub async fn delete_comment(&self, id: i64) -> Result<(), MegaError> {
+        let storage = self.context.services.mono_storage.clone();
+        storage.remove_mr_conversation(id).await.unwrap();
         Ok(())
     }
 
