@@ -220,7 +220,7 @@ async fn generate_upload_pack_content(have: &Vec<String>, want: &Vec<String>) ->
     let mut buf = BytesMut::new();
     let mut write_first_line = false;
 
-    let capability = ["side-band-64k", "ofs-delta"].join(" ");
+    let capability = ["side-band-64k", "ofs-delta", "multi_ack_detailed"].join(" ");
     for w in want {
         if !write_first_line {
             add_pkt_line_string(
