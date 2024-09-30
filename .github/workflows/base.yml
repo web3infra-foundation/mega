@@ -47,8 +47,8 @@ jobs:
         with:
           submodules: recursive
       - run: |
-          sudo add-apt-repository ppa:webkit-team/unstable \
-          sudo apt update \
+          sudo add-apt-repository ppa:webkit-team/unstable
+          sudo apt update
           sudo apt install -y libwebkit2gtk-4.0-dev \
             build-essential \
             curl \
