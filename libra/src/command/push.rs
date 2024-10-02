@@ -225,10 +225,12 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
 
 
     let mut objs = HashSet::new();
+    let mut visit = HashSet::new(); // avoid duplicate commit visit
     let exist_commits = collect_history_commits(&remote_ref);
     let mut queue = VecDeque::new();
     if !exist_commits.contains(&local_ref) {
         queue.push_back(local_ref);
+        visit.insert(local_ref);
     }
     let mut root_commit = None;
 
@@ -238,15 +240,16 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
         if parents.is_empty() {
             if root_commit.is_none() {
                 root_commit = Some(commit.id);
-            } else {
-                eprintln!("fatal: multiple root commits");
+            } else if root_commit != Some(commit.id) {
+                eprintln!("{}", "fatal: multiple root commits".red());
             }
         }
         for parent in parents.iter() {
             let parent_tree = Commit::load(parent).tree_id;
             objs.extend(diff_tree_objs(Some(&parent_tree), &commit.tree_id));
-            if !exist_commits.contains(parent) {
+            if !exist_commits.contains(parent) && !visit.contains(parent) {
                 queue.push_back(*parent);
+                visit.insert(*parent);
             }
         }
         objs.insert(commit.into());

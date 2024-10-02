@@ -63,7 +63,7 @@ impl AskModel for OpenAIClient {
                 ChatRole::User => {
                     messages.push(
                         ChatCompletionRequestSystemMessageArgs::default()
-                            .content(content)
+                            .content(content.as_str())
                             .build()?
                             .into(),
                     );

@@ -300,6 +300,7 @@ pub async fn lfs_upload_object(
     let meta = lfs_get_meta(storage.clone(), &request_vars.oid)
         .await
         .unwrap();
+    tracing::debug!("upload lfs object {} size: {}", meta.oid, meta.size);
     if config.enable_split && meta.splited {
         // assert!(request_vars.size == body_bytes.len() as i64, "size didn't match: {} != {}", request_vars.size, body_bytes.len()); // TODO: git client, request_vars.size is `0`!!
         // split object to blocks
@@ -320,6 +321,8 @@ pub async fn lfs_upload_object(
             }
             sub_ids.push(sub_id);
         }
+        tracing::debug!("lfs object {} split into {} chunks", meta.oid, sub_ids.len());
+
         // save the relationship to database
         let mut offset = 0;
         for sub_id in sub_ids {
