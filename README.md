@@ -40,6 +40,7 @@ For now, the monorepo engine could be deployed on your host machine or insulated
 ```bash
 git clone https://github.com/web3infra-foundation/mega.git
 cd mega
+git submodule update --init --recursive
 docker buildx build -t mono-pg:0.1-pre-release -f ./docker/mono-pg-dockerfile .
 docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-dockerfile .
 docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
