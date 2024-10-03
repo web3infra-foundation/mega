@@ -2,77 +2,51 @@
     "build": {
         "beforeBuildCommand": "npm run build",
         "beforeDevCommand": "npm run dev",
-        "devPath": "http://localhost:3000",
-        "distDir": "../out"
+        "frontendDist": "../out",
+        "devUrl": "http://localhost:3000"
     },
-    "package": {
-        "productName": "lunar",
-        "version": "0.1.0"
-    },
-    "tauri": {
-        "allowlist": {
-            "shell": {
-                "sidecar": true,
-                "scope": [
-                    {
-                        "name": "binaries/mega",
-                        "sidecar": true
-                    },
-                    {
-                        "name": "binaries/libra",
-                        "sidecar": true
-                    }
-                ]
-            },
-            "fs": {
-                "scope": [
-                    "$RESOURCE/*"
-                ]
-            }
-        },
-        "bundle": {
-            "active": true,
-            "category": "DeveloperTool",
-            "copyright": "",
-            "appimage": {},
+    "bundle": {
+        "active": true,
+        "category": "DeveloperTool",
+        "copyright": "",
+        "linux": {
             "deb": {
                 "files": {}
             },
-            "externalBin": [
-                "binaries/mega",
-                "binaries/libra"
-            ],
-            "icon": [
-                "icons/32x32.png",
-                "icons/128x128.png",
-                "icons/128x128@2x.png",
-                "icons/icon.icns",
-                "icons/icon.ico"
-            ],
-            "identifier": "org.mega.dev",
-            "longDescription": "",
-            "macOS": {
-                "entitlements": null,
-                "exceptionDomain": "",
-                "frameworks": [],
-                "providerShortName": null,
-                "signingIdentity": null
-            },
-            "resources": [],
-            "shortDescription": "",
-            "targets": "all",
-            "windows": {
-                "certificateThumbprint": null,
-                "digestAlgorithm": "sha256",
-                "timestampUrl": ""
-            }
+            "appimage": {}
         },
-        "security": {
-            "csp": null
+        "targets": "all",
+        "externalBin": [
+            "binaries/mega",
+            "binaries/libra"
+        ],
+        "icon": [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico"
+        ],
+        "windows": {
+            "certificateThumbprint": null,
+            "digestAlgorithm": "sha256",
+            "timestampUrl": ""
         },
-        "updater": {
-            "active": false
+        "longDescription": "",
+        "macOS": {
+            "entitlements": null,
+            "exceptionDomain": "",
+            "frameworks": [],
+            "providerShortName": null,
+            "signingIdentity": null
         },
+        "resources": [],
+        "shortDescription": ""
+    },
+    "productName": "lunar",
+    "version": "0.1.0",
+    "identifier": "org.mega.dev",
+    "app": {
         "windows": [
             {
                 "fullscreen": false,
@@ -81,6 +55,9 @@
                 "title": "lunar-app",
                 "width": 1366
             }
-        ]
+        ],
+        "security": {
+            "csp": null
+        }
     }
 }
