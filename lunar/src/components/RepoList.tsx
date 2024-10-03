@@ -4,7 +4,7 @@ import { Space, Table, TableProps, Badge, Button, Skeleton, message } from 'antd
 import { useState } from 'react'
 import { format, fromUnixTime } from 'date-fns'
 import { DownloadOutlined } from '@ant-design/icons';
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
 import { ApiResult, useMegaStatus } from '@/app/api/fetcher';
 
 const endpoint = process.env.NEXT_PUBLIC_API_URL;
