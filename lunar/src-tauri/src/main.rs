@@ -6,15 +6,15 @@ use std::sync::{Arc, Mutex};
 use std::{env, fs, thread, time};
 
 use serde::Deserialize;
-use tauri::api::process::{Command, CommandChild, CommandEvent};
-use tauri::{Manager, State};
-
+use tauri::Manager;
+use tauri::State;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
 #[derive(Default)]
 struct ServiceState {
     child: Option<CommandChild>,
     with_relay: bool,
 }
-
 impl Drop for ServiceState {
     fn drop(&mut self) {
         if let Some(child_process) = self.child.take() {
@@ -31,10 +31,7 @@ struct MegaStartParams {
 }
 
 fn set_up_lib(handle: tauri::AppHandle) {
-    let resource_path = handle
-        .path_resolver()
-        .resource_dir()
-        .expect("failed to resolve resource");
+    let resource_path = handle.path().resource_dir().expect("home dir not found");
     let libs_dir = resource_path.join("libs");
 
     #[cfg(target_os = "macos")]
@@ -56,6 +53,7 @@ fn set_up_lib(handle: tauri::AppHandle) {
 
 #[tauri::command]
 fn start_mega_service(
+    app: tauri::AppHandle,
     state: State<'_, Arc<Mutex<ServiceState>>>,
     params: MegaStartParams,
 ) -> Result<(), String> {
@@ -71,8 +69,13 @@ fn start_mega_service(
         service_state.with_relay = false;
         vec!["service", "http"]
     };
-    let (mut rx, child) = Command::new_sidecar("mega")
-        .expect("Failed to create `mega` binary command")
+
+    let sidecar_command = app
+        .shell()
+        .sidecar("mega")
+        .expect("Failed to create `mega` binary command");
+
+    let (mut rx, child) = sidecar_command
         .args(args)
         .spawn()
         .expect("Failed to spawn `Mega service`");
@@ -84,10 +87,12 @@ fn start_mega_service(
         while let Some(event) = rx.recv().await {
             match event {
                 CommandEvent::Stdout(line) => {
-                    print!("{}", line);
+                    // line to string
+                    // print!("{}", line);
+                    println!("Sidecar stdout: {}", String::from_utf8_lossy(&line));
                 }
                 CommandEvent::Stderr(line) => {
-                    eprint!("Sidecar stderr: {}", line);
+                    eprint!("Sidecar stderr: {}", String::from_utf8_lossy(&line));
                 }
                 CommandEvent::Terminated(payload) => {
                     if let Some(code) = payload.code {
@@ -124,13 +129,14 @@ fn stop_mega_service(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<(), S
 
 #[tauri::command]
 fn restart_mega_service(
+    app: tauri::AppHandle,
     state: State<'_, Arc<Mutex<ServiceState>>>,
     params: MegaStartParams,
 ) -> Result<(), String> {
     stop_mega_service(state.clone())?;
     // wait for process exit
     thread::sleep(time::Duration::from_millis(1000));
-    start_mega_service(state, params)?;
+    start_mega_service(app, state, params)?;
     Ok(())
 }
 
@@ -141,7 +147,7 @@ fn mega_service_status(state: State<'_, Arc<Mutex<ServiceState>>>) -> Result<(bo
 }
 
 #[tauri::command]
-fn clone_repository(repo_url: String, name: String) -> Result<(), String> {
+fn clone_repository(app: tauri::AppHandle, repo_url: String, name: String) -> Result<(), String> {
     let home = match home::home_dir() {
         Some(path) if !path.as_os_str().is_empty() => path,
         _ => {
@@ -154,63 +160,84 @@ fn clone_repository(repo_url: String, name: String) -> Result<(), String> {
     if target_dir.exists() {
         fs::remove_dir_all(&target_dir).unwrap();
     }
-
-    let output = Command::new_sidecar("libra")
-        .expect("Failed to create `libra` binary command")
-        .args(["clone", &repo_url, (target_dir.to_str().unwrap())])
-        .output()
-        .map_err(|e| format!("Failed to execute process: {}", e))?;
+    let app_clone = app.clone();
+    let output = tauri::async_runtime::block_on(async {
+        app_clone
+            .shell()
+            .sidecar("libra")
+            .expect("Failed to create `libra` binary command")
+            .args(["clone", &repo_url, target_dir.to_str().unwrap()])
+            .output()
+            .await
+    })
+    .map_err(|e| format!("Failed to execute process: {}", e))?;
 
     if output.status.success() {
-        println!("{}", output.stdout);
+        println!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        eprintln!("{}", output.stderr);
+        eprintln!("{}", String::from_utf8_lossy(&output.stderr));
     }
-    change_remote_url(target_dir.clone(), name)?;
-    push_to_new_remote(target_dir)?;
+    change_remote_url(app.to_owned(), target_dir.clone(), name)?;
+    push_to_new_remote(app, target_dir)?;
     Ok(())
 }
 
-fn change_remote_url(repo_path: PathBuf, name: String) -> Result<(), String> {
-    Command::new_sidecar("libra")
-        .expect("Failed to create `libra` binary command")
-        .args(["remote", "remove", "origin"])
-        .current_dir(repo_path.clone())
-        .output()
-        .map_err(|e| format!("Failed to execute process: {}", e))?;
+fn change_remote_url(
+    app: tauri::AppHandle,
+    repo_path: PathBuf,
+    name: String,
+) -> Result<(), String> {
+    tauri::async_runtime::block_on(async {
+        app.shell()
+            .sidecar("libra")
+            .expect("Failed to create `libra` binary command")
+            .args(["remote", "remove", "origin"])
+            .current_dir(repo_path.clone())
+            .output()
+            .await
+    })
+    .map_err(|e| format!("Failed to execute process: {}", e))?;
 
-    let output = Command::new_sidecar("libra")
-        .expect("Failed to create `libra` binary command")
-        .args([
-            "remote",
-            "add",
-            "origin",
-            &format!("http://localhost:8000/third-part/{}", name),
-        ])
-        .current_dir(repo_path.clone())
-        .output()
-        .map_err(|e| format!("Failed to execute process: {}", e))?;
+    let output = tauri::async_runtime::block_on(async {
+        app.shell()
+            .sidecar("libra")
+            .expect("Failed to create `libra` binary command")
+            .args([
+                "remote",
+                "add",
+                "origin",
+                &format!("http://localhost:8000/third-part/{}", name),
+            ])
+            .current_dir(repo_path.clone())
+            .output()
+            .await
+    })
+    .map_err(|e| format!("Failed to execute process: {}", e))?;
 
     if output.status.success() {
-        println!("{}", output.stdout);
+        println!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        eprintln!("{}", output.stderr);
+        eprintln!("{}", String::from_utf8_lossy(&output.stderr));
     }
     Ok(())
 }
 
-fn push_to_new_remote(repo_path: PathBuf) -> Result<(), String> {
-    let output = Command::new_sidecar("libra")
-        .expect("Failed to create `libra` binary command")
-        .args(["push", "origin", "master"])
-        .current_dir(repo_path)
-        .output()
-        .map_err(|e| format!("Failed to execute process: {}", e))?;
+fn push_to_new_remote(app: tauri::AppHandle, repo_path: PathBuf) -> Result<(), String> {
+    let output = tauri::async_runtime::block_on(async {
+        app.shell()
+            .sidecar("libra")
+            .expect("Failed to create `libra` binary command")
+            .args(["push", "origin", "master"])
+            .current_dir(repo_path)
+            .output()
+            .await
+    })
+    .map_err(|e| format!("Failed to execute process: {}", e))?;
 
     if output.status.success() {
-        println!("{}", output.stdout);
+        println!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        eprintln!("{}", output.stderr);
+        eprintln!("{}", String::from_utf8_lossy(&output.stderr));
     }
     Ok(())
 }
@@ -218,6 +245,8 @@ fn push_to_new_remote(repo_path: PathBuf) -> Result<(), String> {
 fn main() {
     let params = MegaStartParams::default();
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(Arc::new(Mutex::new(ServiceState::default())))
         .invoke_handler(tauri::generate_handler![
             start_mega_service,
@@ -228,9 +257,9 @@ fn main() {
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
-            set_up_lib(app_handle);
+            set_up_lib(app_handle.to_owned());
             let state = app.state::<Arc<Mutex<ServiceState>>>().clone();
-            if let Err(e) = start_mega_service(state, params) {
+            if let Err(e) = start_mega_service(app_handle, state, params) {
                 eprintln!("Failed to restart rust_service: {}", e);
             } else {
                 println!("Rust service restarted successfully");
