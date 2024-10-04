@@ -11,17 +11,17 @@ rust-version = "1.60"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-tauri-build = { version = "1.5.3", features = [] }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 serde_json = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-tauri = { version = "1.7.1", features = [
-    "shell-sidecar",
-    "process-command-api",
+tauri = { version = "2", features = [
 ] }
 tokio = { workspace = true }
 home = { workspace = true }
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }

@@ -1,9 +1,7 @@
 {
-  "tauri": {
     "bundle": {
-      "resources": [
-        "libs/pipy.dll"
-      ]
+        "resources": [
+            "libs/pipy.dll"
+        ]
     }
-  }
 }
