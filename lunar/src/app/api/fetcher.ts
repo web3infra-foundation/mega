@@ -1,5 +1,5 @@
 import useSWR, { Fetcher } from "swr";
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
 
 const endpoint = process.env.NEXT_PUBLIC_API_URL;
 const relay = process.env.NEXT_PUBLIC_RELAY_API_URL;

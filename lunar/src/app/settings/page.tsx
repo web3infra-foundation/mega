@@ -4,7 +4,7 @@ import { Divider } from '@/components/catalyst/divider'
 import { Heading, Subheading } from '@/components/catalyst/heading'
 import { Input } from '@/components/catalyst/input'
 import { Text } from '@/components/catalyst/text'
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
 import { useState } from 'react'
 import { Button, Skeleton, message } from "antd";
 import { usePeerId } from '@/app/api/fetcher'
