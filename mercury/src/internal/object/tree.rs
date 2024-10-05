@@ -262,6 +262,15 @@ impl Tree {
             tree_items,
         })
     }
+
+    /// After the subdirectory is changed, the hash value of the tree is recalculated.
+    pub fn rehash(&mut self){
+        let mut data = Vec::new();
+        for item in &self.tree_items {
+            data.extend_from_slice(item.to_data().as_slice());
+        }
+        self.id = SHA1::from_type_and_data(ObjectType::Tree, &data);
+    }
 }
 impl TryFrom<&[u8]> for Tree{
     type Error = GitError;
