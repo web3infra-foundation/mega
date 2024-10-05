@@ -1,4 +1,3 @@
-
 use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, sync::Arc, time::Duration};
 use mercury::hash::SHA1;
@@ -61,7 +60,7 @@ async fn worker_thread(
     send_tree :Sender<Tree>,
 ) {
     let client = Client::new();
-    let mut interval = time::interval(Duration::from_millis(50)); // 设定检查间隔时间
+    let mut interval = time::interval(Duration::from_millis(50)); 
     let timeout_duration = Duration::from_millis(300);
     loop {
         let path = tokio::select! {
@@ -165,7 +164,6 @@ async fn worker_ro_thread(
                 tokio::fs::create_dir_all(real_path).await.unwrap();
             } else {
                 
-                // TODO: fetch file and save to target path. about file fetch api, refer to test_fetch_octet_stream() test func. 
                 let e = fetch_and_save_file(&item.id,real_path).await;
                 println!("{:?}",e);
             }
@@ -175,6 +173,11 @@ async fn worker_ro_thread(
         }
       
 }
+
+///
+/// the tree info is store in k-v database.
+///     monorepo path  -> Tree
+/// 
 async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
     let target_path: Arc<PathBuf> = Arc::new(save_path.as_ref().to_path_buf());
@@ -342,7 +345,6 @@ mod tests {
 
         // Use the URL from environment variables or local test URL
         let url = "http://localhost:8000/api/v1/file/blob/d12d12579799a658b29808fe695abd919a033ac9";
-
         // Send a GET request
         let response = client.get(url).send().await.unwrap();
 

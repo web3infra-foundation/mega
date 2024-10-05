@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 #[derive(Debug,Deserialize, Serialize,Clone,Default)]
@@ -36,7 +36,12 @@ impl From<String> for GPath{
     }
 }
 
-
+impl  From<GPath> for PathBuf {
+    fn from(val: GPath) -> Self {
+        let path_str = val.path.join("/");
+        PathBuf::from(path_str)
+    }
+}
 impl Display for GPath{
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.path.join("/"))

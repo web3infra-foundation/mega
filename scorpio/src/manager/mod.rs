@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-mod diff;
+pub mod diff;
+pub mod push;
 pub mod fetch;
 pub mod store;
 
