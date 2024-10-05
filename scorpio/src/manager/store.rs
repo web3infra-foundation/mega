@@ -1,50 +1,30 @@
-use mercury::{hash::SHA1, internal::object::tree::Tree};
+use mercury::internal::object::tree::Tree;
 use tokio::sync::mpsc::Receiver;
-use std::io::Result;
+use std::{io::Result, path::PathBuf};
 
 use crate::util::GPath;
 
 pub trait TreeStore{
-    fn get_tree(&self,hash:&SHA1)-> Result<Tree>;
-    fn insert_tree(&self,tree:Tree)-> Result<()>;
-    fn inser_path(&self,hash:&SHA1,path:GPath) -> Result<()>;
-    fn get_hash_bypath(&self,path:GPath) -> Result<SHA1>;
-    fn get_bypath(&self,path:GPath)-> Result<Tree>;
+
+    fn insert_tree(&self,path:PathBuf, tree:Tree)-> Result<()>;
+    fn get_bypath(&self,path:PathBuf)-> Result<Tree>;
 }
+
+
 impl  TreeStore for sled::Db {
-    fn get_tree(&self,hash:&SHA1)-> Result<Tree> {
-        if let Some(encoded_value) = self.get(hash.as_ref())? {
-            // Deserialize the encoded value into the original tree structure using bincode
-            let decoded: Result<Tree> = bincode::deserialize(&encoded_value).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Deserialization error"));
-            let decoded: Tree = decoded?;
-             Ok(decoded)
-        } else {
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Tree not found"))
-        }
-    }
-    fn inser_path(&self,hash:&SHA1,path:GPath) -> Result<()>{
-        let e = bincode::serialize(hash.as_ref()).unwrap();
-        self.insert(path.to_string(), &e[..]).unwrap();
+    fn insert_tree(&self,path:PathBuf, tree:Tree)-> Result<()> {
+        let value = bincode::serialize(&tree).unwrap();
+        let key = path.to_str().unwrap();
+        self.insert(key, value).unwrap();
         Ok(())
     }
-    fn get_hash_bypath(&self,path:GPath)-> Result<SHA1>{
-        let hash = self.get(path.to_string())?;
-        bincode::deserialize(&hash.unwrap()).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Deserialization error"))
-    }
-    fn insert_tree(&self,tree:Tree)-> Result<()> {
-        let serialized_tree = bincode::serialize(&tree).unwrap();
-        let re = self.insert(tree.id.as_ref(), serialized_tree);
 
-        if re.is_ok(){
-            Ok(())
-        }else {
-           Err(re.err().unwrap().into()) 
-        }
-    }
-    
-    fn get_bypath(&self,path:GPath)-> Result<Tree> {
-        let hash  = self.get_hash_bypath(path)?;
-        self.get_tree(&hash)
+    fn get_bypath(&self,path:PathBuf)-> Result<Tree> {
+        let key = path.to_str().unwrap();
+        let encoded_value= self.get(key)?;
+        let decoded: Result<Tree> = bincode::deserialize(&encoded_value.unwrap()).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Deserialization error"));
+        let decoded: Tree = decoded?;
+        Ok(decoded)
     }
 }
 
@@ -52,8 +32,7 @@ pub async fn store_trees(storepath:&str,mut tree_channel: Receiver<(GPath,Tree)>
     let db = sled::open(storepath).unwrap();
     while let Some((path,tree)) = tree_channel.recv().await {
             println!("new tree:{}",tree.id);
-            let _ = db.inser_path(&tree.id, path);
-            let re = db.insert_tree(tree);
+            let re = db.insert_tree(path.into(),tree);
             if re.is_err(){
                 print!("{}",re.err().unwrap());
             }
@@ -90,6 +69,10 @@ mod test{
                 Ok((key, value)) => {
                     // Deserialize the value into the original tree structure using bincode
                     let decoded: Result<Tree, _> = bincode::deserialize(&value);
+                    let key_str = std::str::from_utf8(&key).unwrap();
+                    
+                    println!("path:{}", key_str);
+                 
                     if let Ok(tree) = decoded {
                         println!("{}", tree);
                     } else {

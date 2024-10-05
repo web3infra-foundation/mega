@@ -5,9 +5,9 @@ store_path = "/home/luxian/megadir/store"
 [[works]]
 path = "third-part/mega/libra"
 node = 26
-hash = "4a3bec47e31fc5442b9f9c42f519788e565ea485"
+hash = "47a90e9262bcd023bbff32f9f4c328b43b62813a"
 
 [[works]]
 path = "third-part/mega/scorpio"
 node = 17
-hash = "1b70e8bf4d39d6f5e9dd1637aaa2c221e2d00a27"
+hash = "76d6dbd014dee9a78497ea61d1ee923e8b0f9387"
