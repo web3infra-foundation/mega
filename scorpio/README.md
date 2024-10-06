@@ -64,3 +64,9 @@ The structure of Sapling is achieved through a multi-layered architecture, with 
 [6] [fuser](https://github.com/cberner/fuser.git) : A Rust library crate for easy implementation of FUSE filesystems in userspace.
 
 [7] [Scalar](https://github.com/microsoft/git/blob/HEAD/contrib/scalar/docs/index.md) : Scalar is a tool that helps Git scale to some of the largest Git repositories. Initially, it was a single standalone git plugin based on Vfs for git, inheriting GVFS. No longer using FUSE. It implements aware partial directory management. Users need to manage and register the required workspace directory on their own. Ease of use can be improved through the fuse mechanism.
+
+
+# TODO
+1. * BUILD : monorepo build , which dictionary ?
+2. *** API list... for add mount point .
+3. - .https://opentitan.org/
