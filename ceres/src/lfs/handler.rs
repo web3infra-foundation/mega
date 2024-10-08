@@ -1,6 +1,12 @@
 use std::cmp::min;
 use std::collections::HashMap;
 
+use crate::lfs::lfs_structs::ChunkRepresentation;
+use crate::lfs::lfs_structs::{
+    BatchRequest, LockList, LockRequest, ObjectError, UnlockRequest, VerifiableLockList,
+    VerifiableLockRequest,
+};
+use crate::lfs::lfs_structs::{Link, Lock, LockListQuery, MetaObject, Representation, RequestVars};
 use anyhow::Result;
 use bytes::Bytes;
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
@@ -11,13 +17,6 @@ use jupiter::storage::lfs_db_storage::LfsDbStorage;
 use rand::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{DatabaseTransaction, EntityTrait, IntoActiveModel, TransactionTrait};
-
-use crate::lfs::lfs_structs::ChunkRepresentation;
-use crate::lfs::lfs_structs::{
-    BatchRequest, LockList, LockRequest, ObjectError, UnlockRequest, VerifiableLockList,
-    VerifiableLockRequest,
-};
-use crate::lfs::lfs_structs::{Link, Lock, LockListQuery, MetaObject, Representation, RequestVars};
 
 pub async fn lfs_retrieve_lock(
     storage: LfsDbStorage,
@@ -305,7 +304,7 @@ pub async fn lfs_upload_object(
         let mut sub_ids = vec![];
         for chunk in body_bytes.chunks(config.split_size) {
             // sha256
-            let sub_id = sha256::digest(chunk);
+            let sub_id = hex::encode(ring::digest::digest(&ring::digest::SHA256, chunk));
             let res = lfs_storage.put_object(&sub_id, chunk).await;
             if res.is_err() {
                 lfs_delete_meta(&storage, request_vars).await.unwrap();
