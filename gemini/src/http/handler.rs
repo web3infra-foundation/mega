@@ -2,7 +2,7 @@ use common::model::CommonResult;
 use jupiter::context::Context;
 
 use crate::{
-    util::repo_alias_to_identifier,
+    util::{get_git_model_by_path, repo_alias_to_identifier},
     ztm::{
         agent::share_repo, get_or_create_remote_mega_tunnel, send_get_request_to_peer_by_tunnel,
     },
@@ -14,24 +14,15 @@ pub async fn repo_provide(
     context: Context,
     path: String,
     alias: String,
+    origin: String,
 ) -> Result<String, String> {
     let url = format!("{bootstrap_node}/api/v1/repo_provide");
-    let git_model = context
-        .services
-        .git_db_storage
-        .find_git_repo_exact_match(path.as_str())
-        .await;
 
-    let git_model = match git_model {
-        Ok(r) => {
-            if let Some(m) = r {
-                m
-            } else {
-                return Err(String::from("Repo not found"));
-            }
-        }
-        Err(_) => return Err(String::from("Repo not found")),
+    let git_model = match get_git_model_by_path(context.clone(), path).await {
+        Some(r) => r,
+        None => return Err(String::from("Repo not found")),
     };
+
     let git_ref = context
         .services
         .git_db_storage
@@ -41,13 +32,12 @@ pub async fn repo_provide(
         .unwrap();
 
     let name = git_model.repo_name;
-    let (peer_id, _) = vault::init();
     let identifier = repo_alias_to_identifier(alias);
     let update_time = git_model.created_at.and_utc().timestamp();
     let repo_info = RepoInfo {
         name,
         identifier,
-        origin: peer_id,
+        origin,
         update_time,
         commit: git_ref.ref_git_id,
         peer_online: true,
