@@ -37,16 +37,6 @@ impl LfsDbStorage {
             .unwrap())
     }
 
-    pub async fn new_lfs_relation(
-        &self,
-        relation: lfs_split_relations::Model,
-    ) -> Result<InsertResult<lfs_split_relations::ActiveModel>, MegaError> {
-        lfs_split_relations::Entity::insert(relation.into_active_model())
-            .exec(self.get_connection())
-            .await
-            .map_err(|e| MegaError::with_message(e.to_string().as_str()))
-    }
-
     pub async fn get_lfs_object(
         &self,
         oid: String,
