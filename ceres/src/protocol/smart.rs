@@ -234,7 +234,7 @@ impl SmartProtocol {
         for command in &mut self.command_list {
             if command.ref_type == RefType::Tag {
                 // just update if refs type is tag
-                pack_handler.update_refs(&command).await.unwrap();
+                pack_handler.update_refs(command).await.unwrap();
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
@@ -246,7 +246,7 @@ impl SmartProtocol {
                             command.default_branch = true;
                             default_exist = true;
                         }
-                        pack_handler.update_refs(&command).await.unwrap();
+                        pack_handler.update_refs(command).await.unwrap();
                     }
                     Err(ref err) => {
                         command.failed(err.to_string());
