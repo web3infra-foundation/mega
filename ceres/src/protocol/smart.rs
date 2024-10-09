@@ -214,10 +214,9 @@ impl SmartProtocol {
         //1. unpack progress
         let receiver = pack_handler
             .unpack_stream(&self.context.config.pack, data_stream)
-            .await
-            .unwrap();
+            .await?;
 
-        // can not block main thread here.
+        // do not block main thread here.
         let ph_clone = pack_handler.clone();
         let unpack_result = tokio::task::spawn_blocking(move || {
             let handle = tokio::runtime::Handle::current();
@@ -232,7 +231,7 @@ impl SmartProtocol {
         let mut default_exist = pack_handler.check_default_branch().await;
 
         //2. update each refs and build report
-        for mut command in self.command_list.clone() {
+        for command in &mut self.command_list {
             if command.ref_type == RefType::Tag {
                 // just update if refs type is tag
                 pack_handler.update_refs(&command).await.unwrap();
