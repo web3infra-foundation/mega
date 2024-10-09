@@ -8,8 +8,9 @@ use scorpio::fuse::MegaFuse;
 use scorpio::server::FuseServer;
 use scorpio::manager::fetch::CheckHash;
 use signal_hook::consts::TERM_SIGNALS;
-use signal_hook::iterator::Signals; // Import the MegaFuse type
-
+use signal_hook::iterator::Signals; 
+use scorpio::deamon::deamon_main;
+use tokio::runtime::Runtime;
 fn main() {
     println!("Hello, world!");
     let config_path = "config.toml";
@@ -28,7 +29,11 @@ fn main() {
     let handle = std::thread::spawn( move || {
         fuse_server.svc_loop()
     });
-
+    let rt = Runtime::new().unwrap();
+    // 在tokio运行时中执行deamon_main函数
+    rt.block_on(async {
+        deamon_main().await;
+    });
     // Wait for termination signal
     let mut signals = Signals::new(TERM_SIGNALS).unwrap();
     println!("Signals start");
