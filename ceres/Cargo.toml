@@ -29,5 +29,6 @@ futures = { workspace = true }
 bytes = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }
-sha256 = { workspace = true }
 sea-orm = { workspace = true }
+ring = { workspace = true }
+hex ={ workspace = true}
