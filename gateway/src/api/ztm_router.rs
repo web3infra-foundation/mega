@@ -50,6 +50,7 @@ async fn repo_provide(
         state.inner.context.clone(),
         path,
         alias,
+        get_peerid(),
     )
     .await
     {
@@ -110,7 +111,7 @@ async fn alias_to_path(
             return Err((StatusCode::BAD_REQUEST, String::from("Alias not provide\n")));
         }
     };
-    let res = context
+    let res: Option<ztm_path_mapping::Model> = context
         .services
         .ztm_storage
         .get_path_from_alias(alias)

@@ -14,6 +14,9 @@ pub struct ZtmOptions {
 
     #[arg(long)]
     pub bootstrap_node: Option<String>,
+
+    #[arg(long, default_value_t = false)]
+    pub cache_repo: bool,
 }
 
 #[derive(Deserialize, Debug)]
