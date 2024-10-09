@@ -10,8 +10,6 @@ pub mod nostr;
 pub mod util;
 pub mod ztm;
 
-
-
 #[derive(Deserialize, Debug)]
 pub struct RelayGetParams {
     pub peer_id: Option<String>,
