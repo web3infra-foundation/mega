@@ -89,7 +89,7 @@ fn start_mega_service(
                 CommandEvent::Stdout(line) => {
                     // line to string
                     // print!("{}", line);
-                    println!("Sidecar stdout: {}", String::from_utf8_lossy(&line));
+                    print!("Sidecar stdout: {}", String::from_utf8_lossy(&line));
                 }
                 CommandEvent::Stderr(line) => {
                     eprint!("Sidecar stderr: {}", String::from_utf8_lossy(&line));
