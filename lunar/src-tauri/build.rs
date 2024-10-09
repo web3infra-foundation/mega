@@ -39,10 +39,10 @@ fn main() {
     };
 
     std::fs::copy(format!("../../target/{}/mega{}", debug_path, extension), sidecar_path)
-        .expect("Run Cargo build for mega first");
+        .expect("Run cargo build to build mega bin for Lunar first");
 
     std::fs::copy(format!("../../target/{}/libra{}", debug_path, extension), libra_path)
-        .expect("Run Cargo build for libra first");
+        .expect("Run cargo build to build libra bin for Lunar first");
 
     // Copy libpipy due to target os
     #[cfg(target_os = "macos")]

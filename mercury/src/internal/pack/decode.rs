@@ -486,15 +486,16 @@ impl Pack {
         let mut total_size = 0;
         let convert_handle = tokio::spawn(async move {
             // use Channel to connect `async` & `sync`
-            Ok(while let Some(chunk) = stream.next().await {
+            while let Some(chunk) = stream.next().await {
                 let data = chunk.unwrap().to_vec();
                 total_size += data.len();
                 if total_size > pack_limit {
-                    eprintln!("Body size exceeded 1 GB limit. Terminating connection.");
+                    eprintln!("Body size exceeded limit. Terminating connection.");
                     return Err(ProtocolError::TooLarge(total_size.to_string()))
                 }
                 tx.send(data).unwrap();
-            })
+            }
+            Ok(())
         });
         // CPU-bound task, so use spawn_blocking
         // DO NOT use thread::spawn, because it will block tokio runtime (if single-threaded runtime, like in tests)
