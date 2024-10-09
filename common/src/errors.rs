@@ -89,6 +89,8 @@ pub enum ProtocolError {
     Deny(String),
     #[error("Repository not found: {0}")]
     NotFound(String),
+    #[error("PackFile too large: {0}")]
+    TooLarge(String),
     #[error("Invalid Input: {0}")]
     InvalidInput(String),
     #[error("HTTP Push Has Been Disabled")]
@@ -101,6 +103,9 @@ impl IntoResponse for ProtocolError {
             ProtocolError::Deny(err) => {
                 // This error is caused by bad user input so don't log it
                 (StatusCode::UNAUTHORIZED, err)
+            }
+            ProtocolError::TooLarge(err) => {
+                (StatusCode::PAYLOAD_TOO_LARGE, err)
             }
             ProtocolError::NotFound(err) => {
                 // Because `TraceLayer` wraps each request in a span that contains the request

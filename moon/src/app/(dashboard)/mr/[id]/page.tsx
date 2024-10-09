@@ -21,6 +21,7 @@ interface Conversation {
 
 export default function MRDetailPage({ params }: { params: { id: string } }) {
     const [editorState, setEditorState] = useState("");
+    const [login, setLogin] = useState(false);
     const [mrDetail, setMrDetail] = useState<MRDetail>(
         {
             status: "",
@@ -30,6 +31,12 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     );
     const [filedata, setFileData] = useState([]);
     const [loadings, setLoadings] = useState<boolean[]>([]);
+
+
+    const checkLogin = async () => {
+        const res = await fetch(`/api/auth`);
+        setLogin(res.ok);
+    };
 
     const fetchDetail = async () => {
         const detail = await fetch(`/api/mr/${params.id}/detail`);
@@ -51,6 +58,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     useEffect(() => {
         fetchDetail()
         fetchFileList();
+        checkLogin();
     }, [params.id]);
 
     const set_to_loading = (index: number) => {
@@ -149,6 +157,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
                 <Button
                     loading={loadings[1]}
                     onClick={() => approve_mr()}
+                    disabled={!login}
                 >
                     Merge MR
                 </Button>

@@ -140,8 +140,7 @@ pub async fn git_receive_pack(
             let remaining_stream = stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
             report_status = pack_protocol
                 .git_receive_pack_stream(Box::pin(remaining_stream))
-                .await
-                .unwrap();
+                .await?;
             break;
         }
     }

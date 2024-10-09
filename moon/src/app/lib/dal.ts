@@ -12,3 +12,8 @@ export const verifySession = cache(async () => {
     return { session }
 })
 
+
+export const isLoginIn = () => {
+    const session = cookies().get('SESSION')?.value
+    return session != null 
+}
