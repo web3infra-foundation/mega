@@ -70,8 +70,5 @@ pub async fn get_git_model_by_path(context: Context, path: String) -> Option<git
         .find_git_repo_exact_match(path.as_str())
         .await;
 
-    match git_model {
-        Ok(r) => r,
-        Err(_) => None,
-    }
+    git_model.unwrap_or_default()
 }
