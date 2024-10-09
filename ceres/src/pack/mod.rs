@@ -14,7 +14,11 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::protocol::import_refs::{RefCommand, Refs};
 use callisto::raw_blob;
-use common::{config::PackConfig, errors::MegaError, utils::ZERO_ID};
+use common::{
+    config::PackConfig,
+    errors::{MegaError, ProtocolError},
+    utils::ZERO_ID,
+};
 use mercury::internal::pack::Pack;
 use mercury::{
     errors::GitError,
@@ -79,7 +83,7 @@ pub trait PackHandler: Send + Sync {
         &self,
         pack_config: &PackConfig,
         stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
-    ) -> Result<Receiver<Entry>, GitError> {
+    ) -> Result<Receiver<Entry>, ProtocolError> {
         let (sender, receiver) = std::sync::mpsc::channel();
         let p = Pack::new(
             None,
@@ -87,9 +91,21 @@ pub trait PackHandler: Send + Sync {
             Some(pack_config.pack_decode_cache_path.clone()),
             pack_config.clean_cache_after_decode,
         );
-        tokio::spawn(async move {
-            p.decode_stream(stream, sender).await;
-        });
+        let (unpack_handle, convert) = p
+            .decode_stream(
+                stream,
+                1024 * 1024 * 1024 * pack_config.maximum_pack_size,
+                sender,
+            )
+            .await;
+        match convert.await.unwrap() {
+            Ok(_) => (),
+            Err(err) => {
+                // not working in spawn_blocking?
+                unpack_handle.abort();
+                return Err(err);
+            }
+        }
         Ok(receiver)
     }
 

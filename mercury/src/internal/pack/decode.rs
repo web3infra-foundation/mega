@@ -8,6 +8,7 @@ use std::time::Instant;
 
 use axum::Error;
 use bytes::Bytes;
+use common::errors::ProtocolError;
 use flate2::bufread::ZlibDecoder;
 use futures_util::{Stream, StreamExt};
 use threadpool::ThreadPool;
@@ -476,26 +477,34 @@ impl Pack {
     /// Decode `Pack` with inputting a `Stream` of `Bytes`, and send the `Entry` while decoding.
     pub async fn decode_stream(mut self,
                                mut stream: impl Stream<Item = Result<Bytes, Error>> + Unpin + Send + 'static,
+                               pack_limit: usize,
                                sender: Sender<Entry>)
-        -> Self
+        -> (tokio::task::JoinHandle<Pack>, tokio::task::JoinHandle<Result<(), ProtocolError>>)
     {
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
         let mut reader = ChannelReader::new(rx);
-        tokio::spawn(async move {
+        let mut total_size = 0;
+        let convert_handle = tokio::spawn(async move {
             // use Channel to connect `async` & `sync`
-            while let Some(chunk) = stream.next().await {
+            Ok(while let Some(chunk) = stream.next().await {
                 let data = chunk.unwrap().to_vec();
+                total_size += data.len();
+                if total_size > pack_limit {
+                    eprintln!("Body size exceeded 1 GB limit. Terminating connection.");
+                    return Err(ProtocolError::TooLarge(total_size.to_string()))
+                }
                 tx.send(data).unwrap();
-            }
+            })
         });
         // CPU-bound task, so use spawn_blocking
         // DO NOT use thread::spawn, because it will block tokio runtime (if single-threaded runtime, like in tests)
-        tokio::task::spawn_blocking(move || {
+        let unpack_handle = tokio::task::spawn_blocking(move || {
             self.decode(&mut reader, move |entry, _| {
                 if sender.send(entry).is_ok() {}
             }).unwrap();
             self
-        }).await.unwrap()
+        });
+        (unpack_handle, convert_handle)
     }
 
     /// CacheObjects + Index size of Caches
@@ -735,12 +744,10 @@ mod tests {
         let stream = ReaderStream::new(f).map_err(|e| {
             axum::Error::new(e)
         });
-        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
+        let p = Pack::new(Some(20), Some(1024*1024*1024*4), Some(tmp.clone()), true);
 
         let (tx, rx) = std::sync::mpsc::channel();
-        let handle = tokio::spawn(async move {
-            p.decode_stream(stream, tx).await
-        });
+        let (pack, _ ) = p.decode_stream(stream, 1024 * 1024 * 1024, tx).await;
 
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
@@ -753,7 +760,7 @@ mod tests {
             tracing::info!("Received: {}", cnt);
             count_c.store(cnt, Ordering::Relaxed);
         }).await.unwrap();
-        let p = handle.await.unwrap();
+        let p = pack.await.unwrap();
         assert_eq!(count.load(Ordering::Relaxed), p.number);
     }
 
