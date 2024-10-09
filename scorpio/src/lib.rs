@@ -10,3 +10,4 @@ mod dicfuse;
 mod util;
 pub mod manager;
 pub mod server;
+pub mod deamon;
