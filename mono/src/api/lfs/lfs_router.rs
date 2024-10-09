@@ -237,10 +237,12 @@ pub async fn lfs_download_object(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
 ) -> Result<Response, (StatusCode, String)> {
-    // Load request parameters into struct.
     let result = handler::lfs_download_object(state.context.clone(), &oid).await;
     match result {
-        Ok(bytes) => Ok(Response::builder().body(Body::from(bytes)).unwrap()),
+        Ok(byte_stream) => Ok(Response::builder()
+            .header("Content-Type", LFS_CONTENT_TYPE)
+            .body(Body::from_stream(byte_stream))
+            .unwrap()),
         Err(err) => Ok({
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
