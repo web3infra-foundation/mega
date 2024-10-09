@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic' // defaults to auto
 export async function POST(request: Request,  { params }: { params: { id: string } }) {
     const session = await verifySession()
     
-    console.log("ssss", session);
     // Check if the user is authenticated
     if (!session) {
       // User is not authenticated
