@@ -12,11 +12,13 @@ use bytes::Bytes;
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use chrono::{prelude::*, Duration};
 use common::errors::{GitLFSError, MegaError};
+use futures::Stream;
 use jupiter::context::Context;
 use jupiter::storage::lfs_db_storage::LfsDbStorage;
 use rand::prelude::*;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{DatabaseTransaction, EntityTrait, IntoActiveModel, TransactionTrait};
+use tokio_stream::wrappers::ReceiverStream;
 
 pub async fn lfs_retrieve_lock(
     storage: LfsDbStorage,
@@ -355,14 +357,15 @@ pub async fn lfs_upload_object(
 
 /// Download object from storage.
 /// when server enable split,  if OID is a complete object, then splice the object and return it.
-pub async fn lfs_download_object(context: Context, oid: &String) -> Result<Bytes, GitLFSError> {
+pub async fn lfs_download_object(
+    context: Context,
+    oid: &String,
+) -> Result<impl Stream<Item = Result<Bytes, GitLFSError>>, GitLFSError> {
     let config = context.config.lfs;
     let stg = context.services.lfs_db_storage.clone();
     let lfs_storage = context.services.lfs_storage.clone();
     if config.enable_split {
         let meta = lfs_get_meta(stg.clone(), oid).await;
-        // let relation_db = context.services.lfs_storage.clone();
-
         match meta {
             Ok(meta) => {
                 // client didn't support split, splice the object and return it.
@@ -372,14 +375,29 @@ pub async fn lfs_download_object(context: Context, oid: &String) -> Result<Bytes
                         "oid didn't have chunks".to_string(),
                     ));
                 }
-                let mut bytes = vec![0u8; meta.size as usize];
-                for relation in relations {
-                    let sub_bytes = lfs_storage.get_object(&relation.sub_oid).await.unwrap();
-                    let offset = relation.offset as usize;
-                    let size = relation.size as usize;
-                    bytes[offset..offset + size].copy_from_slice(&sub_bytes);
-                }
-                Ok(Bytes::from(bytes))
+                let (tx, rx) = tokio::sync::mpsc::channel(1);
+                let oid = oid.clone();
+                tokio::spawn(async move {
+                    let chunks_len = relations.len();
+                    for relation in relations {
+                        let sub_bytes = lfs_storage.get_object(&relation.sub_oid).await.unwrap();
+                        // let _ = tx.send(Ok(Bytes::from(sub_bytes))).await;
+                        if let Err(err) = tx.send(Ok(sub_bytes)).await {
+                            tracing::error!(
+                                "lfs object download failed, failed to send chunk [{}], error: {}",
+                                relation.offset,
+                                err
+                            );
+                            break;
+                        }
+                    }
+                    tracing::debug!(
+                        "lfs object download completed for oid: {}, {} chunks",
+                        oid,
+                        chunks_len
+                    );
+                });
+                Ok(ReceiverStream::new(rx))
             }
             Err(_) => {
                 // check if the oid is a part of a split object, if so, return the part.
@@ -390,13 +408,18 @@ pub async fn lfs_download_object(context: Context, oid: &String) -> Result<Bytes
                 }
 
                 let bytes = lfs_storage.get_object(oid).await.unwrap();
-                Ok(bytes)
+                // because return type must be `ReceiverStream`, so we need to wrap the bytes into a stream.
+                let (tx, rx) = tokio::sync::mpsc::channel(1);
+                tx.send(Ok(bytes)).await.unwrap();
+                Ok(ReceiverStream::new(rx))
             }
         }
     } else {
         let meta = lfs_get_meta(stg, oid).await.unwrap();
         let bytes = lfs_storage.get_object(&meta.oid).await.unwrap();
-        Ok(bytes)
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        tx.send(Ok(bytes)).await.unwrap();
+        Ok(ReceiverStream::new(rx))
     }
 }
 
