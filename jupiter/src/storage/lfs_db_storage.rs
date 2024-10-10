@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter,
+    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter, QueryOrder,
 };
 
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
@@ -58,6 +58,7 @@ impl LfsDbStorage {
         }
         let result = lfs_split_relations::Entity::find()
             .filter(lfs_split_relations::Column::OriOid.eq(oid))
+            .order_by(lfs_split_relations::Column::Offset, sea_orm::Order::Asc)
             .all(self.get_connection())
             .await
             .unwrap();
