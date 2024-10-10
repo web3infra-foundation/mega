@@ -8,6 +8,7 @@ use axum::{http, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 
+use gemini::http::cache_repo::cache_public_repository;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
@@ -187,7 +188,7 @@ pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions, http_port: u16) {
         Some(bootstrap_node) => {
             tracing::info!(
                 "The bootstrap node is {}, prepare to join ztm network",
-                bootstrap_node
+                bootstrap_node.clone()
             );
             let (peer_id, _) = vault::init();
             let ztm_agent: LocalZTMAgent = LocalZTMAgent {
@@ -195,9 +196,29 @@ pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions, http_port: u16) {
             };
             ztm_agent.clone().start_ztm_agent();
             thread::sleep(time::Duration::from_secs(3));
+
+            let bootstrap_node_clone = bootstrap_node.clone();
+            let config_clone = config.clone();
+            let ztm_agent_clone = ztm_agent.clone();
             tokio::spawn(async move {
-                run_ztm_client(bootstrap_node, config, peer_id, ztm_agent, http_port).await
+                run_ztm_client(
+                    bootstrap_node_clone,
+                    config_clone,
+                    peer_id,
+                    ztm_agent_clone,
+                    http_port,
+                )
+                .await
             });
+
+            if ztm.cache_repo {
+                thread::sleep(time::Duration::from_secs(3));
+                tokio::spawn(async move {
+                    let context = Context::new(config.clone()).await;
+                    context.services.mono_storage.init_monorepo().await;
+                    cache_public_repository(bootstrap_node, context, ztm_agent).await
+                });
+            }
         }
         None => {
             tracing::info!("The bootstrap node is not set, prepare to start mega server locally");

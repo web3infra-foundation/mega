@@ -21,10 +21,10 @@ print_std = true
 db_type = "postgres"
 
 # used for sqlite
-db_path = "${base_dir}/mega.db"
+db_path = "${base_dir}/mono.db"
 
 # database connection url
-db_url = "postgres://mega:mega@localhost:5432/mega"
+db_url = "postgres://mono:mono@localhost:5432/mono"
 
 # db max connection, setting it to twice the number of CPU cores would be appropriate.
 max_connection = 32
@@ -66,6 +66,9 @@ clean_cache_after_decode = true
 
 # The maximum meesage size in channel buffer while decode
 channel_message_size = 1_000_000
+
+# Maximum pack size, unit GB, enforces to use LFS off the limit
+maximum_pack_size = 1
 
 [lfs]
 # LFS Server url

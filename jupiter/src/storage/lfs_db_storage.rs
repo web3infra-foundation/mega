@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter,
+    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter, QueryOrder,
 };
 
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
@@ -37,16 +37,6 @@ impl LfsDbStorage {
             .unwrap())
     }
 
-    pub async fn new_lfs_relation(
-        &self,
-        relation: lfs_split_relations::Model,
-    ) -> Result<InsertResult<lfs_split_relations::ActiveModel>, MegaError> {
-        lfs_split_relations::Entity::insert(relation.into_active_model())
-            .exec(self.get_connection())
-            .await
-            .map_err(|e| MegaError::with_message(e.to_string().as_str()))
-    }
-
     pub async fn get_lfs_object(
         &self,
         oid: String,
@@ -68,6 +58,7 @@ impl LfsDbStorage {
         }
         let result = lfs_split_relations::Entity::find()
             .filter(lfs_split_relations::Column::OriOid.eq(oid))
+            .order_by(lfs_split_relations::Column::Offset, sea_orm::Order::Asc)
             .all(self.get_connection())
             .await
             .unwrap();
