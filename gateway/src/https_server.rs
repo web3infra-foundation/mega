@@ -120,7 +120,7 @@ pub async fn app(
     ztm: ZtmOptions,
 ) -> Router {
     let context = Context::new(config.clone()).await;
-    context.services.mono_storage.init_monorepo().await;
+    context.services.mono_storage.init_monorepo(&config.monorepo).await;
     let state = AppState {
         host,
         port,
@@ -215,7 +215,6 @@ pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions, http_port: u16) {
                 thread::sleep(time::Duration::from_secs(3));
                 tokio::spawn(async move {
                     let context = Context::new(config.clone()).await;
-                    context.services.mono_storage.init_monorepo().await;
                     cache_public_repository(bootstrap_node, context, ztm_agent).await
                 });
             }

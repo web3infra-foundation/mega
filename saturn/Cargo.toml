@@ -13,4 +13,4 @@ tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 
 itertools = "0.13.0"
-cedar-policy = "4.0.0"
+cedar-policy = "4.2.1"

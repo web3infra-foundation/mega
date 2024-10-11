@@ -1,5 +1,5 @@
 mod context;
-mod entitystore;
+pub mod entitystore;
 mod objects;
 mod util;
 
@@ -19,9 +19,7 @@ mod test {
 
     fn init_tracing() {
         INIT.call_once(|| {
-            tracing_subscriber::fmt()
-                .pretty()
-                .init();
+            tracing_subscriber::fmt().pretty().init();
         });
     }
 
@@ -143,14 +141,14 @@ mod test {
         let p_admin: EntityUid = r#"User::"benjamin.747""#.parse().unwrap();
         let admin: EntityUid = r#"User::"private""#.parse().unwrap();
         let anyone: EntityUid = r#"User::"anyone""#.parse().unwrap();
-        let resource: EntityUid = r#"Repository::"project/private""#.parse().unwrap();
+        let private_project: EntityUid = r#"Repository::"project/private""#.parse().unwrap();
 
         // admin under project should also have permisisons
         assert!(app_context
             .is_authorized(
                 &p_admin,
                 r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &resource,
+                &private_project,
                 Context::empty()
             )
             .is_ok());
@@ -159,7 +157,7 @@ mod test {
             .is_authorized(
                 &admin,
                 r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &resource,
+                &private_project,
                 Context::empty()
             )
             .is_ok());
@@ -169,7 +167,7 @@ mod test {
             .is_authorized(
                 &anyone,
                 r#"Action::"viewRepo""#.parse::<EntityUid>().unwrap(),
-                &resource,
+                &private_project,
                 Context::empty()
             )
             .is_err_and(|e| matches!(e, Error::AuthDenied(_))));

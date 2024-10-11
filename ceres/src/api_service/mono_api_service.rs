@@ -195,9 +195,6 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-    pub async fn init_monorepo(&self) {
-        self.context.services.mono_storage.init_monorepo().await
-    }
 
     pub async fn mr_list(&self, status: &str) -> Result<Vec<MrInfoItem>, MegaError> {
         let status = if status == "open" {

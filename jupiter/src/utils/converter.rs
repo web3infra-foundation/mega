@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use callisto::{mega_blob, mega_refs, mega_tree, raw_blob};
+use common::config::MonoConfig;
 use common::utils::generate_id;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
@@ -21,40 +22,35 @@ pub fn generate_git_keep_with_timestamp() -> Blob {
     Blob::from_content(&git_keep_content)
 }
 
-pub fn init_trees(git_keep: &Blob) -> (HashMap<SHA1, Tree>, Tree) {
-    let tree_item = TreeItem {
-        mode: TreeItemMode::Blob,
-        id: git_keep.id,
-        name: String::from(".gitkeep"),
-    };
-    let tree = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+pub fn init_trees(mono_config: &MonoConfig) -> (HashMap<SHA1, Tree>, HashMap<SHA1, Blob>, Tree) {
+    let mut root_items = Vec::new();
+    let mut trees = Vec::new();
+    let mut blobs = Vec::new();
+    for dir in mono_config.root_dirs.clone() {
+        let entity_str = saturn::entitystore::generate_entity(&mono_config.admin, &dir).unwrap();
+        let blob = Blob::from_content(&entity_str);
 
-    let root_items = vec![
-        TreeItem {
+        let tree_item = TreeItem {
+            mode: TreeItemMode::Blob,
+            id: blob.id,
+            name: String::from(".mega_cedar.json"),
+        };
+        let tree = Tree::from_tree_items(vec![tree_item.clone()]).unwrap();
+        root_items.push(TreeItem {
             mode: TreeItemMode::Tree,
             id: tree.id,
-            name: String::from("third-part"),
-        },
-        TreeItem {
-            mode: TreeItemMode::Tree,
-            id: tree.id,
-            name: String::from("project"),
-        },
-        TreeItem {
-            mode: TreeItemMode::Tree,
-            id: tree.id,
-            name: String::from("doc"),
-        },
-        TreeItem {
-            mode: TreeItemMode::Tree,
-            id: tree.id,
-            name: String::from("release"),
-        },
-    ];
+            name: dir,
+        });
+        trees.push(tree);
+        blobs.push(blob);
+    }
 
     let root = Tree::from_tree_items(root_items).unwrap();
-    let trees = vec![tree];
-    (trees.into_iter().map(|x| (x.id, x)).collect(), root)
+    (
+        trees.into_iter().map(|x| (x.id, x)).collect(),
+        blobs.into_iter().map(|x| (x.id, x)).collect(),
+        root,
+    )
 }
 
 pub struct MegaModelConverter {
@@ -102,12 +98,9 @@ impl MegaModelConverter {
         }
     }
 
-    pub fn init() -> Self {
-        let git_keep = generate_git_keep();
-        let (tree_maps, root_tree) = init_trees(&git_keep);
+    pub fn init(mono_config: &MonoConfig) -> Self {
+        let (tree_maps, blob_maps, root_tree) = init_trees(mono_config);
         let commit = Commit::from_tree_id(root_tree.id, vec![], "Init Mega Directory");
-        let mut blob_maps = HashMap::new();
-        blob_maps.insert(git_keep.id, git_keep);
 
         let mega_ref = mega_refs::Model {
             id: generate_id(),
@@ -138,19 +131,22 @@ mod test {
 
     use std::str::FromStr;
 
+    use common::config::MonoConfig;
     use mercury::{hash::SHA1, internal::object::commit::Commit};
 
     use crate::utils::converter::MegaModelConverter;
 
     #[test]
     pub fn test_init_mega_dir() {
-        let converter = MegaModelConverter::init();
+        let mono_config = MonoConfig::default();
+        let converter = MegaModelConverter::init(&mono_config);
         let mega_trees = converter.mega_trees.borrow().clone();
         let mega_blobs = converter.mega_blobs.borrow().clone();
         let raw_blob = converter.raw_blobs.borrow().clone();
-        assert_eq!(mega_trees.len(), 2);
-        assert_eq!(mega_blobs.len(), 1);
-        assert_eq!(raw_blob.len(), 1);
+        let dir_nums = mono_config.root_dirs.len();
+        assert_eq!(mega_trees.len(), dir_nums + 1);
+        assert_eq!(mega_blobs.len(), dir_nums);
+        assert_eq!(raw_blob.len(), dir_nums);
     }
 
     #[test]
