@@ -58,7 +58,8 @@ pub async fn start_server(config: Config, command: &SshOptions) {
         common: CommonOptions { host, .. },
         custom: SshCustom { ssh_port },
     } = command;
-    let context = Context::new(config).await;
+    let context = Context::new(config.clone()).await;
+    context.services.mono_storage.init_monorepo(&config.monorepo).await;
     let mut ssh_server = SshServer {
         client_pubkey,
         clients: Arc::new(Mutex::new(HashMap::new())),

@@ -53,7 +53,14 @@ obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
 ## Mega treats files under this directory as import repo and other directories as monorepo
 import_dir = "/third-part"
 
+# The current mono Git HTTP server does not support authentication, so we provided a disabled operations here
 disable_http_push = false
+
+# Set System Admin in directory init, replace the admin's github username here
+admin = "admin"
+
+# Set serveral root dirs in directory init
+root_dirs = ["third-part", "project", "doc", "release"]
 
 [pack]
 # The maximum memory used by decode, Unit is GB
@@ -68,8 +75,7 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 # Maximum pack size, unit GB, enforces to use LFS off the limit
-maximum_pack_size = 1
-
+maximum_pack_size = 4
 
 [lfs]
 # LFS Server url
