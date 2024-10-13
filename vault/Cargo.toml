@@ -12,4 +12,4 @@ hex = "0.4.3"
 lazy_static = "1.5.0"
 bs58 = "0.5.1"
 serde = { version = "1.0.117", features = ["derive"] }
-secp256k1 = { version = "0.29.0", features = ["serde", "rand"] }
+secp256k1 = { workspace = true , features = ["serde", "rand","hashes"] }
