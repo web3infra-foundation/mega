@@ -241,7 +241,7 @@ impl NostrEvent {
         let hash = sha256::Hash::from_str(self.id.inner().clone().as_str())?;
         let message: Message = Message::from_digest(hash.to_byte_array());
         // let message = Message::from_slice(hash.as_ref())?;
-        secp.verify_schnorr(&self.sig, &message, &self.pubkey)
+        secp.verify_schnorr(&self.sig, message.as_ref(), &self.pubkey)
             .map_err(|_| Error::InvalidSignature)
     }
 }
@@ -250,15 +250,16 @@ pub fn sign_with_rng(id: String, keypair: &Keypair) -> Signature {
     let secp = Secp256k1::new();
     let mut rng = rand::thread_rng();
     let hash = sha256::Hash::from_str(id.as_str()).unwrap();
-    let message: Message = Message::from_digest(hash.to_byte_array());
-    secp.sign_schnorr_with_rng(&message, keypair, &mut rng)
+    let message = Message::from_digest(hash.to_byte_array());
+
+    secp.sign_schnorr_with_rng(message.as_ref(), keypair, &mut rng)
 }
 
 pub fn sign_without_rng(id: String, keypair: &Keypair) -> Signature {
     let secp = Secp256k1::new();
     let hash = sha256::Hash::from_str(id.as_str()).unwrap();
     let message: Message = Message::from_digest(hash.to_byte_array());
-    secp.sign_schnorr_no_aux_rand(&message, keypair)
+    secp.sign_schnorr_no_aux_rand(message.as_ref(), keypair)
 }
 
 /// Event Id
