@@ -8,8 +8,8 @@
         }
     },
     "repos": {
-        "Repository::\"project/private\"": {
-            "euid": "Repository::\"project/private\"",
+        "Repository::\"project/bens_private\"": {
+            "euid": "Repository::\"/project/bens_private\"",
             "is_private": true,
             "admins": "UserGroup::\"admin\"",
             "maintainers": "UserGroup::\"matainer\"",

@@ -210,6 +210,8 @@ impl Default for StorageConfig {
 pub struct MonoConfig {
     pub import_dir: PathBuf,
     pub disable_http_push: bool,
+    pub admin: String,
+    pub root_dirs: Vec<String>,
 }
 
 impl Default for MonoConfig {
@@ -217,6 +219,13 @@ impl Default for MonoConfig {
         Self {
             import_dir: PathBuf::from("/third-part"),
             disable_http_push: false,
+            admin: String::from("admin"),
+            root_dirs: vec![
+                "third-part".to_string(),
+                "project".to_string(),
+                "doc".to_string(),
+                "release".to_string(),
+            ],
         }
     }
 }
@@ -237,7 +246,7 @@ impl Default for PackConfig {
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
-            maximum_pack_size: 1,
+            maximum_pack_size: 4,
         }
     }
 }
