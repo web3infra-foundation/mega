@@ -25,4 +25,4 @@ reqwest = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 chrono = { workspace = true }
-secp256k1 = { version = "0.29.0", features = ["serde", "rand","hashes"] }
+secp256k1 = { workspace = true , features = ["serde", "rand","hashes"] }
