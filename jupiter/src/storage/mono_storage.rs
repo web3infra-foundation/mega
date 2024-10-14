@@ -11,6 +11,7 @@ use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{
     mega_blob, mega_commit, mega_mr, mega_mr_conv, mega_refs, mega_tag, mega_tree, raw_blob,
 };
+use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::utils::generate_id;
 use mercury::internal::object::MegaObjectModel;
@@ -267,12 +268,12 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn init_monorepo(&self) {
+    pub async fn init_monorepo(&self, mono_config: &MonoConfig) {
         if self.get_ref("/").await.unwrap().is_some() {
             tracing::info!("Monorepo Directory Already Inited, skip init process!");
             return;
         }
-        let converter = MegaModelConverter::init();
+        let converter = MegaModelConverter::init(mono_config);
         let commit: mega_commit::Model = converter.commit.into();
         mega_commit::Entity::insert(commit.into_active_model())
             .exec(self.get_connection())

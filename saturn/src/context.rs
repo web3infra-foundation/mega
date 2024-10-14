@@ -8,8 +8,7 @@ use thiserror::Error;
 
 use crate::{entitystore::EntityStore, util::EntityUid};
 
-#[allow(dead_code)]
-pub struct AppContext {
+pub struct CedarContext {
     pub entities: EntityStore,
     authorizer: Authorizer,
     policies: PolicySet,
@@ -44,8 +43,7 @@ pub enum Error {
     Request(String),
 }
 
-impl AppContext {
-    #[allow(dead_code)]
+impl CedarContext {
     pub fn new(
         entities: EntityStore,
         schema_path: impl Into<PathBuf>,
@@ -81,7 +79,6 @@ impl AppContext {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_authorized(
         &self,
         principal: impl AsRef<EntityUid>,

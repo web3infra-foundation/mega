@@ -187,7 +187,7 @@ pub struct AuthRedirect;
 
 impl IntoResponse for AuthRedirect {
     fn into_response(self) -> Response {
-        (StatusCode::UNAUTHORIZED, "Login in first").into_response()
+        (StatusCode::UNAUTHORIZED, "Login first").into_response()
     }
 }
 
