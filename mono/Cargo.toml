@@ -19,6 +19,7 @@ jupiter = { workspace = true }
 ceres = { workspace = true }
 taurus = { workspace = true }
 vault = { workspace = true }
+saturn = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -56,6 +57,7 @@ oauth2 = "4.4.2"
 async-session = "3.0.0"
 http = "1.1.0"
 sea-orm = { workspace = true, features = [] }
+cedar-policy = { workspace = true }
 
 [dev-dependencies]
 reqwest = { workspace = true, features = ["stream", "json"] }

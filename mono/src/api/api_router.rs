@@ -54,7 +54,7 @@ async fn get_blob_string(
         .await;
 
     let res = match res {
-        Ok(data) => CommonResult::success(Some(data)),
+        Ok(data) => CommonResult::success(data),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))

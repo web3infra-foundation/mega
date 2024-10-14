@@ -195,7 +195,6 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-
     pub async fn mr_list(&self, status: &str) -> Result<Vec<MrInfoItem>, MegaError> {
         let status = if status == "open" {
             vec![MergeStatus::Open]
@@ -276,48 +275,42 @@ impl MonoApiService {
         Err(MegaError::with_message("Can not find related MR by id"))
     }
 
-    pub async fn merge_mr(&self, mr_link: &str) -> Result<(), MegaError> {
+    pub async fn merge_mr(&self, mr: &mut MergeRequest) -> Result<(), MegaError> {
         let storage = self.context.services.mono_storage.clone();
-        if let Some(model) = storage.get_open_mr_by_link(mr_link).await.unwrap() {
-            let mut mr: MergeRequest = model.into();
-            let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
+        let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
-            if mr.from_hash == refs.ref_commit_hash {
-                // update mr
-                mr.merge();
-                storage.update_mr(mr.clone().into()).await.unwrap();
-
-                let commit: Commit = storage
-                    .get_commit_by_hash(&mr.to_hash)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .into();
-
-                // add conversation
-                storage
-                    .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged, None)
+        if mr.from_hash == refs.ref_commit_hash {
+            // update mr
+            mr.merge();
+            let commit: Commit = storage
+                .get_commit_by_hash(&mr.to_hash)
+                .await
+                .unwrap()
+                .unwrap()
+                .into();
+            // add conversation
+            storage
+                .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged, None)
+                .await
+                .unwrap();
+            if mr.path != "/" {
+                let path = PathBuf::from(mr.path.clone());
+                // beacuse only parent tree is needed so we skip current directory
+                let (tree_vec, _) = self
+                    .search_tree_for_update(path.parent().unwrap())
                     .await
                     .unwrap();
-                if mr.path != "/" {
-                    let path = PathBuf::from(mr.path.clone());
-                    // beacuse only parent tree is needed so we skip current directory
-                    let (tree_vec, _) = self
-                        .search_tree_for_update(path.parent().unwrap())
-                        .await
-                        .unwrap();
-                    self.update_parent_tree(path, tree_vec, commit)
-                        .await
-                        .unwrap();
-                    // remove refs start with path
-                    storage.remove_refs(&mr.path).await.unwrap();
-                    // TODO: self.clean_dangling_commits().await;
-                }
-            } else {
-                return Err(MegaError::with_message("ref hash conflict"));
+                self.update_parent_tree(path, tree_vec, commit)
+                    .await
+                    .unwrap();
+                // remove refs start with path
+                storage.remove_refs(&mr.path).await.unwrap();
+                // TODO: self.clean_dangling_commits().await;
             }
+            // update mr status last
+            storage.update_mr(mr.clone().into()).await.unwrap();
         } else {
-            return Err(MegaError::with_message("Invalid mr id"));
+            return Err(MegaError::with_message("ref hash conflict"));
         }
         Ok(())
     }

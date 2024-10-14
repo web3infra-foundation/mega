@@ -1,7 +1,49 @@
-mod context;
+use std::fmt::{self, Display};
+
+pub mod context;
 pub mod entitystore;
 mod objects;
-mod util;
+pub mod util;
+
+
+pub enum ActionEnum {
+    // ** Anyone
+    // ViewRepo,
+    // PullRepo,
+    // ForkRepo,
+    // PushRepo,
+    // OpenIssue,
+    // ** Maintainer
+    CreateMergeRequest,
+    EditIssue,
+    EditMergeRequest,
+    AssignIssue,
+    ApproveMergeRequest,
+    // ** Admin
+    AddMaintainer,
+    AddAdmin,
+    DeleteRepo,
+    DeleteIssue,
+    DeleteMergeRequest,
+}
+
+impl Display for ActionEnum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ActionEnum::CreateMergeRequest => "Comment",
+            ActionEnum::EditIssue => "Deploy",
+            ActionEnum::EditMergeRequest => "Commit",
+            ActionEnum::AssignIssue => "ForcePush",
+            ActionEnum::ApproveMergeRequest => "approveMergeRequest",
+            ActionEnum::AddMaintainer => "Review",
+            ActionEnum::AddAdmin => "Approve",
+            ActionEnum::DeleteRepo => "MergeQueue",
+            ActionEnum::DeleteIssue => "Merged",
+            ActionEnum::DeleteMergeRequest => "Merged",
+        };
+        write!(f, "{}", s)
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -10,7 +52,7 @@ mod test {
     use cedar_policy::{Authorizer, Context, Entities, PolicySet, Request};
 
     use crate::{
-        context::{AppContext, Error},
+        context::{CedarContext, Error},
         entitystore::EntityStore,
         util::EntityUid,
     };
@@ -53,8 +95,8 @@ mod test {
         println!("{:?}", answer.decision());
     }
 
-    fn load_context(entities: EntityStore) -> AppContext {
-        AppContext::new(entities, "./mega.cedarschema", "./mega_policies.cedar").unwrap()
+    fn load_context(entities: EntityStore) -> CedarContext {
+        CedarContext::new(entities, "./mega.cedarschema", "./mega_policies.cedar").unwrap()
     }
 
     #[test]
@@ -141,7 +183,7 @@ mod test {
         let p_admin: EntityUid = r#"User::"benjamin.747""#.parse().unwrap();
         let admin: EntityUid = r#"User::"private""#.parse().unwrap();
         let anyone: EntityUid = r#"User::"anyone""#.parse().unwrap();
-        let private_project: EntityUid = r#"Repository::"project/private""#.parse().unwrap();
+        let private_project: EntityUid = r#"Repository::"/project/bens_private""#.parse().unwrap();
 
         // admin under project should also have permisisons
         assert!(app_context
