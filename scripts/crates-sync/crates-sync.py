@@ -5,6 +5,7 @@ import urllib.request
 import tarfile
 import subprocess
 import shutil
+import random
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -184,28 +185,14 @@ def process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_
 
     print_blue(f"Finished processing  {crate_name}")
 
-def scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url, lfs_url):
-    # Scan the crates.io index and process all crates
+    return num
+
+def scan_crates_index(index_path):
     crates = defaultdict(set)
-    dl_base_url = None
 
-    # Check if the directories exist
-    for path in [index_path, crates_dir, git_repos_dir]:
-        if not os.path.isdir(path):
-            print_red(f"Error: The directory {path} does not exist.")
-            sys.exit(1)
-
-    # Read the config.json to get the dl base URL
-    config_path = os.path.join(index_path, 'config.json')
-    try:
-        with open(config_path, 'r') as config_file:
-            config = json.load(config_file)
-            dl_base_url = config.get('dl')
-            if not dl_base_url:
-                print_red("Error: 'dl' key not found in config.json")
-                sys.exit(1)
-    except Exception as e:
-        print_red(f"Error reading config.json: {str(e)}")
+    # Check if the directory exists
+    if not os.path.isdir(index_path):
+        print_red(f"Error: The directory {index_path} does not exist.")
         sys.exit(1)
 
     # Walk through the index directory
@@ -224,20 +211,42 @@ def scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url,
                         line = line.strip()
                         if line:
                             crate_info = json.loads(line)
-                            crate_name = crate_info['name']
-                            crate_version = crate_info['vers']
-                            crates[crate_name].add(crate_version)
+                            crates[crate_info['name']].add(crate_info['vers'])
             except Exception as e:
                 print_red(f"Error processing file {full_path}: {str(e)}")
 
+    return crates
+
+def scan_and_process_crates(index_path, crates_dir, git_repos_dir, git_base_url, lfs_url):
+    # Scan the crates.io index
+    print_blue("Scanning crates.io index...")
+    crates = scan_crates_index(index_path)
+    print_blue(f"Found {len(crates)} crates.")
+
+    # Shuffle the crates items
+    print_blue("Shuffling crates list...")
+    crates_items = list(crates.items())
+    random.shuffle(crates_items)
+
+    # Read the config.json to get the dl base URL
+    config_path = os.path.join(index_path, 'config.json')
+    try:
+        with open(config_path, 'r') as config_file:
+            config = json.load(config_file)
+            dl_base_url = config.get('dl')
+            if not dl_base_url:
+                print_red("Error: 'dl' key not found in config.json")
+                sys.exit(1)
+    except Exception as e:
+        print_red(f"Error reading config.json: {str(e)}")
+        sys.exit(1)
+
+    # Process crates
+    print_blue("Starting to process crates...")
     num = 0
+    for crate_name, versions in crates_items:
+        num = process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_url, git_base_url, lfs_url)
 
-    # Process each crate
-    for crate_name, versions in crates.items():
-        process_crate(num, crate_name, versions, crates_dir, git_repos_dir, dl_base_url, git_base_url, lfs_url)
-        num += len(versions)
-
-    return len(crates)
 
 def main():
     # Record start time for the entire process

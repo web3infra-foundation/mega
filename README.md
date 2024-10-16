@@ -37,40 +37,45 @@ For now, the entire open source community base on Git and GitHub. It's centraliz
 For now, the monorepo engine could be deployed on your host machine or insulated into containers. For deploying through docker, follow the steps below:
 
 1. Clone the project and build the docker images
+
 ```bash
-git clone https://github.com/web3infra-foundation/mega.git
-cd mega
-docker buildx build -t mono-pg:0.1-pre-release -f ./docker/mono-pg-dockerfile .
-docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-dockerfile .
-docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
+$ git clone https://github.com/web3infra-foundation/mega.git
+$ cd mega
+$ git submodule update --init --recursive
+$ docker buildx build -t mono-pg:0.1-pre-release -f ./docker/mono-pg-dockerfile .
+$ docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-dockerfile .
+$ docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
 ```
 
 2. Initialize for mono-engine and PostgreSQL
+
 ```bash
 # Linux or MacOS
-./docker/init-volume.sh /mnt/data ./docker/config.toml
+$ ./docker/init-volume.sh /mnt/data ./docker/config.toml
 ```
 
 3. Run the mono-engine and PostgreSQL with docker, and open the mono-ui in your browser with `http://localhost:3000`.
+
 ```bash
 # create network
-docker network create mono-network
+$ docker network create mono-network
 
 # run postgres
-docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mono-engine:0.1-pre-release
-docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
+$ docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
+$ docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mono-engine:0.1-pre-release
+$ docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
 ```
 
 4. Try to upload a repository to mono-engine
+
 ```bash
-git clone http://localhost:8000/project.git
-cd project
-git clone https://github.com/dagrs-dev/dagrs.git
-sudo rm -r dagrs/.git
-git add .
-git commit -a -m"Initial the dagrs project"
-git push
+$ git clone http://localhost:8000/project.git
+$ cd project
+$ git clone https://github.com/dagrs-dev/dagrs.git
+$ sudo rm -r dagrs/.git
+$ git add .
+$ git commit -a -m"Initial the dagrs project"
+$ git push
 ```
 
 5. Check the repository in UI
