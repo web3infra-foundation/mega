@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -10,7 +12,7 @@ use common::model::CommonResult;
 use crate::api::user::model::AddSSHKey;
 use crate::api::user::model::ListSSHKey;
 use crate::api::MonoApiServiceState;
-use crate::api::{error::ApiError, oauth::model::LoginUser};
+use crate::api::{error::ApiError, oauth::model::LoginUser, util};
 
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
@@ -18,6 +20,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/user/ssh", get(list_key))
         .route("/user/ssh", post(add_key))
         .route("/user/ssh/:key_id/delete", post(remove_key))
+        .route("/repo-permissions", get(repo_permissions))
 }
 
 async fn user(
@@ -91,4 +94,28 @@ async fn list_key(
         Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))
+}
+
+async fn repo_permissions(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let path = std::path::PathBuf::from(query.get("path").unwrap());
+    let _ = util::get_entitystore(path, state).await;
+    Ok(Json(CommonResult::success(Some(String::new()))))
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn test_parse_all_cedar_file() {
+        let path = PathBuf::from("/project/mega/src");
+        for component in path.ancestors() {
+            if component != Path::new("/") {
+                println!("{:?}", component.join(".mega_cedar.json"));
+            }
+        }
+    }
 }

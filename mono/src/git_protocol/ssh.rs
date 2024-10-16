@@ -111,7 +111,7 @@ impl server::Handler for SshServer {
                 let mut header = HashMap::new();
                 header.insert("Accept".to_string(), "application/vnd.git-lfs".to_string());
                 let link = Link {
-                    href: "http://localhost:8000".to_string(),
+                    href: smart_protocol.context.config.lfs.url,
                     header,
                     expires_at: {
                         let expire_time: DateTime<Utc> =

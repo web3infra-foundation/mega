@@ -79,19 +79,20 @@ pub trait ApiHandler: Send + Sync {
         target: &TreeItem,
     ) -> Commit;
 
-    async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<String, GitError> {
+    async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<Option<String>, GitError> {
         let filename = file_path.file_name().unwrap().to_str().unwrap();
         let parent = file_path.parent().unwrap();
-        let mut plain_text = String::new();
         if let Some(tree) = self.search_tree_by_path(parent).await? {
             if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
-                plain_text = match self.get_raw_blob_by_hash(&item.id.to_plain_str()).await {
-                    Ok(Some(model)) => String::from_utf8(model.data.unwrap()).unwrap(),
-                    _ => String::new(),
+                match self.get_raw_blob_by_hash(&item.id.to_plain_str()).await {
+                    Ok(Some(model)) => {
+                        return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()))
+                    }
+                    _ => return Ok(None),
                 };
             }
         }
-        return Ok(plain_text);
+        return Ok(None);
     }
 
     async fn get_latest_commit(&self, path: PathBuf) -> Result<LatestCommitInfo, GitError> {
@@ -160,6 +161,7 @@ pub trait ApiHandler: Send + Sync {
                     .map(|x| (x.id.to_plain_str(), x))
                     .collect();
 
+                let root_commit: Option<Commit> = None;
                 for item in tree.tree_items {
                     let mut info: TreeCommitItem = item.clone().into();
                     if let Some(commit_id) = item_to_commit.get(&item.id.to_plain_str()) {
@@ -167,8 +169,13 @@ pub trait ApiHandler: Send + Sync {
                             commit
                         } else {
                             tracing::warn!("failed fecth commit: {}", commit_id);
+                            let root_commit = if let Some(ref root_commit) = root_commit {
+                                root_commit.clone()
+                            } else {
+                                self.get_root_commit().await
+                            };
                             &self
-                                .traverse_commit_history(&path, self.get_root_commit().await, &item)
+                                .traverse_commit_history(&path, root_commit, &item)
                                 .await
                         };
                         info.oid = commit.id.to_plain_str();
