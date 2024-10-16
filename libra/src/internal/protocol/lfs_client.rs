@@ -282,7 +282,7 @@ impl LFSClient {
                 println!("Local file size is larger than remote, truncate to 0.");
                 file.set_len(0).await.unwrap(); // clear
                 file.seek(tokio::io::SeekFrom::Start(0)).await.unwrap();
-            } else {
+            } else if file_len > 0 {
                 let chunk_size = chunk_size.unwrap() as u64;
                 got_parts = file_len / chunk_size;
                 let file_offset = got_parts * chunk_size;
