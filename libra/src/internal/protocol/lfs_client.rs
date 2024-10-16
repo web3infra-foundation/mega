@@ -3,7 +3,6 @@ use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::lfs;
-use async_static::async_static;
 use ceres::lfs::lfs_structs::{BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
 use futures_util::StreamExt;
 use mercury::internal::object::types::ObjectType;
@@ -14,17 +13,24 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio::sync::OnceCell;
 use url::Url;
-
-async_static! {
-    pub static ref LFS_CLIENT: LFSClient = LFSClient::new().await;
-}
 
 #[derive(Debug)]
 pub struct LFSClient {
     pub batch_url: Url,
     pub lfs_url: Url,
     pub client: Client,
+}
+static LFS_CLIENT: OnceCell<LFSClient> = OnceCell::const_new();
+impl LFSClient {
+    /// Get LFSClient instance
+    /// - DO NOT use `async_static!`: No IDE Code Completion & lagging
+    pub async fn get() -> &'static LFSClient {
+        LFS_CLIENT.get_or_init(|| async {
+            LFSClient::new().await
+        }).await
+    }
 }
 
 /// see [successful-responses](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md#successful-responses)
