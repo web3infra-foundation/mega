@@ -10,9 +10,12 @@ use bytes::Bytes;
 
 use ceres::model::mr::{MRDetail, MrInfoItem};
 use common::model::CommonResult;
+use saturn::ActionEnum;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::error::ApiError;
+use crate::api::oauth::model::LoginUser;
+use crate::api::util;
 use crate::api::MonoApiServiceState;
 
 pub fn routers() -> Router<MonoApiServiceState> {
@@ -26,18 +29,32 @@ pub fn routers() -> Router<MonoApiServiceState> {
 }
 
 async fn merge(
+    user: LoginUser,
     Path(mr_link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
-
-    let res = state.monorepo().merge_mr(&mr_link).await;
-    let res = match res {
-        Ok(_) => CommonResult::success(None),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
-    Ok(Json(res))
+    let storage = state.context.services.mono_storage.clone();
+    if let Some(model) = storage.get_open_mr_by_link(&mr_link).await.unwrap() {
+        let path = model.path.clone();
+        assert!(util::check_permissions(
+            &user.name,
+            // "admin",
+            &path,
+            ActionEnum::ApproveMergeRequest,
+            state.clone(),
+        )
+        .await
+        .is_ok());
+        let res = state.monorepo().merge_mr(&mut model.into()).await;
+        let res = match res {
+            Ok(_) => CommonResult::success(None),
+            Err(err) => CommonResult::failed(&err.to_string()),
+        };
+        ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
+        return Ok(Json(res));
+    }
+    Ok(Json(CommonResult::failed("not found")))
 }
 
 async fn get_mr_list(

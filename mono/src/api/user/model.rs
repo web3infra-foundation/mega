@@ -1,6 +1,6 @@
 use callisto::ssh_keys;
-use serde::{Deserialize, Serialize};
 use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct AddSSHKey {
@@ -27,4 +27,11 @@ impl From<ssh_keys::Model> for ListSSHKey {
             created_at: value.created_at,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RepoPermissions {
+    pub admin: Vec<String>,
+    pub maintainer: Vec<String>,
+    pub reader: Vec<String>,
 }

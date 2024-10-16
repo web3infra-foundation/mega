@@ -77,3 +77,61 @@ impl MonoApiServiceState {
         }))
     }
 }
+pub mod util {
+    use std::path::PathBuf;
+
+    use axum::extract::State;
+
+    use cedar_policy::Context;
+    use ceres::api_service::ApiHandler;
+    use saturn::{context::CedarContext, entitystore::EntityStore, util::EntityUid, ActionEnum};
+
+    use crate::api::MonoApiServiceState;
+
+    pub async fn get_entitystore(path: PathBuf, state: State<MonoApiServiceState>) -> EntityStore {
+        let mut entities: EntityStore = EntityStore::new();
+        for component in path.ancestors() {
+            if component != std::path::Path::new("/") {
+                let cedar_path = component.join(".mega_cedar.json");
+                let entity_str = state
+                    .monorepo()
+                    .get_blob_as_string(cedar_path)
+                    .await
+                    .unwrap();
+                if let Some(entity_str) = entity_str {
+                    entities.merge(serde_json::from_str(&entity_str).unwrap());
+                }
+            }
+        }
+        entities
+    }
+
+    pub async fn check_permissions(
+        username: &str,
+        path: &str,
+        operation: ActionEnum,
+        state: State<MonoApiServiceState>,
+    ) -> Result<(), saturn::context::Error> {
+        let entities = get_entitystore(path.into(), state).await;
+        let crate_root = env!("CARGO_MANIFEST_DIR");
+        let cedar_context = CedarContext::new(
+            entities,
+            format!("{}/../saturn/mega.cedarschema", crate_root),
+            format!("{}/../saturn/mega_policies.cedar", crate_root),
+        )
+        .unwrap();
+        cedar_context.is_authorized(
+            format!(r#"User::"{}""#, username)
+                .to_owned()
+                .parse::<EntityUid>()
+                .unwrap(),
+            format!(r#"Action::"{}""#, operation)
+                .parse::<EntityUid>()
+                .unwrap(),
+            format!(r#"Repository::"{}""#, path)
+                .parse::<EntityUid>()
+                .unwrap(),
+            Context::empty(),
+        )
+    }
+}

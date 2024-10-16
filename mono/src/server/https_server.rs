@@ -135,7 +135,7 @@ pub async fn start_http(config: Config, options: HttpOptions) {
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
 pub async fn app(config: Config, host: String, port: u16, common: CommonOptions) -> Router {
     let context = Context::new(config.clone()).await;
-    context.services.mono_storage.init_monorepo().await;
+    context.services.mono_storage.init_monorepo(&config.monorepo).await;
     let state = AppState {
         host,
         port,
