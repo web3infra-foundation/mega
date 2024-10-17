@@ -290,6 +290,7 @@ impl<FS: FileSystem<Handle = u64, Inode = u64 >> FileSystem for LoggingFileSyste
 
 
 #[cfg(test)]
+
 mod tests{
     use std::{path::Path, sync::Arc, thread};
 
