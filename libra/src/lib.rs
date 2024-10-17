@@ -1,7 +1,7 @@
 use mercury::errors::GitError;
 
 mod command;
-mod internal;
+pub mod internal;
 mod utils;
 pub mod cli;
 
@@ -33,5 +33,28 @@ mod tests {
         let tmp_dir = TempDir::new().unwrap();
         std::env::set_current_dir(tmp_dir.path()).unwrap();
         exec(vec!["init"]).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_lfs_client() {
+        use url::Url;
+        use crate::internal::protocol::lfs_client::LFSClient;
+        use crate::internal::protocol::ProtocolClient;
+
+        let client = LFSClient::from_url(&Url::parse("https://git.gitmono.org").unwrap());
+        println!("{:?}", client);
+        let mut report_fn = |progress: f64| {
+            println!("progress: {:.2}%", progress);
+            Ok(())
+        };
+        client.download_object(
+            "a744b4beab939d899e22c8a070b7041a275582fb942483c9436d455173c7e23d",
+            338607424,
+            "/home/bean/projects/tmp/Qwen2.5-0.5B-Instruct-Q2_K.gguf",
+            Some((
+                &mut report_fn,
+                0.1
+            ))
+        ).await.expect("Failed to download object");
     }
 }
