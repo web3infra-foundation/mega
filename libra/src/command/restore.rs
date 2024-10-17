@@ -154,7 +154,9 @@ async fn restore_to_file(hash: &SHA1, path: &PathBuf) -> io::Result<()> {
                 fs::copy(&lfs_obj_path, &path_abs)?;
             } else {
                 // not exist, download from server
-                LFSClient::get().await.download_object(&oid, size, &path_abs, None).await;
+                if let Err(e) = LFSClient::get().await.download_object(&oid, size, &path_abs, None).await {
+                    eprintln!("fatal: {}", e);
+                }
             }
         }
         None => {
