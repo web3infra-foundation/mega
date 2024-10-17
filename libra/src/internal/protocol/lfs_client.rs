@@ -12,6 +12,7 @@ use ring::digest::{Context, SHA256};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
+use anyhow::anyhow;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::OnceCell;
 use url::Url;
@@ -237,7 +238,7 @@ impl LFSClient {
         mut reporter: Option<(
             &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
             f64 // step
-        )>)
+        )>) -> anyhow::Result<()>
     {
         let batch_request = BatchRequest {
             operation: "download".to_string(),
@@ -254,11 +255,11 @@ impl LFSClient {
             .post(self.batch_url.clone())
             .json(&batch_request)
             .headers(lfs::LFS_HEADERS.clone());
-        let response = request.send().await.unwrap();
+        let response = request.send().await?;
 
-        let text = response.text().await.unwrap();
-        tracing::debug!("LFS download response:\n {:#?}", serde_json::from_str::<serde_json::Value>(&text).unwrap());
-        let resp = serde_json::from_str::<LfsBatchResponse>(&text).unwrap();
+        let text = response.text().await?;
+        tracing::debug!("LFS download response:\n {:#?}", serde_json::from_str::<serde_json::Value>(&text)?);
+        let resp = serde_json::from_str::<LfsBatchResponse>(&text)?;
 
         let link = resp.objects[0].actions.as_ref().unwrap().get("download").unwrap();
 
@@ -279,30 +280,30 @@ impl LFSClient {
         let mut got_parts = 0;
         let mut file =  if links.len() <= 1 || lfs::parse_pointer_file(&path).is_ok() {
             // pointer file or Not Chunks, truncate
-            tokio::fs::File::create(path).await.unwrap()
+            tokio::fs::File::create(path).await?
         } else {
             // for Chunks, calc offset to resume download
-            let mut file = tokio::fs::File::options().write(true).read(true).create(true).open(&path).await.unwrap();
-            let file_len = file.metadata().await.unwrap().len();
+            let mut file = tokio::fs::File::options().write(true).read(true).create(true).open(&path).await?;
+            let file_len = file.metadata().await?.len();
             if file_len > size {
                 println!("Local file size is larger than remote, truncate to 0.");
-                file.set_len(0).await.unwrap(); // clear
-                file.seek(tokio::io::SeekFrom::Start(0)).await.unwrap();
+                file.set_len(0).await?; // clear
+                file.seek(tokio::io::SeekFrom::Start(0)).await?;
             } else if file_len > 0 {
                 let chunk_size = chunk_size.unwrap() as u64;
                 got_parts = file_len / chunk_size;
                 let file_offset = got_parts * chunk_size;
                 println!("Resume download from offset: {}, part: {}", file_offset, got_parts + 1);
-                file.set_len(file_offset).await.unwrap(); // truncate
+                file.set_len(file_offset).await?; // truncate
                 Self::update_file_checksum(&mut file, &mut checksum).await; // resume checksum
-                file.seek(tokio::io::SeekFrom::End(0)).await.unwrap();
+                file.seek(tokio::io::SeekFrom::End(0)).await?;
             }
             file
         };
 
         println!("Downloading LFS file: {}", oid);
         let parts = links.len();
-        let mut downloaded: u64 = file.metadata().await.unwrap().len();
+        let mut downloaded: u64 = file.metadata().await?.len();
         let mut last_progress = 0.0;
         let start_part = got_parts as usize;
         for i in start_part..parts {
@@ -317,17 +318,17 @@ impl LFSClient {
                 request = request.header(k, v);
             }
 
-            let response = request.send().await.unwrap();
+            let response = request.send().await?;
             if !response.status().is_success() {
-                eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
-                return;
+                eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
+                return Err(anyhow!("LFS download failed."));
             }
 
             let mut stream = response.bytes_stream();
 
             while let Some(chunk) = stream.next().await { // TODO: progress bar TODO: multi-thread or async
-                let chunk = chunk.unwrap();
-                file.write_all(&chunk).await.unwrap();
+                let chunk = chunk?;
+                file.write_all(&chunk).await?;
                 checksum.update(&chunk);
 
                 // report progress
@@ -336,7 +337,7 @@ impl LFSClient {
                     let progress = (downloaded as f64 / size as f64) * 100.0;
                     if progress >= last_progress + step {
                         last_progress = progress;
-                        report_fn(progress).unwrap();
+                        report_fn(progress)?;
                     }
                 }
             }
@@ -344,11 +345,14 @@ impl LFSClient {
         let checksum = hex::encode(checksum.finish().as_ref());
         if checksum == oid {
             println!("Downloaded.");
+            Ok(())
         } else {
             eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}. Fallback to pointer file.", checksum, oid);
             let pointer = lfs::format_pointer_string(oid, size);
-            file.set_len(0).await.unwrap(); // clear
-            file.write_all(pointer.as_bytes()).await.unwrap();
+            file.set_len(0).await?; // clear
+            file.seek(tokio::io::SeekFrom::Start(0)).await?; // ensure
+            file.write_all(pointer.as_bytes()).await?;
+            Err(anyhow!("Checksum mismatch, fallback to pointer file."))
         }
     }
 

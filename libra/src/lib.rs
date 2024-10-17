@@ -54,7 +54,7 @@ mod tests {
             Some((
                 &mut report_fn,
                 0.1
-                ))
-        ).await;
+            ))
+        ).await.expect("Failed to download object");
     }
 }
