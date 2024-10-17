@@ -229,6 +229,7 @@ impl LFSClient {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     /// download (GET) one LFS file from remote server
     pub async fn download_object(
         &self,
@@ -269,7 +270,7 @@ impl LFSClient {
         let links = match self.fetch_chunks(&link.href).await {
             Ok(chunks) => {
                 is_chunked = true;
-                chunk_size = chunks.get(0).map(|c| c.size);
+                chunk_size = chunks.first().map(|c| c.size);
                 tracing::info!("LFS Chunk API supported.");
                 chunks.into_iter().map(|c| c.link).collect()
             },
@@ -283,7 +284,12 @@ impl LFSClient {
             tokio::fs::File::create(path).await?
         } else {
             // for Chunks, calc offset to resume download
-            let mut file = tokio::fs::File::options().write(true).read(true).create(true).open(&path).await?;
+            let mut file = tokio::fs::File::options()
+                .write(true)
+                .read(true)
+                .create(true)
+                .truncate(false)
+                .open(&path).await?;
             let file_len = file.metadata().await?.len();
             if file_len > size {
                 println!("Local file size is larger than remote, truncate to 0.");
@@ -306,8 +312,7 @@ impl LFSClient {
         let mut downloaded: u64 = file.metadata().await?.len();
         let mut last_progress = 0.0;
         let start_part = got_parts as usize;
-        for i in start_part..parts {
-            let link = &links[i];
+        for link in links.iter().skip(start_part) {
             got_parts += 1;
             if is_chunked {
                 println!("- part: {}/{}", got_parts, parts);
