@@ -8,13 +8,13 @@ use clap::Parser;
 use std::collections::{HashMap, HashSet};
 use std::{fs, io};
 use std::path::PathBuf;
+use crate::internal::protocol::lfs_client::LFSClient;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::types::ObjectType;
 use crate::command::calc_file_blob_hash;
-use crate::internal::protocol::lfs_client::LFS_CLIENT;
 
 #[derive(Parser, Debug)]
 pub struct RestoreArgs {
@@ -154,7 +154,9 @@ async fn restore_to_file(hash: &SHA1, path: &PathBuf) -> io::Result<()> {
                 fs::copy(&lfs_obj_path, &path_abs)?;
             } else {
                 // not exist, download from server
-                LFS_CLIENT.await.download_object(&oid, size, &path_abs).await;
+                if let Err(e) = LFSClient::get().await.download_object(&oid, size, &path_abs, None).await {
+                    eprintln!("fatal: {}", e);
+                }
             }
         }
         None => {

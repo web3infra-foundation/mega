@@ -8,7 +8,7 @@ use ceres::lfs::lfs_structs::LockListQuery;
 use mercury::internal::index::Index;
 use crate::command::{ask_basic_auth, status};
 use crate::internal::head::Head;
-use crate::internal::protocol::lfs_client::LFS_CLIENT;
+use crate::internal::protocol::lfs_client::LFSClient;
 use crate::utils::{lfs, path, util};
 use crate::utils::path_ext::PathExt;
 
@@ -94,7 +94,7 @@ pub async fn execute(cmd: LfsCmds) {
                 cursor: "".to_string(),
                 refspec,
             };
-            let locks = LFS_CLIENT.await.get_locks(query).await.locks;
+            let locks = LFSClient::get().await.get_locks(query).await.locks;
             if !locks.is_empty() {
                 let max_path_len = locks.iter().map(|l| l.path.len()).max().unwrap();
                 for lock in locks {
@@ -112,7 +112,7 @@ pub async fn execute(cmd: LfsCmds) {
             let refspec = current_refspec().await.unwrap();
             let mut auth = None;
             loop {
-                let code = LFS_CLIENT.await.lock(path.clone(), refspec.clone(), auth.clone()).await;
+                let code = LFSClient::get().await.lock(path.clone(), refspec.clone(), auth.clone()).await;
                 if code.is_success() {
                     println!("Locked {}", path);
                 } else if code == StatusCode::FORBIDDEN {
@@ -140,7 +140,7 @@ pub async fn execute(cmd: LfsCmds) {
             let id = match id {
                 None => {
                     // get id by path
-                    let locks = LFS_CLIENT.await.get_locks(LockListQuery {
+                    let locks = LFSClient::get().await.get_locks(LockListQuery {
                         refspec: refspec.clone(),
                         path: path.clone(),
                         id: "".to_string(),
@@ -157,7 +157,7 @@ pub async fn execute(cmd: LfsCmds) {
             };
             let mut auth = None;
             loop {
-                let code = LFS_CLIENT.await.unlock(id.clone(), refspec.clone(), force, auth.clone()).await;
+                let code = LFSClient::get().await.unlock(id.clone(), refspec.clone(), force, auth.clone()).await;
                 if code.is_success() {
                     println!("Unlocked {}", path);
                 } else if code == StatusCode::FORBIDDEN {
