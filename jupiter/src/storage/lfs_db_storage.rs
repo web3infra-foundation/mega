@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter, QueryOrder,
+    ColumnTrait, DatabaseConnection, EntityTrait, InsertResult, IntoActiveModel, QueryFilter,
+    QueryOrder, Set,
 };
 
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
@@ -120,9 +121,12 @@ impl LfsDbStorage {
 
     pub async fn update_lock(
         &self,
-        lfs_lock: lfs_locks::ActiveModel,
+        lfs_lock: lfs_locks::Model,
+        data: &str,
     ) -> Result<lfs_locks::Model, MegaError> {
-        Ok(lfs_locks::Entity::update(lfs_lock)
+        let mut val = lfs_lock.into_active_model();
+        val.data = Set(data.to_owned());
+        Ok(lfs_locks::Entity::update(val)
             .exec(self.get_connection())
             .await
             .unwrap())

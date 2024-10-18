@@ -56,20 +56,9 @@ shadow-rs = { workspace = true }
 oauth2 = "4.4.2"
 async-session = "3.0.0"
 http = "1.1.0"
-sea-orm = { workspace = true, features = [] }
 cedar-policy = { workspace = true }
 
 [dev-dependencies]
-reqwest = { workspace = true, features = ["stream", "json"] }
-russh = { workspace = true }
-russh-keys = { workspace = true }
-async-trait = { workspace = true }
-bytes = { workspace = true }
-go-defer = { workspace = true }
-git2 = { workspace = true }
-tempfile = { workspace = true }
-rand = { workspace = true }
-
 
 [build-dependencies]
 shadow-rs = { workspace = true }

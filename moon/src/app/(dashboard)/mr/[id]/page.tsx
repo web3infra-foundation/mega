@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from "react";
 import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
-import { CommentOutlined, MergeOutlined } from '@ant-design/icons';
+import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from "@/components/rich-editor/RichEditor";
 import MRComment from "@/components/MRComment";
@@ -106,7 +106,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
         switch (conv.conv_type) {
             case "Comment": icon = <CommentOutlined />; children = <MRComment conv={conv} fetchDetail={fetchDetail} />; break
             case "Merged": icon = <MergeOutlined />; children = "Merged via the queue into main " + formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true }); break;
-            // default: icon = <CommentOutlined />; children = conv.comment;
+            case "Closed": icon = <CloseCircleOutlined />; children = conv.comment;
         };
 
         const element = {
