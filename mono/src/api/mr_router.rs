@@ -1,7 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
@@ -9,18 +9,19 @@ use axum::{
 use bytes::Bytes;
 
 use ceres::model::mr::{MRDetail, MrInfoItem};
-use common::model::CommonResult;
+use common::model::{CommonPage, CommonResult, RequestParams};
 use saturn::ActionEnum;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::error::ApiError;
+use crate::api::model::MRStatusParams;
 use crate::api::oauth::model::LoginUser;
 use crate::api::util;
 use crate::api::MonoApiServiceState;
 
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
-        .route("/mr/list", get(get_mr_list))
+        .route("/mr/list", post(fetch_mr_list))
         .route("/mr/:mr_link/detail", get(mr_detail))
         .route("/mr/:mr_link/merge", post(merge))
         .route("/mr/:mr_link/files", get(get_mr_files))
@@ -33,11 +34,10 @@ async fn merge(
     Path(mr_link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
     let storage = state.context.services.mono_storage.clone();
     if let Some(model) = storage.get_open_mr_by_link(&mr_link).await.unwrap() {
         let path = model.path.clone();
-        assert!(util::check_permissions(
+        if util::check_permissions(
             &user.name,
             // "admin",
             &path,
@@ -45,27 +45,32 @@ async fn merge(
             state.clone(),
         )
         .await
-        .is_ok());
-        let res = state.monorepo().merge_mr(&mut model.into()).await;
-        let res = match res {
-            Ok(_) => CommonResult::success(None),
-            Err(err) => CommonResult::failed(&err.to_string()),
-        };
-        ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
-        return Ok(Json(res));
+        .is_ok()
+        {
+            ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
+            let res = state.monorepo().merge_mr(&mut model.into()).await;
+            let res = match res {
+                Ok(_) => CommonResult::success(None),
+                Err(err) => CommonResult::failed(&err.to_string()),
+            };
+            ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
+            return Ok(Json(res));
+        }
     }
     Ok(Json(CommonResult::failed("not found")))
 }
 
-async fn get_mr_list(
-    Query(query): Query<HashMap<String, String>>,
+async fn fetch_mr_list(
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<MrInfoItem>>>, ApiError> {
+    Json(json): Json<RequestParams<MRStatusParams>>,
+) -> Result<Json<CommonResult<CommonPage<MrInfoItem>>>, ApiError> {
     ApiRequestEvent::notify(ApiType::MergeList, &state.0.context.config);
-    let status = query.get("status").unwrap();
-    let res = state.monorepo().mr_list(status).await;
+    let res = state
+        .monorepo()
+        .mr_list(&json.additional.status, json.pagination)
+        .await;
     let res = match res {
-        Ok(data) => CommonResult::success(Some(data)),
+        Ok((items, total)) => CommonResult::success(Some(CommonPage { items, total })),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
     Ok(Json(res))

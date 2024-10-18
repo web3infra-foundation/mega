@@ -16,7 +16,6 @@ use futures::Stream;
 use jupiter::context::Context;
 use jupiter::storage::lfs_db_storage::LfsDbStorage;
 use rand::prelude::*;
-use sea_orm::ActiveValue::Set;
 use sea_orm::{DatabaseTransaction, EntityTrait, IntoActiveModel, TransactionTrait};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -603,9 +602,9 @@ async fn lfs_add_lock(
             let d = serde_json::to_string(&locks_from_data).unwrap();
 
             // must turn into `ActiveModel` before modify, or update failed.
-            let mut val = val.into_active_model();
-            val.data = Set(d);
-            let res = storage.update_lock(val).await;
+            // let mut val = val.into_active_model();
+            // val.data = Set(d);
+            let res = storage.update_lock(val, &d).await;
             match res.is_ok() {
                 true => Ok(()),
                 false => Err(GitLFSError::GeneralError("".to_string())),
@@ -757,9 +756,7 @@ async fn delete_lock(
 
             // Update remaining locks.
             let data = serde_json::to_string(&new_locks).unwrap();
-            let mut val = val.into_active_model();
-            val.data = Set(data);
-            let res = storage.update_lock(val).await;
+            let res = storage.update_lock(val, &data).await;
             match res.is_ok() {
                 true => Ok(lock_to_delete),
                 false => Err(GitLFSError::GeneralError("".to_string())),

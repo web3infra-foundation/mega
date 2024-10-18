@@ -48,3 +48,31 @@ impl<T> CommonResult<T> {
         }
     }
 }
+
+#[derive(Deserialize)]
+pub struct PageParams {
+    pub page: u64,
+    pub per_page: u64,
+}
+
+impl Default for PageParams {
+    fn default() -> Self {
+        PageParams {
+            page: 1,
+            per_page: 20,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct RequestParams<T> {
+    pub pagination: PageParams,
+    pub additional: T,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
+
+pub struct CommonPage<T> {
+    pub total: u64,
+    pub items: Vec<T>,
+}

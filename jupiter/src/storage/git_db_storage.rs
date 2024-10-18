@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use futures::{stream, Stream, StreamExt};
 use sea_orm::sea_query::Expr;
@@ -7,6 +7,7 @@ use sea_orm::{
     IntoActiveModel, QueryFilter, QueryTrait, Set,
 };
 use sea_orm::{PaginatorTrait, QueryOrder};
+use tokio::sync::Mutex;
 
 use callisto::{git_blob, git_commit, git_repo, git_tag, git_tree, import_refs, raw_blob};
 use common::errors::MegaError;
@@ -44,7 +45,11 @@ impl GitDbStorage {
         }
     }
 
-    pub async fn save_ref(&self, repo_id: i64, mut refs: import_refs::Model) -> Result<(), MegaError> {
+    pub async fn save_ref(
+        &self,
+        repo_id: i64,
+        mut refs: import_refs::Model,
+    ) -> Result<(), MegaError> {
         refs.repo_id = repo_id;
         let a_model = refs.into_active_model();
         import_refs::Entity::insert(a_model)
@@ -129,7 +134,7 @@ impl GitDbStorage {
                 async move {
                     let raw_obj = entry.process_entry();
                     let model = raw_obj.convert_to_git_model();
-                    let mut git_objects = git_objects.lock().unwrap();
+                    let mut git_objects = git_objects.lock().await;
 
                     match model {
                         GitObjectModel::Commit(mut commit) => {
@@ -156,8 +161,7 @@ impl GitDbStorage {
 
         let git_objects = Arc::try_unwrap(git_objects)
             .expect("Failed to unwrap Arc")
-            .into_inner()
-            .unwrap();
+            .into_inner();
         batch_save_model(self.get_connection(), git_objects.commits)
             .await
             .unwrap();
