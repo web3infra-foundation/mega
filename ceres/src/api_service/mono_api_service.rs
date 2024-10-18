@@ -7,6 +7,7 @@ use axum::async_trait;
 use callisto::db_enums::{ConvType, MergeStatus};
 use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
+use common::model::PageParams;
 use jupiter::context::Context;
 use jupiter::storage::batch_save_model;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -195,7 +196,11 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-    pub async fn mr_list(&self, status: &str) -> Result<Vec<MrInfoItem>, MegaError> {
+    pub async fn mr_list(
+        &self,
+        status: &str,
+        pagination: PageParams,
+    ) -> Result<(Vec<MrInfoItem>, u64), MegaError> {
         let status = if status == "open" {
             vec![MergeStatus::Open]
         } else if status == "closed" {
@@ -204,8 +209,11 @@ impl MonoApiService {
             vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
         };
         let storage = self.context.services.mono_storage.clone();
-        let mr_list = storage.get_mr_by_status(status).await.unwrap();
-        Ok(mr_list.into_iter().map(|m| m.into()).collect())
+        let (mr_list, total) = storage
+            .get_mr_by_status(status, pagination.page, pagination.per_page)
+            .await
+            .unwrap();
+        Ok((mr_list.into_iter().map(|m| m.into()).collect(), total))
     }
 
     pub async fn mr_detail(&self, mr_link: &str) -> Result<Option<MRDetail>, MegaError> {
@@ -280,19 +288,13 @@ impl MonoApiService {
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
         if mr.from_hash == refs.ref_commit_hash {
-            // update mr
-            mr.merge();
             let commit: Commit = storage
                 .get_commit_by_hash(&mr.to_hash)
                 .await
                 .unwrap()
                 .unwrap()
                 .into();
-            // add conversation
-            storage
-                .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged, None)
-                .await
-                .unwrap();
+
             if mr.path != "/" {
                 let path = PathBuf::from(mr.path.clone());
                 // beacuse only parent tree is needed so we skip current directory
@@ -307,6 +309,13 @@ impl MonoApiService {
                 storage.remove_refs(&mr.path).await.unwrap();
                 // TODO: self.clean_dangling_commits().await;
             }
+            // update mr
+            mr.merge();
+            // add conversation
+            storage
+                .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged, None)
+                .await
+                .unwrap();
             // update mr status last
             storage.update_mr(mr.clone().into()).await.unwrap();
         } else {

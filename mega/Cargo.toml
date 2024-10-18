@@ -36,13 +36,6 @@ shadow-rs = { workspace = true }
 ctrlc = { workspace = true }
 
 [dev-dependencies]
-reqwest = { workspace = true, features = ["stream", "json"] }
-russh = { workspace = true }
-russh-keys = { workspace = true }
-async-trait = { workspace = true }
-bytes = { workspace = true }
-go-defer = { workspace = true }
-git2 = { workspace = true }
 tempfile = { workspace = true }
 serial_test = "3.1.1"
 lazy_static = {workspace = true}

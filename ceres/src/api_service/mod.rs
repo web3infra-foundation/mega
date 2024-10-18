@@ -238,9 +238,8 @@ pub trait ApiHandler: Send + Sync {
         let root_tree = self.get_root_tree().await;
         let mut search_tree = root_tree.clone();
         let mut update_tree = vec![root_tree];
-        let component_num = relative_path.components().count();
 
-        for (index, component) in relative_path.components().enumerate() {
+        for component in relative_path.components() {
             // root tree already found
             if component != Component::RootDir {
                 let target_name = component.as_os_str().to_str().unwrap();
@@ -252,10 +251,7 @@ pub trait ApiHandler: Send + Sync {
                 if let Some(search_res) = search_res {
                     let res = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
                     search_tree = res.clone();
-                    // skip last component
-                    if index != component_num - 1 {
-                        update_tree.push(res);
-                    }
+                    update_tree.push(res);
                 } else {
                     return Err(GitError::CustomError(
                         "Path not exist, please create path first!".to_string(),

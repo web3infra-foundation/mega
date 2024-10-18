@@ -59,14 +59,14 @@ impl PackHandler for ImportRepo {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
+        let repo_id = self.repo.repo_id;
         for entry in receiver {
             entry_list.push(entry);
-            if entry_list.len() >= 1000 {
+            if entry_list.len() >= 10000 {
                 let stg_clone = storage.clone();
-                let repo_clone = self.repo.clone();
                 let handle = tokio::spawn(async move {
                     stg_clone
-                        .save_entry(repo_clone.repo_id, entry_list)
+                        .save_entry(repo_id, entry_list)
                         .await
                         .unwrap();
                 });
@@ -76,7 +76,7 @@ impl PackHandler for ImportRepo {
         }
         join_all(join_tasks).await;
         storage
-            .save_entry(self.repo.repo_id, entry_list)
+            .save_entry(repo_id, entry_list)
             .await
             .unwrap();
         self.attach_to_monorepo_parent().await.unwrap();
