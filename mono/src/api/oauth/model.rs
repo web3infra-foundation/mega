@@ -1,4 +1,4 @@
-use sea_orm::entity::prelude::*;
+use chrono::NaiveDateTime;
 use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +47,7 @@ pub struct LoginUser {
     pub name: String,
     pub avatar_url: String,
     pub email: String,
-    pub created_at: DateTime,
+    pub created_at: NaiveDateTime,
 }
 
 impl From<user::Model> for LoginUser {

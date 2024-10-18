@@ -16,6 +16,7 @@ use jupiter::{context::Context, storage::user_storage::UserStorage};
 pub mod api_router;
 pub mod error;
 pub mod lfs;
+pub mod model;
 pub mod mr_router;
 pub mod oauth;
 pub mod user;

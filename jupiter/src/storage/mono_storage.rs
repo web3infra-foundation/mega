@@ -3,8 +3,7 @@ use std::sync::{Arc, Mutex};
 use futures::{stream, StreamExt};
 use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    QueryOrder, QuerySelect,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect
 };
 
 use callisto::db_enums::{ConvType, MergeStatus};
@@ -119,14 +118,15 @@ impl MonoStorage {
     pub async fn get_mr_by_status(
         &self,
         status: Vec<MergeStatus>,
-    ) -> Result<Vec<mega_mr::Model>, MegaError> {
-        let model = mega_mr::Entity::find()
+        page: u64,
+        per_page: u64,
+    ) -> Result<(Vec<mega_mr::Model>, u64), MegaError> {
+        let paginator = mega_mr::Entity::find()
             .filter(mega_mr::Column::Status.is_in(status))
             .order_by_desc(mega_mr::Column::CreatedAt)
-            .all(self.get_connection())
-            .await
-            .unwrap();
-        Ok(model)
+            .paginate(self.get_connection(),per_page);
+        let num_pages = paginator.num_items().await?;
+        Ok(paginator.fetch_page(page -1).await.map(|m| (m, num_pages))?)
     }
 
     pub async fn get_mr(&self, mr_link: &str) -> Result<Option<mega_mr::Model>, MegaError> {

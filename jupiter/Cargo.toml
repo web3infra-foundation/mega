@@ -31,7 +31,7 @@ futures = { workspace = true }
 serde_json = { workspace = true }
 idgenerator = { workspace = true }
 serde = { workspace = true }
-handlebars = "6.0.0"
+tokio = { workspace = true, features = ["macros"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }

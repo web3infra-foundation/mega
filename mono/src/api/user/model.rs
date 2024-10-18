@@ -1,5 +1,5 @@
 use callisto::ssh_keys;
-use sea_orm::entity::prelude::*;
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -14,7 +14,7 @@ pub struct ListSSHKey {
     pub title: String,
     pub ssh_key: String,
     pub finger: String,
-    pub created_at: DateTime,
+    pub created_at: NaiveDateTime,
 }
 
 impl From<ssh_keys::Model> for ListSSHKey {
