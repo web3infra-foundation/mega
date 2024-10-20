@@ -1,12 +1,12 @@
 [package]
-name = "lunar-tauri"
+name = "mega-app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "A distributed Git Application"
+authors = ["Quanyi Ma <genedna@gmail.com>"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/web3infra-foundation/mega"
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.82.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,8 +19,8 @@ serde = { workspace = true, features = ["derive"] }
 tauri = { version = "2.0.2", features = [] }
 tokio = { workspace = true }
 home = { workspace = true }
-tauri-plugin-fs = "2.0"
-tauri-plugin-shell = "2.0"
+tauri-plugin-fs = "2.0.1"
+tauri-plugin-shell = "2.0.1"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }
