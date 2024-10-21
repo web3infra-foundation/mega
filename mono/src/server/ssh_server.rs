@@ -6,7 +6,6 @@ use std::sync::Arc;
 use bytes::BytesMut;
 use clap::Args;
 
-use common::config::Config;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use ed25519_dalek::pkcs8::{DecodePrivateKey, EncodePrivateKey};
 use ed25519_dalek::SigningKey;
@@ -36,7 +35,7 @@ pub struct SshCustom {
 }
 
 /// start a ssh server
-pub async fn start_server(config: Config, command: &SshOptions) {
+pub async fn start_server(context: Context, command: &SshOptions) {
     // we need to persist the key to prevent key expired after server restart.
     let client_key = load_key();
     let client_pubkey = Arc::new(client_key.clone_public_key().unwrap());
@@ -58,8 +57,6 @@ pub async fn start_server(config: Config, command: &SshOptions) {
         common: CommonOptions { host, .. },
         custom: SshCustom { ssh_port },
     } = command;
-    let context = Context::new(config.clone()).await;
-    context.services.mono_storage.init_monorepo(&config.monorepo).await;
     let mut ssh_server = SshServer {
         client_pubkey,
         clients: Arc::new(Mutex::new(HashMap::new())),
