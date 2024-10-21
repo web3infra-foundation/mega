@@ -2,6 +2,7 @@ use clap::{ArgMatches, Args, Command, FromArgMatches};
 
 use common::config::Config;
 use common::errors::MegaResult;
+use jupiter::context::Context;
 use crate::server::ssh_server::{start_server, SshOptions};
 
 
@@ -14,7 +15,13 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         .map_err(|err| err.exit())
         .unwrap();
     tracing::info!("{server_matchers:#?}");
-    start_server(config, &server_matchers).await;
+    let context = Context::new(config.clone()).await;
+    context
+        .services
+        .mono_storage
+        .init_monorepo(&config.monorepo)
+        .await;
+    start_server(context, &server_matchers).await;
     Ok(())
 }
 

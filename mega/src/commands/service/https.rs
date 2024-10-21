@@ -2,6 +2,7 @@ use clap::{ArgMatches, Args, Command, FromArgMatches};
 
 use common::{config::Config, errors::MegaResult};
 use gateway::https_server::{self, HttpsOptions};
+use jupiter::context::Context;
 
 
 pub fn cli() -> Command {
@@ -14,7 +15,13 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         .unwrap();
 
     tracing::info!("{server_matchers:#?}");
-    https_server::https_server(config, server_matchers).await;
+    let context = Context::new(config.clone()).await;
+    context
+        .services
+        .mono_storage
+        .init_monorepo(&config.monorepo)
+        .await;
+    https_server::https_server(context, server_matchers).await;
     Ok(())
 }
 

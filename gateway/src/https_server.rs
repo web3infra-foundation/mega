@@ -14,7 +14,6 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
-use common::config::Config;
 use common::model::{CommonOptions, ZtmOptions};
 use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
 use jupiter::context::Context;
@@ -54,7 +53,7 @@ pub struct HttpsOptions {
     pub https_cert_path: PathBuf,
 }
 
-pub async fn https_server(config: Config, options: HttpsOptions) {
+pub async fn https_server(context: Context, options: HttpsOptions) {
     let HttpsOptions {
         common: CommonOptions { host, .. },
         https_key_path,
@@ -63,10 +62,10 @@ pub async fn https_server(config: Config, options: HttpsOptions) {
         ztm,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.ztm.clone(), https_port);
+    check_run_with_ztm(context.clone(), options.ztm.clone(), https_port);
 
     let app = app(
-        config,
+        context,
         host.clone(),
         https_port,
         options.common.clone(),
@@ -85,17 +84,17 @@ pub async fn https_server(config: Config, options: HttpsOptions) {
         .unwrap();
 }
 
-pub async fn http_server(config: Config, options: HttpOptions) {
+pub async fn http_server(context: Context, options: HttpOptions) {
     let HttpOptions {
         common: CommonOptions { host, .. },
         http_port,
         ztm,
     } = options.clone();
 
-    check_run_with_ztm(config.clone(), options.ztm.clone(), http_port);
+    check_run_with_ztm(context.clone(), options.ztm.clone(), http_port);
 
     let app = app(
-        config,
+        context,
         host.clone(),
         http_port,
         options.common.clone(),
@@ -113,14 +112,12 @@ pub async fn http_server(config: Config, options: HttpOptions) {
 }
 
 pub async fn app(
-    config: Config,
+    context: Context,
     host: String,
     port: u16,
     common: CommonOptions,
     ztm: ZtmOptions,
 ) -> Router {
-    let context = Context::new(config.clone()).await;
-    context.services.mono_storage.init_monorepo(&config.monorepo).await;
     let state = AppState {
         host,
         port,
@@ -182,7 +179,7 @@ pub async fn app(
         .with_state(state)
 }
 
-pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions, http_port: u16) {
+pub fn check_run_with_ztm(context: Context, ztm: ZtmOptions, http_port: u16) {
     //Mega server join a ztm mesh
     match ztm.bootstrap_node {
         Some(bootstrap_node) => {
@@ -198,7 +195,7 @@ pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions, http_port: u16) {
             thread::sleep(time::Duration::from_secs(3));
 
             let bootstrap_node_clone = bootstrap_node.clone();
-            let config_clone = config.clone();
+            let config_clone = context.config.clone();
             let ztm_agent_clone = ztm_agent.clone();
             tokio::spawn(async move {
                 run_ztm_client(
@@ -214,7 +211,6 @@ pub fn check_run_with_ztm(config: Config, ztm: ZtmOptions, http_port: u16) {
             if ztm.cache_repo {
                 thread::sleep(time::Duration::from_secs(3));
                 tokio::spawn(async move {
-                    let context = Context::new(config.clone()).await;
                     cache_public_repository(bootstrap_node, context, ztm_agent).await
                 });
             }
