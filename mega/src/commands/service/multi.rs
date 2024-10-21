@@ -8,6 +8,7 @@ use common::{
     model::{CommonOptions, ZtmOptions},
 };
 use gateway::https_server::{self, HttpOptions, HttpsOptions};
+use jupiter::context::Context;
 use mono::server::ssh_server::{self, SshCustom, SshOptions};
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
@@ -58,14 +59,17 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
 
     let service_type = server_matchers.service;
 
-    let config_clone = config.clone();
+    let context = Context::new(config.clone()).await;
+    context.services.mono_storage.init_monorepo(&config.monorepo).await;
+
+    let context_clone = context.clone();
     let http_server = if service_type.contains(&StartCommand::Http) {
         let http = HttpOptions {
             common: server_matchers.common.clone(),
             http_port: server_matchers.http_port,
             ztm: server_matchers.ztm,
         };
-        tokio::spawn(async move { https_server::http_server(config_clone, http).await })
+        tokio::spawn(async move { https_server::http_server(context_clone, http).await })
     } else if service_type.contains(&StartCommand::Https) {
         let https = HttpsOptions {
             common: server_matchers.common.clone(),
@@ -74,7 +78,7 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
             https_cert_path: server_matchers.https_cert_path.unwrap(),
             ztm: server_matchers.ztm,
         };
-        tokio::spawn(async move { https_server::https_server(config_clone, https).await })
+        tokio::spawn(async move { https_server::https_server(context_clone, https).await })
     } else {
         tokio::task::spawn(async {})
     };
@@ -84,7 +88,7 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
             common: server_matchers.common.clone(),
             custom: server_matchers.ssh,
         };
-        tokio::spawn(async move { ssh_server::start_server(config, &ssh).await })
+        tokio::spawn(async move { ssh_server::start_server(context, &ssh).await })
     } else {
         tokio::task::spawn(async {})
     };

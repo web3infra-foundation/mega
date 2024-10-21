@@ -20,7 +20,6 @@ use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
-use common::config::Config;
 use common::errors::ProtocolError;
 use common::model::{CommonOptions, InfoRefsParams};
 use jupiter::context::Context;
@@ -66,7 +65,7 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn start_https(config: Config, options: HttpsOptions) {
+pub async fn start_https(context: Context, options: HttpsOptions) {
     let HttpsOptions {
         common: CommonOptions { host, .. },
         https_key_path,
@@ -74,7 +73,7 @@ pub async fn start_https(config: Config, options: HttpsOptions) {
         https_port,
     } = options.clone();
 
-    let app = app(config, host.clone(), https_port, options.common.clone()).await;
+    let app = app(context, host.clone(), https_port, options.common.clone()).await;
 
     let server_url = format!("{}:{}", host, https_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
@@ -87,13 +86,13 @@ pub async fn start_https(config: Config, options: HttpsOptions) {
         .unwrap();
 }
 
-pub async fn start_http(config: Config, options: HttpOptions) {
+pub async fn start_http(context: Context, options: HttpOptions) {
     let HttpOptions {
         common: CommonOptions { host, .. },
         http_port,
     } = options.clone();
 
-    let app = app(config, host.clone(), http_port, options.common.clone()).await;
+    let app = app(context, host.clone(), http_port, options.common.clone()).await;
 
     let server_url = format!("{}:{}", host, http_port);
 
@@ -133,9 +132,8 @@ pub async fn start_http(config: Config, options: HttpOptions) {
 ///   - GET        end of `Regex::new(r"/info/refs$")`
 ///   - POST       end of `Regex::new(r"/git-upload-pack$")`
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
-pub async fn app(config: Config, host: String, port: u16, common: CommonOptions) -> Router {
-    let context = Context::new(config.clone()).await;
-    context.services.mono_storage.init_monorepo(&config.monorepo).await;
+pub async fn app(context: Context, host: String, port: u16, common: CommonOptions) -> Router {
+
     let state = AppState {
         host,
         port,
