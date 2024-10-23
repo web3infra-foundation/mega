@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS "mega_tag" (
 CREATE TABLE IF NOT EXISTS "mega_mr" (
   "id" BIGINT PRIMARY KEY,
   "mr_link" VARCHAR(40) NOT NULL,
-  "title" VARCHAR(80) NOT NULL,
+  "title" TEXT NOT NULL,
   "merge_date" TIMESTAMP,
   "status" VARCHAR(20) NOT NULL,
   "path" TEXT NOT NULL,
@@ -292,3 +292,13 @@ CREATE TABLE IF NOT EXISTS "ssh_keys" (
 );
 CREATE INDEX "idx_user_id" ON "ssh_keys" ("user_id");
 CREATE INDEX "idx_ssh_key_finger" ON "ssh_keys" ((left(finger, 8)));
+
+
+CREATE TABLE IF NOT EXISTS "access_token" (
+  "id" BIGINT PRIMARY KEY,
+  "user_id" BIGINT NOT NULL,
+  "token" TEXT NOT NULL,
+  "created_at" TIMESTAMP NOT NULL
+);
+CREATE INDEX "idx_token_user_id" ON "access_token" ("user_id");
+CREATE INDEX "idx_token" ON "access_token" ((left(token, 8)));

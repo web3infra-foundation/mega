@@ -66,15 +66,15 @@ export default function MergeRequestPage() {
     const getDescription = (item: MrInfoItem) => {
         switch (item.status) {
             case 'open':
-                return `MergeRequest opened on ${format(fromUnixTime(Number(item.open_timestamp)), 'MMM d')} by Admin`;
+                return `MergeRequest opened by Admin ${formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })} `;
             case 'merged':
                 if (item.merge_timestamp !== null) {
-                    return `MergeRequest by Admin was merged ${formatDistance(fromUnixTime(item.merge_timestamp), new Date(), { addSuffix: true })}`;
+                    return `MergeRequest merged by Admin ${formatDistance(fromUnixTime(item.merge_timestamp), new Date(), { addSuffix: true })}`;
                 } else {
                     return "";
                 }
             case 'closed':
-                return (`MR ${item.mr_link} by Admin was closed ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}`)
+                return (`MR ${item.mr_link} closed by Admin ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}`)
         }
     }
 
