@@ -3,7 +3,6 @@ use cedar_policy::{
     PolicySetError, Request, Schema, SchemaError, ValidationMode, Validator,
 };
 use itertools::Itertools;
-use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{entitystore::EntityStore, util::EntityUid};
@@ -46,16 +45,11 @@ pub enum Error {
 impl CedarContext {
     pub fn new(
         entities: EntityStore,
-        schema_path: impl Into<PathBuf>,
-        policies_path: impl Into<PathBuf>,
     ) -> Result<Self, ContextError> {
-        let schema_path = schema_path.into();
-        let policies_path = policies_path.into();
-
-        let schema_file = std::fs::File::open(schema_path)?;
-        let (schema, _) = Schema::from_cedarschema_file(schema_file).unwrap();
-        let policy_src = std::fs::read_to_string(policies_path)?;
-        let policies = policy_src.parse()?;
+        let schema_content = include_str!("../mega.cedarschema");
+        let policy_content = include_str!("../mega_policies.cedar");
+        let (schema, _) = Schema::from_cedarschema_str(schema_content).unwrap();
+        let policies = policy_content.parse()?;
         let validator = Validator::new(schema.clone());
         let output = validator.validate(&policies, ValidationMode::default());
 

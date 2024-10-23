@@ -21,7 +21,7 @@ impl From<User> for Entity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserGroup { 
+pub struct UserGroup {
     euid: EntityUid,
     parents: HashSet<EntityUid>,
 }
@@ -63,7 +63,7 @@ impl From<Repo> for Entity {
             (
                 "readers",
                 format!("{}", value.readers.as_ref()).parse().unwrap(),
-            )
+            ),
         ]
         .into_iter()
         .map(|(x, v)| (x.into(), v))
@@ -84,12 +84,10 @@ pub struct MergeRequest {
 
 impl From<MergeRequest> for Entity {
     fn from(value: MergeRequest) -> Entity {
-        let attrs = [
-            ("repo", format!("{}", value.repo.as_ref()).parse().unwrap()),
-        ]
-        .into_iter()
-        .map(|(x, v)| (x.into(), v))
-        .collect();
+        let attrs = [("repo", format!("{}", value.repo.as_ref()).parse().unwrap())]
+            .into_iter()
+            .map(|(x, v)| (x.into(), v))
+            .collect();
 
         Entity::new(
             value.euid.into(),
@@ -109,12 +107,10 @@ pub struct Issue {
 
 impl From<Issue> for Entity {
     fn from(value: Issue) -> Entity {
-        let attrs = [
-            ("repo", format!("{}", value.repo.as_ref()).parse().unwrap()),
-        ]
-        .into_iter()
-        .map(|(x, v)| (x.into(), v))
-        .collect();
+        let attrs = [("repo", format!("{}", value.repo.as_ref()).parse().unwrap())]
+            .into_iter()
+            .map(|(x, v)| (x.into(), v))
+            .collect();
 
         Entity::new(
             value.euid.into(),
