@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use store::{DictionaryStore, IntoEntry};
 
 pub struct Dicfuse{
-    store: Arc<DictionaryStore>,
+    pub store: Arc<DictionaryStore>,
 }
 #[allow(unused)]
 impl Dicfuse{
@@ -27,6 +27,7 @@ impl Dicfuse{
         let inner = self.store.clone();
         tokio::task::spawn(f(inner))
     }
+    
 }
 
 
@@ -38,7 +39,9 @@ impl FileSystem for Dicfuse{
     
     fn init(&self, capable:FsOptions) -> Result<FsOptions> {
         println!("Dicfuse init....");
-        self.store.import();
+        let s = self.store.clone();
+         s.import();
+        
         //let mut ops = FsOptions::DO_READDIRPLUS | FsOptions::READDIRPLUS_AUTO;
         Ok(fuse_backend_rs::abi::fuse_abi::FsOptions::empty())
     }
