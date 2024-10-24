@@ -96,7 +96,7 @@ mod test {
     }
 
     fn load_context(entities: EntityStore) -> CedarContext {
-        CedarContext::new(entities, "./mega.cedarschema", "./mega_policies.cedar").unwrap()
+        CedarContext::new(entities).unwrap()
     }
 
     #[test]

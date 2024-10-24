@@ -114,11 +114,8 @@ pub mod util {
         state: State<MonoApiServiceState>,
     ) -> Result<(), saturn::context::Error> {
         let entities = get_entitystore(path.into(), state).await;
-        let crate_root = env!("CARGO_MANIFEST_DIR");
         let cedar_context = CedarContext::new(
             entities,
-            format!("{}/../saturn/mega.cedarschema", crate_root),
-            format!("{}/../saturn/mega_policies.cedar", crate_root),
         )
         .unwrap();
         cedar_context.is_authorized(
