@@ -299,4 +299,4 @@ CREATE TABLE IF NOT EXISTS "access_token" (
   "created_at" TIMESTAMP NOT NULL
 );
 CREATE INDEX "idx_token_user_id" ON "access_token" ("user_id");
-CREATE INDEX "idx_token" ON "access_token" ((left(token, 8)));
+CREATE INDEX "idx_token" ON "access_token" ("token");
