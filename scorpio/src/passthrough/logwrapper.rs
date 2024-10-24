@@ -1,4 +1,4 @@
-use std::io::Result;
+use std::{any::type_name, io::Result};
 use fuse_backend_rs::{abi::fuse_abi::FsOptions, api::filesystem::{Context, Entry, FileSystem}};
 
 // LoggingFileSystem . provide log info for a filesystem trait.
@@ -27,6 +27,8 @@ impl<FS: FileSystem<Handle = u64, Inode = u64 >> FileSystem for LoggingFileSyste
         offset: u64,
         add_entry: &mut dyn FnMut(fuse_backend_rs::api::filesystem::DirEntry) -> std::io::Result<usize>,
     ) -> std::io::Result<()> {
+        // 获取结构体的名称
+        let name = type_name::<Self>();
         println!("[readdir]: inode:{},handle:{},size:{},offset:{}",inode,handle,size,offset);
         self.inner.readdir(ctx, inode, handle, size, offset, add_entry)
     }
