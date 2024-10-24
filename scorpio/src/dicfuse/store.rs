@@ -164,7 +164,8 @@ impl DictionaryStore {
                             println!("fetch path :{}",path);
                         }
                         if path.len()>1{
-                            new_items = fetch_tree(&path.clone()).await.unwrap().data.clone() ;
+                            let t = fetch_tree(&path.clone()).await;
+                            new_items = t.unwrap().data.clone() ;
                         }
                     }
 

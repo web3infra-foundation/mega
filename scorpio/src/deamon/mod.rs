@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::State;
@@ -6,9 +5,7 @@ use axum::Router;
 use axum::routing::{post, get};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-
 use crate::fuse::MegaFuse;
-use crate::manager::fetch::fetch;
 use crate::manager::ScorpioManager;
 
 
@@ -90,25 +87,24 @@ pub async fn deamon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
     axum::serve(listener, app).await.unwrap()
 }
 
-#[axum::debug_handler]
 async fn mount_handler(
     State(state): State<ScoState>, // 注入共享状态
     req: axum::Json<MountRequest>,
 ) -> axum::Json<MountResponse> {
-    let mono_path = req.path.clone();
-    let inode = state.fuse.get_inode(&mono_path);
-    let mut ml = state.manager.lock().await;
-    let store_path = ml.store_path.clone();
-    let work_dir = fetch(&mut ml,inode, mono_path).await;
-    let store_path = PathBuf::from(store_path).join(&work_dir.hash);
-    state.fuse.overlay_mount(inode, store_path);
-    state.fuse.async_init(fuse_backend_rs::abi::fuse_abi::FsOptions::empty()).await;
+    // let mono_path = req.path.clone();
+    // let inode = state.fuse.get_inode(&mono_path);
+    // let mut ml = state.manager.lock().await;
+    // let store_path = ml.store_path.clone();
+    // let work_dir = fetch(&mut ml,inode, mono_path).await;
+    // let store_path = PathBuf::from(store_path).join(&work_dir.hash);
+    // state.fuse.overlay_mount(inode, store_path);
+    // state.fuse.async_init(fuse_backend_rs::abi::fuse_abi::FsOptions::empty()).await;
     //let _ = state.fuse.init(fuse_backend_rs::abi::fuse_abi::FsOptions::empty());
     // 在这里可以访问 state.fuse 或 state.manager
-    let mount_info = MountInfo {
-        hash: work_dir.hash,
-        path: work_dir.path,
-        inode: work_dir.node,
+    let mount_info = MountInfo{
+        hash: "hash".to_string(),
+        path: "path".to_string(),
+        inode: 0,
     };
 
     axum::Json(MountResponse {
