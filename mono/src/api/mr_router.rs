@@ -37,25 +37,21 @@ async fn merge(
     let storage = state.context.services.mono_storage.clone();
     if let Some(model) = storage.get_open_mr_by_link(&mr_link).await.unwrap() {
         let path = model.path.clone();
-        if util::check_permissions(
+        let _ = util::check_permissions(
             &user.name,
-            // "admin",
             &path,
             ActionEnum::ApproveMergeRequest,
             state.clone(),
         )
-        .await
-        .is_ok()
-        {
-            ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
-            let res = state.monorepo().merge_mr(&mut model.into()).await;
-            let res = match res {
-                Ok(_) => CommonResult::success(None),
-                Err(err) => CommonResult::failed(&err.to_string()),
-            };
-            ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
-            return Ok(Json(res));
-        }
+        .await;
+        ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
+        let res = state.monorepo().merge_mr(&mut model.into()).await;
+        let res = match res {
+            Ok(_) => CommonResult::success(None),
+            Err(err) => CommonResult::failed(&err.to_string()),
+        };
+        ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
+        return Ok(Json(res));
     }
     Ok(Json(CommonResult::failed("not found")))
 }
