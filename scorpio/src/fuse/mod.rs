@@ -5,7 +5,7 @@ use std::{collections::HashMap, ffi::CStr, io::Result, path::{Path, PathBuf}, sy
 use crate::{dicfuse::Dicfuse, manager::ScorpioManager, overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
 
 mod inode_alloc;
-
+mod async_fuse;
 pub use inode_alloc::READONLY_INODE;
 #[allow(unused)]
 pub struct MegaFuse{
@@ -63,7 +63,8 @@ impl MegaFuse{
     }
 
     // TODO: add pass parameter: lower-dir and upper-dir.
-    fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, store_path: P) {
+    pub fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, store_path: P) {
+        
         let lower = store_path.as_ref().join("lower");
         let upper = store_path.as_ref().join("upper");
         let lowerdir = vec![lower];
@@ -94,7 +95,7 @@ impl MegaFuse{
             // Create the upper directory if it doesn't exist
             std::fs::create_dir_all(&upperdir).unwrap();
         } else {
-            // Clear the contents of the upper directory
+            // Clear the contents of the upper directory`
             let entries = std::fs::read_dir(&upperdir).unwrap();
             for entry in entries {
                 let entry = entry.unwrap();
@@ -104,11 +105,24 @@ impl MegaFuse{
         // Create upper layer
         let upper_layer = Arc::new(new_passthroughfs_layer(upperdir.to_str().unwrap()).unwrap());
         let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode).unwrap();
-
         self.overlayfs.lock().unwrap().insert(inode, Arc::new(overlayfs));
     }
-
+    pub fn get_inode(&self,path:&String) -> u64{
+        let item = self.dic.store.get_by_path(path);
+        item.unwrap().get_inode()
+    }
+    pub async fn async_init(&self,capable: FsOptions){
+        self.dic.store.async_import().await;
+        let map_lock = &self.overlayfs.lock().unwrap();
+        for (inode,ovl_fs) in map_lock.iter(){
+            let inode_batch = self.inodes_alloc.alloc_inode(*inode);
+            ovl_fs.extend_inode_alloc(inode_batch);
+            ovl_fs.init(capable).unwrap();
+        }
+    
+    }
 }
+
 impl FileSystem for MegaFuse{
     type Inode = u64;
     type Handle = u64;

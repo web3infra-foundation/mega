@@ -13,7 +13,7 @@ pub struct  ScorpioManager{
     pub store_path:String,// the path to store init code (or remote code), name is hash value . 
     pub works:Vec<WorkDir>,
 }
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Clone)]
 pub struct WorkDir{
     pub path:String,
     pub node:u64,
