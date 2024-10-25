@@ -14,6 +14,7 @@ use radix_trie::{self, TrieCommon};
 use std::sync::{Arc,Mutex};
 use fuse_backend_rs::api::filesystem::DirEntry;
 use crate::fuse::READONLY_INODE;
+use crate::get_handle;
 
 use super::fuse::{self, default_dic_entry, default_file_entry};
 use crate::util::GPath;
@@ -22,8 +23,7 @@ const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE :&str ="file";
 const INODE_DICTIONARY :&str ="directory";
 
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug,Clone)]
 pub struct Item {
     name: String,
     path: String,
@@ -33,7 +33,7 @@ pub struct Item {
 pub struct DicItem{
     inode:u64,
     path_name:GPath,
-    content_type: Mutex<ContentType>,
+    content_type: Arc<Mutex<ContentType>>,
     children:Mutex<HashMap<String, Arc<DicItem>>>,
     parent:u64,
 }
@@ -51,8 +51,8 @@ impl DicItem {
             inode,
             path_name: item.path.into(), // GPath can be created from String
             content_type: match item.content_type.as_str() {
-                INODE_FILE => ContentType::File.into(),
-                INODE_DICTIONARY => ContentType::Dictionary(false).into(),
+                INODE_FILE =>Arc::new(Mutex::new(ContentType::File)),
+                INODE_DICTIONARY =>Arc::new(Mutex::new(ContentType::Dictionary(false))),
                 _ => panic!("Unknown content type"),
             },
             children: Mutex::new(HashMap::new()),
@@ -103,7 +103,7 @@ impl IntoEntry for Arc<DicItem> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug,Default)]
+#[derive(Serialize, Deserialize, Debug,Default,Clone)]
 struct ApiResponse {
     req_result: bool,
     data: Vec<Item>,
@@ -138,6 +138,50 @@ pub struct DictionaryStore {
 
 #[allow(unused)]
 impl DictionaryStore {
+    pub async fn async_import(&self){
+    
+            let items = fetch_tree("").await.unwrap().data.clone() ;
+
+            let root_inode = self.inodes.lock().unwrap().get(&1).unwrap().clone();
+            for it in items{
+                println!("root item:{:?}",it);
+                self.update_inode(root_inode.clone(),it);
+            }
+            loop {//BFS to look up all dictionary
+                if self.queue.lock().unwrap().is_empty(){
+                    break;
+                }
+                let one_inode = self.queue.lock().unwrap().pop_front().unwrap();
+                let mut new_items = Vec::new();
+                {
+                    let it = self.inodes.lock().unwrap().get(&one_inode).unwrap().clone();
+                    let mut ct =it.content_type.lock().unwrap();
+                    let path=String::new();
+                    if let ContentType::Dictionary(load) = *ct{
+                        if !load{
+                            *ct = ContentType::Dictionary(true);
+                            let path = it.get_path();
+                            println!("fetch path :{}",path);
+                        }
+                        if path.len()>1{
+                            let t = fetch_tree(&path.clone()).await;
+                            new_items = t.unwrap().data.clone() ;
+                        }
+                    }
+
+                   
+                    let mut pc = it.clone();
+                    for newit in new_items {
+                        println!("import item :{:?}",newit);
+                        self.update_inode(pc.clone(),newit); // Await the update_inode call
+                    }
+                    
+                }
+                new_items = Vec::new();
+            }
+            //queue.clear();
+        
+    }
     pub fn new() -> Self {
         let mut init = DictionaryStore {
             next_inode: AtomicU64::new(2),
@@ -148,7 +192,7 @@ impl DictionaryStore {
         let root_item = DicItem{
             inode: 1,
             path_name: GPath::new(),
-            content_type: ContentType::Dictionary(false).into(),
+            content_type: Arc::new(Mutex::new(ContentType::Dictionary(false))),
             children: Mutex::new(HashMap::new()),
             parent: UNKNOW_INODE, //  root dictory has no parent
         };
@@ -174,8 +218,18 @@ impl DictionaryStore {
         self.inodes.lock().unwrap().insert(alloc_inode, newitem);
 
     }
+
     pub fn import(&self){
-        let items: Vec<Item> = tokio::runtime::Runtime::new().unwrap().block_on(fetch_tree("")).unwrap().collect();//todo: can't tokio
+        let handler  = get_handle();
+        // 在阻塞线程中运行异步任务
+        let items = futures::executor::block_on(async move {
+            handler.spawn(async move {
+                fetch_tree("").await.unwrap().data 
+            }).await.unwrap()
+        });
+
+
+        
         let root_inode = self.inodes.lock().unwrap().get(&1).unwrap().clone();
         for it in items{
             println!("root item:{:?}",it);
@@ -193,7 +247,14 @@ impl DictionaryStore {
                     if !load{
                         let path = it.get_path();
                         println!("fetch path :{}",path);
-                        new_items = tokio::runtime::Runtime::new().unwrap().block_on(fetch_tree(&path)).unwrap().collect();
+                        let handler  = get_handle();
+                        // 在阻塞线程中运行异步任务
+                        new_items =futures::executor::block_on(async move {
+                            handler.spawn(async move {
+                                fetch_tree(&path).await.unwrap().data 
+                            }).await.unwrap()
+                        });
+                
                     }
                    
                 }
