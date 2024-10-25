@@ -31,4 +31,4 @@ async-trait = { workspace = true }
 rand = { workspace = true }
 sea-orm = { workspace = true }
 ring = { workspace = true }
-hex ={ workspace = true}
+hex = { workspace = true }

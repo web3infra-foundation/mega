@@ -56,6 +56,9 @@ import_dir = "/third-part"
 # The current mono Git HTTP server does not support authentication, so we provided a disabled operations here
 disable_http_push = false
 
+# Support http authtication, login in with github and generate token before push
+enable_http_auth = false
+
 # Set System Admin in directory init, replace the admin's github username here
 admin = "admin"
 

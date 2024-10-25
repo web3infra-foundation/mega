@@ -1,4 +1,4 @@
-use callisto::ssh_keys;
+use callisto::{access_token, ssh_keys};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +24,25 @@ impl From<ssh_keys::Model> for ListSSHKey {
             title: value.title,
             ssh_key: value.ssh_key,
             finger: value.finger,
+            created_at: value.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListToken {
+    pub id: i64,
+    pub token: String,
+    pub created_at: NaiveDateTime,
+}
+
+impl From<access_token::Model> for ListToken {
+    fn from(value: access_token::Model) -> Self {
+        let mut mask_token =  value.token;
+        mask_token.replace_range(7..32, "-******-");
+        Self {
+            id: value.id,
+            token: mask_token,
             created_at: value.created_at,
         }
     }

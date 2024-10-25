@@ -71,7 +71,7 @@ bstr = "1.10.0"
 colored = "2.1.0"
 idgenerator = "2.0.0"
 num_cpus = "1.16.0"
-config = "0.14.0"
+config = "0.14.1"
 shadow-rs = "0.35.1"
 reqwest = "0.12.8"
 lazy_static = "1.5.0"
@@ -85,6 +85,8 @@ home = "0.5.9"
 ring = "0.17.8"
 cedar-policy = "4.2.1"
 secp256k1 = "0.30.0"
+oauth2 = "4.4.2"
+base64 = "0.22.1"
 
 [profile.release]
 debug = true

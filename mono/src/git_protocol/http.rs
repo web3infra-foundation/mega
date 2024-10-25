@@ -3,8 +3,12 @@ use std::convert::Infallible;
 use anyhow::Result;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, Response};
+use base64::engine::general_purpose;
+use base64::prelude::*;
 use bytes::{Bytes, BytesMut};
 use futures::{stream, TryStreamExt};
+use http::HeaderMap;
+use jupiter::context::Context;
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 
@@ -19,9 +23,15 @@ use common::model::InfoRefsParams;
 // where $servicename MUST be the service name the client wishes to contact to complete the operation.
 // The request MUST NOT contain additional query parameters.
 pub async fn git_info_refs(
+    req: Request<Body>,
     params: InfoRefsParams,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
+    if pack_protocol.context.config.monorepo.enable_http_auth
+        && !http_auth(req.headers(), &pack_protocol.context).await
+    {
+        return auth_failed();
+    }
     let service_name = params.service.unwrap();
     pack_protocol.service_type = Some(service_name.parse::<ServiceType>().unwrap());
 
@@ -35,6 +45,47 @@ pub async fn git_info_refs(
             .unwrap(),
     );
     Ok(response)
+}
+
+async fn http_auth(header: &HeaderMap<HeaderValue>, context: &Context) -> bool {
+    let stg = context.services.user_storage.clone();
+    for (k, v) in header {
+        if k == http::header::AUTHORIZATION {
+            let decoded = general_purpose::STANDARD
+                .decode(
+                    v.to_str()
+                        .unwrap()
+                        .strip_prefix("Basic ")
+                        .unwrap()
+                        .as_bytes(),
+                )
+                .unwrap();
+            let credentials = String::from_utf8(decoded).unwrap_or_default();
+            let mut parts = credentials.splitn(2, ':');
+            let username = parts.next().unwrap_or("");
+            let password = parts.next().unwrap_or("");
+            tracing::debug!("{}, {}", username, password);
+            match stg.find_user_by_name(username).await.unwrap() {
+                Some(user) => {
+                    return stg.check_token(user.id, password).await.unwrap();
+                }
+                None => return false,
+            }
+        }
+    }
+    false
+}
+
+fn auth_failed() -> Result<Response<Body>, ProtocolError> {
+    let resp = Response::builder()
+        .status(401)
+        .header(
+            http::header::WWW_AUTHENTICATE,
+            HeaderValue::from_static("Basic realm=Mega"),
+        )
+        .body(Body::empty())
+        .unwrap();
+    Ok(resp)
 }
 
 /// # Handles a Git upload pack request and prepares the response.
@@ -125,6 +176,11 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
+    if pack_protocol.context.config.monorepo.enable_http_auth
+        && !http_auth(req.headers(), &pack_protocol.context).await
+    {
+        return auth_failed();
+    }
     // Convert the request body into a data stream.
     let mut data_stream = req.into_body().into_data_stream();
     let mut report_status = Bytes::new();
