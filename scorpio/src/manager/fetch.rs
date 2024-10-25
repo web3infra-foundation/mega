@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, sync::Arc, time::Duration};
+use axum::async_trait;
 use mercury::hash::SHA1;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 use reqwest::Client;
-use tokio::runtime::Runtime;
+
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::time;
@@ -12,14 +13,17 @@ use async_recursion::async_recursion;
 use crate::manager::store::store_trees;
 use crate::util::GPath;
 
-use super::ScorpioManager;
+use super::{ScorpioManager, WorkDir};
+#[async_trait]
 pub trait CheckHash{
-    fn check(&mut self);
+    async fn check(&mut self);
+    async fn fetch<P: AsRef<Path>+ std::marker::Send  >(&mut self,inode:u64,monopath :P)-> WorkDir;
 }
 
+#[async_trait]
 impl CheckHash for ScorpioManager{
-    fn check(&mut self) {
-        let rt = Runtime::new().unwrap();
+    async fn check(&mut self) {
+        
         let mut handlers = Vec::new();
 
         for work in &mut self.works {
@@ -27,26 +31,60 @@ impl CheckHash for ScorpioManager{
             if work.hash.is_empty() {
                 let p = GPath::from(work.path.to_string());
                 // Get the tree and its hash value, for name dictionary .
-                let tree = rt.block_on(async {
-                    fetch_tree(&p).await
-                }).unwrap();
+                let tree = fetch_tree(&p).await.unwrap();
                 work.hash = tree.id.to_plain_str();
                 // the lower path is store file path for remote code version . 
                 let _lower = PathBuf::from(&self.store_path).join(&work.hash).join("lower");
-                handlers.push(rt.spawn(async move {
-                    fetch_code(&p, _lower).await;
-                }));
+                handlers.push(tokio::spawn(async move { fetch_code(&p, _lower).await }));
             }
         }
         // if have new config path , finish all handlers and write back the config file
         if !handlers.is_empty(){
             for handle in handlers {
-                let _ = rt.block_on(handle);
+                let _ = handle.await;
             }
             let _ = self.to_toml("config.toml"); //TODO: configabel.
         }
 
     }
+    
+    async fn fetch<P: AsRef<Path> + std::marker::Send  >(&mut self,inode:u64,monopath :P) -> WorkDir {
+        let path = monopath.as_ref().to_str().unwrap().to_string();
+        let p = GPath::from(path);
+        // Get the tree and its hash value, for name dictionary .
+        let tree = fetch_tree(&p).await.unwrap();
+        let workdir = WorkDir{
+            path: p.to_string(),
+            node:inode,
+            hash: tree.id.to_plain_str(),
+        };
+        //work.hash = tree.id.to_plain_str();
+        // the lower path is store file path for remote code version . 
+        let _lower = PathBuf::from(&self.store_path).join(&workdir.hash).join("lower");
+        fetch_code(&p, _lower).await;
+        self.works.push(workdir.clone());
+        let _ = self.to_toml("config.toml"); //TODO: configabel.
+        workdir
+    }
+}
+
+pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopath :P) -> WorkDir {
+    let path = monopath.as_ref().to_str().unwrap().to_string();
+    let p = GPath::from(path);
+    // Get the tree and its hash value, for name dictionary .
+    let tree =fetch_tree(&p).await.unwrap();
+    let workdir = WorkDir{
+        path: p.to_string(),
+        node:inode,
+        hash: tree.id.to_plain_str(),
+    };
+    //work.hash = tree.id.to_plain_str();
+    // the lower path is store file path for remote code version . 
+    let _lower = PathBuf::from(manager.store_path.clone()).join(&workdir.hash).join("lower");
+    fetch_code(&p, _lower).await;
+    manager.works.push(workdir.clone());
+    let _ = manager.to_toml("config.toml"); //TODO: configabel.
+    workdir
 }
 
 const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
