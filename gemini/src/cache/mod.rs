@@ -384,7 +384,14 @@ async fn download_and_upload_lfs(
 
     fs::remove_file(target_path).unwrap();
 
-    share_lfs(bootstrap_node, lfs.into()).await;
+    share_lfs(
+        bootstrap_node,
+        lfs.file_hash,
+        lfs.hash_type,
+        lfs.file_size,
+        lfs.origin,
+    )
+    .await;
 }
 
 #[cfg(test)]
