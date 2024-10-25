@@ -20,6 +20,7 @@ pub async fn share_lfs(
         peer_id: vault::get_peerid(),
         origin,
     };
+    tracing::info!("Share lfs {:?}", lfs);
     let json = serde_json::to_string(&lfs).unwrap();
 
     let client = Client::new();
