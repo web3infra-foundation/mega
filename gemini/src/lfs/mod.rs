@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use reqwest::Client;
 
 use crate::{
@@ -53,7 +55,7 @@ pub async fn create_lfs_download_tunnel(
             return Err(e.to_string());
         }
     };
-    let peer_list: Vec<String> = lfs_list
+    let peer_list: HashSet<String> = lfs_list
         .iter()
         .filter(|x| x.file_hash == file_hash && x.peer_online && x.peer_id != vault::get_peerid())
         .map(|x| x.peer_id.clone())
