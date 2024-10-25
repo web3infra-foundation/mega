@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use util::get_utc_timestamp;
 
 pub mod ca;
+pub mod cache;
 pub mod http;
+pub mod lfs;
 pub mod nostr;
 pub mod util;
 pub mod ztm;
@@ -217,6 +219,18 @@ impl From<ztm_lfs_info::Model> for LFSInfo {
     }
 }
 
+impl From<LFSInfo> for LFSInfoPostBody {
+    fn from(r: LFSInfo) -> Self {
+        LFSInfoPostBody {
+            file_hash: r.file_hash,
+            hash_type: r.hash_type,
+            file_size: r.file_size,
+            peer_id: r.peer_id,
+            origin: r.origin,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LFSInfoPostBody {
     pub file_hash: String,
@@ -236,6 +250,20 @@ impl From<LFSInfoPostBody> for ztm_lfs_info::Model {
             creation_time: get_utc_timestamp(),
             peer_id: r.peer_id,
             origin: r.origin,
+        }
+    }
+}
+
+impl From<LFSInfoPostBody> for LFSInfo {
+    fn from(r: LFSInfoPostBody) -> Self {
+        LFSInfo {
+            file_hash: r.file_hash,
+            hash_type: r.hash_type,
+            file_size: r.file_size,
+            creation_time: get_utc_timestamp(),
+            peer_id: r.peer_id,
+            origin: r.origin,
+            peer_online: false,
         }
     }
 }
