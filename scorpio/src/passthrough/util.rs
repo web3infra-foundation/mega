@@ -226,13 +226,13 @@ pub fn einval() -> io::Error {
 pub fn enosys() -> io::Error {
     io::Error::from_raw_os_error(libc::ENOSYS)
 }
-
+#[allow(unused)]
 pub fn eperm() -> io::Error {
     io::Error::from_raw_os_error(libc::EPERM)
 }
 pub fn convert_stat64_to_file_attr(stat: stat64) -> FileAttr {
     FileAttr {
-        ino: stat.st_ino as u64,
+        ino: stat.st_ino ,
         size: stat.st_size as u64,
         blocks: stat.st_blocks as u64,
         atime: Timestamp::new(stat.st_atime, stat.st_atime_nsec.try_into().unwrap()),
@@ -243,8 +243,8 @@ pub fn convert_stat64_to_file_attr(stat: stat64) -> FileAttr {
         kind: filetype_from_mode(stat.st_mode),
         perm: stat.st_mode as u16 & 0o7777,
         nlink: stat.st_nlink as u32,
-        uid: stat.st_uid as u32,
-        gid: stat.st_gid as u32,
+        uid: stat.st_uid ,
+        gid: stat.st_gid ,
         rdev: stat.st_rdev as u32,
         #[cfg(target_os = "macos")]
         flags: 0, // Set flags to 0 for non-macOS platforms
