@@ -211,7 +211,7 @@ pub fn check_run_with_ztm(context: Context, ztm: ZtmOptions, http_port: u16) {
             if ztm.cache {
                 thread::sleep(time::Duration::from_secs(3));
                 tokio::spawn(async move {
-                    cache_public_repo_and_lfs(bootstrap_node, context, ztm_agent).await
+                    cache_public_repo_and_lfs(bootstrap_node, context, ztm_agent, http_port).await
                 });
             }
         }

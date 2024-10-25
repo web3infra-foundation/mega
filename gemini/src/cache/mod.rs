@@ -23,13 +23,25 @@ pub async fn cache_public_repo_and_lfs(
     bootstrap_node: String,
     context: Context,
     agent: LocalZTMAgent,
+    http_port: u16,
 ) {
     let mut interval = tokio::time::interval(Duration::from_secs(60 * 5));
     loop {
         interval.tick().await;
-        cache_public_repository_handler(bootstrap_node.clone(), context.clone(), agent.clone())
-            .await;
-        cache_public_lfs_handler(bootstrap_node.clone(), agent.clone(), context.clone()).await;
+        cache_public_repository_handler(
+            bootstrap_node.clone(),
+            context.clone(),
+            agent.clone(),
+            http_port,
+        )
+        .await;
+        cache_public_lfs_handler(
+            bootstrap_node.clone(),
+            context.clone(),
+            agent.clone(),
+            http_port,
+        )
+        .await;
     }
 }
 
@@ -37,6 +49,7 @@ async fn cache_public_repository_handler(
     bootstrap_node: String,
     context: Context,
     agent: LocalZTMAgent,
+    http_port: u16,
 ) {
     tracing::info!("Start caching public repositories");
     // get public repo by bootstrap_node
@@ -63,8 +76,8 @@ async fn cache_public_repository_handler(
         let bootstrap_node = bootstrap_node.clone();
         let context = context.clone();
         let agent = agent.clone();
-        let handle = tokio::spawn(async {
-            clone_and_share_repo(bootstrap_node, context, agent, repo).await;
+        let handle = tokio::spawn(async move {
+            clone_and_share_repo(bootstrap_node, context, agent, repo, http_port).await;
         });
         handle.await.unwrap();
     }
@@ -75,6 +88,7 @@ async fn clone_and_share_repo(
     context: Context,
     agent: LocalZTMAgent,
     repo: RepoInfo,
+    http_port: u16,
 ) {
     let alias = repo.name;
     let repo_path = format!("/third-part/{}", alias.clone());
@@ -103,7 +117,7 @@ async fn clone_and_share_repo(
             Err(_) => return,
         };
         tracing::info!("Clone {} with local port: {}", repo.identifier, clone_url);
-        match clone_repository(clone_url, alias.clone()).await {
+        match clone_repository(clone_url, alias.clone(), http_port).await {
             Ok(_) => {
                 tracing::info!("Clone {} to local successfully", repo.identifier);
                 let _ = share_repository(alias, context, bootstrap_node, repo.origin).await;
@@ -115,7 +129,7 @@ async fn clone_and_share_repo(
     }
 }
 
-async fn clone_repository(repo_url: String, name: String) -> Result<(), String> {
+async fn clone_repository(repo_url: String, name: String, http_port: u16) -> Result<(), String> {
     let base_dir =
         PathBuf::from(std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| "/tmp/.mega".to_string()));
     let target_dir = base_dir.join("tmp").join(name.clone());
@@ -144,12 +158,12 @@ async fn clone_repository(repo_url: String, name: String) -> Result<(), String> 
 
     tracing::info!("Git clone with result: {}", status);
 
-    change_remote_url(target_dir.clone(), name).await?;
+    change_remote_url(target_dir.clone(), name, http_port).await?;
     push_to_new_remote(target_dir).await?;
     Ok(())
 }
 
-async fn change_remote_url(repo_path: PathBuf, name: String) -> Result<(), String> {
+async fn change_remote_url(repo_path: PathBuf, name: String, http_port: u16) -> Result<(), String> {
     tracing::info!("Exec: git remote remove origin");
     let _output = Command::new("git")
         .arg("remote")
@@ -160,7 +174,7 @@ async fn change_remote_url(repo_path: PathBuf, name: String) -> Result<(), Strin
         .await
         .map_err(|e| format!("Failed to execute process: {}", e))?;
 
-    let new_path = &format!("http://localhost:8000/third-part/{}", name);
+    let new_path = &format!("http://localhost:{}/third-part/{}", http_port, name);
     tracing::info!("Exec: git remote add origin {}", new_path);
     let _output = Command::new("git")
         .arg("remote")
@@ -227,7 +241,12 @@ async fn share_repository(
     Ok(())
 }
 
-async fn cache_public_lfs_handler(bootstrap_node: String, agent: LocalZTMAgent, context: Context) {
+async fn cache_public_lfs_handler(
+    bootstrap_node: String,
+    context: Context,
+    agent: LocalZTMAgent,
+    http_port: u16,
+) {
     tracing::info!("Start caching public lfs");
     // get public lfs by bootstrap_node
     let url = format!("{bootstrap_node}/api/v1/lfs_list");
@@ -262,14 +281,19 @@ async fn cache_public_lfs_handler(bootstrap_node: String, agent: LocalZTMAgent, 
         }
         let bootstrap_node = bootstrap_node.clone();
         let agent = agent.clone();
-        let handle = tokio::spawn(async {
-            download_and_upload_lfs(bootstrap_node, agent, lfs).await;
+        let handle = tokio::spawn(async move {
+            download_and_upload_lfs(bootstrap_node, agent, lfs, http_port).await;
         });
         handle.await.unwrap();
     }
 }
 
-async fn download_and_upload_lfs(bootstrap_node: String, agent: LocalZTMAgent, lfs: LFSInfo) {
+async fn download_and_upload_lfs(
+    bootstrap_node: String,
+    agent: LocalZTMAgent,
+    lfs: LFSInfo,
+    http_port: u16,
+) {
     let file_hash = lfs.file_hash.clone();
     let local_port =
         match get_or_create_remote_mega_tunnel(agent.agent_port, lfs.peer_id.clone()).await {
@@ -327,8 +351,9 @@ async fn download_and_upload_lfs(bootstrap_node: String, agent: LocalZTMAgent, l
         file_hash, lfs.file_size
     );
 
+    let url = format!("http://localhost:{}/objects/batch", http_port);
     let response = client
-        .post("http://localhost:8000/objects/batch")
+        .post(url)
         .header("content-type", "application/json")
         .body(json_str)
         .send()
@@ -344,7 +369,11 @@ async fn download_and_upload_lfs(bootstrap_node: String, agent: LocalZTMAgent, l
     let mut file_content = Vec::new();
     file.read_to_end(&mut file_content).unwrap();
 
-    let url = format!("http://localhost:8000/objects/{}", file_hash.clone());
+    let url = format!(
+        "http://localhost:{}/objects/{}",
+        http_port,
+        file_hash.clone()
+    );
     let response = client.put(url).body(file_content).send().await.unwrap();
 
     if response.status().is_success() {
