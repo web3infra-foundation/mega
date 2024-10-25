@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use callisto::{ztm_node, ztm_nostr_event, ztm_nostr_req, ztm_path_mapping, ztm_repo_info};
+use callisto::{
+    ztm_lfs_info, ztm_node, ztm_nostr_event, ztm_nostr_req, ztm_path_mapping, ztm_repo_info,
+};
 use common::errors::MegaError;
 use sea_orm::InsertResult;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, Set};
@@ -169,6 +171,43 @@ impl ZTMStorage {
                 Ok(repo_info)
             }
         }
+    }
+
+    pub async fn insert_lfs_info(
+        &self,
+        lfs_info: ztm_lfs_info::Model,
+    ) -> Result<ztm_lfs_info::Model, MegaError> {
+        let list = self
+            .get_lfs_info_by_origin_and_peerid(&lfs_info.origin, &lfs_info.peer_id)
+            .await
+            .unwrap();
+        if list.is_empty() {
+            ztm_lfs_info::Entity::insert(lfs_info.clone().into_active_model())
+                .exec(self.get_connection())
+                .await
+                .unwrap();
+        }
+        Ok(lfs_info)
+    }
+
+    pub async fn get_lfs_info_by_origin_and_peerid(
+        &self,
+        origin: &str,
+        peer_id: &str,
+    ) -> Result<Vec<ztm_lfs_info::Model>, MegaError> {
+        let model = ztm_lfs_info::Entity::find()
+            .filter(ztm_lfs_info::Column::Origin.eq(origin))
+            .filter(ztm_lfs_info::Column::PeerId.eq(peer_id))
+            .all(self.get_connection())
+            .await;
+        Ok(model?)
+    }
+
+    pub async fn get_all_lfs_info(&self) -> Result<Vec<ztm_lfs_info::Model>, MegaError> {
+        Ok(ztm_lfs_info::Entity::find()
+            .all(self.get_connection())
+            .await
+            .unwrap())
     }
 
     pub async fn insert_nostr_event(

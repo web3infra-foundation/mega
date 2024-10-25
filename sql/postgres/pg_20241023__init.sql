@@ -239,6 +239,16 @@ CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
   "commit" VARCHAR(64)
 );
 
+CREATE TABLE IF NOT EXISTS "ztm_lfs_info" (
+  "id" BIGINT PRIMARY KEY,
+  "file_hash" VARCHAR(256),
+  "hash_type" VARCHAR(64),
+  "file_size" BIGINT NOT NULL,
+  "creation_time" BIGINT NOT NULL,
+  "peer_id" VARCHAR(64),
+  "origin" VARCHAR(256)
+);
+
 CREATE TABLE IF NOT EXISTS "ztm_nostr_event" (
   "id" VARCHAR(128) PRIMARY KEY,
   "pubkey" VARCHAR(128),

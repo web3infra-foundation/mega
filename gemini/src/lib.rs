@@ -1,8 +1,10 @@
 use std::fmt;
 
-use callisto::{ztm_node, ztm_repo_info};
+use callisto::{ztm_lfs_info, ztm_node, ztm_repo_info};
 use chrono::Utc;
+use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
+use util::get_utc_timestamp;
 
 pub mod ca;
 pub mod http;
@@ -172,6 +174,68 @@ impl From<ztm_repo_info::Model> for RepoInfo {
             update_time: r.update_time,
             commit: r.commit,
             peer_online: false,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct LFSInfo {
+    pub file_hash: String,
+    pub hash_type: String,
+    pub file_size: i64,
+    pub creation_time: i64,
+    pub peer_id: String,
+    pub origin: String,
+    pub peer_online: bool,
+}
+
+impl From<LFSInfo> for ztm_lfs_info::Model {
+    fn from(r: LFSInfo) -> Self {
+        ztm_lfs_info::Model {
+            id: generate_id(),
+            file_hash: r.file_hash,
+            hash_type: r.hash_type,
+            file_size: r.file_size,
+            creation_time: r.creation_time,
+            peer_id: r.peer_id,
+            origin: r.origin,
+        }
+    }
+}
+
+impl From<ztm_lfs_info::Model> for LFSInfo {
+    fn from(r: ztm_lfs_info::Model) -> Self {
+        LFSInfo {
+            file_hash: r.file_hash,
+            hash_type: r.hash_type,
+            file_size: r.file_size,
+            creation_time: r.creation_time,
+            peer_id: r.peer_id,
+            origin: r.origin,
+            peer_online: false,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct LFSInfoPostBody {
+    pub file_hash: String,
+    pub hash_type: String,
+    pub file_size: i64,
+    pub peer_id: String,
+    pub origin: String,
+}
+
+impl From<LFSInfoPostBody> for ztm_lfs_info::Model {
+    fn from(r: LFSInfoPostBody) -> Self {
+        ztm_lfs_info::Model {
+            id: generate_id(),
+            file_hash: r.file_hash,
+            hash_type: r.hash_type,
+            file_size: r.file_size,
+            creation_time: get_utc_timestamp(),
+            peer_id: r.peer_id,
+            origin: r.origin,
         }
     }
 }

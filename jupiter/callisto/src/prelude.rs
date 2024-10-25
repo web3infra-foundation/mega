@@ -22,6 +22,7 @@ pub use crate::mega_tree::Entity as MegaTree;
 pub use crate::raw_blob::Entity as RawBlob;
 pub use crate::ssh_keys::Entity as SshKeys;
 pub use crate::user::Entity as User;
+pub use crate::ztm_lfs_info::Entity as ZtmLFSInfo;
 pub use crate::ztm_node::Entity as ZtmNode;
 pub use crate::ztm_path_mapping::Entity as ZtmPathMapping;
 pub use crate::ztm_repo_info::Entity as ZtmRepoInfo;
