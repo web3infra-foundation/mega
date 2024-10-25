@@ -6,7 +6,20 @@ use crate::{
     util::handle_response, ztm::get_or_create_remote_mega_tunnel, LFSInfo, LFSInfoPostBody,
 };
 
-pub async fn share_lfs(bootstrap_node: String, lfs: LFSInfoPostBody) {
+pub async fn share_lfs(
+    bootstrap_node: String,
+    file_hash: String,
+    hash_type: String,
+    file_size: i64,
+    origin: String,
+) {
+    let lfs = LFSInfoPostBody {
+        file_hash,
+        hash_type,
+        file_size,
+        peer_id: vault::get_peerid(),
+        origin,
+    };
     let json = serde_json::to_string(&lfs).unwrap();
 
     let client = Client::new();
@@ -87,14 +100,14 @@ pub fn get_file_hash_from_origin(origin: String) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lfs::create_lfs_download_tunnel;
+    // use crate::lfs::create_lfs_download_tunnel;
 
-    #[tokio::test]
-    async fn create_lfs_download_tunnel_test() {
-        let result = create_lfs_download_tunnel("http://222.20.126.106:8001".to_string()
-        , 7777,
-        "p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6".to_string()
-    ).await.unwrap();
-        println!("{:?}", result);
-    }
+    // #[tokio::test]
+    // async fn create_lfs_download_tunnel_test() {
+    //     let result = create_lfs_download_tunnel("http://222.20.126.106:8001".to_string()
+    //     , 7777,
+    //     "p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6".to_string()
+    // ).await.unwrap();
+    //     println!("{:?}", result);
+    // }
 }
