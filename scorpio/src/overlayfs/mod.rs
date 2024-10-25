@@ -21,8 +21,7 @@ use fuse_backend_rs::abi::fuse_abi::{stat64, statvfs64, CreateIn};
 use fuse_backend_rs::api::filesystem::{
     Context, DirEntry, Entry, Layer, OpenOptions
 };
-#[cfg(not(feature = "async-io"))]
-use fuse_backend_rs::api::BackendFileSystem;
+
 use fuse_backend_rs::api::{SLASH_ASCII, VFS_MAX_INO};
 use inode_store::InodeStore;
 
@@ -2158,23 +2157,23 @@ impl OverlayFs {
         self.inodes.write().unwrap().extend_inode_number(next_inode, limit_inode);
     }
 }
-#[cfg(not(feature = "async-io"))]
-impl BackendFileSystem for OverlayFs {
-    /// mount returns the backend file system root inode entry and
-    /// the largest inode number it has.
-    fn mount(&self) -> Result<(Entry, u64)> {
-        let ctx = Context::default();
-        let entry = self.do_lookup(&ctx, self.root_inode(), "")?;
-        Ok((entry, VFS_MAX_INO))
-    }
+// #[cfg(not(feature = "async-io"))]
+// impl BackendFileSystem for OverlayFs {
+//     /// mount returns the backend file system root inode entry and
+//     /// the largest inode number it has.
+//     fn mount(&self) -> Result<(Entry, u64)> {
+//         let ctx = Context::default();
+//         let entry = self.do_lookup(&ctx, self.root_inode(), "")?;
+//         Ok((entry, VFS_MAX_INO))
+//     }
 
-    /// Provides a reference to the Any trait. This is useful to let
-    /// the caller have access to the underlying type behind the
-    /// trait.
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
+//     /// Provides a reference to the Any trait. This is useful to let
+//     /// the caller have access to the underlying type behind the
+//     /// trait.
+//     fn as_any(&self) -> &dyn std::any::Any {
+//         self
+//     }
+// }
 #[cfg(test)]
 mod tests {
     use std::{path::Path, thread};
