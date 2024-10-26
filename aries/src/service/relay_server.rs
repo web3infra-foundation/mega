@@ -8,12 +8,12 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use callisto::{ztm_node, ztm_repo_info};
+use callisto::{ztm_lfs_info, ztm_node, ztm_repo_info};
 use clap::Parser;
 use common::config::Config;
 use gemini::ztm::hub::{LocalHub, ZTMUserPermit, ZTMCA};
 use gemini::ztm::send_get_request_to_peer_by_tunnel;
-use gemini::{Node, RelayGetParams, RelayResultRes, RepoInfo};
+use gemini::{LFSInfo, LFSInfoPostBody, Node, RelayGetParams, RelayResultRes, RepoInfo};
 use jupiter::context::Context;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -46,7 +46,7 @@ pub struct RelayOptions {
     pub only_agent: bool,
 
     #[arg(long, short)]
-    pub config: Option<String>
+    pub config: Option<String>,
 }
 
 #[derive(Clone)]
@@ -90,7 +90,9 @@ pub fn routers() -> Router<AppState> {
         .route("/node_list", get(node_list))
         .route("/repo_provide", post(repo_provide))
         .route("/repo_list", get(repo_list))
-        .route("/test/send", get(send_message));
+        .route("/test/send", get(send_message))
+        .route("/lfs_share", post(lfs_share))
+        .route("/lfs_list", get(lfs_list));
 
     Router::new()
         .merge(router)
@@ -207,6 +209,52 @@ pub async fn repo_list(
         repo_info_list_result.push(repo.clone());
     }
     Ok(Json(repo_info_list_result))
+}
+
+pub async fn lfs_share(
+    state: State<AppState>,
+    Json(lfs_info): Json<LFSInfoPostBody>,
+) -> Result<Json<RelayResultRes>, (StatusCode, String)> {
+    let ztm_lfs_model: ztm_lfs_info::Model = lfs_info.into();
+    let storage = state.context.services.ztm_storage.clone();
+    match storage.insert_lfs_info(ztm_lfs_model).await {
+        Ok(_) => Ok(Json(RelayResultRes { success: true })),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "invalid paras".to_string(),
+        )),
+    }
+}
+
+pub async fn lfs_list(
+    Query(_query): Query<RelayGetParams>,
+    state: State<AppState>,
+) -> Result<Json<Vec<LFSInfo>>, (StatusCode, String)> {
+    let storage = state.context.services.ztm_storage.clone();
+    let lfs_info_list: Vec<LFSInfo> = storage
+        .get_all_lfs_info()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|x| x.into())
+        .collect();
+    let nodelist: Vec<Node> = storage
+        .get_all_node()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|x| x.into())
+        .collect();
+    let mut lfs_info_list_result = vec![];
+    for mut lfs in lfs_info_list {
+        for node in &nodelist {
+            if lfs.peer_id == node.peer_id {
+                lfs.peer_online = node.online;
+            }
+        }
+        lfs_info_list_result.push(lfs.clone());
+    }
+    Ok(Json(lfs_info_list_result))
 }
 
 async fn send_message(

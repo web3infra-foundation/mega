@@ -8,7 +8,7 @@ use axum::{http, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 
-use gemini::http::cache_repo::cache_public_repository;
+use gemini::cache::cache_public_repo_and_lfs;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
@@ -208,10 +208,10 @@ pub fn check_run_with_ztm(context: Context, ztm: ZtmOptions, http_port: u16) {
                 .await
             });
 
-            if ztm.cache_repo {
+            if ztm.cache {
                 thread::sleep(time::Duration::from_secs(3));
                 tokio::spawn(async move {
-                    cache_public_repository(bootstrap_node, context, ztm_agent).await
+                    cache_public_repo_and_lfs(bootstrap_node, context, ztm_agent, http_port).await
                 });
             }
         }

@@ -27,6 +27,7 @@ pub mod mq_storage;
 pub mod raw_blob;
 pub mod ssh_keys;
 pub mod user;
+pub mod ztm_lfs_info;
 pub mod ztm_node;
 pub mod ztm_nostr_event;
 pub mod ztm_nostr_req;
