@@ -4,8 +4,9 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,
     QueryFilter,
 };
+use uuid::Uuid;
 
-use callisto::{ssh_keys, user};
+use callisto::{access_token, ssh_keys, user};
 use common::{errors::MegaError, utils::generate_id};
 
 #[derive(Clone)]
@@ -31,6 +32,14 @@ impl UserStorage {
     pub async fn find_user_by_email(&self, email: &str) -> Result<Option<user::Model>, MegaError> {
         let res = user::Entity::find()
             .filter(user::Column::Email.eq(email))
+            .one(self.get_connection())
+            .await?;
+        Ok(res)
+    }
+
+    pub async fn find_user_by_name(&self, name: &str) -> Result<Option<user::Model>, MegaError> {
+        let res = user::Entity::find()
+            .filter(user::Column::Name.eq(name))
             .one(self.get_connection())
             .await?;
         Ok(res)
@@ -91,5 +100,61 @@ impl UserStorage {
             .all(self.get_connection())
             .await?;
         Ok(res)
+    }
+
+    pub async fn generate_token(&self, user_id: i64) -> Result<String, MegaError> {
+        let token_str = Uuid::new_v4().to_string();
+        let model = access_token::Model {
+            id: generate_id(),
+            user_id,
+            token: token_str.clone(),
+            created_at: chrono::Utc::now().naive_utc(),
+        };
+        let a_model = model.into_active_model();
+        a_model.insert(self.get_connection()).await.unwrap();
+        Ok(token_str.to_owned())
+    }
+
+    pub async fn delete_token(&self, user_id: i64, id: i64) -> Result<(), MegaError> {
+        let res = access_token::Entity::find()
+            .filter(access_token::Column::Id.eq(id))
+            .filter(access_token::Column::UserId.eq(user_id))
+            .one(self.get_connection())
+            .await?;
+        if let Some(model) = res {
+            model.delete(self.get_connection()).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn list_token(&self, user_id: i64) -> Result<Vec<access_token::Model>, MegaError> {
+        let res = access_token::Entity::find()
+            .filter(access_token::Column::UserId.eq(user_id))
+            .all(self.get_connection())
+            .await?;
+        Ok(res)
+    }
+
+    pub async fn check_token(&self, user_id: i64, token: &str) -> Result<bool, MegaError> {
+        let res = access_token::Entity::find()
+            .filter(access_token::Column::UserId.eq(user_id))
+            .filter(access_token::Column::Token.eq(token))
+            .one(self.get_connection())
+            .await?;
+        match res {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use uuid::Uuid;
+
+    #[test]
+    fn token_format() {
+        let uuid = Uuid::new_v4().to_string();
+        println!("{:?}", uuid);
     }
 }
