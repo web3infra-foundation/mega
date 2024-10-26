@@ -1,7 +1,7 @@
 use config::{CachePolicy, Config};
 use file_handle::{FileHandle, OpenableFileHandle};
 
-use fuse3::{raw::reply::{FileAttr, ReplyEntry}, Errno};
+use fuse3::{raw::reply::ReplyEntry, Errno};
 pub use fuse_backend_rs::passthrough;
 use inode_store::{InodeId, InodeStore};
 
@@ -37,7 +37,7 @@ pub const EMPTY_CSTR: &[u8] = b"\0";
 pub const PROC_SELF_FD_CSTR: &[u8] = b"/proc/self/fd\0";
 pub const ROOT_ID: u64 = 1;
 use tokio::sync::{Mutex, MutexGuard, RwLock};
-pub const FUSE_ATTR_DAX: u32 = 1 << 1;
+
 
 
 pub fn new_passthroughfs_layer(rootdir: &str) -> Result<BoxedLayer> {
@@ -260,7 +260,7 @@ impl HandleData {
             inode,
             file,
             lock: Mutex::new(()),
-            open_flags: AtomicU32::new(flags.into()),
+            open_flags: AtomicU32::new(flags),
         }
     }
 
@@ -434,7 +434,7 @@ impl<S: BitmapSlice + Send + Sync> PassthroughFs<S> {
 
         Ok(PassthroughFs {
             inode_map: InodeMap::new(),
-            next_inode: AtomicU64::new((ROOT_ID + 1).into()),
+            next_inode: AtomicU64::new(ROOT_ID + 1),
             ino_allocator: UniqueInodeGenerator::new(),
 
             handle_map: HandleMap::new(),
@@ -443,13 +443,13 @@ impl<S: BitmapSlice + Send + Sync> PassthroughFs<S> {
             mount_fds,
             proc_self_fd,
 
-            writeback: AtomicBool::new(false.into()),
-            no_open: AtomicBool::new(false.into()),
-            no_opendir: AtomicBool::new(false.into()),
-            killpriv_v2: AtomicBool::new(false.into()),
-            no_readdir: AtomicBool::new(cfg.no_readdir.into()),
-            seal_size: AtomicBool::new(cfg.seal_size.into()),
-            perfile_dax: AtomicBool::new(false.into()),
+            writeback: AtomicBool::new(false),
+            no_open: AtomicBool::new(false),
+            no_opendir: AtomicBool::new(false),
+            killpriv_v2: AtomicBool::new(false),
+            no_readdir: AtomicBool::new(cfg.no_readdir),
+            seal_size: AtomicBool::new(cfg.seal_size),
+            perfile_dax: AtomicBool::new(false),
             dir_entry_timeout,
             dir_attr_timeout,
             cfg,
@@ -908,14 +908,15 @@ use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
         }
 
         init_logging().unwrap();
-        let mut cfg = Config::default();
-        cfg.xattr  = true;
-        cfg.do_import =true;
-        cfg.root_dir = String::from("/home/luxian/code/leetcode");
+        let  cfg = Config { 
+            xattr: true, 
+            do_import: true, 
+            root_dir: String::from("/home/luxian/code/leetcode"), 
+            ..Default::default() 
+        };
     
             let fs = PassthroughFs::<()>::new(cfg).unwrap();
             let logfs = LoggingFileSystem::new(fs);
-            let args = env::args_os().skip(1).take(1).collect::<Vec<_>>();
         
             let mount_path = OsString::from("/home/luxian/pass");
         

@@ -138,6 +138,7 @@ pub struct DictionaryStore {
 
 #[allow(unused)]
 impl DictionaryStore {
+    #[allow(clippy::await_holding_lock)]
     pub async fn async_import(&self){
     
             let items = fetch_tree("").await.unwrap().data.clone() ;
@@ -163,7 +164,9 @@ impl DictionaryStore {
                             let path = it.get_path();
                             println!("fetch path :{}",path);
                         }
+                        
                         if path.len()>1{
+                            drop(ct);
                             let t = fetch_tree(&path.clone()).await;
                             new_items = t.unwrap().data.clone() ;
                         }
