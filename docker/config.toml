@@ -56,6 +56,9 @@ import_dir = "/third-part"
 # The current mono Git HTTP server does not support authentication, so we provided a disabled operations here
 disable_http_push = false
 
+# Support http authtication, login in with github and generate token before push
+enable_http_auth = false
+
 # Set System Admin in directory init, replace the admin's github username here
 admin = "admin"
 
@@ -96,8 +99,8 @@ split_size = 20971520 # Default size is 20MB (20971520 bytes)
 github_client_id = ""
 github_client_secret = ""
 
-# Used redirect to ui after login
+# Used for redirect to ui after login, for example: https://console.gitmono.com
 ui_domain = "https://console.gitmono.com"
 
-# Set .gitmono.com on Production
+# Set your own domain here, for example: .gitmono.com
 cookie_domain = ".gitmono.com"
