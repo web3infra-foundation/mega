@@ -67,7 +67,9 @@ struct ConfigRequest {
 }
 #[derive(Clone)]
 struct ScoState{
+    #[allow(unused)]
     fuse:Arc<MegaFuse>,
+    #[allow(unused)]
     manager:Arc<Mutex<ScorpioManager>>,
 }
 #[allow(unused)]
@@ -88,8 +90,8 @@ pub async fn deamon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
 }
 
 async fn mount_handler(
-    State(state): State<ScoState>, // 注入共享状态
-    req: axum::Json<MountRequest>,
+    State(_state): State<ScoState>, // 注入共享状态
+    _req: axum::Json<MountRequest>,
 ) -> axum::Json<MountResponse> {
     // let mono_path = req.path.clone();
     // let inode = state.fuse.get_inode(&mono_path);
