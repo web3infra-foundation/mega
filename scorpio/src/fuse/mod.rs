@@ -107,7 +107,7 @@ impl MegaFuse{
         let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode).unwrap();
         self.overlayfs.lock().unwrap().insert(inode, Arc::new(overlayfs));
     }
-    pub fn get_inode(&self,path:&String) -> u64{
+    pub fn get_inode(&self,path:&str) -> u64{
         let item = self.dic.store.get_by_path(path);
         item.unwrap().get_inode()
     }

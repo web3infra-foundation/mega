@@ -2,7 +2,7 @@ use tokio::sync::Mutex;
 use std::sync::Arc;
 
 pub struct AtomicBool(Arc<Mutex<bool>>);
-
+#[allow(unused)]
 impl AtomicBool {
     // Create a new AtomicBool
     pub fn new(value: bool) -> Self {
@@ -35,7 +35,7 @@ impl AtomicBool {
 }
 
 pub struct AtomicU32(Arc<Mutex<u32>>);
-
+#[allow(unused)]
 impl AtomicU32 {
     // Create a new AtomicU32
     pub fn new(value: u32) -> Self {
@@ -84,9 +84,8 @@ impl AtomicU64 {
 
     // async atom add 
     pub async fn fetch_add(&self, value: u64) -> u64 {
-        let mut lock = self.0.lock().await; // 获取锁
-        let old_value = *lock;               // 读取当前值
-        *lock += value;                      // 增加指定值
+        let mut lock = self.0.lock().await; 
+        *lock += value;                      
         *lock                           
     }
     pub async fn load(&self) -> u64 {
@@ -95,7 +94,7 @@ impl AtomicU64 {
     }
 
     pub async fn compare_exchange(&self, current: u64, new: u64) -> std::result::Result<u64, u64> {
-        let mut lock = self.0.lock().await; // 获取锁
+        let mut lock = self.0.lock().await; 
         if *lock == current {
             let old_value = *lock;          
             *lock = new;                   

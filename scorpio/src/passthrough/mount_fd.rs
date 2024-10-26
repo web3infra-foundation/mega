@@ -487,7 +487,7 @@ mod tests {
         assert!(mpr_error.fs_mount_root.is_none());
         let mpr_error = mpr_error.silence();
         let msg = format!("{}", mpr_error);
-        assert!(msg.len() > 0);
+        assert!(!msg.is_empty());
         assert!(mpr_error.silent());
     }
 }
