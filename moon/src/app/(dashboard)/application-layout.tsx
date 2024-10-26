@@ -31,6 +31,7 @@ import {
   PlusIcon,
   ShieldCheckIcon,
   UserCircleIcon,
+  KeyIcon,
 } from '@heroicons/react/16/solid'
 import {
   Cog6ToothIcon,
@@ -50,6 +51,10 @@ function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' })
       <DropdownItem href="/user/keys">
         <UserCircleIcon />
         <DropdownLabel>My account</DropdownLabel>
+      </DropdownItem>
+      <DropdownItem href="/user/token">
+        <KeyIcon />
+        <DropdownLabel>Tokens</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
       <DropdownItem href="#">

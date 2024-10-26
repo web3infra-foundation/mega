@@ -161,7 +161,7 @@ pub struct Config {
     /// * If dax_file_size == None, DAX will disable to all files.
     /// * If dax_file_size == 0, DAX will enable all files.
     /// * If dax_file_size == N, DAX will enable only when the file size is greater than or equal
-    /// to N Bytes.
+    ///   to N Bytes.
     pub dax_file_size: Option<u64>,
 
     /// Reduce memory consumption by directly use host inode when possible.
