@@ -62,7 +62,7 @@ pub async fn share_lfs(
     }
 }
 
-/// createa lfs download local ports
+/// create lfs download local ports
 ///
 /// ## Paras
 /// - `bootstrap_node`: bootstrap_node
