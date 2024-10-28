@@ -133,7 +133,6 @@ pub async fn start_http(context: Context, options: HttpOptions) {
 ///   - POST       end of `Regex::new(r"/git-upload-pack$")`
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
 pub async fn app(context: Context, host: String, port: u16, common: CommonOptions) -> Router {
-
     let state = AppState {
         host,
         port,
@@ -183,6 +182,7 @@ pub async fn get_method_router(
     state: State<AppState>,
     Query(params): Query<InfoRefsParams>,
     uri: Uri,
+    req: Request<Body>,
 ) -> Result<Response<Body>, ProtocolError> {
     if INFO_REFS_REGEX.is_match(uri.path()) {
         let pack_protocol = SmartProtocol::new(
@@ -190,7 +190,7 @@ pub async fn get_method_router(
             state.context.clone(),
             TransportProtocol::Http,
         );
-        crate::git_protocol::http::git_info_refs(params, pack_protocol).await
+        crate::git_protocol::http::git_info_refs(req, params, pack_protocol).await
     } else {
         Err(ProtocolError::NotFound(
             "Operation not supported".to_owned(),

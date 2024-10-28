@@ -14,6 +14,7 @@ pub struct LoggingFileSystem<FS: Filesystem> {
     inner: FS,
     fsname:String,
 }
+#[allow(unused)]
 impl <FS: Filesystem>LoggingFileSystem<FS> {
     pub fn new(fs:FS)-> Self{
         let fsname = type_name_of_val(&fs);
@@ -32,14 +33,14 @@ type DirEntryPlusStream<'a> = FS::DirEntryPlusStream<'a> where Self:'a;
 
     /// read directory entries, but with their attribute, like [`readdir`][Filesystem::readdir]
     /// + [`lookup`][Filesystem::lookup] at the same time.
-    async fn readdirplus<'a>(
-        &'a self,
+    async fn readdirplus(
+        &self,
         req: Request,
         parent: Inode,
         fh: u64,
         offset: u64,
         lock_owner: u64,
-    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'a>>> {
+    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_>>> {
         println!("fs:{}, readdirplus: parent: {:?}, fh: {}, offset: {}", self.fsname, parent, fh, offset);
         match self.inner.readdirplus(req, parent, fh, offset, lock_owner).await {
             Ok(reply) => Ok(reply),
@@ -333,13 +334,13 @@ async fn opendir(&self, req: Request, inode: Inode, flags: u32) -> Result<ReplyO
 }
 
 /// read directory.
-async fn readdir<'a>(
-    &'a self,
+async fn readdir(
+    &self,
     req: Request,
     parent: Inode,
     fh: u64,
     offset: i64,
-) -> Result<ReplyDirectory<Self::DirEntryStream<'a>>> {
+) -> Result<ReplyDirectory<Self::DirEntryStream<'_>>>{
     println!("fs:{}, readdir: parent: {:?}, fh: {}, offset: {}", self.fsname, parent, fh, offset);
     match self.inner.readdir(req, parent, fh, offset).await {
         Ok(reply) => Ok(reply),
@@ -511,7 +512,7 @@ match self.inner.notify_reply(req, inode, offset, data).await {
 
  /// forget more than one inode. This is a batch version [`forget`][Filesystem::forget]
  async fn batch_forget(&self, req: Request, inodes: &[Inode]) {
-    let reply = self.inner.batch_forget(req, inodes).await;
+    self.inner.batch_forget(req, inodes).await;
  }
 
  /// allocate space for an open file. This function ensures that required space is allocated for

@@ -51,7 +51,6 @@ permit (
 )
 when { principal in resource.admins };
 
-
 // root admin can do anything
 permit (principal, action, resource)
-when { principal == User::"genedna" };
+when { principal == User::"genedna" || principal == User::"benjamin-747" };

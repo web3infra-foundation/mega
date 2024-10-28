@@ -13,6 +13,7 @@ use crate::api::user::model::AddSSHKey;
 use crate::api::user::model::ListSSHKey;
 use crate::api::MonoApiServiceState;
 use crate::api::{error::ApiError, oauth::model::LoginUser, util};
+use crate::api::user::model::ListToken;
 
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
@@ -20,6 +21,9 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/user/ssh", get(list_key))
         .route("/user/ssh", post(add_key))
         .route("/user/ssh/:key_id/delete", post(remove_key))
+        .route("/user/token/generate", post(generate_token))
+        .route("/user/token/list", get(list_token))
+        .route("/user/token/:key_id/delete", post(remove_token))
         .route("/repo-permissions", get(repo_permissions))
 }
 
@@ -96,12 +100,70 @@ async fn list_key(
     Ok(Json(res))
 }
 
+async fn generate_token(
+    user: LoginUser,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let res = state
+        .context
+        .services
+        .user_storage
+        .generate_token(user.user_id)
+        .await;
+    let res = match res {
+        Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
+
+async fn remove_token(
+    user: LoginUser,
+    state: State<MonoApiServiceState>,
+    Path(key_id): Path<i64>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let res = state
+        .context
+        .services
+        .user_storage
+        .delete_token(user.user_id, key_id)
+        .await;
+    let res = match res {
+        Ok(_) => CommonResult::success(None),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
+
+async fn list_token(
+    user: LoginUser,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<Vec<ListToken>>>, ApiError> {
+    let res = state
+        .context
+        .services
+        .user_storage
+        .list_token(user.user_id)
+        .await;
+    let res = match res {
+        Ok(data) => {
+            let res = data.into_iter().map(|x| x.into()).collect();
+            CommonResult::success(Some(res))
+        },
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
 async fn repo_permissions(
     Query(query): Query<HashMap<String, String>>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let path = std::path::PathBuf::from(query.get("path").unwrap());
     let _ = util::get_entitystore(path, state).await;
+    // TODO
     Ok(Json(CommonResult::success(Some(String::new()))))
 }
 
