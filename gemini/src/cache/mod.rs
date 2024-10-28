@@ -393,7 +393,9 @@ async fn download_lfs_by_chunk(local_port: u16, lfs: LFSInfo) {
                 tracing::error!("Get lfs chuncks info failed  {}", url);
                 return;
             }
-            response.json::<FetchchunkResponse>().await.unwrap()
+            let body = response.text().await.unwrap();
+            let chunck_info: FetchchunkResponse = serde_json::from_str(&body).unwrap();
+            chunck_info
         }
         Err(_) => {
             tracing::error!("Get lfs chuncks info failed {}", url);
@@ -427,7 +429,7 @@ async fn download_lfs_by_chunk(local_port: u16, lfs: LFSInfo) {
         chunk_info.size,
         chunks.len()
     );
-    for chunk in chunks {
+    for (index, chunk) in chunks.iter().enumerate() {
         // http://localhost:{localport}/objects/{object_id}/chunks
         let url = format!("http://localhost:{}/objects/{}", local_port, chunk.sub_oid);
         let data = match get(url.clone()).await {
@@ -444,7 +446,7 @@ async fn download_lfs_by_chunk(local_port: u16, lfs: LFSInfo) {
             }
         };
         file.write_all(&data).await.unwrap();
-        tracing::info!("Chunk offset[{}] download successfully", chunk.offset);
+        tracing::info!("Chunk[{}] download from {} successfully", index, url);
     }
     tracing::info!("Download LFS {} by chunks successfully", lfs.file_hash);
 }
