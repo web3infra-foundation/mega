@@ -1,6 +1,6 @@
 use std::{
     fs::{self, create_dir_all, File},
-    io::{Read, Write},
+    io::Read,
     path::PathBuf,
     time::Duration,
 };
@@ -13,10 +13,12 @@ use crate::{
     LFSInfo, RepoInfo,
 };
 use callisto::ztm_path_mapping;
+use ceres::lfs::lfs_structs::FetchchunkResponse;
 use common::utils::generate_id;
 use jupiter::context::Context;
 use reqwest::{get, Client};
-use tokio::process::Command;
+use ring::digest::SHA256;
+use tokio::{fs::OpenOptions, io::AsyncWriteExt, process::Command};
 use vault::get_peerid;
 
 pub async fn cache_public_repo_and_lfs(
@@ -303,35 +305,12 @@ async fn download_and_upload_lfs(
                 return;
             }
         };
-    let url = format!("http://localhost:{}/objects/{}", local_port, lfs.file_hash);
-    let response = match get(url.clone()).await {
-        Ok(response) => response,
-        Err(_) => {
-            tracing::error!("Download lfs failed {}", url);
-            return;
-        }
-    };
-    if !response.status().is_success() {
-        tracing::error!("Download lfs failed {}", url);
+
+    download_lfs_by_chunk(local_port, lfs.clone()).await;
+
+    if !checksum_lfs(lfs.clone()) {
         return;
     }
-
-    // create temp file
-    let base_dir =
-        PathBuf::from(std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| "/tmp/.mega".to_string()));
-    let base_dir = base_dir.join("tmp");
-    if !base_dir.exists() {
-        create_dir_all(base_dir.clone()).unwrap();
-    }
-    let target_path = base_dir.join(file_hash.clone());
-
-    if target_path.exists() {
-        fs::remove_file(&target_path).unwrap();
-    }
-
-    let mut file = File::create(target_path.clone()).unwrap();
-    let bytes = response.bytes().await.unwrap();
-    file.write_all(&bytes).unwrap();
 
     //upload to local mega lfs
     let client = Client::new();
@@ -365,6 +344,13 @@ async fn download_and_upload_lfs(
         return;
     }
 
+    let target_path = match get_lfs_tmp_file(lfs.clone()) {
+        Some(p) => p,
+        None => {
+            return;
+        }
+    };
+
     let mut file = File::open(target_path.clone()).unwrap();
     let mut file_content = Vec::new();
     file.read_to_end(&mut file_content).unwrap();
@@ -392,6 +378,122 @@ async fn download_and_upload_lfs(
         lfs.origin,
     )
     .await;
+}
+
+async fn download_lfs_by_chunk(local_port: u16, lfs: LFSInfo) {
+    tracing::info!("Prepare to download LFS {} by chunks", lfs.file_hash);
+    // fetch chunks info http://localhost:{localport}/objects/{object_id}/chunks
+    let url = format!(
+        "http://localhost:{}/objects/{}/chunks",
+        local_port, lfs.file_hash
+    );
+    let chunk_info = match get(url.clone()).await {
+        Ok(response) => {
+            if !response.status().is_success() {
+                tracing::error!("Get lfs chuncks info failed  {}", url);
+                return;
+            }
+            let body = response.text().await.unwrap();
+            let chunck_info: FetchchunkResponse = serde_json::from_str(&body).unwrap();
+            chunck_info
+        }
+        Err(_) => {
+            tracing::error!("Get lfs chuncks info failed {}", url);
+            return;
+        }
+    };
+    let mut chunks = chunk_info.chunks;
+    chunks.sort_unstable_by(|a, b| a.offset.cmp(&b.offset));
+
+    // create temp file
+    let base_dir =
+        PathBuf::from(std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| "/tmp/.mega".to_string()));
+    let base_dir = base_dir.join("tmp");
+    if !base_dir.exists() {
+        create_dir_all(base_dir.clone()).unwrap();
+    }
+    let target_path = base_dir.join(lfs.file_hash.clone());
+    if target_path.exists() {
+        fs::remove_file(&target_path).unwrap();
+    }
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(target_path)
+        .await
+        .unwrap();
+
+    tracing::info!(
+        "Start to download LFS chunks,size: {}B, chunk_num: {}",
+        chunk_info.size,
+        chunks.len()
+    );
+    for (index, chunk) in chunks.iter().enumerate() {
+        // http://localhost:{localport}/objects/{object_id}/chunks
+        let url = format!("http://localhost:{}/objects/{}", local_port, chunk.sub_oid);
+        let data = match get(url.clone()).await {
+            Ok(response) => {
+                if !response.status().is_success() {
+                    tracing::error!("Get lfs chuncks info failed  {}", url);
+                    return;
+                }
+                response.bytes().await.unwrap()
+            }
+            Err(_) => {
+                tracing::error!("Get lfs chuncks info failed {}", url);
+                return;
+            }
+        };
+        file.write_all(&data).await.unwrap();
+        tracing::info!("Chunk[{}] download from {} successfully", index, url);
+    }
+    tracing::info!("Download LFS {} by chunks successfully", lfs.file_hash);
+}
+
+fn checksum_lfs(lfs: LFSInfo) -> bool {
+    tracing::info!("Prepare to check LFS SHA256");
+    let target_path = match get_lfs_tmp_file(lfs.clone()) {
+        Some(p) => p,
+        None => {
+            return false;
+        }
+    };
+    let mut file = File::open(target_path).unwrap();
+
+    let mut context = ring::digest::Context::new(&SHA256);
+    let mut buffer = [0u8; 1024];
+
+    loop {
+        let count = file.read(&mut buffer).unwrap();
+        if count == 0 {
+            break;
+        }
+        context.update(&buffer[..count]);
+    }
+
+    let checksum = hex::encode(context.finish().as_ref());
+    let result = checksum == lfs.file_hash;
+    if result {
+        tracing::info!("Check LFS SHA256({}) successfully", lfs.file_hash);
+    } else {
+        tracing::error!("Check LFS SHA256 failed");
+    }
+    result
+}
+
+fn get_lfs_tmp_file(lfs: LFSInfo) -> Option<PathBuf> {
+    let base_dir =
+        PathBuf::from(std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| "/tmp/.mega".to_string()));
+    let base_dir = base_dir.join("tmp");
+    if !base_dir.exists() {
+        create_dir_all(base_dir.clone()).unwrap();
+    }
+    let target_path = base_dir.join(lfs.file_hash.clone());
+    if !target_path.exists() {
+        return None;
+    }
+    Some(target_path)
 }
 
 #[cfg(test)]
