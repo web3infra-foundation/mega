@@ -26,14 +26,16 @@
         "./src/*"
       ]
     },
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "target": "ES2017"
   },
   "include": [
     "next-env.d.ts",
     ".next/types/**/*.ts",
     "**/*.ts",
-    "**/*.tsx"
-, "src/pages/_app.back"  ],
+    "**/*.tsx",
+    "src/pages/_app.back"
+  ],
   "exclude": [
     "node_modules",
     "src-tauri"
