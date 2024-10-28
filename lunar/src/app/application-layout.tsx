@@ -193,27 +193,6 @@ export function ApplicationLayout({
               </SidebarItem>
             </SidebarSection>
           </SidebarBody>
-
-
-          {/* <SidebarFooter className="max-lg:hidden">
-            {token &&
-              <Dropdown>
-                <DropdownButton as={SidebarItem}>
-                  <span className="flex min-w-0 items-center gap-3">
-                    <Avatar src={"" || user.avatar_url} slot="icon" initials="AD" className="size-10 bg-purple-500 text-white" />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">{user.login}</span>
-                      <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">
-                        {user.email}
-                      </span>
-                    </span>
-                  </span>
-                  <ChevronUpIcon />
-                </DropdownButton>
-                <AccountDropdownMenu anchor="top start" />
-              </Dropdown>
-            }
-          </SidebarFooter> */}
         </Sidebar>
       }
     >
