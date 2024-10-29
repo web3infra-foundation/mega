@@ -10,11 +10,13 @@ use tauri::Manager;
 use tauri::State;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
+
 #[derive(Default)]
 struct ServiceState {
     child: Option<CommandChild>,
     with_relay: bool,
 }
+
 impl Drop for ServiceState {
     fn drop(&mut self) {
         if let Some(child_process) = self.child.take() {
