@@ -24,11 +24,12 @@ impl <FS: Filesystem>LoggingFileSystem<FS> {
         }
     }
 }
+
+
 impl <FS: fuse3::raw::Filesystem + std::marker::Sync>Filesystem for LoggingFileSystem<FS>{
-    #[doc = " dir entry stream given by [`readdir`][Filesystem::readdir]."]
+    
 type DirEntryStream<'a>  = FS::DirEntryStream<'a> where Self:'a;
 
-#[doc = " dir entry plus stream given by [`readdirplus`][Filesystem::readdirplus]."]
 type DirEntryPlusStream<'a> = FS::DirEntryPlusStream<'a> where Self:'a;
 
     /// read directory entries, but with their attribute, like [`readdir`][Filesystem::readdir]
@@ -43,7 +44,10 @@ type DirEntryPlusStream<'a> = FS::DirEntryPlusStream<'a> where Self:'a;
     ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_>>> {
         println!("fs:{}, readdirplus: parent: {:?}, fh: {}, offset: {}", self.fsname, parent, fh, offset);
         match self.inner.readdirplus(req, parent, fh, offset, lock_owner).await {
-            Ok(reply) => Ok(reply),
+            Ok(reply) =>{
+               // println!("readdirplus result:{:?}",reply.entries.);
+                Ok(reply)
+            } ,
             Err(e) => {
                 println!("fs:{}, readdirplus error: {:?}", self.fsname, e);
                 Err(e)
@@ -72,7 +76,9 @@ async fn destroy(&self, req: Request) {
 async fn lookup(&self, req: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
     println!("fs:{}, lookup: parent: {:?}, name: {:?}", self.fsname, parent, name);
     match self.inner.lookup(req, parent, name).await {
-        Ok(reply) => Ok(reply),
+        Ok(reply) => {
+            println!("look up result :{:?}",reply);
+            Ok(reply)},
         Err(e) => {
             println!("fs:{}, lookup error: {:?}", self.fsname, e);
             Err(e)
@@ -88,7 +94,9 @@ async fn forget(&self, req: Request, inode: Inode, nlookup: u64) {
 async fn getattr(&self, req: Request, inode: Inode, fh: Option<u64>, flags: u32) -> Result<ReplyAttr> {
     println!("fs:{}, getattr: inode: {:?}, fh: {:?}, flags: {}", self.fsname, inode, fh, flags);
     match self.inner.getattr(req, inode, fh, flags).await {
-        Ok(reply) => Ok(reply),
+        Ok(reply) =>{
+            println!("getattr result :{:?}",reply);
+            Ok(reply)},
         Err(e) => {
             println!("fs:{}, getattr error: {:?}", self.fsname, e);
             Err(e)
@@ -340,7 +348,7 @@ async fn readdir(
     parent: Inode,
     fh: u64,
     offset: i64,
-) -> Result<ReplyDirectory<Self::DirEntryStream<'_>>>{
+) -> Result<ReplyDirectory<Self::DirEntryStream<'_>>> {
     println!("fs:{}, readdir: parent: {:?}, fh: {}, offset: {}", self.fsname, parent, fh, offset);
     match self.inner.readdir(req, parent, fh, offset).await {
         Ok(reply) => Ok(reply),
@@ -415,9 +423,9 @@ async fn fsyncdir(&self, req: Request, inode: Inode, fh: u64, datasync: bool) ->
      mode: u32,
      flags: u32,
  ) -> Result<ReplyCreated> {
-    println!("fs:{}, create: parnet: {}", self.fsname, parent);
-let reply = self.inner.create(req, parent, name, mode, flags).await?;
-Ok(reply)
+    println!("fs:{}, create: parnet: {}; name :{},mode:{},flags:{}", self.fsname, parent,name.to_str().unwrap_or_default(),mode,flags);
+    let reply = self.inner.create(req, parent, name, mode, flags).await?;
+    Ok(reply)
  }
 
  /// handle interrupt. When a operation is interrupted, an interrupt request will send to fuse
@@ -512,7 +520,7 @@ match self.inner.notify_reply(req, inode, offset, data).await {
 
  /// forget more than one inode. This is a batch version [`forget`][Filesystem::forget]
  async fn batch_forget(&self, req: Request, inodes: &[Inode]) {
-    self.inner.batch_forget(req, inodes).await;
+    let _ = self.inner.batch_forget(req, inodes).await;
  }
 
  /// allocate space for an open file. This function ensures that required space is allocated for

@@ -4,7 +4,7 @@
 
 use self::super::CachePolicy;
 use std::fmt;
-use std::time::Duration;
+
 
 #[derive(Default, Clone, Debug)]
 pub struct Config {
@@ -20,9 +20,6 @@ pub struct Config {
     pub killpriv_v2: bool,
     pub no_readdir: bool,
     pub perfile_dax: bool,
-    pub cache_policy: CachePolicy,
-    pub attr_timeout: Duration,
-    pub entry_timeout: Duration,
 }
 
 impl Clone for CachePolicy {

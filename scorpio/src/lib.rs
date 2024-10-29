@@ -5,12 +5,12 @@ extern crate log;
 mod passthrough;
 mod overlayfs;
 //mod store;
-pub mod fuse;
-mod dicfuse;
+// pub mod fuse;
+// mod dicfuse;
 mod util;
-pub mod manager;
-pub mod server;
-pub mod deamon;
+// pub mod manager;
+// pub mod server;
+// pub mod deamon;
 use once_cell::sync::OnceCell;
 use tokio::runtime::Handle;
 
