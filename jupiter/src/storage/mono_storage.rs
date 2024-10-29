@@ -1,15 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use futures::{stream, StreamExt};
-use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    QuerySelect,
 };
 
-use callisto::db_enums::{ConvType, MergeStatus};
-use callisto::{
-    mega_blob, mega_commit, mega_mr, mega_mr_conv, mega_refs, mega_tag, mega_tree, raw_blob,
-};
+use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -100,109 +97,6 @@ impl MonoStorage {
         ref_data.reset(mega_refs::Column::UpdatedAt);
         ref_data.update(self.get_connection()).await.unwrap();
         Ok(())
-    }
-
-    pub async fn get_open_mr_by_path(
-        &self,
-        path: &str,
-    ) -> Result<Option<mega_mr::Model>, MegaError> {
-        let model = mega_mr::Entity::find()
-            .filter(mega_mr::Column::Path.eq(path))
-            .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
-            .one(self.get_connection())
-            .await
-            .unwrap();
-        Ok(model)
-    }
-
-    pub async fn get_mr_by_status(
-        &self,
-        status: Vec<MergeStatus>,
-        page: u64,
-        per_page: u64,
-    ) -> Result<(Vec<mega_mr::Model>, u64), MegaError> {
-        let paginator = mega_mr::Entity::find()
-            .filter(mega_mr::Column::Status.is_in(status))
-            .order_by_desc(mega_mr::Column::CreatedAt)
-            .paginate(self.get_connection(),per_page);
-        let num_pages = paginator.num_items().await?;
-        Ok(paginator.fetch_page(page -1).await.map(|m| (m, num_pages))?)
-    }
-
-    pub async fn get_mr(&self, mr_link: &str) -> Result<Option<mega_mr::Model>, MegaError> {
-        let model = mega_mr::Entity::find()
-            .filter(mega_mr::Column::MrLink.eq(mr_link))
-            .one(self.get_connection())
-            .await
-            .unwrap();
-        Ok(model)
-    }
-
-    pub async fn get_open_mr_by_link(
-        &self,
-        mr_link: &str,
-    ) -> Result<Option<mega_mr::Model>, MegaError> {
-        let model = mega_mr::Entity::find()
-            .filter(mega_mr::Column::MrLink.eq(mr_link))
-            .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
-            .one(self.get_connection())
-            .await
-            .unwrap();
-        Ok(model)
-    }
-
-    pub async fn save_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        let a_model = mr.into_active_model();
-        a_model.insert(self.get_connection()).await.unwrap();
-        Ok(())
-    }
-
-    pub async fn update_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
-        let mut a_model = mr.into_active_model();
-        a_model = a_model.reset_all();
-        a_model.created_at = NotSet;
-        a_model.update(self.get_connection()).await.unwrap();
-        Ok(())
-    }
-
-    pub async fn get_mr_conversations(
-        &self,
-        mr_link: &str,
-    ) -> Result<Vec<mega_mr_conv::Model>, MegaError> {
-        let model = mega_mr_conv::Entity::find()
-            .filter(mega_mr_conv::Column::MrLink.eq(mr_link))
-            .all(self.get_connection())
-            .await;
-        Ok(model?)
-    }
-
-    pub async fn remove_mr_conversation(&self, id: i64) -> Result<(), MegaError> {
-        mega_mr_conv::Entity::delete_by_id(id)
-            .exec(self.get_connection())
-            .await
-            .unwrap();
-        Ok(())
-    }
-
-    pub async fn add_mr_conversation(
-        &self,
-        mr_link: &str,
-        user_id: i64,
-        conv_type: ConvType,
-        comment: Option<String>,
-    ) -> Result<i64, MegaError> {
-        let conversation = mega_mr_conv::Model {
-            id: generate_id(),
-            mr_link: mr_link.to_owned(),
-            user_id,
-            conv_type,
-            comment,
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-        };
-        let conversation = conversation.into_active_model();
-        let res = conversation.insert(self.get_connection()).await.unwrap();
-        Ok(res.id)
     }
 
     pub async fn save_entry(

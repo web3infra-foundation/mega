@@ -132,7 +132,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./moon
-        run: npm install
+        run: npm install --force
 
       - name: Run ESLint
         working-directory: ./moon

@@ -19,3 +19,4 @@ idgenerator = { workspace = true }
 serde = { workspace = true }
 config = { workspace = true }
 envsubst = "0.2.1"
+rand = { workspace = true }
