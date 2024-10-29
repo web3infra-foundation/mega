@@ -11,9 +11,10 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Mutex;
-use libc::stat64;
+
 use fuse3::raw::reply::FileAttr;
 use fuse3::{FileType, Timestamp};
+use libc::stat64;
 
 use super::inode_store::InodeId;
 use super::{CURRENT_DIR_CSTR, EMPTY_CSTR, MAX_HOST_INO, PARENT_DIR_CSTR};
@@ -230,6 +231,7 @@ pub fn enosys() -> io::Error {
 pub fn eperm() -> io::Error {
     io::Error::from_raw_os_error(libc::EPERM)
 }
+#[allow(unused)]
 pub fn convert_stat64_to_file_attr(stat: stat64) -> FileAttr {
     FileAttr {
         ino: stat.st_ino ,
