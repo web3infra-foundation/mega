@@ -138,8 +138,7 @@ impl server::Handler for SshServer {
             public_key.fingerprint()
         );
         let fingerprint = public_key.fingerprint();
-        let stg = self.context.services.user_storage.clone();
-        let res = stg.search_ssh_key_finger(&fingerprint).await.unwrap();
+        let res = self.context.user_stg().search_ssh_key_finger(&fingerprint).await.unwrap();
         if !res.is_empty() {
             tracing::info!("Client public key verified successfully!");
             Ok(Auth::Accept)

@@ -1,0 +1,132 @@
+'use client'
+import { useEffect, useState } from "react";
+import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
+import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import RichEditor from "@/components/rich-editor/RichEditor";
+import MRComment from "@/components/MRComment";
+import { useRouter } from "next/navigation";
+
+interface IssueDetail {
+    status: string,
+    conversions: Conversation[],
+    title: string,
+}
+interface Conversation {
+    id: number,
+    user_id: number,
+    conv_type: string,
+    comment: string,
+    created_at: number,
+}
+
+export default function IssueDetailPage({ params }: { params: { id: string } }) {
+    const [editorState, setEditorState] = useState("");
+    const [login, setLogin] = useState(false);
+    const [info, setInfo] = useState<IssueDetail>(
+        {
+            status: "",
+            conversions: [],
+            title: "",
+        }
+    );
+    const [loadings, setLoadings] = useState<boolean[]>([]);
+    const router = useRouter();
+
+    const fetchDetail = async () => {
+        const detail = await fetch(`/api/issue/${params.id}/detail`);
+        const detail_json = await detail.json();
+        setInfo(detail_json.data.data);
+    };
+
+    const checkLogin = async () => {
+        const res = await fetch(`/api/auth`);
+        setLogin(res.ok);
+    };
+
+    useEffect(() => {
+        checkLogin()
+        fetchDetail()
+    }, [params.id]);
+
+    const set_to_loading = (index: number) => {
+        setLoadings((prevLoadings) => {
+            const newLoadings = [...prevLoadings];
+            newLoadings[index] = true;
+            return newLoadings;
+        });
+    }
+
+    const cancel_loading = (index: number) => {
+        setLoadings((prevLoadings) => {
+            const newLoadings = [...prevLoadings];
+            newLoadings[index] = false;
+            return newLoadings;
+        });
+    }
+
+    async function close_issue() {
+        const res = await fetch(`/api/issue/${params.id}/close`, {
+            method: 'POST',
+        });
+        if (res) {
+            router.push(
+                "/issue"
+            );
+        }
+    };
+
+    async function save_comment(comment) {
+        set_to_loading(3);
+        const res = await fetch(`/api/issue/${params.id}/comment`, {
+            method: 'POST',
+            body: comment,
+        });
+        if (res) {
+            setEditorState("");
+            fetchDetail();
+            cancel_loading(3);
+        }
+    }
+
+    let conv_items = info?.conversions.map(conv => {
+        let icon;
+        let children;
+        switch (conv.conv_type) {
+            case "Comment": icon = <CommentOutlined />; children = <MRComment conv={conv} fetchDetail={fetchDetail} />; break
+            case "Closed": icon = <CloseCircleOutlined />; children = conv.comment;
+        };
+
+        const element = {
+            dot: icon,
+            children: children
+        }
+        return element
+    });
+
+    const tab_items: TabsProps['items'] = [
+        {
+            key: '1',
+            label: 'Conversation',
+            children:
+                <Space direction="vertical" style={{ width: '100%' }}>
+                    <Timeline items={conv_items} />
+                    {info && info.status === "open" &&
+                        <>
+                            <h1>Add a comment</h1>
+                            <RichEditor setEditorState={setEditorState} />
+                            <Flex gap="small" justify={"flex-end"}>
+                                <Button loading={loadings[3]} disabled={!login} onClick={() => close_issue()}>Close issue</Button>
+                                <Button loading={loadings[3]} disabled={editorState === "" || !login} onClick={() => save_comment(editorState)}>Comment</Button>
+                            </Flex>
+                        </>
+                    }
+                </Space>
+        }
+    ];
+
+    return (
+        <Card title={info.title + " #" + params.id}>
+            <Tabs defaultActiveKey="1" items={tab_items} />
+        </Card>
+    )
+}

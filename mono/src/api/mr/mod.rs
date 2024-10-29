@@ -1,10 +1,17 @@
 use serde::{Deserialize, Serialize};
 
-use callisto::{mega_mr, mega_mr_conv};
+use callisto::{mega_conversation, mega_mr};
+
+pub mod mr_router;
+
+#[derive(Deserialize)]
+pub struct MRStatusParams {
+    pub status: String,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct MrInfoItem {
-    pub mr_link: String,
+    pub link: String,
     pub title: String,
     pub status: String,
     pub open_timestamp: i64,
@@ -15,7 +22,7 @@ pub struct MrInfoItem {
 impl From<mega_mr::Model> for MrInfoItem {
     fn from(value: mega_mr::Model) -> Self {
         Self {
-            mr_link: value.mr_link,
+            link: value.link,
             title: String::new(),
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
@@ -28,29 +35,19 @@ impl From<mega_mr::Model> for MrInfoItem {
 #[derive(Serialize, Deserialize)]
 pub struct MRDetail {
     pub id: i64,
-    pub mr_link: String,
+    pub link: String,
     pub title: String,
     pub status: String,
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
-    pub conversions: Vec<MRConversion>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct MRConversion {
-    pub id: i64,
-    pub user_id: i64,
-    pub conv_type: String,
-    pub comment: Option<String>,
-    pub created_at: i64,
-    pub updated_at: i64,
+    pub conversions: Vec<MegaConversion>,
 }
 
 impl From<mega_mr::Model> for MRDetail {
     fn from(value: mega_mr::Model) -> Self {
         Self {
             id: value.id,
-            mr_link: value.mr_link,
+            link: value.link,
             title: value.title,
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
@@ -60,8 +57,18 @@ impl From<mega_mr::Model> for MRDetail {
     }
 }
 
-impl From<mega_mr_conv::Model> for MRConversion {
-    fn from(value: mega_mr_conv::Model) -> Self {
+#[derive(Serialize, Deserialize)]
+pub struct MegaConversion {
+    pub id: i64,
+    pub user_id: i64,
+    pub conv_type: String,
+    pub comment: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl From<mega_conversation::Model> for MegaConversion {
+    fn from(value: mega_conversation::Model) -> Self {
         Self {
             id: value.id,
             user_id: value.user_id,
