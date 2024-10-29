@@ -446,7 +446,7 @@ impl FileSystem for OverlayFs {
             flags
         );
 
-        let data = self.get_data(ctx, Some(handle), inode, flags)?;
+        let data = self.get_data(ctx, Some(handle), inode, flags).await?;
 
         match data.real_handle {
             None => Err(Error::from_raw_os_error(libc::ENOENT)),
@@ -488,7 +488,7 @@ impl FileSystem for OverlayFs {
             fuse_flags
         );
 
-        let data = self.get_data(ctx, Some(handle), inode, flags)?;
+        let data = self.get_data(ctx, Some(handle), inode, flags).await?;
 
         match data.real_handle {
             None => Err(Error::from_raw_os_error(libc::ENOENT)),

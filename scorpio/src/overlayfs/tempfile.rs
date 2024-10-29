@@ -44,7 +44,7 @@ pub struct TempFile {
     path: PathBuf,
     file: Option<File>,
 }
-
+#[allow(unused)]
 impl TempFile {
     /// Creates the TempFile using a prefix.
     ///
