@@ -1,6 +1,7 @@
 'use client'
 import '@/styles/globals.css'
 import type React from 'react'
+
 import { ApplicationLayout } from './application-layout'
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 
