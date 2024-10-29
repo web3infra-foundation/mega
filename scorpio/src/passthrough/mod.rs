@@ -2,7 +2,6 @@ use config::{CachePolicy, Config};
 use file_handle::{FileHandle, OpenableFileHandle};
 
 use fuse3::{raw::reply::ReplyEntry, Errno};
-pub use fuse_backend_rs::passthrough;
 use inode_store::{InodeId, InodeStore};
 
 
@@ -12,9 +11,8 @@ use util::{ebadf, is_dir, openat, reopen_fd_through_proc, stat_fd, validate_path
 use vm_memory::bitmap::BitmapSlice;
 use std::{collections::{btree_map, BTreeMap}, ffi::{CStr, CString, OsString}, fs::File, io::{self, Error}, marker::PhantomData, os::{fd::{AsFd, AsRawFd, BorrowedFd, RawFd}, unix::ffi::OsStringExt}, path::PathBuf, sync::Arc, time::Duration};
 use std::io::Result;
-use crate::overlayfs::BoxedLayer;
+use crate::util::convert_stat64_to_file_attr;
 
-pub mod logwrapper;
 mod inode_store;
 mod file_handle;
 mod mount_fd;
@@ -23,9 +21,8 @@ mod os_compat;
 mod util;
 mod config;
 mod async_io;
-mod atomic;
-mod logfs;
-use atomic::*;
+pub mod logfs;
+use crate::util::atomic::*;
 
 /// Current directory
 pub const CURRENT_DIR_CSTR: &[u8] = b".\0";
@@ -38,20 +35,19 @@ pub const PROC_SELF_FD_CSTR: &[u8] = b"/proc/self/fd\0";
 pub const ROOT_ID: u64 = 1;
 use tokio::sync::{Mutex, MutexGuard, RwLock};
 
-
-
-pub fn new_passthroughfs_layer(rootdir: &str) -> Result<BoxedLayer> {
-    let config = fuse_backend_rs::passthrough::Config { 
+#[allow(unused)]
+pub async fn new_passthroughfs_layer(rootdir: &str) -> Result<PassthroughFs> {
+    let config = Config { 
         root_dir: String::from(rootdir), 
         // enable xattr`
         xattr: true, 
         do_import: true, 
         ..Default::default() };
 
-    let fs = Box::new(passthrough::PassthroughFs::<()>::new(config)?);
+    let fs =PassthroughFs::<()>::new(config)?;
     
-    fs.import()?;
-    Ok(fs as BoxedLayer)
+    fs.import().await?;
+    Ok(fs)
 }
 
 type Inode = u64;
@@ -736,7 +732,7 @@ impl<S: BitmapSlice + Send + Sync> PassthroughFs<S> {
         //         attr_flags |= FUSE_ATTR_DAX;
         //     }
         // }
-       let mut attr_temp = util::convert_stat64_to_file_attr(st.st);
+       let mut attr_temp = convert_stat64_to_file_attr(st.st);
        attr_temp.ino = inode;
         Ok(ReplyEntry {
             ttl: entry_timeout,
@@ -908,7 +904,7 @@ use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
         }
 
         init_logging().unwrap();
-        let  cfg = Config { 
+        let cfg =Config { 
             xattr: true, 
             do_import: true, 
             root_dir: String::from("/home/luxian/code/leetcode"), 

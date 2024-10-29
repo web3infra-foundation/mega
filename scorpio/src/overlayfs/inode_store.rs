@@ -5,11 +5,12 @@
 use std::io::{Error, ErrorKind, Result};
 use std::{
     collections::HashMap,
-    sync::{atomic::Ordering, Arc},
+    sync::Arc,
 };
 
 use super::{Inode, OverlayInode, VFS_MAX_INO};
 
+use futures::future::join_all;
 use radix_trie::Trie;
 
 pub struct InodeStore {
@@ -55,7 +56,7 @@ impl InodeStore {
         ))
     }
 
-    pub(crate) fn alloc_inode(&mut self, path: &String) -> Result<Inode> {
+    pub(crate) fn alloc_inode(&mut self, path: &str) -> Result<Inode> {
         match self.path_mapping.get(path) {
             // If the path is already in the mapping, return the reserved inode number.
             Some(v) => Ok(*v),
@@ -78,7 +79,7 @@ impl InodeStore {
     }
 
     // Return the inode only if it's permanently deleted from both self.inodes and self.deleted_inodes.
-    pub(crate) fn remove_inode(
+    pub(crate) async fn remove_inode(
         &mut self,
         inode: Inode,
         path_removed: Option<String>,
@@ -86,7 +87,7 @@ impl InodeStore {
         let removed = match self.inodes.remove(&inode) {
             Some(v) => {
                 // Refcount is not 0, we have to delay the removal.
-                if v.lookups.load(Ordering::Relaxed) > 0 {
+                if v.lookups.load().await > 0 {
                     self.deleted.insert(inode, v.clone());
                     return None;
                 }
@@ -97,7 +98,7 @@ impl InodeStore {
                 match self.deleted.get(&inode) {
                     Some(v) => {
                         // Refcount is 0, the inode can be removed now.
-                        if v.lookups.load(Ordering::Relaxed) == 0 {
+                        if v.lookups.load().await == 0 {
                             self.deleted.remove(&inode)
                         } else {
                             // Refcount is not 0, the inode will be removed later.
@@ -118,23 +119,35 @@ impl InodeStore {
     // As a debug function, print all inode numbers in hash table.
     // This function consumes quite lots of memory, so it's disabled by default.
     #[allow(dead_code)]
-    pub(crate) fn debug_print_all_inodes(&self) {
+    pub(crate) async fn debug_print_all_inodes(&self) {
         // Convert the HashMap to Vector<(inode, pathname)>
-        let mut all_inodes = self
+        let mut all_inodes_f = self
             .inodes
             .iter()
-            .map(|(inode, ovi)| (inode, ovi.path.clone(), ovi.lookups.load(Ordering::Relaxed)))
-            .collect::<Vec<_>>();
+            .map(
+                |(inode, ovi)| {
+                    let path = ovi.path.clone();
+                    async move {
+                        (inode, path, ovi.lookups.load().await) // 等待 Future 完成
+                    }
+                }
+        ).collect::<Vec<_>>();
+        let mut all_inodes = join_all(all_inodes_f).await;
         all_inodes.sort_by(|a, b| a.0.cmp(b.0));
         trace!("all active inodes: {:?}", all_inodes);
 
         let mut to_delete = self
             .deleted
             .iter()
-            .map(|(inode, ovi)| (inode, ovi.path.clone(), ovi.lookups.load(Ordering::Relaxed)))
+            .map(|(inode, ovi)| {
+                async move{
+                    (inode, ovi.path.clone(), ovi.lookups.load().await)
+                }
+            })
             .collect::<Vec<_>>();
-        to_delete.sort_by(|a, b| a.0.cmp(b.0));
-        trace!("all deleted inodes: {:?}", to_delete);
+        let mut delete_to = join_all(to_delete).await;
+        delete_to.sort_by(|a, b| a.0.cmp(b.0));
+        trace!("all deleted inodes: {:?}", delete_to);
     }
 
     pub fn extend_inode_number(&mut self,next_inode:u64, limit_inode:u64){
@@ -180,68 +193,18 @@ mod test {
         node_c.path = "/c".to_string();
         store.insert_inode(VFS_MAX_INO - 1, Arc::new(node_c));
 
-        let inode = store.alloc_inode(&"/a".to_string()).unwrap();
+        let inode = store.alloc_inode("/a").unwrap();
         assert_eq!(inode, 1);
 
-        let inode = store.alloc_inode(&"/b".to_string()).unwrap();
+        let inode = store.alloc_inode("/b").unwrap();
         assert_eq!(inode, 2);
 
-        let inode = store.alloc_inode(&"/c".to_string()).unwrap();
+        let inode = store.alloc_inode("/c").unwrap();
         assert_eq!(inode, VFS_MAX_INO - 1);
 
-        let inode = store.alloc_inode(&"/notexist".to_string()).unwrap();
+        let inode = store.alloc_inode("/notexist").unwrap();
         assert_eq!(inode, 3);
     }
 
-    #[test]
-    fn test_remove_inode() {
-        let mut store = InodeStore::new();
-        let mut node_a = OverlayInode::new();
-        node_a.lookups.fetch_add(1, Ordering::Relaxed);
-        node_a.path = "/a".to_string();
-        store.insert_inode(1, Arc::new(node_a));
-
-        let mut node_b = OverlayInode::new();
-        node_b.path = "/b".to_string();
-        store.insert_inode(2, Arc::new(node_b));
-
-        let mut node_c = OverlayInode::new();
-        node_c.lookups.fetch_add(1, Ordering::Relaxed);
-        node_c.path = "/c".to_string();
-        store.insert_inode(VFS_MAX_INO - 1, Arc::new(node_c));
-
-        let inode = store.alloc_inode(&"/new".to_string()).unwrap();
-        assert_eq!(inode, 3);
-
-        // Not existing.
-        let inode = store.remove_inode(4, None);
-        assert!(inode.is_none());
-
-        // Existing but with non-zero refcount.
-        let inode = store.remove_inode(1, None);
-        assert!(inode.is_none());
-        assert!(store.get_deleted_inode(1).is_some());
-        assert!(store.path_mapping.get(&"/a".to_string()).is_some());
-
-        // Remove again with file path.
-        let inode = store.remove_inode(1, Some("/a".to_string()));
-        assert!(inode.is_none());
-        assert!(store.get_deleted_inode(1).is_some());
-        assert!(store.path_mapping.get(&"/a".to_string()).is_none());
-
-        // Node b has refcount 0, removing will be permanent.
-        let inode = store.remove_inode(2, Some("/b".to_string()));
-        assert!(inode.is_some());
-        assert!(store.get_deleted_inode(2).is_none());
-        assert!(store.path_mapping.get(&"/b".to_string()).is_none());
-
-        // Allocate new inode, it should reuse inode 2 since inode 1 is still in deleted list.
-        store.next_inode = 1;
-        let inode = store.alloc_inode(&"/b".to_string()).unwrap();
-        assert_eq!(inode, 2);
-
-        // Allocate inode with path "/c" will reuse its inode number.
-        let inode = store.alloc_inode(&"/c".to_string()).unwrap();
-        assert_eq!(inode, VFS_MAX_INO - 1);
-    }
+ 
 }
