@@ -3,7 +3,7 @@ use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::lfs;
-use ceres::lfs::lfs_structs::{BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
+use ceres::lfs::lfs_structs::{BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest, ObjectError, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
 use futures_util::StreamExt;
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
@@ -261,8 +261,18 @@ impl LFSClient {
         let text = response.text().await?;
         tracing::debug!("LFS download response:\n {:#?}", serde_json::from_str::<serde_json::Value>(&text)?);
         let resp = serde_json::from_str::<LfsBatchResponse>(&text)?;
+        let obj = resp.objects.first().expect("No object"); // Only get first
+        if obj.error.is_some() || obj.actions.is_none() {
+            let unknown_err = ObjectError {
+                code: 0,
+                message: "Unknown error".to_string(),
+            };
+            let err = obj.error.as_ref().unwrap_or(&unknown_err);
+            eprintln!("fatal: LFS download failed (BatchRequest). Code: {}, Message: {}", err.code, err.message);
+            return Err(anyhow!("LFS download failed."));
+        }
 
-        let link = resp.objects[0].actions.as_ref().unwrap().get("download").unwrap();
+        let link = obj.actions.as_ref().unwrap().get("download").unwrap();
 
         let mut is_chunked = false;
         // Chunk API
