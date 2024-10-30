@@ -50,7 +50,7 @@ async fn login_authorized(
     State(oauth_client): State<BasicClient>,
 ) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
-    let config = state.context.config.oauth.unwrap();
+    let config = state.context.config.oauth.as_ref().unwrap();
     // Get an auth token
     let token = oauth_client
         .exchange_code(AuthorizationCode::new(query.code.clone()))
@@ -79,8 +79,7 @@ async fn login_authorized(
     }
 
     let new_user: user::Model = github_user.into();
-    let user_storage = state.context.services.user_storage.clone();
-    let user = user_storage
+    let user = state.user_stg()
         .find_user_by_email(&new_user.email)
         .await
         .unwrap();
@@ -90,7 +89,7 @@ async fn login_authorized(
         // Create a new session filled with user data
         login_user = user.into();
     } else {
-        user_storage.save_user(new_user.clone()).await.unwrap();
+        state.user_stg().save_user(new_user.clone()).await.unwrap();
         login_user = new_user.into();
     }
 

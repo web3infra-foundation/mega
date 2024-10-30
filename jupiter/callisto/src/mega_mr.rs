@@ -9,7 +9,7 @@ use crate::db_enums::MergeStatus;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    pub mr_link: String,
+    pub link: String,
     pub title: String,
     pub merge_date: Option<DateTime>,
     pub status: MergeStatus,

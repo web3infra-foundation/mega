@@ -17,6 +17,6 @@ EXPOSE 5432
 
 # Add the database initialization script to the container
 # When the container starts, PostgreSQL will automatically execute all .sql files in the docker-entrypoint-initdb.d/ directory
-COPY ./sql/postgres/pg_20241023__init.sql /docker-entrypoint-initdb.d/
+COPY ./sql/postgres/pg_20241029__init.sql /docker-entrypoint-initdb.d/
 
 CMD ["postgres"]

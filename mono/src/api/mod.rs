@@ -11,13 +11,16 @@ use ceres::{
     protocol::repo::Repo,
 };
 use common::{errors::ProtocolError, model::CommonOptions};
-use jupiter::{context::Context, storage::user_storage::UserStorage};
+use jupiter::{
+    context::Context,
+    storage::{issue_storage::IssueStorage, mr_storage::MrStorage, user_storage::UserStorage},
+};
 
 pub mod api_router;
 pub mod error;
+pub mod issue;
 pub mod lfs;
-pub mod model;
-pub mod mr_router;
+pub mod mr;
 pub mod oauth;
 pub mod user;
 
@@ -26,7 +29,7 @@ pub struct MonoApiServiceState {
     pub context: Context,
     pub common: CommonOptions,
     pub oauth_client: Option<BasicClient>,
-    // TODO: Remove MemoryStore
+    // TODO: Replace MemoryStore
     pub store: Option<MemoryStore>,
 }
 
@@ -44,7 +47,7 @@ impl FromRef<MonoApiServiceState> for BasicClient {
 
 impl FromRef<MonoApiServiceState> for UserStorage {
     fn from_ref(state: &MonoApiServiceState) -> Self {
-        state.context.services.user_storage.clone()
+        state.context.user_stg()
     }
 }
 
@@ -53,6 +56,18 @@ impl MonoApiServiceState {
         MonoApiService {
             context: self.context.clone(),
         }
+    }
+
+    fn issue_stg(&self) -> IssueStorage {
+        self.context.services.issue_storage()
+    }
+
+    fn mr_stg(&self) -> MrStorage {
+        self.context.services.mr_storage()
+    }
+
+    fn user_stg(&self) -> UserStorage {
+        self.context.services.user_storage()
     }
 
     async fn api_handler(&self, path: PathBuf) -> Result<Box<dyn ApiHandler>, ProtocolError> {
@@ -114,10 +129,7 @@ pub mod util {
         state: State<MonoApiServiceState>,
     ) -> Result<(), saturn::context::Error> {
         let entities = get_entitystore(path.into(), state).await;
-        let cedar_context = CedarContext::new(
-            entities,
-        )
-        .unwrap();
+        let cedar_context = CedarContext::new(entities).unwrap();
         cedar_context.is_authorized(
             format!(r#"User::"{}""#, username)
                 .to_owned()
