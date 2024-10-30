@@ -2,7 +2,7 @@ import { verifySession } from "@/app/lib/dal";
 
 export const dynamic = 'force-dynamic' // defaults to auto
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request) {
     const session = await verifySession()
 
     // Check if the user is authenticated
