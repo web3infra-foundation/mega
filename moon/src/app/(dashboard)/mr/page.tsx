@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 
 interface MrInfoItem {
-    mr_link: string,
+    link: string,
     title: string,
     status: string,
     open_timestamp: number,
@@ -74,7 +74,7 @@ export default function MergeRequestPage() {
                     return "";
                 }
             case 'closed':
-                return (`MR ${item.mr_link} closed by Admin ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}`)
+                return (`MR ${item.link} closed by Admin ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}`)
         }
     }
 
@@ -93,7 +93,7 @@ export default function MergeRequestPage() {
                         avatar={
                             <MergeOutlined twoToneColor="#eb2f96" />
                         }
-                        title={<Link href={`/mr/${item.mr_link}`}>{`MR ${item.mr_link} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
+                        title={<Link href={`/mr/${item.link}`}>{`MR ${item.link} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
                         description={getDescription(item)}
                     />
                 </List.Item>

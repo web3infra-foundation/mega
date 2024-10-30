@@ -2,12 +2,12 @@
 import { useEffect, useState } from "react";
 import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
 import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from "@/components/rich-editor/RichEditor";
 import MRComment from "@/components/MRComment";
+import { useRouter } from "next/navigation";
 import * as React from 'react'
 
-interface MRDetail {
+interface IssueDetail {
     status: string,
     conversions: Conversation[],
     title: string,
@@ -22,48 +22,35 @@ interface Conversation {
 
 type Params = Promise<{ id: string }>
 
-export default function MRDetailPage({ params }: { params: Params }) {
+export default function IssueDetailPage({ params }: { params: Params }) {
     const { id } = React.use(params)
 
     const [editorState, setEditorState] = useState("");
     const [login, setLogin] = useState(false);
-    const [mrDetail, setMrDetail] = useState<MRDetail>(
+    const [info, setInfo] = useState<IssueDetail>(
         {
             status: "",
             conversions: [],
             title: "",
         }
     );
-    const [filedata, setFileData] = useState([]);
     const [loadings, setLoadings] = useState<boolean[]>([]);
+    const router = useRouter();
 
+    const fetchDetail = async () => {
+        const detail = await fetch(`/api/issue/${id}/detail`);
+        const detail_json = await detail.json();
+        setInfo(detail_json.data.data);
+    };
 
     const checkLogin = async () => {
         const res = await fetch(`/api/auth`);
         setLogin(res.ok);
     };
 
-    const fetchDetail = async () => {
-        const detail = await fetch(`/api/mr/${id}/detail`);
-        const detail_json = await detail.json();
-        setMrDetail(detail_json.data.data);
-    };
-
-    const fetchFileList = async () => {
-        set_to_loading(2)
-        try {
-            const res = await fetch(`/api/mr/${id}/files`);
-            const result = await res.json();
-            setFileData(result.data.data);
-        } finally {
-            cancel_loading(2)
-        }
-    };
-
     useEffect(() => {
+        checkLogin()
         fetchDetail()
-        fetchFileList();
-        checkLogin();
     }, [id]);
 
     const set_to_loading = (index: number) => {
@@ -82,19 +69,20 @@ export default function MRDetailPage({ params }: { params: Params }) {
         });
     }
 
-    async function approve_mr() {
-        set_to_loading(1);
-        const res = await fetch(`/api/mr/${id}/merge`, {
+    async function close_issue() {
+        const res = await fetch(`/api/issue/${id}/close`, {
             method: 'POST',
         });
         if (res) {
-            cancel_loading(1);
+            router.push(
+                "/issue"
+            );
         }
     };
 
     async function save_comment(comment) {
         set_to_loading(3);
-        const res = await fetch(`/api/mr/${id}/comment`, {
+        const res = await fetch(`/api/issue/${id}/comment`, {
             method: 'POST',
             body: comment,
         });
@@ -105,18 +93,16 @@ export default function MRDetailPage({ params }: { params: Params }) {
         }
     }
 
-    let conv_items = mrDetail?.conversions.map(conv => {
+    let conv_items = info?.conversions.map(conv => {
         let icon;
         let children;
         switch (conv.conv_type) {
             case "Comment": icon = <CommentOutlined />; children = <MRComment conv={conv} fetchDetail={fetchDetail} />; break
-            case "Merged": icon = <MergeOutlined />; children = "Merged via the queue into main " + formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true }); break;
             case "Closed": icon = <CloseCircleOutlined />; children = conv.comment;
         };
 
         const element = {
             dot: icon,
-            // color: 'red',
             children: children
         }
         return element
@@ -129,44 +115,22 @@ export default function MRDetailPage({ params }: { params: Params }) {
             children:
                 <Space direction="vertical" style={{ width: '100%' }}>
                     <Timeline items={conv_items} />
-                    <h1>Add a comment</h1>
-                    <RichEditor setEditorState={setEditorState} />
-                    <Flex justify={"flex-end"}>
-                        <Button loading={loadings[3]} onClick={() => save_comment(editorState)}>Comment</Button>
-                    </Flex>
+                    {info && info.status === "open" &&
+                        <>
+                            <h1>Add a comment</h1>
+                            <RichEditor setEditorState={setEditorState} />
+                            <Flex gap="small" justify={"flex-end"}>
+                                <Button loading={loadings[3]} disabled={!login} onClick={() => close_issue()}>Close issue</Button>
+                                <Button loading={loadings[3]} disabled={editorState === "" || !login} onClick={() => save_comment(editorState)}>Comment</Button>
+                            </Flex>
+                        </>
+                    }
                 </Space>
-        },
-        {
-            key: '2',
-            label: 'Files Changed',
-            children: <Space style={{ width: '100%' }}>
-                <List
-                    // style={{ width: '100%' }}
-                    header={<div>Change File List</div>}
-                    bordered
-                    dataSource={filedata}
-                    loading={loadings[2]}
-                    renderItem={(item) => (
-                        <List.Item>
-                            {item}
-                        </List.Item>
-                    )}
-                />
-            </Space>
         }
     ];
 
     return (
-        <Card title={mrDetail.title + " #" + id}>
-            {mrDetail && mrDetail.status === "open" &&
-                <Button
-                    loading={loadings[1]}
-                    onClick={() => approve_mr()}
-                    disabled={!login}
-                >
-                    Merge MR
-                </Button>
-            }
+        <Card title={info.title + " #" + id}>
             <Tabs defaultActiveKey="1" items={tab_items} />
         </Card>
     )

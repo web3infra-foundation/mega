@@ -48,7 +48,6 @@ pub async fn git_info_refs(
 }
 
 async fn http_auth(header: &HeaderMap<HeaderValue>, context: &Context) -> bool {
-    let stg = context.services.user_storage.clone();
     for (k, v) in header {
         if k == http::header::AUTHORIZATION {
             let decoded = general_purpose::STANDARD
@@ -65,9 +64,9 @@ async fn http_auth(header: &HeaderMap<HeaderValue>, context: &Context) -> bool {
             let username = parts.next().unwrap_or("");
             let password = parts.next().unwrap_or("");
             tracing::debug!("{}, {}", username, password);
-            match stg.find_user_by_name(username).await.unwrap() {
+            match context.user_stg().find_user_by_name(username).await.unwrap() {
                 Some(user) => {
-                    return stg.check_token(user.id, password).await.unwrap();
+                    return context.user_stg().check_token(user.id, password).await.unwrap();
                 }
                 None => return false,
             }
