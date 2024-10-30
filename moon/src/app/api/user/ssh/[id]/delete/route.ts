@@ -3,7 +3,11 @@ import { NextResponse } from 'next/server'
 
 const endpoint = process.env.MEGA_INTERNAL_HOST;
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>
+
+export async function POST(request: Request, props: { params: Params }) {
+    const params = await props.params;
+    
     const session = await verifySession()
     if (!session) return Response.json({})
 

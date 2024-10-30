@@ -4,7 +4,7 @@ import { Button, Input, Space, Flex } from 'antd/lib';
 import RichEditor from "@/components/rich-editor/RichEditor";
 import { useRouter } from "next/navigation";
 
-export default function MRDetailPage({ params }: { params: { id: string } }) {
+export default function MRDetailPage() {
     const [editorState, setEditorState] = useState("");
     const [title, setTitle] = useState("");
     const [loadings, setLoadings] = useState<boolean[]>([]);

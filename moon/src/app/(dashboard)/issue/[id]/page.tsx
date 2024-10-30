@@ -5,6 +5,7 @@ import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design
 import RichEditor from "@/components/rich-editor/RichEditor";
 import MRComment from "@/components/MRComment";
 import { useRouter } from "next/navigation";
+import * as React from 'react'
 
 interface IssueDetail {
     status: string,
@@ -19,7 +20,11 @@ interface Conversation {
     created_at: number,
 }
 
-export default function IssueDetailPage({ params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>
+
+export default function IssueDetailPage({ params }: { params: Params }) {
+    const { id } = React.use(params)
+
     const [editorState, setEditorState] = useState("");
     const [login, setLogin] = useState(false);
     const [info, setInfo] = useState<IssueDetail>(
@@ -33,7 +38,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
     const router = useRouter();
 
     const fetchDetail = async () => {
-        const detail = await fetch(`/api/issue/${params.id}/detail`);
+        const detail = await fetch(`/api/issue/${id}/detail`);
         const detail_json = await detail.json();
         setInfo(detail_json.data.data);
     };
@@ -46,7 +51,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
     useEffect(() => {
         checkLogin()
         fetchDetail()
-    }, [params.id]);
+    }, [id]);
 
     const set_to_loading = (index: number) => {
         setLoadings((prevLoadings) => {
@@ -65,7 +70,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
     }
 
     async function close_issue() {
-        const res = await fetch(`/api/issue/${params.id}/close`, {
+        const res = await fetch(`/api/issue/${id}/close`, {
             method: 'POST',
         });
         if (res) {
@@ -77,7 +82,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
 
     async function save_comment(comment) {
         set_to_loading(3);
-        const res = await fetch(`/api/issue/${params.id}/comment`, {
+        const res = await fetch(`/api/issue/${id}/comment`, {
             method: 'POST',
             body: comment,
         });
@@ -125,7 +130,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
     ];
 
     return (
-        <Card title={info.title + " #" + params.id}>
+        <Card title={info.title + " #" + id}>
             <Tabs defaultActiveKey="1" items={tab_items} />
         </Card>
     )

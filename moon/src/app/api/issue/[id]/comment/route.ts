@@ -1,8 +1,10 @@
 import { verifySession } from "@/app/lib/dal";
-import { redirect } from "next/navigation";
-import { NextResponse } from "next/server";
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>
+
+export async function POST(request: Request, props: { params: Params }) {
+    const params = await props.params
+
     const session = await verifySession()
     const jsonData = await request.json();
 

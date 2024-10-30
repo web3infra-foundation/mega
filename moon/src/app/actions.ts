@@ -5,7 +5,8 @@ import { redirect } from 'next/navigation';
 
 export async function handleLogin(sessionData) {
   const encryptedSessionData = encrypt(sessionData) // Encrypt your session data
-  cookies().set('access_token', encryptedSessionData, {
+  const cookieStore = await cookies()
+  cookieStore.set('access_token', encryptedSessionData, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     maxAge: 60 * 60 * 24 * 7, // One week
@@ -16,7 +17,7 @@ export async function handleLogin(sessionData) {
 }
 
 export async function get_access_token() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get('access_token')
   return token
 }

@@ -1,6 +1,10 @@
 import { verifySession } from "@/app/lib/dal";
 
-export async function POST(request: Request,  { params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>
+
+export async function POST(request: Request,  props: { params: Params }) {
+    const params = await props.params
+
     const session = await verifySession()
     const jsonData = await request.json();
 
