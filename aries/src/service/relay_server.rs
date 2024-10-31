@@ -13,7 +13,9 @@ use clap::Parser;
 use common::config::Config;
 use gemini::ztm::hub::{LocalHub, ZTMUserPermit, ZTMCA};
 use gemini::ztm::send_get_request_to_peer_by_tunnel;
-use gemini::{LFSInfo, LFSInfoPostBody, Node, RelayGetParams, RelayResultRes, RepoInfo};
+use gemini::{
+    LFSChunk, LFSInfo, LFSInfoPostBody, LFSInfoRes, Node, RelayGetParams, RelayResultRes, RepoInfo,
+};
 use jupiter::context::Context;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -92,7 +94,8 @@ pub fn routers() -> Router<AppState> {
         .route("/repo_list", get(repo_list))
         .route("/test/send", get(send_message))
         .route("/lfs_share", post(lfs_share))
-        .route("/lfs_list", get(lfs_list));
+        .route("/lfs_list", get(lfs_list))
+        .route("/lfs_chunk", get(lfs_chunk));
 
     Router::new()
         .merge(router)
@@ -230,6 +233,11 @@ pub async fn lfs_list(
     Query(_query): Query<RelayGetParams>,
     state: State<AppState>,
 ) -> Result<Json<Vec<LFSInfo>>, (StatusCode, String)> {
+    let lfs_info_list_result = lfs_list_handler(state).await;
+    Ok(Json(lfs_info_list_result))
+}
+
+async fn lfs_list_handler(state: State<AppState>) -> Vec<LFSInfo> {
     let storage = state.context.services.ztm_storage.clone();
     let lfs_info_list: Vec<LFSInfo> = storage
         .get_all_lfs_info()
@@ -254,7 +262,7 @@ pub async fn lfs_list(
         }
         lfs_info_list_result.push(lfs.clone());
     }
-    Ok(Json(lfs_info_list_result))
+    lfs_info_list_result
 }
 
 async fn send_message(
@@ -286,6 +294,47 @@ async fn send_message(
     };
 
     Ok(Json(result))
+}
+
+pub async fn lfs_chunk(
+    Query(query): Query<RelayGetParams>,
+    state: State<AppState>,
+) -> Result<Json<LFSInfoRes>, (StatusCode, String)> {
+    if query.file_hash.is_none() {
+        return Err((StatusCode::BAD_REQUEST, "not enough paras".to_string()));
+    }
+    let file_hash = query.file_hash.unwrap().clone();
+
+    let lfs_object = state
+        .context
+        .services
+        .lfs_db_storage
+        .get_lfs_object(file_hash.clone())
+        .await
+        .unwrap();
+
+    if lfs_object.is_none() {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "lfs chunk info not found".to_string(),
+        ));
+    }
+
+    let mut lfs_object_chunks: Vec<LFSChunk> = state
+        .context
+        .services
+        .lfs_db_storage
+        .get_lfs_relations(file_hash)
+        .await
+        .unwrap()
+        .iter()
+        .map(|x| x.clone().into())
+        .collect();
+
+    let mut lfs_info_res: LFSInfoRes = lfs_object.unwrap().into();
+    lfs_info_res.chunks.append(&mut lfs_object_chunks);
+
+    Ok(Json(lfs_info_res))
 }
 
 async fn loop_running(context: Context) {
