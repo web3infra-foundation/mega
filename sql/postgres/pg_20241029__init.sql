@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS "mega_mr" (
 );
 CREATE INDEX "idx_mr_path" ON "mega_mr" ("path");
 
-CREATE TABLE IF NOT EXISTS "mega_conversion" (
+CREATE TABLE IF NOT EXISTS "mega_conversation" (
   "id" BIGINT PRIMARY KEY,
   "link" VARCHAR(20) NOT NULL,
   "user_id" BIGINT NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS "mega_conversion" (
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL
 );
-CREATE INDEX "idx_conversation" ON "mega_conversion" ("link");
+CREATE INDEX "idx_conversation" ON "mega_conversation" ("link");
 
 
 CREATE TABLE IF NOT EXISTS "mega_issue" (

@@ -62,7 +62,7 @@ export default function Page({ params }: { params: Params }) {
     return (
         <Flex gap="middle" wrap>
             <Layout style={breadStyle}>
-                <Bread path={new_path} />
+                <Bread path={path} />
                 {
                     cloneBtn &&
                     <Flex justify={'flex-end'} >
