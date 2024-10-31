@@ -21,7 +21,7 @@ pub trait Layer: Filesystem {
     async fn create_whiteout(&self, ctx: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
         // Use temp value to avoid moved 'parent'.
         let ino: u64 = parent;
-        match self.lookup(ctx, ino, name).await {
+        match self.lookup(ctx, ino, name).await {//FXIME: errir 
             Ok(v) => {
                 // Find whiteout char dev.
                 if is_whiteout(&v.attr) {
@@ -36,7 +36,17 @@ pub trait Layer: Filesystem {
                 }
             }
             Err(e) =>  {
-                return Err(e)
+                let e:std::io::Error = e.into();
+                match e.raw_os_error(){
+                    Some(raw_error) => {
+                        // We expect ENOENT error.
+                        if raw_error != libc::ENOENT {
+                            return Err(e.into());
+                        }
+                    }
+                    None => return Err(e.into()),
+                }
+               
             },
         }
 
