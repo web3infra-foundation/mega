@@ -22,6 +22,7 @@ pub struct LFSClient {
     pub batch_url: Url,
     pub lfs_url: Url,
     pub client: Client,
+    pub bootstrap: Option<(String, u16)> // for p2p: (bootstrap_node, ztm_agent_port)
 }
 static LFS_CLIENT: OnceCell<LFSClient> = OnceCell::const_new();
 impl LFSClient {
@@ -58,6 +59,7 @@ impl ProtocolClient for LFSClient {
             batch_url: lfs_server.join("objects/batch").unwrap(),
             lfs_url: lfs_server,
             client,
+            bootstrap: None,
         }
     }
 }
@@ -69,6 +71,21 @@ impl LFSClient {
         match url {
             Some(url) => LFSClient::from_url(&Url::parse(&url).unwrap()),
             None => panic!("fatal: no remote set for current branch, use `libra branch --set-upstream-to <remote>/<branch>`"),
+        }
+    }
+
+    // TODO add one method that both support Server & P2P
+    /// Only for p2p
+    pub async fn from_bootstrap_node(bootstrap_node: &str, ztm_agent_port: u16) -> Self {
+        let client = Client::builder()
+            .default_headers(lfs::LFS_HEADERS.clone())
+            .build()
+            .unwrap();
+        Self {
+            batch_url: "",
+            lfs_url: "",
+            client,
+            bootstrap: Some((bootstrap_node.to_string(), ztm_agent_port)),
         }
     }
 
@@ -368,6 +385,95 @@ impl LFSClient {
             file.seek(tokio::io::SeekFrom::Start(0)).await?; // ensure
             file.write_all(pointer.as_bytes()).await?;
             Err(anyhow!("Checksum mismatch, fallback to pointer file."))
+        }
+    }
+
+    #[allow(clippy::type_complexity)]
+    /// download (GET) one LFS file peer-to-peer
+    pub async fn download_object_p2p(
+        &self,
+        file_uri: &str, // p2p protocol
+        size: u64,
+        path: impl AsRef<Path>,
+        mut reporter: Option<(
+            &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
+            f64 // step
+        )>) -> anyhow::Result<()>
+    {
+        let (bootstrap_node, ztm_agent_port) = match &self.bootstrap {
+            Some(value) => value,
+            None => return Err(anyhow!("fatal: No bootstrap node set for P2P download.")),
+        };
+
+        let hash = gemini::lfs::get_file_hash_from_origin(file_uri.to_owned()).await?;
+        tracing::info!("Downloading LFS file: {}", hash);
+        let peer_ports = gemini::lfs::create_lfs_download_tunnel(
+            bootstrap_node.clone(),
+            *ztm_agent_port,
+            file_uri.to_owned()
+        ).await.unwrap();
+        if peer_ports.is_empty() {
+            eprintln!("fatal: No peer online, download failed");
+            return Err(anyhow!("fatal: No peer online."));
+        }
+        tracing::debug!("P2P download tunnel ports: {:?}", peer_ports);
+
+        // TODO temp, change to Relay
+        let chunk_info_server = format!("http://localhost:{}", peer_ports[0]);
+        let chunks = match self.fetch_chunks(&format!("{}/objects/{}", chunk_info_server, hash)).await {
+            Ok(chunks) => chunks,
+            Err(_) => return Err(anyhow!("fatal: LFS Chunk API failed.")),
+        };
+        tracing::debug!("LFS chunks: {:?}", chunks.len());
+
+        // infer all chunks has same size (except last)
+        if chunks[0].size * (chunks.len() - 1) as i64 + chunks.last().unwrap().size != size as i64 {
+            eprintln!("fatal: LFS Chunk size mismatch.");
+            return Err(anyhow!("LFS Chunk size mismatch."));
+        }
+
+        let mut checksum = Context::new(&SHA256);
+        let mut file = tokio::fs::File::create(path).await?;
+
+        for (i, chunk) in chunks.iter().enumerate() {
+            println!("- part: {}/{}", i+1, chunks.len());
+            let url = format!("http://localhost:{}/objects/{}", peer_ports[i % peer_ports.len()], chunk.sub_oid);
+            let response = self.client.get(&url).send().await?;
+            if !response.status().is_success() {
+                eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
+                return Err(anyhow!("LFS download failed."));
+            }
+
+            let mut buffer = Vec::with_capacity(chunk.size as usize);
+            let mut chunk_checksum = Context::new(&SHA256);
+            let mut stream = response.bytes_stream();
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk?;
+                buffer.write_all(&chunk).await?;
+                chunk_checksum.update(&chunk);
+                checksum.update(&chunk);
+            }
+            let chunk_checksum = hex::encode(chunk_checksum.finish().as_ref());
+            // TODO retry
+            if chunk_checksum != chunk.sub_oid {
+                eprintln!("fatal: chunk download failed. Chunk checksum mismatch: {} != {}", chunk_checksum, chunk.sub_oid);
+                return Err(anyhow!("chunk download failed."));
+            }
+            file.write_all(&buffer).await?;
+
+            // report progress TODO step
+            if let Some((ref mut report_fn, step)) = reporter {
+                let progress = (i as f64 / chunks.len() as f64) * 100.0;
+                report_fn(progress)?;
+            }
+        }
+        let checksum = hex::encode(checksum.finish().as_ref());
+        if checksum == hash {
+            println!("Downloaded.");
+            Ok(())
+        } else {
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}.", checksum, hash);
+            Err(anyhow!("Checksum mismatch."))
         }
     }
 
