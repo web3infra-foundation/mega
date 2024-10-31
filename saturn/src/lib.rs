@@ -30,16 +30,16 @@ pub enum ActionEnum {
 impl Display for ActionEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            ActionEnum::CreateMergeRequest => "Comment",
-            ActionEnum::EditIssue => "Deploy",
-            ActionEnum::EditMergeRequest => "Commit",
-            ActionEnum::AssignIssue => "ForcePush",
+            ActionEnum::CreateMergeRequest => "createMergeRequest",
+            ActionEnum::EditIssue => "editIssue",
+            ActionEnum::EditMergeRequest => "editMergeRequest",
+            ActionEnum::AssignIssue => "assignIssue",
             ActionEnum::ApproveMergeRequest => "approveMergeRequest",
-            ActionEnum::AddMaintainer => "Review",
-            ActionEnum::AddAdmin => "Approve",
-            ActionEnum::DeleteRepo => "MergeQueue",
-            ActionEnum::DeleteIssue => "Merged",
-            ActionEnum::DeleteMergeRequest => "Merged",
+            ActionEnum::AddMaintainer => "addMaintainer",
+            ActionEnum::AddAdmin => "addAdmin",
+            ActionEnum::DeleteRepo => "deleteRepo",
+            ActionEnum::DeleteIssue => "deleteIssue",
+            ActionEnum::DeleteMergeRequest => "deleteMergeRequest",
         };
         write!(f, "{}", s)
     }

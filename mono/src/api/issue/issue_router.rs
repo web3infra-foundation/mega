@@ -18,6 +18,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/issue/list", post(fetch_issue_list))
         .route("/issue/new", post(new_issue))
         .route("/issue/:link/close", post(close_issue))
+        .route("/issue/:link/reopen", post(reopen_issue))
         .route("/issue/:link/detail", get(issue_detail))
         .route("/issue/:link/comment", post(save_comment))
         .route("/issue/comment/:id/delete", post(delete_comment))
@@ -85,10 +86,23 @@ async fn new_issue(
 }
 
 async fn close_issue(
+    _: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = match state.issue_stg().close_issue(&link).await {
+        Ok(_) => CommonResult::success(None),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
+async fn reopen_issue(
+    _: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let res = match state.issue_stg().reopen_issue(&link).await {
         Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
     };

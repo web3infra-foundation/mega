@@ -89,6 +89,15 @@ impl IssueStorage {
         Ok(())
     }
 
+    pub async fn reopen_issue(&self, link: &str) -> Result<(), MegaError> {
+        if let Some(model) = self.get_issue(link).await.unwrap() {
+            let mut issue = model.into_active_model();
+            issue.status = Set("open".to_owned());
+            issue.update(self.get_connection()).await.unwrap();
+        };
+        Ok(())
+    }
+
     pub async fn get_issue_conversations(
         &self,
         link: &str,

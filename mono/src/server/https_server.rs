@@ -212,9 +212,6 @@ pub async fn post_method_router(
         pack_protocol.service_type = Some(ServiceType::UploadPack);
         crate::git_protocol::http::git_upload_pack(req, pack_protocol).await
     } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
-        if state.context.config.monorepo.disable_http_push {
-            return Err(ProtocolError::Disabled);
-        }
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
             state.context.clone(),

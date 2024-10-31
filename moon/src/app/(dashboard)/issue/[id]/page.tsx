@@ -70,7 +70,20 @@ export default function IssueDetailPage({ params }: { params: Params }) {
     }
 
     async function close_issue() {
+        set_to_loading(3);
         const res = await fetch(`/api/issue/${id}/close`, {
+            method: 'POST',
+        });
+        if (res) {
+            router.push(
+                "/issue"
+            );
+        }
+    };
+
+    async function reopen_issue() {
+        set_to_loading(3);
+        const res = await fetch(`/api/issue/${id}/reopen`, {
             method: 'POST',
         });
         if (res) {
@@ -124,6 +137,11 @@ export default function IssueDetailPage({ params }: { params: Params }) {
                                 <Button loading={loadings[3]} disabled={editorState === "" || !login} onClick={() => save_comment(editorState)}>Comment</Button>
                             </Flex>
                         </>
+                    }
+                    {info && info.status === "closed" &&
+                        <Flex gap="small" justify={"flex-end"}>
+                            <Button loading={loadings[3]} disabled={!login} onClick={() => reopen_issue()}>Reopen issue</Button>
+                        </Flex>
                     }
                 </Space>
         }
