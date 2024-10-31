@@ -1,6 +1,6 @@
 use std::fmt;
 
-use callisto::{ztm_lfs_info, ztm_node, ztm_repo_info};
+use callisto::{lfs_objects, lfs_split_relations, ztm_lfs_info, ztm_node, ztm_repo_info};
 use chrono::Utc;
 use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,7 @@ pub struct RelayGetParams {
     pub agent_name: Option<String>,
     pub service_name: Option<String>,
     pub service_port: Option<i32>,
+    pub file_hash: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -264,6 +265,39 @@ impl From<LFSInfoPostBody> for LFSInfo {
             peer_id: r.peer_id,
             origin: r.origin,
             peer_online: false,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LFSInfoRes {
+    pub oid: String,
+    pub size: i64,
+    pub chunks: Vec<LFSChunk>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LFSChunk {
+    pub sub_oid: String,
+    pub offset: i64,
+    pub size: i64,
+}
+
+impl From<lfs_objects::Model> for LFSInfoRes {
+    fn from(lfs: lfs_objects::Model) -> Self {
+        LFSInfoRes {
+            oid: lfs.oid,
+            size: lfs.size,
+            chunks: vec![],
+        }
+    }
+}
+
+impl From<lfs_split_relations::Model> for LFSChunk {
+    fn from(chunk: lfs_split_relations::Model) -> Self {
+        LFSChunk {
+            sub_oid: chunk.sub_oid,
+            offset: chunk.offset,
+            size: chunk.size,
         }
     }
 }

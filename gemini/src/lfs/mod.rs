@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
-use reqwest::Client;
+use reqwest::{get, Client};
 
 use crate::{
     util::handle_response, ztm::get_or_create_remote_mega_tunnel, LFSInfo, LFSInfoPostBody,
+    LFSInfoRes,
 };
 
 /// share lfs
@@ -60,6 +61,44 @@ pub async fn share_lfs(
         let context = response.text().await.unwrap();
         tracing::error!("Share lfs {} failed,{}", lfs.file_hash, context);
     }
+}
+
+/// get lfs chunks info
+///
+/// ## paras
+/// - `bootstrap_node`: bootstrap_node
+/// - `file_hash`: file_hash
+///
+/// for example
+/// ```
+/// {
+///  "bootstrap_node":"https://gitmono.org/relay",
+///  "file_hash":"52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6",
+///}
+/// ```
+/// This method will send a GET request to the relay to get lfs chunks info
+///
+pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> Option<LFSInfoRes> {
+    let url = format!(
+        "{}/api/v1/lfs_chunk?file_hash={}",
+        bootstrap_node, file_hash
+    );
+    let lfs_info: LFSInfoRes = match get(url.clone()).await {
+        Ok(response) => {
+            if !response.status().is_success() {
+                println!("Get lfs chuncks info failed  {}", url);
+                return None;
+            }
+            let body = response.text().await.unwrap();
+            let lfs_info: LFSInfoRes = serde_json::from_str(&body).unwrap();
+            lfs_info
+        }
+        Err(_) => {
+            println!("Get lfs chuncks info failed {}", url);
+            return None;
+        }
+    };
+    Some(lfs_info)
 }
 
 /// create lfs download local ports
@@ -253,5 +292,15 @@ mod tests {
     //     } else {
     //         println!("Check LFS SHA256 failed");
     //     }
+    // }
+
+    // #[tokio::test]
+    // async fn test_get_chunk_info() {
+    //     let res = super::get_lfs_chunks_info(
+    //         "http://localhost:8001".to_string(),
+    //         "52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6".to_string(),
+    //     )
+    //     .await;
+    //     println!("{:?}", res);
     // }
 }
