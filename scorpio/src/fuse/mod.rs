@@ -116,7 +116,7 @@ impl MegaFuse{
         let map_lock = &self.overlayfs.lock().unwrap();
         for (inode,ovl_fs) in map_lock.iter(){
             let inode_batch = self.inodes_alloc.alloc_inode(*inode);
-            ovl_fs.extend_inode_alloc(inode_batch);
+            ovl_fs.extend_inode_alloc(inode_batch).await;
             ovl_fs.init(capable).unwrap();
         }
     
@@ -131,7 +131,7 @@ impl FileSystem for MegaFuse{
         let map_lock = &self.overlayfs.lock().unwrap();
         for (inode,ovl_fs) in map_lock.iter(){
             let inode_batch = self.inodes_alloc.alloc_inode(*inode);
-            ovl_fs.extend_inode_alloc(inode_batch);
+            ovl_fs.extend_inode_alloc(inode_batch).await;
             ovl_fs.init(capable).unwrap();
         }
         Ok(fuse_backend_rs::abi::fuse_abi::FsOptions::empty())

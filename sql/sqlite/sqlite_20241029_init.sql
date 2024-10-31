@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS "mega_tag" (
 );
 CREATE TABLE IF NOT EXISTS "mega_mr" (
   "id" INTEGER PRIMARY KEY,
-  "mr_link" TEXT NOT NULL,
+  "link" TEXT NOT NULL,
   "title" TEXT NOT NULL,
   "merge_date" TEXT,
   "status" TEXT NOT NULL,
@@ -53,16 +53,16 @@ CREATE TABLE IF NOT EXISTS "mega_mr" (
 );
 CREATE INDEX "idx_mr_path" ON "mega_mr" ("path");
 
-CREATE TABLE IF NOT EXISTS "mega_mr_conv" (
+CREATE TABLE IF NOT EXISTS "mega_conversion" (
   "id" INTEGER PRIMARY KEY,
-  "mr_link" INTEGER NOT NULL,
+  "link" INTEGER NOT NULL,
   "user_id" INTEGER NOT NULL,
   "conv_type" TEXT NOT NULL,
   "comment" TEXT,
   "created_at" TEXT NOT NULL,
   "updated_at" TEXT NOT NULL
 );
-CREATE INDEX "idx_conversation" ON "mega_mr_conv" ("mr_link");
+CREATE INDEX "idx_conversation" ON "mega_conversion" ("link");
 
 CREATE TABLE IF NOT EXISTS "mega_issue" (
   "id" INTEGER PRIMARY KEY,

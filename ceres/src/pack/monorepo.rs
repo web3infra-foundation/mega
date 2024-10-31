@@ -11,13 +11,12 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future::join_all;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{db_enums::ConvType, raw_blob};
-use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
-use jupiter::{context::Context, storage::mono_storage::MonoStorage};
+use common::{errors::MegaError, utils::{self, MEGA_BRANCH_NAME}};
+use jupiter::{context::Context, storage::mr_storage::MrStorage};
 use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
 use mercury::{
     errors::GitError,
@@ -121,7 +120,7 @@ impl PackHandler for MonoRepo {
     }
 
     async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
-        let storage = self.context.services.mono_storage.clone();
+        let storage = self.context.mr_stg();
         let path_str = self.path.to_str().unwrap();
 
         let unpack_res = self.save_entry(receiver).await;
@@ -132,16 +131,12 @@ impl PackHandler for MonoRepo {
                     self.handle_existing_mr(&mut mr, &storage).await
                 }
                 None => {
-                    let mr_link: String = thread_rng()
-                        .sample_iter(&Alphanumeric)
-                        .take(8)
-                        .map(char::from)
-                        .collect();
+                    let link: String = utils::generate_link();
                     let mr = MergeRequest {
                         path: path_str.to_owned(),
                         from_hash: self.from_hash.clone(),
                         to_hash: self.to_hash.clone(),
-                        mr_link: mr_link.to_uppercase(),
+                        link,
                         title,
                         ..Default::default()
                     };
@@ -334,14 +329,14 @@ impl MonoRepo {
     async fn handle_existing_mr(
         &self,
         mr: &mut MergeRequest,
-        storage: &MonoStorage,
+        storage: &MrStorage,
     ) -> Result<(), GitError> {
         if mr.from_hash == self.from_hash {
             if mr.to_hash != self.to_hash {
                 let comment = self.comment_for_force_update(&mr.to_hash, &self.to_hash);
                 mr.to_hash = self.to_hash.clone();
                 storage
-                    .add_mr_conversation(&mr.mr_link, 0, ConvType::ForcePush, Some(comment))
+                    .add_mr_conversation(&mr.link, 0, ConvType::ForcePush, Some(comment))
                     .await
                     .unwrap();
             } else {
@@ -351,7 +346,7 @@ impl MonoRepo {
             mr.close();
             storage
                 .add_mr_conversation(
-                    &mr.mr_link,
+                    &mr.link,
                     0,
                     ConvType::Closed,
                     Some("Mega closed MR due to conflict".to_string()),

@@ -7,7 +7,7 @@ use futures_util::stream::Iter;
 
 use vm_memory::{bitmap::BitmapSlice, ByteValued};
 
-use crate::passthrough::{CURRENT_DIR_CSTR, EMPTY_CSTR, PARENT_DIR_CSTR};
+use crate::{passthrough::{CURRENT_DIR_CSTR, EMPTY_CSTR, PARENT_DIR_CSTR}, util::{convert_stat64_to_file_attr, filetype_from_mode}};
 
 use super::{config::CachePolicy, os_compat::LinuxDirent64, util::*, Handle, HandleData, PassthroughFs};
 use std::vec::IntoIter;
@@ -644,7 +644,7 @@ impl Filesystem for PassthroughFs {
      /// create a symbolic link.
      async fn symlink(
          &self,
-         req: Request,
+         _req: Request,
          parent: Inode,
          name: &OsStr,
          link: &OsStr,
@@ -658,7 +658,7 @@ impl Filesystem for PassthroughFs {
         let data = self.inode_map.get(parent).await?;
 
         let res = {
-            let (_uid, _gid) = set_creds(req.uid, req.gid)?;
+            //let (_uid, _gid) = set_creds(req.uid, req.gid)?;
 
             let file = data.get_file()?;
             // Safe because this doesn't modify any memory and we check the return value.
@@ -676,7 +676,7 @@ impl Filesystem for PassthroughFs {
      /// [`create`][Filesystem::create].
      async fn mknod(
          &self,
-         req: Request,
+         _req: Request,
          parent: Inode,
          name: &OsStr,
          mode: u32,
@@ -690,7 +690,7 @@ impl Filesystem for PassthroughFs {
         let file = data.get_file()?;
 
         let res = {
-            let (_uid, _gid) = set_creds(req.uid, req.gid)?;
+            //let (_uid, _gid) = set_creds(req.uid, req.gid)?;
 
             // Safe because this doesn't modify any memory and we check the return value.
             unsafe {
@@ -712,7 +712,7 @@ impl Filesystem for PassthroughFs {
      /// create a directory.
      async fn mkdir(
          &self,
-         req: Request,
+         _req: Request,
          parent: Inode,
          name: &OsStr,
          mode: u32,
@@ -725,7 +725,7 @@ impl Filesystem for PassthroughFs {
         let data = self.inode_map.get(parent).await?;
 
         let res = {
-            let (_uid, _gid) = set_creds(req.uid, req.gid)?;
+            //let (_uid, _gid) = set_creds(req.uid, req.gid)?;
 
             let file = data.get_file()?;
             // Safe because this doesn't modify any memory and we check the return value.
@@ -1078,11 +1078,10 @@ impl Filesystem for PassthroughFs {
         // The f{set,get,remove,list}xattr functions don't work on an fd opened with `O_PATH` so we
         // need to use the {set,get,remove,list}xattr variants.
         // Safe because this will only modify the contents of `buf`.
-        let nn = name;
         let res = unsafe {
             libc::getxattr(
                 pathname.as_ptr(),
-                nn.as_ptr(),
+                name.as_ptr(),
                 buf.as_mut_ptr() as *mut libc::c_void,
                 size as libc::size_t,
             )
@@ -1345,7 +1344,7 @@ impl Filesystem for PassthroughFs {
      /// more details.
      async fn create(
          &self,
-         req: Request,
+         _req: Request,
          parent: Inode,
          name: &OsStr,
          mode: u32,
@@ -1359,10 +1358,10 @@ impl Filesystem for PassthroughFs {
         let dir_file = dir.get_file()?;
 
         let new_file = {
-            let (_uid, _gid) = set_creds(req.uid, req.gid)?;
+            //let (_uid, _gid) = set_creds(req.uid, req.gid)?;
 
             let flags = self.get_writeback_open_flags(flags as i32).await;
-            Self::create_file_excl(&dir_file, name, flags, mode )?
+            Self::create_file_excl(&dir_file, name, flags, mode & 0o777)?
         };
 
         let entry = self.do_lookup(parent, name).await?;
@@ -1381,7 +1380,7 @@ impl Filesystem for PassthroughFs {
                 //     None
                 // };
 
-                let (_uid, _gid) = set_creds(req.uid, req.gid)?;
+                //let (_uid, _gid) = set_creds(req.uid, req.gid)?;
                 self.open_inode(entry.attr.ino, flags as i32).await?
             }
         };
