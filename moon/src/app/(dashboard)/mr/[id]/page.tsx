@@ -5,6 +5,7 @@ import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design
 import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from "@/components/rich-editor/RichEditor";
 import MRComment from "@/components/MRComment";
+import * as React from 'react'
 
 interface MRDetail {
     status: string,
@@ -19,7 +20,11 @@ interface Conversation {
     created_at: number,
 }
 
-export default function MRDetailPage({ params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>
+
+export default function MRDetailPage({ params }: { params: Params }) {
+    const { id } = React.use(params)
+
     const [editorState, setEditorState] = useState("");
     const [login, setLogin] = useState(false);
     const [mrDetail, setMrDetail] = useState<MRDetail>(
@@ -39,7 +44,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     };
 
     const fetchDetail = async () => {
-        const detail = await fetch(`/api/mr/${params.id}/detail`);
+        const detail = await fetch(`/api/mr/${id}/detail`);
         const detail_json = await detail.json();
         setMrDetail(detail_json.data.data);
     };
@@ -47,7 +52,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     const fetchFileList = async () => {
         set_to_loading(2)
         try {
-            const res = await fetch(`/api/mr/${params.id}/files`);
+            const res = await fetch(`/api/mr/${id}/files`);
             const result = await res.json();
             setFileData(result.data.data);
         } finally {
@@ -59,7 +64,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
         fetchDetail()
         fetchFileList();
         checkLogin();
-    }, [params.id]);
+    }, [id]);
 
     const set_to_loading = (index: number) => {
         setLoadings((prevLoadings) => {
@@ -79,7 +84,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
 
     async function approve_mr() {
         set_to_loading(1);
-        const res = await fetch(`/api/mr/${params.id}/merge`, {
+        const res = await fetch(`/api/mr/${id}/merge`, {
             method: 'POST',
         });
         if (res) {
@@ -89,7 +94,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
 
     async function save_comment(comment) {
         set_to_loading(3);
-        const res = await fetch(`/api/mr/${params.id}/comment`, {
+        const res = await fetch(`/api/mr/${id}/comment`, {
             method: 'POST',
             body: comment,
         });
@@ -152,7 +157,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     ];
 
     return (
-        <Card title={mrDetail.title + " #" + params.id}>
+        <Card title={mrDetail.title + " #" + id}>
             {mrDetail && mrDetail.status === "open" &&
                 <Button
                     loading={loadings[1]}
