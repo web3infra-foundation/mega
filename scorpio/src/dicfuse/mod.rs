@@ -328,39 +328,5 @@ mod tests {
     use fuse_backend_rs::{ api::server::Server, transport::{FuseChannel, FuseSession}};
     use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
-    use crate::server::FuseServer;
-
-    use super::Dicfuse;
-
-    #[test]
-    fn test_svc_loop_success() {
-        let dicfuse = Arc::new(Dicfuse::new());
-       // dicfuse.init(FsOptions::empty()).unwrap();
-        // Create fuse session
-        let mut se = FuseSession::new(Path::new(&"/home/luxian/megatest/dictest"), "dic", "", true).unwrap();
-        se.mount().unwrap();
-        let ch: FuseChannel = se.new_channel().unwrap();
-        println!("start fs servers");
-        let server = Arc::new(Server::new(dicfuse.clone()));
-
-        let mut dicfuse_server = FuseServer { server, ch };
-
-        // Spawn server thread
-        let handle = thread::spawn(move || {
-            let _ = dicfuse_server.svc_loop();
-        });
-        // Wait for termination signal
-        let mut signals = Signals::new(TERM_SIGNALS).unwrap();
-        println!("Signals start");
-        if let Some(_sig) = signals.forever().next() {
-            //pass
-        }
-        // Unmount and wake up
-        se.umount().unwrap();
-        se.wake().unwrap();
-        // Join server thread
-        let _ = handle.join();
-    }
-
 
 }
