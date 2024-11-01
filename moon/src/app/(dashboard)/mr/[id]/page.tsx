@@ -1,10 +1,12 @@
 'use client'
 import { useEffect, useState } from "react";
 import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
-import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from "@/components/rich-editor/RichEditor";
 import MRComment from "@/components/MRComment";
+import * as React from 'react'
+import { useRouter } from "next/navigation";
 
 interface MRDetail {
     status: string,
@@ -19,7 +21,11 @@ interface Conversation {
     created_at: number,
 }
 
-export default function MRDetailPage({ params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>
+
+export default function MRDetailPage({ params }: { params: Params }) {
+    const { id } = React.use(params)
+
     const [editorState, setEditorState] = useState("");
     const [login, setLogin] = useState(false);
     const [mrDetail, setMrDetail] = useState<MRDetail>(
@@ -31,7 +37,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     );
     const [filedata, setFileData] = useState([]);
     const [loadings, setLoadings] = useState<boolean[]>([]);
-
+    const router = useRouter();
 
     const checkLogin = async () => {
         const res = await fetch(`/api/auth`);
@@ -39,7 +45,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     };
 
     const fetchDetail = async () => {
-        const detail = await fetch(`/api/mr/${params.id}/detail`);
+        const detail = await fetch(`/api/mr/${id}/detail`);
         const detail_json = await detail.json();
         setMrDetail(detail_json.data.data);
     };
@@ -47,7 +53,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     const fetchFileList = async () => {
         set_to_loading(2)
         try {
-            const res = await fetch(`/api/mr/${params.id}/files`);
+            const res = await fetch(`/api/mr/${id}/files`);
             const result = await res.json();
             setFileData(result.data.data);
         } finally {
@@ -59,7 +65,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
         fetchDetail()
         fetchFileList();
         checkLogin();
-    }, [params.id]);
+    }, [id]);
 
     const set_to_loading = (index: number) => {
         setLoadings((prevLoadings) => {
@@ -79,17 +85,47 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
 
     async function approve_mr() {
         set_to_loading(1);
-        const res = await fetch(`/api/mr/${params.id}/merge`, {
+        const res = await fetch(`/api/mr/${id}/merge`, {
             method: 'POST',
         });
         if (res) {
             cancel_loading(1);
+            router.push(
+                "/mr"
+            );
         }
     };
 
+    async function close_mr() {
+        set_to_loading(3);
+        const res = await fetch(`/api/mr/${id}/close`, {
+            method: 'POST',
+        });
+        if (res) {
+            cancel_loading(3);
+            router.push(
+                "/mr"
+            );
+        }
+    };
+
+    async function reopen_mr() {
+        set_to_loading(3);
+        const res = await fetch(`/api/mr/${id}/reopen`, {
+            method: 'POST',
+        });
+        if (res) {
+            cancel_loading(3);
+            router.push(
+                "/mr"
+            );
+        }
+    };
+
+
     async function save_comment(comment) {
         set_to_loading(3);
-        const res = await fetch(`/api/mr/${params.id}/comment`, {
+        const res = await fetch(`/api/mr/${id}/comment`, {
             method: 'POST',
             body: comment,
         });
@@ -106,7 +142,8 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
         switch (conv.conv_type) {
             case "Comment": icon = <CommentOutlined />; children = <MRComment conv={conv} fetchDetail={fetchDetail} />; break
             case "Merged": icon = <MergeOutlined />; children = "Merged via the queue into main " + formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true }); break;
-            case "Closed": icon = <CloseCircleOutlined />; children = conv.comment;
+            case "Closed": icon = <CloseCircleOutlined />; children = conv.comment; break;
+            case "Reopen": icon = <PullRequestOutlined />; children = conv.comment; break;
         };
 
         const element = {
@@ -126,8 +163,14 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
                     <Timeline items={conv_items} />
                     <h1>Add a comment</h1>
                     <RichEditor setEditorState={setEditorState} />
-                    <Flex justify={"flex-end"}>
-                        <Button loading={loadings[3]} onClick={() => save_comment(editorState)}>Comment</Button>
+                    <Flex gap="small" justify={"flex-end"}>
+                        {mrDetail && mrDetail.status === "open" &&
+                            <Button loading={loadings[3]} disabled={!login} onClick={() => close_mr()}>Close Merge Request</Button>
+                        }
+                        {mrDetail && mrDetail.status === "closed" &&
+                            <Button loading={loadings[3]} disabled={!login} onClick={() => reopen_mr()}>Reopen Merge Request</Button>
+                        }
+                        <Button loading={loadings[3]} disabled={!login} onClick={() => save_comment(editorState)}>Comment</Button>
                     </Flex>
                 </Space>
         },
@@ -136,7 +179,6 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
             label: 'Files Changed',
             children: <Space style={{ width: '100%' }}>
                 <List
-                    // style={{ width: '100%' }}
                     header={<div>Change File List</div>}
                     bordered
                     dataSource={filedata}
@@ -152,7 +194,7 @@ export default function MRDetailPage({ params }: { params: { id: string } }) {
     ];
 
     return (
-        <Card title={mrDetail.title + " #" + params.id}>
+        <Card title={mrDetail.title + " #" + id}>
             {mrDetail && mrDetail.status === "open" &&
                 <Button
                     loading={loadings[1]}

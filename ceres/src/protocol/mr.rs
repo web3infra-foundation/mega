@@ -6,7 +6,7 @@ use common::utils::generate_id;
 #[derive(Clone)]
 pub struct MergeRequest {
     pub id: i64,
-    pub mr_link: String,
+    pub link: String,
     pub title: String,
     pub status: MergeStatus,
     pub merge_date: Option<NaiveDateTime>,
@@ -19,7 +19,7 @@ impl Default for MergeRequest {
     fn default() -> Self {
         Self {
             id: generate_id(),
-            mr_link: String::new(),
+            link: String::new(),
             title: String::new(),
             status: MergeStatus::Open,
             merge_date: None,
@@ -45,7 +45,7 @@ impl From<MergeRequest> for mega_mr::Model {
     fn from(value: MergeRequest) -> Self {
         Self {
             id: value.id,
-            mr_link: value.mr_link,
+            link: value.link,
             title: value.title,
             status: value.status,
             merge_date: value.merge_date,
@@ -62,7 +62,7 @@ impl From<mega_mr::Model> for MergeRequest {
     fn from(value: mega_mr::Model) -> Self {
         Self {
             id: value.id,
-            mr_link: value.mr_link,
+            link: value.link,
             title: value.title,
             status: value.status,
             merge_date: value.merge_date,

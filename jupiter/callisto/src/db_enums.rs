@@ -77,6 +77,7 @@ pub enum ConvType {
     MergeQueue,
     Merged,
     Closed,
+    Reopen,
 }
 
 impl Display for ConvType {
@@ -92,6 +93,7 @@ impl Display for ConvType {
             ConvType::MergeQueue => "MergeQueue",
             ConvType::Merged => "Merged",
             ConvType::Closed => "Closed",
+            ConvType::Reopen => "Reopen",
         };
         write!(f, "{}", s)
     }

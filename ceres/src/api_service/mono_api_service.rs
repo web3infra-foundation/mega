@@ -4,10 +4,9 @@ use std::str::FromStr;
 
 use axum::async_trait;
 
-use callisto::db_enums::{ConvType, MergeStatus};
+use callisto::db_enums::ConvType;
 use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
-use common::model::PageParams;
 use jupiter::context::Context;
 use jupiter::storage::batch_save_model;
 use jupiter::utils::converter::generate_git_keep_with_timestamp;
@@ -19,7 +18,6 @@ use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 use crate::api_service::ApiHandler;
 use crate::model::create_file::CreateFileInfo;
-use crate::model::mr::{MRDetail, MrInfoItem};
 use crate::protocol::mr::MergeRequest;
 
 #[derive(Clone)]
@@ -196,41 +194,9 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-    pub async fn mr_list(
-        &self,
-        status: &str,
-        pagination: PageParams,
-    ) -> Result<(Vec<MrInfoItem>, u64), MegaError> {
-        let status = if status == "open" {
-            vec![MergeStatus::Open]
-        } else if status == "closed" {
-            vec![MergeStatus::Closed, MergeStatus::Merged]
-        } else {
-            vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
-        };
+    pub async fn mr_tree_files(&self, link: &str) -> Result<Vec<PathBuf>, MegaError> {
         let storage = self.context.services.mono_storage.clone();
-        let (mr_list, total) = storage
-            .get_mr_by_status(status, pagination.page, pagination.per_page)
-            .await
-            .unwrap();
-        Ok((mr_list.into_iter().map(|m| m.into()).collect(), total))
-    }
-
-    pub async fn mr_detail(&self, mr_link: &str) -> Result<Option<MRDetail>, MegaError> {
-        let storage = self.context.services.mono_storage.clone();
-        let model = storage.get_mr(mr_link).await.unwrap();
-        if let Some(model) = model {
-            let mut detail: MRDetail = model.into();
-            let conversions = storage.get_mr_conversations(mr_link).await.unwrap();
-            detail.conversions = conversions.into_iter().map(|x| x.into()).collect();
-            return Ok(Some(detail));
-        }
-        Ok(None)
-    }
-
-    pub async fn mr_tree_files(&self, mr_link: &str) -> Result<Vec<PathBuf>, MegaError> {
-        let storage = self.context.services.mono_storage.clone();
-        let model = storage.get_mr(mr_link).await.unwrap();
+        let model = self.context.mr_stg().get_mr(link).await.unwrap();
         if let Some(model) = model {
             let to_tree_id = storage
                 .get_commit_by_hash(&model.to_hash)
@@ -312,32 +278,20 @@ impl MonoApiService {
             // update mr
             mr.merge();
             // add conversation
-            storage
-                .add_mr_conversation(&mr.mr_link, 0, ConvType::Merged, None)
+            self.context
+                .mr_stg()
+                .add_mr_conversation(&mr.link, 0, ConvType::Merged, None)
                 .await
                 .unwrap();
             // update mr status last
-            storage.update_mr(mr.clone().into()).await.unwrap();
+            self.context
+                .mr_stg()
+                .update_mr(mr.clone().into())
+                .await
+                .unwrap();
         } else {
             return Err(MegaError::with_message("ref hash conflict"));
         }
-        Ok(())
-    }
-
-    pub async fn comment(&self, mr_link: &str, comment: String) -> Result<(), MegaError> {
-        let storage = self.context.services.mono_storage.clone();
-        if let Some(model) = storage.get_mr(mr_link).await.unwrap() {
-            storage
-                .add_mr_conversation(&model.mr_link, 0, ConvType::Comment, Some(comment))
-                .await
-                .unwrap();
-        }
-        Ok(())
-    }
-
-    pub async fn delete_comment(&self, id: i64) -> Result<(), MegaError> {
-        let storage = self.context.services.mono_storage.clone();
-        storage.remove_mr_conversation(id).await.unwrap();
         Ok(())
     }
 

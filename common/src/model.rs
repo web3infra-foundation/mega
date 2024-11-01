@@ -50,14 +50,14 @@ impl<T> CommonResult<T> {
 }
 
 #[derive(Deserialize)]
-pub struct PageParams {
+pub struct Pagination {
     pub page: u64,
     pub per_page: u64,
 }
 
-impl Default for PageParams {
+impl Default for Pagination {
     fn default() -> Self {
-        PageParams {
+        Pagination {
             page: 1,
             per_page: 20,
         }
@@ -65,8 +65,8 @@ impl Default for PageParams {
 }
 
 #[derive(Deserialize)]
-pub struct RequestParams<T> {
-    pub pagination: PageParams,
+pub struct PageParams<T> {
+    pub pagination: Pagination,
     pub additional: T,
 }
 

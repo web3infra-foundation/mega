@@ -5,9 +5,10 @@ use common::config::Config;
 use crate::{
     lfs_storage::{local_storage::LocalStorage, LfsStorage},
     storage::{
-        git_db_storage::GitDbStorage, init::database_connection, lfs_db_storage::LfsDbStorage,
-        mono_storage::MonoStorage, mq_storage::MQStorage, raw_db_storage::RawDbStorage,
-        user_storage::UserStorage, ztm_storage::ZTMStorage,
+        git_db_storage::GitDbStorage, init::database_connection, issue_storage::IssueStorage,
+        lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, mq_storage::MQStorage,
+        mr_storage::MrStorage, raw_db_storage::RawDbStorage, user_storage::UserStorage,
+        ztm_storage::ZTMStorage,
     },
 };
 
@@ -24,6 +25,19 @@ impl Context {
             config,
         }
     }
+
+    pub fn user_stg(&self) -> UserStorage {
+        self.services.user_storage()
+    }
+
+    pub fn issue_stg(&self) -> IssueStorage {
+        self.services.issue_storage()
+    }
+
+    pub fn mr_stg(&self) -> MrStorage {
+        self.services.mr_storage()
+    }
+
     pub fn mock() -> Self {
         Context {
             services: Service::mock(),
@@ -40,7 +54,9 @@ pub struct Service {
     pub lfs_db_storage: LfsDbStorage,
     pub ztm_storage: ZTMStorage,
     pub mq_storage: MQStorage,
-    pub user_storage: UserStorage,
+    user_storage: UserStorage,
+    mr_storage: MrStorage,
+    issue_storage: IssueStorage,
     pub lfs_storage: Arc<dyn LfsStorage>,
 }
 
@@ -49,18 +65,32 @@ impl Service {
         let connection = Arc::new(database_connection(&config.database).await);
         Service {
             mono_storage: MonoStorage::new(connection.clone()).await,
-            git_db_storage:GitDbStorage::new(connection.clone()).await,
+            git_db_storage: GitDbStorage::new(connection.clone()).await,
             raw_db_storage: RawDbStorage::new(connection.clone()).await,
             lfs_db_storage: LfsDbStorage::new(connection.clone()).await,
             ztm_storage: ZTMStorage::new(connection.clone()).await,
             mq_storage: MQStorage::new(connection.clone()).await,
             user_storage: UserStorage::new(connection.clone()).await,
+            mr_storage: MrStorage::new(connection.clone()).await,
+            issue_storage: IssueStorage::new(connection.clone()).await,
             lfs_storage: Arc::new(LocalStorage::init(config.lfs.lfs_obj_local_path.clone())),
         }
     }
 
     async fn shared(config: &Config) -> Arc<Self> {
         Arc::new(Self::new(config).await)
+    }
+
+    pub fn issue_storage(&self) -> IssueStorage {
+        self.issue_storage.clone()
+    }
+
+    pub fn mr_storage(&self) -> MrStorage {
+        self.mr_storage.clone()
+    }
+
+    pub fn user_storage(&self) -> UserStorage {
+        self.user_storage.clone()
     }
 
     fn mock() -> Arc<Self> {
@@ -75,6 +105,8 @@ impl Service {
             lfs_storage: Arc::new(LocalStorage::init(
                 PathBuf::from(env::current_dir().unwrap().parent().unwrap()).join("tests"),
             )),
+            mr_storage: MrStorage::mock(),
+            issue_storage: IssueStorage::mock(),
         })
     }
 }
