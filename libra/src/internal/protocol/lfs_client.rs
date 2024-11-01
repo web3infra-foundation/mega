@@ -421,52 +421,87 @@ impl LFSClient {
             Some(chunks) => chunks,
             None => return Err(anyhow!("fatal: LFS Chunk API failed."))
         };
-        let chunks = lfs_info.chunks;
+        let mut chunks = lfs_info.chunks;
+        if chunks.is_empty() {
+            eprintln!("fatal: LFS Chunk API failed. No chunks found.");
+            return Err(anyhow!("fatal: No chunks found."));
+        }
+        chunks.sort_by(|a, b| a.offset.cmp(&b.offset));
         tracing::debug!("LFS chunks: {:?}", chunks.len());
 
+        // infer that all chunks share same size! (except last one)
+        let chunk_size = chunks.first().unwrap().size as usize;
         let mut checksum = Context::new(&SHA256);
         let mut file = tokio::fs::File::create(path).await?;
-
-        for (i, chunk) in chunks.iter().enumerate() {
-            println!("- part: {}/{}", i+1, chunks.len());
-            let url = format!("http://localhost:{}/objects/{}", peer_ports[i % peer_ports.len()], chunk.sub_oid);
-            let response = self.client.get(&url).send().await?;
-            if !response.status().is_success() {
-                eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
-                return Err(anyhow!("LFS download failed."));
-            }
-
-            let mut buffer = Vec::with_capacity(chunk.size as usize);
-            let mut chunk_checksum = Context::new(&SHA256);
-            let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk?;
-                buffer.write_all(&chunk).await?;
-                chunk_checksum.update(&chunk);
-                checksum.update(&chunk);
-            }
-            let chunk_checksum = hex::encode(chunk_checksum.finish().as_ref());
-            // TODO retry
-            if chunk_checksum != chunk.sub_oid {
-                eprintln!("fatal: chunk download failed. Chunk checksum mismatch: {} != {}", chunk_checksum, chunk.sub_oid);
-                return Err(anyhow!("chunk download failed."));
-            }
-            file.write_all(&buffer).await?;
-
-            // report progress TODO step
-            if let Some((ref mut report_fn, _step)) = reporter {
-                let progress = (i as f64 / chunks.len() as f64) * 100.0;
-                report_fn(progress)?;
-            }
+        for (i, chunk) in chunks.iter().enumerate() { // TODO parallel download
+            println!("- part: {}/{}", i + 1, chunks.len());
+            let mut retry = 0;
+            let data = loop { // retry
+                let mut downloaded = i * chunk_size; // TODO support resume
+                let mut last_progress = downloaded as f64 / lfs_info.size as f64 * 100.0;
+                let url = format!("http://localhost:{}/objects/{}", peer_ports[(i + retry) % peer_ports.len()], chunk.sub_oid);
+                let data = self.download_chunk(&url, &chunk.sub_oid, chunk.size as usize, |size| {
+                    if let Some((ref mut report_fn, step)) = reporter {
+                        downloaded += size;
+                        let progress = (downloaded as f64 / lfs_info.size as f64) * 100.0;
+                        if progress >= last_progress + step {
+                            last_progress = progress;
+                            report_fn(progress).unwrap();
+                        }
+                    }
+                }).await;
+                match data {
+                    Ok(data) => break data,
+                    Err(e) => {
+                        eprintln!("fatal: LFS download failed. Error: {}. Retry", e);
+                        retry += 1;
+                        if retry > 5 {
+                            eprintln!("fatal: LFS download failed. Retry limit exceeded.");
+                            return Err(anyhow!("LFS download failed."));
+                        }
+                    }
+                }
+            };
+            checksum.update(&data);
+            file.write_all(&data).await?;
         }
         let checksum = hex::encode(checksum.finish().as_ref());
         if checksum == hash {
-            println!("Downloaded.");
+            println!("Downloaded(p2p).");
             Ok(())
         } else {
-            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}.", checksum, hash);
-            Err(anyhow!("Checksum mismatch."))
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}. Fallback to pointer file.", checksum, hash);
+            file.set_len(0).await?; // clear
+            file.rewind().await?; // == seek(0)
+            let pointer = lfs::format_pointer_string(&hash, lfs_info.size as u64);
+            file.write_all(pointer.as_bytes()).await?;
+            Err(anyhow!("Checksum mismatch, fallback to pointer file."))
         }
+    }
+
+    async fn download_chunk(&self, url: &str, hash: &str, size: usize, mut callback: impl FnMut(usize)) -> anyhow::Result<Vec<u8>> {
+        let response = self.client.get(url).send().await?;
+        if !response.status().is_success() {
+            eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
+            return Err(anyhow!("LFS download failed."));
+        }
+        let mut buffer = Vec::with_capacity(size);
+        let mut checksum = Context::new(&SHA256);
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            buffer.write_all(&chunk).await?;
+            checksum.update(&chunk);
+
+            // report progress
+            callback(chunk.len());
+        }
+        let checksum = hex::encode(checksum.finish().as_ref());
+        if checksum != hash {
+            eprintln!("fatal: chunk download failed. Chunk checksum mismatch: {} != {}", checksum, hash);
+            return Err(anyhow!("Chunk checksum mismatch."));
+        }
+        Ok(buffer)
     }
 
     /// Only for MonoRepo (mega)
