@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { List, PaginationProps, Tag } from 'antd/lib';
+import { List, PaginationProps, Tag, Tabs, TabsProps } from 'antd/lib';
 import { format, formatDistance, fromUnixTime } from 'date-fns'
-import { MergeOutlined } from '@ant-design/icons';
+import { MergeOutlined, PullRequestOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import Link from 'next/link';
+import { Heading } from '@/components/catalyst/heading'
 
 
 interface MrInfoItem {
@@ -20,6 +21,7 @@ export default function MergeRequestPage() {
     const [mrList, setMrList] = useState<MrInfoItem[]>([]);
     const [numTotal, setNumTotal] = useState(0);
     const [pageSize, setPageSize] = useState(10);
+    const [status, setStatus] = useState("open")
 
     const fetchData = async (page: number, per_page: number) => {
         try {
@@ -34,7 +36,7 @@ export default function MergeRequestPage() {
                         per_page: per_page
                     },
                     additional: {
-                        status: ""
+                        status: status
                     }
                 }),
             });
@@ -50,7 +52,7 @@ export default function MergeRequestPage() {
     useEffect(() => {
 
         fetchData(1, pageSize);
-    }, [pageSize]);
+    }, [pageSize, status]);
 
     const getStatusTag = (status: string) => {
         switch (status) {
@@ -60,6 +62,17 @@ export default function MergeRequestPage() {
                 return <Tag color="purple">merged</Tag>;
             case 'closed':
                 return <Tag color="error">closed</Tag>;
+        }
+    };
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'open':
+                return <PullRequestOutlined />;
+            case 'closed':
+                return <CloseCircleOutlined />;
+            case 'merged':
+                return <MergeOutlined />;
         }
     };
 
@@ -82,22 +95,50 @@ export default function MergeRequestPage() {
         fetchData(current, pageSize);
     };
 
+    const tabsChange = (activeKey: string) => {
+        if (activeKey === '1') {
+            setStatus("open");
+        } else {
+            setStatus("closed");
+        }
+    }
+
+    const tab_items: TabsProps['items'] = [
+        {
+            key: '1',
+            label: 'Open',
+        },
+        {
+            key: '2',
+            label: 'Closed',
+        }
+    ];
+
+    <PullRequestOutlined />
+
     return (
-        <List
-            style={{ width: '80%', marginLeft: '10%', marginTop: '10px' }}
-            pagination={{ align: "center", pageSize: pageSize, total: numTotal, onChange: onChange }}
-            dataSource={mrList}
-            renderItem={(item, index) => (
-                <List.Item>
-                    <List.Item.Meta
-                        avatar={
-                            <MergeOutlined twoToneColor="#eb2f96" />
-                        }
-                        title={<Link href={`/mr/${item.link}`}>{`MR ${item.link} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
-                        description={getDescription(item)}
-                    />
-                </List.Item>
-            )}
-        />
+        <>
+            <Heading>Merge Request</Heading>
+            <br />
+            <Tabs defaultActiveKey="1" items={tab_items} onChange={tabsChange} />
+
+            <List
+                style={{ width: '80%', marginLeft: '10%', marginTop: '10px' }}
+                pagination={{ align: "center", pageSize: pageSize, total: numTotal, onChange: onChange }}
+                dataSource={mrList}
+                renderItem={(item, index) => (
+                    <List.Item>
+                        <List.Item.Meta
+                            avatar={
+                                getStatusIcon(item.status)
+                            }
+                            title={<Link href={`/mr/${item.link}`}>{`MR ${item.link} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
+                            description={getDescription(item)}
+                        />
+                    </List.Item>
+                )}
+            />
+        </>
+
     )
 }

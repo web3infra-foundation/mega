@@ -5,7 +5,8 @@ import { cache } from 'react'
 import { redirect } from 'next/navigation'
 
 export const verifySession = cache(async () => {
-    const session = (await cookies()).get('SESSION')?.value
+    const cookieStore = await cookies()
+    const session = cookieStore.get('SESSION')?.value
     if (!session) {
         redirect('/login')
     }
@@ -13,6 +14,7 @@ export const verifySession = cache(async () => {
 })
 
 export const isLoginIn = async () => {
-    const session = (await cookies()).get('SESSION')?.value
+    const cookieStore = await cookies()
+    const session = cookieStore.get('SESSION')?.value
     return session != null 
 }

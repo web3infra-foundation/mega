@@ -9,6 +9,7 @@ use axum::{
 use bytes::Bytes;
 
 use callisto::db_enums::{ConvType, MergeStatus};
+use ceres::protocol::mr::MergeRequest;
 use common::model::{CommonPage, CommonResult, PageParams};
 use saturn::ActionEnum;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
@@ -24,9 +25,73 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/mr/list", post(fetch_mr_list))
         .route("/mr/:link/detail", get(mr_detail))
         .route("/mr/:link/merge", post(merge))
+        .route("/mr/:link/close", post(close_mr))
+        .route("/mr/:link/reopen", post(reopen_mr))
         .route("/mr/:link/files", get(get_mr_files))
         .route("/mr/:link/comment", post(save_comment))
         .route("/mr/comment/:conv_id/delete", post(delete_comment))
+}
+
+async fn reopen_mr(
+    user: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
+        if model.status == MergeStatus::Closed {
+            util::check_permissions(
+                &user.name,
+                &model.path,
+                ActionEnum::EditMergeRequest,
+                state.clone(),
+            )
+            .await
+            .unwrap();
+            let mut mr: MergeRequest = model.into();
+            mr.status = MergeStatus::Open;
+            let res = match state
+                .mr_stg()
+                .reopen_mr(mr.into(), user.user_id, &user.name)
+                .await
+            {
+                Ok(_) => CommonResult::success(None),
+                Err(err) => CommonResult::failed(&err.to_string()),
+            };
+            return Ok(Json(res));
+        }
+    }
+    Ok(Json(CommonResult::failed("not found")))
+}
+
+async fn close_mr(
+    user: LoginUser,
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
+        if model.status == MergeStatus::Open {
+            util::check_permissions(
+                &user.name,
+                &model.path,
+                ActionEnum::EditMergeRequest,
+                state.clone(),
+            )
+            .await
+            .unwrap();
+            let mut mr: MergeRequest = model.into();
+            mr.status = MergeStatus::Closed;
+            let res = match state
+                .mr_stg()
+                .close_mr(mr.into(), user.user_id, &user.name)
+                .await
+            {
+                Ok(_) => CommonResult::success(None),
+                Err(err) => CommonResult::failed(&err.to_string()),
+            };
+            return Ok(Json(res));
+        }
+    }
+    Ok(Json(CommonResult::failed("not found")))
 }
 
 async fn merge(
@@ -34,23 +99,26 @@ async fn merge(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    if let Some(model) = state.mr_stg().get_open_mr_by_link(&link).await.unwrap() {
-        let path = model.path.clone();
-        let _ = util::check_permissions(
-            &user.name,
-            &path,
-            ActionEnum::ApproveMergeRequest,
-            state.clone(),
-        )
-        .await;
-        ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
-        let res = state.monorepo().merge_mr(&mut model.into()).await;
-        let res = match res {
-            Ok(_) => CommonResult::success(None),
-            Err(err) => CommonResult::failed(&err.to_string()),
-        };
-        ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
-        return Ok(Json(res));
+    if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
+        if model.status == MergeStatus::Open {
+            let path = model.path.clone();
+            util::check_permissions(
+                &user.name,
+                &path,
+                ActionEnum::ApproveMergeRequest,
+                state.clone(),
+            )
+            .await
+            .unwrap();
+            ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
+            let res = state.monorepo().merge_mr(&mut model.into()).await;
+            let res = match res {
+                Ok(_) => CommonResult::success(None),
+                Err(err) => CommonResult::failed(&err.to_string()),
+            };
+            ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
+            return Ok(Json(res));
+        }
     }
     Ok(Json(CommonResult::failed("not found")))
 }
@@ -117,6 +185,7 @@ async fn get_mr_files(
 }
 
 async fn save_comment(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     body: Bytes,
@@ -127,7 +196,7 @@ async fn save_comment(
     let res = if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
         state
             .mr_stg()
-            .add_mr_conversation(&model.link, 0, ConvType::Comment, Some(json_string))
+            .add_mr_conversation(&model.link, user.user_id, ConvType::Comment, Some(json_string))
             .await
             .unwrap();
         CommonResult::success(None)

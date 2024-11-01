@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use sea_orm::ActiveValue::NotSet;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
 use callisto::db_enums::{ConvType, MergeStatus};
@@ -70,29 +69,52 @@ impl MrStorage {
         Ok(model)
     }
 
-    pub async fn get_open_mr_by_link(
-        &self,
-        link: &str,
-    ) -> Result<Option<mega_mr::Model>, MegaError> {
-        let model = mega_mr::Entity::find()
-            .filter(mega_mr::Column::Link.eq(link))
-            .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
-            .one(self.get_connection())
-            .await
-            .unwrap();
-        Ok(model)
-    }
-
     pub async fn save_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
         let a_model = mr.into_active_model();
         a_model.insert(self.get_connection()).await.unwrap();
         Ok(())
     }
 
+    pub async fn close_mr(
+        &self,
+        model: mega_mr::Model,
+        user_id: i64,
+        username: &str,
+    ) -> Result<(), MegaError> {
+        self.update_mr(model.clone()).await.unwrap();
+        self.add_mr_conversation(
+            &model.link,
+            user_id,
+            ConvType::Closed,
+            Some(format!("{} closed this", username)),
+        )
+        .await
+        .unwrap();
+        Ok(())
+    }
+
+    pub async fn reopen_mr(
+        &self,
+        model: mega_mr::Model,
+        user_id: i64,
+        username: &str,
+    ) -> Result<(), MegaError> {
+        self.update_mr(model.clone()).await.unwrap();
+        self.add_mr_conversation(
+            &model.link,
+            user_id,
+            ConvType::Reopen,
+            Some(format!("{} reopen this", username)),
+        )
+        .await
+        .unwrap();
+        Ok(())
+    }
+
     pub async fn update_mr(&self, mr: mega_mr::Model) -> Result<(), MegaError> {
         let mut a_model = mr.into_active_model();
         a_model = a_model.reset_all();
-        a_model.created_at = NotSet;
+        a_model.updated_at = Set(chrono::Utc::now().naive_utc());
         a_model.update(self.get_connection()).await.unwrap();
         Ok(())
     }
