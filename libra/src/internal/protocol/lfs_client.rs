@@ -82,8 +82,8 @@ impl LFSClient {
             .build()
             .unwrap();
         Self {
-            batch_url: "",
-            lfs_url: "",
+            batch_url: Url::parse("https://invalid.com").unwrap(),
+            lfs_url: Url::parse("https://invalid.com").unwrap(),
             client,
             bootstrap: Some((bootstrap_node.to_string(), ztm_agent_port)),
         }
@@ -393,7 +393,6 @@ impl LFSClient {
     pub async fn download_object_p2p(
         &self,
         file_uri: &str, // p2p protocol
-        size: u64,
         path: impl AsRef<Path>,
         mut reporter: Option<(
             &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
@@ -405,7 +404,7 @@ impl LFSClient {
             None => return Err(anyhow!("fatal: No bootstrap node set for P2P download.")),
         };
 
-        let hash = gemini::lfs::get_file_hash_from_origin(file_uri.to_owned()).await?;
+        let hash = gemini::lfs::get_file_hash_from_origin(file_uri.to_owned()).unwrap();
         tracing::info!("Downloading LFS file: {}", hash);
         let peer_ports = gemini::lfs::create_lfs_download_tunnel(
             bootstrap_node.clone(),
@@ -418,19 +417,12 @@ impl LFSClient {
         }
         tracing::debug!("P2P download tunnel ports: {:?}", peer_ports);
 
-        // TODO temp, change to Relay
-        let chunk_info_server = format!("http://localhost:{}", peer_ports[0]);
-        let chunks = match self.fetch_chunks(&format!("{}/objects/{}", chunk_info_server, hash)).await {
-            Ok(chunks) => chunks,
-            Err(_) => return Err(anyhow!("fatal: LFS Chunk API failed.")),
+        let lfs_info = match gemini::lfs::get_lfs_chunks_info(bootstrap_node.clone(), hash.clone()).await {
+            Some(chunks) => chunks,
+            None => return Err(anyhow!("fatal: LFS Chunk API failed."))
         };
+        let chunks = lfs_info.chunks;
         tracing::debug!("LFS chunks: {:?}", chunks.len());
-
-        // infer all chunks has same size (except last)
-        if chunks[0].size * (chunks.len() - 1) as i64 + chunks.last().unwrap().size != size as i64 {
-            eprintln!("fatal: LFS Chunk size mismatch.");
-            return Err(anyhow!("LFS Chunk size mismatch."));
-        }
 
         let mut checksum = Context::new(&SHA256);
         let mut file = tokio::fs::File::create(path).await?;
@@ -462,7 +454,7 @@ impl LFSClient {
             file.write_all(&buffer).await?;
 
             // report progress TODO step
-            if let Some((ref mut report_fn, step)) = reporter {
+            if let Some((ref mut report_fn, _step)) = reporter {
                 let progress = (i as f64 / chunks.len() as f64) * 100.0;
                 report_fn(progress)?;
             }
