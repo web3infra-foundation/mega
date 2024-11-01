@@ -54,7 +54,7 @@ obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
 import_dir = "/third-part"
 
 # Support http authentication, login in with github and generate token before push
-enable_http_auth = true
+enable_http_auth = false
 
 # Set System Admin in directory init, replace the admin's github username here
 admin = "admin"
