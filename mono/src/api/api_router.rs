@@ -21,7 +21,8 @@ use common::{errors::ProtocolError, model::CommonResult};
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::error::ApiError;
-use crate::api::mr_router;
+use crate::api::issue::issue_router;
+use crate::api::mr::mr_router;
 use crate::api::user::user_router;
 use crate::api::MonoApiServiceState;
 
@@ -40,6 +41,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .merge(router)
         .merge(mr_router::routers())
         .merge(user_router::routers())
+        .merge(issue_router::routers())
 }
 
 async fn get_blob_string(
