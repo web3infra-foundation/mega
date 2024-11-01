@@ -209,7 +209,6 @@ impl Default for StorageConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
     pub import_dir: PathBuf,
-    pub disable_http_push: bool,
     pub enable_http_auth: bool,
     pub admin: String,
     pub root_dirs: Vec<String>,
@@ -219,7 +218,6 @@ impl Default for MonoConfig {
     fn default() -> Self {
         Self {
             import_dir: PathBuf::from("/third-part"),
-            disable_http_push: false,
             enable_http_auth: false,
             admin: String::from("admin"),
             root_dirs: vec![

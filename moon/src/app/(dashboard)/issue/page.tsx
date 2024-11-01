@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import React from 'react';
 import { Flex, List, PaginationProps, Tag, Button, Tabs, Space, TabsProps, Segmented } from 'antd/lib';
 import { format, formatDistance, fromUnixTime } from 'date-fns'
-import { IssuesCloseOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
 
@@ -56,9 +56,18 @@ export default function IssuePage() {
     const getStatusTag = (status: string) => {
         switch (status) {
             case 'open':
-                return <Tag color="success">open</Tag>;
+                return <Tag color="error">open</Tag>;
             case 'closed':
-                return <Tag color="error">closed</Tag>;
+                return <Tag color="success">closed</Tag>;
+        }
+    };
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'open':
+                return <ExclamationCircleOutlined />;
+            case 'closed':
+                return <CheckCircleOutlined />;
         }
     };
 
@@ -111,7 +120,8 @@ export default function IssuePage() {
                     <List.Item>
                         <List.Item.Meta
                             avatar={
-                                <ExclamationCircleOutlined />
+                                // <ExclamationCircleOutlined />
+                                getStatusIcon(item.status)
                             }
                             title={<Link href={`/issue/${item.link}`}>{item.title} {getStatusTag(item.status)}</Link>}
                             description={getDescription(item)}

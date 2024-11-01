@@ -1,11 +1,12 @@
 'use client'
 import { useEffect, useState } from "react";
 import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
-import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from "@/components/rich-editor/RichEditor";
 import MRComment from "@/components/MRComment";
 import * as React from 'react'
+import { useRouter } from "next/navigation";
 
 interface MRDetail {
     status: string,
@@ -36,7 +37,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
     );
     const [filedata, setFileData] = useState([]);
     const [loadings, setLoadings] = useState<boolean[]>([]);
-
+    const router = useRouter();
 
     const checkLogin = async () => {
         const res = await fetch(`/api/auth`);
@@ -89,8 +90,38 @@ export default function MRDetailPage({ params }: { params: Params }) {
         });
         if (res) {
             cancel_loading(1);
+            router.push(
+                "/mr"
+            );
         }
     };
+
+    async function close_mr() {
+        set_to_loading(3);
+        const res = await fetch(`/api/mr/${id}/close`, {
+            method: 'POST',
+        });
+        if (res) {
+            cancel_loading(3);
+            router.push(
+                "/mr"
+            );
+        }
+    };
+
+    async function reopen_mr() {
+        set_to_loading(3);
+        const res = await fetch(`/api/mr/${id}/reopen`, {
+            method: 'POST',
+        });
+        if (res) {
+            cancel_loading(3);
+            router.push(
+                "/mr"
+            );
+        }
+    };
+
 
     async function save_comment(comment) {
         set_to_loading(3);
@@ -111,7 +142,8 @@ export default function MRDetailPage({ params }: { params: Params }) {
         switch (conv.conv_type) {
             case "Comment": icon = <CommentOutlined />; children = <MRComment conv={conv} fetchDetail={fetchDetail} />; break
             case "Merged": icon = <MergeOutlined />; children = "Merged via the queue into main " + formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true }); break;
-            case "Closed": icon = <CloseCircleOutlined />; children = conv.comment;
+            case "Closed": icon = <CloseCircleOutlined />; children = conv.comment; break;
+            case "Reopen": icon = <PullRequestOutlined />; children = conv.comment; break;
         };
 
         const element = {
@@ -131,8 +163,14 @@ export default function MRDetailPage({ params }: { params: Params }) {
                     <Timeline items={conv_items} />
                     <h1>Add a comment</h1>
                     <RichEditor setEditorState={setEditorState} />
-                    <Flex justify={"flex-end"}>
-                        <Button loading={loadings[3]} onClick={() => save_comment(editorState)}>Comment</Button>
+                    <Flex gap="small" justify={"flex-end"}>
+                        {mrDetail && mrDetail.status === "open" &&
+                            <Button loading={loadings[3]} disabled={!login} onClick={() => close_mr()}>Close Merge Request</Button>
+                        }
+                        {mrDetail && mrDetail.status === "closed" &&
+                            <Button loading={loadings[3]} disabled={!login} onClick={() => reopen_mr()}>Reopen Merge Request</Button>
+                        }
+                        <Button loading={loadings[3]} disabled={!login} onClick={() => save_comment(editorState)}>Comment</Button>
                     </Flex>
                 </Space>
         },
@@ -141,7 +179,6 @@ export default function MRDetailPage({ params }: { params: Params }) {
             label: 'Files Changed',
             children: <Space style={{ width: '100%' }}>
                 <List
-                    // style={{ width: '100%' }}
                     header={<div>Change File List</div>}
                     bordered
                     dataSource={filedata}
