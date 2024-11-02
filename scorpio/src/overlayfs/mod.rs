@@ -1183,7 +1183,7 @@ impl OverlayFs {
         let mut d:Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
 
         for (index, (name, child)) in (0_u64..).zip(childrens.into_iter()) {
-            if index >= offset {
+            
                 // make struct DireEntry and Entry
                 let st = child.stat64(ctx).await?;
                 let dir_entry = DirectoryEntry {
@@ -1203,7 +1203,7 @@ impl OverlayFs {
                 //     attr_ttl: todo!(),
                 // }
                 d.push(Ok(dir_entry));
-            }
+            
         }
 
         Ok(iter(d.into_iter()))
