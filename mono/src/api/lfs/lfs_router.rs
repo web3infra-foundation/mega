@@ -41,6 +41,8 @@
 //!
 //! Ensure proper authentication and authorization mechanisms are implemented
 //! when using these handlers in a web application to prevent unauthorized access.
+use std::collections::HashMap;
+
 use axum::{
     body::Body,
     extract::{Path, Query, State},
@@ -69,6 +71,7 @@ const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
         .route("/objects/:object_id", get(lfs_download_object))
+        .route("/objects/:object_id/:chunk_id", get(lfs_download_chunk))
         .route("/objects/:object_id", put(lfs_upload_object))
         .route("/locks", get(list_locks))
         .route("/locks", post(create_lock))
@@ -242,6 +245,45 @@ pub async fn lfs_download_object(
         Ok(byte_stream) => Ok(Response::builder()
             .header("Content-Type", LFS_CONTENT_TYPE)
             .body(Body::from_stream(byte_stream))
+            .unwrap()),
+        Err(err) => Ok({
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from(format!("Error: {}", err)))
+                .unwrap()
+        }),
+    }
+}
+
+pub async fn lfs_download_chunk(
+    state: State<MonoApiServiceState>,
+    Path((origin_object_id, chunk_id)): Path<(String, String)>,
+    Query(query_params): Query<HashMap<String, String>>,
+) -> Result<Response, (StatusCode, String)> {
+    let offset = query_params
+        .get("offset")
+        .and_then(|offset| offset.parse::<u64>().ok());
+    let size = query_params
+        .get("size")
+        .and_then(|size| size.parse::<u64>().ok());
+    if offset.is_none() || size.is_none() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Valid offset and size query parameters are required".to_string(),
+        ));
+    }
+    let result = handler::lfs_download_chunk(
+        state.context.clone(),
+        &origin_object_id,
+        &chunk_id,
+        offset.unwrap(),
+        size.unwrap(),
+    )
+    .await;
+    match result {
+        Ok(bytes) => Ok(Response::builder()
+            .header("Content-Type", LFS_CONTENT_TYPE)
+            .body(Body::from(bytes))
             .unwrap()),
         Err(err) => Ok({
             Response::builder()
