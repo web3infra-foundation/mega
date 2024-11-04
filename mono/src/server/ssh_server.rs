@@ -80,7 +80,7 @@ pub fn load_key() -> KeyPair {
         KeyPair::Ed25519(keypair)
     } else {
         // generate a keypair if not exists
-        let keys = KeyPair::generate_ed25519().unwrap();
+        let keys = KeyPair::generate_ed25519();
         if let KeyPair::Ed25519(inner_pair) = &keys {
             let secret = serde_json::json!({
                 "secret_key": *inner_pair.to_pkcs8_pem(LineEnding::CR).unwrap()
