@@ -51,7 +51,7 @@ export default function BlobPage({ params }: { params: Params }) {
         <div>
             <Flex gap="middle" wrap>
                 <Layout style={breadStyle}>
-                    <Bread path={new_path} />
+                    <Bread path={path} />
                 </Layout>
                 <Layout style={treeStyle}>
                     {/* <RepoTree directory={directory} /> */}

@@ -92,7 +92,8 @@ const CodeTable = ({ directory, readmeContent }) => {
         <div style={fileCodeContainerStyle}>
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr}
                 pagination={false} columns={columns}
-                dataSource={directory} rowKey="oid"
+                dataSource={directory} 
+                rowKey="name"
                 onRow={(record) => {
                     return {
                         onClick: (event) => { handleRowClick(record) }
