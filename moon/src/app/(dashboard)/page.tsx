@@ -1,9 +1,26 @@
-import CodeTable from '@/components/CodeTable'
-export const revalidate = 0
+'use client'
 
-export default async function HomePage() {
-  let directory = await getDirectory()
-  let readmeContent = await getReadmeContent(directory)
+import CodeTable from '@/components/CodeTable'
+import { useEffect, useState } from 'react';
+
+export default function HomePage() {
+  const [directory, setDirectory] = useState([]);
+  const [readmeContent, setReadmeContent] = useState("");
+
+  const fetchData = async () => {
+    try {
+      let directory = await getDirectory("/");
+      setDirectory(directory);
+      let readmeContent = await getReadmeContent("/", directory);
+      setReadmeContent(readmeContent);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   return (
     <div>
@@ -11,27 +28,22 @@ export default async function HomePage() {
     </div>
   );
 }
-
-async function getDirectory() {
-  const res = await fetch(`http://localhost:3000/api/tree/commit-info?path=/`);
-
+async function getDirectory(pathname: string) {
+  const res = await fetch(`/api/tree/commit-info?path=${pathname}`);
   const response = await res.json();
   const directory = response.data.data;
-
   return directory
 }
 
-async function getReadmeContent(directory) {
-  let readmeContent = '';
-
+async function getReadmeContent(pathname, directory) {
+  var readmeContent = '';
   for (const project of directory || []) {
     if (project.name === 'README.md' && project.content_type === 'file') {
-      const res = await fetch(`http://localhost:3000/api/blob?path=/README.md`);
+      const res = await fetch(`/api/blob?path=${pathname}/README.md`);
       const response = await res.json();
       readmeContent = response.data.data;
       break;
     }
   }
-
   return readmeContent
 }
