@@ -23,7 +23,7 @@ export default function Page({ params }: { params: Params }) {
             try {
                 let directory = await getDirectory(new_path);
                 setDirectory(directory);
-                let readmeContent = await getReadmeContent(path, directory);
+                let readmeContent = await getReadmeContent(new_path, directory);
                 setReadmeContent(readmeContent);
                 let shown_clone_btn = await pathCanClone(new_path);
                 setCloneBtn(shown_clone_btn);
@@ -34,7 +34,7 @@ export default function Page({ params }: { params: Params }) {
             }
         };
         fetchData();
-    }, [path]);
+    }, [new_path]);
 
     const treeStyle = {
         borderRadius: 8,
