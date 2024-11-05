@@ -449,7 +449,7 @@ pub async fn lfs_download_chunk(
         Ok(chunk)
     } else {
         // return part of the original object.
-        let bytes = lfs_stg.get_object(chunk_oid).await.unwrap();
+        let bytes = lfs_stg.get_object(origin_oid).await.unwrap();
         let chunk_bytes = bytes[offset as usize..(offset + size) as usize].to_vec();
         // check hash
         let chunk_hash = hex::encode(ring::digest::digest(&ring::digest::SHA256, &chunk_bytes));
