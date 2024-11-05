@@ -439,8 +439,8 @@ impl LFSClient {
             let data = loop { // retry
                 let mut downloaded = i * chunk_size; // TODO support resume
                 let mut last_progress = downloaded as f64 / lfs_info.size as f64 * 100.0;
-                let url = format!("http://localhost:{}/objects/{}", peer_ports[(i + retry) % peer_ports.len()], chunk.sub_oid);
-                let data = self.download_chunk(&url, &chunk.sub_oid, chunk.size as usize, |size| {
+                let url = format!("http://localhost:{}/objects/{}/{}", peer_ports[(i + retry) % peer_ports.len()], hash, chunk.sub_oid);
+                let data = self.download_chunk(&url, &chunk.sub_oid, chunk.size as usize, chunk.offset as usize, |size| {
                     if let Some((ref mut report_fn, step)) = reporter {
                         downloaded += size;
                         let progress = (downloaded as f64 / lfs_info.size as f64) * 100.0;
@@ -479,8 +479,11 @@ impl LFSClient {
         }
     }
 
-    async fn download_chunk(&self, url: &str, hash: &str, size: usize, mut callback: impl FnMut(usize)) -> anyhow::Result<Vec<u8>> {
-        let response = self.client.get(url).send().await?;
+    async fn download_chunk(&self, url: &str, hash: &str, size: usize, offset: usize, mut callback: impl FnMut(usize)) -> anyhow::Result<Vec<u8>> {
+        let response = self.client
+            .get(url)
+            .query(&[("offset", offset), ("size", size)])
+            .send().await?;
         if !response.status().is_success() {
             eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
             return Err(anyhow!("LFS download failed."));
