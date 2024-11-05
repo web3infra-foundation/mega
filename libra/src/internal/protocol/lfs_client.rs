@@ -188,14 +188,53 @@ impl LFSClient {
 
         // TODO: parallel upload
         for obj in resp.objects {
-            self.upload_object(obj).await?;
+            let file_path = lfs::lfs_object_path(&obj.oid);
+            self.upload_object(obj, &file_path).await?;
         }
         println!("LFS objects push completed.");
         Ok(())
     }
 
+    /// push LFS object to remote server, didn't need local lfs storage
+    pub async fn push_object(&self, oid: &str, file: &Path) -> Result<(), ()> {
+        let batch_request = BatchRequest {
+            operation: "upload".to_string(),
+            transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
+            objects: vec![RequestVars {
+                oid: oid.to_owned(),
+                size: file.metadata().unwrap().len() as i64,
+                ..Default::default()
+            }],
+            hash_algo: lfs::LFS_HASH_ALGO.to_string(),
+        };
+
+        let request = self
+            .client
+            .post(self.batch_url.clone())
+            .json(&batch_request)
+            .headers(lfs::LFS_HEADERS.clone());
+
+        let response = request.send().await.unwrap();
+
+        let resp = response.json::<LfsBatchResponse>().await.unwrap();
+        tracing::debug!(
+            "LFS push response:\n {:#?}",
+            serde_json::to_value(&resp).unwrap()
+        );
+        assert!(
+            resp.objects.len() == 1,
+            "fatal: LFS push failed. No object found."
+        );
+
+        // self.upload_object(resp.objects).await?;
+        let obj = resp.objects.into_iter().next().unwrap();
+        self.upload_object(obj, file).await?;
+        println!("LFS objects push completed.");
+        Ok(())
+    }
+
     /// upload (PUT) one LFS file to remote server
-    async fn upload_object(&self, object: Representation) -> Result<(), ()> {
+    async fn upload_object(&self, object: Representation, file: &Path) -> Result<(), ()> {
         if let Some(err) = object.error {
             eprintln!("fatal: LFS upload failed. Code: {}, Message: {}", err.code, err.message);
             return Err(());
@@ -214,11 +253,12 @@ impl LFSClient {
                 request = request.header(k, v);
             }
 
-            let file_path = lfs::lfs_object_path(&object.oid);
-            let file = tokio::fs::File::open(file_path).await.unwrap();
+            let content = tokio::fs::File::open(file).await.unwrap();
             println!("Uploading LFS file: {}", object.oid);
             let resp = request
-                .body(reqwest::Body::wrap_stream(tokio_util::io::ReaderStream::new(file)))
+                .body(reqwest::Body::wrap_stream(
+                    tokio_util::io::ReaderStream::new(content),
+                ))
                 .send()
                 .await
                 .unwrap();
@@ -618,6 +658,10 @@ impl LFSClient {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
+    use crate::utils;
+
     use super::*;
     #[test]
     fn test_request_vars() {
@@ -651,5 +695,38 @@ mod tests {
         let text = response.text().await.unwrap();
         println!("Text {:?}", text);
         let _resp = serde_json::from_str::<LfsBatchResponse>(&text).unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore] // need to start local mega server
+    async fn test_push_object() {
+        let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
+        let file =
+            PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let oid = utils::lfs::calc_lfs_file_hash(&file).unwrap();
+
+        match client.push_object(&oid, &file).await {
+            Ok(_) => println!("Pushed successfully."),
+            Err(err) => eprintln!("Push failed: {:?}", err),
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // need to start local mega server
+    async fn test_download_chunk() {
+        let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
+        let file =
+            PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let oid = utils::lfs::calc_lfs_file_hash(&file).unwrap();
+        let sub_oid =
+            "ee225720cc31599c749fbe9b18f6c8346fa3246839f0dea7ffd3224dbb067952".to_string(); // offset 83886080 size 20971520
+        let url = format!("http://localhost:8000/objects/{}/{}", oid, sub_oid);
+        let size = 20971520;
+        let offset = 83886080;
+        let data = client
+            .download_chunk(&url, &sub_oid, size, offset, |_| {})
+            .await
+            .unwrap();
+        assert_eq!(data.len(), size);
     }
 }
