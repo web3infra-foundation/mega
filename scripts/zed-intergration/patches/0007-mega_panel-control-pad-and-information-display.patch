@@ -1,0 +1,350 @@
+From 0ae6bfb40025aca376878982579a322eaa231143 Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Sat, 26 Oct 2024 22:02:19 +0800
+Subject: [PATCH 07/10] mega_panel: control pad and information display
+
+---
+ crates/mega/src/mega.rs             |  56 ++++++++---
+ crates/mega_panel/src/mega_panel.rs | 150 +++++++++++++++++++++-------
+ 2 files changed, 154 insertions(+), 52 deletions(-)
+
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index f24e2d9e5d..4bf4aa27d6 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -6,8 +6,9 @@
+ // 2. At least one daemon on this machine when zed startup.
+ // 3. Complete docs.
+ 
++use std::path::{Path, PathBuf};
+ use gpui::http_client::{AsyncBody, HttpClient};
+-use gpui::{AppContext, Context, EventEmitter, WindowContext};
++use gpui::{AppContext, Context, EntityId, EventEmitter, ModelContext, WindowContext};
+ use reqwest_client::ReqwestClient;
+ use serde::Serialize;
+ 
+@@ -22,10 +23,18 @@ pub fn init(cx: &mut AppContext) {
+ }
+ 
+ #[derive(Clone, Debug, PartialEq)]
+-pub enum Event {}
++pub enum Event {
++    MegaRunning(bool),
++    FuseRunning(bool),
++    FuseMounted(bool),
++}
+ pub struct Mega {
+     mega_running: bool,
+     fuse_running: bool,
++    fuse_mounted: bool,
++    
++    checkout_path: Option<PathBuf>,
++    panel_id: Option<EntityId>,
+ }
+ 
+ pub struct MegaFuse {}
+@@ -49,19 +58,36 @@ impl Mega {
+         Mega {
+             fuse_running: false,
+             mega_running: false,
++            fuse_mounted: false,
++            checkout_path: None,
++            panel_id: None,
+         }
+-    } 
++    }
+     
+-    pub fn toggle_mega(&self, cx: &mut WindowContext) { todo!() }
++    pub fn update_status(&mut self, cx: &mut ModelContext<Self>) {
++        if let None = self.panel_id {
++            return;
++        }
++        
++        cx.notify();
++    }
+     
+-    pub fn toggle_fuse(&self, cx: &mut WindowContext) { todo!() }
++    pub fn status(&self) -> (bool, bool, bool) {
++        (self.mega_running, self.fuse_running, self.fuse_mounted)
++    }
++    
++    pub fn toggle_mega(&self, cx: &mut ModelContext<Self>) { todo!() }
++    
++    pub fn toggle_fuse(&self, cx: &mut ModelContext<Self>) { 
++        
++    }
+ 
+-    pub fn toggle_mount(&self, cx: &mut WindowContext) {
++    pub fn toggle_mount(&self, cx: &mut ModelContext<Self>) {
+         // let req_body = delegate::MountRequest {
+         //     path: "".parse().unwrap()
+         // };
+         
+-        cx.spawn(|_cx| async {
++        cx.spawn(|_this, _cx| async {
+             let client = ReqwestClient::new();
+             let req = client.get(
+                 "localhost:2725/api/fs/mount",
+@@ -71,8 +97,8 @@ impl Mega {
+         }).detach();
+     }
+     
+-    pub fn checkout_path(&self, cx: &mut WindowContext) {
+-        cx.spawn(|_cx| async {
++    pub fn checkout_path(&self, cx: &mut ModelContext<Self>) {
++        cx.spawn(|_this, _cx| async {
+             let client = ReqwestClient::new();
+             let req = client.get(
+                 "localhost:2725/api/fs/mount",
+@@ -82,8 +108,8 @@ impl Mega {
+         }).detach();
+     }
+ 
+-    pub fn get_fuse_config(&self, cx: &mut WindowContext) {
+-        cx.spawn(|_cx| async {
++    pub fn get_fuse_config(&self, cx: &mut ModelContext<Self>) {
++        cx.spawn(|_this, _cx| async {
+             let client = ReqwestClient::new();
+             let req = client.get(
+                 "localhost:2725/api/fs/mount",
+@@ -93,8 +119,8 @@ impl Mega {
+         }).detach();
+     }
+ 
+-    pub fn set_fuse_config(&self, cx: &mut WindowContext) {
+-        cx.spawn(|_cx| async {
++    pub fn set_fuse_config(&self, cx: &mut ModelContext<Self>) {
++        cx.spawn(|_this, _cx| async {
+             let client = ReqwestClient::new();
+             let req = client.post_json(
+                 "localhost:2725/api/config",
+@@ -103,8 +129,8 @@ impl Mega {
+         }).detach();
+     }
+ 
+-    pub fn get_fuse_mpoint(&self, cx: &mut WindowContext) {
+-        cx.spawn(|_cx| async {
++    pub fn get_fuse_mpoint(&self, cx: &mut ModelContext<Self>) {
++        cx.spawn(|_this, _cx| async {
+             let client = ReqwestClient::new();
+             let req = client.get(
+                 "localhost:2725/api/config",
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index 76ac003f31..80a26cf4c2 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -1,20 +1,19 @@
+-use std::sync::Arc;
++use crate::mega_panel_settings::{MegaPanelDockPosition, MegaPanelSettings};
+ use anyhow::{anyhow, Context};
+ use db::kvp::KEY_VALUE_STORE;
+-use file_icons::FileIcons;
+ use fs::Fs;
+-use gpui::{actions, anchored, deferred, div, impl_actions, px, uniform_list, Action, AnyElement, AppContext, AssetSource, AsyncWindowContext, ClipboardItem, DismissEvent, Div, ElementId, EventEmitter, FocusHandle, FocusableView, FontWeight, HighlightStyle, InteractiveElement, IntoElement, KeyContext, Model, MouseButton, MouseDownEvent, ParentElement, Pixels, Point, Render, SharedString, Stateful, Styled, Subscription, Task, UniformListScrollHandle, View, ViewContext, VisualContext, WeakModel, WeakView, WindowContext};
+ use gpui::private::serde_derive::{Deserialize, Serialize};
+ use gpui::private::serde_json;
+-use mega::{Mega, MegaFuse};
+-use settings::{Settings, SettingsStore};
++use gpui::{actions, div, Action, AppContext, AssetSource, AsyncWindowContext, Div, ElementId, EventEmitter, FocusHandle, FocusableView, FontWeight, Hsla, InteractiveElement, IntoElement, Model, ParentElement, Pixels, PromptLevel, Render, SharedString, Stateful, StatefulInteractiveElement, Styled, Task, UniformListScrollHandle, View, ViewContext, VisualContext, WeakView, WindowContext};
++use mega::Mega;
++use settings::Settings;
++use std::sync::Arc;
+ use text::BufferId;
+ use util::{ResultExt, TryFutureExt};
+-use workspace::dock::{DockPosition, Panel, PanelEvent, PanelId};
+-use workspace::ui::{v_flex, IconName, Label, LabelCommon, LabelSize};
+-use workspace::{Pane, Workspace};
+-use worktree::{Entry, ProjectEntryId, WorktreeId};
+-use crate::mega_panel_settings::{MegaPanelDockPosition, MegaPanelSettings};
++use workspace::dock::{DockPosition, Panel, PanelEvent};
++use workspace::ui::{h_flex, v_flex, Button, Clickable, Color, FixedWidth, IconName, IconPosition, Label, LabelCommon, LabelSize, StyledExt, StyledTypography};
++use workspace::Workspace;
++use worktree::{ProjectEntryId, WorktreeId};
+ 
+ mod mega_panel_settings;
+ 
+@@ -30,9 +29,10 @@ actions!(
+ );
+ 
+ pub struct MegaPanel {
+-    mega_handle: WeakModel<Mega>,
++    mega_handle: Model<Mega>,
+     workspace: WeakView<Workspace>,
+     focus_handle: FocusHandle,
++    scroll_handle: UniformListScrollHandle,
+     fs: Arc<dyn Fs>,
+     pending_serialization: Task<Option<()>>, // TODO check how to use it
+     width: Option<Pixels>,
+@@ -86,16 +86,17 @@ impl Render for MegaPanel {
+             .gap_6()
+             .p_4()
+             .child(
+-                Label::new("Mega Control Panel")
+-                    .single_line()
+-                    .weight(FontWeight::BOLD)
+-                    .size(LabelSize::Large)
++                h_flex().justify_center().child(
++                    Label::new("Mega Control Panel")
++                        .single_line()
++                        .weight(FontWeight::BOLD)
++                        .size(LabelSize::Large))
+             )
+-            .gap_4()
+-            .p_4()
+-            .child(self.render_status_panel(cx))
+-            .child(self.render_control_panel(cx));
+-        
++            .child(horizontal_separator(cx))
++            .child(self.render_status(cx))
++            .child(horizontal_separator(cx))
++            .child(self.render_buttons(cx));
++
+         mega_panel
+     }
+ }
+@@ -191,25 +192,26 @@ impl MegaPanel {
+                     });
+                 }
+                 panel
+-            }
++            },
+         )
+     }
+ 
+     fn new(workspace: &mut Workspace, cx: &mut ViewContext<Workspace>) -> View<Self> {
+         let mega_panel = cx.new_view(|cx| {
+             let mega = workspace.mega();
+-            
++
+             let focus_handle = cx.focus_handle();
+             cx.on_focus(&focus_handle, Self::focus_in).detach();
+-            
++
+             cx.subscribe(mega, |this, mega, event, cx| {
+-                // TODO: listen for user operations
++                // TODO: listen for mega events
+             }).detach();
+-            
++
+             Self {
+-                mega_handle: mega.downgrade(),
++                mega_handle: mega.clone(),
+                 workspace: workspace.weak_handle(),
+                 focus_handle,
++                scroll_handle: UniformListScrollHandle::new(),
+                 fs: workspace.app_state().fs.clone(),
+                 pending_serialization: Task::ready(None),
+                 width: None,
+@@ -240,23 +242,97 @@ impl MegaPanel {
+             cx.emit(Event::Focus);
+         }
+     }
+-    
++
+     pub fn toggle_fuse_mount(&mut self, _: &ToggleFuseMount, cx: &mut ViewContext<Self>) {
+         // let mega = self.mega_handle.upgrade()
+         //     .unwrap_or_else()
+-        
+-        todo!()
++
++        self.warn_unimplemented(cx);
+     }
+-    
++
+     pub fn checkout_path(&mut self, _: &CheckoutPath, cx: &mut ViewContext<Self>) {
+-        todo!()
++        self.warn_unimplemented(cx);
+     }
+-    
+-    fn render_status_panel(&mut self, cx: &mut ViewContext<Self>) -> Div {
+-        v_flex().child(Label::new("I am a status panel"))
++
++    fn render_status(&mut self, cx: &mut ViewContext<Self>) -> Div {
++        let (
++            mega_running,
++            fuse_running,
++            fuse_mounted
++        ) = self.mega_handle.read(cx).status();
++
++        v_flex()
++            .gap_1()
++            .children([
++                self.status_unit(cx, "Mega Backend:", mega_running),
++                self.status_unit(cx, "Scorpio Backend:", fuse_running),
++                self.status_unit(cx, "Fuse Mounted:", fuse_mounted),
++            ])
+     }
+-    
+-    fn render_control_panel(&mut self, cx: &mut ViewContext<Self>) -> Div {
+-        v_flex().child(Label::new("I am a control panel"))
++
++    fn render_buttons(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
++        
++        fn encap_btn(btn: Button) -> Div {
++            div()
++                .m_1()
++                .border_1()
++                .child(btn)
++        }
++        
++        v_flex()
++            .id("mega-control-pad")
++            .size_full()
++            .children([
++                encap_btn(Button::new("btn_toggle_scorpio", "Toggle Scorpio")
++                    .full_width()
++                    .icon(IconName::Plus)
++                    .icon_position(IconPosition::Start)
++                    .on_click(cx.listener(|this, _, cx| {
++                        this.mega_handle.update(cx, |mega, cx| mega.toggle_fuse(cx));
++                    }))
++                ),
++                encap_btn(Button::new("btn_toggle_mount", "Toggle Mount")
++                    .full_width()
++                    .icon(IconName::Context)
++                    .icon_position(IconPosition::Start)
++                    .on_click(cx.listener(|this, _, cx| {
++                        this.mega_handle.update(cx, |mega, cx| mega.toggle_mount(cx));
++                    }))
++                ),
++                encap_btn(Button::new("btn_checkout", "Checkout Path")
++                    .full_width()
++                    .icon(IconName::Check)
++                    .icon_position(IconPosition::Start)
++                    .on_click(cx.listener(|this, _, cx| {
++                        // TODO: should get the path here
++                        this.mega_handle.update(cx, |mega, cx| mega.checkout_path(cx));
++                    }))
++                ),
++            ])
+     }
++
++    fn status_unit(&self, cx: &mut ViewContext<MegaPanel>, name: &'static str, state: bool) -> Stateful<Div> {
++        let unit_id = ElementId::from(SharedString::from(format!("status_{}", name.clone())));
++        div()
++            .text_ui(cx)
++            .id(unit_id)
++            .child(
++                h_flex()
++                    .justify_between()
++                    .child(Label::new(name))
++                    .child(match state {
++                        true => Label::new("Active").color(Color::Success),
++                        false => Label::new("Inactive").color(Color::Error)
++                    })
++            )
++    }
++
++    fn warn_unimplemented(&self, cx: &mut ViewContext<Self>) {
++        let message = String::from("This operation is not implemented yet");
++        let _ = cx.prompt(PromptLevel::Warning, "Unimplemented", Some(&message), &["Got it"]);
++    }
++}
++
++fn horizontal_separator(cx: &mut WindowContext) -> Div {
++    div().mx_2().border_primary(cx).border_t_1()
+ }
+\ No newline at end of file
+-- 
+2.43.0
+
