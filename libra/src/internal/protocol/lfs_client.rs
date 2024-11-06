@@ -76,7 +76,7 @@ impl LFSClient {
 
     // TODO add one method that both support Server & P2P
     /// Only for p2p
-    pub async fn from_bootstrap_node(bootstrap_node: &str, ztm_agent_port: u16) -> Self {
+    pub fn from_bootstrap_node(bootstrap_node: &str, ztm_agent_port: u16) -> Self {
         let client = Client::builder()
             .default_headers(lfs::LFS_HEADERS.clone())
             .build()
