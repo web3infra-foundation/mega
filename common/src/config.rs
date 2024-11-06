@@ -265,7 +265,7 @@ impl Default for LFSConfig {
             url: "http://localhost:8000".to_string(),
             lfs_obj_local_path: PathBuf::from("/tmp/.mega/lfs"),
             enable_split: true,
-            split_size: 1024 * 1024 * 1024,
+            split_size: 20 * 1024 * 1024, // 20MB
         }
     }
 }

@@ -3,7 +3,7 @@ use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::lfs;
-use ceres::lfs::lfs_structs::{BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
+use ceres::lfs::lfs_structs::{BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest, ObjectError, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
 use futures_util::StreamExt;
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
@@ -22,6 +22,7 @@ pub struct LFSClient {
     pub batch_url: Url,
     pub lfs_url: Url,
     pub client: Client,
+    pub bootstrap: Option<(String, u16)> // for p2p: (bootstrap_node, ztm_agent_port)
 }
 static LFS_CLIENT: OnceCell<LFSClient> = OnceCell::const_new();
 impl LFSClient {
@@ -58,6 +59,7 @@ impl ProtocolClient for LFSClient {
             batch_url: lfs_server.join("objects/batch").unwrap(),
             lfs_url: lfs_server,
             client,
+            bootstrap: None,
         }
     }
 }
@@ -69,6 +71,21 @@ impl LFSClient {
         match url {
             Some(url) => LFSClient::from_url(&Url::parse(&url).unwrap()),
             None => panic!("fatal: no remote set for current branch, use `libra branch --set-upstream-to <remote>/<branch>`"),
+        }
+    }
+
+    // TODO add one method that both support Server & P2P
+    /// Only for p2p
+    pub fn from_bootstrap_node(bootstrap_node: &str, ztm_agent_port: u16) -> Self {
+        let client = Client::builder()
+            .default_headers(lfs::LFS_HEADERS.clone())
+            .build()
+            .unwrap();
+        Self {
+            batch_url: Url::parse("https://invalid.com").unwrap(),
+            lfs_url: Url::parse("https://invalid.com").unwrap(),
+            client,
+            bootstrap: Some((bootstrap_node.to_string(), ztm_agent_port)),
         }
     }
 
@@ -171,14 +188,53 @@ impl LFSClient {
 
         // TODO: parallel upload
         for obj in resp.objects {
-            self.upload_object(obj).await?;
+            let file_path = lfs::lfs_object_path(&obj.oid);
+            self.upload_object(obj, &file_path).await?;
         }
         println!("LFS objects push completed.");
         Ok(())
     }
 
+    /// push LFS object to remote server, didn't need local lfs storage
+    pub async fn push_object(&self, oid: &str, file: &Path) -> Result<(), ()> {
+        let batch_request = BatchRequest {
+            operation: "upload".to_string(),
+            transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
+            objects: vec![RequestVars {
+                oid: oid.to_owned(),
+                size: file.metadata().unwrap().len() as i64,
+                ..Default::default()
+            }],
+            hash_algo: lfs::LFS_HASH_ALGO.to_string(),
+        };
+
+        let request = self
+            .client
+            .post(self.batch_url.clone())
+            .json(&batch_request)
+            .headers(lfs::LFS_HEADERS.clone());
+
+        let response = request.send().await.unwrap();
+
+        let resp = response.json::<LfsBatchResponse>().await.unwrap();
+        tracing::debug!(
+            "LFS push response:\n {:#?}",
+            serde_json::to_value(&resp).unwrap()
+        );
+        assert!(
+            resp.objects.len() == 1,
+            "fatal: LFS push failed. No object found."
+        );
+
+        // self.upload_object(resp.objects).await?;
+        let obj = resp.objects.into_iter().next().unwrap();
+        self.upload_object(obj, file).await?;
+        println!("LFS objects push completed.");
+        Ok(())
+    }
+
     /// upload (PUT) one LFS file to remote server
-    async fn upload_object(&self, object: Representation) -> Result<(), ()> {
+    async fn upload_object(&self, object: Representation, file: &Path) -> Result<(), ()> {
         if let Some(err) = object.error {
             eprintln!("fatal: LFS upload failed. Code: {}, Message: {}", err.code, err.message);
             return Err(());
@@ -197,11 +253,12 @@ impl LFSClient {
                 request = request.header(k, v);
             }
 
-            let file_path = lfs::lfs_object_path(&object.oid);
-            let file = tokio::fs::File::open(file_path).await.unwrap();
+            let content = tokio::fs::File::open(file).await.unwrap();
             println!("Uploading LFS file: {}", object.oid);
             let resp = request
-                .body(reqwest::Body::wrap_stream(tokio_util::io::ReaderStream::new(file)))
+                .body(reqwest::Body::wrap_stream(
+                    tokio_util::io::ReaderStream::new(content),
+                ))
                 .send()
                 .await
                 .unwrap();
@@ -261,8 +318,18 @@ impl LFSClient {
         let text = response.text().await?;
         tracing::debug!("LFS download response:\n {:#?}", serde_json::from_str::<serde_json::Value>(&text)?);
         let resp = serde_json::from_str::<LfsBatchResponse>(&text)?;
+        let obj = resp.objects.first().expect("No object"); // Only get first
+        if obj.error.is_some() || obj.actions.is_none() {
+            let unknown_err = ObjectError {
+                code: 0,
+                message: "Unknown error".to_string(),
+            };
+            let err = obj.error.as_ref().unwrap_or(&unknown_err);
+            eprintln!("fatal: LFS download failed (BatchRequest). Code: {}, Message: {}", err.code, err.message);
+            return Err(anyhow!("LFS download failed."));
+        }
 
-        let link = resp.objects[0].actions.as_ref().unwrap().get("download").unwrap();
+        let link = obj.actions.as_ref().unwrap().get("download").unwrap();
 
         let mut is_chunked = false;
         // Chunk API
@@ -359,6 +426,125 @@ impl LFSClient {
             file.write_all(pointer.as_bytes()).await?;
             Err(anyhow!("Checksum mismatch, fallback to pointer file."))
         }
+    }
+
+    #[allow(clippy::type_complexity)]
+    /// download (GET) one LFS file peer-to-peer
+    pub async fn download_object_p2p(
+        &self,
+        file_uri: &str, // p2p protocol
+        path: impl AsRef<Path>,
+        mut reporter: Option<(
+            &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
+            f64 // step
+        )>) -> anyhow::Result<()>
+    {
+        let (bootstrap_node, ztm_agent_port) = match &self.bootstrap {
+            Some(value) => value,
+            None => return Err(anyhow!("fatal: No bootstrap node set for P2P download.")),
+        };
+
+        let hash = gemini::lfs::get_file_hash_from_origin(file_uri.to_owned()).unwrap();
+        tracing::info!("Downloading LFS file: {}", hash);
+        let peer_ports = gemini::lfs::create_lfs_download_tunnel(
+            bootstrap_node.clone(),
+            *ztm_agent_port,
+            file_uri.to_owned()
+        ).await.unwrap();
+        if peer_ports.is_empty() {
+            eprintln!("fatal: No peer online, download failed");
+            return Err(anyhow!("fatal: No peer online."));
+        }
+        tracing::debug!("P2P download tunnel ports: {:?}", peer_ports);
+
+        let lfs_info = match gemini::lfs::get_lfs_chunks_info(bootstrap_node.clone(), hash.clone()).await {
+            Some(chunks) => chunks,
+            None => return Err(anyhow!("fatal: LFS Chunk API failed."))
+        };
+        let mut chunks = lfs_info.chunks;
+        if chunks.is_empty() {
+            eprintln!("fatal: LFS Chunk API failed. No chunks found.");
+            return Err(anyhow!("fatal: No chunks found."));
+        }
+        chunks.sort_by(|a, b| a.offset.cmp(&b.offset));
+        tracing::debug!("LFS chunks: {:?}", chunks.len());
+
+        // infer that all chunks share same size! (except last one)
+        let chunk_size = chunks.first().unwrap().size as usize;
+        let mut checksum = Context::new(&SHA256);
+        let mut file = tokio::fs::File::create(path).await?;
+        for (i, chunk) in chunks.iter().enumerate() { // TODO parallel download
+            println!("- part: {}/{}", i + 1, chunks.len());
+            let mut retry = 0;
+            let data = loop { // retry
+                let mut downloaded = i * chunk_size; // TODO support resume
+                let mut last_progress = downloaded as f64 / lfs_info.size as f64 * 100.0;
+                let url = format!("http://localhost:{}/objects/{}/{}", peer_ports[(i + retry) % peer_ports.len()], hash, chunk.sub_oid);
+                let data = self.download_chunk(&url, &chunk.sub_oid, chunk.size as usize, chunk.offset as usize, |size| {
+                    if let Some((ref mut report_fn, step)) = reporter {
+                        downloaded += size;
+                        let progress = (downloaded as f64 / lfs_info.size as f64) * 100.0;
+                        if progress >= last_progress + step {
+                            last_progress = progress;
+                            report_fn(progress).unwrap();
+                        }
+                    }
+                }).await;
+                match data {
+                    Ok(data) => break data,
+                    Err(e) => {
+                        eprintln!("fatal: LFS download failed. Error: {}. Retry", e);
+                        retry += 1;
+                        if retry > 5 {
+                            eprintln!("fatal: LFS download failed. Retry limit exceeded.");
+                            return Err(anyhow!("LFS download failed."));
+                        }
+                    }
+                }
+            };
+            checksum.update(&data);
+            file.write_all(&data).await?;
+        }
+        let checksum = hex::encode(checksum.finish().as_ref());
+        if checksum == hash {
+            println!("Downloaded(p2p).");
+            Ok(())
+        } else {
+            eprintln!("fatal: LFS download failed. Checksum mismatch: {} != {}. Fallback to pointer file.", checksum, hash);
+            file.set_len(0).await?; // clear
+            file.rewind().await?; // == seek(0)
+            let pointer = lfs::format_pointer_string(&hash, lfs_info.size as u64);
+            file.write_all(pointer.as_bytes()).await?;
+            Err(anyhow!("Checksum mismatch, fallback to pointer file."))
+        }
+    }
+
+    async fn download_chunk(&self, url: &str, hash: &str, size: usize, offset: usize, mut callback: impl FnMut(usize)) -> anyhow::Result<Vec<u8>> {
+        let response = self.client
+            .get(url)
+            .query(&[("offset", offset), ("size", size)])
+            .send().await?;
+        if !response.status().is_success() {
+            eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
+            return Err(anyhow!("LFS download failed."));
+        }
+        let mut buffer = Vec::with_capacity(size);
+        let mut checksum = Context::new(&SHA256);
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            buffer.write_all(&chunk).await?;
+            checksum.update(&chunk);
+
+            // report progress
+            callback(chunk.len());
+        }
+        let checksum = hex::encode(checksum.finish().as_ref());
+        if checksum != hash {
+            eprintln!("fatal: chunk download failed. Chunk checksum mismatch: {} != {}", checksum, hash);
+            return Err(anyhow!("Chunk checksum mismatch."));
+        }
+        Ok(buffer)
     }
 
     /// Only for MonoRepo (mega)
@@ -472,6 +658,10 @@ impl LFSClient {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
+    use crate::utils;
+
     use super::*;
     #[test]
     fn test_request_vars() {
@@ -505,5 +695,38 @@ mod tests {
         let text = response.text().await.unwrap();
         println!("Text {:?}", text);
         let _resp = serde_json::from_str::<LfsBatchResponse>(&text).unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore] // need to start local mega server
+    async fn test_push_object() {
+        let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
+        let file =
+            PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let oid = utils::lfs::calc_lfs_file_hash(&file).unwrap();
+
+        match client.push_object(&oid, &file).await {
+            Ok(_) => println!("Pushed successfully."),
+            Err(err) => eprintln!("Push failed: {:?}", err),
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // need to start local mega server
+    async fn test_download_chunk() {
+        let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
+        let file =
+            PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let oid = utils::lfs::calc_lfs_file_hash(&file).unwrap();
+        let sub_oid =
+            "ee225720cc31599c749fbe9b18f6c8346fa3246839f0dea7ffd3224dbb067952".to_string(); // offset 83886080 size 20971520
+        let url = format!("http://localhost:8000/objects/{}/{}", oid, sub_oid);
+        let size = 20971520;
+        let offset = 83886080;
+        let data = client
+            .download_chunk(&url, &sub_oid, size, offset, |_| {})
+            .await
+            .unwrap();
+        assert_eq!(data.len(), size);
     }
 }
