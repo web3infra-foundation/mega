@@ -1,11 +1,7 @@
 //! This is the main entry point for the Libra.
 
+use libra::cli;
 use mercury::errors::GitError;
-
-mod command;
-mod internal;
-mod utils;
-mod cli;
 
 fn main() {
     #[cfg(debug_assertions)]
