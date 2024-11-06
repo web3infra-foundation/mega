@@ -22,7 +22,8 @@ pub fn start_agent(database: &str, listen_port: u16) {
         CString::new("--args").unwrap(),
         CString::new("--data").unwrap(),
         CString::new(database).unwrap(),
-        // CString::new(format!("--listen 0.0.0.0:{}", listen_port)).unwrap(),
+        CString::new("--listen").unwrap(),
+        CString::new(format!("127.0.0.1:{}", listen_port)).unwrap(),
     ];
     let c_args: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();
     unsafe {
@@ -40,7 +41,8 @@ pub fn start_hub(listen_port: u16, name: Vec<String>, _ca: &str) {
         CString::new("ztm-pipy").unwrap(),
         CString::new("repo://ztm/hub").unwrap(),
         CString::new("--args").unwrap(),
-        // CString::new(format!("--listen=0.0.0.0:{}", listen_port)).unwrap(),
+        CString::new("--listen").unwrap(),
+        CString::new(format!("127.0.0.1:{}", listen_port)).unwrap(),
         // CString::new(format!("--ca={}", ca)).unwrap(),
     ];
     let c_args: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();
@@ -59,6 +61,7 @@ pub fn exit_ztm() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[tokio::test]
     async fn test_start_agent() {
         let port = 7776;
