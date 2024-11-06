@@ -1,0 +1,162 @@
+From a6636b00e11cfa284e2e152cb2ac0a6d92508a34 Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Mon, 21 Oct 2024 09:33:24 +0800
+Subject: [PATCH 03/10] add: mega `panel` trait implementation
+
+---
+ Cargo.lock                                |  1 +
+ crates/mega_panel/Cargo.toml              |  1 +
+ crates/mega_panel/src/mega_panel.rs       | 41 +++++++++++++++++------
+ crates/project_panel/src/project_panel.rs |  8 ++---
+ 4 files changed, 37 insertions(+), 14 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 6503eb5359..80c72872e4 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -6900,6 +6900,7 @@ dependencies = [
+  "anyhow",
+  "db",
+  "file_icons",
++ "fs",
+  "gpui",
+  "mega",
+  "schemars",
+diff --git a/crates/mega_panel/Cargo.toml b/crates/mega_panel/Cargo.toml
+index 9a8ae896a2..d139d51f0d 100644
+--- a/crates/mega_panel/Cargo.toml
++++ b/crates/mega_panel/Cargo.toml
+@@ -17,6 +17,7 @@ gpui.workspace = true
+ file_icons.workspace = true
+ settings.workspace = true
+ db.workspace = true
++fs.workspace = true
+ util.workspace = true
+ 
+ anyhow.workspace = true
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index 7e38d88752..e10ef55f0a 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -1,6 +1,8 @@
++use std::sync::Arc;
+ use anyhow::{anyhow, Context};
+ use db::kvp::KEY_VALUE_STORE;
+ use file_icons::FileIcons;
++use fs::Fs;
+ use gpui::{actions, Action, AppContext, AssetSource, AsyncWindowContext, Entity, EventEmitter, FocusHandle, FocusableView, IntoElement, Model, Pixels, Render, Subscription, Task, UniformListScrollHandle, View, ViewContext, VisualContext, WeakModel, WeakView, WindowContext};
+ use gpui::private::serde_derive::{Deserialize, Serialize};
+ use gpui::private::serde_json;
+@@ -10,7 +12,7 @@ use util::{ResultExt, TryFutureExt};
+ use workspace::dock::{DockPosition, Panel, PanelEvent, PanelId};
+ use workspace::ui::IconName;
+ use workspace::{Pane, Workspace};
+-use crate::mega_panel_settings::MegaPanelSettings;
++use crate::mega_panel_settings::{MegaPanelDockPosition, MegaPanelSettings};
+ 
+ mod mega_panel_settings;
+ 
+@@ -29,6 +31,7 @@ pub struct MegaPanel {
+     mega: WeakModel<Mega>,
+     workspace: WeakView<Workspace>,
+     focus_handle: FocusHandle,
++    fs: Arc<dyn Fs>,
+     pending_serialization: Task<Option<()>>,
+     width: Option<Pixels>,
+ }
+@@ -78,39 +81,57 @@ impl FocusableView for MegaPanel {
+ 
+ impl Panel for MegaPanel {
+     fn persistent_name() -> &'static str {
+-        todo!()
++        "Mega Panel"
+     }
+ 
+     fn position(&self, cx: &WindowContext) -> DockPosition {
+-        todo!()
++        match MegaPanelSettings::get_global(cx).dock {
++            MegaPanelDockPosition::Left => DockPosition::Left,
++            MegaPanelDockPosition::Right => DockPosition::Right,
++        }
+     }
+ 
+     fn position_is_valid(&self, position: DockPosition) -> bool {
+-        todo!()
++        matches!(position, DockPosition::Left | DockPosition::Right)
+     }
+ 
+     fn set_position(&mut self, position: DockPosition, cx: &mut ViewContext<Self>) {
+-        todo!()
++        settings::update_settings_file::<MegaPanelSettings>(
++            self.fs.clone(),
++            cx,
++            move |settings, _| {
++                let dock = match position {
++                    DockPosition::Left | DockPosition::Bottom => MegaPanelDockPosition::Left,
++                    DockPosition::Right => MegaPanelDockPosition::Right,
++                };
++                settings.dock = Some(dock);
++            },
++        );
+     }
+ 
+     fn size(&self, cx: &WindowContext) -> Pixels {
+-        todo!()
++        self.width
++            .unwrap_or_else(|| MegaPanelSettings::get_global(cx).default_width)
+     }
+ 
+     fn set_size(&mut self, size: Option<Pixels>, cx: &mut ViewContext<Self>) {
+-        todo!()
++        self.width = size;
++        self.serialize(cx);
++        cx.notify();
+     }
+ 
+     fn icon(&self, cx: &WindowContext) -> Option<IconName> {
+-        todo!()
++        MegaPanelSettings::get_global(cx)
++            .button
++            .then_some(IconName::FileGit)
+     }
+ 
+     fn icon_tooltip(&self, cx: &WindowContext) -> Option<&'static str> {
+-        todo!()
++        Some("Mega Panel")
+     }
+ 
+     fn toggle_action(&self) -> Box<dyn Action> {
+-        todo!()
++        Box::new(ToggleFocus)
+     }
+ }
+ 
+diff --git a/crates/project_panel/src/project_panel.rs b/crates/project_panel/src/project_panel.rs
+index 08a0ef4b40..c4fb39f587 100644
+--- a/crates/project_panel/src/project_panel.rs
++++ b/crates/project_panel/src/project_panel.rs
+@@ -3060,6 +3060,10 @@ impl EventEmitter<Event> for ProjectPanel {}
+ impl EventEmitter<PanelEvent> for ProjectPanel {}
+ 
+ impl Panel for ProjectPanel {
++    fn persistent_name() -> &'static str {
++        "Project Panel"
++    }
++
+     fn position(&self, cx: &WindowContext) -> DockPosition {
+         match ProjectPanelSettings::get_global(cx).dock {
+             ProjectPanelDockPosition::Left => DockPosition::Left,
+@@ -3110,10 +3114,6 @@ impl Panel for ProjectPanel {
+         Box::new(ToggleFocus)
+     }
+ 
+-    fn persistent_name() -> &'static str {
+-        "Project Panel"
+-    }
+-
+     fn starts_open(&self, cx: &WindowContext) -> bool {
+         let project = &self.project.read(cx);
+         project.dev_server_project_id().is_some()
+-- 
+2.43.0
+
