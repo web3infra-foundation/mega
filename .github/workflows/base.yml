@@ -112,8 +112,10 @@ jobs:
     needs: setup
     steps:
       - uses: actions/checkout@v3
-      - run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
-      - run: cd ./scorpio && cargo clippy --all-targets --all-features -- -D warnings
+      - run: |
+        git submodule update --init --recursive
+        sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
+        cd ./scorpio && cargo clippy --all-targets --all-features -- -D warnings
 
   moon-lint-and-build:
     name: MOON Lint & Build
