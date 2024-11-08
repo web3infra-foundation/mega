@@ -53,17 +53,13 @@
 // }
 
 use fuse3::raw::{Filesystem, MountHandle};
-
-use crate::passthrough::logfs::LoggingFileSystem;
 use std::ffi::{OsStr, OsString};
-
 use fuse3::{raw::Session, MountOptions};
-
 
 
 pub async fn mount_filesystem<F: Filesystem+ std::marker::Sync + Send +'static >(fs:F,mountpoint:&OsStr) -> MountHandle {
     env_logger::init();
-    let logfs = LoggingFileSystem::new(fs);
+    //let logfs = LoggingFileSystem::new(fs);
 
     let mount_path: OsString = OsString::from(mountpoint);
 
@@ -78,8 +74,8 @@ pub async fn mount_filesystem<F: Filesystem+ std::marker::Sync + Send +'static >
         .gid(gid);
 
 
-    Session::new(mount_options)
-    .mount_with_unprivileged(logfs, mount_path)
+    Session::<F>::new(mount_options)
+    .mount_with_unprivileged(fs, mount_path)
     .await
     .unwrap()
 
