@@ -4,10 +4,10 @@ store_path = "/home/luxian/megadir/store"
 
 [[works]]
 path = "third-part/mega/libra"
-node = 26
+node = 35
 hash = "47a90e9262bcd023bbff32f9f4c328b43b62813a"
 
 [[works]]
 path = "third-part/mega/scorpio"
-node = 17
+node = 44
 hash = "87c37b198c0a83e57afeaf2228c8a3a39769afc7"
