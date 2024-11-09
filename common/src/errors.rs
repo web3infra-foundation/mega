@@ -75,9 +75,8 @@ impl From<sea_orm::DbErr> for MegaError {
 }
 
 #[derive(Error, Debug)]
-#[allow(unused)]
 pub enum GitLFSError {
-    #[error("Something went wrong in Git LFS")]
+    #[error("Something went wrong in Git LFS: {0}")]
     GeneralError(String),
 }
 
