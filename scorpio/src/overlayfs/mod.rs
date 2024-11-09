@@ -24,9 +24,10 @@ use fuse3::raw::{Filesystem, Request};
 
 
 use fuse3::{mode_from_kind_and_perm, Errno, FileType};
-use fuse_backend_rs::api::{SLASH_ASCII, VFS_MAX_INO};
+const SLASH_ASCII: char = '/';
 use futures::future::join_all;
 use futures::stream::iter;
+
 use futures::StreamExt;
 use inode_store::InodeStore;
 use layer::Layer;
@@ -944,7 +945,7 @@ impl OverlayFs {
     // If name is empty, return parent itself.
     // Parent dir will be loaded, but returned OverlayInode won't.
     async fn lookup_node(&self, ctx: Request, parent: Inode, name: &str) -> Result<Arc<OverlayInode>> {
-        if name.contains([SLASH_ASCII as char]) {
+        if name.contains(SLASH_ASCII) {
             return Err(Error::from_raw_os_error(libc::EINVAL));
         }
 

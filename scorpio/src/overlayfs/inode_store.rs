@@ -8,7 +8,9 @@ use std::{
     sync::Arc,
 };
 
-use super::{Inode, OverlayInode, VFS_MAX_INO};
+use crate::passthrough::VFS_MAX_INO;
+
+use super::{Inode, OverlayInode};
 
 use futures::future::join_all;
 use radix_trie::Trie;
