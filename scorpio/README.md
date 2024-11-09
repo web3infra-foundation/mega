@@ -46,7 +46,16 @@ The structure of Sapling is achieved through a multi-layered architecture, with 
 
 ### How to Use?
 
+1. run the mono server in `localhost:8000`.
+2. config the `mount_path` and `store_path` in the `config.toml`
+3. `cargo run ` in the `scorpio` dictionary.
 
+
+The following interfaces are currently available:
+```bash
+curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/scorpio"}'
+curl -X GET http://localhost:2725/api/fs/mpoint
+```
 ### How to Contribute?
 
 
