@@ -1,12 +1,16 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::State;
 use axum::Router;
 use axum::routing::{post, get};
+use fuse3::raw::{Filesystem, Request};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use crate::fuse::MegaFuse;
+use crate::manager::fetch::fetch;
 use crate::manager::ScorpioManager;
+use crate::util::GPath;
 
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -67,9 +71,7 @@ struct ConfigRequest {
 }
 #[derive(Clone)]
 struct ScoState{
-    #[allow(unused)]
     fuse:Arc<MegaFuse>,
-    #[allow(unused)]
     manager:Arc<Mutex<ScorpioManager>>,
 }
 #[allow(unused)]
@@ -90,25 +92,24 @@ pub async fn deamon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
 }
 
 async fn mount_handler(
-    State(_state): State<ScoState>, // 注入共享状态
-    _req: axum::Json<MountRequest>,
+    State(state): State<ScoState>, // 注入共享状态
+    req: axum::Json<MountRequest>,
 ) -> axum::Json<MountResponse> {
-    // let mono_path = req.path.clone();
-    // let inode = state.fuse.get_inode(&mono_path);
-    // let mut ml = state.manager.lock().await;
-    // let store_path = ml.store_path.clone();
-    // let work_dir = fetch(&mut ml,inode, mono_path).await;
-    // let store_path = PathBuf::from(store_path).join(&work_dir.hash);
-    // state.fuse.overlay_mount(inode, store_path);
-    // state.fuse.async_init(fuse_backend_rs::abi::fuse_abi::FsOptions::empty()).await;
-    //let _ = state.fuse.init(fuse_backend_rs::abi::fuse_abi::FsOptions::empty());
+    let mono_path = GPath::from(req.path.clone()).to_string();
+    let inode = state.fuse.get_inode(&mono_path).await;
+    let mut ml = state.manager.lock().await;
+    let store_path = ml.store_path.clone();
+    let work_dir = fetch(&mut ml,inode, mono_path).await;
+    let store_path = PathBuf::from(store_path).join(&work_dir.hash);
+    state.fuse.overlay_mount(inode, store_path).await;
+    let _ = state.fuse.init(Request::default()).await;
+  
     // 在这里可以访问 state.fuse 或 state.manager
     let mount_info = MountInfo{
-        hash: "hash".to_string(),
-        path: "path".to_string(),
-        inode: 0,
+        hash:work_dir.hash,
+        path: work_dir.path,
+        inode,
     };
-
     axum::Json(MountResponse {
         status: "success".to_string(),
         mount: mount_info,
@@ -116,29 +117,18 @@ async fn mount_handler(
     })
 }
 
-async fn mounts_handler(State(_state): State<ScoState>) -> axum::Json<MountsResponse> {
-    // 你可以在这里使用 state.fuse 或 state.manager 来获取挂载点信息
-    let mounts = vec![
-        MountInfo {
-            hash: "abc123".to_string(),
-            path: "/mnt/dir1".to_string(),
-            inode: 1001,
-        },
-        MountInfo {
-            hash: "def456".to_string(),
-            path: "/mnt/dir2".to_string(),
-            inode: 1002,
-        },
-        MountInfo {
-            hash: "ghi789".to_string(),
-            path: "/mnt/dir3".to_string(),
-            inode: 1003,
-        },
-    ];
+async fn mounts_handler(State(state): State<ScoState>) -> axum::Json<MountsResponse> {
+    let manager = state.manager.lock().await;
+    let re = manager.works.iter().map(|word_dir| MountInfo{
+        hash: word_dir.hash.clone(),
+        path: word_dir.path.clone(),
+        inode: word_dir.node,
+    }).collect();
+
 
     axum::Json(MountsResponse {
         status: "success".to_string(),
-        mounts,
+        mounts: re,
     })
 }
 
@@ -153,13 +143,15 @@ async fn umount_handler(
     })
 }
 
-async fn config_handler(State(_state): State<ScoState>) -> axum::Json<ConfigResponse> {
+async fn config_handler(State(state): State<ScoState>) -> axum::Json<ConfigResponse> {
+    let t = state.manager.lock().await;
     // 使用 state 访问配置逻辑
     let config_info = ConfigInfo {
-        mega_url: "http://localhost:8000".to_string(),
-        mount_path: "/home/luxian/megadir/mount".to_string(),
-        store_path: "/home/luxian/megadir/store".to_string(),
+        mega_url: t.url.clone(),
+        mount_path: t.mount_path.clone(),
+        store_path: t.store_path.clone(),
     };
+    drop(t);
 
     axum::Json(ConfigResponse {
         status: "success".to_string(),
