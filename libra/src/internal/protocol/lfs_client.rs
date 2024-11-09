@@ -472,6 +472,9 @@ impl LFSClient {
         // infer that all chunks share same size! (except last one)
         let chunk_size = chunks.first().unwrap().size as usize;
         let mut checksum = Context::new(&SHA256);
+        if let Some(parent) = path.as_ref().parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
         let mut file = tokio::fs::File::create(path).await?;
         for (i, chunk) in chunks.iter().enumerate() { // TODO parallel download
             println!("- part: {}/{}", i + 1, chunks.len());
