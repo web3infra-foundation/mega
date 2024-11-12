@@ -422,6 +422,46 @@ pub async fn lfs_download_object(
     }
 }
 
+/// Download a chunk from a large object.
+/// It's used when server didn't have splited chunk, but client request a chunk.
+/// If the server enable split, then the chunk must be a splited chunk, rather than a random part of the object.
+pub async fn lfs_download_chunk(
+    context: Context,
+    origin_oid: &str,
+    chunk_oid: &String,
+    offset: u64,
+    size: u64,
+) -> Result<Bytes, GitLFSError> {
+    let config = context.config.lfs;
+    let stg = context.services.lfs_db_storage.clone();
+    let lfs_stg = context.services.lfs_storage.clone();
+
+    // check if the chunk is already exist.
+    if config.enable_split {
+        let relations = stg.get_lfs_relations(origin_oid.to_owned()).await.unwrap();
+        let chunk_relation = relations.iter().find(|r| &r.sub_oid == chunk_oid);
+        if chunk_relation.is_none() {
+            return Err(GitLFSError::GeneralError(
+                "Chunk not found in split object".to_string(),
+            ));
+        }
+        let chunk = lfs_stg.get_object(chunk_oid).await.unwrap();
+        Ok(chunk)
+    } else {
+        // return part of the original object.
+        let bytes = lfs_stg.get_object(origin_oid).await.unwrap();
+        let chunk_bytes = bytes[offset as usize..(offset + size) as usize].to_vec();
+        // check hash
+        let chunk_hash = hex::encode(ring::digest::digest(&ring::digest::SHA256, &chunk_bytes));
+        if chunk_hash != *chunk_oid {
+            return Err(GitLFSError::GeneralError(
+                "Chunk hash not match".to_string(),
+            ));
+        }
+        Ok(Bytes::from(chunk_bytes))
+    }
+}
+
 pub async fn represent(
     rv: &RequestVars,
     meta: &MetaObject,
