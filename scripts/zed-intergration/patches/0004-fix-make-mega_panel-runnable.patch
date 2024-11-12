@@ -1,7 +1,7 @@
 From 5e676b9b1669d078a25bcee9a0d1b87743862a30 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Mon, 21 Oct 2024 10:00:36 +0800
-Subject: [PATCH 04/10] fix: make mega_panel runnable
+Subject: [PATCH 04/14] fix: make mega_panel runnable
 
 ---
  assets/settings/default.json        | 8 ++++++++
