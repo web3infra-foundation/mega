@@ -1,7 +1,7 @@
 From 69f92bb2dbb1b2facf7b60cb6c6e1c0d211c4f4d Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Tue, 29 Oct 2024 21:08:56 +0800
-Subject: [PATCH 09/10] Fix: dont restore previous workspace
+Subject: [PATCH 09/14] Fix: dont restore previous workspace
 
 ---
  crates/project/src/project.rs             | 106 ++++++++++++++++++++++
