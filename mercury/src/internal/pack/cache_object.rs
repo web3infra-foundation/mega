@@ -34,16 +34,12 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
             return Ok(());
         }
         let data = bincode::serialize(&self).unwrap();
-        let path = path.with_extension("temp");
-        {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path.clone())?;
-            file.write_all(&data)?;
-        }
-        let final_path = path.with_extension("");
-        fs::rename(&path, final_path.clone())?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+        file.write_all(&data)?;
         Ok(())
     }
 }
