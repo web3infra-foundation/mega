@@ -4,7 +4,7 @@ use inode_alloc::InodeAlloc;
 use tokio::sync::Mutex;
 
 
-use std::{collections::HashMap,  path::{Path, PathBuf}, sync::Arc};
+use std::{collections::HashMap, io::Error, path::{Path, PathBuf}, sync::Arc};
 use crate::{dicfuse::Dicfuse, manager::ScorpioManager, overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
 
 mod inode_alloc;
@@ -83,14 +83,25 @@ impl MegaFuse{
         self.overlayfs.lock().await.insert(inode, Arc::new(overlayfs));
     }
 
-    pub async fn overlay_un_mount<P: AsRef<Path>>(&self,  store_path: P)  -> std::io::Result<()>{
-        
+    pub async fn overlay_umount_byinode(&self, inode:u64)  -> std::io::Result<()>{
+        if !self.is_mount(inode).await{
+            return Err( Error::new(std::io::ErrorKind::NotFound, "Overlay filesystem not mounted"))
+        }
+        self.overlayfs.lock().await.remove(&inode);
         Ok(())
     }
     
-    pub async fn get_inode(&self,path:&str) -> u64{
-        let item = self.dic.store.get_by_path(path).await;
-        item.unwrap().get_inode()
+    pub async fn overlay_umount_bypath(&self, path:&str)-> std::io::Result<()>{
+        let item = self.dic.store.get_by_path(path).await?;
+        let inode = item.get_inode();
+        self.overlay_umount_byinode(inode).await
+    }
+    pub async fn get_inode(&self,path:&str) ->std::io::Result<u64>{
+        let item = self.dic.store.get_by_path(path).await?;
+        Ok(item.get_inode())
+    }
+    pub async fn is_mount(&self,inode:u64) -> bool{
+        self.overlayfs.lock().await.get(&inode).is_some()
     }
     pub async fn async_init(&self){
         self.dic.store.async_import().await;

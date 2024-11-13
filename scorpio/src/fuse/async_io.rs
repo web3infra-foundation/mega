@@ -13,14 +13,18 @@ use super::MegaFuse;
 /// 2. if inodes is a overlay fs root ,find it from the hashmap
 /// 3. if inode from one  overlay, find it by batch number.
 macro_rules! call_fuse_function {
-    
+    // &self  -> MegaFuse::Self
+    // &func -> fuse_func , like `lookup` ,`init` , 'getattr'....
+    // $req -> Request
+    // $inode:expr -> Inode number . almost every func have this arg
+    // $($args:expr),*  -> All other args
     ($self:ident,$func:ident, $req:expr , $inode:expr, $($args:expr),*) => {
         if let Some(ovl_inode) = $self.inodes_alloc.get_ovl_inode($inode/READONLY_INODE).await {
             if let Some(ovl_inode_root) = $self.overlayfs.lock().await.get(&ovl_inode){
                 println!(" overlay child inode root");
                 ovl_inode_root.$func($req,$inode,$($args),*).await
             }else{
-                panic!("can't find fs by inode");
+                $self.dic.$func($req,$inode,$($args),*).await
             }
         }else if let Some(ovl_inode_root) = $self.overlayfs.lock().await.get(&$inode){
             println!(" overlay inode root");
@@ -29,6 +33,7 @@ macro_rules! call_fuse_function {
             println!(" readonly inode root");
             $self.dic.$func($req,$inode,$($args),*).await
         }else{
+            //TODO : don't panic, return error .
             panic!("can't find fs by inode");
         }
     };
