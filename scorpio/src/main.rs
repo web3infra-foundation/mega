@@ -13,10 +13,8 @@
 
 use std::{ffi::OsStr, sync::Arc};
 
-use scorpio::{deamon::deamon_main, fuse::MegaFuse, manager::{fetch::CheckHash, ScorpioManager}, server::mount_filesystem};
+use scorpio::{daemon::daemon_main, fuse::MegaFuse, manager::{fetch::CheckHash, ScorpioManager}, server::mount_filesystem};
 use tokio::signal;
-
-
 
 #[tokio::main]
 async fn main() {
@@ -26,20 +24,21 @@ async fn main() {
     let mut manager = ScorpioManager::from_toml(config_path).unwrap();
     manager.check().await;
     let fuse_interface = MegaFuse::new_from_manager(&manager).await;
-
-    let mountpoint =OsStr::new(&manager.mount_path) ;
+    let mountpoint =OsStr::new(&manager.workspace) ;
     let mut mount_handle =  mount_filesystem(fuse_interface.clone(), mountpoint).await;
     let handle = &mut mount_handle;
 
-    // 在tokio运行时中执行deamon_main函数
-   
-    deamon_main(Arc::new(fuse_interface),manager).await;
-   
+    // spawn the server running function. 
+    tokio::spawn(daemon_main(Arc::new(fuse_interface),manager));
+
+    print!("server running...");
     tokio::select! {
         res = handle => res.unwrap(),
         _ = signal::ctrl_c() => {
+            
             println!("unmount....");
-            mount_handle.unmount().await.unwrap()
+            mount_handle.unmount().await.unwrap();
+            
         }
     };
 }
