@@ -9,7 +9,7 @@ pub mod store;
 #[derive(Serialize,Deserialize)]
 pub struct  ScorpioManager{
     pub url:String,
-    pub mount_path:String,
+    pub workspace:String,
     pub store_path:String,// the path to store init code (or remote code), name is hash value . 
     pub works:Vec<WorkDir>,
 }
@@ -52,7 +52,7 @@ mod tests {
 
         let manager = ScorpioManager::from_toml(TEST_FILE).expect("Failed to parse TOML");
         assert_eq!(manager.url, "http://example.com");
-        assert_eq!(manager.mount_path, "/mnt/example");
+        assert_eq!(manager.workspace, "/mnt/example");
         assert_eq!(manager.works.len(), 1);
         assert_eq!(manager.works[0].path, "/path/to/work1");
         assert_eq!(manager.works[0].hash, "hash1");
@@ -63,7 +63,7 @@ mod tests {
     fn test_to_toml() {
         let manager = ScorpioManager {
             url: "http://example.com".to_string(),
-            mount_path: "/mnt/example".to_string(),
+            workspace: "/mnt/example".to_string(),
             works: vec![
                 WorkDir {path:"/path/to/work1".to_string(),hash:"hash1".to_string(), node: 4 },
                 WorkDir {path:"/path/to/work2".to_string(),hash:"hash2".to_string(), node: 5 }],

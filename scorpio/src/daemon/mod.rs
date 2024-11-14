@@ -76,7 +76,7 @@ struct ScoState{
     manager:Arc<Mutex<ScorpioManager>>,
 }
 #[allow(unused)]
-pub async fn deamon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
+pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
     let inner = ScoState{
         fuse,
         manager: Arc::new(Mutex::new(manager)),
@@ -190,7 +190,7 @@ async fn config_handler(State(state): State<ScoState>) -> axum::Json<ConfigRespo
     
     let config_info = ConfigInfo {
         mega_url: t.url.clone(),
-        mount_path: t.mount_path.clone(),
+        mount_path: t.workspace.clone(),
         store_path: t.store_path.clone(),
     };
     drop(t);
