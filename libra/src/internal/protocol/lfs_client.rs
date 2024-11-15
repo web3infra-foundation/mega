@@ -428,14 +428,41 @@ impl LFSClient {
         }
     }
 
-    #[allow(clippy::type_complexity)]
+    /// Only for MonoRepo (mega)
+    async fn fetch_chunks(&self, obj_link: &str) -> Result<Vec<ChunkRepresentation>, ()> {
+        let mut url = Url::parse(obj_link).unwrap();
+        let path = url.path().trim_end_matches('/');
+        url.set_path(&(path.to_owned() + "/chunks")); // reserve query params (for GitHub link)
+
+        let request = self.client.get(url);
+        let resp = request.send().await.unwrap();
+        let code = resp.status();
+        if code == StatusCode::NOT_FOUND || code == StatusCode::FORBIDDEN { // GitHub maybe return 403
+            tracing::info!("Remote LFS Server not support Chunks API, or forbidden.");
+            return Err(());
+        } else if !code.is_success() {
+            tracing::debug!("fatal: LFS get chunk hrefs failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            return Err(());
+        }
+        let mut res = resp.json::<FetchchunkResponse>().await.unwrap();
+        // sort by offset
+        res.chunks.sort_by(|a, b| a.offset.cmp(&b.offset));
+        Ok(res.chunks)
+    }
+}
+
+#[cfg(feature="p2p")]
+type Reporter = (dyn FnMut(f64) -> anyhow::Result<()> + Send);
+#[cfg(feature="p2p")]
+impl LFSClient{
+
     /// download (GET) one LFS file peer-to-peer
     pub async fn download_object_p2p(
         &self,
         file_uri: &str, // p2p protocol
         path: impl AsRef<Path>,
         mut reporter: Option<(
-            &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
+            &mut Reporter, // progress callback
             f64 // step
         )>) -> anyhow::Result<()>
     {
@@ -548,28 +575,6 @@ impl LFSClient {
             return Err(anyhow!("Chunk checksum mismatch."));
         }
         Ok(buffer)
-    }
-
-    /// Only for MonoRepo (mega)
-    async fn fetch_chunks(&self, obj_link: &str) -> Result<Vec<ChunkRepresentation>, ()> {
-        let mut url = Url::parse(obj_link).unwrap();
-        let path = url.path().trim_end_matches('/');
-        url.set_path(&(path.to_owned() + "/chunks")); // reserve query params (for GitHub link)
-
-        let request = self.client.get(url);
-        let resp = request.send().await.unwrap();
-        let code = resp.status();
-        if code == StatusCode::NOT_FOUND || code == StatusCode::FORBIDDEN { // GitHub maybe return 403
-            tracing::info!("Remote LFS Server not support Chunks API, or forbidden.");
-            return Err(());
-        } else if !code.is_success() {
-            tracing::debug!("fatal: LFS get chunk hrefs failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
-            return Err(());
-        }
-        let mut res = resp.json::<FetchchunkResponse>().await.unwrap();
-        // sort by offset
-        res.chunks.sort_by(|a, b| a.offset.cmp(&b.offset));
-        Ok(res.chunks)
     }
 }
 
@@ -715,6 +720,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature="p2p")]
     #[ignore] // need to start local mega server
     async fn test_download_chunk() {
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
