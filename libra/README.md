@@ -81,7 +81,7 @@ achieving unified management.
 ### Others
 - [ ] `.gitignore`
 - [x] `.gitattributes` (only for `lfs` now)
-- [x] `LFS` (embedded)
+- [x] `LFS` (embedded, with p2p feature)
 - [ ] `ssh`
 
 ## Development
