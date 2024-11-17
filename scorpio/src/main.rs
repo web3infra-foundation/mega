@@ -15,7 +15,7 @@ use std::{ffi::OsStr, sync::Arc};
 
 use scorpio::{daemon::daemon_main, fuse::MegaFuse, manager::{fetch::CheckHash, ScorpioManager}, server::mount_filesystem};
 use tokio::signal;
-
+use scorpio::passthrough::logfs::LoggingFileSystem;
 #[tokio::main]
 async fn main() {
    
@@ -25,8 +25,10 @@ async fn main() {
     manager.check().await;
     let fuse_interface = MegaFuse::new_from_manager(&manager).await;
     let mountpoint =OsStr::new(&manager.workspace) ;
-    let mut mount_handle =  mount_filesystem(fuse_interface.clone(), mountpoint).await;
+    let lgfs = LoggingFileSystem::new(fuse_interface.clone());
+    let mut mount_handle =  mount_filesystem(lgfs, mountpoint).await;
     let handle = &mut mount_handle;
+
 
     // spawn the server running function. 
     tokio::spawn(daemon_main(Arc::new(fuse_interface),manager));

@@ -2,7 +2,7 @@
 
 #[macro_use]
 extern crate log;
-mod passthrough;
+pub mod passthrough;
 mod overlayfs;
 
 pub mod fuse;
