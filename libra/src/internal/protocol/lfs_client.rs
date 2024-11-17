@@ -452,8 +452,6 @@ impl LFSClient {
 }
 
 #[cfg(feature="p2p")]
-pub type Reporter = (dyn FnMut(f64) -> anyhow::Result<()> + Send);
-#[cfg(feature="p2p")]
 impl LFSClient{
 
     /// download (GET) one LFS file peer-to-peer
@@ -462,7 +460,7 @@ impl LFSClient{
         file_uri: &str, // p2p protocol
         path: impl AsRef<Path>,
         mut reporter: Option<(
-            &mut Reporter, // progress callback
+            &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
             f64 // step
         )>) -> anyhow::Result<()>
     {
