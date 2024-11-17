@@ -38,7 +38,7 @@ impl MegaFuse{
     }
 
     // TODO: add pass parameter: lower-dir and upper-dir.
-    pub async  fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, store_path: P){
+    pub async  fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, store_path: P) -> std::io::Result<()>{
         
         let lower = store_path.as_ref().join("lower");
         let upper = store_path.as_ref().join("upper");
@@ -78,9 +78,11 @@ impl MegaFuse{
             }
         }
         // Create upper layer
-        let upper_layer = Arc::new(new_passthroughfs_layer(upperdir.to_str().unwrap()).await.unwrap());
-        let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode).unwrap();
+        let upper_layer = Arc::new(new_passthroughfs_layer(upperdir.to_str().unwrap()).await?);
+        let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode)?;
         self.overlayfs.lock().await.insert(inode, Arc::new(overlayfs));
+        self.after_mount_new().await;
+        Ok(())
     }
 
     pub async fn overlay_umount_byinode(&self, inode:u64)  -> std::io::Result<()>{
@@ -103,10 +105,12 @@ impl MegaFuse{
     pub async fn is_mount(&self,inode:u64) -> bool{
         self.overlayfs.lock().await.get(&inode).is_some()
     }
-    pub async fn async_init(&self){
-        self.dic.store.async_import().await;
+    pub async fn after_mount_new(&self){
+        self.inodes_alloc.clear();
         let map_lock = &self.overlayfs.lock().await;
+        
         for (inode,ovl_fs) in map_lock.iter(){
+            println!("re mount :{}",inode);
             let inode_batch = self.inodes_alloc.alloc_inode(*inode).await;
             ovl_fs.extend_inode_alloc(inode_batch).await;
             ovl_fs.init(Request::default()).await;
