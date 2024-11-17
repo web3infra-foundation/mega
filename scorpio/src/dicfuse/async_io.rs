@@ -140,7 +140,7 @@ impl Filesystem for Dicfuse {
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d:Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
         for (index,item) in items.into_iter().enumerate(){
-            if index >= offset.try_into().unwrap() {
+            if index as u64 >= offset {
                 let attr = item.get_stat().await;
                 let e_name =
                 if  index ==0{
