@@ -7,7 +7,7 @@ use ceres::protocol::smart::add_pkt_line_string;
 use mercury::{hash::SHA1, internal::{object::{blob::Blob, commit::Commit, signature::Signature, tree::Tree}, pack::encode::PackEncoder}};
 use crate::manager::diff::change;
 
-async fn pack(commit:Commit,trees:Vec<Tree>, blob:Vec<Blob>) -> Vec<u8>{
+pub async fn pack(commit:Commit,trees:Vec<Tree>, blob:Vec<Blob>) -> Vec<u8>{
 
     let len = trees.len()+blob.len()+1;
     // let (tx, rx) = mpsc::channel::<Entry>();
