@@ -452,7 +452,7 @@ impl LFSClient {
 }
 
 #[cfg(feature="p2p")]
-type Reporter = (dyn FnMut(f64) -> anyhow::Result<()> + Send);
+pub type Reporter = (dyn FnMut(f64) -> anyhow::Result<()> + Send);
 #[cfg(feature="p2p")]
 impl LFSClient{
 
