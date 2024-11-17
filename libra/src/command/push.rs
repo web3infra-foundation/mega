@@ -8,18 +8,17 @@ use tokio::sync::mpsc;
 use url::Url;
 use ceres::protocol::ServiceType::ReceivePack;
 use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
-use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
 use mercury::internal::pack::encode::PackEncoder;
 use mercury::internal::pack::entry::Entry;
-use crate::command::{ask_basic_auth, branch};
+use crate::command::branch;
 use crate::internal::branch::Branch;
 use crate::internal::config::Config;
 use crate::internal::head::Head;
-use crate::internal::protocol::https_client::{BasicAuth, HttpsClient};
+use crate::internal::protocol::https_client::HttpsClient;
 use crate::internal::protocol::lfs_client::LFSClient;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
@@ -74,18 +73,13 @@ pub async fn execute(args: PushArgs) {
 
     let url = Url::parse(&repo_url).unwrap();
     let client = HttpsClient::from_url(&url);
-    let mut refs = client.discovery_reference(ReceivePack, None).await;
-    let mut auth: Option<BasicAuth> = None;
-    while let Err(e) = refs { // retry if unauthorized
-        if let GitError::UnAuthorized(_) = e {
-            auth = Some(ask_basic_auth());
-            refs = client.discovery_reference(ReceivePack, auth.clone()).await;
-        } else {
+    let refs = match client.discovery_reference(ReceivePack).await {
+        Ok(refs) => refs,
+        Err(e) => {
             eprintln!("fatal: {}", e);
             return;
         }
-    }
-    let refs = refs.unwrap();
+    };
 
     let tracked_branch = Config::get("branch", Some(&branch), "merge")
         .await // New branch may not have tracking branch
@@ -115,7 +109,7 @@ pub async fn execute(args: PushArgs) {
 
     { // upload lfs files
         let client = LFSClient::from_url(&url);
-        let res = client.push_objects(&objs, auth.clone()).await;
+        let res = client.push_objects(&objs).await;
         if res.is_err() {
             eprintln!("fatal: LFS files upload failed, stop pushing");
             return;
@@ -143,7 +137,7 @@ pub async fn execute(args: PushArgs) {
     data.extend_from_slice(&pack_data);
     println!("Delta compression done.");
 
-    let res = client.send_pack(data.freeze(), auth).await.unwrap(); // TODO: send stream
+    let res = client.send_pack(data.freeze()).await.unwrap(); // TODO: send stream
 
     if res.status() != 200 {
         eprintln!("status code: {}", res.status());

@@ -80,7 +80,7 @@ pub async fn execute(cmd: LfsCmds) {
                 }
             }
         }
-        LfsCmds::Untrack { path } => {
+        LfsCmds::Untrack { path } => { // only remove totally same pattern with path ?
             let path = convert_patterns_to_workdir(path); //
             untrack_lfs_patterns(&attr_path, path).unwrap();
         }

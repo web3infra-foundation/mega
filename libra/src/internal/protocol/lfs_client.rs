@@ -90,7 +90,7 @@ impl LFSClient {
     }
 
     /// push LFS objects to remote server
-    pub async fn push_objects<'a, I>(&self, objs: I, auth: Option<BasicAuth>) -> Result<(), ()>
+    pub async fn push_objects<'a, I>(&self, objs: I) -> Result<(), ()>
     where
         I: IntoIterator<Item = &'a Entry>
     {
@@ -127,7 +127,7 @@ impl LFSClient {
             let (code, locks) = self.verify_locks(VerifiableLockRequest {
                 refs: Ref { name: command::lfs::current_refspec().await.unwrap() },
                 ..Default::default()
-            }, auth.clone()).await;
+            }).await;
 
             if code == StatusCode::FORBIDDEN {
                 eprintln!("fatal: Forbidden: You must have push access to verify locks");
@@ -173,15 +173,12 @@ impl LFSClient {
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
         };
 
-        let mut request = self.client
-            .post(self.batch_url.clone())
-            .json(&batch_request)
-            .headers(lfs::LFS_HEADERS.clone());
-        if let Some(auth) = auth {
-            request = request.basic_auth(auth.username, Some(auth.password));
-        }
-
-        let response = request.send().await.unwrap();
+        let response = BasicAuth::send(|| {
+            self.client
+                .post(self.batch_url.clone())
+                .json(&batch_request)
+                .headers(lfs::LFS_HEADERS.clone())
+        }).await.unwrap();
 
         let resp = response.json::<LfsBatchResponse>().await.unwrap();
         tracing::debug!("LFS push response:\n {:#?}", serde_json::to_value(&resp).unwrap());
@@ -638,15 +635,11 @@ impl LFSClient {
     }
 
     /// List Locks for Verification
-    pub async fn verify_locks(&self, query: VerifiableLockRequest, basic_auth: Option<BasicAuth>)
+    pub async fn verify_locks(&self, query: VerifiableLockRequest)
         -> (StatusCode, VerifiableLockList)
     {
         let url = self.lfs_url.join("locks/verify").unwrap();
-        let mut request = self.client.post(url).json(&query);
-        if let Some(auth) = basic_auth {
-            request = request.basic_auth(auth.username, Some(auth.password));
-        }
-        let resp = request.send().await.unwrap();
+        let resp = BasicAuth::send(||self.client.post(url.clone()).json(&query)).await.unwrap();
         let code = resp.status();
         // By default, an LFS server that doesn't implement any locking endpoints should return 404.
         // This response will not halt any Git pushes.
