@@ -6,12 +6,12 @@ use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
 use indicatif::ProgressBar;
 use mercury::internal::object::commit::Commit;
-use mercury::{errors::GitError, hash::SHA1};
+use mercury::hash::SHA1;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 
-use crate::command::{ask_basic_auth, load_object};
+use crate::command::load_object;
 use crate::{
     command::index_pack::{self, IndexPackArgs},
     internal::{
@@ -89,20 +89,14 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     };
     let http_client = HttpsClient::from_url(&url);
 
-    let mut refs = http_client.discovery_reference(UploadPack, None).await;
-    let mut auth = None;
-    while let Err(e) = refs {
-        if let GitError::UnAuthorized(_) = e {
-            auth = Some(ask_basic_auth());
-            refs = http_client
-                .discovery_reference(UploadPack, auth.clone())
-                .await;
-        } else {
+    let refs = match http_client.discovery_reference(UploadPack).await {
+        Ok(refs) => refs,
+        Err(e) => {
             eprintln!("fatal: {}", e);
             return;
         }
-    }
-    let refs = refs.unwrap();
+    };
+
     if refs.is_empty() {
         tracing::warn!("fetch empty, no refs found");
         return;
@@ -133,7 +127,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     let have = current_have().await; // TODO: return `DiscRef` rather than only hash, to compare `have` & `want` more accurately
 
     let mut result_stream = http_client
-        .fetch_objects(&have, &want, auth.to_owned())
+        .fetch_objects(&have, &want)
         .await
         .unwrap();
 

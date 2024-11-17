@@ -7,10 +7,13 @@ use futures_util::{StreamExt, TryStreamExt};
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use reqwest::header::CONTENT_TYPE;
-use reqwest::{Body, Response};
+use reqwest::{Body, RequestBuilder, Response};
 use std::io::Error as IoError;
+use std::ops::Deref;
+use std::sync::Mutex;
 use tokio_util::bytes::BytesMut;
 use url::Url;
+use crate::command::ask_basic_auth;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see [http-protocol](https://www.git-scm.com/docs/http-protocol) for protocol details.
@@ -41,6 +44,29 @@ pub struct BasicAuth {
     pub(crate) password: String,
 }
 
+impl BasicAuth {
+    /// send request with basic auth, retry 3 times
+    pub async fn send(request_builder: impl Fn() -> RequestBuilder) -> Result<Response, reqwest::Error> {
+        static AUTH: Mutex<Option<BasicAuth>> = Mutex::new(None);
+        const MAX_TRY: usize = 3;
+        let mut res;
+        let mut try_cnt = 0;
+        loop {
+            let mut request = request_builder(); // RequestBuilder can't be cloned
+            if let Some(auth) = AUTH.lock().unwrap().deref() {
+                request = request.basic_auth(auth.username.clone(), Some(auth.password.clone()));
+            } // if no auth exists, try without auth (e.g. clone public)
+            res = request.send().await?;
+            if res.status() != 401 || try_cnt >= MAX_TRY {
+                break;
+            }
+            AUTH.lock().unwrap().replace(ask_basic_auth());
+            try_cnt += 1;
+        }
+        Ok(res)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiscoveredReference {
     pub(crate) _hash: String,
@@ -61,18 +87,13 @@ impl HttpsClient {
     pub async fn discovery_reference(
         &self,
         service: ServiceType,
-        auth: Option<BasicAuth>,
     ) -> Result<Vec<DiscRef>, GitError> {
         let service: &str = &service.to_string();
         let url = self
             .url
             .join(&format!("info/refs?service={}", service))
             .unwrap();
-        let mut request = self.client.get(url);
-        if let Some(auth) = auth {
-            request = request.basic_auth(auth.username, Some(auth.password));
-        }
-        let res = request.send().await.unwrap();
+        let res = BasicAuth::send(|| self.client.get(url.clone())).await.unwrap();
         tracing::debug!("{:?}", res);
 
         if res.status() == 401 {
@@ -165,22 +186,19 @@ impl HttpsClient {
         &self,
         have: &Vec<String>,
         want: &Vec<String>,
-        auth: Option<BasicAuth>,
     ) -> Result<impl StreamExt<Item = Result<Bytes, IoError>>, IoError> {
         // POST $GIT_URL/git-upload-pack HTTP/1.0
         let url = self.url.join("git-upload-pack").unwrap();
         let body = generate_upload_pack_content(have, want).await;
         tracing::debug!("fetch_objects with body: {:?}", body);
 
-        let mut req = self
-            .client
-            .post(url)
-            .header("Content-Type", "application/x-git-upload-pack-request")
-            .body(body);
-        if let Some(auth) = auth {
-            req = req.basic_auth(auth.username, Some(auth.password));
-        }
-        let res = req.send().await.unwrap();
+        let res = BasicAuth::send(|| {
+            self
+                .client
+                .post(url.clone())
+                .header("Content-Type", "application/x-git-upload-pack-request")
+                .body(body.clone())
+        }).await.unwrap();
         tracing::debug!("request: {:?}", res);
 
         if res.status() != 200 && res.status() != 304 {
@@ -197,22 +215,17 @@ impl HttpsClient {
         Ok(result)
     }
 
-    pub async fn send_pack<T: Into<Body>>(
+    pub async fn send_pack<T: Into<Body> + Clone>(
         &self,
         data: T,
-        auth: Option<BasicAuth>,
     ) -> Result<Response, reqwest::Error> {
-        let mut request = self
-            .client
-            .post(self.url.join("git-receive-pack").unwrap())
-            .header(CONTENT_TYPE, "application/x-git-receive-pack-request")
-            .body(data);
-
-        if let Some(auth) = auth {
-            request = request.basic_auth(auth.username, Some(auth.password));
-        }
-
-        request.send().await
+        BasicAuth::send(|| {
+            self
+                .client
+                .post(self.url.join("git-receive-pack").unwrap())
+                .header(CONTENT_TYPE, "application/x-git-receive-pack-request")
+                .body(data.clone())
+        }).await
     }
 }
 /// for fetching
@@ -259,7 +272,7 @@ mod tests {
         let test_repo = "https://github.com/web3infra-foundation/mega.git/";
 
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
-        let refs = client.discovery_reference(UploadPack, None).await;
+        let refs = client.discovery_reference(UploadPack).await;
         if refs.is_err() {
             tracing::error!("{:?}", refs.err().unwrap());
             panic!();
@@ -276,7 +289,7 @@ mod tests {
 
         let test_repo = "https://github.com/web3infra-foundation/mega/";
         let client = HttpsClient::from_url(&Url::parse(test_repo).unwrap());
-        let refs = client.discovery_reference(UploadPack, None).await.unwrap();
+        let refs = client.discovery_reference(UploadPack).await.unwrap();
         let refs: Vec<DiscoveredReference> = refs
             .iter()
             .filter(|r| r._ref.starts_with("refs/heads"))
@@ -287,7 +300,7 @@ mod tests {
         let want = refs.iter().map(|r| r._hash.clone()).collect();
 
         let have = vec!["81a162e7b725bbad2adfe01879fd57e0119406b9".to_string()];
-        let mut result_stream = client.fetch_objects(&have, &want, None).await.unwrap();
+        let mut result_stream = client.fetch_objects(&have, &want).await.unwrap();
 
         let mut buffer = vec![];
         while let Some(item) = result_stream.next().await {
