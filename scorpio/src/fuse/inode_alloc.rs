@@ -35,5 +35,9 @@ impl InodeAlloc{
     pub async fn get_ovl_inode(&self,inode_batch:u64)-> Option<u64>{
         self.alloc.lock().await.get(&inode_batch).copied()
     }
+    pub async fn clear(&self){
+        self.alloc.lock().await.clear();
+        self.next_ino_batch.store(1).await;
+    }
 
 }
