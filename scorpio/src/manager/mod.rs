@@ -121,6 +121,17 @@ impl ScorpioManager {
 
     }
 
+    
+    /// Iterate through the manager's works to find the specified path's workspace and remove it.
+    pub async fn remove_workspace(&mut self, mono_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(pos) = self.works.iter().position(|work| work.path == mono_path) {
+            self.works.remove(pos);
+            self.to_toml("config.toml")?;
+            Ok(())
+        } else {
+            Err(Box::from("Workspace not found"))
+        }
+    }
 }
 
 #[cfg(test)]
