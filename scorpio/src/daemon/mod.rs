@@ -173,10 +173,21 @@ async fn umount_handler(
         })
     }
     match handle {
-        Ok(_) => axum::Json(UmountResponse {
-            status: SUCCESS.into(),
-            message: "Directory unmounted successfully".to_string(),
-        }),
+        Ok(_) => {
+            if let Some(path) = &req.path{
+                let _ = state.manager.lock().await.remove_workspace(path).await;
+            }else{
+                //todo be path by inode . 
+                let item = state.fuse.dic.store.get_inode(req.inode.unwrap()).await.unwrap();
+                let _ = state.manager.lock().await.remove_workspace(&item.get_path()).await;
+
+            }
+           
+            axum::Json(UmountResponse {
+                status: SUCCESS.into(),
+                message: "Directory unmounted successfully".to_string(),
+            })
+        },
         Err(err) => axum::Json(UmountResponse {
             status: FAIL.into(),
             message:format!("Umount process error :{}.",err),

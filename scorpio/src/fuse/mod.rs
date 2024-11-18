@@ -13,7 +13,7 @@ mod async_io;
 #[allow(unused)]
 #[derive(Clone)]
 pub struct MegaFuse{
-    dic: Arc<Dicfuse>,
+    pub dic: Arc<Dicfuse>,
     overlayfs:Arc<Mutex<HashMap<u64,Arc<OverlayFs>>>>, // Inode -> overlayyfs 
     inodes_alloc: InodeAlloc,
 }
