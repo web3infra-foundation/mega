@@ -121,11 +121,19 @@ async fn mount_handler(
     }
 
     let mut ml = state.manager.lock().await;
+    if let Err(mounted_path) = ml.check_before_mount(&mono_path){
+        return axum::Json(MountResponse {
+            status: FAIL.into(),
+            mount: MountInfo::default(),
+            message: format!("The {} is already check-out ",mounted_path),
+        })
+    }
     let store_path = ml.store_path.clone();
     // fetch the dionary node info from mono.
     let work_dir = fetch(&mut ml,inode, mono_path).await;
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
     // checkout / mount this dictionary. 
+    
     let _ = state.fuse.overlay_mount(inode, store_path).await;
     
     let mount_info = MountInfo{

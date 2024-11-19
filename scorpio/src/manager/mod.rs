@@ -121,7 +121,14 @@ impl ScorpioManager {
 
     }
 
-    
+    pub fn check_before_mount(&self , mono_path: &str) ->Result<(),String>{
+        for work in &self.works {
+            if work.path.starts_with(mono_path) || mono_path.starts_with(&work.path) {
+                return Err(work.path.clone());
+            }
+        }
+        Ok(())
+    }
     /// Iterate through the manager's works to find the specified path's workspace and remove it.
     pub async fn remove_workspace(&mut self, mono_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(pos) = self.works.iter().position(|work| work.path == mono_path) {
