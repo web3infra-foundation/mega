@@ -1,0 +1,221 @@
+From 1f25b260f410733580a628a4d116a4d4cfbbc286 Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Sun, 17 Nov 2024 11:59:31 +0800
+Subject: [PATCH 15/24] fix reading mega settings
+
+---
+ crates/mega/src/mega.rs          | 46 +++++++++++++++++++++-----------
+ crates/mega/src/mega_settings.rs | 10 +++----
+ 2 files changed, 36 insertions(+), 20 deletions(-)
+
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index 41f89a7c1d..b33c487662 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -26,9 +26,11 @@ use serde::Serialize;
+ use settings::Settings;
+ use std::collections::{BTreeMap, BTreeSet, HashSet};
+ use std::ffi::OsStr;
++use std::fmt::{Debug, Formatter};
+ use std::hash::{DefaultHasher, Hash, Hasher};
+ use std::io::Read;
+ use std::path::PathBuf;
++use std::process::Command;
+ use std::sync::{Arc, RwLock};
+ 
+ mod api;
+@@ -49,7 +51,10 @@ struct CheckoutState {
+     path: PathBuf,
+     mounted: bool,
+ }
++
+ pub struct Mega {
++    fuse_executable: PathBuf,
++
+     fuse_running: bool,
+     fuse_mounted: bool,
+ 
+@@ -65,6 +70,17 @@ pub struct MegaFuse {}
+ 
+ impl EventEmitter<Event> for Mega {}
+ 
++impl Debug for Mega {
++    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
++        write!(f, 
++               "fuse_executable: {:?}, mega_url: {}, fuse_url: {}",
++               self.fuse_executable, 
++               self.mega_url, 
++               self.fuse_url
++        )
++    }
++}
++
+ impl Mega {
+     pub fn init_settings(cx: &mut AppContext) {
+         MegaSettings::register(cx);
+@@ -75,9 +91,10 @@ impl Mega {
+     }
+ 
+     pub fn new(cx: &mut AppContext) -> Self {
+-        let mount_path = PathBuf::from(MegaSettings::get_global(cx).mount_point.clone());
++        let mount_path = MegaSettings::get_global(cx).mount_point.clone();
+         let mega_url = MegaSettings::get_global(cx).mega_url.clone();
+         let fuse_url = MegaSettings::get_global(cx).fuse_url.clone();
++        let fuse_executable = MegaSettings::get_global(cx).fuse_executable.clone();
+ 
+         // To not affected by global proxy settings.
+         let client = ReqwestClient::new();
+@@ -88,7 +105,9 @@ impl Mega {
+             None
+         };
+ 
+-        Mega {
++        let mega = Mega {
++            fuse_executable,
++
+             fuse_running: false,
+             fuse_mounted: false,
+ 
+@@ -98,7 +117,10 @@ impl Mega {
+             mega_url,
+             fuse_url,
+             http_client: Arc::new(client),
+-        }
++        };
++        println!("Mega New: {mega:?}");
++
++        mega
+     }
+ 
+     pub fn update_status(&mut self, cx: &mut ModelContext<Self>) {
+@@ -168,8 +190,7 @@ impl Mega {
+                 let path = PathBuf::from(p); // FIXME is there a better way?
+                 cx.spawn(|mega, mut cx| async move {
+                     let recv = mega.update(&mut cx, |this, cx| {
+-                        let param = PathBuf::from(path);
+-                        this.checkout_path(cx, param)
++                        this.checkout_path(cx, path)
+                     }).expect("mega delegate not be dropped");
+ 
+                     if let Ok(Some(resp)) = recv.await {
+@@ -227,7 +248,6 @@ impl Mega {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+-            // FIXME: settings not work, currently
+             "{base}/api/fs/mount",
+             base = self.fuse_url
+         );
+@@ -240,7 +260,7 @@ impl Mega {
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+                 .post_json(
+-                    "http://127.0.0.1:2725/api/fs/mount",
++                    uri.as_str(),
+                     AsyncBody::from(body),
+                 )
+                 .await
+@@ -277,7 +297,6 @@ impl Mega {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+-            // FIXME: settings not work, currently
+             "{base}/api/fs/umount",
+             base = self.fuse_url
+         );
+@@ -293,7 +312,7 @@ impl Mega {
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+                 .post_json(
+-                    "http://127.0.0.1:2725/api/fs/umount",
++                    uri.as_str(),
+                     AsyncBody::from(body),
+                 )
+                 .await
+@@ -321,7 +340,6 @@ impl Mega {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+-            // FIXME: settings not work, currently
+             "{base}/api/fs/mpoint",
+             base = self.fuse_url
+         );
+@@ -329,7 +347,7 @@ impl Mega {
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+                 .get(
+-                    "http://127.0.0.1:2725/api/fs/mpoint",
++                    uri.as_str(),
+                     AsyncBody::empty(),
+                     false,
+                 )
+@@ -358,7 +376,6 @@ impl Mega {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+-            // FIXME: settings not work, currently
+             "{base}/api/config",
+             base = self.fuse_url
+         );
+@@ -366,7 +383,7 @@ impl Mega {
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+                 .get(
+-                    "http://127.0.0.1:2725/api/config",
++                    uri.as_str(),
+                     AsyncBody::empty(),
+                     false,
+                 )
+@@ -395,7 +412,6 @@ impl Mega {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+-            // FIXME: settings not work, currently
+             "{base}/api/config",
+             base = self.fuse_url
+         );
+@@ -409,7 +425,7 @@ impl Mega {
+ 
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+-                .post_json("http://127.0.0.1:2725/api/config", config.into())
++                .post_json(uri.as_str(), config.into())
+                 .await
+             {
+                 if resp.status().is_success() {
+diff --git a/crates/mega/src/mega_settings.rs b/crates/mega/src/mega_settings.rs
+index 82721208a1..bada5ccd80 100644
+--- a/crates/mega/src/mega_settings.rs
++++ b/crates/mega/src/mega_settings.rs
+@@ -17,23 +17,23 @@ pub struct MegaSettingsContent {
+     /// Url to communicate with mega
+     ///
+     /// Default: http://localhost:8000
+-    pub mega_url: String,
++    pub mega_url: Option<String>,
+     /// Url to communicate with fuse
+     ///
+     /// Default: http://localhost:2725
+-    pub fuse_url: String,
++    pub fuse_url: Option<String>,
+     /// Default mount point for fuse
+     ///
+     /// Default: "/" (for now)
+-    pub mount_point: PathBuf,
++    pub mount_point: Option<PathBuf>,
+     /// Path for mega executable
+     ///
+     /// Default: "mega" (for now)
+-    pub mega_executable: PathBuf,
++    pub mega_executable: Option<PathBuf>,
+     /// Path for fuse executable
+     ///
+     /// Default: "scorpio" (for now)
+-    pub fuse_executable: PathBuf,
++    pub fuse_executable: Option<PathBuf>,
+ }
+ 
+ impl Settings for MegaSettings {
+-- 
+2.43.0
+
