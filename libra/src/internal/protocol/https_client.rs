@@ -7,7 +7,7 @@ use futures_util::{StreamExt, TryStreamExt};
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use reqwest::header::CONTENT_TYPE;
-use reqwest::{Body, RequestBuilder, Response};
+use reqwest::{Body, RequestBuilder, Response, StatusCode};
 use std::io::Error as IoError;
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -46,24 +46,32 @@ pub struct BasicAuth {
 
 impl BasicAuth {
     /// send request with basic auth, retry 3 times
-    pub async fn send(request_builder: impl Fn() -> RequestBuilder) -> Result<Response, reqwest::Error> {
+    pub async fn send<Fut>(request_builder: impl Fn() -> Fut) -> Result<Response, reqwest::Error>
+    where
+        Fut: std::future::Future<Output=RequestBuilder>,
+    {
         static AUTH: Mutex<Option<BasicAuth>> = Mutex::new(None);
         const MAX_TRY: usize = 3;
         let mut res;
         let mut try_cnt = 0;
         loop {
-            let mut request = request_builder(); // RequestBuilder can't be cloned
+            let mut request = request_builder().await; // RequestBuilder can't be cloned
             if let Some(auth) = AUTH.lock().unwrap().deref() {
                 request = request.basic_auth(auth.username.clone(), Some(auth.password.clone()));
             } // if no auth exists, try without auth (e.g. clone public)
             res = request.send().await?;
-            if res.status() != 401 {
+            if res.status() == StatusCode::FORBIDDEN { // 403: no access, no need to retry
+                eprintln!("Authentication failed, forbidden");
+                break;
+            } else if res.status() != StatusCode::UNAUTHORIZED {
                 break;
             }
+            // 401 (Unauthorized): username or password is incorrect
             if try_cnt >= MAX_TRY {
                 eprintln!("Failed to authenticate after {} attempts", MAX_TRY);
                 break;
             }
+            eprintln!("Authentication required, retrying...");
             AUTH.lock().unwrap().replace(ask_basic_auth());
             try_cnt += 1;
         }
@@ -97,7 +105,7 @@ impl HttpsClient {
             .url
             .join(&format!("info/refs?service={}", service))
             .unwrap();
-        let res = BasicAuth::send(|| self.client.get(url.clone())).await.unwrap();
+        let res = BasicAuth::send(|| async{self.client.get(url.clone())}).await.unwrap();
         tracing::debug!("{:?}", res);
 
         if res.status() == 401 {
@@ -196,7 +204,7 @@ impl HttpsClient {
         let body = generate_upload_pack_content(have, want).await;
         tracing::debug!("fetch_objects with body: {:?}", body);
 
-        let res = BasicAuth::send(|| {
+        let res = BasicAuth::send(|| async {
             self
                 .client
                 .post(url.clone())
@@ -223,7 +231,7 @@ impl HttpsClient {
         &self,
         data: T,
     ) -> Result<Response, reqwest::Error> {
-        BasicAuth::send(|| {
+        BasicAuth::send(|| async {
             self
                 .client
                 .post(self.url.join("git-receive-pack").unwrap())
