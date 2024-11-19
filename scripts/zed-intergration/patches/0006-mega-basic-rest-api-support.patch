@@ -1,7 +1,7 @@
 From 8b57a9f693c95e92ee5299ff30b6cd791c08da71 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Tue, 22 Oct 2024 19:12:08 +0800
-Subject: [PATCH 06/14] mega: basic rest api support
+Subject: [PATCH 06/24] mega: basic rest api support
 
 ---
  Cargo.lock                          |  1 +
