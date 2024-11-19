@@ -1,7 +1,7 @@
 From 0ae6bfb40025aca376878982579a322eaa231143 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Sat, 26 Oct 2024 22:02:19 +0800
-Subject: [PATCH 07/14] mega_panel: control pad and information display
+Subject: [PATCH 07/24] mega_panel: control pad and information display
 
 ---
  crates/mega/src/mega.rs             |  56 ++++++++---

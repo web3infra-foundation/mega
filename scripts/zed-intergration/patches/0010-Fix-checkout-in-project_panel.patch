@@ -1,7 +1,7 @@
 From f2551513e804e8f43f6fac39d58befffd9dcda39 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Wed, 30 Oct 2024 10:53:59 +0800
-Subject: [PATCH 10/14] Fix checkout in project_panel
+Subject: [PATCH 10/24] Fix checkout in project_panel
 
 ---
  crates/mega/src/mega.rs                   | 18 +++++++++-
