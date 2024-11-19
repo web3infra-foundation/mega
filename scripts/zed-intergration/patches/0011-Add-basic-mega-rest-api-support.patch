@@ -1,7 +1,7 @@
 From a880b2c68d47990c8229656313b9dbeb1000b87c Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Sun, 10 Nov 2024 22:19:15 +0800
-Subject: [PATCH 11/14] Add basic mega rest api support
+Subject: [PATCH 11/24] Add basic mega rest api support
 
 ---
  Cargo.lock                          |  30 +++

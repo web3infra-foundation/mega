@@ -1,7 +1,7 @@
 From 3c45fed1fd917dac0051917d7d9685371f35cd60 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Tue, 12 Nov 2024 16:56:00 +0800
-Subject: [PATCH 12/14] fix api call logic
+Subject: [PATCH 12/24] fix api call logic
 
 ---
  Cargo.lock                                |  54 +++---
