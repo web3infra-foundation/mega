@@ -173,7 +173,7 @@ impl LFSClient {
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
         };
 
-        let response = BasicAuth::send(|| {
+        let response = BasicAuth::send(|| async {
             self.client
                 .post(self.batch_url.clone())
                 .json(&batch_request)
@@ -205,23 +205,19 @@ impl LFSClient {
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
         };
 
-        let request = self
-            .client
-            .post(self.batch_url.clone())
-            .json(&batch_request)
-            .headers(lfs::LFS_HEADERS.clone());
-
-        let response = request.send().await.unwrap();
+        let response = BasicAuth::send(|| async {
+            self.client
+                .post(self.batch_url.clone())
+                .json(&batch_request)
+                .headers(lfs::LFS_HEADERS.clone())
+        }).await.unwrap();
 
         let resp = response.json::<LfsBatchResponse>().await.unwrap();
         tracing::debug!(
             "LFS push response:\n {:#?}",
             serde_json::to_value(&resp).unwrap()
         );
-        assert!(
-            resp.objects.len() == 1,
-            "fatal: LFS push failed. No object found."
-        );
+        assert_eq!(resp.objects.len(), 1, "fatal: LFS push failed. No object found.");
 
         // self.upload_object(resp.objects).await?;
         let obj = resp.objects.into_iter().next().unwrap();
@@ -244,21 +240,21 @@ impl LFSClient {
                 return Err(());
             }
 
-            let link = upload_link.unwrap();
-            let mut request = self.client.put(&link.href);
-            for (k, v) in &link.header {
-                request = request.header(k, v);
-            }
-
-            let content = tokio::fs::File::open(file).await.unwrap();
             println!("Uploading LFS file: {}", object.oid);
-            let resp = request
-                .body(reqwest::Body::wrap_stream(
+            let link = upload_link.unwrap();
+
+            let resp = BasicAuth::send(|| async {
+                let mut request = self.client.put(&link.href);
+                for (k, v) in &link.header {
+                    request = request.header(k, v);
+                }
+
+                let content = tokio::fs::File::open(file).await.unwrap();
+                request.body(reqwest::Body::wrap_stream(
                     tokio_util::io::ReaderStream::new(content),
                 ))
-                .send()
-                .await
-                .unwrap();
+            }).await.unwrap();
+
             if !resp.status().is_success() {
                 eprintln!("fatal: LFS upload failed. Status: {}, Message: {}", resp.status(), resp.text().await.unwrap());
                 return Err(());
@@ -306,11 +302,12 @@ impl LFSClient {
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
         };
 
-        let request = self.client
-            .post(self.batch_url.clone())
-            .json(&batch_request)
-            .headers(lfs::LFS_HEADERS.clone());
-        let response = request.send().await?;
+        let response = BasicAuth::send(|| async {
+            self.client
+                .post(self.batch_url.clone())
+                .json(&batch_request)
+                .headers(lfs::LFS_HEADERS.clone())
+        }).await?;
 
         let text = response.text().await?;
         tracing::debug!("LFS download response:\n {:#?}", serde_json::from_str::<serde_json::Value>(&text)?);
@@ -382,12 +379,13 @@ impl LFSClient {
                 println!("- part: {}/{}", got_parts, parts);
             }
 
-            let mut request = self.client.get(&link.href);
-            for (k, v) in &link.header {
-                request = request.header(k, v);
-            }
-
-            let response = request.send().await?;
+            let response = BasicAuth::send(|| async {
+                let mut request = self.client.get(&link.href);
+                for (k, v) in &link.header {
+                    request = request.header(k, v);
+                }
+                request
+            }).await?;
             if !response.status().is_success() {
                 eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
                 return Err(anyhow!("LFS download failed."));
@@ -431,8 +429,7 @@ impl LFSClient {
         let path = url.path().trim_end_matches('/');
         url.set_path(&(path.to_owned() + "/chunks")); // reserve query params (for GitHub link)
 
-        let request = self.client.get(url);
-        let resp = request.send().await.unwrap();
+        let resp = BasicAuth::send(|| async { self.client.get(url.clone()) }).await.unwrap();
         let code = resp.status();
         if code == StatusCode::NOT_FOUND || code == StatusCode::FORBIDDEN { // GitHub maybe return 403
             tracing::info!("Remote LFS Server not support Chunks API, or forbidden.");
@@ -479,7 +476,7 @@ impl LFSClient{
         }
         tracing::debug!("P2P download tunnel ports: {:?}", peer_ports);
 
-        let lfs_info = match gemini::lfs::get_lfs_chunks_info(bootstrap_node.clone(), hash.clone()).await {
+        let lfs_info = match gemini::lfs::get_lfs_chunks_info(bootstrap_node.clone(), hash.clone()).await { // auth?
             Some(chunks) => chunks,
             None => return Err(anyhow!("fatal: LFS Chunk API failed."))
         };
@@ -545,10 +542,11 @@ impl LFSClient{
     }
 
     async fn download_chunk(&self, url: &str, hash: &str, size: usize, offset: usize, mut callback: impl FnMut(usize)) -> anyhow::Result<Vec<u8>> {
-        let response = self.client
-            .get(url)
-            .query(&[("offset", offset), ("size", size)])
-            .send().await?;
+        let response = BasicAuth::send(|| async {
+            self.client
+                .get(url)
+                .query(&[("offset", offset), ("size", size)])
+        }).await?;
         if !response.status().is_success() {
             eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
             return Err(anyhow!("LFS download failed."));
@@ -584,7 +582,7 @@ impl LFSClient {
             ("cursor", query.cursor),
             ("refspec", query.refspec)
         ];
-        let response = BasicAuth::send(||self.client.get(url.clone()).query(&query)).await.unwrap();
+        let response = BasicAuth::send(|| async { self.client.get(url.clone()).query(&query) }).await.unwrap();
         if !response.status().is_success() {
             eprintln!("fatal: LFS get locks failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
             return LockList {
@@ -600,12 +598,12 @@ impl LFSClient {
     /// - `refspec` is must in Mega Server, but optional in Git Doc
     pub async fn lock(&self, path: String, refspec: String) -> StatusCode {
         let url = self.lfs_url.join("locks").unwrap();
-        let resp = BasicAuth::send(||
+        let resp = BasicAuth::send(|| async {
             self.client.post(url.clone()).json(&LockRequest {
                 path: path.clone(),
                 refs: Ref { name: refspec.clone() },
             })
-        ).await.unwrap();
+        }).await.unwrap();
         let code = resp.status();
         if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
             eprintln!("fatal: LFS lock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
@@ -615,12 +613,12 @@ impl LFSClient {
 
     pub async fn unlock(&self, id: String, refspec: String, force: bool) -> StatusCode {
         let url = self.lfs_url.join(&format!("locks/{}/unlock", id)).unwrap();
-        let resp = BasicAuth::send(||
+        let resp = BasicAuth::send(|| async {
             self.client.post(url.clone()).json(&UnlockRequest {
                 force: Some(force),
                 refs: Ref { name: refspec.clone() },
             })
-        ).await.unwrap();
+        }).await.unwrap();
         let code = resp.status();
         if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
             eprintln!("fatal: LFS unlock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
@@ -633,7 +631,7 @@ impl LFSClient {
         -> (StatusCode, VerifiableLockList)
     {
         let url = self.lfs_url.join("locks/verify").unwrap();
-        let resp = BasicAuth::send(||self.client.post(url.clone()).json(&query)).await.unwrap();
+        let resp = BasicAuth::send(|| async {self.client.post(url.clone()).json(&query)}).await.unwrap();
         let code = resp.status();
         // By default, an LFS server that doesn't implement any locking endpoints should return 404.
         // This response will not halt any Git pushes.
