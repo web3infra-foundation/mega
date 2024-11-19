@@ -577,16 +577,14 @@ impl LFSClient{
 impl LFSClient {
     pub async fn get_locks(&self, query: LockListQuery) -> LockList {
         let url = self.lfs_url.join("locks").unwrap();
-        let mut request = self.client.get(url);
-        request = request.query(&[
+        let query = [
             ("id", query.id),
             ("path", query.path),
             ("limit", query.limit),
             ("cursor", query.cursor),
             ("refspec", query.refspec)
-        ]);
-        let response = request.send().await.unwrap();
-
+        ];
+        let response = BasicAuth::send(||self.client.get(url.clone()).query(&query)).await.unwrap();
         if !response.status().is_success() {
             eprintln!("fatal: LFS get locks failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
             return LockList {
@@ -600,16 +598,14 @@ impl LFSClient {
 
     /// lock an LFS file
     /// - `refspec` is must in Mega Server, but optional in Git Doc
-    pub async fn lock(&self, path: String, refspec: String, basic_auth: Option<BasicAuth>) -> StatusCode {
+    pub async fn lock(&self, path: String, refspec: String) -> StatusCode {
         let url = self.lfs_url.join("locks").unwrap();
-        let mut request = self.client.post(url).json(&LockRequest {
-            path,
-            refs: Ref { name: refspec },
-        });
-        if let Some(auth) = basic_auth {
-            request = request.basic_auth(auth.username, Some(auth.password));
-        }
-        let resp = request.send().await.unwrap();
+        let resp = BasicAuth::send(||
+            self.client.post(url.clone()).json(&LockRequest {
+                path: path.clone(),
+                refs: Ref { name: refspec.clone() },
+            })
+        ).await.unwrap();
         let code = resp.status();
         if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
             eprintln!("fatal: LFS lock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
@@ -617,16 +613,14 @@ impl LFSClient {
         code
     }
 
-    pub async fn unlock(&self, id: String, refspec: String, force: bool, basic_auth: Option<BasicAuth>) -> StatusCode {
+    pub async fn unlock(&self, id: String, refspec: String, force: bool) -> StatusCode {
         let url = self.lfs_url.join(&format!("locks/{}/unlock", id)).unwrap();
-        let mut request = self.client.post(url).json(&UnlockRequest {
-            force: Some(force),
-            refs: Ref { name: refspec },
-        });
-        if let Some(auth) = basic_auth.clone() {
-            request = request.basic_auth(auth.username, Some(auth.password));
-        }
-        let resp = request.send().await.unwrap();
+        let resp = BasicAuth::send(||
+            self.client.post(url.clone()).json(&UnlockRequest {
+                force: Some(force),
+                refs: Ref { name: refspec.clone() },
+            })
+        ).await.unwrap();
         let code = resp.status();
         if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
             eprintln!("fatal: LFS unlock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());

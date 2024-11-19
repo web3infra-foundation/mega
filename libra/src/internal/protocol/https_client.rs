@@ -57,7 +57,11 @@ impl BasicAuth {
                 request = request.basic_auth(auth.username.clone(), Some(auth.password.clone()));
             } // if no auth exists, try without auth (e.g. clone public)
             res = request.send().await?;
-            if res.status() != 401 || try_cnt >= MAX_TRY {
+            if res.status() != 401 {
+                break;
+            }
+            if try_cnt >= MAX_TRY {
+                eprintln!("Failed to authenticate after {} attempts", MAX_TRY);
                 break;
             }
             AUTH.lock().unwrap().replace(ask_basic_auth());
