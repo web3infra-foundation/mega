@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 use anyhow::anyhow;
+use indicatif::{ProgressBar, ProgressStyle};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::OnceCell;
 use url::Url;
@@ -250,9 +251,22 @@ impl LFSClient {
                 }
 
                 let content = tokio::fs::File::open(file).await.unwrap();
-                request.body(reqwest::Body::wrap_stream(
-                    tokio_util::io::ReaderStream::new(content),
-                ))
+                let progress_bar = ProgressBar::new(content.metadata().await.unwrap().len());
+                progress_bar.set_style(
+                    ProgressStyle::default_bar()
+                        .template("{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta})")
+                        .unwrap()
+                        .progress_chars("#>-"),
+                );
+
+                let stream = tokio_util::io::ReaderStream::new(content);
+                let progress_stream = stream.map(move |chunk| {
+                    if let Ok(ref data) = chunk {
+                        progress_bar.inc(data.len() as u64);
+                    }
+                    chunk
+                });
+                request.body(reqwest::Body::wrap_stream(progress_stream))
             }).await.unwrap();
 
             if !resp.status().is_success() {
