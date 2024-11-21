@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import React from 'react';
 import { List, PaginationProps, Tag, Tabs, TabsProps } from 'antd/lib';
 import { format, formatDistance, fromUnixTime } from 'date-fns'
@@ -23,7 +23,7 @@ export default function MergeRequestPage() {
     const [pageSize, setPageSize] = useState(10);
     const [status, setStatus] = useState("open")
 
-    const fetchData = async (page: number, per_page: number) => {
+    const fetchData = useCallback(async (page: number, per_page: number) => {
         try {
             const res = await fetch(`/api/mr/list`, {
                 method: 'POST',
@@ -47,12 +47,11 @@ export default function MergeRequestPage() {
         } catch (error) {
             console.error('Error fetching data:', error);
         }
-    };
+    }, [status]);
 
     useEffect(() => {
-
         fetchData(1, pageSize);
-    }, [pageSize, status]);
+    }, [pageSize, status, fetchData]);
 
     const getStatusTag = (status: string) => {
         switch (status) {
