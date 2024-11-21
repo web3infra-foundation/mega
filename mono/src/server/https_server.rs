@@ -182,7 +182,6 @@ pub async fn get_method_router(
     state: State<AppState>,
     Query(params): Query<InfoRefsParams>,
     uri: Uri,
-    req: Request<Body>,
 ) -> Result<Response<Body>, ProtocolError> {
     if INFO_REFS_REGEX.is_match(uri.path()) {
         let pack_protocol = SmartProtocol::new(
@@ -190,7 +189,7 @@ pub async fn get_method_router(
             state.context.clone(),
             TransportProtocol::Http,
         );
-        crate::git_protocol::http::git_info_refs(req, params, pack_protocol).await
+        crate::git_protocol::http::git_info_refs(params, pack_protocol).await
     } else {
         Err(ProtocolError::NotFound(
             "Operation not supported".to_owned(),
