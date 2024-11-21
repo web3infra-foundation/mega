@@ -23,15 +23,9 @@ use common::model::InfoRefsParams;
 // where $servicename MUST be the service name the client wishes to contact to complete the operation.
 // The request MUST NOT contain additional query parameters.
 pub async fn git_info_refs(
-    req: Request<Body>,
     params: InfoRefsParams,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
-    if pack_protocol.context.config.monorepo.enable_http_auth
-        && !http_auth(req.headers(), &pack_protocol.context).await
-    {
-        return auth_failed();
-    }
     let service_name = params.service.unwrap();
     pack_protocol.service_type = Some(service_name.parse::<ServiceType>().unwrap());
 
@@ -62,11 +56,27 @@ async fn http_auth(header: &HeaderMap<HeaderValue>, context: &Context) -> bool {
             let credentials = String::from_utf8(decoded).unwrap_or_default();
             let mut parts = credentials.splitn(2, ':');
             let username = parts.next().unwrap_or("");
-            let password = parts.next().unwrap_or("");
-            tracing::debug!("{}, {}", username, password);
-            match context.user_stg().find_user_by_name(username).await.unwrap() {
+            let token = parts.next().unwrap_or("");
+            tracing::debug!("{}, {}", username, token);
+            let auth_config = context.config.authentication.clone();
+            if auth_config.enable_test_user
+                && username == auth_config.test_user_name
+                && token == auth_config.test_user_token
+            {
+                return true;
+            }
+            match context
+                .user_stg()
+                .find_user_by_name(username)
+                .await
+                .unwrap()
+            {
                 Some(user) => {
-                    return context.user_stg().check_token(user.id, password).await.unwrap();
+                    return context
+                        .user_stg()
+                        .check_token(user.id, token)
+                        .await
+                        .unwrap();
                 }
                 None => return false,
             }
@@ -175,7 +185,7 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
-    if pack_protocol.context.config.monorepo.enable_http_auth
+    if pack_protocol.context.config.authentication.enable_http_auth
         && !http_auth(req.headers(), &pack_protocol.context).await
     {
         return auth_failed();

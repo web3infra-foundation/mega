@@ -241,7 +241,10 @@ impl SmartProtocol {
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
                 match unpack_result {
-                    Ok(_) => {
+                    Ok(ref title) => {
+                        if let Err(e) = pack_handler.handle_mr(title).await {
+                            command.failed(e.to_string());
+                        }
                         if !default_exist {
                             command.default_branch = true;
                             default_exist = true;

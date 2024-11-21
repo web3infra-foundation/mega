@@ -132,7 +132,7 @@ export default function MergeRequestPage() {
                             avatar={
                                 getStatusIcon(item.status)
                             }
-                            title={<Link href={`/mr/${item.link}`}>{`MR ${item.link} open by Mega automacticlly${item.title}`}{getStatusTag(item.status)}</Link>}
+                            title={<Link href={`/mr/${item.link}`}>{`${item.title}`} {getStatusTag(item.status)}</Link>}
                             description={getDescription(item)}
                         />
                     </List.Item>

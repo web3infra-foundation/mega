@@ -15,7 +15,10 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{db_enums::ConvType, raw_blob};
-use common::{errors::MegaError, utils::{self, MEGA_BRANCH_NAME}};
+use common::{
+    errors::MegaError,
+    utils::{self, MEGA_BRANCH_NAME},
+};
 use jupiter::{context::Context, storage::mr_storage::MrStorage};
 use mercury::internal::{object::ObjectTrait, pack::encode::PackEncoder};
 use mercury::{
@@ -119,33 +122,43 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
-        let storage = self.context.mr_stg();
-        let path_str = self.path.to_str().unwrap();
-
-        let unpack_res = self.save_entry(receiver).await;
-        match unpack_res {
-            Ok(title) => match storage.get_open_mr_by_path(path_str).await.unwrap() {
-                Some(mr) => {
-                    let mut mr = mr.into();
-                    self.handle_existing_mr(&mut mr, &storage).await
+    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<String, GitError> {
+        let storage = self.context.services.mono_storage.clone();
+        let mut entry_list = Vec::new();
+        let mut join_tasks = vec![];
+        let mut current_commit_id = String::new();
+        let mut mr_title = String::new();
+        for entry in receiver {
+            if current_commit_id.is_empty() {
+                if entry.obj_type == ObjectType::Commit {
+                    current_commit_id = entry.hash.to_plain_str();
+                    let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
+                    mr_title = commit.format_message();
                 }
-                None => {
-                    let link: String = utils::generate_link();
-                    let mr = MergeRequest {
-                        path: path_str.to_owned(),
-                        from_hash: self.from_hash.clone(),
-                        to_hash: self.to_hash.clone(),
-                        link,
-                        title,
-                        ..Default::default()
-                    };
-                    storage.save_mr(mr.clone().into()).await.unwrap();
-                    Ok(())
+            } else {
+                if entry.obj_type == ObjectType::Commit {
+                    return Err(GitError::CustomError(
+                        "only single commit support in each push".to_string(),
+                    ));
                 }
-            },
-            Err(err) => Err(err),
+                if entry_list.len() >= 1000 {
+                    let stg_clone = storage.clone();
+                    let commit_id = current_commit_id.clone();
+                    let handle = tokio::spawn(async move {
+                        stg_clone.save_entry(&commit_id, entry_list).await.unwrap();
+                    });
+                    join_tasks.push(handle);
+                    entry_list = vec![];
+                }
+            }
+            entry_list.push(entry);
         }
+        join_all(join_tasks).await;
+        storage
+            .save_entry(&current_commit_id, entry_list)
+            .await
+            .unwrap();
+        Ok(mr_title)
     }
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
@@ -305,6 +318,36 @@ impl PackHandler for MonoRepo {
             .await
     }
 
+    async fn handle_mr(&self, title: &str) -> Result<(), GitError> {
+        let storage = self.context.mr_stg();
+        let path_str = self.path.to_str().unwrap();
+
+        match storage.get_open_mr_by_path(path_str).await.unwrap() {
+            Some(mr) => {
+                let mut mr = mr.into();
+                self.handle_existing_mr(&mut mr, &storage).await
+            }
+            None => {
+                if self.from_hash == "0".repeat(40) {
+                    return Err(GitError::CustomError(String::from(
+                        "Can not init directory under monorepo directory!",
+                    )));
+                }
+                let link: String = utils::generate_link();
+                let mr = MergeRequest {
+                    path: path_str.to_owned(),
+                    from_hash: self.from_hash.clone(),
+                    to_hash: self.to_hash.clone(),
+                    link,
+                    title: title.to_string(),
+                    ..Default::default()
+                };
+                storage.save_mr(mr.clone().into()).await.unwrap();
+                Ok(())
+            }
+        }
+    }
+
     async fn update_refs(&self, _: &RefCommand) -> Result<(), GitError> {
         //do nothing in monorepo because we use mr to handle refs update
         Ok(())
@@ -365,44 +408,5 @@ impl MonoRepo {
             &from[..6],
             &to[..6]
         )
-    }
-
-    async fn save_entry(&self, receiver: Receiver<Entry>) -> Result<String, GitError> {
-        let storage = self.context.services.mono_storage.clone();
-        let mut entry_list = Vec::new();
-        let mut join_tasks = vec![];
-        let mut current_commit_id = String::new();
-        let mut mr_title = String::new();
-        for entry in receiver {
-            if current_commit_id.is_empty() {
-                if entry.obj_type == ObjectType::Commit {
-                    current_commit_id = entry.hash.to_plain_str();
-                    let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
-                    mr_title = commit.format_message();
-                }
-            } else {
-                if entry.obj_type == ObjectType::Commit {
-                    return Err(GitError::CustomError(
-                        "only single commit support in each push".to_string(),
-                    ));
-                }
-                if entry_list.len() >= 1000 {
-                    let stg_clone = storage.clone();
-                    let commit_id = current_commit_id.clone();
-                    let handle = tokio::spawn(async move {
-                        stg_clone.save_entry(&commit_id, entry_list).await.unwrap();
-                    });
-                    join_tasks.push(handle);
-                    entry_list = vec![];
-                }
-            }
-            entry_list.push(entry);
-        }
-        join_all(join_tasks).await;
-        storage
-            .save_entry(&current_commit_id, entry_list)
-            .await
-            .unwrap();
-        Ok(mr_title)
     }
 }
