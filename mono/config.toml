@@ -47,14 +47,26 @@ obs_region = "cn-east-3"
 # Override the endpoint URL used for remote storage services
 obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
 
+[authentication]
+# Support http authentication, login in with github and generate token before push
+enable_http_auth = false
+
+# Enable a test user for debugging and development purposes.
+# If set to true, the service allows using a predefined test user for authentication.
+enable_test_user = true
+
+# Specify the name of the test user.
+# This is only relevant if `enable_test_user` is set to true.
+test_user_name = "mega"
+
+# Specify the token for the test user.
+# This is used for authentication when `enable_test_user` is set to true.
+test_user_token = "mega"
 
 [monorepo]
 ## Only import directory support multi-branch commit and tag, monorepo only support main branch
 ## Mega treats files under this directory as import repo and other directories as monorepo
 import_dir = "/third-part"
-
-# Support http authentication, login in with github and generate token before push
-enable_http_auth = false
 
 # Set System Admin in directory init, replace the admin's github username here
 admin = "admin"
