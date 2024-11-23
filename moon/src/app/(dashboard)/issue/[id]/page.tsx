@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
 import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import RichEditor from "@/components/rich-editor/RichEditor";
@@ -37,11 +37,11 @@ export default function IssueDetailPage({ params }: { params: Params }) {
     const [loadings, setLoadings] = useState<boolean[]>([]);
     const router = useRouter();
 
-    const fetchDetail = async () => {
+    const fetchDetail = useCallback(async () => {
         const detail = await fetch(`/api/issue/${id}/detail`);
         const detail_json = await detail.json();
         setInfo(detail_json.data.data);
-    };
+    }, [id]);
 
     const checkLogin = async () => {
         const res = await fetch(`/api/auth`);
@@ -51,7 +51,7 @@ export default function IssueDetailPage({ params }: { params: Params }) {
     useEffect(() => {
         checkLogin()
         fetchDetail()
-    }, [id]);
+    }, [id, fetchDetail]);
 
     const set_to_loading = (index: number) => {
         setLoadings((prevLoadings) => {
