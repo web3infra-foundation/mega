@@ -48,6 +48,7 @@ byte-unit = "5.1.4"
 scopeguard = "1.2.0"
 lru-mem = "0.3.0"
 anyhow = { workspace = true }
+similar = "2.6.0"
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
