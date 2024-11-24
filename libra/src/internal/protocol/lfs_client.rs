@@ -2,7 +2,7 @@ use crate::command;
 use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
-use crate::utils::lfs;
+use crate::utils::{lfs, util};
 use ceres::lfs::lfs_structs::{BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest, ObjectError, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
 use futures_util::StreamExt;
 use mercury::internal::object::types::ObjectType;
@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 use anyhow::anyhow;
-use indicatif::{ProgressBar, ProgressStyle};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::OnceCell;
 use url::Url;
@@ -251,13 +250,7 @@ impl LFSClient {
                 }
 
                 let content = tokio::fs::File::open(file).await.unwrap();
-                let progress_bar = ProgressBar::new(content.metadata().await.unwrap().len());
-                progress_bar.set_style(
-                    ProgressStyle::default_bar()
-                        .template("{spinner:.green} [{elapsed_precise}] {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta})")
-                        .unwrap()
-                        .progress_chars("#>-"),
-                );
+                let progress_bar = util::default_progress_bar(content.metadata().await.unwrap().len());
 
                 let stream = tokio_util::io::ReaderStream::new(content);
                 let progress_stream = stream.map(move |chunk| {
@@ -405,8 +398,13 @@ impl LFSClient {
                 return Err(anyhow!("LFS download failed."));
             }
 
+            let cur_chunk_size = if (got_parts as usize) < parts {
+                chunk_size.unwrap() as u64
+            } else { // last part
+                size - (parts as u64 - 1) * chunk_size.unwrap() as u64
+            };
+            let pb = util::default_progress_bar(cur_chunk_size);
             let mut stream = response.bytes_stream();
-
             while let Some(chunk) = stream.next().await { // TODO: progress bar TODO: multi-thread or async
                 let chunk = chunk?;
                 file.write_all(&chunk).await?;
@@ -420,8 +418,11 @@ impl LFSClient {
                         last_progress = progress;
                         report_fn(progress)?;
                     }
+                } else { // mutually exclusive with reporter
+                    pb.inc(chunk.len() as u64);
                 }
             }
+            pb.finish_and_clear();
         }
         let checksum = hex::encode(checksum.finish().as_ref());
         if checksum == oid {
@@ -515,6 +516,7 @@ impl LFSClient{
             let data = loop { // retry
                 let mut downloaded = i * chunk_size; // TODO support resume
                 let mut last_progress = downloaded as f64 / lfs_info.size as f64 * 100.0;
+                let pb = util::default_progress_bar(chunk.size as u64);
                 let url = format!("http://localhost:{}/objects/{}/{}", peer_ports[(i + retry) % peer_ports.len()], hash, chunk.sub_oid);
                 let data = self.download_chunk(&url, &chunk.sub_oid, chunk.size as usize, chunk.offset as usize, |size| {
                     if let Some((ref mut report_fn, step)) = reporter {
@@ -524,8 +526,11 @@ impl LFSClient{
                             last_progress = progress;
                             report_fn(progress).unwrap();
                         }
+                    } else {
+                        pb.inc(size as u64);
                     }
                 }).await;
+                pb.finish_and_clear();
                 match data {
                     Ok(data) => break data,
                     Err(e) => {
