@@ -1,7 +1,7 @@
 From 006bd0e01b5deba6792af824a5a73c32e96efa2c Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Sat, 19 Oct 2024 21:24:00 +0800
-Subject: [PATCH 01/14] add new module mega and mega_panel
+Subject: [PATCH 01/24] add new module mega and mega_panel
 
 ---
  Cargo.lock                                   | 23 ++++++

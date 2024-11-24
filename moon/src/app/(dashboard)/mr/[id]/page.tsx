@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
 import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
@@ -44,13 +44,13 @@ export default function MRDetailPage({ params }: { params: Params }) {
         setLogin(res.ok);
     };
 
-    const fetchDetail = async () => {
+    const fetchDetail = useCallback(async () => {
         const detail = await fetch(`/api/mr/${id}/detail`);
         const detail_json = await detail.json();
         setMrDetail(detail_json.data.data);
-    };
+    }, [id]);
 
-    const fetchFileList = async () => {
+    const fetchFileList = useCallback(async () => {
         set_to_loading(2)
         try {
             const res = await fetch(`/api/mr/${id}/files`);
@@ -59,13 +59,13 @@ export default function MRDetailPage({ params }: { params: Params }) {
         } finally {
             cancel_loading(2)
         }
-    };
+    }, [id]);
 
     useEffect(() => {
         fetchDetail()
         fetchFileList();
         checkLogin();
-    }, [id]);
+    }, [id, fetchDetail, fetchFileList]);
 
     const set_to_loading = (index: number) => {
         setLoadings((prevLoadings) => {

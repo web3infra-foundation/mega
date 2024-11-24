@@ -12,6 +12,8 @@
 use std::{fmt::Display, str::FromStr};
 
 use bstr::ByteSlice;
+use chrono::Offset;
+use serde::{Deserialize, Serialize};
 
 use crate::errors::GitError;
 
@@ -28,7 +30,7 @@ use crate::errors::GitError;
 /// ```
 ///
 /// So, we design a `SignatureType` enum to indicate the signature type.
-#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone)]
+#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone, Serialize,Deserialize)]
 pub enum SignatureType {
     Author,
     Committer,
@@ -76,7 +78,7 @@ impl SignatureType {
 }
 
 #[allow(unused)]
-#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone)]
+#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone,Serialize,Deserialize)]
 pub struct Signature {
     pub signature_type: SignatureType,
     pub name: String,
@@ -179,11 +181,40 @@ impl Signature {
         // Return the data vector as a Result object indicating success.
         Ok(sign)
     }
+
+/// Represents a signature with author, email, timestamp, and timezone information.
+pub fn new(sign_type: SignatureType, author: String, email: String) -> Signature {
+    // Get the current local time (with timezone)
+    let local_time = chrono::Local::now();
+    
+    // Get the offset from UTC in minutes (local time - UTC time)
+    let offset = local_time.offset().fix().local_minus_utc();
+    
+    // Calculate the hours part of the offset (divide by 3600 to convert from seconds to hours)
+    let hours = offset / 60 / 60;
+    
+    // Calculate the minutes part of the offset (remaining minutes after dividing by 60)
+    let minutes = offset / 60 % 60;
+
+    // Format the offset as a string (e.g., "+0800", "-0300", etc.)
+    let offset_str = format!("{:+03}{:02}", hours, minutes);
+    
+    // Return the Signature struct with the provided information
+    Signature {
+        signature_type: sign_type,    // The type of signature (e.g., commit, merge)
+        name: author,                 // The author's name
+        email,                        // The author's email
+        timestamp: chrono::Utc::now().timestamp() as usize, // The timestamp of the signature (seconds since Unix epoch)
+        timezone: offset_str,         // The timezone offset (e.g., "+0800")
+    }
+}
 }
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
+    use chrono::DateTime;
 
     use crate::internal::object::signature::{Signature, SignatureType};
 
@@ -259,5 +290,17 @@ mod tests {
                 .to_string()
                 .into_bytes()
         );
+    }
+
+    #[test]
+    fn test_signature_with_time(){
+        let sign = Signature::new(SignatureType::Author, "MEGA".to_owned(), "admin@mega.com".to_owned());
+        assert_eq!(sign.signature_type, SignatureType::Author);
+        assert_eq!(sign.name, "MEGA");
+        assert_eq!(sign.email, "admin@mega.com");
+        assert_eq!(sign.timezone, "+0800");
+        
+        let naive_datetime = DateTime::from_timestamp(sign.timestamp as i64, 0).unwrap();
+        println!("Formatted DateTime: {}", naive_datetime.naive_local());
     }
 }

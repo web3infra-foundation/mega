@@ -1,7 +1,7 @@
 From 42916a9fae734c3a0b3dcc8d90f77669378a20c2 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Tue, 12 Nov 2024 17:55:27 +0800
-Subject: [PATCH 13/14] fix features wrongly opened
+Subject: [PATCH 13/24] fix features wrongly opened
 
 ---
  crates/mega_panel/Cargo.toml | 8 ++++++--

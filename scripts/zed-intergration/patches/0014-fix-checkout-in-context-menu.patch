@@ -1,7 +1,7 @@
 From 14806e63bfc717cd17f933fb1aecd6cded410497 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Tue, 12 Nov 2024 19:12:29 +0800
-Subject: [PATCH 14/14] fix checkout in context menu
+Subject: [PATCH 14/24] fix checkout in context menu
 
 ---
  crates/mega/src/mega.rs                   | 47 ++++++-----------------

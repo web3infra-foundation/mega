@@ -23,7 +23,7 @@ impl From<mega_mr::Model> for MrInfoItem {
     fn from(value: mega_mr::Model) -> Self {
         Self {
             link: value.link,
-            title: String::new(),
+            title: value.title,
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
             merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),

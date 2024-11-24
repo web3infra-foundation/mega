@@ -1,0 +1,104 @@
+From cc5def5cd4729cb1705c01896710157e43c0829d Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Sun, 17 Nov 2024 21:39:21 +0800
+Subject: [PATCH 18/24] adjust context menu for fuse
+
+---
+ crates/project_panel/src/project_panel.rs | 57 +++++++++++------------
+ 1 file changed, 27 insertions(+), 30 deletions(-)
+
+diff --git a/crates/project_panel/src/project_panel.rs b/crates/project_panel/src/project_panel.rs
+index 047c3b0eaa..baec6a00a5 100644
+--- a/crates/project_panel/src/project_panel.rs
++++ b/crates/project_panel/src/project_panel.rs
+@@ -15,7 +15,6 @@ use file_icons::FileIcons;
+ use anyhow::{anyhow, Context as _, Result};
+ use collections::{hash_map, BTreeSet, HashMap};
+ use core::f32;
+-use db::write_and_log;
+ use git::repository::GitFileStatus;
+ use gpui::{
+     actions, anchored, deferred, div, impl_actions, px, uniform_list, Action, AnyElement,
+@@ -587,7 +586,7 @@ impl ProjectPanel {
+                                 .action("Cut", Box::new(Cut))
+                                 .action("Copy", Box::new(Copy))
+                                 .action("Duplicate", Box::new(Duplicate))
+-                                // TODO: Paste should always be visible, cbut disabled when clipboard is empty
++                                // TODO: Paste should always be visible, but disabled when clipboard is empty
+                                 .map(|menu| {
+                                     if self.clipboard.as_ref().is_some() {
+                                         menu.action("Paste", Box::new(Paste))
+@@ -599,32 +598,30 @@ impl ProjectPanel {
+                                 .action("Copy Path", Box::new(CopyPath))
+                                 .action("Copy Relative Path", Box::new(CopyRelativePath))
+                                 .separator()
+-                                // Fuse not support renaming, currently.
+-                                // .action("Rename", Box::new(Rename))
+-                                .when(!is_root, |menu| {
+-                                    menu.action("Trash", Box::new(Trash { skip_prompt: false }))
+-                                        .action("Delete", Box::new(Delete { skip_prompt: false }))
+-                                })
+-                                .when(!is_remote & is_root, |menu| {
+-                                    menu.separator()
+-                                        .action(
+-                                            "Add Folder to Project…",
+-                                            Box::new(workspace::AddFolderToProject),
+-                                        )
+-                                        .entry(
+-                                            "Remove from Project",
+-                                            None,
+-                                            cx.handler_for(&this, move |this, cx| {
+-                                                this.project.update(cx, |project, cx| {
+-                                                    project.remove_worktree(worktree_id, cx)
+-                                                });
+-                                            }),
+-                                        )
+-                                })
+-                                .when(is_root, |menu| {
+-                                    menu.separator()
+-                                        .action("Collapse All", Box::new(CollapseAllEntries))
+-                                })
++                                .action("Trash", Box::new(Trash { skip_prompt: false }))
++                                .action("Delete", Box::new(Delete { skip_prompt: false }))
++                            // Fuse not support renaming, currently.
++                            // .action("Rename", Box::new(Rename))
++                        })
++                        .when(!is_remote & is_root, |menu| {
++                            menu
++                                .action(
++                                    "Add Folder to Project…",
++                                    Box::new(workspace::AddFolderToProject),
++                                )
++                                .entry(
++                                    "Remove from Project",
++                                    None,
++                                    cx.handler_for(&this, move |this, cx| {
++                                        this.project.update(cx, |project, cx| {
++                                            project.remove_worktree(worktree_id, cx)
++                                        });
++                                    }),
++                                )
++                        })
++                        .when(is_root, |menu| {
++                            menu.separator()
++                                .action("Collapse All", Box::new(CollapseAllEntries))
+                         })
+                     }
+                 })
+@@ -1380,11 +1377,11 @@ impl ProjectPanel {
+                             this.update(&mut cx, |mega, cx| {
+                                 mega.mark_commited(cx, path.to_path_buf());
+                             })
+-                                .expect("Mega delegate not been dropped");
++                            .expect("Mega delegate not been dropped");
+                         }
+                     }
+                 })
+-                    .detach();
++                .detach();
+             });
+         }
+     }
+-- 
+2.43.0
+

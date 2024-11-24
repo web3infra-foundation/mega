@@ -1,7 +1,7 @@
 From a6636b00e11cfa284e2e152cb2ac0a6d92508a34 Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Mon, 21 Oct 2024 09:33:24 +0800
-Subject: [PATCH 03/14] add: mega `panel` trait implementation
+Subject: [PATCH 03/24] add: mega `panel` trait implementation
 
 ---
  Cargo.lock                                |  1 +

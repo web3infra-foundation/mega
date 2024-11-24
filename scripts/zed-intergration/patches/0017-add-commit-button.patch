@@ -1,0 +1,846 @@
+From e14fe02ac8e203261d09a12119a3e19472fb083b Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Sun, 17 Nov 2024 21:20:35 +0800
+Subject: [PATCH 17/24] add commit button
+
+---
+ assets/settings/default.json              |   2 +-
+ crates/mega/src/api.rs                    |  47 +++++
+ crates/mega/src/mega.rs                   | 166 ++++++++----------
+ crates/mega_panel/src/mega_panel.rs       |  28 ---
+ crates/project_panel/src/project_panel.rs | 205 +++++++++++++---------
+ 5 files changed, 242 insertions(+), 206 deletions(-)
+
+diff --git a/assets/settings/default.json b/assets/settings/default.json
+index 6ea0fff594..466e83655d 100644
+--- a/assets/settings/default.json
++++ b/assets/settings/default.json
+@@ -385,7 +385,7 @@
+     // Url to communicate with fuse
+     "fuse_url": "http://localhost:2725",
+     // Default mount point for fuse
+-    "mount_point": "/home/neon/projects",
++    "mount_point": "/home/neon/dic",
+     // Path for mega executable
+     "mega_executable": "mega",
+     // Path for fuse executable
+diff --git a/crates/mega/src/api.rs b/crates/mega/src/api.rs
+index efbf0d1752..3251888e60 100644
+--- a/crates/mega/src/api.rs
++++ b/crates/mega/src/api.rs
+@@ -1,5 +1,7 @@
+ use serde::{Deserialize, Serialize};
+ 
++const SUCCESS: &str   = "Success";
++const FAIL : &str   = "Fail";
+ #[derive(Debug, Deserialize, Serialize)]
+ pub struct MountRequest<'a> {
+     pub path: &'a str,
+@@ -55,4 +57,49 @@ pub struct ConfigRequest {
+     pub mega_url: Option<String>,
+     pub mount_path: Option<String>,
+     pub store_path: Option<String>,
++}
++
++pub trait FuseResponse {
++    fn is_resp_succeed(&self) -> bool;
++    fn is_resp_failed(&self) -> bool;
++}
++
++impl FuseResponse for MountResponse {
++    fn is_resp_succeed(&self) -> bool {
++        self.status.eq(SUCCESS)
++    }
++
++    fn is_resp_failed(&self) -> bool {
++        self.status.eq(FAIL)
++    }
++}
++
++impl FuseResponse for MountsResponse {
++    fn is_resp_succeed(&self) -> bool {
++        self.status.eq(SUCCESS)
++    }
++
++    fn is_resp_failed(&self) -> bool {
++        self.status.eq(FAIL)
++    }
++}
++
++impl FuseResponse for UmountResponse {
++    fn is_resp_succeed(&self) -> bool {
++        self.status.eq(SUCCESS)
++    }
++
++    fn is_resp_failed(&self) -> bool {
++        self.status.eq(FAIL)
++    }
++}
++
++impl FuseResponse for ConfigResponse {
++    fn is_resp_succeed(&self) -> bool {
++        self.status.eq(SUCCESS)
++    }
++
++    fn is_resp_failed(&self) -> bool {
++        self.status.eq(FAIL)
++    }
+ }
+\ No newline at end of file
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index 19e9222cf3..9003361e4f 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -15,6 +15,7 @@ use crate::mega_settings::MegaSettings;
+ use crate::Event::FuseMounted;
+ use futures::channel::oneshot;
+ use futures::channel::oneshot::Receiver;
++use futures::future::MaybeDone::Future;
+ use futures::{AsyncReadExt, FutureExt, SinkExt, TryFutureExt};
+ use gpui::http_client::{AsyncBody, HttpClient, HttpRequestExt};
+ use gpui::{AppContext, Context, EventEmitter, ModelContext, Path, Task};
+@@ -33,9 +34,8 @@ use std::process::Command;
+ use std::sync::{Arc, RwLock};
+ use std::thread::sleep;
+ use std::time::Duration;
+-use futures::future::MaybeDone::Future;
+ 
+-mod api;
++pub mod api;
+ mod mega_settings;
+ 
+ pub fn init(cx: &mut AppContext) {
+@@ -52,6 +52,7 @@ pub enum Event {
+ struct CheckoutState {
+     path: PathBuf,
+     mounted: bool,
++    notify: bool,
+ }
+ 
+ pub struct Mega {
+@@ -75,11 +76,10 @@ impl EventEmitter<Event> for Mega {}
+ 
+ impl Debug for Mega {
+     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+-        write!(f, 
+-               "fuse_executable: {:?}, mega_url: {}, fuse_url: {}",
+-               self.fuse_executable, 
+-               self.mega_url, 
+-               self.fuse_url
++        write!(
++            f,
++            "fuse_executable: {:?}, mega_url: {}, fuse_url: {}",
++            self.fuse_executable, self.mega_url, self.fuse_url
+         )
+     }
+ }
+@@ -148,28 +148,32 @@ impl Mega {
+                         // Check if checkout-ed paths are correct
+                         this.update(&mut cx, |mega, cx| {
+                             mega.fuse_running = true;
+-                            
++
+                             let trie = &mut mega.checkout_path;
+                             for ref i in info.mounts {
+                                 let missing = trie.get_ancestor(&i.path).is_none();
+                                 if missing {
+                                     // Should not happen unless on startup.
+                                     trie.insert(i.path.clone(), i.inode);
+-                                    cx.emit(Event::FuseCheckout(Some(PathBuf::from(i.path.clone()))))
++                                    cx.emit(Event::FuseCheckout(Some(PathBuf::from(
++                                        i.path.clone(),
++                                    ))))
+                                 }
+                             }
+                         })
+                     }
+                 }
+-            } else { Ok(()) }.unwrap();
++            } else {
++                Ok(())
++            }
++            .unwrap();
+ 
+             // When mount point changed, emit an event.
+             // update mount point if it's none.
+             if let Ok(Some(config)) = config.await {
+                 this.update(&mut cx, |this, cx| {
+                     let path = PathBuf::from(config.config.mount_path);
+-                    if (this.fuse_mounted && this.fuse_running)
+-                    && this.mount_point.is_some() {
++                    if (this.fuse_mounted && this.fuse_running) && this.mount_point.is_some() {
+                         if let Some(inner) = &this.mount_point {
+                             if !inner.eq(&path) {
+                                 this.mount_point = Some(path);
+@@ -181,7 +185,9 @@ impl Mega {
+                         cx.emit(Event::FuseMounted(this.mount_point.clone()));
+                     }
+                 })
+-            } else { Ok(()) }
++            } else {
++                Ok(())
++            }
+         })
+         .detach();
+     }
+@@ -196,7 +202,7 @@ impl Mega {
+     pub fn toggle_fuse(&mut self, cx: &mut ModelContext<Self>) {
+         self.update_status(cx);
+         let paths = &self.checkout_path;
+-        
++
+         if !self.fuse_running {
+             return;
+         }
+@@ -205,9 +211,9 @@ impl Mega {
+             for (_, (p, _)) in paths.iter().enumerate() {
+                 let path = PathBuf::from(p); // FIXME is there a better way?
+                 cx.spawn(|mega, mut cx| async move {
+-                    let recv = mega.update(&mut cx, |this, cx| {
+-                        this.checkout_path(cx, path)
+-                    }).expect("mega delegate not be dropped");
++                    let recv = mega
++                        .update(&mut cx, |this, cx| this.checkout_path(cx, path))
++                        .expect("mega delegate not be dropped");
+ 
+                     if let Ok(Some(resp)) = recv.await {
+                         mega.update(&mut cx, |this, cx| {
+@@ -218,19 +224,20 @@ impl Mega {
+                         Ok(())
+                     }
+                 })
+-                    .detach();
++                .detach();
+             }
+ 
+             self.fuse_mounted = true;
+             cx.emit(Event::FuseMounted(self.mount_point.clone()));
+         } else {
+-            for (_, (p, &n)) in paths.iter().enumerate() {
++            for (_, (p, _)) in paths.iter().enumerate() {
+                 let path = PathBuf::from(p); // FIXME is there a better way?
+                 cx.spawn(|mega, mut cx| async move {
+-                    let recv = mega.update(&mut cx, |this, cx| {
+-                        let param = PathBuf::from(path);
+-                        this.restore_path(cx, param, n)
+-                    }).expect("mega delegate not be dropped");
++                    let recv = mega
++                        .update(&mut cx, |this, cx| {
++                            this.restore_path(cx, path)
++                        })
++                        .expect("mega delegate not be dropped");
+ 
+                     if let Ok(Some(resp)) = recv.await {
+                         mega.update(&mut cx, |this, cx| {
+@@ -241,7 +248,7 @@ impl Mega {
+                         Ok(())
+                     }
+                 })
+-                    .detach();
++                .detach();
+             }
+ 
+             self.fuse_mounted = false;
+@@ -251,7 +258,7 @@ impl Mega {
+ 
+     /// ## Toggle Fuse Mount
+     /// In fact, we cannot `mount` or `umount` a fuse from zed.
+-    /// 
++    ///
+     /// This function only opens up a new scorpio executable if it detects fuse not running.
+     pub fn toggle_mount(&mut self, cx: &mut ModelContext<Self>) {
+         // We only start it, not stop it.
+@@ -259,7 +266,7 @@ impl Mega {
+             let _ = Command::new(self.fuse_executable.as_os_str())
+                 .spawn()
+                 .expect("Fuse Executable path not right");
+-            
++
+             self.update_status(cx);
+         }
+     }
+@@ -271,10 +278,7 @@ impl Mega {
+     ) -> Receiver<Option<MountResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+-        let uri = format!(
+-            "{base}/api/fs/mount",
+-            base = self.fuse_url
+-        );
++        let uri = format!("{base}/api/fs/mount", base = self.fuse_url);
+ 
+         // If it panics, that means there's a bug in code.
+         let path = path.to_str().unwrap();
+@@ -282,13 +286,7 @@ impl Mega {
+         let body = serde_json::to_string(&req).unwrap();
+ 
+         cx.spawn(|_this, _cx| async move {
+-            if let Ok(mut resp) = client
+-                .post_json(
+-                    uri.as_str(),
+-                    AsyncBody::from(body),
+-                )
+-                .await
+-            {
++            if let Ok(mut resp) = client.post_json(uri.as_str(), AsyncBody::from(body)).await {
+                 if resp.status().is_success() {
+                     let mut buf = Vec::new();
+                     resp.body_mut().read_to_end(&mut buf).await.unwrap();
+@@ -308,39 +306,27 @@ impl Mega {
+         rx
+     }
+ 
+-    pub fn checkout_multi_path(&mut self, cx: &mut ModelContext<Self>, mut path: Vec<PathBuf>) {
+-        unimplemented!()
+-    }
+-
+     pub fn restore_path(
+         &self,
+         cx: &ModelContext<Self>,
+         path: PathBuf,
+-        inode: u64,
+     ) -> Receiver<Option<UmountResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+-        let uri = format!(
+-            "{base}/api/fs/umount",
+-            base = self.fuse_url
+-        );
++        let uri = format!("{base}/api/fs/umount", base = self.fuse_url);
+ 
+-        // If it panics, that means there's a bug in code.
++        // If panics here, that means there's a bug in code.
++        // maybe we should ensure every path absolute?
+         let path = path.to_str().unwrap();
++        let inode = self.checkout_path.get_ancestor_value(path);
+         let req = UmountRequest {
+             path: Some(path),
+-            inode: Some(inode),
++            inode: Some(inode.unwrap().to_owned()),
+         };
+         let body = serde_json::to_string(&req).unwrap();
+ 
+         cx.spawn(|_this, _cx| async move {
+-            if let Ok(mut resp) = client
+-                .post_json(
+-                    uri.as_str(),
+-                    AsyncBody::from(body),
+-                )
+-                .await
+-            {
++            if let Ok(mut resp) = client.post_json(uri.as_str(), AsyncBody::from(body)).await {
+                 if resp.status().is_success() {
+                     let mut buf = Vec::new();
+                     resp.body_mut().read_to_end(&mut buf).await.unwrap();
+@@ -363,20 +349,10 @@ impl Mega {
+     pub fn get_checkout_paths(&self, cx: &ModelContext<Self>) -> Receiver<Option<MountsResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+-        let uri = format!(
+-            "{base}/api/fs/mpoint",
+-            base = self.fuse_url
+-        );
++        let uri = format!("{base}/api/fs/mpoint", base = self.fuse_url);
+ 
+         cx.spawn(|_this, _cx| async move {
+-            if let Ok(mut resp) = client
+-                .get(
+-                    uri.as_str(),
+-                    AsyncBody::empty(),
+-                    false,
+-                )
+-                .await
+-            {
++            if let Ok(mut resp) = client.get(uri.as_str(), AsyncBody::empty(), false).await {
+                 if resp.status().is_success() {
+                     let mut buf = Vec::new();
+                     resp.body_mut().read_to_end(&mut buf).await.unwrap();
+@@ -399,20 +375,10 @@ impl Mega {
+     pub fn get_fuse_config(&self, cx: &ModelContext<Self>) -> Receiver<Option<ConfigResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+-        let uri = format!(
+-            "{base}/api/config",
+-            base = self.fuse_url
+-        );
++        let uri = format!("{base}/api/config", base = self.fuse_url);
+ 
+         cx.spawn(|_this, _cx| async move {
+-            if let Ok(mut resp) = client
+-                .get(
+-                    uri.as_str(),
+-                    AsyncBody::empty(),
+-                    false,
+-                )
+-                .await
+-            {
++            if let Ok(mut resp) = client.get(uri.as_str(), AsyncBody::empty(), false).await {
+                 if resp.status().is_success() {
+                     let mut buf = Vec::new();
+                     resp.body_mut().read_to_end(&mut buf).await.unwrap();
+@@ -435,10 +401,7 @@ impl Mega {
+     pub fn set_fuse_config(&self, cx: &mut ModelContext<Self>) -> Receiver<Option<ConfigResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+-        let uri = format!(
+-            "{base}/api/config",
+-            base = self.fuse_url
+-        );
++        let uri = format!("{base}/api/config", base = self.fuse_url);
+         let config = ConfigRequest {
+             mega_url: None,
+             mount_path: None,
+@@ -448,10 +411,7 @@ impl Mega {
+         let config = serde_json::to_string(&config).unwrap();
+ 
+         cx.spawn(|_this, _cx| async move {
+-            if let Ok(mut resp) = client
+-                .post_json(uri.as_str(), config.into())
+-                .await
+-            {
++            if let Ok(mut resp) = client.post_json(uri.as_str(), config.into()).await {
+                 if resp.status().is_success() {
+                     let mut buf = Vec::new();
+                     resp.body_mut().read_to_end(&mut buf).await.unwrap();
+@@ -470,28 +430,44 @@ impl Mega {
+ 
+         rx
+     }
+-    
++
+     pub fn heartbeat(&mut self, cx: &mut ModelContext<Self>) {
+         if self.heartbeat {
+             return;
+         } else {
+             self.heartbeat = true;
+         }
+-        
++
+         cx.spawn(|this, mut cx| async move {
+             loop {
+                 this.update(&mut cx, |mega, cx| {
+                     mega.update_status(cx);
+-                }).expect("mega delegate not be dropped");
+-                
++                })
++                .expect("mega delegate not be dropped");
++
+                 let dur = Duration::from_secs(30);
+                 cx.background_executor().timer(dur).await;
+             }
+-        }).detach();
++        })
++        .detach();
+     }
+-    
+-    pub fn is_path_checkout(&self, path: &String) -> bool {
++
++    pub fn is_path_checkout(&self, path: PathBuf) -> bool {
+         let set = &self.checkout_path;
+-        set.get_ancestor(path).is_some()
++
++        set.get_ancestor(path.to_str().unwrap()).is_some()
++    }
++
++    pub fn mark_checkout(&mut self, cx: &mut ModelContext<Self>, path: String, inode: u64) {
++        if self.mount_point.is_some() {
++            let path = self.mount_point.clone().unwrap().to_str().unwrap().to_string() + path.as_str();
++            self.checkout_path.insert(path, inode);
++            cx.emit(Event::FuseCheckout(None));
++        }
++    }
++
++    pub fn mark_commited(&mut self, cx: &mut ModelContext<Self>, path: PathBuf) {
++        self.checkout_path.remove(path.to_str().unwrap());
++        cx.emit(Event::FuseCheckout(None));
+     }
+ }
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index 4ea88e5b4c..142f627ed8 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -290,7 +290,6 @@ impl MegaPanel {
+                     .icon_position(IconPosition::Start)
+                     .on_click(cx.listener(|this, _, cx| {
+                         this.mega_handle.update(cx, |mega, cx| mega.toggle_mount(cx));
+-                        this.warn_unimplemented(cx);
+                     }))
+                 ),
+                 encap_btn(Button::new("btn_toggle_scorpio", "Toggle Scorpio Checkouts")
+@@ -301,33 +300,6 @@ impl MegaPanel {
+                         this.mega_handle.update(cx, |mega, cx| mega.toggle_fuse(cx));
+                     }))
+                 ),
+-                // encap_btn(Button::new("btn_checkout", "Checkout Path")
+-                //     .full_width()
+-                //     .icon(IconName::Check)
+-                //     .icon_position(IconPosition::Start)
+-                //     .on_click(cx.listener(|this, _, cx| {
+-                //         this.warn_unimplemented(cx);
+-                //         let options = PathPromptOptions {
+-                //             files: true,
+-                //             directories: true,
+-                //             multiple: false,
+-                //         };
+-                //         
+-                //         let abs_path = cx.prompt_for_paths(options);
+-                // 
+-                //         // Why so annoying...
+-                //         let mega = this.mega_handle.clone();
+-                //         cx.spawn(|this, mut cx|async move {
+-                //             // mega.update(&mut cx, |this, cx| async move {
+-                //             //     if let Ok(Ok(Some(result))) = abs_path.await {
+-                //             //         this.checkout_multi_path(cx, result);
+-                //             //     }
+-                //             // }).log_err();
+-                //             
+-                //         }) .detach();
+-                //         
+-                //     }))
+-                // ),
+             ])
+     }
+ 
+diff --git a/crates/project_panel/src/project_panel.rs b/crates/project_panel/src/project_panel.rs
+index a83346ae60..047c3b0eaa 100644
+--- a/crates/project_panel/src/project_panel.rs
++++ b/crates/project_panel/src/project_panel.rs
+@@ -15,6 +15,7 @@ use file_icons::FileIcons;
+ use anyhow::{anyhow, Context as _, Result};
+ use collections::{hash_map, BTreeSet, HashMap};
+ use core::f32;
++use db::write_and_log;
+ use git::repository::GitFileStatus;
+ use gpui::{
+     actions, anchored, deferred, div, impl_actions, px, uniform_list, Action, AnyElement,
+@@ -26,6 +27,7 @@ use gpui::{
+     WindowContext,
+ };
+ use indexmap::IndexMap;
++use mega::{api::FuseResponse, Mega};
+ use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrev};
+ use project::{
+     relativize_path, Entry, EntryKind, Fs, Project, ProjectEntryId, ProjectPath, Worktree,
+@@ -43,8 +45,6 @@ use std::{
+     sync::Arc,
+     time::Duration,
+ };
+-use db::write_and_log;
+-use mega::Mega;
+ use theme::ThemeSettings;
+ use ui::{prelude::*, v_flex, ContextMenu, Icon, KeyBinding, Label, ListItem, Tooltip};
+ use util::{maybe, ResultExt, TryFutureExt};
+@@ -59,7 +59,6 @@ const PROJECT_PANEL_KEY: &str = "ProjectPanel";
+ const NEW_ENTRY_ID: ProjectEntryId = ProjectEntryId::MAX;
+ 
+ pub struct ProjectPanel {
+-    // TODO: use segment tree to fastly store multiple checkout path,
+     project: Model<Project>,
+     mega: Model<Mega>,
+     fs: Arc<dyn Fs>,
+@@ -70,7 +69,6 @@ pub struct ProjectPanel {
+     /// Relevant only for auto-fold dirs, where a single project panel entry may actually consist of several
+     /// project entries (and all non-leaf nodes are guaranteed to be directories).
+     ancestors: HashMap<ProjectEntryId, FoldedAncestors>,
+-    checkout_entry_id: Option<ProjectEntryId>,
+     last_worktree_root_id: Option<ProjectEntryId>,
+     last_external_paths_drag_over_entry: Option<ProjectEntryId>,
+     expanded_dir_ids: HashMap<WorktreeId, Vec<ProjectEntryId>>,
+@@ -169,6 +167,7 @@ actions!(
+         FoldDirectory,
+         SelectParent,
+         CheckoutPath,
++        CommitPath,
+     ]
+ );
+ 
+@@ -298,19 +297,19 @@ impl ProjectPanel {
+                             cx.spawn(|this, mut cx| async move {
+                                 if let Some(task) = this
+                                     .update(&mut cx, |this, cx| {
+-                                        this.open_workspace_for_paths(false, vec!(path), cx)
++                                        this.open_workspace_for_paths(false, vec![path], cx)
+                                     })
+                                     .log_err()
+                                 {
+                                     task.await.log_err();
+                                 }
+                             })
+-                                .detach()
++                            .detach()
+                         })
+                         .log_err();
+-                    
++
+                     this.focus_in(cx);
+-                },
++                }
+                 mega::Event::FuseMounted(None) => {
+                     // TODO: close the workspace
+                 }
+@@ -318,7 +317,8 @@ impl ProjectPanel {
+                     // It's not important, for now.
+                 }
+                 _ => {}
+-            }).detach();
++            })
++            .detach();
+ 
+             cx.observe_global::<FileIcons>(|_, cx| {
+                 cx.notify();
+@@ -343,7 +343,6 @@ impl ProjectPanel {
+                 focus_handle,
+                 visible_entries: Default::default(),
+                 ancestors: Default::default(),
+-                checkout_entry_id: Default::default(),
+                 last_worktree_root_id: Default::default(),
+                 last_external_paths_drag_over_entry: None,
+                 expanded_dir_ids: Default::default(),
+@@ -519,6 +518,7 @@ impl ProjectPanel {
+     ) {
+         let this = cx.view().clone();
+         let project = self.project.read(cx);
++        let mega = self.mega.read(cx);
+ 
+         let worktree_id = if let Some(id) = project.worktree_id_for_entry(entry_id, cx) {
+             id
+@@ -542,6 +542,7 @@ impl ProjectPanel {
+             let is_read_only = project.is_read_only(cx);
+             let is_remote = project.is_via_collab() && project.dev_server_project_id().is_none();
+             let is_local = project.is_local();
++            let is_checkout = mega.is_path_checkout(entry.path.to_path_buf());
+ 
+             let context_menu = ContextMenu::build(cx, |menu, cx| {
+                 menu.context(self.focus_handle.clone()).map(|menu| {
+@@ -550,73 +551,81 @@ impl ProjectPanel {
+                             menu.action("Search Inside", Box::new(NewSearchInDirectory))
+                         })
+                     } else {
+-                        menu
+-                            .action("Checkout Path", Box::new(CheckoutPath))
+-                            .separator()
+-                            .action("New File", Box::new(NewFile))
+-                            .action("New Folder", Box::new(NewDirectory))
+-                            .separator()
+-                            .when(is_local && cfg!(target_os = "macos"), |menu| {
+-                                menu.action("Reveal in Finder", Box::new(RevealInFileManager))
+-                            })
+-                            .when(is_local && cfg!(not(target_os = "macos")), |menu| {
+-                                menu.action("Reveal in File Manager", Box::new(RevealInFileManager))
+-                            })
+-                            .when(is_local, |menu| {
+-                                menu.action("Open in Default App", Box::new(OpenWithSystem))
+-                            })
+-                            .action("Open in Terminal", Box::new(OpenInTerminal))
+-                            .when(is_dir, |menu| {
+-                                menu.separator()
+-                                    .action("Find in Folder…", Box::new(NewSearchInDirectory))
+-                            })
+-                            .when(is_unfoldable, |menu| {
+-                                menu.action("Unfold Directory", Box::new(UnfoldDirectory))
+-                            })
+-                            .when(is_foldable, |menu| {
+-                                menu.action("Fold Directory", Box::new(FoldDirectory))
+-                            })
+-                            .separator()
+-                            .action("Cut", Box::new(Cut))
+-                            .action("Copy", Box::new(Copy))
+-                            .action("Duplicate", Box::new(Duplicate))
+-                            // TODO: Paste should always be visible, cbut disabled when clipboard is empty
+-                            .map(|menu| {
+-                                if self.clipboard.as_ref().is_some() {
+-                                    menu.action("Paste", Box::new(Paste))
+-                                } else {
+-                                    menu.disabled_action("Paste", Box::new(Paste))
+-                                }
+-                            })
+-                            .separator()
+-                            .action("Copy Path", Box::new(CopyPath))
+-                            .action("Copy Relative Path", Box::new(CopyRelativePath))
+-                            .separator()
+-                            .action("Rename", Box::new(Rename))
+-                            .when(!is_root, |menu| {
+-                                menu.action("Trash", Box::new(Trash { skip_prompt: false }))
+-                                    .action("Delete", Box::new(Delete { skip_prompt: false }))
+-                            })
+-                            .when(!is_remote & is_root, |menu| {
+-                                menu.separator()
+-                                    .action(
+-                                        "Add Folder to Project…",
+-                                        Box::new(workspace::AddFolderToProject),
+-                                    )
+-                                    .entry(
+-                                        "Remove from Project",
+-                                        None,
+-                                        cx.handler_for(&this, move |this, cx| {
+-                                            this.project.update(cx, |project, cx| {
+-                                                project.remove_worktree(worktree_id, cx)
+-                                            });
+-                                        }),
++                        menu.when(!is_checkout && !is_root, |menu| {
++                            menu.action("Checkout Path", Box::new(CheckoutPath))
++                        })
++                        .when(is_checkout, |menu| {
++                            menu.action("Commit Path", Box::new(CommitPath))
++                                .separator()
++                                .action("New File", Box::new(NewFile))
++                                .action("New Folder", Box::new(NewDirectory))
++                                .separator()
++                                .when(is_local && cfg!(target_os = "macos"), |menu| {
++                                    menu.action("Reveal in Finder", Box::new(RevealInFileManager))
++                                })
++                                .when(is_local && cfg!(not(target_os = "macos")), |menu| {
++                                    menu.action(
++                                        "Reveal in File Manager",
++                                        Box::new(RevealInFileManager),
+                                     )
+-                            })
+-                            .when(is_root, |menu| {
+-                                menu.separator()
+-                                    .action("Collapse All", Box::new(CollapseAllEntries))
+-                            })
++                                })
++                                .when(is_local, |menu| {
++                                    menu.action("Open in Default App", Box::new(OpenWithSystem))
++                                })
++                                .action("Open in Terminal", Box::new(OpenInTerminal))
++                                .when(is_dir, |menu| {
++                                    menu.separator()
++                                        .action("Find in Folder…", Box::new(NewSearchInDirectory))
++                                })
++                                .when(is_unfoldable, |menu| {
++                                    menu.action("Unfold Directory", Box::new(UnfoldDirectory))
++                                })
++                                .when(is_foldable, |menu| {
++                                    menu.action("Fold Directory", Box::new(FoldDirectory))
++                                })
++                                .separator()
++                                .action("Cut", Box::new(Cut))
++                                .action("Copy", Box::new(Copy))
++                                .action("Duplicate", Box::new(Duplicate))
++                                // TODO: Paste should always be visible, cbut disabled when clipboard is empty
++                                .map(|menu| {
++                                    if self.clipboard.as_ref().is_some() {
++                                        menu.action("Paste", Box::new(Paste))
++                                    } else {
++                                        menu.disabled_action("Paste", Box::new(Paste))
++                                    }
++                                })
++                                .separator()
++                                .action("Copy Path", Box::new(CopyPath))
++                                .action("Copy Relative Path", Box::new(CopyRelativePath))
++                                .separator()
++                                // Fuse not support renaming, currently.
++                                // .action("Rename", Box::new(Rename))
++                                .when(!is_root, |menu| {
++                                    menu.action("Trash", Box::new(Trash { skip_prompt: false }))
++                                        .action("Delete", Box::new(Delete { skip_prompt: false }))
++                                })
++                                .when(!is_remote & is_root, |menu| {
++                                    menu.separator()
++                                        .action(
++                                            "Add Folder to Project…",
++                                            Box::new(workspace::AddFolderToProject),
++                                        )
++                                        .entry(
++                                            "Remove from Project",
++                                            None,
++                                            cx.handler_for(&this, move |this, cx| {
++                                                this.project.update(cx, |project, cx| {
++                                                    project.remove_worktree(worktree_id, cx)
++                                                });
++                                            }),
++                                        )
++                                })
++                                .when(is_root, |menu| {
++                                    menu.separator()
++                                        .action("Collapse All", Box::new(CollapseAllEntries))
++                                })
++                        })
+                     }
+                 })
+             });
+@@ -1340,11 +1349,42 @@ impl ProjectPanel {
+         if let Some((worktree, entry)) = self.selected_entry_handle(cx) {
+             let path = entry.path.clone();
+             self.mega.update(cx, |mega, cx| {
+-               let recv = mega.checkout_path(cx, path.to_path_buf()); 
+-                cx.spawn(|_, _| async move {
++                let recv = mega.checkout_path(cx, path.to_path_buf());
++                cx.spawn(|this, mut cx| async move {
++                    let resp = recv.await;
++                    println!("Response: {resp:?}");
++                    if let Ok(Some(resp)) = resp {
++                        if resp.is_resp_succeed() {
++                            this.update(&mut cx, |mega, cx| {
++                                mega.mark_checkout(cx, resp.mount.path, resp.mount.inode);
++                            })
++                            .expect("Mega delegate not been dropped");
++                        }
++                    }
++                })
++                .detach();
++            });
++        }
++    }
++
++    fn commit_specific_path(&mut self, _: &CommitPath, cx: &mut ViewContext<Self>) {
++        if let Some((worktree, entry)) = self.selected_entry_handle(cx) {
++            let path = entry.path.clone();
++            self.mega.update(cx, |mega, cx| {
++                let recv = mega.restore_path(cx, path.to_path_buf());
++                cx.spawn(|this, mut cx| async move {
+                     let resp = recv.await;
+                     println!("Response: {resp:?}");
+-                }).detach();
++                    if let Ok(Some(resp)) = resp {
++                        if resp.is_resp_succeed() {
++                            this.update(&mut cx, |mega, cx| {
++                                mega.mark_commited(cx, path.to_path_buf());
++                            })
++                                .expect("Mega delegate not been dropped");
++                        }
++                    }
++                })
++                    .detach();
+             });
+         }
+     }
+@@ -2358,6 +2398,7 @@ impl ProjectPanel {
+         details: EntryDetails,
+         cx: &mut ViewContext<Self>,
+     ) -> Stateful<Div> {
++        let mega = self.mega.read(cx);
+         let kind = details.kind;
+         let settings = ProjectPanelSettings::get_global(cx);
+         let show_editor = details.is_editing && !details.is_processing;
+@@ -2370,7 +2411,7 @@ impl ProjectPanel {
+             .selection
+             .map_or(false, |selection| selection.entry_id == entry_id);
+         let width = self.size(cx);
+-        let filename_text_color = 
++        let filename_text_color =
+             entry_git_aware_label_color(details.git_status, details.is_ignored, is_marked);
+         let file_name = details.filename.clone();
+         let mut icon = details.icon.clone();
+@@ -2963,6 +3004,7 @@ impl Render for ProjectPanel {
+                 .on_action(cx.listener(Self::unfold_directory))
+                 .on_action(cx.listener(Self::fold_directory))
+                 .on_action(cx.listener(Self::checkout_specific_path))
++                .on_action(cx.listener(Self::commit_specific_path))
+                 .when(!project.is_read_only(cx), |el| {
+                     el.on_action(cx.listener(Self::new_file))
+                         .on_action(cx.listener(Self::new_directory))
+@@ -3057,8 +3099,7 @@ impl Render for ProjectPanel {
+                     //             .update(cx, |workspace, cx| workspace.open(&workspace::Open, cx))
+                     //             .log_err();
+                     //     })),
+-                    Label::new("Run mega daemon to mount the working directories")
+-                        
++                    Label::new("Run mega daemon to mount the working directories"),
+                 )
+                 .drag_over::<ExternalPaths>(|style, _, cx| {
+                     style.bg(cx.theme().colors().drop_target_background)
+-- 
+2.43.0
+
