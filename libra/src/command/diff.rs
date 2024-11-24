@@ -1,13 +1,23 @@
-use std::{fmt, io};
+use std::{collections::HashMap, fmt, io, path::PathBuf};
 
 use clap::Parser;
-use mercury::internal::{index::Index, object::tree::Tree};
+use mercury::{
+    hash::SHA1,
+    internal::{
+        index::Index,
+        object::{blob::Blob, commit::Commit, tree::Tree, types::ObjectType},
+        pack::utils::calculate_object_hash,
+    },
+};
 use similar;
 
 use crate::{
-    command::{get_target_commit, status, HEAD},
+    command::{
+        get_target_commit, load_object,
+        status::{self, changes_to_be_committed},
+    },
     internal::head::Head,
-    utils::{client_storage::ClientStorage, path, util},
+    utils::{object_ext::TreeExt, path, util},
 };
 #[derive(Parser, Debug)]
 pub struct DiffArgs {
@@ -30,6 +40,12 @@ pub struct DiffArgs {
 }
 
 pub async fn execute(args: DiffArgs) {
+    if !util::check_repo_exist() {
+        return;
+    }
+    tracing::debug!("diff args: {:?}", args);
+    let index = Index::load(path::index()).unwrap();
+
     let mut w = match args.output {
         Some(ref path) => {
             let file = std::fs::File::create(path)
@@ -44,9 +60,132 @@ pub async fn execute(args: DiffArgs) {
         }
         None => Box::new(io::stdout()) as Box<dyn io::Write>,
     };
+    let old_blobs = match args.old {
+        Some(ref source) => match get_target_commit(source).await {
+            Ok(commit_hash) => get_commit_blobs(&commit_hash).await,
+            Err(e) => {
+                eprintln!("fatal: {}, can't use as diff old source", e);
+                return;
+            }
+        },
+        None => {
+            // if the staged is not empty, use it as old commit. Otherwise, use HEAD
+            if status::changes_to_be_committed().await.is_empty() {
+                let commit_hash = Head::current_commit().await.unwrap();
+                get_commit_blobs(&commit_hash).await
+            } else {
+                let changes = changes_to_be_committed().await;
+                // diff didn't show untracked or deleted files
+                get_files_blobs(&changes.modified)
+            }
+        }
+    };
 
-    diff_result("Hello World\nHello Life", "Hallo Welt\nHello Work", &mut w);
-    unimplemented!();
+    let new_blobs = match args.new {
+        Some(ref source) => match get_target_commit(source).await {
+            Ok(commit_hash) => get_commit_blobs(&commit_hash).await,
+            Err(e) => {
+                eprintln!("fatal: {}, can't use as diff new source", e);
+                return;
+            }
+        },
+        None => {
+            let files = if args.staged {
+                // use staged as new commit
+                index.tracked_files()
+            } else {
+                // use working directory as new commit
+                util::list_workdir_files().unwrap()
+            };
+            get_files_blobs(&files)
+        }
+    };
+
+    // use pathspec to filter files
+    let paths: Vec<PathBuf> = args
+        .pathspec
+        .iter()
+        .map(|s| {
+            let path = PathBuf::from(s);
+            util::to_workdir_path(&path)
+        })
+        .collect();
+
+    // filter files, cross old and new files, and pathspec
+    diff(old_blobs, new_blobs, paths.into_iter().collect(), &mut *w).await;
+}
+
+pub async fn diff(
+    old_blobs: Vec<(PathBuf, SHA1)>,
+    new_blobs: Vec<(PathBuf, SHA1)>,
+    filter: Vec<PathBuf>,
+    w: &mut dyn io::Write,
+) {
+    let old_blobs: HashMap<PathBuf, SHA1> = old_blobs.into_iter().collect();
+    let read_content = |file: &PathBuf, hash: &SHA1| {
+        // read content from blob or file
+        match load_object::<Blob>(hash) {
+            Ok(blob) => String::from_utf8(blob.data).unwrap(),
+            Err(_) => std::fs::read_to_string(file)
+                .map_err(|e| {
+                    eprintln!("fatal: could not read file '{}': {}", file.display(), e);
+                })
+                .unwrap(),
+        }
+    };
+    // filter files, cross old and new files, and pathspec
+    for (new_file, new_hash) in new_blobs {
+        // if new_file did't start with any path in filter, skip it
+        if !filter.is_empty() && !filter.iter().any(|path| new_file.starts_with(path)) {
+            continue;
+        }
+        match old_blobs.get(&new_file) {
+            Some(old_hash) => {
+                if old_hash == &new_hash {
+                    continue;
+                }
+                let old_content = read_content(&new_file, old_hash);
+                let new_content = read_content(&new_file, &new_hash);
+                writeln!(
+                    w,
+                    "diff --git a/{} b/{}",
+                    new_file.display(),
+                    new_file.display() // files name is always the same, current did't support rename
+                )
+                .unwrap();
+                writeln!(
+                    w,
+                    "index {}..{}",
+                    &old_hash.to_plain_str()[0..8],
+                    &new_hash.to_plain_str()[0..8]
+                )
+                .unwrap();
+
+                diff_result(&old_content, &new_content, w);
+            }
+            None => {
+                continue;
+            }
+        }
+    }
+}
+
+async fn get_commit_blobs(commit_hash: &SHA1) -> Vec<(PathBuf, SHA1)> {
+    let commit = load_object::<Commit>(commit_hash).unwrap();
+    let tree = load_object::<Tree>(&commit.tree_id).unwrap();
+    tree.get_plain_items()
+}
+
+// diff need to print hash even if the file is not added
+fn get_files_blobs(files: &[PathBuf]) -> Vec<(PathBuf, SHA1)> {
+    files
+        .iter()
+        .map(|p| {
+            let path = util::workdir_to_absolute(p);
+            let data = std::fs::read(&path).unwrap();
+            (p.to_owned(), calculate_object_hash(ObjectType::Blob, &data))
+        })
+        .collect()
 }
 
 struct Line(Option<usize>);
