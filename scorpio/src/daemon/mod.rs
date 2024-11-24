@@ -4,14 +4,13 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::Router;
 use axum::routing::{post, get};
-use fuse3::raw::{Filesystem, Request};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
 use crate::manager::ScorpioManager;
 use crate::util::GPath;
-
+mod git;
 const SUCCESS: &str   = "Success";
 const FAIL : &str   = "Fail";
 
@@ -87,6 +86,9 @@ pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
         .route("/api/fs/umount", post(umount_handler))
         .route("/api/config", get(config_handler))
         .route("/api/config", post(update_config_handler))
+        .route("/api/git/status", get(git::git_status_handler))
+        .route("/api/git/commit", post(git::git_commit_handler))
+        .route("/api/git/push", post(git::git_push_handler))
         .with_state(inner);
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2725").await.unwrap();
     axum::serve(listener, app).await.unwrap()
@@ -119,15 +121,21 @@ async fn mount_handler(
     }
 
     let mut ml = state.manager.lock().await;
+    if let Err(mounted_path) = ml.check_before_mount(&mono_path){
+        return axum::Json(MountResponse {
+            status: FAIL.into(),
+            mount: MountInfo::default(),
+            message: format!("The {} is already check-out ",mounted_path),
+        })
+    }
     let store_path = ml.store_path.clone();
     // fetch the dionary node info from mono.
     let work_dir = fetch(&mut ml,inode, mono_path).await;
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
     // checkout / mount this dictionary. 
-    state.fuse.overlay_mount(inode, store_path).await;
-    // init before user operation. 
-    let _ = state.fuse.init(Request::default()).await;
-  
+    
+    let _ = state.fuse.overlay_mount(inode, store_path).await;
+    
     let mount_info = MountInfo{
         hash:work_dir.hash,
         path: work_dir.path,
@@ -173,10 +181,21 @@ async fn umount_handler(
         })
     }
     match handle {
-        Ok(_) => axum::Json(UmountResponse {
-            status: SUCCESS.into(),
-            message: "Directory unmounted successfully".to_string(),
-        }),
+        Ok(_) => {
+            if let Some(path) = &req.path{
+                let _ = state.manager.lock().await.remove_workspace(path).await;
+            }else{
+                //todo be path by inode . 
+                let item = state.fuse.dic.store.get_inode(req.inode.unwrap()).await.unwrap();
+                let _ = state.manager.lock().await.remove_workspace(&item.get_path()).await;
+
+            }
+           
+            axum::Json(UmountResponse {
+                status: SUCCESS.into(),
+                message: "Directory unmounted successfully".to_string(),
+            })
+        },
         Err(err) => axum::Json(UmountResponse {
             status: FAIL.into(),
             message:format!("Umount process error :{}.",err),
@@ -217,3 +236,4 @@ async fn update_config_handler(
         config: config_info,
     })
 }
+

@@ -16,6 +16,7 @@ pub struct Config {
     pub storage: StorageConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
+    pub authentication: AuthConfig,
     pub lfs: LFSConfig,
     // Not used in mega app
     #[serde(default)]
@@ -209,7 +210,6 @@ impl Default for StorageConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
     pub import_dir: PathBuf,
-    pub enable_http_auth: bool,
     pub admin: String,
     pub root_dirs: Vec<String>,
 }
@@ -218,7 +218,6 @@ impl Default for MonoConfig {
     fn default() -> Self {
         Self {
             import_dir: PathBuf::from("/third-part"),
-            enable_http_auth: false,
             admin: String::from("admin"),
             root_dirs: vec![
                 "third-part".to_string(),
@@ -226,6 +225,25 @@ impl Default for MonoConfig {
                 "doc".to_string(),
                 "release".to_string(),
             ],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AuthConfig {
+    pub enable_http_auth: bool,
+    pub enable_test_user: bool,
+    pub test_user_name: String,
+    pub test_user_token: String,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            enable_http_auth: false,
+            enable_test_user: false,
+            test_user_name: String::from("mega"),
+            test_user_token: String::from("mega")
         }
     }
 }

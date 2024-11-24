@@ -1,0 +1,240 @@
+From d45f194e2ef79da93b772a28342a37d0b27193cc Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Sun, 17 Nov 2024 17:16:58 +0800
+Subject: [PATCH 16/24] add heartbeat to detect if fuse running
+
+---
+ crates/mega/src/mega.rs             | 59 +++++++++++++++++++++++++----
+ crates/mega_panel/src/mega_panel.rs | 23 ++++++-----
+ crates/zed/src/main.rs              |  1 -
+ 3 files changed, 64 insertions(+), 19 deletions(-)
+
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index b33c487662..19e9222cf3 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -6,7 +6,6 @@
+ //      This should be both warrantied by this module and scorpio
+ // 2. At least one daemon on this machine when zed startup.
+ // 3. Complete docs.
+-// 4. Add settings for this module
+ 
+ use crate::api::{
+     ConfigRequest, ConfigResponse, MountRequest, MountResponse, MountsResponse, UmountRequest,
+@@ -18,7 +17,7 @@ use futures::channel::oneshot;
+ use futures::channel::oneshot::Receiver;
+ use futures::{AsyncReadExt, FutureExt, SinkExt, TryFutureExt};
+ use gpui::http_client::{AsyncBody, HttpClient, HttpRequestExt};
+-use gpui::{AppContext, Context, EventEmitter, ModelContext, Path};
++use gpui::{AppContext, Context, EventEmitter, ModelContext, Path, Task};
+ use radix_trie::{Trie, TrieCommon};
+ use reqwest_client::ReqwestClient;
+ use schemars::_private::NoSerialize;
+@@ -32,6 +31,9 @@ use std::io::Read;
+ use std::path::PathBuf;
+ use std::process::Command;
+ use std::sync::{Arc, RwLock};
++use std::thread::sleep;
++use std::time::Duration;
++use futures::future::MaybeDone::Future;
+ 
+ mod api;
+ mod mega_settings;
+@@ -57,6 +59,7 @@ pub struct Mega {
+ 
+     fuse_running: bool,
+     fuse_mounted: bool,
++    heartbeat: bool,
+ 
+     mount_point: Option<PathBuf>,
+     checkout_path: Trie<String, u64>,
+@@ -110,6 +113,7 @@ impl Mega {
+ 
+             fuse_running: false,
+             fuse_mounted: false,
++            heartbeat: false,
+ 
+             mount_point,
+             checkout_path: Default::default(),
+@@ -118,8 +122,8 @@ impl Mega {
+             fuse_url,
+             http_client: Arc::new(client),
+         };
+-        println!("Mega New: {mega:?}");
+ 
++        println!("Mega New: {mega:?}");
+         mega
+     }
+ 
+@@ -135,6 +139,7 @@ impl Mega {
+                         // So we can assume that fuse has been dead.
+                         this.update(&mut cx, |mega, cx| {
+                             mega.fuse_running = false;
++                            mega.fuse_mounted = false;
+                             cx.emit(Event::FuseRunning(false));
+                             cx.emit(Event::FuseMounted(None));
+                         })
+@@ -159,6 +164,7 @@ impl Mega {
+             } else { Ok(()) }.unwrap();
+ 
+             // When mount point changed, emit an event.
++            // update mount point if it's none.
+             if let Ok(Some(config)) = config.await {
+                 this.update(&mut cx, |this, cx| {
+                     let path = PathBuf::from(config.config.mount_path);
+@@ -170,6 +176,9 @@ impl Mega {
+                                 cx.emit(Event::FuseMounted(this.mount_point.clone()));
+                             }
+                         }
++                    } else if this.fuse_running && this.mount_point.is_none() {
++                        this.mount_point = Some(path);
++                        cx.emit(Event::FuseMounted(this.mount_point.clone()));
+                     }
+                 })
+             } else { Ok(()) }
+@@ -181,9 +190,16 @@ impl Mega {
+         (self.fuse_running, self.fuse_mounted)
+     }
+ 
++    /// ## Toggle Fuse checkouts
++    /// Checkout or un-checkout the paths in zed.
++    /// Does nothing if fuse not running.
+     pub fn toggle_fuse(&mut self, cx: &mut ModelContext<Self>) {
+         self.update_status(cx);
+         let paths = &self.checkout_path;
++        
++        if !self.fuse_running {
++            return;
++        }
+ 
+         if !self.fuse_mounted {
+             for (_, (p, _)) in paths.iter().enumerate() {
+@@ -206,8 +222,7 @@ impl Mega {
+             }
+ 
+             self.fuse_mounted = true;
+-            // FIXME: A configurable path from fuse api is needed.
+-            cx.emit(Event::FuseMounted(Some(PathBuf::from("/home/neon/dic"))));
++            cx.emit(Event::FuseMounted(self.mount_point.clone()));
+         } else {
+             for (_, (p, &n)) in paths.iter().enumerate() {
+                 let path = PathBuf::from(p); // FIXME is there a better way?
+@@ -234,10 +249,19 @@ impl Mega {
+         }
+     }
+ 
++    /// ## Toggle Fuse Mount
++    /// In fact, we cannot `mount` or `umount` a fuse from zed.
++    /// 
++    /// This function only opens up a new scorpio executable if it detects fuse not running.
+     pub fn toggle_mount(&mut self, cx: &mut ModelContext<Self>) {
+-        // FIXME should be able to restart fuse
+-        self.fuse_running = !self.fuse_running;
+-        cx.emit(Event::FuseRunning(self.fuse_running));
++        // We only start it, not stop it.
++        if !self.fuse_running {
++            let _ = Command::new(self.fuse_executable.as_os_str())
++                .spawn()
++                .expect("Fuse Executable path not right");
++            
++            self.update_status(cx);
++        }
+     }
+ 
+     pub fn checkout_path(
+@@ -447,6 +471,25 @@ impl Mega {
+         rx
+     }
+     
++    pub fn heartbeat(&mut self, cx: &mut ModelContext<Self>) {
++        if self.heartbeat {
++            return;
++        } else {
++            self.heartbeat = true;
++        }
++        
++        cx.spawn(|this, mut cx| async move {
++            loop {
++                this.update(&mut cx, |mega, cx| {
++                    mega.update_status(cx);
++                }).expect("mega delegate not be dropped");
++                
++                let dur = Duration::from_secs(30);
++                cx.background_executor().timer(dur).await;
++            }
++        }).detach();
++    }
++    
+     pub fn is_path_checkout(&self, path: &String) -> bool {
+         let set = &self.checkout_path;
+         set.get_ancestor(path).is_some()
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index 5dec15a182..4ea88e5b4c 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -200,7 +200,6 @@ impl MegaPanel {
+     fn new(workspace: &mut Workspace, cx: &mut ViewContext<Workspace>) -> View<Self> {
+         let mega_panel = cx.new_view(|cx| {
+             let mega = workspace.mega();
+-
+             let focus_handle = cx.focus_handle();
+             cx.on_focus(&focus_handle, Self::focus_in).detach();
+ 
+@@ -208,6 +207,10 @@ impl MegaPanel {
+             cx.subscribe(mega, |this, mega, event, cx| {
+                 // TODO: listen for mega events
+             }).detach();
++            
++            mega.update(cx, |this, cx| {
++                this.heartbeat(cx);
++            });
+ 
+             Self {
+                 mega_handle: mega.clone(),
+@@ -281,6 +284,15 @@ impl MegaPanel {
+             .id("mega-control-pad")
+             .size_full()
+             .children([
++                encap_btn(Button::new("btn_toggle_mount", "Toggle Fuse Running")
++                    .full_width()
++                    .icon(IconName::Context)
++                    .icon_position(IconPosition::Start)
++                    .on_click(cx.listener(|this, _, cx| {
++                        this.mega_handle.update(cx, |mega, cx| mega.toggle_mount(cx));
++                        this.warn_unimplemented(cx);
++                    }))
++                ),
+                 encap_btn(Button::new("btn_toggle_scorpio", "Toggle Scorpio Checkouts")
+                     .full_width()
+                     .icon(IconName::Plus)
+@@ -289,15 +301,6 @@ impl MegaPanel {
+                         this.mega_handle.update(cx, |mega, cx| mega.toggle_fuse(cx));
+                     }))
+                 ),
+-                // encap_btn(Button::new("btn_toggle_mount", "Toggle Mount")
+-                //     .full_width()
+-                //     .icon(IconName::Context)
+-                //     .icon_position(IconPosition::Start)
+-                //     .on_click(cx.listener(|this, _, cx| {
+-                //         this.mega_handle.update(cx, |mega, cx| mega.toggle_mount(cx));
+-                //         this.warn_unimplemented(cx);
+-                //     }))
+-                // ),
+                 // encap_btn(Button::new("btn_checkout", "Checkout Path")
+                 //     .full_width()
+                 //     .icon(IconName::Check)
+diff --git a/crates/zed/src/main.rs b/crates/zed/src/main.rs
+index 9df417f3e5..f507133200 100644
+--- a/crates/zed/src/main.rs
++++ b/crates/zed/src/main.rs
+@@ -26,7 +26,6 @@ use gpui::{
+ use http_client::{read_proxy_from_env, Uri};
+ use language::LanguageRegistry;
+ use log::LevelFilter;
+-use remote::SshConnectionOptions;
+ use reqwest_client::ReqwestClient;
+ 
+ use assets::Assets;
+-- 
+2.43.0
+

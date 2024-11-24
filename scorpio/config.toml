@@ -1,6 +1,6 @@
 url = "http://localhost:8000"
 workspace = "/home/luxian/megadir/mount"
 store_path = "/home/luxian/megadir/store"
-
+git_author = "MEGA"
+git_email = "admin@mega.org"
 works = []
-

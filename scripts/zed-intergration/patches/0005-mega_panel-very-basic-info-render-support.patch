@@ -1,7 +1,7 @@
 From e04d4b01af7991ed4b40fcd9553f20e67f2ec53f Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Tue, 22 Oct 2024 16:15:01 +0800
-Subject: [PATCH 05/14] mega_panel: very basic info render support
+Subject: [PATCH 05/24] mega_panel: very basic info render support
 
 ---
  Cargo.lock                          |  4 +-

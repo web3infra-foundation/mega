@@ -1,7 +1,7 @@
 From afca3aee776df6674d0c6d17858d944c64ec56ae Mon Sep 17 00:00:00 2001
 From: Neon <yyk1249501542@gmail.com>
 Date: Mon, 21 Oct 2024 09:18:40 +0800
-Subject: [PATCH 02/14] mega: integrate basic panel code with zed
+Subject: [PATCH 02/24] mega: integrate basic panel code with zed
 
 ---
  Cargo.lock                                   |   7 +-

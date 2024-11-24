@@ -55,6 +55,8 @@ The following interfaces are currently available:
 ```bash
 curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/scorpio"}'
 curl -X GET http://localhost:2725/api/fs/mpoint
+curl -X POST http://localhost:2725/api/fs/umount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/scorpio"}'
+
 ```
 ### How to Contribute?
 
@@ -79,3 +81,4 @@ curl -X GET http://localhost:2725/api/fs/mpoint
 1. * BUILD : monorepo build , which dictionary ?
 2. *** API list... for add mount point .
 3. - .https://opentitan.org/
+4. overlay fs rename ..... <HARD>
