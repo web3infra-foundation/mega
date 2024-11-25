@@ -53,9 +53,9 @@ fn run_cmd(program: &str, args: &[&str]) {
         .unwrap();
 
     let status = output.status;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     if !status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
         panic!(
             "Command failed: {} {}\nStatus: {}\nStdout: {}\nStderr: {}",
             program,
@@ -63,6 +63,14 @@ fn run_cmd(program: &str, args: &[&str]) {
             status,
             stdout,
             stderr
+        );
+    } else {
+        println!(
+            "Command success: {} {}\nStatus: {}\nStdout: {}",
+            program,
+            args.join(" "),
+            status,
+            stdout,
         );
     }
 }
