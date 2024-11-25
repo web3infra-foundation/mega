@@ -462,8 +462,8 @@ impl LFSClient {
 
 #[cfg(feature="p2p")]
 impl LFSClient{
-
     /// download (GET) one LFS file peer-to-peer
+    #[allow(clippy::type_complexity)]
     pub async fn download_object_p2p(
         &self,
         file_uri: &str, // p2p protocol
