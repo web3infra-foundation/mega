@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
-
+use indicatif::{ProgressBar, ProgressStyle};
 use mercury::hash::SHA1;
 use mercury::internal::object::types::ObjectType;
 
@@ -326,6 +326,17 @@ pub fn get_repo_name_from_url(mut url: &str) -> Option<&str> {
 pub fn auto_unit_bytes(bytes: u64) -> byte_unit::AdjustedByte {
     let bytes = byte_unit::Byte::from(bytes);
     bytes.get_appropriate_unit(byte_unit::UnitType::Binary)
+}
+/// Create a default style progress bar
+pub fn default_progress_bar(len: u64) -> ProgressBar {
+    let progress_bar = ProgressBar::new(len);
+    progress_bar.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.magenta} [{elapsed_precise}] [{bar:40.green/white}] {bytes}/{total_bytes} ({eta}) {bytes_per_sec}")
+            .unwrap()
+            .progress_chars("=> "),
+    );
+    progress_bar
 }
 
 #[cfg(test)]
