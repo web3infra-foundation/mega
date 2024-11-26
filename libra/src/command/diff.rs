@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fmt, io, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fmt,
+    io::{self, Write},
+    path::PathBuf,
+};
 
 use clap::Parser;
 use mercury::{
@@ -19,6 +24,10 @@ use crate::{
     internal::head::Head,
     utils::{object_ext::TreeExt, path, util},
 };
+
+#[cfg(unix)]
+use std::process::{Command, Stdio};
+
 #[derive(Parser, Debug)]
 pub struct DiffArgs {
     #[clap(long, help = "Old commit, defaults is staged or HEAD")]
@@ -45,6 +54,13 @@ pub async fn execute(args: DiffArgs) {
     }
     tracing::debug!("diff args: {:?}", args);
     let index = Index::load(path::index()).unwrap();
+    #[cfg(unix)]
+    let mut child = Command::new("less")
+        .arg("-R")
+        .arg("-F")
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("failed to execute process");
 
     let mut w = match args.output {
         Some(ref path) => {
@@ -56,10 +72,11 @@ pub async fn execute(args: DiffArgs) {
                     );
                 })
                 .unwrap();
-            Box::new(file) as Box<dyn io::Write>
+            Some(file)
         }
-        None => Box::new(io::stdout()) as Box<dyn io::Write>,
+        None => None,
     };
+
     let old_blobs = match args.old {
         Some(ref source) => match get_target_commit(source).await {
             Ok(commit_hash) => get_commit_blobs(&commit_hash).await,
@@ -106,13 +123,39 @@ pub async fn execute(args: DiffArgs) {
         .pathspec
         .iter()
         .map(|s| {
-            let path = PathBuf::from(s);
+            let path = {
+                let _path = PathBuf::from(s);
+                if _path.is_absolute() {
+                    _path
+                } else {
+                    std::env::current_dir().unwrap().join(_path) // proces path such as `./`
+                }
+            };
             util::to_workdir_path(&path)
         })
         .collect();
 
+    let mut buf: Vec<u8> = Vec::new();
     // filter files, cross old and new files, and pathspec
-    diff(old_blobs, new_blobs, paths.into_iter().collect(), &mut *w).await;
+    diff(old_blobs, new_blobs, paths.into_iter().collect(), &mut buf).await;
+
+    match w {
+        Some(ref mut file) => {
+            file.write_all(&buf).unwrap();
+        }
+        None => {
+            #[cfg(unix)]
+            {
+                let stdin = child.stdin.as_mut().unwrap();
+                stdin.write_all(&buf).unwrap();
+                child.wait().unwrap();
+            }
+            #[cfg(not(unix))]
+            {
+                io::stdout().write_all(&buf).unwrap();
+            }
+        }
+    }
 }
 
 pub async fn diff(
@@ -126,11 +169,14 @@ pub async fn diff(
         // read content from blob or file
         match load_object::<Blob>(hash) {
             Ok(blob) => String::from_utf8(blob.data).unwrap(),
-            Err(_) => std::fs::read_to_string(file)
-                .map_err(|e| {
-                    eprintln!("fatal: could not read file '{}': {}", file.display(), e);
-                })
-                .unwrap(),
+            Err(_) => {
+                let file = util::workdir_to_absolute(file);
+                std::fs::read_to_string(&file)
+                    .map_err(|e| {
+                        eprintln!("fatal: could not read file '{}': {}", file.display(), e);
+                    })
+                    .unwrap()
+            }
         }
     };
     // filter files, cross old and new files, and pathspec

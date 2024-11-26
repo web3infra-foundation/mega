@@ -55,6 +55,7 @@ pub async fn execute(args: LogArgs) {
     #[cfg(unix)]
     let mut process = Command::new("less") // create a pipe to less
         .arg("-R") // raw control characters
+        .arg("-F") 
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
         .spawn()
