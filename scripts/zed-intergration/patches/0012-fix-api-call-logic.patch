@@ -1,0 +1,611 @@
+From 3c45fed1fd917dac0051917d7d9685371f35cd60 Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Tue, 12 Nov 2024 16:56:00 +0800
+Subject: [PATCH 12/24] fix api call logic
+
+---
+ Cargo.lock                                |  54 +++---
+ Cargo.toml                                |   2 +-
+ crates/mega/Cargo.toml                    |   2 +-
+ crates/mega/src/api.rs                    |   8 +-
+ crates/mega/src/mega.rs                   | 209 ++++++++++++++++++----
+ crates/mega_panel/src/mega_panel.rs       |  73 ++++----
+ crates/project_panel/src/project_panel.rs |   3 +-
+ 7 files changed, 241 insertions(+), 110 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index a10bd2b986..0483c524c4 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3830,6 +3830,12 @@ version = "1.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a3d8a32ae18130a3c84dd492d4215c3d913c3b07c6b63c2eb3eb7ff1101ab7bf"
+ 
++[[package]]
++name = "endian-type"
++version = "0.1.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
++
+ [[package]]
+ name = "enum-ordinalize"
+ version = "4.3.0"
+@@ -4277,15 +4283,6 @@ dependencies = [
+  "subtle",
+ ]
+ 
+-[[package]]
+-name = "fid-rs"
+-version = "0.2.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a6956a1e60e2d1412b44b4169d44a03dae518f8583d3e10090c912c105e48447"
+-dependencies = [
+- "rayon",
+-]
+-
+ [[package]]
+ name = "file_finder"
+ version = "0.1.0"
+@@ -6644,15 +6641,6 @@ dependencies = [
+  "imgref",
+ ]
+ 
+-[[package]]
+-name = "louds-rs"
+-version = "0.7.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "936de6c22f08e7135a921f8ada907acd0d88880c4f42b5591f634b9f1dd8e07f"
+-dependencies = [
+- "fid-rs",
+-]
+-
+ [[package]]
+ name = "lru"
+ version = "0.12.4"
+@@ -6910,12 +6898,12 @@ dependencies = [
+  "bytes 1.7.2",
+  "futures 0.3.30",
+  "gpui",
++ "radix_trie",
+  "reqwest_client",
+  "schemars",
+  "serde",
+  "serde_json",
+  "settings",
+- "trie-rs",
+ ]
+ 
+ [[package]]
+@@ -7205,6 +7193,15 @@ version = "1.0.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
+ 
++[[package]]
++name = "nibble_vec"
++version = "0.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "77a5d83df9f36fe23f0c3648c6bbb8b0298bb5f1939c8f2704431371f4b84d43"
++dependencies = [
++ "smallvec",
++]
++
+ [[package]]
+ name = "nix"
+ version = "0.29.0"
+@@ -8840,6 +8837,16 @@ version = "0.7.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
+ 
++[[package]]
++name = "radix_trie"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c069c179fcdc6a2fe24d8d18305cf085fdbd4f922c041943e203685d6a1c58fd"
++dependencies = [
++ "endian-type",
++ "nibble_vec",
++]
++
+ [[package]]
+ name = "rand"
+ version = "0.7.3"
+@@ -12538,15 +12545,6 @@ dependencies = [
+  "tree-sitter-language",
+ ]
+ 
+-[[package]]
+-name = "trie-rs"
+-version = "0.4.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "f6f88f4b0a1ebd6c3d16be3e45eb0e8089372ccadd88849b7ca162ba64b5e6f6"
+-dependencies = [
+- "louds-rs",
+-]
+-
+ [[package]]
+ name = "try-lock"
+ version = "0.2.5"
+diff --git a/Cargo.toml b/Cargo.toml
+index d459752aff..4620119597 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -464,7 +464,7 @@ tree-sitter-ruby = "0.23"
+ tree-sitter-rust = "0.23"
+ tree-sitter-typescript = "0.23"
+ tree-sitter-yaml = { git = "https://github.com/zed-industries/tree-sitter-yaml", rev = "baff0b51c64ef6a1fb1f8390f3ad6015b83ec13a" }
+-trie-rs = "0.4.2"
++radix_trie = "0.2"
+ unicase = "2.6"
+ unindent = "0.1.7"
+ unicode-segmentation = "1.10"
+diff --git a/crates/mega/Cargo.toml b/crates/mega/Cargo.toml
+index a767dfad66..a9a4f9d9b7 100644
+--- a/crates/mega/Cargo.toml
++++ b/crates/mega/Cargo.toml
+@@ -22,4 +22,4 @@ serde_json.workspace = true
+ bytes.workspace = true
+ schemars.workspace = true
+ anyhow.workspace = true
+-trie-rs.workspace = true
++radix_trie.workspace = true
+diff --git a/crates/mega/src/api.rs b/crates/mega/src/api.rs
+index 210d66884b..efbf0d1752 100644
+--- a/crates/mega/src/api.rs
++++ b/crates/mega/src/api.rs
+@@ -1,8 +1,8 @@
+ use serde::{Deserialize, Serialize};
+ 
+ #[derive(Debug, Deserialize, Serialize)]
+-pub struct MountRequest {
+-    pub path: String,
++pub struct MountRequest<'a> {
++    pub path: &'a str,
+ }
+ 
+ #[derive(Debug, Deserialize, Serialize)]
+@@ -26,8 +26,8 @@ pub struct MountsResponse {
+ }
+ 
+ #[derive(Debug, Deserialize, Serialize)]
+-pub struct UmountRequest {
+-    pub path: Option<String>,
++pub struct UmountRequest<'a> {
++    pub path: Option<&'a str>,
+     pub inode: Option<u64>,
+ }
+ 
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index d1d0c8e49b..f76a139148 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -8,25 +8,28 @@
+ // 3. Complete docs.
+ // 4. Add settings for this module
+ 
+-use crate::api::{ConfigRequest, ConfigResponse, MountResponse, MountsResponse};
++use crate::api::{
++    ConfigRequest, ConfigResponse, MountRequest, MountResponse, MountsResponse, UmountRequest,
++    UmountResponse,
++};
+ use crate::mega_settings::MegaSettings;
++use crate::Event::FuseMounted;
+ use futures::channel::oneshot;
+ use futures::channel::oneshot::Receiver;
+ use futures::{AsyncReadExt, FutureExt, SinkExt, TryFutureExt};
+-use gpui::http_client::{
+-    AsyncBody, HttpClient, HttpRequestExt
+-    ,
+-};
+-use gpui::{
+-    AppContext, Context, EventEmitter, ModelContext,
+-};
++use gpui::http_client::{AsyncBody, HttpClient, HttpRequestExt};
++use gpui::{AppContext, Context, EventEmitter, ModelContext, Path};
++use radix_trie::{Trie, TrieCommon};
+ use reqwest_client::ReqwestClient;
+ use schemars::_private::NoSerialize;
+ use serde::Serialize;
+ use settings::Settings;
++use std::collections::{BTreeMap, BTreeSet, HashSet};
++use std::ffi::OsStr;
++use std::hash::{DefaultHasher, Hash, Hasher};
+ use std::io::Read;
+ use std::path::PathBuf;
+-use std::sync::Arc;
++use std::sync::{Arc, RwLock};
+ 
+ mod api;
+ mod mega_settings;
+@@ -41,12 +44,17 @@ pub enum Event {
+     FuseMounted(Option<PathBuf>),
+     FuseCheckout(Option<PathBuf>),
+ }
++
++struct CheckoutState {
++    path: PathBuf,
++    mounted: bool,
++}
+ pub struct Mega {
+     fuse_running: bool,
+     fuse_mounted: bool,
+ 
+     mount_point: Option<PathBuf>,
+-    checkout_path: Vec<PathBuf>,
++    checkout_path: Trie<String, u64>,
+ 
+     mega_url: String,
+     fuse_url: String,
+@@ -85,7 +93,7 @@ impl Mega {
+             fuse_mounted: false,
+ 
+             mount_point,
+-            checkout_path: Vec::new(),
++            checkout_path: Default::default(),
+ 
+             mega_url,
+             fuse_url,
+@@ -94,14 +102,11 @@ impl Mega {
+     }
+ 
+     pub fn update_status(&mut self, cx: &mut ModelContext<Self>) {
+-        let recv = self.get_mount_point(cx);
+-        
+-        fn merge_trie(mut a: &Vec<PathBuf>, b: &Vec<PathBuf> ) {
+-            todo!()
+-        }
++        let checkouts = self.get_checkout_paths(cx);
++        let config = self.get_fuse_config(cx);
+ 
+         cx.spawn(|this, mut cx| async move {
+-            if let Ok(opt) = recv.await {
++            if let Ok(opt) = checkouts.await {
+                 match opt {
+                     None => {
+                         // This means we cannot connect to a localhost port.
+@@ -113,14 +118,37 @@ impl Mega {
+                         })
+                     }
+                     Some(info) => {
++                        // Check if checkout-ed paths are correct
+                         this.update(&mut cx, |mega, cx| {
+-                            // merge them
++                            let trie = &mut mega.checkout_path;
++                            for ref i in info.mounts {
++                                let missing = trie.get_ancestor(&i.path).is_none();
++                                if missing {
++                                    // Should not happen unless on startup.
++                                    trie.insert(i.path.clone(), i.inode);
++                                    cx.emit(Event::FuseCheckout(Some(PathBuf::from(i.path.clone()))))
++                                }
++                            }
+                         })
+                     }
+                 }
+-            } else {
+-                Ok(())
+-            }
++            } else { Ok(()) }.unwrap();
++
++            // When mount point changed, emit an event.
++            if let Ok(Some(config)) = config.await {
++                this.update(&mut cx, |this, cx| {
++                    let path = PathBuf::from(config.config.mount_path);
++                    if (this.fuse_mounted && this.fuse_running)
++                    && this.mount_point.is_some() {
++                        if let Some(inner) = &this.mount_point {
++                            if !inner.eq(&path) {
++                                this.mount_point = Some(path);
++                                cx.emit(Event::FuseMounted(this.mount_point.clone()));
++                            }
++                        }
++                    }
++                })
++            } else { Ok(()) }
+         })
+         .detach();
+     }
+@@ -136,9 +164,58 @@ impl Mega {
+     }
+ 
+     pub fn toggle_mount(&mut self, cx: &mut ModelContext<Self>) {
+-        // TODO traverse checkout paths and toggle them
+-        // persistently store them?
+-        
++        // TODO traverse checkout-ed paths and toggle them
++        self.update_status(cx);
++        let paths = &self.checkout_path;
++
++        if !self.fuse_mounted {
++            for (_, (p, _)) in paths.iter().enumerate() {
++                let path = PathBuf::from(p); // FIXME is there a better way?
++                cx.spawn(|mega, mut cx| async move {
++                    let recv = mega.update(&mut cx, |this, cx| {
++                        let param = PathBuf::from(path);
++                        this.checkout_path(cx, param)
++                    }).expect("mega delegate not be dropped");
++
++                    if let Ok(Some(resp)) = recv.await {
++                        mega.update(&mut cx, |this, cx| {
++                            let buf = PathBuf::from(resp.mount.path.clone());
++                            cx.emit(Event::FuseCheckout(Some(buf)));
++                        })
++                    } else {
++                        Ok(())
++                    }
++                })
++                .detach();
++            }
++
++            self.fuse_mounted = true;
++            cx.emit(Event::FuseMounted(self.mount_point.clone()));
++        } else {
++            for (_, (p, &n)) in paths.iter().enumerate() {
++                let path = PathBuf::from(p); // FIXME is there a better way?
++                cx.spawn(|mega, mut cx| async move {
++                    let recv = mega.update(&mut cx, |this, cx| {
++                        let param = PathBuf::from(path);
++                        this.restore_path(cx, param, n)
++                    }).expect("mega delegate not be dropped");
++
++                    if let Ok(Some(resp)) = recv.await {
++                        mega.update(&mut cx, |this, cx| {
++                            // TODO use a new check out state struct
++                            cx.emit(Event::FuseCheckout(None));
++                        })
++                    } else {
++                        Ok(())
++                    }
++                })
++                    .detach();
++            }
++
++            self.fuse_mounted = false;
++            cx.emit(Event::FuseMounted(None));
++        }
++
+         cx.spawn(|this, mut cx| async move {
+             // let client = ReqwestClient::new();
+             // let req = client.get(
+@@ -163,7 +240,11 @@ impl Mega {
+         .detach();
+     }
+ 
+-    pub fn checkout_path(&mut self, cx: &mut ModelContext<Self>, mut path: PathBuf) -> Receiver<Option<MountResponse>> {
++    pub fn checkout_path(
++        &self,
++        cx: &ModelContext<Self>,
++        path: PathBuf,
++    ) -> Receiver<Option<MountResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+@@ -172,11 +253,16 @@ impl Mega {
+             base = self.fuse_url
+         );
+ 
++        // If it panics, that means there's a bug in code.
++        let path = path.to_str().unwrap();
++        let req = MountRequest { path };
++        let body = serde_json::to_string(&req).unwrap();
++
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+                 .get(
+                     "http://127.0.0.1:2725/api/fs/mount",
+-                    AsyncBody::empty(),
++                    AsyncBody::from(body),
+                     false,
+                 )
+                 .await
+@@ -195,7 +281,7 @@ impl Mega {
+ 
+             tx.send(None).unwrap();
+         })
+-            .detach();
++        .detach();
+ 
+         rx
+     }
+@@ -204,7 +290,57 @@ impl Mega {
+         unimplemented!()
+     }
+ 
+-    pub fn get_mount_point(&mut self, cx: &mut ModelContext<Self>) -> Receiver<Option<MountsResponse>> {
++    pub fn restore_path(
++        &self,
++        cx: &ModelContext<Self>,
++        path: PathBuf,
++        inode: u64,
++    ) -> Receiver<Option<UmountResponse>> {
++        let (tx, rx) = oneshot::channel();
++        let client = self.http_client.clone();
++        let uri = format!(
++            // FIXME: settings not work, currently
++            "{base}/api/fs/umount",
++            base = self.fuse_url
++        );
++
++        // If it panics, that means there's a bug in code.
++        let path = path.to_str().unwrap();
++        let req = UmountRequest {
++            path: Some(path),
++            inode: Some(inode),
++        };
++        let body = serde_json::to_string(&req).unwrap();
++
++        cx.spawn(|_this, _cx| async move {
++            if let Ok(mut resp) = client
++                .get(
++                    "http://127.0.0.1:2725/api/fs/umount",
++                    AsyncBody::from(body),
++                    false,
++                )
++                .await
++            {
++                if resp.status().is_success() {
++                    let mut buf = Vec::new();
++                    resp.body_mut().read_to_end(&mut buf).await.unwrap();
++                    if let Ok(config) =
++                        serde_json::from_slice::<UmountResponse>(&*buf.into_boxed_slice())
++                    {
++                        tx.send(Some(config)).unwrap();
++                    }
++                }
++                return;
++            }
++
++            tx.send(None).unwrap();
++        })
++        .detach();
++
++        rx
++    }
++
++    pub fn get_checkout_paths(&self, cx: &ModelContext<Self>) -> Receiver<Option<MountsResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+@@ -241,10 +377,7 @@ impl Mega {
+         rx
+     }
+ 
+-    pub fn get_fuse_config(
+-        &mut self,
+-        cx: &mut ModelContext<Self>,
+-    ) -> Receiver<Option<ConfigResponse>> {
++    pub fn get_fuse_config(&self, cx: &ModelContext<Self>) -> Receiver<Option<ConfigResponse>> {
+         let (tx, rx) = oneshot::channel();
+         let client = self.http_client.clone();
+         let uri = format!(
+@@ -299,10 +432,7 @@ impl Mega {
+ 
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+-                .post_json(
+-                    "http://127.0.0.1:2725/api/config",
+-                    config.into()
+-                )
++                .post_json("http://127.0.0.1:2725/api/config", config.into())
+                 .await
+             {
+                 if resp.status().is_success() {
+@@ -319,8 +449,13 @@ impl Mega {
+ 
+             tx.send(None).unwrap();
+         })
+-            .detach();
++        .detach();
+ 
+         rx
+     }
++    
++    pub fn is_path_checkout(&self, path: &String) -> bool {
++        let set = &self.checkout_path;
++        set.get_ancestor(path).is_some()
++    }
+ }
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index 20b5160bab..fe55670a44 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -294,47 +294,46 @@ impl MegaPanel {
+                     .full_width()
+                     .icon(IconName::Plus)
+                     .icon_position(IconPosition::Start)
+-                    .on_click(cx.listener(|this, _, cx| {
+-                        this.mega_handle.update(cx, |mega, cx| mega.toggle_fuse(cx));
+-                        this.warn_unimplemented(cx);
+-                    }))
+-                ),
+-                encap_btn(Button::new("btn_toggle_mount", "Toggle Mount")
+-                    .full_width()
+-                    .icon(IconName::Context)
+-                    .icon_position(IconPosition::Start)
+                     .on_click(cx.listener(|this, _, cx| {
+                         this.mega_handle.update(cx, |mega, cx| mega.toggle_mount(cx));
+-                        this.warn_unimplemented(cx);
+-                    }))
+-                ),
+-                encap_btn(Button::new("btn_checkout", "Checkout Path")
+-                    .full_width()
+-                    .icon(IconName::Check)
+-                    .icon_position(IconPosition::Start)
+-                    .on_click(cx.listener(|this, _, cx| {
+-                        this.warn_unimplemented(cx);
+-                        let options = PathPromptOptions {
+-                            files: true,
+-                            directories: true,
+-                            multiple: false,
+-                        };
+-                        
+-                        let abs_path = cx.prompt_for_paths(options);
+-
+-                        // Why so annoying...
+-                        let mega = this.mega_handle.clone();
+-                        cx.spawn(|this, mut cx|async move {
+-                            // mega.update(&mut cx, |this, cx| async move {
+-                            //     if let Ok(Ok(Some(result))) = abs_path.await {
+-                            //         this.checkout_multi_path(cx, result);
+-                            //     }
+-                            // }).log_err();
+-                            
+-                        }) .detach();
+-                        
+                     }))
+                 ),
++                // encap_btn(Button::new("btn_toggle_mount", "Toggle Mount")
++                //     .full_width()
++                //     .icon(IconName::Context)
++                //     .icon_position(IconPosition::Start)
++                //     .on_click(cx.listener(|this, _, cx| {
++                //         this.mega_handle.update(cx, |mega, cx| mega.toggle_mount(cx));
++                //         this.warn_unimplemented(cx);
++                //     }))
++                // ),
++                // encap_btn(Button::new("btn_checkout", "Checkout Path")
++                //     .full_width()
++                //     .icon(IconName::Check)
++                //     .icon_position(IconPosition::Start)
++                //     .on_click(cx.listener(|this, _, cx| {
++                //         this.warn_unimplemented(cx);
++                //         let options = PathPromptOptions {
++                //             files: true,
++                //             directories: true,
++                //             multiple: false,
++                //         };
++                //         
++                //         let abs_path = cx.prompt_for_paths(options);
++                // 
++                //         // Why so annoying...
++                //         let mega = this.mega_handle.clone();
++                //         cx.spawn(|this, mut cx|async move {
++                //             // mega.update(&mut cx, |this, cx| async move {
++                //             //     if let Ok(Ok(Some(result))) = abs_path.await {
++                //             //         this.checkout_multi_path(cx, result);
++                //             //     }
++                //             // }).log_err();
++                //             
++                //         }) .detach();
++                //         
++                //     }))
++                // ),
+             ])
+     }
+ 
+diff --git a/crates/project_panel/src/project_panel.rs b/crates/project_panel/src/project_panel.rs
+index d69d682b8f..b2d4cda751 100644
+--- a/crates/project_panel/src/project_panel.rs
++++ b/crates/project_panel/src/project_panel.rs
+@@ -312,8 +312,7 @@ impl ProjectPanel {
+                     this.focus_in(cx);
+                 }
+                 mega::Event::FuseCheckout(path) => {
+-                    // FIXME: impl it.
+-                    println!("Fuse Checkout NOT implemented in project for now!");
++                    // It's not important, for now.
+                 }
+                 _ => {}
+             }).detach();
+-- 
+2.43.0
+

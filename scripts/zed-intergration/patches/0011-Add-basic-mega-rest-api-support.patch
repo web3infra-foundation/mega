@@ -1,0 +1,835 @@
+From a880b2c68d47990c8229656313b9dbeb1000b87c Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Sun, 10 Nov 2024 22:19:15 +0800
+Subject: [PATCH 11/24] Add basic mega rest api support
+
+---
+ Cargo.lock                          |  30 +++
+ Cargo.toml                          |   1 +
+ crates/language/src/buffer.rs       |   2 +
+ crates/mega/Cargo.toml              |   5 +-
+ crates/mega/src/api.rs              |  58 +++++
+ crates/mega/src/delegate.rs         |  58 -----
+ crates/mega/src/fuse.rs             |   0
+ crates/mega/src/mega.rs             | 354 +++++++++++++++++++---------
+ crates/mega_panel/Cargo.toml        |   5 +-
+ crates/mega_panel/src/mega_panel.rs |  45 +++-
+ crates/project/src/project.rs       |   4 +-
+ crates/workspace/src/workspace.rs   |   6 +-
+ 12 files changed, 387 insertions(+), 181 deletions(-)
+ create mode 100644 crates/mega/src/api.rs
+ delete mode 100644 crates/mega/src/delegate.rs
+ delete mode 100644 crates/mega/src/fuse.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index c25acea09d..a10bd2b986 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4277,6 +4277,15 @@ dependencies = [
+  "subtle",
+ ]
+ 
++[[package]]
++name = "fid-rs"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a6956a1e60e2d1412b44b4169d44a03dae518f8583d3e10090c912c105e48447"
++dependencies = [
++ "rayon",
++]
++
+ [[package]]
+ name = "file_finder"
+ version = "0.1.0"
+@@ -6635,6 +6644,15 @@ dependencies = [
+  "imgref",
+ ]
+ 
++[[package]]
++name = "louds-rs"
++version = "0.7.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "936de6c22f08e7135a921f8ada907acd0d88880c4f42b5591f634b9f1dd8e07f"
++dependencies = [
++ "fid-rs",
++]
++
+ [[package]]
+ name = "lru"
+ version = "0.12.4"
+@@ -6890,11 +6908,14 @@ version = "0.1.0"
+ dependencies = [
+  "anyhow",
+  "bytes 1.7.2",
++ "futures 0.3.30",
+  "gpui",
+  "reqwest_client",
+  "schemars",
+  "serde",
++ "serde_json",
+  "settings",
++ "trie-rs",
+ ]
+ 
+ [[package]]
+@@ -12517,6 +12538,15 @@ dependencies = [
+  "tree-sitter-language",
+ ]
+ 
++[[package]]
++name = "trie-rs"
++version = "0.4.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f6f88f4b0a1ebd6c3d16be3e45eb0e8089372ccadd88849b7ca162ba64b5e6f6"
++dependencies = [
++ "louds-rs",
++]
++
+ [[package]]
+ name = "try-lock"
+ version = "0.2.5"
+diff --git a/Cargo.toml b/Cargo.toml
+index 6a02b98478..d459752aff 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -464,6 +464,7 @@ tree-sitter-ruby = "0.23"
+ tree-sitter-rust = "0.23"
+ tree-sitter-typescript = "0.23"
+ tree-sitter-yaml = { git = "https://github.com/zed-industries/tree-sitter-yaml", rev = "baff0b51c64ef6a1fb1f8390f3ad6015b83ec13a" }
++trie-rs = "0.4.2"
+ unicase = "2.6"
+ unindent = "0.1.7"
+ unicode-segmentation = "1.10"
+diff --git a/crates/language/src/buffer.rs b/crates/language/src/buffer.rs
+index 28bbb25d1b..85f4f8cd10 100644
+--- a/crates/language/src/buffer.rs
++++ b/crates/language/src/buffer.rs
+@@ -81,6 +81,8 @@ pub enum Capability {
+     ReadWrite,
+     /// The buffer is a read-only replica.
+     ReadOnly,
++    // /// The buffer is a mega-fuse replica.
++    // Fuse
+ }
+ 
+ pub type BufferRow = u32;
+diff --git a/crates/mega/Cargo.toml b/crates/mega/Cargo.toml
+index 658ed87476..a767dfad66 100644
+--- a/crates/mega/Cargo.toml
++++ b/crates/mega/Cargo.toml
+@@ -13,10 +13,13 @@ path = 'src/mega.rs'
+ 
+ [dependencies]
+ gpui.workspace = true
+-reqwest_client.workspace = true
+ settings.workspace = true
++reqwest_client.workspace = true
+ 
++futures.workspace = true
+ serde.workspace = true
++serde_json.workspace = true
+ bytes.workspace = true
+ schemars.workspace = true
+ anyhow.workspace = true
++trie-rs.workspace = true
+diff --git a/crates/mega/src/api.rs b/crates/mega/src/api.rs
+new file mode 100644
+index 0000000000..210d66884b
+--- /dev/null
++++ b/crates/mega/src/api.rs
+@@ -0,0 +1,58 @@
++use serde::{Deserialize, Serialize};
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct MountRequest {
++    pub path: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct MountResponse {
++    pub status: String,
++    pub mount: MountInfo,
++    pub message: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct MountInfo {
++    pub hash: String,
++    pub path: String,
++    pub inode: u64,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct MountsResponse {
++    pub status: String,
++    pub mounts: Vec<MountInfo>,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct UmountRequest {
++    pub path: Option<String>,
++    pub inode: Option<u64>,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct UmountResponse {
++    pub status: String,
++    pub message: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct ConfigResponse {
++    pub status: String,
++    pub config: ConfigInfo,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct ConfigInfo {
++    pub mega_url: String,
++    pub mount_path: String,
++    pub store_path: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++pub struct ConfigRequest {
++    pub mega_url: Option<String>,
++    pub mount_path: Option<String>,
++    pub store_path: Option<String>,
++}
+\ No newline at end of file
+diff --git a/crates/mega/src/delegate.rs b/crates/mega/src/delegate.rs
+deleted file mode 100644
+index c767060048..0000000000
+--- a/crates/mega/src/delegate.rs
++++ /dev/null
+@@ -1,58 +0,0 @@
+-use serde::{Deserialize, Serialize};
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-pub(crate) struct MountRequest {
+-    pub(crate) path: String,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct MountResponse {
+-    status: String,
+-    mount: MountInfo,
+-    message: String,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct MountInfo {
+-    hash: String,
+-    path: String,
+-    inode: u64,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct MountsResponse {
+-    status: String,
+-    mounts: Vec<MountInfo>,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct UmountRequest {
+-    path: Option<String>,
+-    inode: Option<u64>,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct UmountResponse {
+-    status: String,
+-    message: String,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct ConfigResponse {
+-    status: String,
+-    config: ConfigInfo,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct ConfigInfo {
+-    mega_url: String,
+-    mount_path: String,
+-    store_path: String,
+-}
+-
+-#[derive(Debug, Deserialize, Serialize)]
+-struct ConfigRequest {
+-    mega_url: Option<String>,
+-    mount_path: Option<String>,
+-    store_path: Option<String>,
+-}
+\ No newline at end of file
+diff --git a/crates/mega/src/fuse.rs b/crates/mega/src/fuse.rs
+deleted file mode 100644
+index e69de29bb2..0000000000
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index c27c40d7f4..d1d0c8e49b 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -1,24 +1,34 @@
+ // This crate delegate mega and its fuse daemon.
+ // The following requirements should be met:
+-// 
++//
+ // TODO:
+-// 1. Only one daemon on this machine. 
++// 1. Only one daemon on this machine.
+ //      This should be both warrantied by this module and scorpio
+ // 2. At least one daemon on this machine when zed startup.
+ // 3. Complete docs.
+ // 4. Add settings for this module
+ 
+-use std::path::{Path, PathBuf};
+-use std::sync::Arc;
+-use gpui::http_client::{AsyncBody, HttpClient};
+-use gpui::{AppContext, Context, EntityId, EventEmitter, ModelContext, SharedString, WindowContext};
++use crate::api::{ConfigRequest, ConfigResponse, MountResponse, MountsResponse};
++use crate::mega_settings::MegaSettings;
++use futures::channel::oneshot;
++use futures::channel::oneshot::Receiver;
++use futures::{AsyncReadExt, FutureExt, SinkExt, TryFutureExt};
++use gpui::http_client::{
++    AsyncBody, HttpClient, HttpRequestExt
++    ,
++};
++use gpui::{
++    AppContext, Context, EventEmitter, ModelContext,
++};
+ use reqwest_client::ReqwestClient;
++use schemars::_private::NoSerialize;
+ use serde::Serialize;
+ use settings::Settings;
+-use crate::mega_settings::MegaSettings;
++use std::io::Read;
++use std::path::PathBuf;
++use std::sync::Arc;
+ 
+-mod delegate;
+-mod fuse;
++mod api;
+ mod mega_settings;
+ 
+ pub fn init(cx: &mut AppContext) {
+@@ -27,158 +37,290 @@ pub fn init(cx: &mut AppContext) {
+ 
+ #[derive(Clone, Debug, PartialEq)]
+ pub enum Event {
+-    MegaRunning(bool),
+     FuseRunning(bool),
+     FuseMounted(Option<PathBuf>),
+     FuseCheckout(Option<PathBuf>),
+ }
+ pub struct Mega {
+-    mega_running: bool,
+     fuse_running: bool,
+     fuse_mounted: bool,
+-    
++
+     mount_point: Option<PathBuf>,
+-    checkout_path: Option<PathBuf>,
+-    
++    checkout_path: Vec<PathBuf>,
++
+     mega_url: String,
+     fuse_url: String,
++    http_client: Arc<ReqwestClient>,
+ }
+ 
+ pub struct MegaFuse {}
+ 
+ impl EventEmitter<Event> for Mega {}
+ 
+-
+ impl Mega {
+-    pub fn init_settings(cx: &mut AppContext) { MegaSettings::register(cx); }
+-    
++    pub fn init_settings(cx: &mut AppContext) {
++        MegaSettings::register(cx);
++    }
++
+     pub fn init(cx: &mut AppContext) {
+         Self::init_settings(cx);
+     }
+-    
++
+     pub fn new(cx: &mut AppContext) -> Self {
+-        let mount_point = PathBuf::from(MegaSettings::get_global(cx).mount_point.clone());
++        let mount_path = PathBuf::from(MegaSettings::get_global(cx).mount_point.clone());
+         let mega_url = MegaSettings::get_global(cx).mega_url.clone();
+         let fuse_url = MegaSettings::get_global(cx).fuse_url.clone();
+-        
++
++        // To not affected by global proxy settings.
++        let client = ReqwestClient::new();
++
++        let mount_point = if mount_path.exists() {
++            Some(mount_path)
++        } else {
++            None
++        };
++
+         Mega {
+             fuse_running: false,
+-            mega_running: false,
+             fuse_mounted: false,
+-            
+-            mount_point: None,
+-            checkout_path: None,
+-            
++
++            mount_point,
++            checkout_path: Vec::new(),
++
+             mega_url,
+             fuse_url,
++            http_client: Arc::new(client),
+         }
+     }
+ 
+     pub fn update_status(&mut self, cx: &mut ModelContext<Self>) {
++        let recv = self.get_mount_point(cx);
+         
+-        
+-        
+-        cx.notify();
+-    }
++        fn merge_trie(mut a: &Vec<PathBuf>, b: &Vec<PathBuf> ) {
++            todo!()
++        }
+ 
+-    pub fn status(&self) -> (bool, bool, bool) {
+-        (self.mega_running, self.fuse_running, self.fuse_mounted)
++        cx.spawn(|this, mut cx| async move {
++            if let Ok(opt) = recv.await {
++                match opt {
++                    None => {
++                        // This means we cannot connect to a localhost port.
++                        // So we can assume that fuse has been dead.
++                        this.update(&mut cx, |mega, cx| {
++                            mega.fuse_running = false;
++                            cx.emit(Event::FuseRunning(false));
++                            cx.emit(Event::FuseMounted(None));
++                        })
++                    }
++                    Some(info) => {
++                        this.update(&mut cx, |mega, cx| {
++                            // merge them
++                        })
++                    }
++                }
++            } else {
++                Ok(())
++            }
++        })
++        .detach();
+     }
+-    
+-    pub fn toggle_mega(&mut self, cx: &mut ModelContext<Self>) {
+-        self.mega_running = !self.mega_running;
+-        cx.emit(Event::MegaRunning(self.mega_running));
++
++    pub fn status(&self) -> (bool, bool) {
++        (self.fuse_running, self.fuse_mounted)
+     }
+-    
++
+     pub fn toggle_fuse(&mut self, cx: &mut ModelContext<Self>) {
++        // FIXME should be able to restart fuse
+         self.fuse_running = !self.fuse_running;
+         cx.emit(Event::FuseRunning(self.fuse_running));
+     }
+ 
+     pub fn toggle_mount(&mut self, cx: &mut ModelContext<Self>) {
+-        // let req_body = delegate::MountRequest {
+-        //     path: "".parse().unwrap()
+-        // };
+-
++        // TODO traverse checkout paths and toggle them
++        // persistently store them?
++        
+         cx.spawn(|this, mut cx| async move {
+-            let client = ReqwestClient::new();
+-            let req = client.get(
+-                "localhost:2725/api/fs/mount",
+-                AsyncBody::empty(),
+-                false
+-            ).await;
+-            
+-            if let Some(mega) = this.upgrade() {
+-                let _ = mega.update(&mut cx, |this, cx| {
+-                    if this.fuse_mounted {
+-                        this.fuse_mounted = false;
+-                    } else {
+-                        // FIXME just pretending that we've got something from fuse response
+-                        this.fuse_mounted = true;
+-                        this.mount_point = Some(PathBuf::from("/home/neon/projects"));
+-                    }
+-                    cx.emit(Event::FuseMounted(this.mount_point.clone()));
+-                });
+-            }
+-        }).detach();
++            // let client = ReqwestClient::new();
++            // let req = client.get(
++            //     "localhost:2725/api/fs/mount",
++            //     AsyncBody::empty(),
++            //     false
++            // ).await;
++            //
++            // if let Some(mega) = this.upgrade() {
++            //     let _ = mega.update(&mut cx, |this, cx| {
++            //         if this.fuse_mounted {
++            //             this.fuse_mounted = false;
++            //         } else {
++            //             // FIXME just pretending that we've got something from fuse response
++            //             this.fuse_mounted = true;
++            //             this.mount_point = Some(PathBuf::from("/home/neon/projects"));
++            //         }
++            //         cx.emit(Event::FuseMounted(this.mount_point.clone()));
++            //     });
++            // }
++        })
++        .detach();
+     }
+-    
+-    pub fn checkout_path(&mut self, cx: &mut ModelContext<Self>, mut path: PathBuf) {
+-        // for now, we assume there's only one path being checkout at a time.
+-        if self.checkout_path.is_none() {
+-            cx.spawn(|_this, _cx| async {
+-                let client = ReqwestClient::new();
+-                let req = client.get(
+-                    "localhost:2725/api/fs/mount",
++
++    pub fn checkout_path(&mut self, cx: &mut ModelContext<Self>, mut path: PathBuf) -> Receiver<Option<MountResponse>> {
++        let (tx, rx) = oneshot::channel();
++        let client = self.http_client.clone();
++        let uri = format!(
++            // FIXME: settings not work, currently
++            "{base}/api/fs/mount",
++            base = self.fuse_url
++        );
++
++        cx.spawn(|_this, _cx| async move {
++            if let Ok(mut resp) = client
++                .get(
++                    "http://127.0.0.1:2725/api/fs/mount",
+                     AsyncBody::empty(),
+-                    false
+-                ).await;
+-            }).detach();
+-        }
+-        
+-        
++                    false,
++                )
++                .await
++            {
++                if resp.status().is_success() {
++                    let mut buf = Vec::new();
++                    resp.body_mut().read_to_end(&mut buf).await.unwrap();
++                    if let Ok(config) =
++                        serde_json::from_slice::<MountResponse>(&*buf.into_boxed_slice())
++                    {
++                        tx.send(Some(config)).unwrap();
++                    }
++                }
++                return;
++            }
++
++            tx.send(None).unwrap();
++        })
++            .detach();
++
++        rx
+     }
+ 
+     pub fn checkout_multi_path(&mut self, cx: &mut ModelContext<Self>, mut path: Vec<PathBuf>) {
+-        // for now, we assume there's only one path being checkout at a time.
+-        if self.checkout_path.is_none() {
+-            cx.spawn(|_this, _cx| async {
+-                let client = ReqwestClient::new();
+-                let req = client.get(
+-                    "localhost:2725/api/fs/mount",
++        unimplemented!()
++    }
++
++    pub fn get_mount_point(&mut self, cx: &mut ModelContext<Self>) -> Receiver<Option<MountsResponse>> {
++        let (tx, rx) = oneshot::channel();
++        let client = self.http_client.clone();
++        let uri = format!(
++            // FIXME: settings not work, currently
++            "{base}/api/fs/mpoint",
++            base = self.fuse_url
++        );
++
++        cx.spawn(|_this, _cx| async move {
++            if let Ok(mut resp) = client
++                .get(
++                    "http://127.0.0.1:2725/api/fs/mpoint",
+                     AsyncBody::empty(),
+-                    false
+-                ).await;
+-            }).detach();
+-        }
++                    false,
++                )
++                .await
++            {
++                if resp.status().is_success() {
++                    let mut buf = Vec::new();
++                    resp.body_mut().read_to_end(&mut buf).await.unwrap();
++                    if let Ok(config) =
++                        serde_json::from_slice::<MountsResponse>(&*buf.into_boxed_slice())
++                    {
++                        tx.send(Some(config)).unwrap();
++                    }
++                }
++                return;
++            }
+ 
++            tx.send(None).unwrap();
++        })
++        .detach();
+ 
++        rx
+     }
+ 
+-    pub fn get_fuse_config(&self, cx: &mut ModelContext<Self>) {
+-        cx.spawn(|_this, _cx| async {
+-            let client = ReqwestClient::new();
+-            let req = client.get(
+-                "localhost:2725/api/fs/mount",
+-                AsyncBody::empty(),
+-                false
+-            ).await;
+-        }).detach();
+-    }
++    pub fn get_fuse_config(
++        &mut self,
++        cx: &mut ModelContext<Self>,
++    ) -> Receiver<Option<ConfigResponse>> {
++        let (tx, rx) = oneshot::channel();
++        let client = self.http_client.clone();
++        let uri = format!(
++            // FIXME: settings not work, currently
++            "{base}/api/config",
++            base = self.fuse_url
++        );
++
++        cx.spawn(|_this, _cx| async move {
++            if let Ok(mut resp) = client
++                .get(
++                    "http://127.0.0.1:2725/api/config",
++                    AsyncBody::empty(),
++                    false,
++                )
++                .await
++            {
++                if resp.status().is_success() {
++                    let mut buf = Vec::new();
++                    resp.body_mut().read_to_end(&mut buf).await.unwrap();
++                    if let Ok(config) =
++                        serde_json::from_slice::<ConfigResponse>(&*buf.into_boxed_slice())
++                    {
++                        tx.send(Some(config)).unwrap();
++                    }
++                }
++                return;
++            }
++
++            tx.send(None).unwrap();
++        })
++        .detach();
+ 
+-    pub fn set_fuse_config(&self, cx: &mut ModelContext<Self>) {
+-        cx.spawn(|_this, _cx| async {
+-            let client = ReqwestClient::new();
+-            let req = client.post_json(
+-                "localhost:2725/api/config",
+-                AsyncBody::empty(),
+-            ).await;
+-        }).detach();
++        rx
+     }
+-    
+-}
+ 
+-#[cfg(test)]
+-mod test {
++    pub fn set_fuse_config(&self, cx: &mut ModelContext<Self>) -> Receiver<Option<ConfigResponse>> {
++        let (tx, rx) = oneshot::channel();
++        let client = self.http_client.clone();
++        let uri = format!(
++            // FIXME: settings not work, currently
++            "{base}/api/config",
++            base = self.fuse_url
++        );
++        let config = ConfigRequest {
++            mega_url: None,
++            mount_path: None,
++            store_path: None,
++        };
++
++        let config = serde_json::to_string(&config).unwrap();
+ 
++        cx.spawn(|_this, _cx| async move {
++            if let Ok(mut resp) = client
++                .post_json(
++                    "http://127.0.0.1:2725/api/config",
++                    config.into()
++                )
++                .await
++            {
++                if resp.status().is_success() {
++                    let mut buf = Vec::new();
++                    resp.body_mut().read_to_end(&mut buf).await.unwrap();
++                    if let Ok(config) =
++                        serde_json::from_slice::<ConfigResponse>(&*buf.into_boxed_slice())
++                    {
++                        tx.send(Some(config)).unwrap();
++                    }
++                }
++                return;
++            }
++
++            tx.send(None).unwrap();
++        })
++            .detach();
++
++        rx
++    }
+ }
+diff --git a/crates/mega_panel/Cargo.toml b/crates/mega_panel/Cargo.toml
+index 2238a405c1..af520b2100 100644
+--- a/crates/mega_panel/Cargo.toml
++++ b/crates/mega_panel/Cargo.toml
+@@ -11,10 +11,11 @@ path = 'src/mega_panel.rs'
+ workspace = true
+ 
+ [dependencies]
++gpui = { workspace = true, features = ['test-support']}
++workspace = { workspace = true, features = ["test-support"]}
++
+ mega.workspace = true
+-workspace.workspace = true
+ worktree.workspace = true
+-gpui.workspace = true
+ file_icons.workspace = true
+ settings.workspace = true
+ db.workspace = true
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index 8b141b57fd..20b5160bab 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -265,7 +265,6 @@ impl MegaPanel {
+ 
+     fn render_status(&mut self, cx: &mut ViewContext<Self>) -> Div {
+         let (
+-            mega_running,
+             fuse_running,
+             fuse_mounted
+         ) = self.mega_handle.read(cx).status();
+@@ -273,7 +272,6 @@ impl MegaPanel {
+         v_flex()
+             .gap_1()
+             .children([
+-                self.status_unit(cx, "Mega Backend:", mega_running),
+                 self.status_unit(cx, "Scorpio Backend:", fuse_running),
+                 self.status_unit(cx, "Fuse Mounted:", fuse_mounted),
+             ])
+@@ -292,15 +290,6 @@ impl MegaPanel {
+             .id("mega-control-pad")
+             .size_full()
+             .children([
+-                encap_btn(Button::new("btn_toggle_mega", "Toggle Mega")
+-                    .full_width()
+-                    .icon(IconName::Plus)
+-                    .icon_position(IconPosition::Start)
+-                    .on_click(cx.listener(|this, _, cx| {
+-                        this.mega_handle.update(cx, |mega, cx| mega.toggle_mega(cx));
+-                        this.warn_unimplemented(cx);
+-                    }))
+-                ),
+                 encap_btn(Button::new("btn_toggle_scorpio", "Toggle Scorpio")
+                     .full_width()
+                     .icon(IconName::Plus)
+@@ -373,4 +362,36 @@ impl MegaPanel {
+ 
+ fn horizontal_separator(cx: &mut WindowContext) -> Div {
+     div().mx_2().border_primary(cx).border_t_1()
+-}
+\ No newline at end of file
++}
++
++#[cfg(test)]
++mod tests {
++    use std::future::Future;
++    use db::smol::future::FutureExt;
++    use super::*;
++    use gpui::{TestAppContext, VisualTestContext};
++    use workspace::AppState;
++
++    #[gpui::test]
++    async fn test_mega_panel_functions(cx: &mut TestAppContext) {
++        let state = cx.update(|cx| {
++            let state = AppState::test(cx);
++            mega::init(cx);
++            state
++        });
++        
++        state.mega.update(cx, |this, cx| {
++            let recv = this.get_fuse_config(cx);
++            cx.spawn(|_this, _cx| async move {
++                match recv.await.unwrap() {
++                    None => panic!("Failed to get config"),
++                    Some(config) => {
++                        eprintln!("{config:?}");
++                    }
++                }
++            }).detach();
++        });
++        
++    }
++    
++}
+diff --git a/crates/project/src/project.rs b/crates/project/src/project.rs
+index 6795d005d7..a103d677f9 100644
+--- a/crates/project/src/project.rs
++++ b/crates/project/src/project.rs
+@@ -1874,7 +1874,9 @@ impl Project {
+     }
+ 
+     pub fn is_read_only(&self, cx: &AppContext) -> bool {
+-        self.is_disconnected(cx) || self.capability() == Capability::ReadOnly
++        self.is_disconnected(cx) 
++            || self.capability() == Capability::ReadOnly 
++            // || self.capability() == Capability::Fuse
+     }
+ 
+     pub fn is_local(&self) -> bool {
+diff --git a/crates/workspace/src/workspace.rs b/crates/workspace/src/workspace.rs
+index af4f47e5d3..45d2aee826 100644
+--- a/crates/workspace/src/workspace.rs
++++ b/crates/workspace/src/workspace.rs
+@@ -611,11 +611,15 @@ impl AppState {
+         let session = cx.new_model(|cx| AppSession::new(Session::test(), cx));
+         let user_store = cx.new_model(|cx| UserStore::new(client.clone(), cx));
+         let workspace_store = cx.new_model(|cx| WorkspaceStore::new(client.clone(), cx));
+-        let mega = cx.new_model(|cx| { Mega::new(cx) });
+             
+         theme::init(theme::LoadThemes::JustBase, cx);
+         client::init(&client, cx);
+         crate::init_settings(cx);
++        mega::init(cx);
++        
++        // We read settings in Mega::new()
++        // so the construction should be delayed.
++        let mega = cx.new_model(|cx| { Mega::new(cx) });
+ 
+         Arc::new(Self {
+             client,
+-- 
+2.43.0
+

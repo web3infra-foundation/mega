@@ -6,7 +6,7 @@ use std::path::Path;
 use reqwest::StatusCode;
 use ceres::lfs::lfs_structs::LockListQuery;
 use mercury::internal::index::Index;
-use crate::command::{ask_basic_auth, status};
+use crate::command::status;
 use crate::internal::head::Head;
 use crate::internal::protocol::lfs_client::LFSClient;
 use crate::utils::{lfs, path, util};
@@ -80,7 +80,7 @@ pub async fn execute(cmd: LfsCmds) {
                 }
             }
         }
-        LfsCmds::Untrack { path } => {
+        LfsCmds::Untrack { path } => { // only remove totally same pattern with path ?
             let path = convert_patterns_to_workdir(path); //
             untrack_lfs_patterns(&attr_path, path).unwrap();
         }
@@ -110,19 +110,13 @@ pub async fn execute(cmd: LfsCmds) {
             }
 
             let refspec = current_refspec().await.unwrap();
-            let mut auth = None;
-            loop {
-                let code = LFSClient::get().await.lock(path.clone(), refspec.clone(), auth.clone()).await;
-                if code.is_success() {
-                    println!("Locked {}", path);
-                } else if code == StatusCode::FORBIDDEN {
-                    eprintln!("Forbidden: You must have push access to create a lock");
-                    auth = Some(ask_basic_auth());
-                    continue;
-                } else if code == StatusCode::CONFLICT {
-                    eprintln!("Conflict: already created lock");
-                }
-                break;
+            let code = LFSClient::get().await.lock(path.clone(), refspec.clone()).await;
+            if code.is_success() {
+                println!("Locked {}", path);
+            } else if code == StatusCode::FORBIDDEN {
+                eprintln!("Forbidden: You must have push access to create a lock");
+            } else if code == StatusCode::CONFLICT {
+                eprintln!("Conflict: already created lock");
             }
         }
         LfsCmds::Unlock { path, force, id } => {
@@ -155,17 +149,11 @@ pub async fn execute(cmd: LfsCmds) {
                 }
                 Some(id) => id
             };
-            let mut auth = None;
-            loop {
-                let code = LFSClient::get().await.unlock(id.clone(), refspec.clone(), force, auth.clone()).await;
-                if code.is_success() {
-                    println!("Unlocked {}", path);
-                } else if code == StatusCode::FORBIDDEN {
-                    eprintln!("Forbidden: You must have push access to unlock");
-                    auth = Some(ask_basic_auth());
-                    continue;
-                }
-                break;
+            let code = LFSClient::get().await.unlock(id.clone(), refspec.clone(), force).await;
+            if code.is_success() {
+                println!("Unlocked {}", path);
+            } else if code == StatusCode::FORBIDDEN {
+                eprintln!("Forbidden: You must have push access to unlock");
             }
         }
         LfsCmds::LsFiles { long, size, name_only} => {

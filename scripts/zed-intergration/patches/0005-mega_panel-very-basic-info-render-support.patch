@@ -1,0 +1,185 @@
+From e04d4b01af7991ed4b40fcd9553f20e67f2ec53f Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Tue, 22 Oct 2024 16:15:01 +0800
+Subject: [PATCH 05/24] mega_panel: very basic info render support
+
+---
+ Cargo.lock                          |  4 +-
+ crates/mega_panel/Cargo.toml        |  2 +
+ crates/mega_panel/src/mega_panel.rs | 61 +++++++++++++++++++++++++----
+ 3 files changed, 58 insertions(+), 9 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 80c72872e4..0474f53d0a 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -6889,7 +6889,7 @@ name = "mega"
+ version = "0.1.0"
+ dependencies = [
+  "gpui",
+- "reqwest 0.12.8",
++ "reqwest_client",
+  "serde",
+ ]
+ 
+@@ -6906,8 +6906,10 @@ dependencies = [
+  "schemars",
+  "serde",
+  "settings",
++ "text",
+  "util",
+  "workspace",
++ "worktree",
+ ]
+ 
+ [[package]]
+diff --git a/crates/mega_panel/Cargo.toml b/crates/mega_panel/Cargo.toml
+index d139d51f0d..2238a405c1 100644
+--- a/crates/mega_panel/Cargo.toml
++++ b/crates/mega_panel/Cargo.toml
+@@ -13,11 +13,13 @@ workspace = true
+ [dependencies]
+ mega.workspace = true
+ workspace.workspace = true
++worktree.workspace = true
+ gpui.workspace = true
+ file_icons.workspace = true
+ settings.workspace = true
+ db.workspace = true
+ fs.workspace = true
++text.workspace = true
+ util.workspace = true
+ 
+ anyhow.workspace = true
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index 03c41f06ad..b055d76fcf 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -3,15 +3,17 @@ use anyhow::{anyhow, Context};
+ use db::kvp::KEY_VALUE_STORE;
+ use file_icons::FileIcons;
+ use fs::Fs;
+-use gpui::{actions, Action, AppContext, AssetSource, AsyncWindowContext, Entity, EventEmitter, FocusHandle, FocusableView, IntoElement, Model, Pixels, Render, Subscription, Task, UniformListScrollHandle, View, ViewContext, VisualContext, WeakModel, WeakView, WindowContext};
++use gpui::{actions, anchored, deferred, div, impl_actions, px, uniform_list, Action, AnyElement, AppContext, AssetSource, AsyncWindowContext, ClipboardItem, DismissEvent, Div, ElementId, EventEmitter, FocusHandle, FocusableView, FontWeight, HighlightStyle, InteractiveElement, IntoElement, KeyContext, Model, MouseButton, MouseDownEvent, ParentElement, Pixels, Point, Render, SharedString, Stateful, Styled, Subscription, Task, UniformListScrollHandle, View, ViewContext, VisualContext, WeakModel, WeakView, WindowContext};
+ use gpui::private::serde_derive::{Deserialize, Serialize};
+ use gpui::private::serde_json;
+ use mega::{Mega, MegaFuse};
+ use settings::{Settings, SettingsStore};
++use text::BufferId;
+ use util::{ResultExt, TryFutureExt};
+ use workspace::dock::{DockPosition, Panel, PanelEvent, PanelId};
+-use workspace::ui::{v_flex, IconName};
++use workspace::ui::{v_flex, IconName, Label, LabelCommon, LabelSize};
+ use workspace::{Pane, Workspace};
++use worktree::{Entry, ProjectEntryId, WorktreeId};
+ use crate::mega_panel_settings::{MegaPanelDockPosition, MegaPanelSettings};
+ 
+ mod mega_panel_settings;
+@@ -21,18 +23,18 @@ const MEGA_PANEL_KEY: &str = "MegaPanel";
+ actions!(
+     mega_panel,
+     [
+-        Open,
+         ToggleFocus,
+         ToggleFuseMount,
++        CheckoutPath,
+     ]
+ );
+ 
+ pub struct MegaPanel {
+-    mega: WeakModel<Mega>,
++    mega_handle: WeakModel<Mega>,
+     workspace: WeakView<Workspace>,
+     focus_handle: FocusHandle,
+     fs: Arc<dyn Fs>,
+-    pending_serialization: Task<Option<()>>,
++    pending_serialization: Task<Option<()>>, // TODO check how to use it
+     width: Option<Pixels>,
+ }
+ 
+@@ -41,6 +43,12 @@ struct SerializedMegaPanel {
+     width: Option<Pixels>,
+ }
+ 
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
++enum MegaEntry {
++    Dir(WorktreeId, ProjectEntryId),
++    File(WorktreeId, BufferId),
++}
++
+ #[derive(Debug)]
+ pub enum Event {
+     Focus,
+@@ -52,7 +60,6 @@ pub fn init_settings(cx: &mut AppContext) {
+ 
+ pub fn init(assets: impl AssetSource, cx: &mut AppContext) {
+     init_settings(cx);
+-    println!("Mega settings should be registered");
+     file_icons::init(assets, cx);
+ 
+     cx.observe_new_views(|workspace: &mut Workspace, _| {
+@@ -69,7 +76,27 @@ impl EventEmitter<PanelEvent> for MegaPanel {}
+ 
+ impl Render for MegaPanel {
+     fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+-        v_flex()
++        let mega_panel = v_flex()
++            .id("mega_panel")
++            .size_full()
++            .relative()
++            .on_action(cx.listener(Self::toggle_fuse_mount))
++            .on_action(cx.listener(Self::checkout_path))
++            .track_focus(&self.focus_handle)
++            .gap_6()
++            .p_4()
++            .child(
++                Label::new("Mega Control Panel")
++                    .single_line()
++                    .weight(FontWeight::BOLD)
++                    .size(LabelSize::Large)
++            )
++            .gap_4()
++            .p_4()
++            .child(self.render_status_panel(cx))
++            .child(self.render_control_panel(cx));
++        
++        mega_panel
+     }
+ }
+ 
+@@ -180,7 +207,7 @@ impl MegaPanel {
+             }).detach();
+             
+             Self {
+-                mega: mega.downgrade(),
++                mega_handle: mega.downgrade(),
+                 workspace: workspace.weak_handle(),
+                 focus_handle,
+                 fs: workspace.app_state().fs.clone(),
+@@ -213,4 +240,22 @@ impl MegaPanel {
+             cx.emit(Event::Focus);
+         }
+     }
++    
++    pub fn toggle_fuse_mount(&mut self, _: &ToggleFuseMount, cx: &mut ViewContext<Self>) {
++        // let mega = self.mega_handle.upgrade()
++        //     .unwrap_or_else()
++        todo!()
++    }
++    
++    pub fn checkout_path(&mut self, _: &CheckoutPath, cx: &mut ViewContext<Self>) {
++        todo!()
++    }
++    
++    fn render_status_panel(&mut self, cx: &mut ViewContext<Self>) -> Div {
++        v_flex().child(Label::new("I am a status panel"))
++    }
++    
++    fn render_control_panel(&mut self, cx: &mut ViewContext<Self>) -> Div {
++        v_flex().child(Label::new("I am a control panel"))
++    }
+ }
+\ No newline at end of file
+-- 
+2.43.0
+

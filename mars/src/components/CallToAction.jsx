@@ -1,4 +1,4 @@
-import { AppStoreLink } from '@/components/AppStoreLink'
+import { GitHubLink } from '@/components/GitHubLink'
 import { CircleBackground } from '@/components/CircleBackground'
 import { Container } from '@/components/Container'
 
@@ -22,7 +22,7 @@ export function CallToAction() {
             first investment.
           </p>
           <div className="mt-8 flex justify-center">
-            <AppStoreLink color="white" />
+            <GitHubLink color="white" />
           </div>
         </div>
       </Container>

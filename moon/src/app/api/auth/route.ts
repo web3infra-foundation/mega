@@ -1,9 +1,8 @@
 import { isLoginIn } from '@/app/lib/dal';
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request) {
 
-  const login = isLoginIn();
-
+  const login = await isLoginIn();
   if (!login) {
     return new Response(null, { status: 401 })
   }

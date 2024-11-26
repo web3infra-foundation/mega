@@ -3,57 +3,57 @@ name = "libra"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "libra"
-path = "src/main.rs"
+[features]
+default = []
+p2p = ["gemini"]
 
 [dependencies]
-mercury = { workspace = true }
+anyhow = { workspace = true }
+byte-unit = "5.1.4"
+byteorder = "1.5.0"
+bytes = { workspace = true }
 ceres = { workspace = true }
-
+chrono = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+color-backtrace = "0.6.1"
+colored = { workspace = true }
+flate2 = { workspace = true } # add features = ["zlib"] if slow
+futures = { workspace = true }
+futures-util = { workspace = true }
+gemini = { workspace = true, optional = true }
+hex = { workspace = true }
+indicatif = "0.17.8"
+lazy_static = { workspace = true }
+lru-mem = "0.3.0"
+mercury = { workspace = true }
+once_cell = "1.19.0"
+path_abs = "0.5.1"
+pathdiff = "0.2.1"
+regex = { workspace = true }
+reqwest = { workspace = true, features = ["stream", "json"] }
+ring = { workspace = true }
+rpassword = "7.3.1"
+scopeguard = "1.2.0"
 sea-orm = { workspace = true, features = [
     "sqlx-sqlite",
     "runtime-tokio-rustls",
     "macros",
 ] }
-tokio = { workspace = true, features = ["rt-multi-thread", "rt", "macros"] }
-clap = { workspace = true, features = ["derive"] }
-flate2 = { workspace = true } # add features = ["zlib"] if slow
-tracing = { workspace = true }
-tracing-subscriber ={ workspace = true }
-sha1 = { workspace = true }
-bytes = { workspace = true }
-chrono = { workspace = true }
-futures = { workspace = true }
-reqwest = { workspace = true, features = ["stream", "json"] }
-tokio-util = { version = "0.7.11", features = ["io"] }
-color-backtrace = "0.6.1"
-colored = "2.1.0"
-byteorder = "1.5.0"
-path_abs = "0.5.1"
-pathdiff = "0.2.1"
-url = "2.5.0"
-futures-util = "0.3.30"
-rpassword = "7.3.1"
-indicatif = "0.17.8"
-wax = "0.6.0"
-lazy_static = { workspace = true }
-regex = { workspace = true }
-ring = "0.17.8"
-hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-once_cell = "1.19.0"
-byte-unit = "5.1.4"
-scopeguard = "1.2.0"
-lru-mem = "0.3.0"
-anyhow = { workspace = true }
+sha1 = { workspace = true }
 similar = "2.6.0"
+tokio = { workspace = true, features = ["rt-multi-thread", "rt", "macros"] }
+tokio-util = { version = "0.7.11", features = ["io"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = "2.5.3"
+wax = "0.6.0"
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
 
 [dev-dependencies]
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "process"] }
 tracing-test = "0.2.4"
-tempfile = { workspace = true }

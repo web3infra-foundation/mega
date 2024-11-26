@@ -1,0 +1,207 @@
+From 14806e63bfc717cd17f933fb1aecd6cded410497 Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Tue, 12 Nov 2024 19:12:29 +0800
+Subject: [PATCH 14/24] fix checkout in context menu
+
+---
+ crates/mega/src/mega.rs                   | 47 ++++++-----------------
+ crates/mega_panel/src/mega_panel.rs       | 15 ++------
+ crates/project_panel/src/project_panel.rs | 15 ++++++--
+ 3 files changed, 26 insertions(+), 51 deletions(-)
+
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index f76a139148..41f89a7c1d 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -120,6 +120,8 @@ impl Mega {
+                     Some(info) => {
+                         // Check if checkout-ed paths are correct
+                         this.update(&mut cx, |mega, cx| {
++                            mega.fuse_running = true;
++                            
+                             let trie = &mut mega.checkout_path;
+                             for ref i in info.mounts {
+                                 let missing = trie.get_ancestor(&i.path).is_none();
+@@ -158,13 +160,6 @@ impl Mega {
+     }
+ 
+     pub fn toggle_fuse(&mut self, cx: &mut ModelContext<Self>) {
+-        // FIXME should be able to restart fuse
+-        self.fuse_running = !self.fuse_running;
+-        cx.emit(Event::FuseRunning(self.fuse_running));
+-    }
+-
+-    pub fn toggle_mount(&mut self, cx: &mut ModelContext<Self>) {
+-        // TODO traverse checkout-ed paths and toggle them
+         self.update_status(cx);
+         let paths = &self.checkout_path;
+ 
+@@ -186,11 +181,12 @@ impl Mega {
+                         Ok(())
+                     }
+                 })
+-                .detach();
++                    .detach();
+             }
+ 
+             self.fuse_mounted = true;
+-            cx.emit(Event::FuseMounted(self.mount_point.clone()));
++            // FIXME: A configurable path from fuse api is needed.
++            cx.emit(Event::FuseMounted(Some(PathBuf::from("/home/neon/dic"))));
+         } else {
+             for (_, (p, &n)) in paths.iter().enumerate() {
+                 let path = PathBuf::from(p); // FIXME is there a better way?
+@@ -215,29 +211,12 @@ impl Mega {
+             self.fuse_mounted = false;
+             cx.emit(Event::FuseMounted(None));
+         }
++    }
+ 
+-        cx.spawn(|this, mut cx| async move {
+-            // let client = ReqwestClient::new();
+-            // let req = client.get(
+-            //     "localhost:2725/api/fs/mount",
+-            //     AsyncBody::empty(),
+-            //     false
+-            // ).await;
+-            //
+-            // if let Some(mega) = this.upgrade() {
+-            //     let _ = mega.update(&mut cx, |this, cx| {
+-            //         if this.fuse_mounted {
+-            //             this.fuse_mounted = false;
+-            //         } else {
+-            //             // FIXME just pretending that we've got something from fuse response
+-            //             this.fuse_mounted = true;
+-            //             this.mount_point = Some(PathBuf::from("/home/neon/projects"));
+-            //         }
+-            //         cx.emit(Event::FuseMounted(this.mount_point.clone()));
+-            //     });
+-            // }
+-        })
+-        .detach();
++    pub fn toggle_mount(&mut self, cx: &mut ModelContext<Self>) {
++        // FIXME should be able to restart fuse
++        self.fuse_running = !self.fuse_running;
++        cx.emit(Event::FuseRunning(self.fuse_running));
+     }
+ 
+     pub fn checkout_path(
+@@ -260,10 +239,9 @@ impl Mega {
+ 
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+-                .get(
++                .post_json(
+                     "http://127.0.0.1:2725/api/fs/mount",
+                     AsyncBody::from(body),
+-                    false,
+                 )
+                 .await
+             {
+@@ -314,10 +292,9 @@ impl Mega {
+ 
+         cx.spawn(|_this, _cx| async move {
+             if let Ok(mut resp) = client
+-                .get(
++                .post_json(
+                     "http://127.0.0.1:2725/api/fs/umount",
+                     AsyncBody::from(body),
+-                    false,
+                 )
+                 .await
+             {
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index fe55670a44..5dec15a182 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -250,16 +250,8 @@ impl MegaPanel {
+     }
+     
+     pub fn toggle_fuse_mount(&mut self, _: &ToggleFuseMount, cx: &mut ViewContext<Self>) {
+-        // if let Some(workspace) = self.workspace.upgrade() {
+-        //     workspace.model.update(cx, |this, mx| {
+-        //         
+-        //     });
+-        // }
+-
+-        self.mega_handle.update(cx, |this, cx | { 
+-            // FIXME when there's already a visible worktree, this call will create a new window.
++        self.mega_handle.update(cx, |this, cx | {
+             this.toggle_mount(cx);
+-            
+         });
+     }
+ 
+@@ -278,7 +270,6 @@ impl MegaPanel {
+     }
+ 
+     fn render_buttons(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+-        
+         fn encap_btn(btn: Button) -> Div {
+             div()
+                 .m_1()
+@@ -290,12 +281,12 @@ impl MegaPanel {
+             .id("mega-control-pad")
+             .size_full()
+             .children([
+-                encap_btn(Button::new("btn_toggle_scorpio", "Toggle Scorpio")
++                encap_btn(Button::new("btn_toggle_scorpio", "Toggle Scorpio Checkouts")
+                     .full_width()
+                     .icon(IconName::Plus)
+                     .icon_position(IconPosition::Start)
+                     .on_click(cx.listener(|this, _, cx| {
+-                        this.mega_handle.update(cx, |mega, cx| mega.toggle_mount(cx));
++                        this.mega_handle.update(cx, |mega, cx| mega.toggle_fuse(cx));
+                     }))
+                 ),
+                 // encap_btn(Button::new("btn_toggle_mount", "Toggle Mount")
+diff --git a/crates/project_panel/src/project_panel.rs b/crates/project_panel/src/project_panel.rs
+index b2d4cda751..a83346ae60 100644
+--- a/crates/project_panel/src/project_panel.rs
++++ b/crates/project_panel/src/project_panel.rs
+@@ -291,7 +291,7 @@ impl ProjectPanel {
+ 
+             cx.subscribe(&mega, |this, mega, mega_event, cx| match mega_event {
+                 mega::Event::FuseMounted(Some(path)) => {
+-                    
++                    println!("Fuse Mounted: {path:?}");
+                     let path = path.to_owned();
+                     this.workspace
+                         .update(cx, |workspace, cx| {
+@@ -310,6 +310,9 @@ impl ProjectPanel {
+                         .log_err();
+                     
+                     this.focus_in(cx);
++                },
++                mega::Event::FuseMounted(None) => {
++                    // TODO: close the workspace
+                 }
+                 mega::Event::FuseCheckout(path) => {
+                     // It's not important, for now.
+@@ -1336,8 +1339,12 @@ impl ProjectPanel {
+     fn checkout_specific_path(&mut self, _: &CheckoutPath, cx: &mut ViewContext<Self>) {
+         if let Some((worktree, entry)) = self.selected_entry_handle(cx) {
+             let path = entry.path.clone();
+-            self.mega.update(cx, |this, cx| {
+-               this.checkout_path(cx, path.to_path_buf()) 
++            self.mega.update(cx, |mega, cx| {
++               let recv = mega.checkout_path(cx, path.to_path_buf()); 
++                cx.spawn(|_, _| async move {
++                    let resp = recv.await;
++                    println!("Response: {resp:?}");
++                }).detach();
+             });
+         }
+     }
+@@ -2363,7 +2370,7 @@ impl ProjectPanel {
+             .selection
+             .map_or(false, |selection| selection.entry_id == entry_id);
+         let width = self.size(cx);
+-        let filename_text_color =
++        let filename_text_color = 
+             entry_git_aware_label_color(details.git_status, details.is_ignored, is_marked);
+         let file_name = details.filename.clone();
+         let mut icon = details.icon.clone();
+-- 
+2.43.0
+

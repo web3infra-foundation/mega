@@ -79,7 +79,7 @@ impl AtomicU32 {
         }
     }
 }
-#[derive(Debug,Default)]
+#[derive(Debug,Default,Clone)]
 pub struct AtomicU64(Arc<Mutex<u64>>);
 impl AtomicU64 {
     

@@ -55,7 +55,7 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<(), GitError> {
+    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<String, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
@@ -80,7 +80,7 @@ impl PackHandler for ImportRepo {
             .await
             .unwrap();
         self.attach_to_monorepo_parent().await.unwrap();
-        Ok(())
+        Ok(String::new())
     }
 
     async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError> {
@@ -292,6 +292,11 @@ impl PackHandler for ImportRepo {
             .raw_db_storage
             .get_raw_blobs_by_hashes(hashes)
             .await
+    }
+
+    async fn handle_mr(&self, _: &str) -> Result<(), GitError> {
+        // do nothing in import_repo
+        Ok(())
     }
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
