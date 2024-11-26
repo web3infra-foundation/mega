@@ -17,6 +17,7 @@ Commands:
   restore  Restore working tree files
   status   Show the working tree status
   log      Show commit logs
+  diff    Show changes between commits, commit and working tree, etc
   branch   List, create, or delete branches
   commit   Record changes to the repository
   switch   Switch branches
@@ -65,7 +66,7 @@ achieving unified management.
 - [x] `restore`
 - [ ] `reset`
 - [x] `branch`
-- [ ] `diff`
+- [x] `diff`
 - [x] `merge`
 - [ ] `rebase`
 - [x] `index-pack`

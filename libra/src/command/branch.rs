@@ -1,10 +1,9 @@
 use crate::{
-    internal::{branch::Branch, config::Config, head::Head},
-    utils::{self, client_storage::ClientStorage},
+    command::get_target_commit, internal::{branch::Branch, config::Config, head::Head}
 };
 use clap::Parser;
 use colored::Colorize;
-use mercury::{hash::SHA1, internal::object::commit::Commit};
+use mercury::internal::object::commit::Commit;
 
 use crate::command::load_object;
 
@@ -99,7 +98,7 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
             match commit {
                 Ok(commit) => commit,
                 Err(e) => {
-                    eprintln!("{}", e);
+                    eprintln!("fatal: {}", e);
                     return;
                 }
             }
@@ -186,26 +185,6 @@ async fn list_branches(remotes: bool) {
     }
 }
 
-pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn std::error::Error>> {
-    let possible_branches = Branch::search_branch(branch_or_commit).await;
-    if possible_branches.len() > 1 {
-        return Err("fatal: Ambiguous branch name".into());
-        // TODO: git have a priority list of branches to use, continue with ambiguity, we didn't implement it yet
-    }
-
-    if possible_branches.is_empty() {
-        let storage = ClientStorage::init(utils::path::objects());
-        let possible_commits = storage.search(branch_or_commit);
-        if possible_commits.len() > 1 || possible_commits.is_empty() {
-            return Err(
-                format!("fatal: {} is not something we can merge", branch_or_commit).into(),
-            );
-        }
-        Ok(possible_commits[0])
-    } else {
-        Ok(possible_branches[0].commit)
-    }
-}
 
 fn is_valid_git_branch_name(name: &str) -> bool {
     // 检查是否包含不允许的字符
