@@ -6,30 +6,35 @@ import RepoTree from '@/components/RepoTree'
 import CloneTabs from '@/components/CloneTabs'
 import { useEffect, useState } from 'react'
 import { Flex, Layout } from "antd/lib";
+import * as React from 'react'
 
-export default function Page({ params }: { params: { path: string[] } }) {
+type Params = Promise<{ path: string[] }>
+
+export default function Page({ params }: { params: Params }) {
+    const { path } = React.use(params);
+
     const [directory, setDirectory] = useState([]);
     const [readmeContent, setReadmeContent] = useState("");
     const [cloneBtn, setCloneBtn] = useState(true);
     const [endpoint, setEndPoint] = useState("");
-    let path = '/' + params.path.join('/');
+    let new_path = '/' + path.join('/');
     useEffect(() => {
         const fetchData = async () => {
             try {
-                let directory = await getDirectory(path);
+                let directory = await getDirectory(new_path);
                 setDirectory(directory);
-                let readmeContent = await getReadmeContent(path, directory);
+                let readmeContent = await getReadmeContent(new_path, directory);
                 setReadmeContent(readmeContent);
-                let shown_clone_btn = await pathCanClone(path);
+                let shown_clone_btn = await pathCanClone(new_path);
                 setCloneBtn(shown_clone_btn);
-                let endpoint =  await getEndpoint();
+                let endpoint = await getEndpoint();
                 setEndPoint(endpoint);
             } catch (error) {
                 console.error('Error fetching data:', error);
             }
         };
         fetchData();
-    }, [path]);
+    }, [new_path]);
 
     const treeStyle = {
         borderRadius: 8,
@@ -57,11 +62,11 @@ export default function Page({ params }: { params: { path: string[] } }) {
     return (
         <Flex gap="middle" wrap>
             <Layout style={breadStyle}>
-                <Bread path={params.path} />
+                <Bread path={path} />
                 {
                     cloneBtn &&
                     <Flex justify={'flex-end'} >
-                        <CloneTabs endpoint= {endpoint}/>
+                        <CloneTabs endpoint={endpoint} />
                     </Flex>
                 }
             </Layout>

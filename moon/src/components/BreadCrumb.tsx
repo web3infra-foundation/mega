@@ -1,10 +1,8 @@
 import 'github-markdown-css/github-markdown-light.css'
-import { useRouter } from 'next/navigation'
 import { Breadcrumb } from 'antd/lib'
 import styles from './BreadCrumb.module.css'
 
 const Bread = ({ path }) => {
-    const router = useRouter();
     const breadCrumbItems = path.map((sub_path, index) => {
         if (index == path.length - 1) {
             return {

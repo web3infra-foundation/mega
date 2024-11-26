@@ -24,9 +24,10 @@ use fuse3::raw::{Filesystem, Request};
 
 
 use fuse3::{mode_from_kind_and_perm, Errno, FileType};
-use fuse_backend_rs::api::{SLASH_ASCII, VFS_MAX_INO};
+const SLASH_ASCII: char = '/';
 use futures::future::join_all;
 use futures::stream::iter;
+
 use futures::StreamExt;
 use inode_store::InodeStore;
 use layer::Layer;
@@ -181,6 +182,12 @@ impl RealInode {
                 Ok(Some(v))
             }
             Err(e) => {
+                let ioerror:std::io::Error = e.into();
+                if let Some(raw_error) = ioerror.raw_os_error() {
+                    if raw_error == libc::ENOENT || raw_error == libc::ENAMETOOLONG{
+                        return Ok(None);
+                    }
+                }
                 Err(e.into())
             }
         }
@@ -242,8 +249,25 @@ impl RealInode {
    
             // opendir may not be supported if no_opendir is set, so we can ignore this error.
             Err(e) => {
-                return Err(e.into());
+                let ioerror:std::io::Error = e.into();
+                match ioerror.raw_os_error() {
+                    Some(raw_error) => {
+                        if raw_error == libc::ENOSYS {
+                            // We can still call readdir with inode if opendir is not supported in this layer.
+                            ReplyOpen{
+                                fh: 0,
+                                flags: 0,
+                            }
+                        } else {
+                            return Err(e.into());
+                        }
+                    }
+                    None => {
+                        return Err(e.into());
+                    }
+                }
             }
+            
         };
 
         let child_names =self.layer.readdir(
@@ -252,11 +276,11 @@ impl RealInode {
                 handle.fh,
                 0,
             ).await?;
-        // Non-zero handle indicates successful 'open', we should 'release' it.
+        // Non-zero handle indicates successful 'open', we should 'release' it.????? DIFFierent
         if handle.fh > 0 {
             self.layer
             .releasedir(ctx, self.inode, handle.fh, handle.flags).await?
-            
+            //DIFF
         }
 
         // Lookup all child and construct "RealInode"s.
@@ -435,15 +459,16 @@ impl RealInode {
     }
 }
 
-#[allow(unused)]
-impl RealInode {
-    async fn drop(&mut self) {
-        // Release refcount of inode in layer.
-        let ctx = Request::default();
-        let layer = self.layer.as_ref();
+
+impl Drop for RealInode {
+    fn drop(&mut self) {
+        let layer = Arc::clone(&self.layer);
         let inode = self.inode;
-        debug!("forget inode {} by 1 for backend inode in layer ", inode);
-        layer.forget(ctx, inode, 1).await;
+        tokio::spawn(async move {
+            // 异步清理逻辑
+            let ctx = Request::default();
+            layer.forget(ctx, inode, 1).await;
+        });
     }
 }
 
@@ -720,6 +745,7 @@ impl OverlayInode {
         inodes.extend(new);
     }
 
+    // return the uppder layer fs. 
     pub async fn in_upper_layer(&self) -> bool {
         let all_inodes = self.real_inodes.lock().await;
         let first = all_inodes.first();
@@ -919,7 +945,7 @@ impl OverlayFs {
     // If name is empty, return parent itself.
     // Parent dir will be loaded, but returned OverlayInode won't.
     async fn lookup_node(&self, ctx: Request, parent: Inode, name: &str) -> Result<Arc<OverlayInode>> {
-        if name.contains([SLASH_ASCII as char]) {
+        if name.contains(SLASH_ASCII) {
             return Err(Error::from_raw_os_error(libc::EINVAL));
         }
 
@@ -1158,7 +1184,7 @@ impl OverlayFs {
         let mut d:Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
 
         for (index, (name, child)) in (0_u64..).zip(childrens.into_iter()) {
-            if index >= offset {
+            
                 // make struct DireEntry and Entry
                 let st = child.stat64(ctx).await?;
                 let dir_entry = DirectoryEntry {
@@ -1178,7 +1204,7 @@ impl OverlayFs {
                 //     attr_ttl: todo!(),
                 // }
                 d.push(Ok(dir_entry));
-            }
+            
         }
 
         Ok(iter(d.into_iter()))
@@ -1775,7 +1801,7 @@ impl OverlayFs {
         if node.in_upper_layer().await {
             return Ok(node);
         }
-
+                //error...
         let parent_node = if let Some(ref n) = node.parent.lock().await.upgrade() {
             Arc::clone(n)
         } else {
@@ -1842,7 +1868,7 @@ impl OverlayFs {
             let ret = ri.layer.write(
                 ctx,
                 ri.inode,
-                *upper_handle.lock().await,
+                u_handle,
                 offset as u64,
                 &ret.data,
                 0,
@@ -1882,14 +1908,14 @@ impl OverlayFs {
         }
 
         let st = node.stat64(ctx).await?;
-        // directory
+        // For directory
         if utils::is_dir(&st.attr.kind) {
             node.create_upper_dir(ctx, None).await?;
             return Ok(Arc::clone(&node));
         }
 
         // For symlink.
-        if st.attr.kind.const_into_mode_t() & libc::S_IFMT == libc::S_IFLNK {
+        if st.attr.kind == FileType::Symlink {
             return self.copy_symlink_up(ctx, Arc::clone(&node)).await;
         }
 
@@ -1975,7 +2001,7 @@ impl OverlayFs {
         );
 
         // lookups decrease by 1.
-        node.lookups.fetch_sub(1);
+        node.lookups.fetch_sub(1).await;
 
         // remove it from hashmap
         self.remove_inode(node.inode, path_removed).await;
@@ -1993,9 +2019,9 @@ impl OverlayFs {
                     Error::from_raw_os_error(libc::EINVAL)
                 })?;
 
-                let child_ri = parent_real_inode.create_whiteout(ctx, to_name).await?;
+                let child_ri = parent_real_inode.create_whiteout(ctx, to_name).await?;//FIXME..............
                 let path = format!("{}/{}", pnode.path, to_name);
-                let ino = self.alloc_inode(&path).await?;
+                let ino: u64 = self.alloc_inode(&path).await?;
                 let ovi = Arc::new(OverlayInode::new_from_real_inode(
                     to_name,
                     ino,

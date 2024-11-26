@@ -1,4 +1,4 @@
-use mercury::internal::object::tree::Tree;
+use mercury::internal::object::{commit::Commit, tree::Tree};
 use tokio::sync::mpsc::Receiver;
 use std::{io::Result, path::PathBuf};
 
@@ -9,7 +9,6 @@ pub trait TreeStore{
     fn insert_tree(&self,path:PathBuf, tree:Tree)-> Result<()>;
     fn get_bypath(&self,path:PathBuf)-> Result<Tree>;
 }
-
 
 impl  TreeStore for sled::Db {
     fn insert_tree(&self,path:PathBuf, tree:Tree)-> Result<()> {
@@ -27,7 +26,26 @@ impl  TreeStore for sled::Db {
         Ok(decoded)
     }
 }
+pub trait CommitStore{
+    fn store_commit(&self,commit:Commit) -> Result<()>;
+    fn get_commit(&self) -> Result<Commit>;
+}
+impl CommitStore for sled::Db{
+    fn store_commit(&self,commit:Commit) -> Result<()> {
+        let re = self.insert("COMMIT",bincode::serialize(&commit).unwrap())?;
+        if re.is_some(){
+            Ok(())
+        }else {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to store commit"))
+        }
+    }
 
+    fn get_commit(&self) -> Result<Commit> {
+        let encoded_value= self.get("COMMIT")?;
+        let decoded: Result<Commit> = bincode::deserialize(&encoded_value.unwrap()).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Deserialization error"));
+        decoded
+    }
+}
 pub async fn store_trees(storepath:&str,mut tree_channel: Receiver<(GPath,Tree)>) {
     let db = sled::open(storepath).unwrap();
     while let Some((path,tree)) = tree_channel.recv().await {

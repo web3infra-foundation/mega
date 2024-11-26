@@ -1,0 +1,581 @@
+From afca3aee776df6674d0c6d17858d944c64ec56ae Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Mon, 21 Oct 2024 09:18:40 +0800
+Subject: [PATCH 02/24] mega: integrate basic panel code with zed
+
+---
+ Cargo.lock                                   |   7 +-
+ crates/mega/Cargo.toml                       |  18 ++
+ crates/mega/src/fuse.rs                      |   0
+ crates/mega/src/mega.rs                      |  52 +++++
+ crates/mega_panel/Cargo.toml                 |  24 +++
+ crates/mega_panel/src/mega_panel.rs          | 195 +++++++++++++++++++
+ crates/mega_panel/src/mega_panel_settings.rs |  41 +---
+ crates/workspace/Cargo.toml                  |   1 +
+ crates/workspace/src/workspace.rs            |  10 +-
+ crates/zed/Cargo.toml                        |   1 +
+ crates/zed/src/main.rs                       |   6 +-
+ 11 files changed, 315 insertions(+), 40 deletions(-)
+ create mode 100644 crates/mega/Cargo.toml
+ create mode 100644 crates/mega/src/fuse.rs
+ create mode 100644 crates/mega/src/mega.rs
+ create mode 100644 crates/mega_panel/Cargo.toml
+ create mode 100644 crates/mega_panel/src/mega_panel.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index d39aae09ee..6503eb5359 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -6888,6 +6888,7 @@ dependencies = [
+ name = "mega"
+ version = "0.1.0"
+ dependencies = [
++ "gpui",
+  "reqwest 0.12.8",
+  "serde",
+ ]
+@@ -6897,12 +6898,14 @@ name = "mega_panel"
+ version = "0.1.0"
+ dependencies = [
+  "anyhow",
+- "editor",
++ "db",
+  "file_icons",
+  "gpui",
++ "mega",
+  "schemars",
+  "serde",
+  "settings",
++ "util",
+  "workspace",
+ ]
+ 
+@@ -14314,6 +14317,7 @@ dependencies = [
+  "itertools 0.13.0",
+  "language",
+  "log",
++ "mega",
+  "node_runtime",
+  "parking_lot",
+  "postage",
+@@ -14653,6 +14657,7 @@ dependencies = [
+  "libc",
+  "log",
+  "markdown_preview",
++ "mega",
+  "mega_panel",
+  "menu",
+  "mimalloc",
+diff --git a/crates/mega/Cargo.toml b/crates/mega/Cargo.toml
+new file mode 100644
+index 0000000000..dec6093220
+--- /dev/null
++++ b/crates/mega/Cargo.toml
+@@ -0,0 +1,18 @@
++[package]
++name = "mega"
++version = "0.1.0"
++edition = "2021"
++publish = false
++license = "GPL-3.0-or-later"
++
++[lints]
++workspace = true
++
++[lib]
++path = 'src/mega.rs'
++
++[dependencies]
++gpui.workspace = true
++
++reqwest.workspace = true
++serde.workspace = true
+diff --git a/crates/mega/src/fuse.rs b/crates/mega/src/fuse.rs
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+new file mode 100644
+index 0000000000..4b51004907
+--- /dev/null
++++ b/crates/mega/src/mega.rs
+@@ -0,0 +1,52 @@
++// This crate delegate mega and its fuse daemon.
++// The following requirements should be met:
++// 
++// TODO:
++// 1. Only one daemon on this machine.
++// 2. At least one daemon on this machine when zed startup.
++// 3. Complete docs.
++
++use std::sync::Arc;
++use gpui::{AppContext, Context, EventEmitter, Model, ModelContext};
++
++mod delegate;
++mod fuse;
++
++pub fn init(cx: &mut AppContext) {
++    // let reservation = cx.reserve_model();
++    // cx.insert_model(reservation, |cx| {
++    //     cx.new_model(|_cx| { Mega::new() })
++    // });
++}
++
++#[derive(Clone, Debug, PartialEq)]
++pub enum Event {}
++pub struct Mega {}
++
++pub struct MegaFuse {}
++
++impl EventEmitter<Event> for Mega {}
++
++
++impl Mega {
++    pub fn init_settings(cx: &mut AppContext) {
++        
++    }
++    
++    pub fn init(cx: &mut AppContext) {
++        // let reservation = cx.reserve_model();
++        // cx.insert_model(reservation, |cx| {
++        //     cx.new_model(|_cx| { Mega::new() })
++        // });
++    }
++    
++    pub fn new(cx: &mut AppContext) -> Self {
++        Mega {}
++    } 
++    
++    pub fn toggle_mega(&self) { todo!() }
++    
++    pub fn toggle_fuse(&self) { todo!() }
++    
++    pub fn checkout_path(&self) { todo!() }
++}
+diff --git a/crates/mega_panel/Cargo.toml b/crates/mega_panel/Cargo.toml
+new file mode 100644
+index 0000000000..9a8ae896a2
+--- /dev/null
++++ b/crates/mega_panel/Cargo.toml
+@@ -0,0 +1,24 @@
++[package]
++name = "mega_panel"
++version = "0.1.0"
++edition = "2021"
++publish = false
++license = "GPL-3.0-or-later"
++[lib]
++path = 'src/mega_panel.rs'
++
++[lints]
++workspace = true
++
++[dependencies]
++mega.workspace = true
++workspace.workspace = true
++gpui.workspace = true
++file_icons.workspace = true
++settings.workspace = true
++db.workspace = true
++util.workspace = true
++
++anyhow.workspace = true
++serde.workspace = true
++schemars.workspace = true
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+new file mode 100644
+index 0000000000..7e38d88752
+--- /dev/null
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -0,0 +1,195 @@
++use anyhow::{anyhow, Context};
++use db::kvp::KEY_VALUE_STORE;
++use file_icons::FileIcons;
++use gpui::{actions, Action, AppContext, AssetSource, AsyncWindowContext, Entity, EventEmitter, FocusHandle, FocusableView, IntoElement, Model, Pixels, Render, Subscription, Task, UniformListScrollHandle, View, ViewContext, VisualContext, WeakModel, WeakView, WindowContext};
++use gpui::private::serde_derive::{Deserialize, Serialize};
++use gpui::private::serde_json;
++use mega::{Mega, MegaFuse};
++use settings::{Settings, SettingsStore};
++use util::{ResultExt, TryFutureExt};
++use workspace::dock::{DockPosition, Panel, PanelEvent, PanelId};
++use workspace::ui::IconName;
++use workspace::{Pane, Workspace};
++use crate::mega_panel_settings::MegaPanelSettings;
++
++mod mega_panel_settings;
++
++const MEGA_PANEL_KEY: &str = "MegaPanel";
++
++actions!(
++    mega_panel,
++    [
++        Open,
++        ToggleFocus,
++        ToggleFuseMount,
++    ]
++);
++
++pub struct MegaPanel {
++    mega: WeakModel<Mega>,
++    workspace: WeakView<Workspace>,
++    focus_handle: FocusHandle,
++    pending_serialization: Task<Option<()>>,
++    width: Option<Pixels>,
++}
++
++#[derive(Serialize, Deserialize)]
++struct SerializedMegaPanel {
++    width: Option<Pixels>,
++}
++
++#[derive(Debug)]
++pub enum Event {
++    Focus,
++}
++
++pub fn init_settings(cx: &mut AppContext) {
++    MegaPanelSettings::register(cx);
++}
++
++pub fn init(assets: impl AssetSource, cx: &mut AppContext) {
++    init_settings(cx);
++    file_icons::init(assets, cx);
++
++    cx.observe_new_views(|workspace: &mut Workspace, _| {
++        workspace.register_action(|workspace, _: &ToggleFocus, cx| {
++            workspace.toggle_panel_focus::<MegaPanel>(cx);
++        });
++    })
++        .detach();
++}
++
++impl EventEmitter<Event> for MegaPanel {}
++
++impl EventEmitter<PanelEvent> for MegaPanel {}
++
++impl Render for MegaPanel {
++    fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
++        todo!();
++        ""
++    }
++}
++
++impl FocusableView for MegaPanel {
++    fn focus_handle(&self, _cx: &AppContext) -> FocusHandle {
++        self.focus_handle.clone()
++    }
++}
++
++impl Panel for MegaPanel {
++    fn persistent_name() -> &'static str {
++        todo!()
++    }
++
++    fn position(&self, cx: &WindowContext) -> DockPosition {
++        todo!()
++    }
++
++    fn position_is_valid(&self, position: DockPosition) -> bool {
++        todo!()
++    }
++
++    fn set_position(&mut self, position: DockPosition, cx: &mut ViewContext<Self>) {
++        todo!()
++    }
++
++    fn size(&self, cx: &WindowContext) -> Pixels {
++        todo!()
++    }
++
++    fn set_size(&mut self, size: Option<Pixels>, cx: &mut ViewContext<Self>) {
++        todo!()
++    }
++
++    fn icon(&self, cx: &WindowContext) -> Option<IconName> {
++        todo!()
++    }
++
++    fn icon_tooltip(&self, cx: &WindowContext) -> Option<&'static str> {
++        todo!()
++    }
++
++    fn toggle_action(&self) -> Box<dyn Action> {
++        todo!()
++    }
++}
++
++impl MegaPanel {
++    pub async fn load(
++        workspace: WeakView<Workspace>,
++        mut cx: AsyncWindowContext,
++    ) -> anyhow::Result<View<Self>> {
++        let serialized_panel = cx
++            .background_executor()
++            .spawn(async move { KEY_VALUE_STORE.read_kvp(MEGA_PANEL_KEY) })
++            .await
++            .map_err(|e| anyhow!("Failed to load mega panel: {}", e))
++            .context("loading mega panel")
++            .log_err()
++            .flatten()
++            .map(|panel| serde_json::from_str::<SerializedMegaPanel>(&panel))
++            .transpose()
++            .log_err()
++            .flatten();
++
++        workspace.update(
++            &mut cx,
++            |workspace, cx| {
++                let panel = MegaPanel::new(workspace, cx);
++                if let Some(serialized_panel) = serialized_panel {
++                    panel.update(cx, |panel, cx| {
++                        panel.width = serialized_panel.width.map(|px| px.round());
++                        cx.notify();
++                    });
++                }
++                panel
++            }
++        )
++    }
++
++    fn new(workspace: &mut Workspace, cx: &mut ViewContext<Workspace>) -> View<Self> {
++        let mega_panel = cx.new_view(|cx| {
++            let mega = workspace.mega();
++            
++            let focus_handle = cx.focus_handle();
++            cx.on_focus(&focus_handle, Self::focus_in).detach();
++            
++            cx.subscribe(mega, |this, mega, event, cx| {
++                // TODO: listen for user operations
++            }).detach();
++            
++            Self {
++                mega: mega.downgrade(),
++                workspace: workspace.weak_handle(),
++                focus_handle,
++                pending_serialization: Task::ready(None),
++                width: None,
++                
++            }
++        });
++
++        mega_panel
++    }
++
++    fn serialize(&mut self, cx: &mut ViewContext<Self>) {
++        let width = self.width;
++        self.pending_serialization = cx.background_executor().spawn(
++            async move {
++                KEY_VALUE_STORE
++                    .write_kvp(
++                        MEGA_PANEL_KEY.into(),
++                        serde_json::to_string(&SerializedMegaPanel { width })?,
++                    )
++                    .await?;
++                anyhow::Ok(())
++            }
++                .log_err(),
++        );
++    }
++
++    fn focus_in(&mut self, cx: &mut ViewContext<Self>) {
++        if !self.focus_handle.contains_focused(cx) {
++            cx.emit(Event::Focus);
++        }
++    }
++}
+\ No newline at end of file
+diff --git a/crates/mega_panel/src/mega_panel_settings.rs b/crates/mega_panel/src/mega_panel_settings.rs
+index 1ca1149b01..bfd4b337d0 100644
+--- a/crates/mega_panel/src/mega_panel_settings.rs
++++ b/crates/mega_panel/src/mega_panel_settings.rs
+@@ -15,59 +15,26 @@ pub struct MegaPanelSettings {
+     pub button: bool,
+     pub default_width: Pixels,
+     pub dock: MegaPanelDockPosition,
+-    pub file_icons: bool,
+-    pub folder_icons: bool,
+-    pub git_status: bool,
+-    pub indent_size: f32,
+-    pub auto_reveal_entries: bool,
+-    pub auto_fold_dirs: bool,
+ }
+ 
+ #[derive(Clone, Default, Serialize, Deserialize, JsonSchema, Debug)]
+ pub struct MegaPanelSettingsContent {
+-    /// Whether to show the outline panel button in the status bar.
++    /// Whether to show the mega panel button in the status bar.
+     ///
+     /// Default: true
+     pub button: Option<bool>,
+-    /// Customize default width (in pixels) taken by outline panel
++    /// Customize default width (in pixels) taken by mega panel
+     ///
+     /// Default: 240
+     pub default_width: Option<f32>,
+-    /// The position of outline panel
++    /// The position of mega panel
+     ///
+     /// Default: left
+     pub dock: Option<MegaPanelDockPosition>,
+-    /// Whether to show file icons in the outline panel.
+-    ///
+-    /// Default: true
+-    pub file_icons: Option<bool>,
+-    /// Whether to show folder icons or chevrons for directories in the outline panel.
+-    ///
+-    /// Default: true
+-    pub folder_icons: Option<bool>,
+-    /// Whether to show the git status in the outline panel.
+-    ///
+-    /// Default: true
+-    pub git_status: Option<bool>,
+-    /// Amount of indentation (in pixels) for nested items.
+-    ///
+-    /// Default: 20
+-    pub indent_size: Option<f32>,
+-    /// Whether to reveal it in the outline panel automatically,
+-    /// when a corresponding project entry becomes active.
+-    /// Gitignored entries are never auto revealed.
+-    ///
+-    /// Default: true
+-    pub auto_reveal_entries: Option<bool>,
+-    /// Whether to fold directories automatically
+-    /// when directory has only one directory inside.
+-    ///
+-    /// Default: true
+-    pub auto_fold_dirs: Option<bool>,
+ }
+ 
+ impl Settings for MegaPanelSettings {
+-    const KEY: Option<&'static str> = Some("outline_panel");
++    const KEY: Option<&'static str> = Some("mega_panel");
+ 
+     type FileContent = MegaPanelSettingsContent;
+ 
+diff --git a/crates/workspace/Cargo.toml b/crates/workspace/Cargo.toml
+index 47f6c138c8..83686bb100 100644
+--- a/crates/workspace/Cargo.toml
++++ b/crates/workspace/Cargo.toml
+@@ -45,6 +45,7 @@ http_client.workspace = true
+ itertools.workspace = true
+ language.workspace = true
+ log.workspace = true
++mega.workspace = true
+ node_runtime.workspace = true
+ parking_lot.workspace = true
+ postage.workspace = true
+diff --git a/crates/workspace/src/workspace.rs b/crates/workspace/src/workspace.rs
+index ec4079ba9f..af4f47e5d3 100644
+--- a/crates/workspace/src/workspace.rs
++++ b/crates/workspace/src/workspace.rs
+@@ -97,6 +97,7 @@ use ui::{
+ };
+ use util::{maybe, ResultExt, TryFutureExt};
+ use uuid::Uuid;
++use mega::Mega;
+ pub use workspace_settings::{
+     AutosaveSetting, RestoreOnStartupBehavior, TabBarSettings, WorkspaceSettings,
+ };
+@@ -559,6 +560,7 @@ pub struct AppState {
+     pub build_window_options: fn(Option<Uuid>, &mut AppContext) -> WindowOptions,
+     pub node_runtime: NodeRuntime,
+     pub session: Model<AppSession>,
++    pub mega: Model<Mega>,
+ }
+ 
+ struct GlobalAppState(Weak<AppState>);
+@@ -609,7 +611,8 @@ impl AppState {
+         let session = cx.new_model(|cx| AppSession::new(Session::test(), cx));
+         let user_store = cx.new_model(|cx| UserStore::new(client.clone(), cx));
+         let workspace_store = cx.new_model(|cx| WorkspaceStore::new(client.clone(), cx));
+-
++        let mega = cx.new_model(|cx| { Mega::new(cx) });
++            
+         theme::init(theme::LoadThemes::JustBase, cx);
+         client::init(&client, cx);
+         crate::init_settings(cx);
+@@ -623,6 +626,7 @@ impl AppState {
+             node_runtime: NodeRuntime::unavailable(),
+             build_window_options: |_, _| Default::default(),
+             session,
++            mega,
+         })
+     }
+ }
+@@ -1266,6 +1270,8 @@ impl Workspace {
+     pub fn project(&self) -> &Model<Project> {
+         &self.project
+     }
++    
++    pub fn mega(&self) -> &Model<Mega> { &self.app_state.mega }
+ 
+     pub fn recent_navigation_history(
+         &self,
+@@ -4426,6 +4432,7 @@ impl Workspace {
+ 
+         let workspace_store = cx.new_model(|cx| WorkspaceStore::new(client.clone(), cx));
+         let session = cx.new_model(|cx| AppSession::new(Session::test(), cx));
++        let mega = cx.new_model(|cx|  Mega::new(cx) );
+         cx.activate_window();
+         let app_state = Arc::new(AppState {
+             languages: project.read(cx).languages().clone(),
+@@ -4436,6 +4443,7 @@ impl Workspace {
+             build_window_options: |_, _| Default::default(),
+             node_runtime: NodeRuntime::unavailable(),
+             session,
++            mega,
+         });
+         let workspace = Self::new(Default::default(), project, app_state, cx);
+         workspace.active_pane.update(cx, |pane, cx| pane.focus(cx));
+diff --git a/crates/zed/Cargo.toml b/crates/zed/Cargo.toml
+index 81243cf62f..abc36527ec 100644
+--- a/crates/zed/Cargo.toml
++++ b/crates/zed/Cargo.toml
+@@ -66,6 +66,7 @@ languages = { workspace = true, features = ["load-grammars"] }
+ libc.workspace = true
+ log.workspace = true
+ markdown_preview.workspace = true
++mega.workspace = true
+ mega_panel.workspace = true
+ menu.workspace = true
+ mimalloc = { version = "0.1", optional = true }
+diff --git a/crates/zed/src/main.rs b/crates/zed/src/main.rs
+index 25baf74c68..3e3094ecb0 100644
+--- a/crates/zed/src/main.rs
++++ b/crates/zed/src/main.rs
+@@ -53,6 +53,7 @@ use theme::{ActiveTheme, SystemAppearance, ThemeRegistry, ThemeSettings};
+ use time::UtcOffset;
+ use util::{maybe, parse_env_output, ResultExt, TryFutureExt};
+ use uuid::Uuid;
++use mega::Mega;
+ use welcome::{show_welcome_view, BaseKeymap, FIRST_OPEN};
+ use workspace::{
+     notifications::{simple_message_notification::MessageNotification, NotificationId},
+@@ -521,6 +522,7 @@ fn main() {
+         Client::set_global(client.clone(), cx);
+ 
+         zed::init(cx);
++        mega::init(cx);
+         project::Project::init(&client, cx);
+         client::init(&client, cx);
+         language::init(cx);
+@@ -548,7 +550,8 @@ fn main() {
+             }
+         }
+         let app_session = cx.new_model(|cx| AppSession::new(session, cx));
+-
++        let mega = cx.new_model(|cx| Mega::new(cx));
++        
+         let app_state = Arc::new(AppState {
+             languages: languages.clone(),
+             client: client.clone(),
+@@ -558,6 +561,7 @@ fn main() {
+             workspace_store,
+             node_runtime: node_runtime.clone(),
+             session: app_session,
++            mega,
+         });
+         AppState::set_global(Arc::downgrade(&app_state), cx);
+ 
+-- 
+2.43.0
+

@@ -1,0 +1,228 @@
+From 8b57a9f693c95e92ee5299ff30b6cd791c08da71 Mon Sep 17 00:00:00 2001
+From: Neon <yyk1249501542@gmail.com>
+Date: Tue, 22 Oct 2024 19:12:08 +0800
+Subject: [PATCH 06/24] mega: basic rest api support
+
+---
+ Cargo.lock                          |  1 +
+ crates/mega/Cargo.toml              |  3 +-
+ crates/mega/src/delegate.rs         | 58 ++++++++++++++++++++
+ crates/mega/src/mega.rs             | 84 ++++++++++++++++++++++++++---
+ crates/mega_panel/src/mega_panel.rs |  1 +
+ 5 files changed, 139 insertions(+), 8 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 0474f53d0a..1ffec64d85 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -6888,6 +6888,7 @@ dependencies = [
+ name = "mega"
+ version = "0.1.0"
+ dependencies = [
++ "bytes 0.4.12",
+  "gpui",
+  "reqwest_client",
+  "serde",
+diff --git a/crates/mega/Cargo.toml b/crates/mega/Cargo.toml
+index dec6093220..1572c73b90 100644
+--- a/crates/mega/Cargo.toml
++++ b/crates/mega/Cargo.toml
+@@ -13,6 +13,7 @@ path = 'src/mega.rs'
+ 
+ [dependencies]
+ gpui.workspace = true
++reqwest_client.workspace = true
+ 
+-reqwest.workspace = true
+ serde.workspace = true
++bytes = "0.4.12"
+diff --git a/crates/mega/src/delegate.rs b/crates/mega/src/delegate.rs
+index e69de29bb2..c767060048 100644
+--- a/crates/mega/src/delegate.rs
++++ b/crates/mega/src/delegate.rs
+@@ -0,0 +1,58 @@
++use serde::{Deserialize, Serialize};
++
++#[derive(Debug, Deserialize, Serialize)]
++pub(crate) struct MountRequest {
++    pub(crate) path: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct MountResponse {
++    status: String,
++    mount: MountInfo,
++    message: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct MountInfo {
++    hash: String,
++    path: String,
++    inode: u64,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct MountsResponse {
++    status: String,
++    mounts: Vec<MountInfo>,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct UmountRequest {
++    path: Option<String>,
++    inode: Option<u64>,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct UmountResponse {
++    status: String,
++    message: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct ConfigResponse {
++    status: String,
++    config: ConfigInfo,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct ConfigInfo {
++    mega_url: String,
++    mount_path: String,
++    store_path: String,
++}
++
++#[derive(Debug, Deserialize, Serialize)]
++struct ConfigRequest {
++    mega_url: Option<String>,
++    mount_path: Option<String>,
++    store_path: Option<String>,
++}
+\ No newline at end of file
+diff --git a/crates/mega/src/mega.rs b/crates/mega/src/mega.rs
+index 4b51004907..f24e2d9e5d 100644
+--- a/crates/mega/src/mega.rs
++++ b/crates/mega/src/mega.rs
+@@ -6,8 +6,10 @@
+ // 2. At least one daemon on this machine when zed startup.
+ // 3. Complete docs.
+ 
+-use std::sync::Arc;
+-use gpui::{AppContext, Context, EventEmitter, Model, ModelContext};
++use gpui::http_client::{AsyncBody, HttpClient};
++use gpui::{AppContext, Context, EventEmitter, WindowContext};
++use reqwest_client::ReqwestClient;
++use serde::Serialize;
+ 
+ mod delegate;
+ mod fuse;
+@@ -21,7 +23,10 @@ pub fn init(cx: &mut AppContext) {
+ 
+ #[derive(Clone, Debug, PartialEq)]
+ pub enum Event {}
+-pub struct Mega {}
++pub struct Mega {
++    mega_running: bool,
++    fuse_running: bool,
++}
+ 
+ pub struct MegaFuse {}
+ 
+@@ -41,12 +46,77 @@ impl Mega {
+     }
+     
+     pub fn new(cx: &mut AppContext) -> Self {
+-        Mega {}
++        Mega {
++            fuse_running: false,
++            mega_running: false,
++        }
+     } 
+     
+-    pub fn toggle_mega(&self) { todo!() }
++    pub fn toggle_mega(&self, cx: &mut WindowContext) { todo!() }
+     
+-    pub fn toggle_fuse(&self) { todo!() }
++    pub fn toggle_fuse(&self, cx: &mut WindowContext) { todo!() }
++
++    pub fn toggle_mount(&self, cx: &mut WindowContext) {
++        // let req_body = delegate::MountRequest {
++        //     path: "".parse().unwrap()
++        // };
++        
++        cx.spawn(|_cx| async {
++            let client = ReqwestClient::new();
++            let req = client.get(
++                "localhost:2725/api/fs/mount",
++                AsyncBody::empty(),
++                false
++            ).await;
++        }).detach();
++    }
+     
+-    pub fn checkout_path(&self) { todo!() }
++    pub fn checkout_path(&self, cx: &mut WindowContext) {
++        cx.spawn(|_cx| async {
++            let client = ReqwestClient::new();
++            let req = client.get(
++                "localhost:2725/api/fs/mount",
++                AsyncBody::empty(),
++                false
++            ).await;
++        }).detach();
++    }
++
++    pub fn get_fuse_config(&self, cx: &mut WindowContext) {
++        cx.spawn(|_cx| async {
++            let client = ReqwestClient::new();
++            let req = client.get(
++                "localhost:2725/api/fs/mount",
++                AsyncBody::empty(),
++                false
++            ).await;
++        }).detach();
++    }
++
++    pub fn set_fuse_config(&self, cx: &mut WindowContext) {
++        cx.spawn(|_cx| async {
++            let client = ReqwestClient::new();
++            let req = client.post_json(
++                "localhost:2725/api/config",
++                AsyncBody::empty(),
++            ).await;
++        }).detach();
++    }
++
++    pub fn get_fuse_mpoint(&self, cx: &mut WindowContext) {
++        cx.spawn(|_cx| async {
++            let client = ReqwestClient::new();
++            let req = client.get(
++                "localhost:2725/api/config",
++                AsyncBody::empty(),
++                false
++            ).await;
++        }).detach();
++    }
++
++}
++
++#[cfg(test)]
++mod test {
++
+ }
+diff --git a/crates/mega_panel/src/mega_panel.rs b/crates/mega_panel/src/mega_panel.rs
+index b055d76fcf..76ac003f31 100644
+--- a/crates/mega_panel/src/mega_panel.rs
++++ b/crates/mega_panel/src/mega_panel.rs
+@@ -244,6 +244,7 @@ impl MegaPanel {
+     pub fn toggle_fuse_mount(&mut self, _: &ToggleFuseMount, cx: &mut ViewContext<Self>) {
+         // let mega = self.mega_handle.upgrade()
+         //     .unwrap_or_else()
++        
+         todo!()
+     }
+     
+-- 
+2.43.0
+

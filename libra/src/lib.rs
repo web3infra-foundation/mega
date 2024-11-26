@@ -2,7 +2,7 @@ use mercury::errors::GitError;
 
 mod command;
 pub mod internal;
-mod utils;
+pub mod utils;
 pub mod cli;
 
 /// Execute the Libra command in `sync` way.

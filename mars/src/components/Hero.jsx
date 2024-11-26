@@ -2,8 +2,8 @@ import { useId } from 'react'
 import Image from 'next/image'
 import clsx from 'clsx'
 
-import { AppDemo } from '@/components/AppDemo'
-import { AppStoreLink } from '@/components/AppStoreLink'
+import { MegaArch } from '@/components/MegaArch'
+import { GitHubLink } from '@/components/GitHubLink'
 import { Button } from '@/components/Button'
 import { Container } from '@/components/Container'
 import { PhoneFrame } from '@/components/PhoneFrame'
@@ -108,34 +108,30 @@ export function Hero() {
               Redefining Open Source with Monolithic and Decentralized
             </h1>
             <p className="mt-6 text-lg text-gray-600">
-              Mega is an unofficial open source implementation of Google Piper. It is a monorepo & monolithic codebase
-              management system that supports Git. Mega is designed to manage large-scale codebases,
+              Mega is an unofficial open source implementation of Google Piper.
+              It is a monorepo & monolithic codebase management system that
+              supports Git. Mega is designed to manage large-scale codebases,
               streamline development, and foster collaboration.
             </p>
 
-            {/*<div className="mt-8 flex flex-wrap gap-x-6 gap-y-4">*/}
-            {/*  <AppStoreLink />*/}
-            {/*  <Button*/}
-            {/*    href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"*/}
-            {/*    variant="outline"*/}
-            {/*  >*/}
-            {/*    <PlayIcon className="h-6 w-6 flex-none" />*/}
-            {/*    <span className="ml-2.5">Watch the video</span>*/}
-            {/*  </Button>*/}
-            {/*</div>*/}
-
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-4">
+              <GitHubLink />
+              <Button
+                href="https://www.youtube.com/watch?v=qHcfiCmcIf8"
+                variant="outline"
+              >
+                <PlayIcon className="h-6 w-6 flex-none" />
+                <span className="ml-2.5">Watch the video</span>
+              </Button>
+            </div>
           </div>
-
           <div className="relative mt-10 sm:mt-20 lg:col-span-5 lg:row-span-2 lg:mt-0 xl:col-span-6">
-
-            {/*<BackgroundIllustration className="absolute left-1/2 top-4 h-[1026px] w-[1026px] -translate-x-1/3 stroke-gray-300/70 [mask-image:linear-gradient(to_bottom,white_20%,transparent_75%)] sm:top-16 sm:-translate-x-1/2 lg:-top-16 lg:ml-12 xl:-top-14 xl:ml-0" />*/}
-            {/*<div className="-mx-4 h-[448px] px-9 [mask-image:linear-gradient(to_bottom,white_60%,transparent)] sm:mx-0 lg:absolute lg:-inset-x-10 lg:-bottom-20 lg:-top-10 lg:h-auto lg:px-0 lg:pt-10 xl:-bottom-32">*/}
-            {/*  <PhoneFrame className="mx-auto max-w-[366px]" priority>*/}
-            {/*    <AppDemo />*/}
-            {/*  </PhoneFrame>*/}
-            {/*</div>*/}
-
+            <BackgroundIllustration className="absolute left-1/2 top-4 h-[1026px] w-[1026px] -translate-x-1/3 stroke-gray-300/70 [mask-image:linear-gradient(to_bottom,white_20%,transparent_75%)] sm:top-16 sm:-translate-x-1/2 lg:-top-16 lg:ml-12 xl:-top-14 xl:ml-0" />
+              <div className="absolute -right-3/4 -bottom-3/4 lg:h-[1000px] lg:w-[1300px]">
+                <MegaArch />
+              </div>
           </div>
+
           <div className="relative -mt-4 lg:col-span-7 lg:mt-0 xl:col-span-6">
             {/*<p className="text-center text-sm font-semibold text-gray-900 lg:text-left">*/}
             {/*  As featured in*/}
