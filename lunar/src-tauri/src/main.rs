@@ -245,7 +245,10 @@ fn push_to_new_remote(app: tauri::AppHandle, repo_path: PathBuf) -> Result<(), S
 }
 
 fn main() {
-    let params = MegaStartParams::default();
+    // let params = MegaStartParams::default();
+    let params = MegaStartParams {
+        bootstrap_node: Some("http://gitmono.org/relay".to_string()),
+    };
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
