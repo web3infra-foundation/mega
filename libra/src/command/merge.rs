@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    branch::get_target_commit,
+    get_target_commit,
     load_object, log,
     restore::{self, RestoreArgs},
 };
