@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use colored::Colorize;
-use path_abs::PathInfo;
 
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
