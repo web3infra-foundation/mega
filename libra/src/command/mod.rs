@@ -2,9 +2,11 @@ pub mod add;
 pub mod branch;
 pub mod clone;
 pub mod commit;
+pub mod diff;
 pub mod fetch;
 pub mod index_pack;
 pub mod init;
+pub mod lfs;
 pub mod log;
 pub mod merge;
 pub mod pull;
@@ -14,18 +16,22 @@ pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
-pub mod lfs;
 
+use crate::internal::branch::Branch;
+use crate::internal::head::Head;
 use crate::internal::protocol::https_client::BasicAuth;
+use crate::utils;
+use crate::utils::client_storage::ClientStorage;
+use crate::utils::object_ext::BlobExt;
 use crate::utils::util;
+use mercury::internal::object::blob::Blob;
 use mercury::{errors::GitError, hash::SHA1, internal::object::ObjectTrait};
 use rpassword::read_password;
 use std::io;
 use std::io::Write;
 use std::path::Path;
-use mercury::internal::object::blob::Blob;
-use crate::utils;
-use crate::utils::object_ext::BlobExt;
+
+const HEAD: &str = "HEAD";
 
 // impl load for all objects
 fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
@@ -84,6 +90,7 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
         }
     }
 }
+
 /// parse commit message
 pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
     const GPG_SIG_START: &str = "gpgsig -----BEGIN PGP SIGNATURE-----";
@@ -119,13 +126,39 @@ pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
 /// Calculate the hash of a file blob
 /// - for `lfs` file: calculate hash of the pointer data
 pub fn calc_file_blob_hash(path: impl AsRef<Path>) -> io::Result<SHA1> {
-    let blob =  if utils::lfs::is_lfs_tracked(&path) {
+    let blob = if utils::lfs::is_lfs_tracked(&path) {
         let (pointer, _) = utils::lfs::generate_pointer_file(&path);
         Blob::from_content(&pointer)
     } else {
         Blob::from_file(&path)
     };
     Ok(blob.id)
+}
+
+/// Get the commit hash from branch name or commit hash, support remote branch
+pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn std::error::Error>> {
+    if branch_or_commit == HEAD {
+        return Ok(Head::current_commit().await.unwrap());
+    }
+    
+    let possible_branches = Branch::search_branch(branch_or_commit).await;
+    if possible_branches.len() > 1 {
+        return Err("Ambiguous branch name".into());
+        // TODO: git have a priority list of branches to use, continue with ambiguity, we didn't implement it yet
+    }
+
+    if possible_branches.is_empty() {
+        let storage = ClientStorage::init(utils::path::objects());
+        let possible_commits = storage.search(branch_or_commit);
+        if possible_commits.len() > 1 || possible_commits.is_empty() {
+            return Err(
+                "Ambiguous commit hash".into(),
+            );
+        }
+        Ok(possible_commits[0])
+    } else {
+        Ok(possible_branches[0].commit)
+    }
 }
 
 #[cfg(test)]

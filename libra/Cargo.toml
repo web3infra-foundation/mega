@@ -42,6 +42,7 @@ sea-orm = { workspace = true, features = [
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha1 = { workspace = true }
+similar = "2.6.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "rt", "macros"] }
 tokio-util = { version = "0.7.11", features = ["io"] }
 tracing = { workspace = true }
