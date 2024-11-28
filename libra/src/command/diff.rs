@@ -28,6 +28,8 @@ use crate::{
 #[cfg(unix)]
 use std::process::{Command, Stdio};
 
+use crate::utils::path_ext::PathExt;
+
 #[derive(Parser, Debug)]
 pub struct DiffArgs {
     #[clap(long, help = "Old commit, defaults is staged or HEAD")]
@@ -123,15 +125,7 @@ pub async fn execute(args: DiffArgs) {
         .pathspec
         .iter()
         .map(|s| {
-            let path = {
-                let _path = PathBuf::from(s);
-                if _path.is_absolute() {
-                    _path
-                } else {
-                    std::env::current_dir().unwrap().join(_path) // proces path such as `./`
-                }
-            };
-            util::to_workdir_path(&path)
+            util::to_workdir_path(s)
         })
         .collect();
 
@@ -182,7 +176,7 @@ pub async fn diff(
     // filter files, cross old and new files, and pathspec
     for (new_file, new_hash) in new_blobs {
         // if new_file did't start with any path in filter, skip it
-        if !filter.is_empty() && !filter.iter().any(|path| new_file.starts_with(path)) {
+        if !filter.is_empty() && !filter.iter().any(|path| new_file.sub_of(path)) {
             continue;
         }
         match old_blobs.get(&new_file) {

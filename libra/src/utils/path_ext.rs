@@ -34,6 +34,9 @@ impl PathExt for PathBuf {
         util::workdir_to_current(self)
     }
 
+    /// Check if `self` is a sub path (child) of `parent`<br>
+    /// Simply convert to absolute path (to current dir) and call `starts_with`
+    /// - aka: "src/main.rs" is a sub path of "src/"
     fn sub_of(&self, parent: &Path) -> bool {
         util::is_sub_path(self, parent)
     }

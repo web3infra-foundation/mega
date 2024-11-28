@@ -99,6 +99,8 @@ where
     P: AsRef<Path>,
     B: AsRef<Path>,
 {
+    // to absolute, just for clear redundant `..` `.` in the path
+    // may generate wrong intermediate path, but the final result is correct (after `starts_with`)
     let path_abs = path.as_ref().absolutize().unwrap();
     let parent_abs = parent.as_ref().absolutize().unwrap();
     path_abs.starts_with(parent_abs)
@@ -140,6 +142,7 @@ where
 }
 
 /// `path` & `base` must be absolute or relative (to current dir)
+/// <br> return "." if `path` == `base`
 pub fn to_relative<P, B>(path: P, base: B) -> PathBuf
 where
     P: AsRef<Path>,
@@ -152,7 +155,11 @@ where
     let path_abs = path.as_ref().absolutize().unwrap();
     let base_abs = base.as_ref().absolutize().unwrap();
     if let Some(rel_path) = pathdiff::diff_paths(path_abs, base_abs) {
-        rel_path
+        if rel_path.to_string_lossy() == "" {
+            PathBuf::from(".")
+        } else {
+            rel_path
+        }
     } else {
         panic!(
             "fatal: path {:?} cannot convert to relative based on {:?}",
@@ -368,7 +375,8 @@ mod test {
     async fn test_to_workdir_path() {
         test::setup_with_new_libra().await;
         assert_eq!(to_workdir_path("./src/abc/../main.rs"), PathBuf::from("src/main.rs"));
-        assert_eq!(to_workdir_path("."), PathBuf::from(""));
-        assert_eq!(to_workdir_path("./"), PathBuf::from(""));
+        assert_eq!(to_workdir_path("."), PathBuf::from("."));
+        assert_eq!(to_workdir_path("./"), PathBuf::from("."));
+        assert_eq!(to_workdir_path(""), PathBuf::from("."));
     }
 }
