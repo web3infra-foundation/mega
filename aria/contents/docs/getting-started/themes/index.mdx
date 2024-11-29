@@ -1,0 +1,485 @@
+---
+title: Themes
+description: This section provides an overview of Themes.
+---
+
+> Customize the theme colors in your project to create a cohesive and visually appealing interface. Each theme comes with a unique color palette that's easy to adjust.
+
+## Customize
+
+You have the flexibility to change the theme of this documentation by modifying the Tailwind CSS variables in `@styles/globals.css` and adjusting the syntax highlighting colors in `@styles/syntax.css`. 
+
+If you’d like to use the predefined Nebula, Halloween, or Ocean themes, simply copy and paste the provided code into the respective files. Once added, you'll immediately see the visual changes reflected in your documentation, enhancing its overall look and feel.
+
+### Nebula Theme
+
+The Nebula theme provides a vibrant color palette, making your application visually appealing and engaging.
+The theme is inspired by the cosmos, featuring vibrant colors that enhance the reading experience.
+
+<Tabs defaultValue="global" className="pt-5 pb-1">
+  <TabsList>
+    <TabsTrigger value="global">globals.css</TabsTrigger>
+    <TabsTrigger value="syntax">syntax.css</TabsTrigger>
+  </TabsList>
+  <TabsContent value="global">
+    ```css
+    /* nebula */
+    @layer base {
+        :root {
+            --background: 152 9% 98%; /* Soft white with a hint of green */
+            --foreground: 160 10% 10%; /* Dark forest green */
+            --card: 0 0% 100%; /* Pure white for a clean look */
+            --card-foreground: 160 10% 10%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 160 10% 10%;
+            --primary: 158 85% 40%; /* Vibrant Supabase green */
+            --primary-foreground: 0 0% 100%; /* Pure white for contrast */
+            --secondary: 152 14% 90%; /* Light mint green */
+            --secondary-foreground: 160 10% 10%;
+            --muted: 152 14% 90%;
+            --muted-foreground: 160 10% 40%; /* Muted olive green */
+            --accent: 158 85% 40%; /* Same green as primary */
+            --accent-foreground: 0 0% 100%;
+            --destructive: 0 65% 55%; /* Light red for warnings */
+            --destructive-foreground: 0 0% 100%;
+            --border: 160 10% 85%; /* Light grey-green border */
+            --input: 160 10% 85%;
+            --ring: 158 85% 50%; /* Slightly lighter green ring */
+            --radius: 0.5rem;
+            --chart-1: 158 85% 40%; /* Green for primary chart */
+            --chart-2: 160 20% 45%; /* Subdued green for charts */
+            --chart-3: 160 10% 30%; /* Darker forest green */
+            --chart-4: 154 60% 50%; /* Light pastel green */
+            --chart-5: 160 10% 85%; /* Very light green for background */
+        }
+
+        .dark {
+            --background: 160 10% 5%; /* Very dark greenish-grey */
+            --foreground: 0 0% 100%; /* Bright white */
+            --card: 160 10% 8%; /* Slightly lighter dark green */
+            --card-foreground: 0 0% 100%;
+            --popover: 160 10% 8%;
+            --popover-foreground: 0 0% 100%;
+            --primary: 158 85% 50%; /* Bright green for dark mode */
+            --primary-foreground: 0 0% 100%;
+            --secondary: 160 10% 15%; /* Dark muted green */
+            --secondary-foreground: 0 0% 100%;
+            --muted: 160 10% 15%;
+            --muted-foreground: 160 10% 75%; /* Light grey-green */
+            --accent: 158 85% 50%; /* Bright green accent */
+            --accent-foreground: 0 0% 100%;
+            --destructive: 0 65% 50%; /* Soft red for alerts */
+            --destructive-foreground: 0 0% 100%;
+            --border: 160 10% 15%; /* Dark green border */
+            --input: 160 10% 15%;
+            --ring: 158 85% 60%; /* Vibrant green ring */
+            --chart-1: 158 85% 50%; /* Main green for charts */
+            --chart-2: 160 20% 45%; /* Subdued green for contrast */
+            --chart-3: 160 10% 30%; /* Deep forest green */
+            --chart-4: 154 60% 50%; /* Light green accent */
+            --chart-5: 160 10% 85%; /* Soft background green */
+        }
+    }
+    ```
+  </TabsContent>
+  <TabsContent value="syntax">
+    ```css
+     /* nebula */
+    /* Light Mode */
+    .keyword {
+       color: #15803d;
+       /* Dark Green */
+    }
+
+    .function {
+        color: #0ea5e9;
+        /* Sky Blue */
+    }
+
+    .punctuation {
+        color: #64748b;
+        /* Slate Gray */
+    }
+
+    .comment {
+        color: #94a3b8;
+        /* Muted Slate Gray */
+    }
+
+    .string,
+    .constant,
+    .annotation,
+    .boolean,
+    .number {
+        color: #16a34a;
+        /* Medium Green */
+    }
+
+    .tag {
+        color: #15803d;
+        /* Dark Green */
+    }
+
+    .attr-name {
+        color: #0d9488;
+        /* Teal */
+    }
+
+    .attr-value {
+        color: #059669;
+        /* Emerald Green */
+    }
+
+    /* Dark Mode */
+    .dark .keyword {
+        color: #86efac;
+        /* Light Green */
+    }
+
+    .dark .function {
+        color: #38bdf8;
+        /* Sky Blue */
+    }
+
+    .dark .string,
+    .dark .constant,
+    .dark .annotation,
+    .dark .boolean,
+    .dark .number {
+        color: #4ade80;
+        /* Soft Lime Green */
+    }
+
+    .dark .tag {
+        color: #86efac;
+        /* Light Green */
+    }
+
+    .dark .attr-name {
+        color: #34d399;
+        /* Teal */
+    }
+
+    .dark .attr-value {
+        color: #6ee7b7;
+        /* Light Emerald */
+    }
+    ```
+  </TabsContent>
+</Tabs>
+
+### Halloween Theme
+
+The Halloween theme infuses your documentation with a spooky, festive atmosphere, ideal for seasonal content. Its design is inspired by Halloween motifs, featuring eerie colors and playful elements that enhance the overall reading experience.
+
+<Tabs defaultValue="global" className="pt-5 pb-1">
+  <TabsList>
+    <TabsTrigger value="global">globals.css</TabsTrigger>
+    <TabsTrigger value="syntax">syntax.css</TabsTrigger>
+  </TabsList>
+  <TabsContent value="global">
+    ```css
+    /* halloween */
+    @layer base {
+      :root {
+        --background: 30 15% 10%; /* Darker pumpkin shade */
+        --foreground: 50 40% 95%; /* Ghostly white */
+        --card: 30 15% 12%; /* Slightly darker pumpkin */
+        --card-foreground: 50 40% 95%;
+        --popover: 30 15% 12%;
+        --popover-foreground: 50 40% 95%;
+        --primary: 35 78% 50%; /* Pumpkin orange */
+        --primary-foreground: 60 9.1% 97.8%; /* Soft ghostly white */
+        --secondary: 290 12% 16%; /* Witchy purple */
+        --secondary-foreground: 35 78% 50%;
+        --muted: 290 12% 16%;
+        --muted-foreground: 50 20% 85%; /* Pale grey */
+        --accent: 43 100% 50%; /* Bright pumpkin */
+        --accent-foreground: 0 0% 100%;  /* Pure white */
+        --destructive: 0 84.2% 45%;  /* Blood red */
+        --destructive-foreground: 60 9.1% 97.8%;
+        --border: 290 20% 10%;  /* Dark witchy purple */
+        --input: 290 20% 10%;
+        --ring: 35 78% 50%; /* Glowing pumpkin ring */
+        --radius: 0.5rem;
+        --chart-1: 35 78% 50%; /* Pumpkin orange */
+        --chart-2: 50 40% 95%; /* Ghostly white */
+        --chart-3: 0 84.2% 45%; /* Blood red */
+        --chart-4: 43 100% 50%; /* Bright pumpkin */
+        --chart-5: 210 70% 30%; /* Shadowy blue */
+    }
+
+    .dark {
+        --background: 240 3% 7%; /* Deep shadowy black */
+        --foreground: 43 100% 90%; /* Ghostly white */
+        --card: 240 3% 9%; /* Dark shadow */
+        --card-foreground: 43 100% 90%;
+        --popover: 240 3% 9%;
+        --popover-foreground: 43 100% 90%;
+        --primary: 35 78% 50%; /* Pumpkin orange */
+        --primary-foreground: 240 3% 7%; /* Shadowy black */
+        --secondary: 260 25% 15%; /* Dark witchy purple */
+        --secondary-foreground: 35 78% 50%;
+        --muted: 260 25% 15%;
+        --muted-foreground: 60 5% 65%; /* Pale grey */
+        --accent: 43 100% 50%; /* Bright pumpkin */
+        --accent-foreground: 0 0% 100%; /* Pure white */
+        --destructive: 0 84.2% 45%; /* Blood red */
+        --destructive-foreground: 43 100% 90%;
+        --border: 260 25% 15%; /* Dark witchy purple */
+        --input: 260 25% 15%;
+        --ring: 35 78% 50%; /* Glowing pumpkin ring */
+        --chart-1: 35 78% 50%; /* Pumpkin orange */
+        --chart-2: 43 100% 90%; /* Ghostly white */
+        --chart-3: 0 84.2% 45%; /* Blood red */
+        --chart-4: 43 100% 50%; /* Bright pumpkin */
+        --chart-5: 210 70% 30%; /* Shadowy blue */
+     }
+  }
+    ```
+  </TabsContent>
+  <TabsContent value="syntax">
+    ```css
+    /* halloween */
+    /* Light Mode */
+    .keyword {
+        color: #d97706;
+        /* Pumpkin Orange */
+    }
+
+    .function {
+        color: #9333ea;
+        /* Mystic Purple */
+    }
+
+    .punctuation {
+        color: #4b5563;
+        /* Dark Gray */
+    }
+
+    .comment {
+        color: #6b7280;
+        /* Muted Gray */
+    }
+
+    .string,
+    .constant,
+    .annotation,
+    .boolean,
+    .number {
+        color: #f59e0b;
+        /* Witch’s Brew Amber */
+    }
+
+    .tag {
+        color: #c026d3;
+        /* Magenta Potion */
+    }
+
+    .attr-name {
+        color: #16a34a;
+        /* Poison Green */
+    }
+
+    .attr-value {
+        color: #db2777;
+        /* Pink Potion */
+    }
+
+    /* Dark Mode */
+    .dark .keyword {
+        color: #fbbf24;
+        /* Candlelight Yellow */
+    }
+
+    .dark .function {
+        color: #e879f9;
+        /* Enchanted Magenta */
+    }
+
+    .dark .string,
+    .dark .constant,
+    .dark .annotation,
+    .dark .boolean,
+    .dark .number {
+        color: #f59e0b;
+        /* Glowing Amber */
+    }
+
+    .dark .tag {
+        color: #f472b6;
+        /* Haunted Pink */
+    }
+
+    .dark .attr-name {
+        color: #a3e635;
+        /* Toxic Green */
+    }
+
+    .dark .attr-value {
+        color: #fb7185;
+        /* Blood Moon Pink */
+    }
+    ```
+  </TabsContent>
+</Tabs>
+
+
+
+### Ocean Theme
+
+The Ocean theme presents soothing colors drawn from the depths of the sea, fostering a tranquil reading environment. Its design evokes a sense of calm, enhancing the overall experience for users.
+
+<Tabs defaultValue="global" className="pt-5 pb-1">
+  <TabsList>
+    <TabsTrigger value="global">globals.css</TabsTrigger>
+    <TabsTrigger value="syntax">syntax.css</TabsTrigger>
+  </TabsList>
+  <TabsContent value="global">
+    ```css
+    /* ocean */
+    @layer base {
+        :root {
+            --background: 210 50% 95%; /* Soft light blue */
+            --foreground: 220 20% 15%; /* Deep navy */
+            --card: 210 40% 98%; /* Almost white blue */
+            --card-foreground: 220 20% 15%;
+            --popover: 210 40% 98%;
+            --popover-foreground: 220 20% 15%;
+            --primary: 220 80% 60%; /* Vibrant azure blue */
+            --primary-foreground: 210 50% 95%;
+            --secondary: 220 30% 85%; /* Light sky blue */
+            --secondary-foreground: 220 20% 15%;
+            --muted: 220 30% 85%;
+            --muted-foreground: 220 20% 40%; /* Soft steel blue */
+            --accent: 200 70% 40%; /* Strong ocean blue */
+            --accent-foreground: 0 0% 100%; /* Pure white */
+            --destructive: 0 65% 55%; /* Soft red */
+            --destructive-foreground: 220 20% 95%; /* Lightened foreground */
+            --border: 220 15% 90%; /* Light grey-blue */
+            --input: 220 15% 90%;
+            --ring: 220 40% 50%; /* Cool blue ring */
+            --radius: 0.5rem;
+            --chart-1: 210 60% 50%; /* Classic blue */
+            --chart-2: 220 40% 65%; /* Soft sky */
+            --chart-3: 220 70% 50%; /* Azure blue */
+            --chart-4: 200 60% 55%; /* Ocean blue */
+            --chart-5: 240 30% 40%; /* Deep teal */
+        }
+
+        .dark {
+            --background: 220 20% 10%; /* Midnight navy */
+            --foreground: 220 80% 90%; /* Soft sky blue */
+            --card: 220 20% 12%; /* Slightly lighter midnight */
+            --card-foreground: 220 80% 90%;
+            --popover: 220 20% 12%;
+            --popover-foreground: 220 80% 90%;
+            --primary: 210 70% 60%; /* Soft bright blue */
+            --primary-foreground: 220 20% 10%;
+            --secondary: 220 30% 15%; /* Dark steel blue */
+            --secondary-foreground: 220 80% 90%;
+            --muted: 220 30% 15%;
+            --muted-foreground: 210 20% 85%; /* Pale navy */
+            --accent: 220 80% 60%; /* Vibrant azure blue */
+            --accent-foreground: 220 80% 90%;
+            --destructive: 0 65% 55%; /* Soft red */
+            --destructive-foreground: 220 80% 90%;
+            --border: 220 30% 15%; /* Dark steel blue */
+            --input: 220 30% 15%;
+            --ring: 220 60% 60%; /* Vivid blue ring */
+            --chart-1: 210 60% 50%; /* Classic blue */
+            --chart-2: 220 40% 65%; /* Soft sky */
+            --chart-3: 220 70% 50%; /* Azure blue */
+            --chart-4: 200 60% 55%; /* Ocean blue */
+            --chart-5: 240 30% 40%; /* Deep teal */
+        }
+    }
+    ```
+  </TabsContent>
+  <TabsContent value="syntax">
+    ```css
+    /* ocean */
+    /* Light Mode */
+    .keyword {
+        color: #2563eb;
+        /* Vibrant Blue */
+    }
+
+    .function {
+        color: #0284c7;
+        /* Deep Sky Blue */
+    }
+
+    .punctuation {
+        color: #475569;
+        /* Cool Slate Gray */
+    }
+
+    .comment {
+        color: #64748b;
+        /* Muted Slate */
+    }
+
+    .string,
+    .constant,
+    .annotation,
+    .boolean,
+    .number {
+        color: #0369a1;
+        /* Dark Cyan */
+    }
+
+    .tag {
+        color: #1e40af;
+        /* Indigo */
+    }
+
+    .attr-name {
+        color: #0ea5e9;
+        /* Light Sky Blue */
+    }
+
+    .attr-value {
+        color: #2563eb;
+        /* Bright Blue */
+    }
+
+    /* Dark Mode */
+    .dark .keyword {
+        color: #93c5fd;
+        /* Soft Blue */
+    }
+
+    .dark .function {
+        color: #38bdf8;
+        /* Sky Blue */
+    }
+
+    .dark .string,
+    .dark .constant,
+    .dark .annotation,
+    .dark .boolean,
+    .dark .number {
+        color: #60a5fa;
+        /* Light Blue */
+    }
+
+    .dark .tag {
+        color: #3b82f6;
+        /* Bold Blue */
+    }
+
+    .dark .attr-name {
+        color: #67e8f9;
+        /* Aqua */
+    }
+
+    .dark .attr-value {
+        color: #93c5fd;
+        /* Frosty Blue */
+    }
+    ```
+  </TabsContent>
+</Tabs>
+
+For additional themes, visit this fantastic website with pre-made Shadcn themes: https://tinte.railly.dev/shadcn

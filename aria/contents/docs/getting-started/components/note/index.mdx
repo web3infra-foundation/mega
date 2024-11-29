@@ -1,0 +1,44 @@
+---
+title: Note
+description: This section previews the Note component.
+---
+
+The `Note` component allows you to display different types of messages such as general notes, warnings, or success notifications. Each type is styled accordingly, providing a clear visual cue to the user.
+
+## Preview
+
+<Note type="note" title="Note">
+  This is a general note to convey information to the user.
+</Note>
+<Note type="danger" title="Danger">
+  This is a danger alert to notify the user of a critical issue.
+</Note>
+<Note type="warning" title="Warning">
+  This is a warning alert for issues that require attention.
+</Note>
+<Note type="success" title="Success">
+  This is a success message to inform the user of successful actions.
+</Note>
+
+## Props
+
+| Prop    | Type                           | Default | Description                                |
+|---------|--------------------------------|---------|--------------------------------------------|
+| `title` | `string`                       | "Note"  | Sets the title of the note.                |
+| `type`  | `"note"`, `"danger"`, `"warning"`, `"success"` | "note"  | Determines the visual style of the note.   |
+
+## Code
+
+```jsx
+<Note type="note" title="Note">
+  This is a general note to convey information to the user.
+</Note>
+<Note type="danger" title="Danger">
+  This is a danger alert to notify the user of a critical issue.
+</Note>
+<Note type="warning" title="Warning">
+  This is a warning alert for issues that require attention.
+</Note>
+<Note type="success" title="Success">
+  This is a success message to inform the user of successful actions.
+</Note>
