@@ -2,7 +2,6 @@ use crate::utils::path_ext::PathExt;
 use crate::utils::{path, util};
 use lazy_static::lazy_static;
 use mercury::internal::index::Index;
-use path_abs::{PathInfo, PathOps};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use ring::digest::{Context, SHA256};

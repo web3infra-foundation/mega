@@ -27,7 +27,7 @@ impl Config {
     pub fn new(path: &str) -> Result<Self, ConfigError> {
         let builder = c::Config::builder()
             .add_source(c::File::new(path, FileFormat::Toml))
-            .add_source(c::Environment::with_prefix("mega")); // e.g. MEGA_BASE_DIR == base_dir
+            .add_source(c::Environment::with_prefix("mega").prefix_separator("_").separator("__")); // e.g. MEGA_BASE_DIR == base_dir
                                                               // support ${} variable substitution
         let config = variable_placeholder_substitute(builder);
 

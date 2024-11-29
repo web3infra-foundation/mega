@@ -1,7 +1,7 @@
-use path_abs::{PathAbs, PathInfo};
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use path_absolutize::*;
 use std::{env, fs, io};
 use indicatif::{ProgressBar, ProgressStyle};
 use mercury::hash::SHA1;
@@ -99,8 +99,10 @@ where
     P: AsRef<Path>,
     B: AsRef<Path>,
 {
-    let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
-    let parent_abs = PathAbs::new(parent.as_ref()).unwrap();
+    // to absolute, just for clear redundant `..` `.` in the path
+    // may generate wrong intermediate path, but the final result is correct (after `starts_with`)
+    let path_abs = path.as_ref().absolutize().unwrap();
+    let parent_abs = parent.as_ref().absolutize().unwrap();
     path_abs.starts_with(parent_abs)
 }
 
@@ -140,22 +142,24 @@ where
 }
 
 /// `path` & `base` must be absolute or relative (to current dir)
+/// <br> return "." if `path` == `base`
 pub fn to_relative<P, B>(path: P, base: B) -> PathBuf
 where
     P: AsRef<Path>,
     B: AsRef<Path>,
 {
-    let path_abs = PathAbs::new(path.as_ref()).unwrap(); // prefix: '\\?\' on Windows
-    let base_abs = PathAbs::new(base.as_ref()).unwrap();
-    if cfg!(windows) {
-        assert_eq!(
-            // just little check
-            path_abs.to_str().unwrap().starts_with(r"\\?\"),
-            base_abs.to_str().unwrap().starts_with(r"\\?\")
-        )
-    }
+    // × crate `PathAbs` is NOT good enough
+    // 1. `PathAbs::new` can not handle `.` or `./`, all return ""
+    // 2. `PathAbs::new` generate prefix: '\\?\' on Windows
+    // So, we replace it with `path_absolutize` √
+    let path_abs = path.as_ref().absolutize().unwrap();
+    let base_abs = base.as_ref().absolutize().unwrap();
     if let Some(rel_path) = pathdiff::diff_paths(path_abs, base_abs) {
-        rel_path
+        if rel_path.to_string_lossy() == "" {
+            PathBuf::from(".")
+        } else {
+            rel_path
+        }
     } else {
         panic!(
             "fatal: path {:?} cannot convert to relative based on {:?}",
@@ -276,7 +280,7 @@ pub fn is_empty_dir(dir: &Path) -> bool {
 }
 
 pub fn is_cur_dir(dir: &Path) -> bool {
-    PathAbs::new(dir).unwrap() == PathAbs::new(cur_dir()).unwrap()
+    dir.absolutize().unwrap() == cur_dir().absolutize().unwrap()
 }
 
 /// transform path to string, use '/' as separator even on windows
@@ -358,12 +362,21 @@ mod test {
         assert!(is_sub_path("src/main.rs", "src"));
         assert!(is_sub_path("src/main.rs", "src/"));
         assert!(is_sub_path("src/main.rs", "src/main.rs"));
+        assert!(is_sub_path("src/main.rs", "."));
+    }
+
+    #[test]
+    fn test_to_relative() {
+        assert_eq!(to_relative("src/main.rs", "src"), PathBuf::from("main.rs"));
+        assert_eq!(to_relative(".", "src"), PathBuf::from(".."));
     }
 
     #[tokio::test]
     async fn test_to_workdir_path() {
         test::setup_with_new_libra().await;
-        let workdir_path = to_workdir_path("src/main.rs");
-        assert_eq!(workdir_path, PathBuf::from("src/main.rs"));
+        assert_eq!(to_workdir_path("./src/abc/../main.rs"), PathBuf::from("src/main.rs"));
+        assert_eq!(to_workdir_path("."), PathBuf::from("."));
+        assert_eq!(to_workdir_path("./"), PathBuf::from("."));
+        assert_eq!(to_workdir_path(""), PathBuf::from("."));
     }
 }
