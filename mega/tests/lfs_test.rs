@@ -181,7 +181,7 @@ fn libra_lfs_push(url: &str) -> io::Result<()> {
     run_libra_cmd(&["lfs", "lock", "large_file.bin"]);
     // push to mega server
     run_libra_cmd_with_stdin(&["push", "mega", "master"],
-                             Some("mega\nmega"), // basic auth
+                             Some("mega\nmega"), // basic auth, can be overridden by env var
                              Some(vec![("LIBRA_NO_HIDE_PASSWORD", "1")]));
 
     Ok(())
@@ -220,6 +220,7 @@ fn lfs_split_with_git() {
     assert!(check_git_lfs(), "git lfs is not installed");
 
     let mega_dir = TempDir::new().unwrap();
+    env::set_var("MEGA_authentication__enable_http_auth", "false"); // no need for git
     // start mega server at background (new process)
     let mut mega = run_mega_server(mega_dir.path());
 
@@ -240,6 +241,9 @@ fn lfs_split_with_libra() {
 
     let mega_dir = TempDir::new().unwrap();
     env::set_var("MEGA_authentication__enable_http_auth", "true");
+    env::set_var("MEGA_authentication__enable_test_user", "true");
+    env::set_var("MEGA_authentication__test_user_name", "mega");
+    env::set_var("MEGA_authentication__test_user_token", "mega");
     // start mega server at background (new process)
     let mut mega = run_mega_server(mega_dir.path());
 
