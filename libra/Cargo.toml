@@ -22,6 +22,7 @@ futures = { workspace = true }
 futures-util = { workspace = true }
 gemini = { workspace = true, optional = true }
 hex = { workspace = true }
+imara-diff = "0.1.7"
 indicatif = "0.17.8"
 lazy_static = { workspace = true }
 lru-mem = "0.3.0"
