@@ -1,0 +1,80 @@
+---
+title: Quick Start Guide
+description: This section provides an overview of Quick Start Guide.
+---
+
+Follow these simple instructions to set up your project efficiently and begin creating content without delay!:
+
+## Documentation
+
+1. **Configure Routing**
+   - Open the `@lib/route-config.ts` file and add your routing pages:
+     ```typescript
+     export const ROUTES: EachRoute[] = [
+         // Add new route below
+         {
+             title: "Fundamentals",
+             href: "/fundamentals",
+             noLink: true, // Set to true to prevent routing
+             items: [
+                 // All the sub-sections under `fundamentals`
+                 { title: "HTTP Server", href: "/http-server" },
+             ],
+         },
+     ];
+     ```
+
+2. **Create Content Structure**
+   - Navigate to the `@content/docs` directory and create a folder named `fundamentals`, as defined in the `route-config` file. Within this folder, create a subfolder named `http-server`, and inside that, create an `index.mdx` file that will render when you navigate to `/fundamentals/http-server`:
+     ```plaintext
+     root
+     ├── content/docs
+     │   └── fundamentals
+     │       └── http-server
+     │           └── index.mdx
+     ```
+
+3. **Write Your Markdown Content**
+   - Start writing your markdown content inside the `index.mdx` file. Be sure to include frontmatter at the beginning of the file, which is used for the page title and description:
+     ```markdown showLineNumbers {1-4}
+     --- 
+     title: HTTP Server
+     description: This section is about HTTP Server.
+     ---
+
+     <!-- Here goes your markdown content -->
+     ```
+
+4. **Run Your Application**
+   - Ensure your application is running. Navigate to `http://localhost:3000/docs/fundamentals/http-server` to view your content. You should also see it in the left panel, allowing you to navigate to other pages.
+
+
+## Blogs
+
+To get started with blogs, follow these steps:
+
+- Navigate to the `@content/blogs` directory and create a file with a unique name prefixed with `.mdx`, then start writing the markdown content inside.
+
+- Make sure to add the following frontmatter to format data for the blogs properly:
+  ```markdown
+  ---
+  title: "Building a Recursive File System with React: A Deep Dive"
+  description: "Explore how to create a recursive file system in React. This blog post provides a comprehensive guide on building a file system where folders and files can be nested, added, renamed, and deleted."
+  date: 02-09-2024
+  authors:
+    - avatar: "https://ui.shadcn.com/avatars/02.png"
+      handle: nisabmohd
+      username: Nisab Mohd
+      handleUrl: "https://github.com/nisabmohd"
+  cover: "https://img.freepik.com/premium-vector/many-monsters-various-colors-doodle-come-bless-birthday-happy_577083-84.jpg?w=826"
+  ---
+  <!-- Your blog markdown content -->
+  ```
+
+- Navigate to your local development server at `http://localhost:3000/blog`, where you will see your blog listed and sorted based on date. You can navigate to any blog to read it.
+
+
+## Explore Further
+
+This section serves as your starting point for exploring the application. By following the steps above, you can quickly and easily set up your content. For more customization and control, please refer to the following pages.
+

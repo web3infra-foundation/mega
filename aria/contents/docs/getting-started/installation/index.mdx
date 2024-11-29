@@ -1,0 +1,72 @@
+---
+title: Installation
+description: Installation guide for our application.
+---
+
+Setting up AriaDocs is straightforward, with options to clone the repository or use the convenient `npx` command. AriaDocs requires [Node.js](https://nodejs.org/) version 18 or higher for optimal performance.
+
+## Clone Repository
+To get started, you can clone the AriaDocs repository directly from GitHub. 
+<Stepper>
+  <StepperItem title="Step 1: Clone the AriaDocs Repository">
+    Begin by cloning the AriaDocs repository from GitHub:
+
+    ```plaintext
+    git clone https://github.com/nisabmohd/Aria-Docs.git
+    ```
+  </StepperItem>
+
+  <StepperItem title="Step 2: Access the Project Directory">
+    After cloning, navigate into the project directory to start setting up:
+
+    ```plaintext
+    cd Aria-Docs
+    ```
+  </StepperItem>
+
+  <StepperItem title="Step 3: Install Required Dependencies">
+    Install all necessary project dependencies with npm:
+
+    <Note title="Remember">
+      To support React 19, package maintainers will need to test and update their packages to include React 19 as a peer dependency. This is already in progress.
+    </Note>
+
+    ```plaintext
+    npm install
+    ```
+  </StepperItem>
+
+  <StepperItem title="Step 4: Launch the Development Server">
+    Finally, start the development server to view the project locally:
+
+    ```plaintext
+    npm run dev
+    ```
+  </StepperItem>
+</Stepper>
+
+## Quick Setup with npx
+
+For a faster setup, use the `npx` command to create a new AriaDocs project in one step:
+
+```plaintext
+npx create-aria-doc <project-directory>
+```
+
+**Command Output:**
+
+```plaintext
+Creating a new AriaDocs project in /path/to/your/project from the master branch...
+Cloning Master (Full Documentation)...
+AriaDocs project successfully created in /path/to/your/project!
+
+Next steps:
+1. Navigate to your project directory:
+   cd <project-directory>
+2. Install dependencies:
+   npm install
+3. Start the development server:
+   npm run dev
+```
+
+With this setup, you’ll have a ready-to-use AriaDocs instance to start building your documentation.
