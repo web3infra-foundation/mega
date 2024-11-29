@@ -6,6 +6,7 @@ use std::{
 };
 
 use clap::Parser;
+use imara_diff::{intern::InternedInput, Algorithm, UnifiedDiffBuilder};
 use mercury::{
     hash::SHA1,
     internal::{
@@ -229,7 +230,8 @@ pub async fn diff(
         });
         writeln!(w, "index {}..{}", old_index, new_index).unwrap();
 
-        diff_result(&old_content, &new_content, w);
+        // diff_result(&old_content, &new_content, w);
+        imara_diff_result(&old_content, &new_content, w);
     }
 }
 
@@ -262,7 +264,8 @@ impl fmt::Display for Line {
     }
 }
 
-fn diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
+#[allow(dead_code)]
+fn similar_diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
     let diff = similar::TextDiff::from_lines(old, new);
     for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
         if idx > 0 {
@@ -290,6 +293,16 @@ fn diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
             }
         }
     }
+}
+
+fn imara_diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
+    let input = InternedInput::new(old, new);
+    let diff = imara_diff::diff(
+        Algorithm::Histogram,
+        &input,
+        UnifiedDiffBuilder::new(&input),
+    );
+    write!(w, "{}", diff).unwrap();
 }
 
 #[cfg(test)]
@@ -333,11 +346,11 @@ mod test {
     }
 
     #[test]
-    fn test_diff_result() {
+    fn test_similar_diff_result() {
         let old = "Hello World\nThis is the second line.\nThis is the third.";
         let new = "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more";
         let mut buf = Vec::new();
-        diff_result(old, new, &mut buf);
+        similar_diff_result(old, new, &mut buf);
         let result = String::from_utf8(buf).unwrap();
         println!("{}", result);
     }
