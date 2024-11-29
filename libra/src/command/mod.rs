@@ -63,10 +63,21 @@ fn ask_username_password() -> (String, String) {
     let mut username = String::new();
     io::stdin().read_line(&mut username).unwrap();
     username = username.trim().to_string();
+    tracing::debug!("username: {}", username);
 
     print!("password: ");
     io::stdout().flush().unwrap();
-    let password = read_password().unwrap(); // hide password
+    let password = if std::env::var("LIBRA_NO_HIDE_PASSWORD").is_ok() {
+        // for test
+        let mut password = String::new();
+        io::stdin().read_line(&mut password).unwrap();
+        password = password.trim().to_string();
+        tracing::debug!("password: {}", password);
+        password
+    } else {
+        // error in test environment: "No such device or address"
+        read_password().unwrap() // hide password
+    };
     (username, password)
 }
 

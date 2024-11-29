@@ -43,14 +43,18 @@ pub struct BasicAuth {
     pub(crate) username: String,
     pub(crate) password: String,
 }
-
+static AUTH: Mutex<Option<BasicAuth>> = Mutex::new(None);
 impl BasicAuth {
+    /// set username & password manually
+    pub async fn set_auth(auth: BasicAuth) {
+        AUTH.lock().unwrap().replace(auth);
+    }
+
     /// send request with basic auth, retry 3 times
     pub async fn send<Fut>(request_builder: impl Fn() -> Fut) -> Result<Response, reqwest::Error>
     where
         Fut: std::future::Future<Output=RequestBuilder>,
     {
-        static AUTH: Mutex<Option<BasicAuth>> = Mutex::new(None);
         const MAX_TRY: usize = 3;
         let mut res;
         let mut try_cnt = 0;
