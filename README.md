@@ -81,29 +81,6 @@ $ git push
 5. Check the repository in UI
 Open the mono-ui in your browser with `http://localhost:3000`, and you will see the `project` folder.
 
-## Quick Review of Architecture
-
-![Mega Architect](docs/images/Mega_Bin_and_Modules.png)
-
-1. **mono** - Mega's api endpoint, responsible for handling `git`, `git-lfs` and web UI requests through the HTTP and SSH protocol.
-2. **mega** - The main entry of Mega, parse cli command with clap.
-3. **gateway** - The Gateway extend **mono** and contains ztm agent, which is responsible for ztm network capabilities. More information on the [Gateway](gateway/README.md).
-4. **libra** - The Libra is a `git` program that rewrite in Rust. More information on the [Libra](libra/README.md).
-5. **gemini** - The Gemini is a decentralized module of Mega. More information on the [Gemini](gemini/README.md).
-6. **scorpio** - The Scorpio is a FUSE filesystem that allow you to mount a Mega repository as a local filesystem. More information on the [Scorpio](scorpio/README.md).
-7. **mercury** - The Mercury module is the core module of Mega, which rewrites Git internal object like Blob, Tree, etc. More information on the [Mercury Module](mercury/README.md).
-8.  **ceres** - The Ceres is Mega's Monorepo Engine and implement the git transport protocol. More information on the [Ceres](ceres/README.md).
-9. **jupiter** - The Jupiter is storage engine for Mega. More information on the [Jupiter](jupiter/README.md).
-10. **saturn** - The Saturn module implement user permissions with Cedar policy [Saturn](saturn/README.md).
-11. **vault** -  The Vault module is used for key and certificate management, implemented with RustyVault
-12. **lunar** - The Lunar is a tauri app with Mega. More information on the [Lunar](lunar/README.md).
-13. **aries** - The Mega's ztm Relay Server. More information on the [Aries](aries/README.md).
-14. **altas** - AI API Module. More information on the [Altas](altas/README.md).
-15. **moon** - The Moon is a web UI for Mono Engine. More information on the [Moon](moon/README.md).
-16. **mars** - The Mars is website for Mega. More information on the [Mars](mars/README.md).
-
-
-
 ## Contributing
 
 The mega project relies on community contributions and aims to simplify getting started. To develop Mega, clone the repository, then install all dependencies and initialize the database schema, run the test suite and try it out locally. Pick an issue, make changes, and submit a pull request for community review.
