@@ -1,0 +1,170 @@
+---
+title: "Building a Recursive File System with React: A Deep Dive"
+description: "Explore how to create a recursive file system in React. This blog post provides a comprehensive guide on building a file system where folders and files can be nested, added, renamed, and deleted."
+date: 02-09-2024
+authors:
+  - avatar: "https://ui.shadcn.com/avatars/02.png"
+    handle: nisabmohd
+    username: Nisab Mohd
+    handleUrl: "https://github.com/nisabmohd"
+cover: "https://img.freepik.com/premium-vector/many-monsters-various-colors-doodle-come-bless-birthday-happy_577083-84.jpg?w=826"
+---
+
+## Introduction: Crafting a Recursive File System in React
+
+In modern web development, creating interactive and dynamic file systems is a common requirement. Whether for managing documents, organizing projects, or building complex data structures, having a robust file system is crucial. In this blog post, we’ll explore how to build a recursive file system in React, focusing on nested folders and files that can be added, renamed, or deleted.
+
+Check out the project on [GitHub](https://github.com/nisabmohd/recursive-file-system-react) for a complete implementation.
+
+## Project Overview
+
+The Recursive File System project is designed to simulate a file management system where users can interact with folders and files dynamically. It supports the following features:
+
+- **Adding New Folders and Files**: Create new folders and files within any existing folder.
+- **Renaming Items**: Change the name of folders and files.
+- **Deleting Items**: Remove folders and files from the file system.
+- **Nested Structure**: Handle nested folders and files to create a hierarchical view.
+
+## Key Features and Implementation
+
+### 1. Recursive Data Structure
+
+The core of the project is a recursive data structure that represents the file system. Each folder can contain other folders or files, and each file or folder has properties such as `id`, `name`, and `children` (for folders).
+
+Here’s a basic structure for a folder:
+
+```jsx
+const folder = {
+  id: "1",
+  name: "Documents",
+  type: "folder",
+  children: [
+    { id: "2", name: "Resume.pdf", type: "file" },
+    { id: "3", name: "CoverLetter.docx", type: "file" },
+  ],
+};
+```
+
+### 2. Components
+
+The project includes several key components to handle different aspects of the file system:
+
+- **FileExplorer**: Displays the entire file system and handles rendering folders and files.
+
+```jsx
+// src/components/FileExplorer.js
+import React, { useState } from "react";
+import Folder from "./Folder";
+import File from "./File";
+
+const FileExplorer = () => {
+  const [files, setFiles] = useState(initialData); // initialData is your recursive data structure
+
+  const addItem = (parentId, type) => {
+    // Logic to add a folder or file
+  };
+
+  const renameItem = (id, newName) => {
+    // Logic to rename a folder or file
+  };
+
+  const deleteItem = (id) => {
+    // Logic to delete a folder or file
+  };
+
+  return (
+    <div>
+      {files.map((file) =>
+        file.type === "folder" ? (
+          <Folder
+            key={file.id}
+            folder={file}
+            onAdd={addItem}
+            onRename={renameItem}
+            onDelete={deleteItem}
+          />
+        ) : (
+          <File
+            key={file.id}
+            file={file}
+            onRename={renameItem}
+            onDelete={deleteItem}
+          />
+        )
+      )}
+    </div>
+  );
+};
+
+export default FileExplorer;
+```
+
+- **Folder**: Renders folders and handles nested items.
+
+```jsx
+// src/components/Folder.js
+import React from "react";
+import FileExplorer from "./FileExplorer";
+
+const Folder = ({ folder, onAdd, onRename, onDelete }) => {
+  return (
+    <div>
+      <h3>{folder.name}</h3>
+      <button onClick={() => onAdd(folder.id, "folder")}>Add Folder</button>
+      <button onClick={() => onAdd(folder.id, "file")}>Add File</button>
+      <button onClick={() => onRename(folder.id, "New Name")}>Rename</button>
+      <button onClick={() => onDelete(folder.id)}>Delete</button>
+      {folder.children && <FileExplorer files={folder.children} />}
+    </div>
+  );
+};
+
+export default Folder;
+```
+
+- **File**: Renders individual files with options to rename and delete.
+
+```jsx
+// src/components/File.js
+import React from "react";
+
+const File = ({ file, onRename, onDelete }) => {
+  return (
+    <div>
+      <p>{file.name}</p>
+      <button onClick={() => onRename(file.id, "New Name")}>Rename</button>
+      <button onClick={() => onDelete(file.id)}>Delete</button>
+    </div>
+  );
+};
+
+export default File;
+```
+
+### 3. Handling State and Actions
+
+State management is handled using React hooks like `useState` to manage the file system data. Actions such as adding, renaming, and deleting items update the state accordingly.
+
+```jsx
+const [files, setFiles] = useState(initialData);
+
+const addItem = (parentId, type) => {
+  // Logic to add a new item to the file system
+};
+
+const renameItem = (id, newName) => {
+  // Logic to rename an existing item
+};
+
+const deleteItem = (id) => {
+  // Logic to delete an item
+};
+```
+
+## Conclusion: Building a Dynamic File System with React
+
+Creating a recursive file system in React is a powerful way to manage hierarchical data and provide a dynamic user experience. By leveraging React's component-based architecture and state management, you can build interactive file systems that handle complex nested structures efficiently.
+
+Check out the full implementation on [GitHub](https://github.com/nisabmohd/recursive-file-system-react) and explore how these concepts can be applied to your own projects. Happy coding!
+
+🚀📁

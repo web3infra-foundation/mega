@@ -1,0 +1,93 @@
+---
+title: Customize
+description: This guide provides instructions on customizing our application.
+---
+
+## Markdown Options
+
+To customize Markdown parsing, navigate to `@lib/markdown.ts` and locate the `parseMdx` function. You can add your desired plugins in the `mdxOptions`. Here’s an example:
+
+```ts:lib/markdown.ts
+async function parseMdx<Frontmatter>(rawMdx: string) {
+    return await compileMDX<Frontmatter>({
+        source: rawMdx,
+        options: {
+            parseFrontmatter: true,
+            mdxOptions: {
+                // Add your plugins here
+                rehypePlugins: [Shiki],
+                remarkPlugins: [remarkGfm],
+            },
+        },
+        components,
+    });
+}
+```
+
+## Fonts
+
+Currently, this project uses the `Space_Grotesk` font. If you want to use other fonts, you can change the configuration in the main layout as shown below:
+
+### Google Fonts
+
+To use a Google font, import your desired font from `next/font/google`, initialize it with options, and apply the variable to the `body`:
+
+```tsx:app/layout.tsx
+import { Space_Grotesk } from "next/font/google";
+
+const fontSans = Space_Grotesk({
+    display: "swap",
+    variable: "--font-regular",
+    weight: "400",
+    subsets: ["latin"],
+});
+
+export default function RootLayout({ children }) {
+    return (
+        <html lang="en">
+            <body className={`${fontSans.variable} font-regular`}>
+                {children}
+            </body>
+        </html>
+    );
+}
+```
+
+### Local Fonts
+
+To use a local font, you need to use the local font loader from Next.js. Pass the options and apply them to the `body`:
+
+```tsx:app/layout.tsx
+import localFont from "next/font/local";
+
+const geistSans = localFont({
+    src: "./fonts/GeistVF.woff",
+    variable: "--font-regular",
+    weight: "100 900",
+});
+
+export default function RootLayout({ children }) {
+    return (
+        <html lang="en">
+            <body className={`${geistSans.variable} font-regular`}>
+                {children}
+            </body>
+        </html>
+    );
+}
+```
+
+For both options, ensure that you add the variable to `tailwind.config.ts`:
+
+```ts:tailwind.config.ts
+{
+    // ...
+    extend: {
+        fontFamily: {
+            regular: ["var(--font-regular)"],
+        },
+    }
+}
+```
+
+For theme and colors, refer to the [Theme section](/docs/getting-started/themes)
