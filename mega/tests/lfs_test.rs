@@ -46,41 +46,36 @@ fn check_git_lfs() -> bool {
     status.success()
 }
 
-fn run_cmd(program: &str, args: &[&str]) {
-    let output = Command::new(program)
-        .args(args)
-        .output()
-        .unwrap();
-
-    let status = output.status;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    if !status.success() {
-        panic!(
-            "Command failed: {} {}\nStatus: {}\nStdout: {}\nStderr: {}",
-            program,
-            args.join(" "),
-            status,
-            stdout,
-            stderr
-        );
-    } else {
-        println!(
-            "Command success: {} {}\nStatus: {}\nStdout: {}",
-            program,
-            args.join(" "),
-            status,
-            stdout,
-        );
+fn run_cmd(program: &str, args: &[&str], stdin: Option<&str>, envs: Option<Vec<(&str, &str)>>) {
+    let mut cmd = assert_cmd::Command::new(program);
+    let mut cmd = cmd.args(args);
+    if let Some(stdin) = stdin {
+        cmd = cmd.write_stdin(stdin);
     }
+    if let Some(envs) = envs {
+        cmd = cmd.envs(envs);
+    }
+    let assert = cmd.assert().success();
+    let output = assert.get_output();
+
+    println!("Command success: {} {}\nStatus: {}\nStdout: {}",
+        program,
+        args.join(" "),
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+    );
 }
 
 fn run_git_cmd(args: &[&str]) {
-    run_cmd("git", args);
+    run_cmd("git", args, None, None);
 }
 
 fn run_libra_cmd(args: &[&str]) {
-    run_cmd(LIBRA.to_str().unwrap(), args);
+    run_cmd(LIBRA.to_str().unwrap(), args, None, None);
+}
+
+fn run_libra_cmd_with_stdin(args: &[&str], stdin: Option<&str>, envs: Option<Vec<(&str, &str)>>) {
+    run_cmd(LIBRA.to_str().unwrap(), args, stdin, envs);
 }
 
 fn is_port_in_use(port: u16) -> bool {
@@ -185,7 +180,9 @@ fn libra_lfs_push(url: &str) -> io::Result<()> {
     // try lock API
     run_libra_cmd(&["lfs", "lock", "large_file.bin"]);
     // push to mega server
-    run_libra_cmd(&["push", "mega", "master"]);
+    run_libra_cmd_with_stdin(&["push", "mega", "master"],
+                             Some("mega\nmega"), // basic auth
+                             Some(vec![("LIBRA_NO_HIDE_PASSWORD", "1")]));
 
     Ok(())
 }
@@ -242,6 +239,7 @@ fn lfs_split_with_libra() {
     }
 
     let mega_dir = TempDir::new().unwrap();
+    env::set_var("MEGA_authentication__enable_http_auth", "true");
     // start mega server at background (new process)
     let mut mega = run_mega_server(mega_dir.path());
 
@@ -249,6 +247,7 @@ fn lfs_split_with_libra() {
     libra_lfs_push(url).expect("(libra)Failed to push large file to mega server");
     libra_lfs_clone(url).expect("(libra)Failed to clone large file from mega server");
 
+    env::set_var("MEGA_authentication__enable_http_auth", "false"); // avoid affecting other tests
     mega.kill().expect("Failed to kill mega server");
     thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
 }
