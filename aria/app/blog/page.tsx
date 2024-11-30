@@ -6,12 +6,12 @@ import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "AriaDocs - Blog",
+  title: "Mega - Blog",
 };
 
 export default async function BlogIndexPage() {
   const blogs = (await getAllBlogs()).sort(
-    (a, b) => stringToDate(b.date).getTime() - stringToDate(a.date).getTime()
+    (a, b) => stringToDate(b.date).getTime() - stringToDate(a.date).getTime(),
   );
   return (
     <div className="w-full mx-auto flex flex-col gap-1 sm:min-h-[91vh] min-h-[88vh] pt-2">
@@ -37,7 +37,6 @@ function BlogCard({
   title,
   description,
   slug,
-  cover,
   authors,
 }: BlogMdxFrontmatter & { slug: string }) {
   return (
@@ -48,7 +47,7 @@ function BlogCard({
       <h3 className="text-md font-semibold -mt-1 pr-7">{title}</h3>
       <div className="w-full">
         <Image
-          src={cover}
+          src={`/contents/blogs/${slug}/cover.jpeg`}
           alt={title}
           width={400}
           height={150}
