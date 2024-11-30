@@ -21,7 +21,6 @@ use crate::internal::branch::Branch;
 use crate::internal::head::Head;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils;
-use crate::utils::client_storage::ClientStorage;
 use crate::utils::object_ext::BlobExt;
 use crate::utils::util;
 use mercury::internal::object::blob::Blob;
@@ -159,10 +158,13 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
     }
 
     if possible_branches.is_empty() {
-        let storage = ClientStorage::init(utils::path::objects());
+        let storage = util::objects_storage();
         let possible_commits = storage.search(branch_or_commit);
-        if possible_commits.len() > 1 || possible_commits.is_empty() {
-            return Err("Ambiguous commit hash".into());
+        if possible_commits.len() > 1 {
+            return Err(format!("Ambiguous commit hash '{}'", branch_or_commit).into());
+        }
+        if possible_commits.is_empty() {
+            return Err(format!("No such branch or commit: '{}'", branch_or_commit).into());
         }
         Ok(possible_commits[0])
     } else {
