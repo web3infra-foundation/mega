@@ -7,12 +7,13 @@ import { notFound } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDate } from "@/lib/utils";
 import Image from "next/image";
+import type { Metadata } from 'next';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export async function generateMetadata(props: PageProps) {
+export async function generateMetadata(props: PageProps): Promise<Metadata | null> {
   const params = await props.params;
 
   const {
@@ -69,7 +70,7 @@ export default async function BlogPage(props: PageProps) {
       <div className="!w-full">
         <div className="w-full mb-7">
           <Image
-            src={res.frontmatter.cover}
+            src={`/contents/blogs/${slug}/cover.jpeg`}
             alt="cover"
             width={700}
             height={400}
