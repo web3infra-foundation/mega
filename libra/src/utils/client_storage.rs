@@ -200,7 +200,7 @@ impl ClientStorage {
         Path::exists(&path)
     }
 }
-
+const FANOUT: u64 = 256 * 4;
 // TODO refactor to `PackReader`
 impl ClientStorage {
     /// List all .pack files in `pack` directory
@@ -258,8 +258,9 @@ impl ClientStorage {
 
     /// List all objects hash in .idx file
     fn list_idx_objects(idx_file: &Path) -> Result<Vec<SHA1>, io::Error> {
-        let fanout: [u32; 256] = Self::read_idx_fanout(idx_file)?;
+        let fanout: [u32; 256] = Self::read_idx_fanout(idx_file)?; // TODO param change to `&mut File`, to auto seek
         let mut idx_file = fs::File::open(idx_file)?;
+        idx_file.seek(io::SeekFrom::Start(FANOUT))?; // important!
 
         let mut objs = Vec::new();
         for _ in 0..fanout[255] {
@@ -284,8 +285,7 @@ impl ClientStorage {
         };
         let end = fanout[first_byte as usize] as usize;
 
-        const FANOUT: usize = 256 * 4;
-        idx_file.seek(io::SeekFrom::Start((FANOUT + 24 * start) as u64))?;
+        idx_file.seek(io::SeekFrom::Start(FANOUT + 24 * start as u64))?;
         for _ in start..end {
             let offset = idx_file.read_u32::<BigEndian>()?;
             let hash = read_sha1(&mut idx_file)?;

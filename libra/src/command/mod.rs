@@ -21,7 +21,6 @@ use crate::internal::branch::Branch;
 use crate::internal::head::Head;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::utils;
-use crate::utils::client_storage::ClientStorage;
 use crate::utils::object_ext::BlobExt;
 use crate::utils::util;
 use mercury::internal::object::blob::Blob;
@@ -120,10 +119,10 @@ pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
     };
     match gpg_sig {
         Some(gpg) => {
-            // skip the leading '\n\n' (blank line)
-            let msg = msg_gpg[gpg_end.unwrap()..].to_string();
-            assert!(msg.starts_with("\n\n"), "commit message format error");
-            let msg = msg[2..].to_string();
+            // Skip the leading '\n\n' (blank lines).
+            // Some commit messages may use '\n \n\n' or similar patterns.
+            // To handle such cases, remove all leading blank lines from the message.
+            let msg = msg_gpg[gpg_end.unwrap()..].trim_start().to_string();
             (msg, Some(gpg))
         }
         None => {
@@ -151,7 +150,7 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
     if branch_or_commit == HEAD {
         return Ok(Head::current_commit().await.unwrap());
     }
-    
+
     let possible_branches = Branch::search_branch(branch_or_commit).await;
     if possible_branches.len() > 1 {
         return Err("Ambiguous branch name".into());
@@ -159,12 +158,13 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
     }
 
     if possible_branches.is_empty() {
-        let storage = ClientStorage::init(utils::path::objects());
+        let storage = util::objects_storage();
         let possible_commits = storage.search(branch_or_commit);
-        if possible_commits.len() > 1 || possible_commits.is_empty() {
-            return Err(
-                "Ambiguous commit hash".into(),
-            );
+        if possible_commits.len() > 1 {
+            return Err(format!("Ambiguous commit hash '{}'", branch_or_commit).into());
+        }
+        if possible_commits.is_empty() {
+            return Err(format!("No such branch or commit: '{}'", branch_or_commit).into());
         }
         Ok(possible_commits[0])
     } else {
@@ -188,16 +188,28 @@ mod test {
 
     #[test]
     fn test_format_and_parse_commit_msg() {
-        let msg = "commit message";
-        let gpg_sig = "gpgsig -----BEGIN PGP SIGNATURE-----\ncontent\n-----END PGP SIGNATURE-----";
-        let msg_gpg = format_commit_msg(msg, Some(gpg_sig));
-        let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
-        assert_eq!(msg, msg_);
-        assert_eq!(gpg_sig, gpg_sig_.unwrap());
+        {
+            let msg = "commit message";
+            let gpg_sig =
+                "gpgsig -----BEGIN PGP SIGNATURE-----\ncontent\n-----END PGP SIGNATURE-----";
+            let msg_gpg = format_commit_msg(msg, Some(gpg_sig));
+            let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
+            assert_eq!(msg, msg_);
+            assert_eq!(gpg_sig, gpg_sig_.unwrap());
 
-        let msg_gpg = format_commit_msg(msg, None);
-        let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
-        assert_eq!(msg, msg_);
-        assert_eq!(None, gpg_sig_);
+            let msg_gpg = format_commit_msg(msg, None);
+            let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
+            assert_eq!(msg, msg_);
+            assert_eq!(None, gpg_sig_);
+        }
+
+        {
+            let msg = "commit message";
+            let gpg_sig =
+                "gpgsig -----BEGIN PGP SIGNATURE-----\ncontent\n-----END PGP SIGNATURE-----\n \n \n";
+            let msg_gpg = format_commit_msg(msg, Some(gpg_sig));
+            let (msg_, _) = parse_commit_msg(&msg_gpg);
+            assert_eq!(msg, msg_);
+        }
     }
 }
