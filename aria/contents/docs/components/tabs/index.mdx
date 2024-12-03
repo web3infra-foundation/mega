@@ -1,0 +1,68 @@
+---
+title: Tabs
+description: This section previews the Tabs component.
+---
+
+The `Tabs` component allows you to organize content into multiple sections, enabling users to switch between them easily. This is particularly useful for displaying related content in a compact manner.
+
+## Preview
+
+<Tabs defaultValue="java" className="pt-5 pb-1">
+  <TabsList>
+    <TabsTrigger value="java">Java</TabsTrigger>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+  </TabsList>
+  <TabsContent value="java">
+    ```java
+    // HelloWorld.java
+    public class HelloWorld {
+        public static void main(String[] args) {
+            System.out.println("Hello, World!");
+        }
+    }
+    ```
+  </TabsContent>
+  <TabsContent value="typescript">
+    ```typescript
+    // helloWorld.ts
+    function helloWorld(): void {
+        console.log("Hello, World!");
+    }
+    helloWorld();
+    ```
+  </TabsContent>
+</Tabs>
+
+## Props
+
+| Prop        | Type   | Default     | Description                                      |
+|-------------|--------|-------------|--------------------------------------------------|
+| `defaultValue` | `string` | `null` | The value of the tab that is selected by default. |
+| `className` | `string` | `""` | Additional CSS classes for styling the Tabs component. |
+
+## Code
+
+```jsx
+<Tabs defaultValue="java" className="pt-5 pb-1">
+  <TabsList>
+    <TabsTrigger value="java">Java</TabsTrigger>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+  </TabsList>
+  <TabsContent value="java">
+    ```java
+    // HelloWorld.java
+    public class HelloWorld {
+        public static void main(String[] args) {
+            System.out.println("Hello, World!");
+        }
+    }
+    ```</TabsContent>
+  <TabsContent value="typescript">
+    ```typescript
+    // helloWorld.ts
+    function helloWorld(): void {
+        console.log("Hello, World!");
+    }
+    helloWorld();
+    ```</TabsContent>
+</Tabs>
