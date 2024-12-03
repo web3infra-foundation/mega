@@ -16,7 +16,7 @@ use std::str::FromStr;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
 
-use super::parse_commit_msg;
+use common::utils::parse_commit_msg;
 #[derive(Parser, Debug)]
 pub struct LogArgs {
     /// Limit the number of output

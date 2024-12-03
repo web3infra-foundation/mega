@@ -6,14 +6,15 @@ use crate::internal::head::Head;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::util;
-use mercury::internal::index::Index;
 use clap::Parser;
+use common::utils::format_commit_msg;
 use mercury::hash::SHA1;
+use mercury::internal::index::Index;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
 
-use super::{format_commit_msg, save_object};
+use super::save_object;
 
 #[derive(Parser, Debug)]
 pub struct CommitArgs {
@@ -39,7 +40,11 @@ pub async fn execute(args: CommitArgs) {
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids().await;
     // There must be a `blank line`(\n) before `message`, or remote unpack failed
-    let commit = Commit::from_tree_id(tree.id, parents_commit_ids, &format_commit_msg(&args.message, None));
+    let commit = Commit::from_tree_id(
+        tree.id,
+        parents_commit_ids,
+        &format_commit_msg(&args.message, None),
+    );
 
     // TODO  default signature created in `from_tree_id`, wait `git config` to set correct user info
 
@@ -219,7 +224,7 @@ mod test {
             let branch = Branch::find_branch(&branch_name, None).await.unwrap();
             assert_eq!(branch.commit, commit.id);
         }
-        
+
         // create a new commit
         {
             // create `a.txt` `bb/b.txt` `bb/c.txt`
