@@ -36,20 +36,19 @@ For now, the entire open source community base on Git and GitHub. It's centraliz
 
 For now, the monorepo engine could be deployed on your host machine or insulated into containers. For deploying through docker, follow the steps below:
 
-1. Clone the project and build the docker images
+1. Pull docker images from Docker Hub
 
 ```bash
-$ git clone https://github.com/web3infra-foundation/mega.git
-$ cd mega
-$ git submodule update --init --recursive
-$ docker buildx build -t mono-pg:0.1-pre-release -f ./docker/mono-pg-dockerfile .
-$ docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-dockerfile .
-$ docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
+$ docker pull genedna/mega:mono-pg-0.1-pre-release
+$ docker pull genedna/mega:mono-engine:0.1-pre-release
+$ docker pull genedna/mega:mono-ui:0.1-pre-release
 ```
 
 2. Initialize for mono-engine and PostgreSQL
 
 ```bash
+$ git clone https://github.com/web3infra-foundation/mega.git
+$ cd mega
 # Linux or MacOS
 $ ./docker/init-volume.sh /mnt/data ./docker/config.toml
 ```
