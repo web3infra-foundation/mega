@@ -1,8 +1,10 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::{env, fs};
 
 use axum::async_trait;
+use tokio::process::Command;
 
 use callisto::db_enums::ConvType;
 use callisto::{mega_blob, mega_tree, raw_blob};
@@ -353,6 +355,81 @@ impl MonoApiService {
             .await
             .unwrap();
         Ok(p_commit_id)
+    }
+
+    pub async fn content_diff(&self, mr_link: &str) -> Result<String, GitError> {
+        let stg = self.context.mr_stg();
+        if let Some(mr) = stg.get_mr(mr_link).await.unwrap() {
+            let base_path = self.context.config.base_dir.clone();
+            env::set_current_dir(&base_path).unwrap();
+            let clone_path = base_path.join(mr_link);
+            if fs::exists(&clone_path).unwrap() {
+                fs::remove_dir_all(&clone_path).unwrap();
+            }
+            Command::new("mkdir")
+                .arg(mr_link)
+                .output()
+                .await
+                .expect("Failed to mkdir");
+            // cd QB0X1X1K
+            env::set_current_dir(&clone_path).unwrap();
+            // libra init
+            Command::new("libra")
+                .arg("init")
+                .output()
+                .await
+                .expect("Failed to execute libra init");
+            // libra remote add origin http://localhost:8000/project
+            Command::new("libra")
+                .arg("remote")
+                .arg("add")
+                .arg("origin")
+                .arg(format!("http://localhost:8000{}", mr.path))
+                .output()
+                .await
+                .expect("Failed to execute libra remote add");
+            // libra fetch origin QB0X1X1K
+            Command::new("libra")
+                .arg("fetch")
+                .arg("origin")
+                .arg(mr_link)
+                .output()
+                .await
+                .expect("Failed to execute libra fetch");
+            // libra branch QB0X1X1K origin/QB0X1X1K
+            Command::new("libra")
+                .arg("branch")
+                .arg(mr_link)
+                .arg(format!("origin/{}", mr_link))
+                .output()
+                .await
+                .expect("Failed to execute libra branch");
+            // libra switch QB0X1X1K
+            Command::new("libra")
+                .arg("switch")
+                .arg(mr_link)
+                .output()
+                .await
+                .expect("Failed to execute libra switch");
+            // libra diff --old 14899d8b9c36334a640c2e17255a546b0b9df105
+            let output = Command::new("libra")
+                .arg("diff")
+                .arg("--old")
+                .arg(mr.from_hash)
+                .output()
+                .await
+                .expect("Failed to execute libra diff");
+            if output.status.success() {
+                tracing::info!("{}", String::from_utf8_lossy(&output.stdout).to_string());
+                return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+            } else {
+                tracing::error!(
+                    "Command failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        }
+        Ok(String::new())
     }
 }
 

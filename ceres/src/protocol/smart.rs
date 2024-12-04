@@ -81,7 +81,7 @@ impl SmartProtocol {
             ref_list.push(pkt_line);
         }
         let pkt_line_stream = self.build_smart_reply(&ref_list, service_type.to_string());
-        tracing::debug!("git_info_refs response: {:?}", pkt_line_stream);
+        tracing::debug!("git_info_refs, return: --------> {:?}", pkt_line_stream);
         Ok(pkt_line_stream)
     }
 
@@ -142,7 +142,7 @@ impl SmartProtocol {
         let mut protocol_buf = BytesMut::new();
 
         if have.is_empty() {
-            pack_data = pack_handler.full_pack().await.unwrap();
+            pack_data = pack_handler.full_pack(want.clone()).await.unwrap();
             add_pkt_line_string(&mut protocol_buf, String::from("NAK\n"));
         } else {
             if self.capabilities.contains(&Capability::MultiAckDetailed) {
@@ -234,22 +234,29 @@ impl SmartProtocol {
         for command in &mut self.command_list {
             if command.ref_type == RefType::Tag {
                 // just update if refs type is tag
-                pack_handler.update_refs(command).await.unwrap();
+                pack_handler.update_refs(None, None, command).await.unwrap();
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
                 // b.The reference being pushed could be a non-fast-forward reference and the update hooks or configuration could be set to not allow that, etc.
                 // c.Also, some references can be updated while others can be rejected.
                 match unpack_result {
-                    Ok(ref title) => {
-                        if let Err(e) = pack_handler.handle_mr(title).await {
-                            command.failed(e.to_string());
+                    Ok(ref commit) => {
+                        if let Some(c) = commit {
+                            let mr_title = c.format_message();
+                            if let Ok(mr_link) = pack_handler.handle_mr(&mr_title).await {
+                                if !default_exist {
+                                    command.default_branch = true;
+                                    default_exist = true;
+                                }
+                                pack_handler
+                                    .update_refs(Some(mr_link), Some(c.clone()), command)
+                                    .await
+                                    .unwrap();
+                            } else if let Err(e) = pack_handler.handle_mr(&mr_title).await {
+                                command.failed(e.to_string());
+                            }
                         }
-                        if !default_exist {
-                            command.default_branch = true;
-                            default_exist = true;
-                        }
-                        pack_handler.update_refs(command).await.unwrap();
                     }
                     Err(ref err) => {
                         command.failed(err.to_string());

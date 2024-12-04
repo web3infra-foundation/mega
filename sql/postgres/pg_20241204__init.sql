@@ -80,11 +80,12 @@ CREATE INDEX "idx_issue" ON "mega_issue" ("link");
 CREATE TABLE IF NOT EXISTS "mega_refs" (
   "id" BIGINT PRIMARY KEY,
   "path" TEXT NOT NULL,
+  "ref_name" TEXT NOT NULL,
   "ref_commit_hash" VARCHAR(40) NOT NULL,
   "ref_tree_hash" VARCHAR(40) NOT NULL,
   "created_at" TIMESTAMP NOT NULL,
   "updated_at" TIMESTAMP NOT NULL,
-  CONSTRAINT uniq_mref_path UNIQUE (path)
+  CONSTRAINT uniq_mref_path UNIQUE (path, ref_name)
 );
 CREATE TABLE IF NOT EXISTS "import_refs" (
   "id" BIGINT PRIMARY KEY,

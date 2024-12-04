@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use callisto::{db_enums::RefType, import_refs};
-use common::utils::{generate_id, ZERO_ID};
+use callisto::{db_enums::RefType, import_refs, mega_refs};
+use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
 
 ///
 /// Represent the references(all branches and tags) in protocol transfer
@@ -21,6 +21,18 @@ impl From<import_refs::Model> for Refs {
             ref_name: value.ref_name,
             ref_hash: value.ref_git_id,
             default_branch: value.default_branch,
+        }
+    }
+}
+
+
+impl From<mega_refs::Model> for Refs {
+    fn from(value: mega_refs::Model) -> Self {
+        Self {
+            id: value.id,
+            ref_name: value.ref_name.clone(),
+            ref_hash: value.ref_commit_hash,
+            default_branch: value.ref_name == MEGA_BRANCH_NAME,
         }
     }
 }
@@ -106,6 +118,20 @@ impl From<RefCommand> for import_refs::Model {
             ref_git_id: value.new_id,
             ref_type: value.ref_type,
             default_branch: value.default_branch,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+}
+
+impl From<RefCommand> for mega_refs::Model {
+    fn from(value: RefCommand) -> Self {
+        mega_refs::Model {
+            id: generate_id(),
+            path: String::new(),
+            ref_name: value.ref_name,
+            ref_commit_hash: value.new_id,
+            ref_tree_hash: String::new(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         }

@@ -2,14 +2,13 @@ use std::sync::{Arc, Mutex};
 
 use futures::{stream, StreamExt};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    QuerySelect,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, QueryOrder, QuerySelect
 };
 
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
 use common::config::MonoConfig;
 use common::errors::MegaError;
-use common::utils::generate_id;
+use common::utils::{generate_id, MEGA_BRANCH_NAME};
 use mercury::internal::object::MegaObjectModel;
 use mercury::internal::{object::commit::Commit, pack::entry::Entry};
 
@@ -48,12 +47,14 @@ impl MonoStorage {
     pub async fn save_ref(
         &self,
         path: &str,
+        ref_name: Option<String>,
         ref_commit_hash: &str,
         ref_tree_hash: &str,
     ) -> Result<(), MegaError> {
         let model = mega_refs::Model {
             id: generate_id(),
             path: path.to_owned(),
+            ref_name: ref_name.unwrap_or(MEGA_BRANCH_NAME.to_owned()),
             ref_commit_hash: ref_commit_hash.to_owned(),
             ref_tree_hash: ref_tree_hash.to_owned(),
             created_at: chrono::Utc::now().naive_utc(),
@@ -82,12 +83,46 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn get_ref(&self, path: &str) -> Result<Option<mega_refs::Model>, MegaError> {
+    pub async fn get_refs(&self, path: &str) -> Result<Vec<mega_refs::Model>, MegaError> {
         let result = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
+            .order_by_asc(mega_refs::Column::RefName)
+            .all(self.get_connection())
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn get_ref(
+        &self,
+        path: &str,
+    ) -> Result<Option<mega_refs::Model>, MegaError> {
+        let result = mega_refs::Entity::find()
+            .filter(mega_refs::Column::Path.eq(path))
+            .filter(mega_refs::Column::RefName.eq(MEGA_BRANCH_NAME.to_owned()))
             .one(self.get_connection())
             .await?;
         Ok(result)
+    }
+
+    pub async fn get_ref_by_commit(
+        &self,
+        path: &str,
+        commit: &str,
+    ) -> Result<Option<mega_refs::Model>, MegaError> {
+        let result = mega_refs::Entity::find()
+            .filter(mega_refs::Column::Path.eq(path))
+            .filter(mega_refs::Column::RefCommitHash.eq(commit))
+            .one(self.get_connection())
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn get_mr_ref(&self, ref_name: &str) -> Result<Option<mega_refs::Model>, MegaError> {
+        let res = mega_refs::Entity::find()
+            .filter(mega_refs::Column::RefName.eq(ref_name))
+            .one(self.get_connection())
+            .await?;
+        Ok(res)
     }
 
     pub async fn update_ref(&self, refs: mega_refs::Model) -> Result<(), MegaError> {
