@@ -73,14 +73,14 @@ To get started, you can clone the mega repository directly from GitHub.
     ```
   </StepperItem>
 
-  <StepperItem title="Step 5: Nginx Configuration for Mono">
+  <StepperItem title="Option: Nginx Configuration for Mono">
 
 
     ```Nginx
     server {
         listen 80;
         listen [::]:80;
-        server_name git.gitmega.org;
+        server_name git.gitmega.dev;
         return 301 https://$server_name$request_uri;
     }
 
@@ -90,8 +90,8 @@ To get started, you can clone the mega repository directly from GitHub.
 
         server_name git.gitmega.org;
 
-        ssl_certificate /etc/letsencrypt/live/git.gitmega.org/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/git.gitmega.org/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/git.gitmega.dev/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/git.gitmega.dev/privkey.pem;
 
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
@@ -121,7 +121,7 @@ To get started, you can clone the mega repository directly from GitHub.
     server {
         listen 80;
         listen [::]:80;
-        server_name console.gitmega.org;
+        server_name console.gitmega.dev;
         return 301 https://$server_name$request_uri;
     }
 
@@ -129,10 +129,10 @@ To get started, you can clone the mega repository directly from GitHub.
         listen 443 ssl;
         listen [::]:443 ssl;
 
-        server_name console.gitmega.org;
+        server_name console.gitmega.dev;
 
-        ssl_certificate /etc/letsencrypt/live/console.gitmega.org/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/console.gitmega.org/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/console.gitmega.dev/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/console.gitmega.dev/privkey.pem;
 
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
@@ -189,5 +189,5 @@ $ docker network create mono-network
 # run postgres
 $ docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
 $ docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mono-engine:0.1-pre-release
-$ docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
+$ docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://console.gitmega.dev -p 3000:3000 mono-ui:0.1-pre-release
 ```

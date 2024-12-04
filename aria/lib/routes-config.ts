@@ -21,7 +21,6 @@ export const ROUTES: EachRoute[] = [
   {
     title: "Components",
     href: "/components",
-    noLink: true,
     items: [
       { title: "Project Structure", href: "/project-structure" },
       { title: "Stepper", href: "/stepper" },
@@ -31,6 +30,59 @@ export const ROUTES: EachRoute[] = [
       { title: "Image & Link", href: "/image-link" },
       { title: "Custom", href: "/custom" },
     ],
+  },
+  {
+    title: "Libra",
+    href: "/libra",
+    items: [
+      {
+        title: "Command",
+        href: "/command",
+        items: [
+          { title: "add", href: "/add" },
+          { title: "branch", href: "/branch" },
+          { title: "clone", href: "/clone" },
+          { title: "commit", href: "/commit" },
+          { title: "config", href: "/config" },
+          { title: "diff", href: "/diff" },
+          { title: "fetch", href: "/fetch" },
+          { title: "index-pack", href: "/index-pack" },
+          { title: "init", href: "/init" },
+          { title: "lfs", href: "/lfs" },
+          { title: "log", href: "/log" },
+          { title: "merge", href: "/merge" },
+          { title: "pull", href: "/pull" },
+          { title: "push", href: "/push" },
+          { title: "rebase", href: "/rebase" },
+          { title: "remote", href: "/remote" },
+          { title: "reset", href: "/reset" },
+          { title: "restore", href: "/restore" },
+          { title: "rm", href: "/rm" },
+          { title: "status", href: "/status" },
+          { title: "switch", href: "/switch" },
+          { title: "tag", href: "/tag" },
+        ],
+      },
+      {
+        title: "Config",
+        href: "/config",
+        items: [
+          { title: ".gitattributes", href: "/gitattributes" },
+          { title: ".gitignore", href: "/gitignore" },
+          { title: "LFS", href: "/lfs" },
+        ],
+      },
+      {
+        title: "Internal",
+        href: "/internal",
+        items: [{ title: "Scheme", href: "/scheme" }],
+      },
+    ],
+  },
+  {
+    title: "Git",
+    href: "/git",
+    items: [{ title: "Pack", href: "/pack" }],
   },
 ];
 
