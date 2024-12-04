@@ -1,0 +1,95 @@
+---
+title: Project Structure
+description: This section provides an overview of Project Structure.
+---
+
+## Project Structure Overview
+
+### app
+
+This folder contains the main application code for Next.js, managing layouts, routing, and specific content pages. It is organized to support both the `docs` and `blog` sections, with dedicated pages and layouts for each section.
+
+```
+app                         // Main Next.js application folder
+├── page.tsx                // Hero page - the entry point of the app showcasing key content
+├── layout.tsx              // Main layout file, applies global navigation and footer
+├── blog
+│   ├── page.tsx            // Blog list page, displaying all blog posts with titles, dates, and excerpts
+│   └── [slug]
+│       └── page.tsx        // Dynamic blog post page for viewing individual posts with rich content
+└── docs
+    ├── layout.tsx          // Documentation layout with sidebar, providing easy navigation across doc pages
+    └── [[...slug]]         // Catch-all route to handle nested documentation pages, allowing flexible doc structure
+```
+
+### components
+
+This folder contains all reusable components used throughout the project. It’s structured to categorize components, making it easy to locate and manage UI elements, Markdown customizations, and navigation.
+
+```
+components                    // Reusable components
+├── ui                        // ShadCN components, includes standardized UI elements like buttons, forms, and modals
+├── markdown                  // Custom Markdown components for rendering rich Markdown content
+│   ├── CodeBlock.tsx         // Component for rendering syntax-highlighted code blocks
+│   ├── Image.tsx             // Component for handling responsive images in Markdown
+│   └── Table.tsx             // Component to render tables with consistent styling
+└── navbar.tsx                // Main navigation component for the site header, managing links and responsive behavior
+```
+
+### styles
+
+This folder contains global and component-specific CSS files, allowing for project-wide styling consistency and customizations.
+
+```
+styles                        // CSS files
+├── globals.css               // Global CSS file, includes Tailwind base, utilities, and custom global styles
+├── syntax.css                // Syntax highlighting styles, providing consistent code block appearance across the site
+└── overrides.css             // Additional custom styles that override specific component or plugin defaults
+```
+
+### contents
+
+This folder stores all Markdown content for the documentation and blog sections, with clear organization by content type. Each Markdown file represents a single piece of content, with frontmatter used for metadata.
+
+```
+contents                      // Markdown content for blogs and documentation
+├── docs                      // Documentation content, structured to support nested sections and pages
+│   ├── getting-started.md    // Introductory guide for new users
+│   ├── api-reference.md      // API documentation with detailed endpoint descriptions
+│   └── tutorials             // Subfolder for tutorial-style content
+│       └── tutorial-1.md     // Step-by-step tutorial on a specific topic
+└── blogs                     // Blog content, organized by post
+    ├── intro-to-project.md   // Blog post introducing the project and its goals
+    └── dev-updates.md        // Post discussing recent development updates and new features
+```
+
+### public
+
+This folder holds all static assets, such as images, videos, fonts, and icons. These files are directly accessible via URL, so it’s important to avoid sensitive or private content here.
+
+```
+public                        // Publicly accessible assets
+├── images                    // Image assets, used across various parts of the app
+│   ├── logo.png              // Project logo for branding
+│   └── banner.jpg            // Banner image for the hero section
+├── icons                     // SVG icons for the app
+└── videos                    // Video files for media content, if any
+```
+
+### lib
+
+This folder contains helper functions and utilities used across the application, such as Markdown parsing and routing logic. These utilities help keep the codebase clean and organized by separating out common functionality.
+
+```
+lib                           // Utility or helper functions
+├── markdown.ts               // Markdown parsing logic, converts Markdown to HTML and adds custom components
+├── routes-config.ts          // Routing configuration for docs, maps URLs to content files for dynamic routing
+└── utils.tsx                 // General utility functions used across the app, such as data formatting and validation helpers
+```
+
+### Additional
+
+- **`package.json`**: Contains metadata about the project, dependencies, and scripts for building and running the application.
+- **`tailwind.config.ts`**: Configures Tailwind CSS, allowing customization of theme colors, fonts, and responsive breakpoints specific to this project. 
+
+This structure organizes your project in a way that supports scalability and maintainability, making it easier to navigate and work on different sections of the application.
