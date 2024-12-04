@@ -130,13 +130,13 @@ pub async fn git_upload_pack(
         })
         .await
         .unwrap();
-    tracing::debug!("bytes from client: {:?}", upload_request);
+    tracing::debug!("Receive bytes: <-------- {:?}", upload_request);
     let (mut send_pack_data, protocol_buf) = pack_protocol
         .git_upload_pack(&mut upload_request.freeze())
         .await?;
 
     let body_stream = async_stream::stream! {
-        tracing::info!("send ack/nak message buf: {:?}", &protocol_buf);
+        tracing::info!("send ack/nak message buf: --------> {:?}", &protocol_buf);
         yield Ok::<_, Infallible>(Bytes::copy_from_slice(&protocol_buf));
         // send packdata with sideband64k
         while let Some(chunk) = send_pack_data.next().await {

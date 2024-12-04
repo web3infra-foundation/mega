@@ -19,7 +19,7 @@ use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
-use mercury::internal::pack::Pack;
+use mercury::internal::{object::commit::Commit, pack::Pack};
 use mercury::{
     errors::GitError,
     internal::{
@@ -38,7 +38,7 @@ pub mod monorepo;
 pub trait PackHandler: Send + Sync {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
-    async fn handle_receiver(&self, rx: Receiver<Entry>) -> Result<String, GitError>;
+    async fn handle_receiver(&self, rx: Receiver<Entry>) -> Result<Option<Commit>, GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
@@ -48,7 +48,7 @@ pub trait PackHandler: Send + Sync {
     /// # Returns
     /// * `Result<Vec<u8>, GitError>` - The packed binary data as a vector of bytes.
     ///
-    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError>;
+    async fn full_pack(&self, want: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError>;
 
     async fn incremental_pack(
         &self,
@@ -63,9 +63,14 @@ pub trait PackHandler: Send + Sync {
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError>;
 
-    async fn handle_mr(&self, title: &str) -> Result<(), GitError>;
+    async fn handle_mr(&self, title: &str) -> Result<String, GitError>;
 
-    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError>;
+    async fn update_refs(
+        &self,
+        mr_link: Option<String>,
+        commit: Option<Commit>,
+        refs: &RefCommand,
+    ) -> Result<(), GitError>;
 
     async fn check_commit_exist(&self, hash: &str) -> bool;
 

@@ -28,25 +28,14 @@ docker buildx build -t mega-engine:0.1-pre-release -f ./docker/mega-engine-docke
 
 ```bash
 # Linux or MacOS
-./init-volume.sh /mnt/data ./config.toml
+sudo ./docker/init-volume.sh /mnt/data ./docker/config.toml
 
 # Windows
 # Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 # .\init-volume.ps1 -baseDir "D:\" -configFile ".\config.toml"
 ```
 
-[2] Start whole mono engine stack on local for testing
-```bash
-# create network
-docker network create mono-network
-
-# run postgres
-docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mono-engine:0.1-pre-release
-docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
-```
-
-[3] Start whole mono engine stack on server with domain
+[2] Start whole mono engine stack on server with domain
 
 ```bash
 # create network
@@ -58,7 +47,7 @@ docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v 
 docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmono.com -p 3000:3000 mono-ui:0.1-pre-release
 ```
 
-[4] Nginx configuration for Mono
+[3] Nginx configuration for Mono
 
 ```Nginx
 server {

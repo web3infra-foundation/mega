@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use callisto::{mega_blob, mega_refs, mega_tree, raw_blob};
 use common::config::MonoConfig;
-use common::utils::generate_id;
+use common::utils::{generate_id, MEGA_BRANCH_NAME};
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
@@ -106,6 +106,7 @@ impl MegaModelConverter {
         let mega_ref = mega_refs::Model {
             id: generate_id(),
             path: "/".to_owned(),
+            ref_name: MEGA_BRANCH_NAME.to_owned(),
             ref_commit_hash: commit.id.to_plain_str(),
             ref_tree_hash: commit.tree_id.to_plain_str(),
             created_at: chrono::Utc::now().naive_utc(),
