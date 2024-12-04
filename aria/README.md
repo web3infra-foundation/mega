@@ -4,7 +4,7 @@ The website of GitMega fork from [AriaDocs](https://github.com/nisabmohd/Aria-Do
 
 ### Quick Start
 
-```plaintext
+```bash
 npm install --force
 npm run dev
 ```
