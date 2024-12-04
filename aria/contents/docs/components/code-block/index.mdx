@@ -1,0 +1,41 @@
+---
+title: Code Block
+description: This section previews the Code Block features in markdown.
+---
+
+The Code Block in this documentation allows you to display code snippets with optional line numbering and line highlighting.
+
+## Preview
+
+```javascript:main.js showLineNumbers {3-4}
+function isRocketAboutToCrash() {
+    // Check if the rocket is stable
+    if (!isStable()) {
+        NoCrash(); // Prevent the crash
+    }
+}
+```
+
+In this example, line numbers are displayed for lines 1 to 4. You can specify which lines to highlight using the format `{2,3-5}`.
+
+## Usage
+
+You can directly use the following syntax to create a code block with line numbers and highlight specific lines:
+
+````plaintext
+```javascript:main.js showLineNumbers {3-4}
+function isRocketAboutToCrash() {
+    // Check if the rocket is stable
+    if (!isStable()) {
+        NoCrash(); // Prevent the crash
+    }
+}
+```
+````
+
+### Features
+
+- **Line Numbers**: Enable line numbers by adding `showLineNumbers` after the opening backticks.
+- **Highlight Lines**: Specify lines to highlight using curly braces (e.g., `{2,3-5}`).
+- **Syntax Highlighting**: Use the appropriate language for syntax highlighting.
+

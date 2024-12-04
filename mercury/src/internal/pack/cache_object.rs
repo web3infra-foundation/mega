@@ -13,7 +13,7 @@ use crate::internal::pack::utils;
 use crate::{hash::SHA1, internal::object::types::ObjectType};
 use crate::internal::pack::entry::Entry;
 
-/// record heap-size of all CacheObjects, used for memory limit.
+// /// record heap-size of all CacheObjects, used for memory limit.
 // static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 /// file load&store trait
@@ -21,6 +21,7 @@ pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
     fn f_load(path: &Path) -> Result<Self, io::Error>;
     fn f_save(&self, path: &Path) -> Result<(), io::Error>;
 }
+
 // trait alias, so that impl FileLoadStore == impl Serialize + Deserialize
 impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
     fn f_load(path: &Path) -> Result<T, io::Error> {

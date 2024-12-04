@@ -1,0 +1,38 @@
+---
+title: Custom Components
+description: How to create custom components for Markdown.
+---
+
+To add custom components in AriaDocs, follow these steps:
+
+1. **Create Your Component**: First, create your custom component in the `@components/markdown` folder. For example, you might create a file named `Outlet.tsx`.
+
+2. **Import Your Component**: Next, open the `@lib/markdown.ts` file. This is where you'll register your custom component for use in Markdown.
+
+3. **Add Your Component to the Components Object**: In the `@lib/markdown.ts` file, import your custom component and add it to the `components` object. Here’s how to do it:
+
+```ts
+import Outlet from "@/components/markdown/outlet";
+
+// Add custom components
+const components = {
+  Outlet,
+};
+```
+
+4. **Using Your Custom Component in Markdown**: After registering your component, you can now use it anywhere in your Markdown content. For instance, if your `Outlet` component is designed to display additional information, you can use it as follows:
+
+### Markdown Example
+
+```markdown
+<Outlet>
+  This is some custom content rendered by the Outlet component!
+</Outlet>
+```
+
+### Rendered Output
+
+This will render the content inside the `Outlet` component, allowing you to create reusable and dynamic Markdown content.
+
+
+By following these steps, you can extend the capabilities of your Markdown documentation and create a more engaging user experience.

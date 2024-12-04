@@ -62,33 +62,78 @@ docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA
 
 ```Nginx
 server {
-    listen 443;
-    listen [::]:443;
+    listen 80;
+    listen [::]:80;
+    server_name git.gitmega.org;
+    return 301 https://$server_name$request_uri;
+}
 
-    server_name git.gitxxx.org;
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
 
-    ssl_certificate /etc/letsencrypt/live/gitxxx.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/gitxxx.org/privkey.pem;
+    server_name git.gitmega.org;
 
-    access_log /var/log/nginx/git.gitxxx.access.log;
-    error_log /var/log/nginx/git.gitxxx.error.log;
+    ssl_certificate /etc/letsencrypt/live/git.gitmega.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/git.gitmega.org/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+
+    add_header Strict-Transport-Security "max-age=63072000" always;
+
+    client_max_body_size 5G;
+
+    access_log /var/log/nginx/git.gitmega.access.log;
+    error_log /var/log/nginx/git.gitmega.error.log;
 
     location / {
         proxy_pass  http://127.0.0.1:8000;
     }
+
 }
 
 server {
-    listen 443;
-    listen [::]:443;
+    listen 80;
+    listen [::]:80;
+    server_name console.gitmega.org;
+    return 301 https://$server_name$request_uri;
+}
 
-    server_name console.gitxxx.org;
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
 
-    ssl_certificate /etc/letsencrypt/live/gitxxx.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/gitxxx.org/privkey.pem;
+    server_name console.gitmega.org;
 
-    access_log /var/log/nginx/console.gitxxx.access.log;
-    error_log /var/log/nginx/console.gitxxx.error.log;
+    ssl_certificate /etc/letsencrypt/live/console.gitmega.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/console.gitmega.org/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_session_tickets off;
+
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+
+    add_header Strict-Transport-Security "max-age=63072000" always;
+
+    access_log /var/log/nginx/console.gitmega.access.log;
+    error_log /var/log/nginx/console.gitmega.error.log;
 
     location / {
         proxy_pass  http://127.0.0.1:3000;
@@ -101,6 +146,7 @@ server {
 
         proxy_set_header Origin $scheme://$host;
     }
+
 }
 
 ```
