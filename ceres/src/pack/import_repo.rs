@@ -55,7 +55,7 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<String, GitError> {
+    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
@@ -65,25 +65,19 @@ impl PackHandler for ImportRepo {
             if entry_list.len() >= 10000 {
                 let stg_clone = storage.clone();
                 let handle = tokio::spawn(async move {
-                    stg_clone
-                        .save_entry(repo_id, entry_list)
-                        .await
-                        .unwrap();
+                    stg_clone.save_entry(repo_id, entry_list).await.unwrap();
                 });
                 join_tasks.push(handle);
                 entry_list = vec![];
             }
         }
         join_all(join_tasks).await;
-        storage
-            .save_entry(repo_id, entry_list)
-            .await
-            .unwrap();
+        storage.save_entry(repo_id, entry_list).await.unwrap();
         self.attach_to_monorepo_parent().await.unwrap();
-        Ok(String::new())
+        Ok(None)
     }
 
-    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+    async fn full_pack(&self, _: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let pack_config = &self.context.config.pack;
         let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
@@ -294,12 +288,16 @@ impl PackHandler for ImportRepo {
             .await
     }
 
-    async fn handle_mr(&self, _: &str) -> Result<(), GitError> {
-        // do nothing in import_repo
-        Ok(())
+    async fn handle_mr(&self, _: &str) -> Result<String, GitError> {
+        unreachable!()
     }
 
-    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
+    async fn update_refs(
+        &self,
+        _: Option<String>,
+        _: Option<Commit>,
+        refs: &RefCommand,
+    ) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {
             CommandType::Create => {

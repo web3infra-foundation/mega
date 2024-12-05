@@ -9,6 +9,8 @@ pub struct Model {
     pub id: i64,
     #[sea_orm(column_type = "Text", unique)]
     pub path: String,
+    #[sea_orm(column_type = "Text")]
+    pub ref_name: String,
     pub ref_commit_hash: String,
     pub ref_tree_hash: String,
     pub created_at: DateTime,

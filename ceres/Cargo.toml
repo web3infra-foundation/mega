@@ -17,7 +17,7 @@ callisto = { workspace = true }
 mercury = { workspace = true }
 
 anyhow = { workspace = true }
-tokio = { workspace = true, features = ["net"] }
+tokio = { workspace = true, features = ["net", "process"] }
 tokio-stream = { workspace = true }
 axum = { workspace = true }
 tracing = { workspace = true }
