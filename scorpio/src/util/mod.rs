@@ -10,7 +10,6 @@ pub struct GPath{
    pub path:Vec<String>
 }
 
-#[allow(unused)]
 
 impl GPath{
     pub fn new() -> GPath{
