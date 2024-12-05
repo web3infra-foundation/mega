@@ -420,7 +420,6 @@ impl MonoApiService {
                 .await
                 .expect("Failed to execute libra diff");
             if output.status.success() {
-                tracing::info!("{}", String::from_utf8_lossy(&output.stdout).to_string());
                 return Ok(String::from_utf8_lossy(&output.stdout).to_string());
             } else {
                 tracing::error!(

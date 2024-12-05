@@ -393,6 +393,7 @@ impl PackHandler for MonoRepo {
         let storage = self.context.services.mono_storage.clone();
         if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
             mr_ref.ref_commit_hash = refs.new_id.clone();
+            mr_ref.ref_tree_hash = commit.unwrap().tree_id.to_plain_str();
             storage.update_ref(mr_ref).await.unwrap();
         } else {
             storage

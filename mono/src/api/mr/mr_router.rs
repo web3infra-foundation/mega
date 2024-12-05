@@ -28,7 +28,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/mr/:link/close", post(close_mr))
         .route("/mr/:link/reopen", post(reopen_mr))
         .route("/mr/:link/files", get(get_mr_files))
-        .route("/mr/:link/files-diff", get(get_mr_files_diff))
+        .route("/mr/:link/files-changed", get(get_mr_files_changed))
         .route("/mr/:link/comment", post(save_comment))
         .route("/mr/comment/:conv_id/delete", post(delete_comment))
 }
@@ -185,7 +185,7 @@ async fn get_mr_files(
     Ok(Json(res))
 }
 
-async fn get_mr_files_diff(
+async fn get_mr_files_changed(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {

@@ -245,10 +245,6 @@ impl SmartProtocol {
                         if let Some(c) = commit {
                             let mr_title = c.format_message();
                             if let Ok(mr_link) = pack_handler.handle_mr(&mr_title).await {
-                                if !default_exist {
-                                    command.default_branch = true;
-                                    default_exist = true;
-                                }
                                 pack_handler
                                     .update_refs(Some(mr_link), Some(c.clone()), command)
                                     .await
@@ -256,6 +252,12 @@ impl SmartProtocol {
                             } else if let Err(e) = pack_handler.handle_mr(&mr_title).await {
                                 command.failed(e.to_string());
                             }
+                        } else {
+                            if !default_exist {
+                                command.default_branch = true;
+                                default_exist = true;
+                            }
+                            pack_handler.update_refs(None, None, command).await.unwrap();
                         }
                     }
                     Err(ref err) => {
