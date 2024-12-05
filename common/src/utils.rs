@@ -40,3 +40,7 @@ pub fn generate_rich_text(content: &str) -> String {
     }
     serde_json::to_string_pretty(&data).expect("Failed to serialize JSON")
 }
+
+pub fn mr_ref_name(mr_link: &str) -> String {
+    format!("refs/heads/{}", mr_link)
+}

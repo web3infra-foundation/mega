@@ -78,11 +78,12 @@ CREATE TABLE IF NOT EXISTS "mega_issue" (
 CREATE TABLE IF NOT EXISTS "mega_refs" (
   "id" INTEGER PRIMARY KEY,
   "path" TEXT NOT NULL,
+  "ref_name" TEXT NOT NULL,
   "ref_commit_hash" TEXT NOT NULL,
   "ref_tree_hash" TEXT NOT NULL,
   "created_at" TEXT NOT NULL,
   "updated_at" TEXT NOT NULL,
-  CONSTRAINT uniq_mref_path UNIQUE (path)
+  CONSTRAINT uniq_mref_path UNIQUE (path, ref_name)
 );
 CREATE TABLE IF NOT EXISTS "import_refs" (
   "id" INTEGER PRIMARY KEY,
