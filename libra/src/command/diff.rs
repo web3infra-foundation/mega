@@ -126,13 +126,7 @@ pub async fn execute(args: DiffArgs) {
     };
 
     // use pathspec to filter files
-    let paths: Vec<PathBuf> = args
-        .pathspec
-        .iter()
-        .map(|s| {
-            util::to_workdir_path(s)
-        })
-        .collect();
+    let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
     let mut buf: Vec<u8> = Vec::new();
     // filter files, cross old and new files, and pathspec
@@ -178,10 +172,10 @@ pub async fn diff(
     let read_content = |file: &PathBuf, hash: &SHA1| {
         // read content from blob or file
         match load_object::<Blob>(hash) {
-            Ok(blob) => String::from_utf8(blob.data).unwrap(),
+            Ok(blob) => blob.data,
             Err(_) => {
                 let file = util::workdir_to_absolute(file);
-                std::fs::read_to_string(&file)
+                std::fs::read(&file)
                     .map_err(|e| {
                         eprintln!("fatal: could not read file '{}': {}", file.display(), e);
                     })
@@ -203,13 +197,13 @@ pub async fn diff(
             continue;
         }
 
-        let old_content = match &old_hash.as_ref() {
+        let old_content = match old_hash.as_ref() {
             Some(hash) => read_content(&file, hash),
-            None => String::new(),
+            None => Vec::new(),
         };
-        let new_content = match &new_hash.as_ref() {
+        let new_content = match new_hash.as_ref() {
             Some(hash) => read_content(&file, hash),
-            None => String::new(),
+            None => Vec::new(),
         };
 
         writeln!(
@@ -234,8 +228,25 @@ pub async fn diff(
         });
         writeln!(w, "index {}..{}", old_index, new_index).unwrap();
 
-        // diff_result(&old_content, &new_content, w);
-        imara_diff_result(&old_content, &new_content, w);
+        // check is the content is valid utf-8 or maybe binary
+        match (
+            String::from_utf8(old_content),
+            String::from_utf8(new_content),
+        ) {
+            (Ok(old_text), Ok(new_text)) => {
+                imara_diff_result(&old_text, &new_text, w);
+            }
+            _ => {
+                // TODO: Handle non-UTF-8 data as binary for now; consider optimization in the future.
+                writeln!(
+                    w,
+                    "Binary files a/{} and b/{} differ",
+                    file.display(),
+                    file.display()
+                )
+                .unwrap();
+            }
+        }
     }
 }
 
