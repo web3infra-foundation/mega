@@ -7,7 +7,7 @@ use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::util;
 use clap::Parser;
-use common::utils::format_commit_msg;
+use common::utils::{check_conventional_commits_message, format_commit_msg};
 use mercury::hash::SHA1;
 use mercury::internal::index::Index;
 use mercury::internal::object::commit::Commit;
@@ -23,6 +23,9 @@ pub struct CommitArgs {
 
     #[arg(long)]
     pub allow_empty: bool,
+
+    #[arg(long, requires("message"))]
+    pub conventional: bool,
 }
 
 pub async fn execute(args: CommitArgs) {
@@ -31,7 +34,12 @@ pub async fn execute(args: CommitArgs) {
     let storage = ClientStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
-        panic!("fatal: no changes added to commit, use --allow-empty to override");
+        println!("fatal: no changes added to commit, use --allow-empty to override");
+        return;
+    }
+    if args.conventional && !check_conventional_commits_message(&args.message) {
+        println!("fatal: commit message does not follow conventional commits");
+        return;
     }
 
     /* Create tree */
@@ -166,6 +174,23 @@ mod test {
     };
 
     use super::*;
+    #[test]
+    fn test_parse_args() {
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init"]);
+        assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init", "--allow-empty"]);
+        assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "--conventional", "-m", "init"]);
+        assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "--conventional"]);
+        assert!(args.is_err(), "conventional should require message");
+
+        let args = CommitArgs::try_parse_from(["commit"]);
+        assert!(args.is_err(), "message is required");
+    }
 
     #[tokio::test]
     async fn test_create_tree() {
@@ -196,6 +221,7 @@ mod test {
         let args = CommitArgs {
             message: "init".to_string(),
             allow_empty: false,
+            conventional: false,
         };
         execute(args).await;
     }
@@ -208,6 +234,7 @@ mod test {
             let args = CommitArgs {
                 message: "init".to_string(),
                 allow_empty: true,
+                conventional: false,
             };
             execute(args).await;
 
@@ -244,6 +271,7 @@ mod test {
             let args = CommitArgs {
                 message: "add some files".to_string(),
                 allow_empty: false,
+                conventional: false,
             };
             execute(args).await;
 
