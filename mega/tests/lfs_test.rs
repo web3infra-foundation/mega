@@ -229,6 +229,7 @@ fn lfs_split_with_git() {
     git_lfs_clone(url).expect("Failed to clone large file from mega server");
 
     mega.kill().expect("Failed to kill mega server");
+    let _ = mega.wait();
     thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
 }
 
@@ -253,5 +254,6 @@ fn lfs_split_with_libra() {
 
     env::set_var("MEGA_authentication__enable_http_auth", "false"); // avoid affecting other tests
     mega.kill().expect("Failed to kill mega server");
+    let _ = mega.wait();
     thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
 }
