@@ -234,6 +234,7 @@ mod tests {
         let commit_args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(commit_args).await;
         let first_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -241,6 +242,7 @@ mod tests {
         let commit_args = CommitArgs {
             message: "second".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(commit_args).await;
         let second_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -318,6 +320,7 @@ mod tests {
         let args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(args).await;
         let hash = Head::current_commit().await.unwrap();
@@ -349,6 +352,7 @@ mod tests {
         let args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(args).await;
 
