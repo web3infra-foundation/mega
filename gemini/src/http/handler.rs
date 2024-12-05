@@ -80,7 +80,7 @@ pub fn get_peer_id_from_identifier(identifier: String) -> Result<String, String>
     if words.len() <= 2 {
         return Err("invalid identifier".to_string());
     }
-    return Ok(words.get(2).unwrap().to_string());
+    Ok(words.get(2).unwrap().to_string())
 }
 
 pub fn get_alias_from_identifier(identifier: String) -> Result<String, String> {
@@ -89,7 +89,7 @@ pub fn get_alias_from_identifier(identifier: String) -> Result<String, String> {
     if words.len() <= 3 {
         return Err("invalid identifier".to_string());
     }
-    return Ok(words.get(3).unwrap().to_string());
+    Ok(words.get(3).unwrap().to_string())
 }
 
 pub async fn get_git_path_by_alias(

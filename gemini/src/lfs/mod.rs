@@ -175,7 +175,7 @@ pub fn get_file_hash_from_origin(origin: String) -> Result<String, String> {
     if words.len() <= 4 {
         return Err("invalid origin".to_string());
     }
-    return Ok(words.get(4).unwrap().to_string());
+    Ok(words.get(4).unwrap().to_string())
 }
 
 #[cfg(test)]
