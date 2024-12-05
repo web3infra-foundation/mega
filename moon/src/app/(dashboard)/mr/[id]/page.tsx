@@ -7,6 +7,8 @@ import RichEditor from "@/components/rich-editor/RichEditor";
 import MRComment from "@/components/MRComment";
 import * as React from 'react'
 import { useRouter } from "next/navigation";
+import * as Diff2Html from 'diff2html';
+import 'diff2html/bundles/css/diff2html.min.css';
 
 interface MRDetail {
     status: string,
@@ -38,6 +40,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
     const [filedata, setFileData] = useState([]);
     const [loadings, setLoadings] = useState<boolean[]>([]);
     const router = useRouter();
+    const [outputHtml, setOutputHtml] = useState("");
 
     const checkLogin = async () => {
         const res = await fetch(`/api/auth`);
@@ -61,10 +64,17 @@ export default function MRDetailPage({ params }: { params: Params }) {
         }
     }, [id]);
 
+    const get_diff_content = useCallback(async () => {
+        const detail = await fetch(`/api/mr/${id}/files-changed`);
+        const res = await detail.json();
+        setOutputHtml(Diff2Html.html(res.data.data, { drawFileList: true, matching: 'lines' }));
+    }, [])
+
     useEffect(() => {
         fetchDetail()
         fetchFileList();
         checkLogin();
+        get_diff_content()
     }, [id, fetchDetail, fetchFileList]);
 
     const set_to_loading = (index: number) => {
@@ -178,7 +188,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
             key: '2',
             label: 'Files Changed',
             children: <Space style={{ width: '100%' }}>
-                <List
+                {/* <List
                     header={<div>Change File List</div>}
                     bordered
                     dataSource={filedata}
@@ -188,6 +198,10 @@ export default function MRDetailPage({ params }: { params: Params }) {
                             {item}
                         </List.Item>
                     )}
+                /> */}
+                <div
+                    dangerouslySetInnerHTML={{ __html: outputHtml }}
+                    style={{ fontFamily: 'monospace' }}
                 />
             </Space>
         }
