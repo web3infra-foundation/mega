@@ -68,13 +68,12 @@ export default function MRDetailPage({ params }: { params: Params }) {
         const detail = await fetch(`/api/mr/${id}/files-changed`);
         const res = await detail.json();
         setOutputHtml(Diff2Html.html(res.data.data, { drawFileList: true, matching: 'lines' }));
-    }, [])
+    }, [id])
 
     useEffect(() => {
         fetchDetail()
         fetchFileList();
         checkLogin();
-        get_diff_content()
     }, [id, fetchDetail, fetchFileList]);
 
     const set_to_loading = (index: number) => {
@@ -164,6 +163,13 @@ export default function MRDetailPage({ params }: { params: Params }) {
         return element
     });
 
+    const onTabsChange = (key: string) => {
+        console.log(key);
+        if (key === '2') {
+            get_diff_content()
+        }
+    };
+
     const tab_items: TabsProps['items'] = [
         {
             key: '1',
@@ -218,7 +224,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
                     Merge MR
                 </Button>
             }
-            <Tabs defaultActiveKey="1" items={tab_items} />
+            <Tabs defaultActiveKey="1" items={tab_items} onChange={onTabsChange} />
         </Card>
     )
 }

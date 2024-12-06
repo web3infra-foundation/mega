@@ -97,7 +97,7 @@ impl ApiHandler for MonoApiService {
         let commit = Commit::from_tree_id(
             p_tree.id,
             vec![SHA1::from_str(&refs.ref_commit_hash).unwrap()],
-            &format!("create file {} commit", file_info.name),
+            &format!("\ncreate file {} commit", file_info.name),
         );
 
         // Update the parent tree with the new commit
@@ -363,55 +363,57 @@ impl MonoApiService {
             let base_path = self.context.config.base_dir.clone();
             env::set_current_dir(&base_path).unwrap();
             let clone_path = base_path.join(mr_link);
-            if fs::exists(&clone_path).unwrap() {
-                fs::remove_dir_all(&clone_path).unwrap();
+            if !fs::exists(&clone_path).unwrap() {
+                // fs::remove_dir_all(&clone_path).unwrap();
+                Command::new("mkdir")
+                    .arg(mr_link)
+                    .output()
+                    .await
+                    .expect("Failed to mkdir");
+                // cd mr
+                env::set_current_dir(&clone_path).unwrap();
+                // libra init
+                Command::new("libra")
+                    .arg("init")
+                    .output()
+                    .await
+                    .expect("Failed to execute libra init");
+                // libra remote add origin http://localhost:8000/project
+                Command::new("libra")
+                    .arg("remote")
+                    .arg("add")
+                    .arg("origin")
+                    .arg(format!("http://localhost:8000{}", mr.path))
+                    .output()
+                    .await
+                    .expect("Failed to execute libra remote add");
+                // libra fetch origin QB0X1X1K
+                Command::new("libra")
+                    .arg("fetch")
+                    .arg("origin")
+                    .arg(mr_link)
+                    .output()
+                    .await
+                    .expect("Failed to execute libra fetch");
+                // libra branch QB0X1X1K origin/QB0X1X1K
+                Command::new("libra")
+                    .arg("branch")
+                    .arg(mr_link)
+                    .arg(format!("origin/{}", mr_link))
+                    .output()
+                    .await
+                    .expect("Failed to execute libra branch");
+                // libra switch QB0X1X1K
+                Command::new("libra")
+                    .arg("switch")
+                    .arg(mr_link)
+                    .output()
+                    .await
+                    .expect("Failed to execute libra switch");
+            } else {
+                env::set_current_dir(&clone_path).unwrap();
             }
-            Command::new("mkdir")
-                .arg(mr_link)
-                .output()
-                .await
-                .expect("Failed to mkdir");
-            // cd QB0X1X1K
-            env::set_current_dir(&clone_path).unwrap();
-            // libra init
-            Command::new("libra")
-                .arg("init")
-                .output()
-                .await
-                .expect("Failed to execute libra init");
-            // libra remote add origin http://localhost:8000/project
-            Command::new("libra")
-                .arg("remote")
-                .arg("add")
-                .arg("origin")
-                .arg(format!("http://localhost:8000{}", mr.path))
-                .output()
-                .await
-                .expect("Failed to execute libra remote add");
-            // libra fetch origin QB0X1X1K
-            Command::new("libra")
-                .arg("fetch")
-                .arg("origin")
-                .arg(mr_link)
-                .output()
-                .await
-                .expect("Failed to execute libra fetch");
-            // libra branch QB0X1X1K origin/QB0X1X1K
-            Command::new("libra")
-                .arg("branch")
-                .arg(mr_link)
-                .arg(format!("origin/{}", mr_link))
-                .output()
-                .await
-                .expect("Failed to execute libra branch");
-            // libra switch QB0X1X1K
-            Command::new("libra")
-                .arg("switch")
-                .arg(mr_link)
-                .output()
-                .await
-                .expect("Failed to execute libra switch");
-            // libra diff --old 14899d8b9c36334a640c2e17255a546b0b9df105
+            // libra diff --old hash
             let output = Command::new("libra")
                 .arg("diff")
                 .arg("--old")
