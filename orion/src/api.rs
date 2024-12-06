@@ -1,8 +1,8 @@
 use axum::{Json, Router};
-use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::post;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use crate::buck_controller;
 
 pub fn routers() -> Router {
@@ -18,36 +18,38 @@ struct BuildRequest {
 }
 
 #[derive(Debug, Serialize)]
-struct BuildResponse {
+struct BuildResult {
     success: bool,
+    id: String,
     message: String,
 }
 
-async fn buck_build(Json(request): Json<BuildRequest>) -> impl IntoResponse {
-    let repo = request.repo;
-    let target = request.target;
-    let args = request.args.unwrap_or_default();
-    // TODO: async, notify by callback http api with build id
+async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
+    let id = Uuid::now_v7();
+    let id_c = id.clone();
+    tracing::info!("Start build task: {}", id);
     tokio::task::spawn_blocking(move || {
-        let build_resp = match buck_controller::build(repo, target, args) {
+        let build_resp = match buck_controller::build(req.repo, req.target, req.args.unwrap_or_default()) {
             Ok(output) => {
                 tracing::info!("Build success: {}", output);
-                BuildResponse {
+                BuildResult {
                     success: true,
+                    id: id_c.to_string(),
                     message: output,
                 }
             }
             Err(e) => {
                 tracing::error!("Build failed: {}", e);
-                BuildResponse {
+                BuildResult {
                     success: false,
+                    id: id_c.to_string(),
                     message: e.to_string(),
                 }
             }
         };
 
         // notify webhook
-        if let Some(webhook) = request.webhook {
+        if let Some(webhook) = req.webhook {
             let client = reqwest::blocking::Client::new();
             let resp = client.post(webhook.clone())
                 .json(&build_resp)
@@ -66,5 +68,10 @@ async fn buck_build(Json(request): Json<BuildRequest>) -> impl IntoResponse {
             }
         }
     });
-    StatusCode::OK
+
+    Json(BuildResult {
+        success: true,
+        id: id.to_string(),
+        message: "Build started".to_string(),
+    })
 }

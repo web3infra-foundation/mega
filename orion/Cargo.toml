@@ -10,3 +10,4 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 reqwest = { workspace = true, features = ["json", "blocking"] }
+uuid = { workspace = true, features = ["v7"]}
