@@ -101,7 +101,7 @@ impl MegaModelConverter {
 
     pub fn init(mono_config: &MonoConfig) -> Self {
         let (tree_maps, blob_maps, root_tree) = init_trees(mono_config);
-        let commit = Commit::from_tree_id(root_tree.id, vec![], "Init Mega Directory");
+        let commit = Commit::from_tree_id(root_tree.id, vec![], "\nInit Mega Directory");
 
         let mega_ref = mega_refs::Model {
             id: generate_id(),
@@ -156,7 +156,7 @@ mod test {
         let commit = Commit::from_tree_id(
             SHA1::from_str("bd4a28f2d8b2efc371f557c3b80d320466ed83f3").unwrap(),
             vec![],
-            "Init Mega Directory",
+            "\nInit Mega Directory",
         );
         println!("{}", commit);
     }
