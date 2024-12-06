@@ -364,7 +364,7 @@ impl ImportRepo {
         let new_commit = Commit::from_tree_id(
             save_trees.back().unwrap().id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
-            &commit_msg,
+            &format!("\n{}", commit_msg),
         );
 
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
