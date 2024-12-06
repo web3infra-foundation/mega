@@ -29,7 +29,12 @@ async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
     let id_c = id.clone();
     tracing::info!("Start build task: {}", id);
     tokio::task::spawn_blocking(move || {
-        let build_resp = match buck_controller::build(req.repo, req.target, req.args.unwrap_or_default()) {
+        let build_resp = match buck_controller::build(
+            req.repo,
+            req.target,
+            req.args.unwrap_or_default(),
+            id_c.to_string())
+        {
             Ok(output) => {
                 tracing::info!("Build success: {}", output);
                 BuildResult {
