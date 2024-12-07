@@ -91,6 +91,20 @@ export const ROUTES: EachRoute[] = [
     ],
   },
   {
+    title: "Architecture",
+    href: "/architecture",
+    items: [
+      {
+        title: "API Reference",
+        href: "/api",
+        items: [
+          { title: "Mono Module", href: "/mono" },
+          { title: "Mega Module", href: "/mega" },
+        ],
+      },
+    ],
+  },
+  {
     title: "Git",
     href: "/git",
     items: [{ title: "Pack", href: "/pack" }],
