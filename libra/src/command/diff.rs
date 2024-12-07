@@ -57,16 +57,6 @@ pub async fn execute(args: DiffArgs) {
     }
     tracing::debug!("diff args: {:?}", args);
     let index = Index::load(path::index()).unwrap();
-    #[cfg(unix)]
-    let mut child = Command::new("less")
-        .arg("-R")
-        .arg("-F")
-        .stdin(Stdio::piped())
-        .spawn()
-        .expect("failed to execute process");
-        //.wait().unwrap();
-    #[cfg(unix)]
-    let _ = child.wait();
 
     let mut w = match args.output {
         Some(ref path) => {
@@ -135,14 +125,20 @@ pub async fn execute(args: DiffArgs) {
     match w {
         Some(ref mut file) => {
             file.write_all(&buf).unwrap();
-            
-           
         }
         None => {
             #[cfg(unix)]
             {
+                #[cfg(unix)]
+                let mut child = Command::new("less")
+                    .arg("-R")
+                    .arg("-F")
+                    .stdin(Stdio::piped())
+                    .spawn()
+                    .expect("failed to execute process");
                 let stdin = child.stdin.as_mut().unwrap();
                 stdin.write_all(&buf).unwrap();
+                child.wait().unwrap();
             }
             #[cfg(not(unix))]
             {
