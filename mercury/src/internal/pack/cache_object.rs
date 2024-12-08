@@ -333,14 +333,14 @@ mod test {
         };
         {
             let r = cache.insert(
-                a.hash.to_plain_str(),
+                a.hash.to_string(),
                 ArcWrapper::new(Arc::new(a.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok())
         }
         {
             let r = cache.try_insert(
-                b.clone().hash.to_plain_str(),
+                b.clone().hash.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_err());
@@ -350,14 +350,14 @@ mod test {
                 panic!("Expected WouldEjectLru error");
             }
             let r = cache.insert(
-                b.hash.to_plain_str(),
+                b.hash.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok());
         }
         {
             // a should be ejected
-            let r = cache.get(&a.hash.to_plain_str());
+            let r = cache.get(&a.hash.to_string());
             assert!(r.is_none());
         }
     }

@@ -126,7 +126,7 @@ pub trait PackHandler: Send + Sync {
         let mut search_tree_ids = vec![];
         let mut search_blob_ids = vec![];
         for item in &tree.tree_items {
-            let hash = item.id.to_plain_str();
+            let hash = item.id.to_string();
             if !exist_objs.contains(&hash) && counted_obj.insert(hash.clone()) {
                 if item.mode == TreeItemMode::Tree {
                     search_tree_ids.push(hash.clone())
@@ -172,7 +172,7 @@ pub trait PackHandler: Send + Sync {
         let mut search_blob_ids = vec![];
 
         for item in &tree.tree_items {
-            let hash = item.id.to_plain_str();
+            let hash = item.id.to_string();
             if exist_objs.insert(hash.clone()) {
                 if item.mode == TreeItemMode::Tree {
                     search_tree_ids.push(hash);
