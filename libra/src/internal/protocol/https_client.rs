@@ -162,7 +162,7 @@ impl HttpsClient {
             let (hash, mut refs) = pkt_line.split_at(40); // hex SHA1 string is 40 bytes
             refs = refs.trim();
             if !read_first_line {
-                if hash == SHA1::default().to_plain_str() {
+                if hash == SHA1::default().to_string() {
                     break; // empty repo, return empty list // TODO: parse capability
                 }
                 let (head, caps) = refs.split_once('\0').unwrap();

@@ -9,7 +9,7 @@ impl From<&Blob> for mega_blob::Model {
     fn from(value: &Blob) -> Self {
         mega_blob::Model {
             id: generate_id(),
-            blob_id: value.id.to_plain_str(),
+            blob_id: value.id.to_string(),
             size: 0,
             commit_id: String::new(),
             name: String::new(),
@@ -23,7 +23,7 @@ impl From<&Blob> for git_blob::Model {
         git_blob::Model {
             id: generate_id(),
             repo_id: 0,
-            blob_id: value.id.to_plain_str(),
+            blob_id: value.id.to_string(),
             size: 0,
             commit_id: String::new(),
             name: None,
@@ -36,7 +36,7 @@ impl From<Blob> for raw_blob::Model {
     fn from(value: Blob) -> Self {
         raw_blob::Model {
             id: generate_id(),
-            sha1: value.id.to_plain_str(),
+            sha1: value.id.to_string(),
             storage_type: StorageType::Database,
             data: Some(value.data),
             content: None,

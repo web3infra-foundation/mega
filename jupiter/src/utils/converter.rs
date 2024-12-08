@@ -69,7 +69,7 @@ impl MegaModelConverter {
     fn traverse_from_root(&self) {
         let root_tree = &self.root_tree;
         let mut mega_tree: mega_tree::Model = root_tree.to_owned().into();
-        mega_tree.commit_id = self.commit.id.to_plain_str();
+        mega_tree.commit_id = self.commit.id.to_string();
         self.mega_trees
             .borrow_mut()
             .insert(root_tree.id, mega_tree.clone().into());
@@ -81,7 +81,7 @@ impl MegaModelConverter {
             if item.mode == TreeItemMode::Tree {
                 let child_tree = self.tree_maps.get(&item.id).unwrap();
                 let mut mega_tree: mega_tree::Model = child_tree.to_owned().into();
-                mega_tree.commit_id = self.commit.id.to_plain_str();
+                mega_tree.commit_id = self.commit.id.to_string();
                 self.mega_trees
                     .borrow_mut()
                     .insert(child_tree.id, mega_tree.clone().into());
@@ -89,7 +89,7 @@ impl MegaModelConverter {
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
                 let mut mega_blob: mega_blob::Model = blob.into();
-                mega_blob.commit_id = self.commit.id.to_plain_str();
+                mega_blob.commit_id = self.commit.id.to_string();
                 self.mega_blobs
                     .borrow_mut()
                     .insert(blob.id, mega_blob.clone().into());
@@ -107,8 +107,8 @@ impl MegaModelConverter {
             id: generate_id(),
             path: "/".to_owned(),
             ref_name: MEGA_BRANCH_NAME.to_owned(),
-            ref_commit_hash: commit.id.to_plain_str(),
-            ref_tree_hash: commit.tree_id.to_plain_str(),
+            ref_commit_hash: commit.id.to_string(),
+            ref_tree_hash: commit.tree_id.to_string(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };

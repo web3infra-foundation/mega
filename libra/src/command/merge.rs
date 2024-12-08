@@ -42,8 +42,8 @@ pub async fn execute(args: MergeArgs) {
     } else if lca.id == current_commit.id {
         println!(
             "Updating {}..{}",
-            &current_commit.id.to_plain_str()[..6],
-            &target_commit.id.to_plain_str()[..6]
+            &current_commit.id.to_string()[..6],
+            &target_commit.id.to_string()[..6]
         );
         // fast-forward merge
         merge_ff(target_commit).await;
@@ -54,8 +54,8 @@ pub async fn execute(args: MergeArgs) {
 }
 
 async fn lca_commit(lhs: &Commit, rhs: &Commit) -> Option<Commit> {
-    let lhs_reachable = log::get_reachable_commits(lhs.id.to_plain_str()).await;
-    let rhs_reachable = log::get_reachable_commits(rhs.id.to_plain_str()).await;
+    let lhs_reachable = log::get_reachable_commits(lhs.id.to_string()).await;
+    let rhs_reachable = log::get_reachable_commits(rhs.id.to_string()).await;
 
     // Commit `eq` is based on tree_id, so we shouldn't use it here
 
@@ -88,7 +88,7 @@ async fn merge_ff(commit: Commit) {
     let head = Head::current().await;
     match head {
         Head::Branch(branch_name) => {
-            Branch::update_branch(&branch_name, &commit.id.to_plain_str(), None).await;
+            Branch::update_branch(&branch_name, &commit.id.to_string(), None).await;
         }
         Head::Detached(_) => {
             Head::update(Head::Detached(commit.id), None).await;

@@ -144,7 +144,7 @@ mod tests {
     async fn test_search_branch() {
         test::setup_with_new_libra().await;
 
-        let commit_hash = SHA1::default().to_plain_str();
+        let commit_hash = SHA1::default().to_string();
         Branch::update_branch("upstream/origin/master", &commit_hash, None).await; // should match
         Branch::update_branch("origin/master", &commit_hash, Some("upstream")).await; // should match
         Branch::update_branch("master", &commit_hash, Some("upstream/origin")).await; // should match
