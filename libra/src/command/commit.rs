@@ -61,7 +61,7 @@ pub async fn execute(args: CommitArgs) {
         .unwrap();
 
     /* update HEAD */
-    update_head(&commit.id.to_plain_str()).await;
+    update_head(&commit.id.to_string()).await;
 }
 
 /// recursively create tree from index's tracked entries

@@ -83,7 +83,7 @@ impl PackHandler for MonoRepo {
                         .map(|x| x.id);
                     if let Some(sha1) = sha1 {
                         tree = storage
-                            .get_trees_by_hashes(vec![sha1.to_plain_str()])
+                            .get_trees_by_hashes(vec![sha1.to_string()])
                             .await
                             .unwrap()[0]
                             .clone()
@@ -105,8 +105,8 @@ impl PackHandler for MonoRepo {
                 .save_ref(
                     self.path.to_str().unwrap(),
                     None,
-                    &c.id.to_plain_str(),
-                    &c.tree_id.to_plain_str(),
+                    &c.id.to_string(),
+                    &c.tree_id.to_string(),
                 )
                 .await
                 .unwrap();
@@ -114,7 +114,7 @@ impl PackHandler for MonoRepo {
 
             vec![Refs {
                 ref_name: MEGA_BRANCH_NAME.to_string(),
-                ref_hash: c.id.to_plain_str(),
+                ref_hash: c.id.to_string(),
                 default_branch: true,
                 ..Default::default()
             }]
@@ -131,7 +131,7 @@ impl PackHandler for MonoRepo {
         for entry in receiver {
             if current_commit.is_none() {
                 if entry.obj_type == ObjectType::Commit {
-                    current_commit_id = entry.hash.to_plain_str();
+                    current_commit_id = entry.hash.to_string();
                     let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
                     current_commit = Some(commit);
                 }
@@ -259,7 +259,7 @@ impl PackHandler for MonoRepo {
         // traverse commit's all parents to find the commit that client does not have
         while let Some(temp) = traversal_list.pop() {
             for p_commit_id in temp.parent_commit_ids {
-                let p_commit_id = p_commit_id.to_plain_str();
+                let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
@@ -277,7 +277,7 @@ impl PackHandler for MonoRepo {
 
         let want_tree_ids = want_commits
             .iter()
-            .map(|c| c.tree_id.to_plain_str())
+            .map(|c| c.tree_id.to_string())
             .collect();
         let want_trees: HashMap<SHA1, Tree> = storage
             .get_trees_by_hashes(want_tree_ids)
@@ -393,7 +393,7 @@ impl PackHandler for MonoRepo {
         let storage = self.context.services.mono_storage.clone();
         if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
             mr_ref.ref_commit_hash = refs.new_id.clone();
-            mr_ref.ref_tree_hash = commit.unwrap().tree_id.to_plain_str();
+            mr_ref.ref_tree_hash = commit.unwrap().tree_id.to_string();
             storage.update_ref(mr_ref).await.unwrap();
         } else {
             storage
@@ -401,7 +401,7 @@ impl PackHandler for MonoRepo {
                     self.path.to_str().unwrap(),
                     Some(ref_name),
                     &refs.new_id,
-                    &commit.unwrap().tree_id.to_plain_str(),
+                    &commit.unwrap().tree_id.to_string(),
                 )
                 .await
                 .unwrap();

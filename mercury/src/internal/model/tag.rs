@@ -12,8 +12,8 @@ impl From<Tag> for mega_tag::Model {
     fn from(value: Tag) -> Self {
         mega_tag::Model {
             id: generate_id(),
-            tag_id: value.id.to_plain_str(),
-            object_id: value.object_hash.to_plain_str(),
+            tag_id: value.id.to_string(),
+            object_id: value.object_hash.to_string(),
             object_type: value.object_type.to_string(),
             tag_name: value.tag_name,
             tagger: String::from_utf8_lossy(&value.tagger.to_data().unwrap()).to_string(),
@@ -28,8 +28,8 @@ impl From<Tag> for git_tag::Model {
         git_tag::Model {
             id: generate_id(),
             repo_id: 0,
-            tag_id: value.id.to_plain_str(),
-            object_id: value.object_hash.to_plain_str(),
+            tag_id: value.id.to_string(),
+            object_id: value.object_hash.to_string(),
             object_type: value.object_type.to_string(),
             tag_name: value.tag_name,
             tagger: String::from_utf8_lossy(&value.tagger.to_data().unwrap()).to_string(),

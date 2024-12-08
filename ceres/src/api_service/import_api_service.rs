@@ -160,7 +160,7 @@ impl ApiHandler for ImportApiService {
         p_stack.push_back(start_commit);
 
         while let Some(commit) = p_stack.pop_front() {
-            let root_tree = self.get_tree_by_hash(&commit.tree_id.to_plain_str()).await;
+            let root_tree = self.get_tree_by_hash(&commit.tree_id.to_string()).await;
             let reachable = self
                 .reachable_in_tree(&root_tree, path, target)
                 .await
@@ -169,7 +169,7 @@ impl ApiHandler for ImportApiService {
                 let mut p_ids = vec![];
                 for p_id in commit.parent_commit_ids.clone() {
                     if !visited.contains(&p_id) {
-                        p_ids.push(p_id.to_plain_str());
+                        p_ids.push(p_id.to_string());
                         visited.insert(p_id);
                     }
                 }

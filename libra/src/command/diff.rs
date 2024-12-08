@@ -217,10 +217,10 @@ pub async fn diff(
         }
 
         let old_index = old_hash.map_or("0000000".to_string(), |h| {
-            h.to_plain_str()[0..8].to_string()
+            h.to_string()[0..8].to_string()
         });
         let new_index = new_hash.map_or("0000000".to_string(), |h| {
-            h.to_plain_str()[0..8].to_string()
+            h.to_string()[0..8].to_string()
         });
         writeln!(w, "index {}..{}", old_index, new_index).unwrap();
 

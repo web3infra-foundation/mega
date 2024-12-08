@@ -67,7 +67,7 @@ pub async fn execute(args: PushArgs) {
     let repo_url = Config::get_remote_url(&repository).await;
 
     let branch = args.refspec.unwrap_or(branch);
-    let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_plain_str();
+    let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_string();
 
     println!("pushing {}({}) to {}({})", branch, commit_hash, repository, repo_url);
 
@@ -87,7 +87,7 @@ pub async fn execute(args: PushArgs) {
 
     let tracked_ref = refs.iter().find(|r| r._ref == tracked_branch);
     // [0; 20] if new branch
-    let remote_hash = tracked_ref.map(|r| r._hash.clone()).unwrap_or(SHA1::default().to_plain_str());
+    let remote_hash = tracked_ref.map(|r| r._hash.clone()).unwrap_or(SHA1::default().to_string());
     if remote_hash == commit_hash {
         println!("Everything up-to-date");
         return;

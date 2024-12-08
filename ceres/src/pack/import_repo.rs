@@ -188,7 +188,7 @@ impl PackHandler for ImportRepo {
         // traverse commit's all parents to find the commit that client does not have
         while let Some(temp) = traversal_list.pop() {
             for p_commit_id in temp.parent_commit_ids {
-                let p_commit_id = p_commit_id.to_plain_str();
+                let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
@@ -206,7 +206,7 @@ impl PackHandler for ImportRepo {
 
         let want_tree_ids = want_commits
             .iter()
-            .map(|c| c.tree_id.to_plain_str())
+            .map(|c| c.tree_id.to_string())
             .collect();
         let want_trees: HashMap<SHA1, Tree> = storage
             .get_trees_by_hashes(self.repo.repo_id, want_tree_ids)
@@ -371,7 +371,7 @@ impl ImportRepo {
             .into_iter()
             .map(|tree| {
                 let mut model: mega_tree::Model = tree.into();
-                model.commit_id = new_commit.id.to_plain_str();
+                model.commit_id = new_commit.id.to_string();
                 model.into()
             })
             .collect();
@@ -380,8 +380,8 @@ impl ImportRepo {
             .await
             .unwrap();
 
-        root_ref.ref_commit_hash = new_commit.id.to_plain_str();
-        root_ref.ref_tree_hash = new_commit.tree_id.to_plain_str();
+        root_ref.ref_commit_hash = new_commit.id.to_string();
+        root_ref.ref_tree_hash = new_commit.tree_id.to_string();
         storage.update_ref(root_ref).await.unwrap();
         storage.save_mega_commits(vec![new_commit]).await.unwrap();
         Ok(())
