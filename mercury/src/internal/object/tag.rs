@@ -155,7 +155,7 @@ impl ObjectTrait for Tag {
 
         data.extend_from_slice("object".as_bytes());
         data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
-        data.extend_from_slice(self.object_hash.to_plain_str().as_bytes());
+        data.extend_from_slice(self.object_hash.to_string().as_bytes());
         data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
 
         data.extend_from_slice("type".as_bytes());

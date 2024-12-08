@@ -93,7 +93,7 @@ impl Head {
                 }
                 match new_head {
                     Head::Detached(commit_hash) => {
-                        head.commit = Set(Some(commit_hash.to_plain_str()));
+                        head.commit = Set(Some(commit_hash.to_string()));
                         head.name = Set(None);
                     }
                     Head::Branch(branch_name) => {
@@ -114,7 +114,7 @@ impl Head {
                 }
                 match new_head {
                     Head::Detached(commit_hash) => {
-                        head.commit = Set(Some(commit_hash.to_plain_str()));
+                        head.commit = Set(Some(commit_hash.to_string()));
                     }
                     Head::Branch(branch_name) => {
                         head.name = Set(Some(branch_name));

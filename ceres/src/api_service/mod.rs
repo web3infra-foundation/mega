@@ -84,7 +84,7 @@ pub trait ApiHandler: Send + Sync {
         let parent = file_path.parent().unwrap();
         if let Some(tree) = self.search_tree_by_path(parent).await? {
             if let Some(item) = tree.tree_items.into_iter().find(|x| x.name == filename) {
-                match self.get_raw_blob_by_hash(&item.id.to_plain_str()).await {
+                match self.get_raw_blob_by_hash(&item.id.to_string()).await {
                     Ok(Some(model)) => {
                         return Ok(Some(String::from_utf8(model.data.unwrap()).unwrap()))
                     }
@@ -103,7 +103,7 @@ pub trait ApiHandler: Send + Sync {
                 "can't find target parent tree under latest commit".to_string(),
             ));
         };
-        let commit = self.get_tree_relate_commit(&tree.id.to_plain_str()).await;
+        let commit = self.get_tree_relate_commit(&tree.id.to_string()).await;
         self.convert_commit_to_info(commit)
     }
 
@@ -135,7 +135,7 @@ pub trait ApiHandler: Send + Sync {
                     tree.tree_items
                         .iter()
                         .filter(|x| x.mode == TreeItemMode::Tree)
-                        .map(|x| x.id.to_plain_str())
+                        .map(|x| x.id.to_string())
                         .collect(),
                 )
                 .await;
@@ -145,7 +145,7 @@ pub trait ApiHandler: Send + Sync {
                     tree.tree_items
                         .iter()
                         .filter(|x| x.mode == TreeItemMode::Blob)
-                        .map(|x| x.id.to_plain_str())
+                        .map(|x| x.id.to_string())
                         .collect(),
                 )
                 .await;
@@ -158,13 +158,13 @@ pub trait ApiHandler: Send + Sync {
                     .unwrap();
                 let commit_map: HashMap<String, Commit> = commits
                     .into_iter()
-                    .map(|x| (x.id.to_plain_str(), x))
+                    .map(|x| (x.id.to_string(), x))
                     .collect();
 
                 let root_commit: Option<Commit> = None;
                 for item in tree.tree_items {
                     let mut info: TreeCommitItem = item.clone().into();
-                    if let Some(commit_id) = item_to_commit.get(&item.id.to_plain_str()) {
+                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
                         let commit = if let Some(commit) = commit_map.get(commit_id) {
                             commit
                         } else {
@@ -178,7 +178,7 @@ pub trait ApiHandler: Send + Sync {
                                 .traverse_commit_history(&path, root_commit, &item)
                                 .await
                         };
-                        info.oid = commit.id.to_plain_str();
+                        info.oid = commit.id.to_string();
                         info.message = commit.format_message();
                         info.date = commit.committer.timestamp.to_string();
                     }
@@ -208,7 +208,7 @@ pub trait ApiHandler: Send + Sync {
         };
 
         let res = LatestCommitInfo {
-            oid: commit.id.to_plain_str(),
+            oid: commit.id.to_string(),
             date: commit.committer.timestamp.to_string(),
             short_message: message,
             author,
@@ -249,7 +249,7 @@ pub trait ApiHandler: Send + Sync {
                     .find(|x| x.name == target_name);
 
                 if let Some(search_res) = search_res {
-                    let res = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
+                    let res = self.get_tree_by_hash(&search_res.id.to_string()).await;
                     search_tree = res.clone();
                     update_tree.push(res);
                 } else {
@@ -289,7 +289,7 @@ pub trait ApiHandler: Send + Sync {
                     .iter()
                     .find(|x| x.name == target_name);
                 if let Some(search_res) = search_res {
-                    let res = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
+                    let res = self.get_tree_by_hash(&search_res.id.to_string()).await;
                     search_tree = res.clone();
                 } else {
                     return Ok(None);
@@ -333,7 +333,7 @@ pub trait ApiHandler: Send + Sync {
                 .iter()
                 .find(|x| x.name == target_name)
             {
-                search_tree = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
+                search_tree = self.get_tree_by_hash(&search_res.id.to_string()).await;
                 update_item_tree.push_back((search_tree.clone(), component));
             } else {
                 stack.push_back(component);
@@ -408,7 +408,7 @@ pub trait ApiHandler: Send + Sync {
                     .iter()
                     .find(|x| x.name == target_name);
                 if let Some(search_res) = search_res {
-                    search_tree = self.get_tree_by_hash(&search_res.id.to_plain_str()).await;
+                    search_tree = self.get_tree_by_hash(&search_res.id.to_string()).await;
                 } else {
                     return Ok(false);
                 }

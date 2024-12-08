@@ -10,7 +10,7 @@ impl From<Tree> for mega_tree::Model {
     fn from(value: Tree) -> Self {
         mega_tree::Model {
             id: generate_id(),
-            tree_id: value.id.to_plain_str(),
+            tree_id: value.id.to_string(),
             sub_trees: value.to_data().unwrap(),
             size: 0,
             commit_id: String::new(),
@@ -25,7 +25,7 @@ impl From<Tree> for git_tree::Model {
         git_tree::Model {
             id: generate_id(),
             repo_id: 0,
-            tree_id: value.id.to_plain_str(),
+            tree_id: value.id.to_string(),
             sub_trees: value.to_data().unwrap(),
             size: 0,
             commit_id: String::new(),

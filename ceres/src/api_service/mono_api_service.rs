@@ -227,7 +227,7 @@ impl MonoApiService {
                 tree_comparation.left_tree.pop_front()
             {
                 let new_tree: Tree = storage
-                    .get_tree_by_hash(&new_tree.to_plain_str())
+                    .get_tree_by_hash(&new_tree.to_string())
                     .await
                     .unwrap()
                     .unwrap()
@@ -235,7 +235,7 @@ impl MonoApiService {
 
                 let base_tree = if let Some(base_tree) = base_tree {
                     let base_tree: Tree = storage
-                        .get_tree_by_hash(&base_tree.to_plain_str())
+                        .get_tree_by_hash(&base_tree.to_string())
                         .await
                         .unwrap()
                         .unwrap()
@@ -332,10 +332,10 @@ impl MonoApiService {
                         vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
                         &commit.message,
                     );
-                    p_commit_id = p_commit.id.to_plain_str();
+                    p_commit_id = p_commit.id.to_string();
                     // update p_ref
-                    p_ref.ref_commit_hash = p_commit.id.to_plain_str();
-                    p_ref.ref_tree_hash = target_hash.to_plain_str();
+                    p_ref.ref_commit_hash = p_commit.id.to_string();
+                    p_ref.ref_tree_hash = target_hash.to_string();
                     storage.update_ref(p_ref).await.unwrap();
                     storage.save_mega_commits(vec![p_commit]).await.unwrap();
                 } else {
@@ -450,7 +450,7 @@ impl TreeComparation {
     //     let diff: Vec<_> = new_set.symmetric_difference(&base_set).cloned().collect();
     //     for item in diff {
     //         if item.mode == TreeItemMode::Tree {
-    //             let t_id = item.id.to_plain_str();
+    //             let t_id = item.id.to_string();
     //             if !self.left_tree.contains(&t_id) {
     //                 self.left_tree.push_back(t_id);
     //             }

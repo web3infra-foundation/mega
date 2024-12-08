@@ -433,8 +433,8 @@ impl Pack {
         if render_hash != self.signature {
             return Err(GitError::InvalidPackFile(format!(
                 "The pack file hash {} does not match the trailer hash {}",
-                render_hash.to_plain_str(),
-                self.signature.to_plain_str()
+                render_hash,
+                self.signature
             )));
         }
 
@@ -726,7 +726,7 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
         let rt = p.decode(&mut buffered, |_obj, _offset|{
-            // println!("{:?} {}", obj.hash.to_plain_str(), offset);
+            // println!("{:?} {}", obj.hash.to_string(), offset);
         });
         if let Err(e) = rt {
             fs::remove_dir_all(tmp).unwrap();
