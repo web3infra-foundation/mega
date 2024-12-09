@@ -1,12 +1,13 @@
 import 'github-markdown-css/github-markdown-light.css'
 import { DownOutlined } from '@ant-design/icons/lib'
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname  } from 'next/navigation'
 import { Tree } from 'antd/lib'
 import styles from './RepoTree.module.css'
 
 const RepoTree = ({ directory }) => {
     const router = useRouter();
+    const pathname = usePathname();
     const [treeData, setTreeData] = useState();
     const [updateTree, setUpdateTree] = useState(false);
     const [expandedKeys, setExpandedKeys] = useState([]);
@@ -100,9 +101,29 @@ const RepoTree = ({ directory }) => {
         }
     };
 
-    const onSelect = (keys, info) => {
-        router.push(`/?object_id=${keys}`);
-        console.log('Trigger Select', keys, info);
+    const onSelect = (selectedKeys, e:{selected: boolean, selectedNodes, node, event}) => {
+        // 这里的逻辑是单次只会点一个，比如点击第一个为 ['0-0']，那么数组内元素下标就是 0
+        const pathArray = selectedKeys[0].split('-').map(part => parseInt(part, 10));
+        // 根据当前路由拼接下一级路由，并判断类型进行跳转
+        let real_path = pathname.replace('/tree', '');
+        if (Array.isArray(treeData) && treeData?.length > 0) {
+            const clickNode = treeData[pathArray[1]] as {
+                title: string;
+                key: string;
+                isLeaf: boolean;
+                path: string;
+                expanded: boolean;
+                children: any[];
+            }
+            // 判断并进行跳转
+            if (clickNode.isLeaf) {
+                router.push(`/blob/${real_path}/${clickNode.title}`);
+            } else {
+                router.push(`${pathname}/${clickNode.title}`);
+            }
+        } else {
+            router.push(`${pathname}`)
+        }
     };
 
     return (
