@@ -1,15 +1,25 @@
 import 'github-markdown-css/github-markdown-light.css'
 import { DownOutlined } from '@ant-design/icons/lib'
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname  } from 'next/navigation'
 import { Tree } from 'antd/lib'
 import styles from './RepoTree.module.css'
 
+type TreeNode = {
+    title: string;
+    key: string;
+    isLeaf: boolean;
+    path: string;
+    expanded: boolean;
+    children: TreeNode[];
+}
+
 const RepoTree = ({ directory }) => {
     const router = useRouter();
-    const [treeData, setTreeData] = useState();
+    const pathname = usePathname();
+    const [treeData, setTreeData] = useState<TreeNode[]>([]);
     const [updateTree, setUpdateTree] = useState(false);
-    const [expandedKeys, setExpandedKeys] = useState([]);
+    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
     const convertToTreeData = useCallback((directory) => {
         return sortProjectsByType(directory).map(item => {
@@ -100,9 +110,22 @@ const RepoTree = ({ directory }) => {
         }
     };
 
-    const onSelect = (keys, info) => {
-        router.push(`/?object_id=${keys}`);
-        console.log('Trigger Select', keys, info);
+    const onSelect = (selectedKeys, e:{selected: boolean, selectedNodes, node, event}) => {
+        // only click one, example: click the first one is ['0-0'], then the array index is 0
+        const pathArray = selectedKeys[0].split('-').map(part => parseInt(part, 10));
+        // according to the current route, splicing the next route and determine the type to jump
+        let real_path = pathname.replace('/tree', '');
+        if (Array.isArray(treeData) && treeData?.length > 0) {
+            const clickNode = treeData[pathArray[1]] as TreeNode
+            // determine file type and router push
+            if (clickNode.isLeaf) {
+                router.push(`/blob/${real_path}/${clickNode.title}`);
+            } else {
+                router.push(`${pathname}/${clickNode.title}`);
+            }
+        } else {
+            router.push(`${pathname}`)
+        }
     };
 
     return (
