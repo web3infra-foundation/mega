@@ -111,13 +111,13 @@ const RepoTree = ({ directory }) => {
     };
 
     const onSelect = (selectedKeys, e:{selected: boolean, selectedNodes, node, event}) => {
-        // 这里的逻辑是单次只会点一个，比如点击第一个为 ['0-0']，那么数组内元素下标就是 0
+        // only click one, example: click the first one is ['0-0'], then the array index is 0
         const pathArray = selectedKeys[0].split('-').map(part => parseInt(part, 10));
-        // 根据当前路由拼接下一级路由，并判断类型进行跳转
+        // according to the current route, splicing the next route and determine the type to jump
         let real_path = pathname.replace('/tree', '');
         if (Array.isArray(treeData) && treeData?.length > 0) {
             const clickNode = treeData[pathArray[1]] as TreeNode
-            // 判断并进行跳转
+            // determine file type and router push
             if (clickNode.isLeaf) {
                 router.push(`/blob/${real_path}/${clickNode.title}`);
             } else {
