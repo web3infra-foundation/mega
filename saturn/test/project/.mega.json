@@ -6,6 +6,12 @@
                 "UserGroup::\"admin\""
             ]
         },
+        "User::\"besscroft\"": {
+            "euid": "User::\"besscroft\"",
+            "parents": [
+                "UserGroup::\"maintainer\""
+            ]
+        },
         "User::\"genedna\"": {
             "euid": "User::\"genedna\"",
             "parents": [
@@ -18,7 +24,7 @@
             "euid": "Repository::\"project\"",
             "is_private": false,
             "admins": "UserGroup::\"admin\"",
-            "maintainers": "UserGroup::\"matainer\"",
+            "maintainers": "UserGroup::\"maintainer\"",
             "readers": "UserGroup::\"reader\"",
             "parents": []
         }
@@ -27,11 +33,11 @@
         "UserGroup::\"admin\"": {
             "euid": "UserGroup::\"admin\"",
             "parents": [
-                "UserGroup::\"matainer\""
+                "UserGroup::\"maintainer\""
             ]
         },
-        "UserGroup::\"matainer\"": {
-            "euid": "UserGroup::\"matainer\"",
+        "UserGroup::\"maintainer\"": {
+            "euid": "UserGroup::\"maintainer\"",
             "parents": [
                 "UserGroup::\"reader\""
             ]
