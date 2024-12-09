@@ -5,12 +5,21 @@ import { useRouter, usePathname  } from 'next/navigation'
 import { Tree } from 'antd/lib'
 import styles from './RepoTree.module.css'
 
+type TreeNode = {
+    title: string;
+    key: string;
+    isLeaf: boolean;
+    path: string;
+    expanded: boolean;
+    children: TreeNode[];
+}
+
 const RepoTree = ({ directory }) => {
     const router = useRouter();
     const pathname = usePathname();
-    const [treeData, setTreeData] = useState();
+    const [treeData, setTreeData] = useState<TreeNode[]>([]);
     const [updateTree, setUpdateTree] = useState(false);
-    const [expandedKeys, setExpandedKeys] = useState([]);
+    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
     const convertToTreeData = useCallback((directory) => {
         return sortProjectsByType(directory).map(item => {
@@ -107,14 +116,7 @@ const RepoTree = ({ directory }) => {
         // 根据当前路由拼接下一级路由，并判断类型进行跳转
         let real_path = pathname.replace('/tree', '');
         if (Array.isArray(treeData) && treeData?.length > 0) {
-            const clickNode = treeData[pathArray[1]] as {
-                title: string;
-                key: string;
-                isLeaf: boolean;
-                path: string;
-                expanded: boolean;
-                children: any[];
-            }
+            const clickNode = treeData[pathArray[1]] as TreeNode
             // 判断并进行跳转
             if (clickNode.isLeaf) {
                 router.push(`/blob/${real_path}/${clickNode.title}`);
