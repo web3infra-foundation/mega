@@ -349,7 +349,7 @@ mod tests {
 
         assert_eq!(tree_item.mode, TreeItemMode::Blob);
         assert_eq!(
-            tree_item.id.to_plain_str(),
+            tree_item.id.to_string(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
         );
     }
@@ -385,7 +385,7 @@ mod tests {
         let tree_item = TreeItem::from_bytes(bytes.as_slice()).unwrap();
 
         assert_eq!(tree_item.mode, TreeItemMode::Blob);
-        assert_eq!(tree_item.id.to_plain_str(), item.id.to_plain_str());
+        assert_eq!(tree_item.id.to_string(), item.id.to_string());
     }
 
     #[test]
@@ -399,7 +399,7 @@ mod tests {
         println!("{}", tree.id);
         assert_eq!(
             "cf99336fa61439a2f074c7e6de1c1a05579550e2",
-            tree.id.to_plain_str()
+            tree.id.to_string()
         );
     }
 }

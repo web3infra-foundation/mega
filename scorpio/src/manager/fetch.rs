@@ -32,7 +32,7 @@ impl CheckHash for ScorpioManager{
                 let p = GPath::from(work.path.to_string());
                 // Get the tree and its hash value, for name dictionary .
                 let tree = fetch_tree(&p).await.unwrap();
-                work.hash = tree.id.to_plain_str();
+                work.hash = tree.id.to_string();
                 // the lower path is store file path for remote code version . 
                 let _lower = PathBuf::from(&self.store_path).join(&work.hash).join("lower");
                 handlers.push(tokio::spawn(async move { fetch_code(&p, _lower).await }));
@@ -56,9 +56,9 @@ impl CheckHash for ScorpioManager{
         let workdir = WorkDir{
             path: p.to_string(),
             node:inode,
-            hash: tree.id.to_plain_str(),
+            hash: tree.id.to_string(),
         };
-        //work.hash = tree.id.to_plain_str();
+        //work.hash = tree.id.to_string();
         // the lower path is store file path for remote code version . 
         let _lower = PathBuf::from(&self.store_path).join(&workdir.hash).join("lower");
         fetch_code(&p, _lower).await;
@@ -76,9 +76,9 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
     let workdir = WorkDir{
         path: p.to_string(),
         node:inode,
-        hash: tree.id.to_plain_str(),
+        hash: tree.id.to_string(),
     };
-    //work.hash = tree.id.to_plain_str();
+    //work.hash = tree.id.to_string();
     // the lower path is store file path for remote code version . 
     let _lower = PathBuf::from(manager.store_path.clone()).join(&workdir.hash).join("lower");
     fetch_code(&p, _lower).await;
@@ -296,7 +296,7 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-     let url = format!("http://localhost:8000/api/v1/file/blob/{}",url.to_plain_str());//TODO: configabel.
+     let url = format!("http://localhost:8000/api/v1/file/blob/{}",url);//TODO: configabel.
     // Send GET request
     let response = client.get(url).send().await?;
     
