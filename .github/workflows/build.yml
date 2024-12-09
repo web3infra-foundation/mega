@@ -15,7 +15,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          version: "lab:mono-engine-latest"
+          version: "lab:latest"
           driver: cloud
           endpoint: "${{ vars.DOCKER_USER }}/mono"
           install: true
