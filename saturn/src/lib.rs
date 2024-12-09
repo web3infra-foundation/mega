@@ -108,6 +108,7 @@ mod test {
 
         let app_context = load_context(entities);
         let admin: EntityUid = r#"User::"benjamin.747""#.parse().unwrap();
+        let maintainer: EntityUid = r#"User::"besscroft""#.parse().unwrap();
         let anyone: EntityUid = r#"User::"anyone""#.parse().unwrap();
         let resource: EntityUid = r#"Repository::"project""#.parse().unwrap();
 
@@ -166,6 +167,15 @@ mod test {
                 Context::empty()
             )
             .is_err_and(|e| matches!(e, Error::AuthDenied(_))));
+
+            assert!(app_context
+                .is_authorized(
+                    &maintainer,
+                    r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
+                    &resource,
+                    Context::empty()
+                )
+                .is_ok());
     }
 
     #[test]
