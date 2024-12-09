@@ -91,7 +91,7 @@ async fn restore_to_commit(commit_id: SHA1) {
     let restore_args = RestoreArgs {
         worktree: true,
         staged: true,
-        source: Some(commit_id.to_plain_str()),
+        source: Some(commit_id.to_string()),
         pathspec: vec![util::working_dir_string()],
     };
     restore::execute(restore_args).await;
@@ -113,7 +113,7 @@ mod tests {
             "--worktree",
             "--staged",
             "--source",
-            &commit_id.to_plain_str(),
+            &commit_id.to_string(),
             util::working_dir().to_str().unwrap(),
         ]);
         println!("{:?}", restore_args);

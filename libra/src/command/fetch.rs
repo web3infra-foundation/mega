@@ -182,7 +182,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
 
         let checksum = SHA1::from_bytes(&pack_data[pack_data.len() - 20..]);
         assert_eq!(hash, checksum);
-        let checksum = checksum.to_plain_str();
+        let checksum = checksum.to_string();
         println!("checksum: {}", checksum);
 
         if pack_data.len() > 32 { // 12 header + 20 hash
@@ -253,10 +253,10 @@ async fn current_have() -> Vec<String> {
         |commit: &Commit,
          inserted: &mut HashSet<String>,
          c_pending: &mut std::collections::BinaryHeap<QueueItem>| {
-            if inserted.contains(&commit.id.to_plain_str()) {
+            if inserted.contains(&commit.id.to_string()) {
                 return;
             }
-            inserted.insert(commit.id.to_plain_str());
+            inserted.insert(commit.id.to_string());
             c_pending.push(QueueItem {
                 priority: commit.committer.timestamp,
                 commit: commit.id,
@@ -279,7 +279,7 @@ async fn current_have() -> Vec<String> {
     let mut have = Vec::new();
     while have.len() < 32 && !c_pending.is_empty() {
         let item = c_pending.pop().unwrap();
-        have.push(item.commit.to_plain_str());
+        have.push(item.commit.to_string());
 
         let commit: Commit = load_object(&item.commit).unwrap();
         for parent in commit.parent_commit_ids {

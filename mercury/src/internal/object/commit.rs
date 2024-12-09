@@ -194,12 +194,12 @@ impl ObjectTrait for Commit {
         let mut data = Vec::new();
 
         data.extend(b"tree ");
-        data.extend(self.tree_id.to_plain_str().as_bytes());
+        data.extend(self.tree_id.to_string().as_bytes());
         data.extend(&[0x0a]);
 
         for parent_tree_id in &self.parent_commit_ids {
             data.extend(b"parent ");
-            data.extend(parent_tree_id.to_plain_str().as_bytes());
+            data.extend(parent_tree_id.to_string().as_bytes());
             data.extend(&[0x0a]);
         }
 

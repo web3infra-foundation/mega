@@ -36,12 +36,12 @@ pub struct SHA1(pub [u8; 20]);
 impl Display for SHA1 {
     /// # Attention
     /// cause of the color chars for ,if you want to use the string without color ,
-    /// please call the func:`to_plain_str()` rather than the func:`to_string()`
+    /// please call the func:`to_string()` rather than the func:`to_string()`
     /// # Example
     ///  the hash value `18fd2deaaf152c7f1222c52fb2673f6192b375f0`<br>
     ///  will be the `1;31m8d2deaaf152c7f1222c52fb2673f6192b375f00m`
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_plain_str().red().bold())
+        write!(f, "{}", hex::encode(self.0))
     }
 }
 impl AsRef<[u8]> for SHA1{
@@ -89,7 +89,7 @@ impl std::str::FromStr for SHA1 {
 ///
 /// 3. `to` Prefix:
 ///    Methods with the `to` prefix are used for outputting the `SHA1` value in various formats. This prefix indicates a transformation or
-///    conversion of the `SHA1` instance into another representation. For example, `pub fn to_plain_str(self) -> String` converts the SHA1
+///    conversion of the `SHA1` instance into another representation. For example, `pub fn to_string(self) -> String` converts the SHA1
 ///    value to a plain hexadecimal string, and `pub fn to_data(self) -> Vec<u8>` converts it into a byte vector. The `to` prefix
 ///    thus serves as a clear indicator that the method is exporting or transforming the SHA1 value into a different format.
 ///
@@ -126,9 +126,9 @@ impl SHA1 {
         h
     }
 
-    /// Export sha1 value to plain String without the color chars
-    pub fn to_plain_str(self) -> String {
-        hex::encode(self.0)
+    /// Export sha1 value to String with the color 
+    pub fn to_color_str(self) -> String {
+        self.to_string().red().bold().to_string()
     }
 
     /// Export sha1 value to a byte array
@@ -139,6 +139,7 @@ impl SHA1 {
 
 #[cfg(test)]
 mod tests {
+    
     use std::io::BufReader;
     use std::io::Read;
     use std::io::Seek;
@@ -159,7 +160,7 @@ mod tests {
         // Known SHA1 hash for "Hello, world!"
         let expected_sha1_hash = "943a702d06f34599aee1f8da8ef9f7296031d699";
 
-        assert_eq!(sha1.to_plain_str(), expected_sha1_hash);
+        assert_eq!(sha1.to_string(), expected_sha1_hash);
     }
 
     #[test]
@@ -175,7 +176,7 @@ mod tests {
         buffered.read_exact(&mut buffer).unwrap();
         let signature = SHA1::from_bytes(buffer.as_ref());
         assert_eq!(
-            signature.to_plain_str(),
+            signature.to_string(),
             "1d0e6c14760c956c173ede71cb28f33d921e232f"
         );
     }
@@ -188,7 +189,7 @@ mod tests {
         ]);
 
         assert_eq!(
-            sha1.to_plain_str(),
+            sha1.to_string(),
             "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
         );
     }
@@ -200,7 +201,7 @@ mod tests {
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
                 assert_eq!(
-                    hash.to_plain_str(),
+                    hash.to_string(),
                     "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
                 );
             }
@@ -209,13 +210,13 @@ mod tests {
     }
 
     #[test]
-    fn test_sha1_to_plain_str() {
+    fn test_sha1_to_string() {
         let hash_str = "8ab686eafeb1f44702738c8b0f24f2567c36da6d";
 
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
                 assert_eq!(
-                    hash.to_plain_str(),
+                    hash.to_string(),
                     "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
                 );
             }
@@ -226,7 +227,7 @@ mod tests {
     #[test]
     fn test_sha1_to_data() {
         let hash_str = "8ab686eafeb1f44702738c8b0f24f2567c36da6d";
-
+        
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
                 assert_eq!(

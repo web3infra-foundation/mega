@@ -67,7 +67,7 @@ impl ScorpioManager {
         let mut data = BytesMut::new();
         add_pkt_line_string(&mut data, format!("{} {} {}\0report-status\n",
                                             work_dir.hash,
-                                            commit.id.to_plain_str(),
+                                            commit.id,
                                             "refs/heads/main"));//TODO : configable
         data.extend_from_slice(b"0000");
         data.extend(pack(commit.clone(),trees,blobs).await);

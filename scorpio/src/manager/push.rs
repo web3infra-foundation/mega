@@ -64,8 +64,8 @@ pub async fn push(path:PathBuf,monopath:PathBuf){
         "test commit ");
     let mut data = BytesMut::new();
     add_pkt_line_string(&mut data, format!("{} {} {}\0report-status\n",
-                                           remote_hash.to_plain_str(),
-                                           commit.id.to_plain_str(),
+                                           remote_hash,
+                                           commit.id,
                                            "refs/heads/main"));
     data.extend_from_slice(b"0000");
     tracing::debug!("{:?}", data);

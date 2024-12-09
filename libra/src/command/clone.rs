@@ -96,7 +96,7 @@ async fn setup(remote_repo: String) {
                 .await
                 .expect("origin HEAD branch not found");
 
-            Branch::update_branch(&name, &origin_head_branch.commit.to_plain_str(), None).await;
+            Branch::update_branch(&name, &origin_head_branch.commit.to_string(), None).await;
             Head::update(Head::Branch(name.to_owned()), None).await;
 
             // set config: remote.origin.url

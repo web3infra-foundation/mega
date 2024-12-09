@@ -44,7 +44,7 @@ impl Caches {
     /// only get object from memory, not from tmp file
     fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         let mut map = self.lru_cache.lock().unwrap();
-        map.get(&hash.to_plain_str()).map(|x| x.data.clone())
+        map.get(&hash.to_string()).map(|x| x.data.clone())
     }
 
     /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
@@ -72,18 +72,18 @@ impl Caches {
             Some(self.pool.clone()),
         );
         x.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
-        let _ = map.insert(hash.to_plain_str(), x); // handle the error
+        let _ = map.insert(hash.to_string(), x); // handle the error
         Ok(obj)
     }
 
     /// generate the temp file path, hex string of the hash
     fn generate_temp_path(tmp_path: &Path, hash: SHA1) -> PathBuf {
         let mut path = tmp_path.to_path_buf();
-        path.push(&hash.to_plain_str()[..2]); // use first 2 chars as the directory
+        path.push(&hash.to_string()[..2]); // use first 2 chars as the directory
         if !path.exists() {
             fs::create_dir(&path).unwrap();
         }
-        path.push(hash.to_plain_str());
+        path.push(hash.to_string());
         path
     }
 
@@ -154,7 +154,7 @@ impl _Cache for Caches {
                 Some(self.pool.clone()),
             );
             a_obj.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
-            let _ = map.insert(hash.to_plain_str(), a_obj);
+            let _ = map.insert(hash.to_string(), a_obj);
         }
         //order maters as for reading in 'get_by_offset()'
         self.hash_set.insert(hash);
