@@ -46,7 +46,7 @@ fi
 # final image
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y libssl-dev ca-certificates
+RUN apt-get update && apt-get install -y libssl-dev ca-certificates less
 
 ARG BUILD_TYPE=release
 
