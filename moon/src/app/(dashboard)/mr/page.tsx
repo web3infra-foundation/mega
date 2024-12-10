@@ -122,7 +122,7 @@ export default function MergeRequestPage() {
             <Tabs defaultActiveKey="1" items={tab_items} onChange={tabsChange} />
 
             <List
-                style={{ width: '80%', marginLeft: '10%', marginTop: '10px' }}
+                className="w-full mt-2"
                 pagination={{ align: "center", pageSize: pageSize, total: numTotal, onChange: onChange }}
                 dataSource={mrList}
                 renderItem={(item, index) => (
