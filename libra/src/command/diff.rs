@@ -33,21 +33,25 @@ use crate::utils::path_ext::PathExt;
 
 #[derive(Parser, Debug)]
 pub struct DiffArgs {
-    #[clap(long, help = "Old commit, defaults is staged or HEAD")]
+    /// Old commit, default is HEAD
+    #[clap(long, value_name = "COMMIT")]
     pub old: Option<String>,
 
-    #[clap(long, help = "New commit, default is working directory")]
+    /// New commit, default is working directory
+    #[clap(long, value_name = "COMMIT")]
     #[clap(requires = "old", group = "op_new")]
     pub new: Option<String>,
 
-    #[clap(long, help = "use stage as new commit")]
+    /// Use stage as new commit. This option is conflict with --new.
+    #[clap(long)]
     #[clap(group = "op_new")]
     pub staged: bool,
 
     #[clap(help = "Files to compare")]
     pathspec: Vec<String>,
 
-    #[clap(long)]
+    // Print the result to file
+    #[clap(long, value_name = "FILENAME")]
     pub output: Option<String>,
 }
 
@@ -216,12 +220,8 @@ pub async fn diff(
             writeln!(w, "deleted file mode 100644").unwrap();
         }
 
-        let old_index = old_hash.map_or("0000000".to_string(), |h| {
-            h.to_string()[0..8].to_string()
-        });
-        let new_index = new_hash.map_or("0000000".to_string(), |h| {
-            h.to_string()[0..8].to_string()
-        });
+        let old_index = old_hash.map_or("0000000".to_string(), |h| h.to_string()[0..8].to_string());
+        let new_index = new_hash.map_or("0000000".to_string(), |h| h.to_string()[0..8].to_string());
         writeln!(w, "index {}..{}", old_index, new_index).unwrap();
 
         // check is the content is valid utf-8 or maybe binary
