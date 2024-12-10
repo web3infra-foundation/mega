@@ -6,6 +6,7 @@ on:
 jobs:
   engine:
     runs-on: ubuntu-latest
+    if: github.repository_owner == 'genedna'
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -30,6 +31,7 @@ jobs:
           outputs: ${{ github.event_name == 'pull_request' && 'type=cacheonly' || 'type=registry' }}
   postgres:
     runs-on: ubuntu-latest
+    if: github.repository_owner == 'genedna'
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -54,6 +56,7 @@ jobs:
           outputs: ${{ github.event_name == 'pull_request' && 'type=cacheonly' || 'type=registry' }}
   ui:
     runs-on: ubuntu-latest
+    if: github.repository_owner == 'genedna'
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
