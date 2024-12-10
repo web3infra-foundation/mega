@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use russh_keys::parse_public_key_base64;
+use russh_keys::{parse_public_key_base64, HashAlg};
 
 use common::model::CommonResult;
 
@@ -54,7 +54,7 @@ async fn add_key(
 
     let res = state
         .user_stg()
-        .save_ssh_key(user.user_id, &title, &json.ssh_key, &key.fingerprint())
+        .save_ssh_key(user.user_id, &title, &json.ssh_key, &key.fingerprint(HashAlg::Sha256).to_string())
         .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
