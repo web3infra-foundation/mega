@@ -17,7 +17,7 @@ pub struct BranchArgs {
     #[clap(requires = "new_branch")]
     commit_hash: Option<String>,
 
-    /// list all branches
+    /// list all branches, don't include remote branches
     #[clap(short, long, group = "sub", default_value = "true")]
     list: bool,
 
@@ -25,7 +25,7 @@ pub struct BranchArgs {
     #[clap(short = 'D', long, group = "sub")]
     delete: Option<String>,
 
-    /// Set up current branch's tracking information
+    ///  Set up `branchname`>`'s tracking information so `<`upstream`>` is considered `<`branchname`>`'s upstream branch.
     #[clap(short = 'u', long, group = "sub")]
     set_upstream_to: Option<String>,
 
@@ -53,7 +53,7 @@ pub async fn execute(args: BranchArgs) {
             }
         };
     } else if args.list {
-        // 兜底list
+        // default behavior
         list_branches(args.remotes).await;
     } else {
         panic!("should not reach here")
