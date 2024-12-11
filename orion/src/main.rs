@@ -1,6 +1,7 @@
 mod server;
 mod buck_controller;
 mod api;
+mod util;
 
 #[tokio::main]
 async fn main() {
