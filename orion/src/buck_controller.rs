@@ -1,11 +1,12 @@
+use std::io;
 use std::process::{Command, Stdio};
+use crate::util;
 
 const PROJECT_ROOT: &str = "/home/bean/projects/buck2";
 
-pub fn build(repo: String, target: String, args: Vec<String>, id: String) -> std::io::Result<String> {
-    const BUILD_LOG_DIR: &str = "/tmp/buck2ctl";
-    std::fs::create_dir_all(BUILD_LOG_DIR)?;
-    let output_file = std::fs::File::create(&format!("{}/{}", BUILD_LOG_DIR, id))?;
+pub fn build(repo: String, target: String, args: Vec<String>, log_path: String) -> io::Result<String> {
+    util::ensure_parent_dirs(&log_path)?;
+    let output_file = std::fs::File::create(log_path)?;
 
     let mut cmd = Command::new("buck2");
     let cmd = cmd

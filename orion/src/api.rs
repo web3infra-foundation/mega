@@ -1,14 +1,24 @@
 use axum::{Json, Router};
-use axum::response::IntoResponse;
-use axum::routing::post;
+use axum::response::{IntoResponse, Sse};
+use axum::response::sse::{Event, KeepAlive};
+use axum::routing::{get, post};
+use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
+use std::{time::Duration, convert::Infallible};
+use axum::extract::Path;
+use dashmap::DashSet;
+use once_cell::sync::Lazy;
+use tokio::io::AsyncReadExt;
 use uuid::Uuid;
-use crate::buck_controller;
+use crate::{buck_controller, util};
 
 pub fn routers() -> Router {
     Router::new()
         .route("/build", post(buck_build))
+        .route("/build-output/:id", get(build_output))
 }
+
+const BUILD_LOG_DIR: &str = "/tmp/buck2ctl";
 #[derive(Debug, Deserialize)]
 struct BuildRequest {
     repo: String,
@@ -24,16 +34,19 @@ struct BuildResult {
     message: String,
 }
 
+static BUILDING: Lazy<DashSet<String>> = Lazy::new(|| DashSet::new());
+
 async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
     let id = Uuid::now_v7();
     let id_c = id.clone();
+    BUILDING.insert(id.to_string());
     tracing::info!("Start build task: {}", id);
     tokio::task::spawn_blocking(move || {
         let build_resp = match buck_controller::build(
             req.repo,
             req.target,
             req.args.unwrap_or_default(),
-            id_c.to_string())
+            format!("{}/{}", BUILD_LOG_DIR, id_c.to_string()))
         {
             Ok(output) => {
                 tracing::info!("Build success: {}", output);
@@ -52,6 +65,8 @@ async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
                 }
             }
         };
+
+        BUILDING.remove(&id_c.to_string());
 
         // notify webhook
         if let Some(webhook) = req.webhook {
@@ -79,4 +94,52 @@ async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
         id: id.to_string(),
         message: "Build started".to_string(),
     })
+}
+
+/// SSE
+async fn build_output(Path(id): Path<String>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> { // impl IntoResponse
+    let mut path = format!("{}/{}", BUILD_LOG_DIR, id);
+    if !std::path::Path::new(&path).exists() {
+        // use File rather than return Stream directly, because 2 return types must same, which is hard
+        // `Sse<Unfold<Reader<File>, ..., ...>>` != Sse<Once<..., ..., ...>> != Sse<Unfold<bool, ..., ...>>
+        path = format!("{}/404", BUILD_LOG_DIR);
+        if !std::path::Path::new(&path).exists() {
+            util::ensure_file_content(&path, "Build task not found").unwrap();
+        }
+    }
+
+    let file = tokio::fs::File::open(&path).await.unwrap();
+    let reader = tokio::io::BufReader::new(file);
+
+    let stream = stream::unfold(reader, move |mut reader| {
+        let id_c = id.clone(); // must, or err
+        async move {
+            let mut buf = String::new();
+            let is_building = BUILDING.contains(&id_c); // MUST check before reading
+            let size = reader.read_to_string(&mut buf).await.unwrap();
+            if size == 0 {
+                if is_building {
+                    // wait for new content
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    let size = reader.read_to_string(&mut buf).await.unwrap();
+                    if size > 0 {
+                        tracing::debug!("Read: {}", buf); // little duplicate code, but more efficient
+                        Some((Ok::<Event, Infallible>(Event::default().data(buf)), reader))
+                    } else {
+                        tracing::debug!("Not Modified, waiting...");
+                        // return control to `axum`, or it can't auto-detect client disconnect & close
+                        Some((Ok::<Event, Infallible>(Event::default().comment("")), reader))
+                    }
+                } else {
+                    // build end & no more content
+                    None
+                }
+            } else {
+                tracing::debug!("Read: {}", buf);
+                Some((Ok::<Event, Infallible>(Event::default().data(buf)), reader))
+            }
+        }
+    });
+
+    Sse::new(stream).keep_alive(KeepAlive::new()) // empty comment to keep alive
 }
