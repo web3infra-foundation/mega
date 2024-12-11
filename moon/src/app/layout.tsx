@@ -2,6 +2,7 @@ import '@/styles/globals.css'
 import type { Metadata } from 'next'
 import type React from 'react'
 import { AntdRegistry } from '@ant-design/nextjs-registry';
+import { TreeStoreProvider } from '@/app/providers/tree-store-providers';
 
 export const metadata: Metadata = {
   title: {
@@ -23,7 +24,11 @@ export default async function Layout({ children }: { children: React.ReactNode }
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
       </head>
       <body>
-        <AntdRegistry>{children}</AntdRegistry>
+        <TreeStoreProvider>
+          <AntdRegistry>
+            {children}
+          </AntdRegistry>
+        </TreeStoreProvider>
       </body>
     </html>
   )
