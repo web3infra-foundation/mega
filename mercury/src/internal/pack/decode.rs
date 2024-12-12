@@ -301,11 +301,9 @@ impl Pack {
             },
             ObjectType::HashDelta => {
                 // Read 20 bytes to get the reference object SHA1 hash
-                let mut buf_ref = [0; 20];
-                pack.read_exact(&mut buf_ref).unwrap();
-                let ref_sha1 = SHA1::from_bytes(buf_ref.as_ref()); //TODO SHA1::from_stream()
+                let ref_sha1 = SHA1::from_stream(pack).unwrap();
                 // Offset is incremented by 20 bytes
-                *offset += 20; //TODO 改为常量
+                *offset += SHA1::SIZE;
 
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
@@ -426,9 +424,7 @@ impl Pack {
         }
         log_info(i, self);
         let render_hash = reader.final_hash();
-        let mut trailer_buf = [0; 20];
-        reader.read_exact(&mut trailer_buf).unwrap();
-        self.signature = SHA1::from_bytes(trailer_buf.as_ref());
+        self.signature = SHA1::from_stream(&mut reader).unwrap();
 
         if render_hash != self.signature {
             return Err(GitError::InvalidPackFile(format!(
