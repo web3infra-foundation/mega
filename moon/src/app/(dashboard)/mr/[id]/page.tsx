@@ -1,12 +1,12 @@
 'use client'
-import { useCallback, useEffect, useState } from "react";
-import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { Card, Button, Tabs, TabsProps, Space, Timeline, Flex } from 'antd';
 import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
-import RichEditor from "@/components/rich-editor/RichEditor";
-import MRComment from "@/components/MRComment";
-import * as React from 'react'
-import { useRouter } from "next/navigation";
+import RichEditor from '@/components/rich-editor/RichEditor';
+import MRComment from '@/components/MRComment';
+import { useRouter } from 'next/navigation';
 import * as Diff2Html from 'diff2html';
 import 'diff2html/bundles/css/diff2html.min.css';
 

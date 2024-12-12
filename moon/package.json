@@ -15,7 +15,9 @@
     "@headlessui/tailwindcss": "^0.2.1",
     "@heroicons/react": "^2.2.0",
     "@lexical/react": "^0.21.0",
+    "@lexical/utils": "^0.21.0",
     "@tailwindcss/forms": "^0.5.9",
+    "antd": "^5.22.4",
     "clsx": "^2.1.1",
     "copy-to-clipboard": "^3.3.3",
     "date-fns": "^4.1.0",
@@ -28,7 +30,8 @@
     "prism-react-renderer": "^2.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-markdown": "^9.0.1"
+    "react-markdown": "^9.0.1",
+    "zustand": "4.5.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
