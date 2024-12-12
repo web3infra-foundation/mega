@@ -2,8 +2,7 @@ import { Card, Dropdown } from 'antd/lib';
 import type { MenuProps } from 'antd';
 import { MoreOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
-import LexicalContent from "@/components/rich-editor/LexicalContent";
-
+import LexicalContent from '@/components/rich-editor/LexicalContent';
 
 const Comment = ({ conv, fetchDetail }) => {
 
@@ -44,7 +43,7 @@ const Comment = ({ conv, fetchDetail }) => {
         onClick: handleMenuClick,
     };
 
-    let time = formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true });
+    const time = formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true });
 
     return (
         <Card size="small" title={"Mega commented " + time} style={{ border: "1px solid #d1d9e0" }} extra={

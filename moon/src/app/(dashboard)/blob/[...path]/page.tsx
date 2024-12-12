@@ -1,21 +1,21 @@
 'use client'
+
 import CodeContent from '@/components/CodeContent';
 import Bread from '@/components/BreadCrumb';
-import { useEffect, useState } from 'react';
-import { Flex, Layout } from "antd/lib";
-import * as React from 'react'
+import React, { useEffect, useState } from 'react';
+import { Flex, Layout } from 'antd';
 
 type Params = Promise<{ path: string[] }>
 
 export default function BlobPage({ params }: { params: Params }) {
     const { path } = React.use(params);
 
-    let new_path = '/' + path.join('/');
+    const new_path = '/' + path.join('/');
     const [fileContent, setFileContent] = useState("");
     useEffect(() => {
         const fetchData = async () => {
             try {
-                let fileContent = await getFileContent(new_path);
+                const fileContent = await getFileContent(new_path);
                 setFileContent(fileContent);
             } catch (error) {
                 console.error('Error fetching data:', error);
