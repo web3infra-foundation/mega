@@ -264,7 +264,7 @@ impl Index {
         }
 
         // Extensions
-        while file.bytes_read() + utils::SHA1_SIZE < total_size as usize {
+        while file.bytes_read() + SHA1::SIZE < total_size as usize {
             // The remaining 20 bytes must be checksum
             let sign = utils::read_bytes(file, 4)?;
             println!("{:?}", String::from_utf8(sign.clone())?);
