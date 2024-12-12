@@ -111,7 +111,7 @@ const RepoTree = ({ directory }) => {
         // only click one, example: click the first one is ['0-0'], then the array index is 0
         const pathArray = selectedKeys[0].split('-').map(part => parseInt(part, 10));
         // according to the current route, splicing the next route and determine the type to jump
-        let real_path = pathname.replace('/tree', '');
+        const real_path = pathname.replace('/tree', '');
         if (Array.isArray(treeData) && treeData?.length > 0) {
             if (Array.isArray(pathArray) && pathArray.length === 2) {
                 // root folder
@@ -127,7 +127,7 @@ const RepoTree = ({ directory }) => {
                 const findNode = (data: TreeNode[], indices: number[]): TreeNode | null => {
                     if (indices.length === 0) return null;
                     if (indices.length === 1) return data[indices[0]];
-                    
+
                     const node = data[indices[1]] as TreeNode;
                     let current = node;
                     
