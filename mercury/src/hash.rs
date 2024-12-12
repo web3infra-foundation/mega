@@ -7,7 +7,7 @@ use std::{fmt::Display, io};
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use sha1_smol::Digest;
+use sha1::Digest;
 
 use crate::internal::object::types::ObjectType;
 
@@ -62,14 +62,11 @@ impl std::str::FromStr for SHA1 {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut h = SHA1::default();
-
-        let d = Digest::from_str(s);
-
-        match d {
-            Ok(d) => h.0.copy_from_slice(d.bytes().as_slice()),
-            Err(e) => return Err(e.to_string()),
+        if s.len() != 40 {
+            return Err("The length of the string is not 40".to_string());
         }
-
+        let bytes = hex::decode(s).map_err(|e| e.to_string())?;
+        h.0.copy_from_slice(bytes.as_slice());
         Ok(h)
     }
 }
@@ -101,14 +98,8 @@ impl SHA1 {
 
     /// Calculate the SHA-1 hash of `Vec<u8>` data, then create a Hash value
     pub fn new(data: &Vec<u8>) -> SHA1 {
-        // Create a Sha1 object for calculating the SHA-1 hash
-        let s = sha1_smol::Sha1::from(data);
-        // Get the result of the hash
-        let sha1 = s.digest();
-        // Convert the result to a 20-byte array
-        let result = sha1.bytes();
-
-        SHA1(result)
+        let h = sha1::Sha1::digest(data);
+        SHA1::from_bytes(h.as_slice())
     }
 
     pub fn from_type_and_data(object_type: ObjectType, data: &[u8]) -> SHA1 {
