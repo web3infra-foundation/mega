@@ -3,7 +3,7 @@
 //! location in the Git internal and mega database.
 //!
 
-use std::fmt::Display;
+use std::{fmt::Display, io};
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
@@ -93,6 +93,9 @@ impl std::str::FromStr for SHA1 {
 /// These method naming conventions (`new`, `from`, `to`) provide clarity and predictability in the API, making it easier for users
 /// to understand the intended use and functionality of each method within the `SHA1` struct.
 impl SHA1 {
+    // The size of the SHA-1 hash value in bytes
+    pub const SIZE: usize = 20;
+
     /// Calculate the SHA-1 hash of `Vec<u8>` data, then create a Hash value
     pub fn new(data: &Vec<u8>) -> SHA1 {
         let h = sha1::Sha1::digest(data);
@@ -113,8 +116,15 @@ impl SHA1 {
     pub fn from_bytes(bytes: &[u8]) -> SHA1 {
         let mut h = SHA1::default();
         h.0.copy_from_slice(bytes);
-
         h
+    }
+
+    /// Read the Hash value from the stream
+    /// This function will read exactly 20 bytes from the stream
+    pub fn from_stream(data: &mut impl io::Read) -> io::Result<SHA1> {
+        let mut h = SHA1::default();
+        data.read_exact(&mut h.0)?;
+        Ok(h)
     }
 
     /// Export sha1 value to String with the color
@@ -179,6 +189,17 @@ mod tests {
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);
 
+        assert_eq!(sha1.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+    }
+
+    #[test]
+    fn test_from_stream() {
+        let source = [
+            0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
+            0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
+        ];
+        let mut reader = std::io::Cursor::new(source);
+        let sha1 = SHA1::from_stream(&mut reader).unwrap();
         assert_eq!(sha1.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
     }
 
