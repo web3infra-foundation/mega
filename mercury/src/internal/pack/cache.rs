@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Once;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::{fs, io};
@@ -36,6 +37,7 @@ pub struct Caches {
     lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache require the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
     mem_size: Option<usize>,
     tmp_path: PathBuf,
+    path_prefixes: [Once; 256],
     pool: Arc<ThreadPool>,
     complete_signal: Arc<AtomicBool>,
 }
@@ -71,24 +73,24 @@ impl Caches {
             self.complete_signal.clone(),
             Some(self.pool.clone()),
         );
-        x.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+        x.set_store_path(self.generate_temp_path(&self.tmp_path, hash));
         let _ = map.insert(hash.to_string(), x); // handle the error
         Ok(obj)
     }
 
     /// generate the temp file path, hex string of the hash
-    fn generate_temp_path(tmp_path: &Path, hash: SHA1) -> PathBuf {
+    fn generate_temp_path(&self, tmp_path: &Path, hash: SHA1) -> PathBuf {
         let mut path = tmp_path.to_path_buf();
         path.push(&hash.to_string()[..2]); // use first 2 chars as the directory
-        if !path.exists() {
+        self.path_prefixes[hash.as_ref()[0] as usize].call_once(|| {
             fs::create_dir(&path).unwrap();
-        }
+        });
         path.push(hash.to_string());
         path
     }
 
     fn read_from_temp(&self, hash: SHA1) -> io::Result<CacheObject> {
-        let path = Self::generate_temp_path(&self.tmp_path, hash);
+        let path = self.generate_temp_path(&self.tmp_path, hash);
         let obj = CacheObject::f_load(&path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
@@ -134,6 +136,7 @@ impl _Cache for Caches {
             lru_cache: Mutex::new(LruCache::new(mem_size.unwrap_or(usize::MAX))),
             mem_size,
             tmp_path,
+            path_prefixes: [const { Once::new() }; 256],
             pool: Arc::new(ThreadPool::new(thread_num)),
             complete_signal: Arc::new(AtomicBool::new(false)),
         }
@@ -153,7 +156,7 @@ impl _Cache for Caches {
                 self.complete_signal.clone(),
                 Some(self.pool.clone()),
             );
-            a_obj.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+            a_obj.set_store_path(self.generate_temp_path(&self.tmp_path, hash));
             let _ = map.insert(hash.to_string(), a_obj);
         }
         //order maters as for reading in 'get_by_offset()'
