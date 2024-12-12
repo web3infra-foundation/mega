@@ -7,7 +7,7 @@ use std::fmt::Display;
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use sha1_smol::Digest;
+use sha1::Digest;
 
 use crate::internal::object::types::ObjectType;
 
@@ -44,7 +44,7 @@ impl Display for SHA1 {
         write!(f, "{}", hex::encode(self.0))
     }
 }
-impl AsRef<[u8]> for SHA1{
+impl AsRef<[u8]> for SHA1 {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
@@ -62,14 +62,11 @@ impl std::str::FromStr for SHA1 {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut h = SHA1::default();
-
-        let d = Digest::from_str(s);
-
-        match d {
-            Ok(d) => h.0.copy_from_slice(d.bytes().as_slice()),
-            Err(e) => return Err(e.to_string()),
+        if s.len() != 40 {
+            return Err("The length of the string is not 40".to_string());
         }
-
+        let bytes = hex::decode(s).map_err(|e| e.to_string())?;
+        h.0.copy_from_slice(bytes.as_slice());
         Ok(h)
     }
 }
@@ -98,14 +95,8 @@ impl std::str::FromStr for SHA1 {
 impl SHA1 {
     /// Calculate the SHA-1 hash of `Vec<u8>` data, then create a Hash value
     pub fn new(data: &Vec<u8>) -> SHA1 {
-        // Create a Sha1 object for calculating the SHA-1 hash
-        let s = sha1_smol::Sha1::from(data);
-        // Get the result of the hash
-        let sha1 = s.digest();
-        // Convert the result to a 20-byte array
-        let result = sha1.bytes();
-
-        SHA1(result)
+        let h = sha1::Sha1::digest(data);
+        SHA1::from_bytes(h.as_slice())
     }
 
     pub fn from_type_and_data(object_type: ObjectType, data: &[u8]) -> SHA1 {
@@ -126,7 +117,7 @@ impl SHA1 {
         h
     }
 
-    /// Export sha1 value to String with the color 
+    /// Export sha1 value to String with the color
     pub fn to_color_str(self) -> String {
         self.to_string().red().bold().to_string()
     }
@@ -139,7 +130,7 @@ impl SHA1 {
 
 #[cfg(test)]
 mod tests {
-    
+
     use std::io::BufReader;
     use std::io::Read;
     use std::io::Seek;
@@ -188,10 +179,7 @@ mod tests {
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);
 
-        assert_eq!(
-            sha1.to_string(),
-            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-        );
+        assert_eq!(sha1.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
     }
 
     #[test]
@@ -200,10 +188,7 @@ mod tests {
 
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
-                assert_eq!(
-                    hash.to_string(),
-                    "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-                );
+                assert_eq!(hash.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
             }
             Err(e) => println!("Error: {}", e),
         }
@@ -215,10 +200,7 @@ mod tests {
 
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
-                assert_eq!(
-                    hash.to_string(),
-                    "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-                );
+                assert_eq!(hash.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
             }
             Err(e) => println!("Error: {}", e),
         }
@@ -227,7 +209,7 @@ mod tests {
     #[test]
     fn test_sha1_to_data() {
         let hash_str = "8ab686eafeb1f44702738c8b0f24f2567c36da6d";
-        
+
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
                 assert_eq!(
