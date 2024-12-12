@@ -1,5 +1,5 @@
 import 'github-markdown-css/github-markdown-light.css'
-import { Breadcrumb } from 'antd/lib'
+import { Breadcrumb } from 'antd'
 import styles from './BreadCrumb.module.css'
 
 const Bread = ({ path }) => {
