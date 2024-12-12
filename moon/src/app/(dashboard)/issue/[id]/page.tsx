@@ -1,11 +1,11 @@
 'use client'
-import { useCallback, useEffect, useState } from "react";
-import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
-import { CommentOutlined, MergeOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import RichEditor from "@/components/rich-editor/RichEditor";
-import MRComment from "@/components/MRComment";
-import { useRouter } from "next/navigation";
-import * as React from 'react'
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { Card, Button, Tabs, TabsProps, Space, Timeline, Flex } from 'antd';
+import { CommentOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import RichEditor from '@/components/rich-editor/RichEditor';
+import MRComment from '@/components/MRComment';
+import { useRouter } from 'next/navigation';
 
 interface IssueDetail {
     status: string,
@@ -106,7 +106,7 @@ export default function IssueDetailPage({ params }: { params: Params }) {
         }
     }
 
-    let conv_items = info?.conversions.map(conv => {
+    const conv_items = info?.conversions.map(conv => {
         let icon;
         let children;
         switch (conv.conv_type) {
