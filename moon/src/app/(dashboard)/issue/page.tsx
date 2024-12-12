@@ -1,12 +1,11 @@
 'use client'
+
 import { Heading } from '@/components/catalyst/heading'
-import { useCallback, useEffect, useState } from 'react';
-import React from 'react';
-import { Flex, List, PaginationProps, Tag, Button, Tabs, Space, TabsProps, Segmented } from 'antd/lib';
-import { format, formatDistance, fromUnixTime } from 'date-fns'
+import React, { useCallback, useEffect, useState } from 'react';
+import { Flex, List, PaginationProps, Tag, Button, Tabs, TabsProps } from 'antd';
+import { formatDistance, fromUnixTime } from 'date-fns';
 import { CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import Link from 'next/link';
-
 
 interface Item {
     link: string,
