@@ -2,3 +2,31 @@
 title: The [rm] Command
 description:
 ---
+
+# rm
+
+**Remove files from the working tree and from the index**
+
+### Usage
+
+libra rm \[OPTIONS\] \[PATHSPEC\]...
+
+### Arguments
+
+-   `[PATHSPEC]...` - Files to remove.<br/>
+A leading directory name can be given to remove all files in the
+directory, and recursively all sub-directories, but this requires the `-r` option to be explicitly given.
+
+### Description
+
+Remove files matching pathspec from the index, or from the working tree and the index. `libra rm` will not remove a file from just your working
+directory. (There is no option to remove a file only from the working tree and yet keep it in the index; use system rm if you want to do
+that.)
+
+### Options
+
+-   `--cached`<br/>
+    Use this option to unstage and remove paths only from the index. Working tree files, whether modified or not, will be left alone.
+
+-   `-r`, `--recursive`<br/>
+    Allow recursive removal when a leading directory name is given.
