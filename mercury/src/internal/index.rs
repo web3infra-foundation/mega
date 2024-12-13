@@ -60,7 +60,37 @@ pub struct Flags {
     pub stage: u8,        // 2-bit during merge
     pub name_length: u16, // 12-bit
 }
-// TODO From Trait
+
+impl From<u16> for Flags {
+    fn from(flags: u16) -> Self {
+        Flags {
+            assume_valid: flags & 0x8000 != 0,
+            extended: flags & 0x4000 != 0,
+            stage: ((flags & 0x3000) >> 12) as u8,
+            name_length: flags & 0xFFF,
+        }
+    }
+}
+
+impl TryInto<u16> for &Flags {
+    type Error = &'static str;
+    fn try_into(self) -> Result<u16, Self::Error> {
+        let mut flags = 0u16;
+        if self.assume_valid {
+            flags |= 0x8000; // 16
+        }
+        if self.extended {
+            flags |= 0x4000; // 15
+        }
+        flags |= (self.stage as u16) << 12; // 13-14
+        if self.name_length > 0xFFF { 
+            return Err("Name length is too long");
+        }
+        flags |= self.name_length; // 0-11
+        Ok(flags)
+    }
+}
+
 impl Flags {
     pub fn new(name_len: u16) -> Self {
         Flags {
@@ -69,29 +99,6 @@ impl Flags {
             stage: 0,
             name_length: name_len,
         }
-    }
-
-    pub fn from_u16(flags: u16) -> Self {
-        Flags {
-            assume_valid: flags & 0x8000 != 0,
-            extended: flags & 0x4000 != 0,
-            stage: ((flags & 0x3000) >> 12) as u8,
-            name_length: flags & 0xFFF,
-        }
-    }
-
-    pub fn to_u16(&self) -> u16 {
-        let mut flags = 0u16;
-        if self.assume_valid {
-            flags |= 0x8000;
-        }
-        if self.extended {
-            flags |= 0x4000;
-        }
-        flags |= (self.stage as u16) << 12;
-        assert!(self.name_length <= 0xFFF, "Name length is too long");
-        flags |= self.name_length;
-        flags
     }
 }
 
@@ -240,7 +247,7 @@ impl Index {
                 gid: file.read_u32::<BigEndian>()?,
                 size: file.read_u32::<BigEndian>()?,
                 hash: utils::read_sha1(file)?,
-                flags: Flags::from_u16(file.read_u16::<BigEndian>()?),
+                flags: Flags::from(file.read_u16::<BigEndian>()?),
                 name: String::new(),
             };
             let name_len = entry.flags.name_length as usize;
@@ -308,7 +315,7 @@ impl Index {
             entry_bytes.write_u32::<BigEndian>(entry.gid)?;
             entry_bytes.write_u32::<BigEndian>(entry.size)?;
             entry_bytes.write_all(&entry.hash.0)?;
-            entry_bytes.write_u16::<BigEndian>(entry.flags.to_u16())?;
+            entry_bytes.write_u16::<BigEndian>((&entry.flags).try_into().unwrap())?;
             entry_bytes.write_all(entry.name.as_bytes())?;
             let padding = 8 - ((22 + entry.name.len()) % 8);
             entry_bytes.write_all(&vec![0; padding])?;
