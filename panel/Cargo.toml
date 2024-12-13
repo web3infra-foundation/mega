@@ -1,0 +1,30 @@
+[package]
+name = "panel"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+p2p = ["neptune"]
+
+[dependencies]
+# ======= Mega Dependencies ======= #
+mega.workspace = true
+common.workspace = true
+jupiter.workspace = true
+gateway.workspace = true
+
+neptune = { workspace = true, optional = true }
+
+# ===== Zed Gpui Dependencies ===== #
+gpui = { git = "https://github.com/zed-industries/zed" }
+
+# ==== Third Part Dependencies ==== #
+tokio = { workspace = true, features = ["macros"]}
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+
+rust-embed = "8.5.0"
+rust-embed-impl = "8.5.0"
