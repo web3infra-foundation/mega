@@ -75,7 +75,7 @@ impl Pack {
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
-            mem_limit: mem_limit,
+            mem_limit,
             cache_objs_mem: Arc::new(AtomicUsize::default()),
             clean_tmp,
         }
