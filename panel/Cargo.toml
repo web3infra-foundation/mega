@@ -18,7 +18,6 @@ neptune = { workspace = true, optional = true }
 
 # ===== Zed Gpui Dependencies ===== #
 gpui = { git = "https://github.com/zed-industries/zed" }
-ui = { git = "https://github.com/zed-industries/zed" }
 
 # ==== Third Part Dependencies ==== #
 tokio = { workspace = true, features = ["macros"]}
