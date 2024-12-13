@@ -75,7 +75,7 @@ impl Pack {
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
-            mem_limit: mem_limit.unwrap_or(usize::MAX),
+            mem_limit,
             cache_objs_mem: Arc::new(AtomicUsize::default()),
             clean_tmp,
         }
@@ -363,7 +363,8 @@ impl Pack {
             }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
-            while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {
+            while self.pool.queued_count() > 2000 
+                || self.mem_limit.map(|limit| self.memory_used() > limit).unwrap_or(false) {
                 thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
@@ -707,6 +708,19 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered,|_,_|{}).unwrap();
+    }
+
+    #[test]
+    fn test_pack_decode_no_mem_limit() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
+
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+
+        let f = fs::File::open(source).unwrap();
+        let mut buffered = BufReader::new(f);
+        let mut p = Pack::new(None, None, Some(tmp), true);
+        p.decode(&mut buffered, |_,_|{}).unwrap();
     }
 
     #[test]
