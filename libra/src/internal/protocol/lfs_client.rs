@@ -334,7 +334,7 @@ impl LFSClient {
 
         let mut is_chunked = false;
         // Chunk API
-        let mut chunk_size = None; // infer that all chunks are the same size!
+        let chunk_size; // infer that all chunks are the same size!
         let links = match self.fetch_chunks(&link.href).await {
             Ok(chunks) => {
                 is_chunked = true;
@@ -342,7 +342,10 @@ impl LFSClient {
                 tracing::info!("LFS Chunk API supported.");
                 chunks.into_iter().map(|c| c.link).collect()
             },
-            Err(_) => vec![link.clone()],
+            Err(_) => {
+                chunk_size = Some(size as i64);
+                vec![link.clone()]
+            }
         };
 
         let mut checksum = Context::new(&SHA256);
