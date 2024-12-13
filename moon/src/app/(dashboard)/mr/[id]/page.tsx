@@ -1,14 +1,15 @@
 'use client'
-import { useCallback, useEffect, useState } from "react";
-import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { Card, Button, Tabs, TabsProps, Space, Timeline, Flex } from 'antd';
 import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
-import RichEditor from "@/components/rich-editor/RichEditor";
-import MRComment from "@/components/MRComment";
-import * as React from 'react'
-import { useRouter } from "next/navigation";
+import RichEditor from '@/components/rich-editor/RichEditor';
+import MRComment from '@/components/MRComment';
+import { useRouter } from 'next/navigation';
 import * as Diff2Html from 'diff2html';
 import 'diff2html/bundles/css/diff2html.min.css';
+import FilesChanged from '@/components/page/mr/files-changed';
 
 interface MRDetail {
     status: string,
@@ -40,7 +41,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
     const [filedata, setFileData] = useState([]);
     const [loadings, setLoadings] = useState<boolean[]>([]);
     const router = useRouter();
-    const [outputHtml, setOutputHtml] = useState("");
+    const [outputHtml, setOutputHtml] = useState('');
 
     const checkLogin = async () => {
         const res = await fetch(`/api/auth`);
@@ -193,23 +194,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
         {
             key: '2',
             label: 'Files Changed',
-            children: <Space style={{ width: '100%' }}>
-                {/* <List
-                    header={<div>Change File List</div>}
-                    bordered
-                    dataSource={filedata}
-                    loading={loadings[2]}
-                    renderItem={(item) => (
-                        <List.Item>
-                            {item}
-                        </List.Item>
-                    )}
-                /> */}
-                <div
-                    dangerouslySetInnerHTML={{ __html: outputHtml }}
-                    style={{ fontFamily: 'monospace' }}
-                />
-            </Space>
+            children: <FilesChanged outputHtml={outputHtml} />
         }
     ];
 

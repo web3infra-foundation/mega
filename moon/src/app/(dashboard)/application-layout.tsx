@@ -30,7 +30,6 @@ import {
   KeyIcon,
 } from '@heroicons/react/16/solid'
 import {
-  Cog6ToothIcon,
   HomeIcon,
   QuestionMarkCircleIcon,
   SparklesIcon,
@@ -82,7 +81,7 @@ export function ApplicationLayout({
 }: {
   children: React.ReactNode
 }) {
-  let pathname = usePathname()
+  const pathname = usePathname()
 
   const [user, setUser] = useState<User | null>(null);
 
