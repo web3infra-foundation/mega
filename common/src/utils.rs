@@ -63,33 +63,18 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
 
 /// parse commit message
 pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
-    const GPG_SIG_START: &str = "gpgsig -----BEGIN PGP SIGNATURE-----";
-    const GPG_SIG_END: &str = "-----END PGP SIGNATURE-----";
-    let gpg_start = msg_gpg.find(GPG_SIG_START);
-    let gpg_end = msg_gpg.find(GPG_SIG_END).map(|end| end + GPG_SIG_END.len());
-    let gpg_sig = match (gpg_start, gpg_end) {
-        (Some(start), Some(end)) => {
-            if start < end {
-                Some(msg_gpg[start..end].to_string())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    };
-    match gpg_sig {
-        Some(gpg) => {
-            // Skip the leading '\n\n' (blank lines).
-            // Some commit messages may use '\n \n\n' or similar patterns.
-            // To handle such cases, remove all leading blank lines from the message.
-            let msg = msg_gpg[gpg_end.unwrap()..].trim_start().to_string();
-            (msg, Some(gpg))
-        }
-        None => {
-            assert!(msg_gpg.starts_with('\n'), "commit message format error");
-            let msg = msg_gpg[1..].to_string(); // skip the leading '\n' (blank line)
-            (msg, None)
-        }
+    let sig_regex = Regex::new(r"(gpgsig -----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*?-----END (?:PGP|SSH) SIGNATURE-----)").unwrap();
+
+    if let Some(caps) = sig_regex.captures(msg_gpg) {
+        let signature = caps.get(1).map(|m| m.as_str().to_string());
+        // Skip the leading '\n\n' (blank lines).
+        // Some commit messages may use '\n \n\n' or similar patterns.
+        // To handle such cases, remove all leading blank lines from the message.
+        let msg = sig_regex.replace(msg_gpg, "").trim_start().to_string();
+        (msg, signature)
+    } else {
+        assert!(msg_gpg.starts_with('\n'), "commit message format error");
+        (msg_gpg[1..].to_string(), None)
     }
 }
 
