@@ -13,3 +13,11 @@ In the root directory of your project, three environment variables are required 
 
 - **Development Mode**: Next.js automatically reads the environment variables from the `.env` file.
 - **Production Mode**: Environment variables must be passed via Docker commands when deploying the application.
+
+### Development Commands
+
+```bash
+pnpm i
+
+pnpm run dev
+```

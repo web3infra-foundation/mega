@@ -1,12 +1,11 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react';
-import React from 'react';
-import { List, PaginationProps, Tag, Tabs, TabsProps } from 'antd/lib';
-import { format, formatDistance, fromUnixTime } from 'date-fns'
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { List, PaginationProps, Tag, Tabs, TabsProps } from 'antd';
+import { formatDistance, fromUnixTime } from 'date-fns';
 import { MergeOutlined, PullRequestOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import Link from 'next/link';
-import { Heading } from '@/components/catalyst/heading'
-
+import { Heading } from '@/components/catalyst/heading';
 
 interface MrInfoItem {
     link: string,
@@ -21,7 +20,7 @@ export default function MergeRequestPage() {
     const [mrList, setMrList] = useState<MrInfoItem[]>([]);
     const [numTotal, setNumTotal] = useState(0);
     const [pageSize, setPageSize] = useState(10);
-    const [status, setStatus] = useState("open")
+    const [status, setStatus] = useState('open')
 
     const fetchData = useCallback(async (page: number, per_page: number) => {
         try {
@@ -122,7 +121,7 @@ export default function MergeRequestPage() {
             <Tabs defaultActiveKey="1" items={tab_items} onChange={tabsChange} />
 
             <List
-                style={{ width: '80%', marginLeft: '10%', marginTop: '10px' }}
+                className="w-full mt-2"
                 pagination={{ align: "center", pageSize: pageSize, total: numTotal, onChange: onChange }}
                 dataSource={mrList}
                 renderItem={(item, index) => (
@@ -138,6 +137,5 @@ export default function MergeRequestPage() {
                 )}
             />
         </>
-
     )
 }

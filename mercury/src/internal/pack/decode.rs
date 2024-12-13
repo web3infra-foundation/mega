@@ -75,7 +75,7 @@ impl Pack {
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
-            mem_limit: mem_limit.unwrap_or(usize::MAX),
+            mem_limit,
             cache_objs_mem: Arc::new(AtomicUsize::default()),
             clean_tmp,
         }
@@ -301,11 +301,9 @@ impl Pack {
             },
             ObjectType::HashDelta => {
                 // Read 20 bytes to get the reference object SHA1 hash
-                let mut buf_ref = [0; 20];
-                pack.read_exact(&mut buf_ref).unwrap();
-                let ref_sha1 = SHA1::from_bytes(buf_ref.as_ref()); //TODO SHA1::from_stream()
+                let ref_sha1 = SHA1::from_stream(pack).unwrap();
                 // Offset is incremented by 20 bytes
-                *offset += 20; //TODO 改为常量
+                *offset += SHA1::SIZE;
 
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
@@ -365,7 +363,8 @@ impl Pack {
             }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
-            while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {
+            while self.pool.queued_count() > 2000 
+                || self.mem_limit.map(|limit| self.memory_used() > limit).unwrap_or(false) {
                 thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
@@ -426,9 +425,7 @@ impl Pack {
         }
         log_info(i, self);
         let render_hash = reader.final_hash();
-        let mut trailer_buf = [0; 20];
-        reader.read_exact(&mut trailer_buf).unwrap();
-        self.signature = SHA1::from_bytes(trailer_buf.as_ref());
+        self.signature = SHA1::from_stream(&mut reader).unwrap();
 
         if render_hash != self.signature {
             return Err(GitError::InvalidPackFile(format!(
@@ -711,6 +708,19 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered,|_,_|{}).unwrap();
+    }
+
+    #[test]
+    fn test_pack_decode_no_mem_limit() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
+
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+
+        let f = fs::File::open(source).unwrap();
+        let mut buffered = BufReader::new(f);
+        let mut p = Pack::new(None, None, Some(tmp), true);
+        p.decode(&mut buffered, |_,_|{}).unwrap();
     }
 
     #[test]
