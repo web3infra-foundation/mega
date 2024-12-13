@@ -1,4 +1,4 @@
-//! Mercury is a library for encode and decode Git Pack format file or stream.
+//! Mercury is a library for encoding and decoding Git Pack format files or streams.
 
 // to avoid sticking on Dropping large HashMap on Windows
 // but, mimalloc won't release memory to OS after dropping (TODO)
