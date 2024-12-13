@@ -153,7 +153,9 @@ impl _Cache for Caches {
                 self.complete_signal.clone(),
                 Some(self.pool.clone()),
             );
-            a_obj.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+            if self.mem_size.is_some() {
+                a_obj.set_store_path(Caches::generate_temp_path(&self.tmp_path, hash));
+            }
             let _ = map.insert(hash.to_string(), a_obj);
         }
         //order maters as for reading in 'get_by_offset()'
