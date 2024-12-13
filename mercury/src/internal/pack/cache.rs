@@ -27,6 +27,12 @@ pub trait _Cache {
     fn clear(&self);
 }
 
+impl lru_mem::HeapSize for SHA1 {
+    fn heap_size(&self) -> usize {
+        0
+    }
+}
+
 pub struct Caches {
     map_offset: DashMap<usize, SHA1>, // offset to hash
     hash_set: DashSet<SHA1>,          // item in the cache
@@ -34,7 +40,7 @@ pub struct Caches {
     // because "multi-thread IO" clone Arc<CacheObject>, so it won't be dropped in the main thread,
     // and `CacheObjects` will be killed by OS after Process ends abnormally
     // Solution: use `mimalloc`
-    lru_cache: Mutex<LruCache<String, ArcWrapper<CacheObject>>>, // *lru_cache require the key to implement lru::MemSize trait, so didn't use SHA1 as the key*
+    lru_cache: Mutex<LruCache<SHA1, ArcWrapper<CacheObject>>>,
     mem_size: Option<usize>,
     tmp_path: PathBuf,
     path_prefixes: [Once; 256],
@@ -46,7 +52,7 @@ impl Caches {
     /// only get object from memory, not from tmp file
     fn try_get(&self, hash: SHA1) -> Option<Arc<CacheObject>> {
         let mut map = self.lru_cache.lock().unwrap();
-        map.get(&hash.to_string()).map(|x| x.data.clone())
+        map.get(&hash).map(|x| x.data.clone())
     }
 
     /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
@@ -74,7 +80,7 @@ impl Caches {
             Some(self.pool.clone()),
         );
         x.set_store_path(self.generate_temp_path(&self.tmp_path, hash));
-        let _ = map.insert(hash.to_string(), x); // handle the error
+        let _ = map.insert(hash, x); // handle the error
         Ok(obj)
     }
 
@@ -157,7 +163,7 @@ impl _Cache for Caches {
                 Some(self.pool.clone()),
             );
             a_obj.set_store_path(self.generate_temp_path(&self.tmp_path, hash));
-            let _ = map.insert(hash.to_string(), a_obj);
+            let _ = map.insert(hash, a_obj);
         }
         //order maters as for reading in 'get_by_offset()'
         self.hash_set.insert(hash);
