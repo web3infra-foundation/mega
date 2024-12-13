@@ -1,6 +1,6 @@
 'use client'
 
-import CodeTable from '@/components/CodeTable'
+import CodeTable from '@/components/CodeTable';
 import { useEffect, useState } from 'react';
 
 export default function HomePage() {
@@ -9,9 +9,9 @@ export default function HomePage() {
 
   const fetchData = async () => {
     try {
-      let directory = await getDirectory("/");
+      const directory = await getDirectory("/");
       setDirectory(directory);
-      let readmeContent = await getReadmeContent("/", directory);
+      const readmeContent = await getReadmeContent("/", directory);
       setReadmeContent(readmeContent);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -36,7 +36,7 @@ async function getDirectory(pathname: string) {
 }
 
 async function getReadmeContent(pathname, directory) {
-  var readmeContent = '';
+  let readmeContent = '';
   for (const project of directory || []) {
     if (project.name === 'README.md' && project.content_type === 'file') {
       const res = await fetch(`/api/blob?path=${pathname}/README.md`);

@@ -11,9 +11,9 @@ WORKDIR /app
 # RUN npm config set registry https://registry.npmmirror.com
 
 # Install dependencies based on the preferred package manager
-COPY ./moon/package*.json ./
-RUN npm install -f
+COPY ./moon/package*.json ./moon/pnpm-lock.yaml* ./
 
+RUN corepack enable pnpm && pnpm i --frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -26,7 +26,7 @@ COPY ./moon .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm run build
+RUN corepack enable pnpm && pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
