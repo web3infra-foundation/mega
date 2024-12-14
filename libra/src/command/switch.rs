@@ -14,12 +14,15 @@ use super::{
 
 #[derive(Parser, Debug)]
 pub struct SwitchArgs {
+    /// branch name
     #[clap(required_unless_present("create"), required_unless_present("detach"))]
     branch: Option<String>,
 
+    /// Create a new branch based on the given branch or current HEAD, and switch to it
     #[clap(long, short, group = "sub")]
     create: Option<String>,
 
+    /// Switch to a commit
     #[clap(long, short, action, default_value = "false", group = "sub")]
     detach: bool,
 }

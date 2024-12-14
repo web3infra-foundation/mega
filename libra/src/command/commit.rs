@@ -21,9 +21,11 @@ pub struct CommitArgs {
     #[arg(short, long)]
     pub message: String,
 
+    /// allow commit with empty index
     #[arg(long)]
     pub allow_empty: bool,
 
+    /// check if commit message follows conventional commits
     #[arg(long, requires("message"))]
     pub conventional: bool,
 }
