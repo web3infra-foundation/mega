@@ -275,11 +275,16 @@ impl Pack {
                     })
                     .unwrap();
 
+                let mut reader = Cursor::new(&data);
+                let _ = utils::read_varint_le(&mut reader).unwrap().0; // Base size
+                let final_size = utils::read_varint_le(&mut reader).unwrap().0 as usize; // Final size
+
                 Ok(CacheObject {
                     base_offset,
                     data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
+                    final_size,
                     mem_recorder: None,
                     ..Default::default()
                 })
@@ -293,11 +298,18 @@ impl Pack {
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
 
+                
+                let mut reader = Cursor::new(&data);
+                let _ = utils::read_varint_le(&mut reader).unwrap().0;
+                let final_size = utils::read_varint_le(&mut reader).unwrap().0 as usize;
+
+
                 Ok(CacheObject {
                     base_ref: ref_sha1,
                     data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
+                    final_size,
                     mem_recorder: None,
                     ..Default::default()
                 })
@@ -339,13 +351,12 @@ impl Pack {
         let mut i = 0;
         while i < self.number {
             // log per 2000&more then 1 se objects
-            if i%1000 == 0 {
                 let time_now = time.elapsed().as_millis();
                 if time_now - last_update_time > 1000 {
                     log_info(i, self);
                     last_update_time = time_now;
                 }
-            }
+            
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
             while self.pool.queued_count() > 2000 
@@ -536,16 +547,16 @@ impl Pack {
 
         let mut stream = Cursor::new(&delta_obj.data_decompress);
 
-        // Read the base object size & Result Size
+        // Read the base object size
         // (Size Encoding)
-        let base_size = utils::read_varint_le(&mut stream).unwrap().0;
-        let result_size = utils::read_varint_le(&mut stream).unwrap().0;
+        let base_size = utils::read_varint_le(&mut stream).unwrap().0 as usize;
+        let result_size = utils::read_varint_le(&mut stream).unwrap().0 as usize;
 
         //Get the base object row data
         let base_info = &base_obj.data_decompress;
-        assert_eq!(base_info.len() as u64, base_size);
+        assert_eq!(base_info.len(), base_size);
 
-        let mut result = Vec::with_capacity(result_size as usize);
+        let mut result = Vec::with_capacity(result_size);
 
         loop {
             // Check if the stream has ended, meaning the new object is done
@@ -597,7 +608,7 @@ impl Pack {
                 }
             }
         }
-        assert_eq!(result_size, result.len() as u64);
+        assert_eq!(result_size, result.len());
 
         let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
@@ -605,6 +616,7 @@ impl Pack {
             data_decompress: result,
             obj_type: base_obj.obj_type, // Same as the Type of base object
             hash,
+            final_size: 0, // The new object is not a delta obj, so set its final size to 0.
             mem_recorder: None, // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
             ..delta_obj // This syntax is actually move `delta_obj` to `new_obj`
         } // Canonical form (Complete Object)
