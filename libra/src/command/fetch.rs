@@ -28,8 +28,10 @@ const DEFAULT_REMOTE: &str = "origin";
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
+    /// Repository to fetch from
     pub repository: Option<String>,
 
+    /// Refspec to fetch, usually a branch name
     #[clap(requires("repository"))]
     pub refspec: Option<String>,
 
