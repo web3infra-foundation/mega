@@ -30,7 +30,7 @@ use crate::errors::GitError;
 /// ```
 ///
 /// So, we design a `SignatureType` enum to indicate the signature type.
-#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone, Serialize,Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub enum SignatureType {
     Author,
     Committer,
@@ -60,14 +60,12 @@ impl FromStr for SignatureType {
 }
 impl SignatureType {
     /// The `from_data` method is used to convert a `Vec<u8>` to a `SignatureType` enum.
-    #[allow(unused)]
     pub fn from_data(data: Vec<u8>) -> Result<Self, GitError> {
         let s = String::from_utf8(data.to_vec())?;
         SignatureType::from_str(s.as_str())
     }
 
     /// The `to_bytes` method is used to convert a `SignatureType` enum to a `Vec<u8>`.
-    #[allow(unused)]
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             SignatureType::Author => "author".to_string().into_bytes(),
@@ -77,8 +75,7 @@ impl SignatureType {
     }
 }
 
-#[allow(unused)]
-#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone,Serialize,Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct Signature {
     pub signature_type: SignatureType,
     pub name: String,
@@ -154,7 +151,6 @@ impl Signature {
         })
     }
 
-    #[allow(unused)]
     pub fn to_data(&self) -> Result<Vec<u8>, GitError> {
         // Create a new empty vector to store the encoded data.
         let mut sign = Vec::new();
