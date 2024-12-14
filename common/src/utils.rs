@@ -62,34 +62,26 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
 }
 
 /// parse commit message
-pub fn parse_commit_msg(msg_gpg: &str) -> (String, Option<String>) {
-    const GPG_SIG_START: &str = "gpgsig -----BEGIN PGP SIGNATURE-----";
-    const GPG_SIG_END: &str = "-----END PGP SIGNATURE-----";
-    let gpg_start = msg_gpg.find(GPG_SIG_START);
-    let gpg_end = msg_gpg.find(GPG_SIG_END).map(|end| end + GPG_SIG_END.len());
-    let gpg_sig = match (gpg_start, gpg_end) {
-        (Some(start), Some(end)) => {
-            if start < end {
-                Some(msg_gpg[start..end].to_string())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    };
-    match gpg_sig {
-        Some(gpg) => {
-            // Skip the leading '\n\n' (blank lines).
-            // Some commit messages may use '\n \n\n' or similar patterns.
-            // To handle such cases, remove all leading blank lines from the message.
-            let msg = msg_gpg[gpg_end.unwrap()..].trim_start().to_string();
-            (msg, Some(gpg))
-        }
-        None => {
-            assert!(msg_gpg.starts_with('\n'), "commit message format error");
-            let msg = msg_gpg[1..].to_string(); // skip the leading '\n' (blank line)
-            (msg, None)
-        }
+pub fn parse_commit_msg(msg_gpg: &str) -> (&str, Option<&str>) {
+    const SIG_PATTERN: &str = r"^(gpgsig -----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*?-----END (?:PGP|SSH) SIGNATURE-----)";
+    let sig_regex = Regex::new(SIG_PATTERN).unwrap();
+    if let Some(caps) = sig_regex.captures(msg_gpg) {
+        // Check if the signature type matches.
+        assert_eq!(
+            caps.get(2).map(|m| m.as_str()),
+            caps.get(3).map(|m| m.as_str())
+        );
+        let sig_len = caps.get(1).map(|m| m.as_str().len()).unwrap();
+        let signature = &msg_gpg[..sig_len];
+
+        // Skip the leading '\n\n' (blank lines).
+        // Some commit messages may use '\n \n\n' or similar patterns.
+        // To handle such cases, remove all leading blank lines from the message.
+        let msg = &msg_gpg[sig_len..].trim_start();
+        (msg, Some(signature))
+    } else {
+        assert!(msg_gpg.starts_with('\n'), "commit message format error");
+        (&msg_gpg[1..], None)
     }
 }
 
