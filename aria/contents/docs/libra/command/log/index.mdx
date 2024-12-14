@@ -2,3 +2,33 @@
 title: The [log] Command
 description:
 ---
+
+# log
+
+**Show commit logs**
+
+### Usage
+
+libra log [OPTIONS]
+
+### Description
+
+List commits that are reachable by current local branch. The order is from the latest to the oldest. The commit hash, author, date, and commit message will be shown.
+
+{" "}
+<Note type="note" title="Note">
+    The log command use `less` to show the result in unix-like system, and
+    simply print all the content in windows. If you are using unix-like system,
+    you need to ensure `less` is installed (usually it is installed by default).
+</Note>
+
+### Options:
+
+-   `-n`, `--number <NUMBER>`  
+    Limit the number of output
+-   `-h`, `--help`
+    Print help
+
+<Note type="note" title="Note">
+    The order of the commits maybe different from Git's behavior.
+</Note>
