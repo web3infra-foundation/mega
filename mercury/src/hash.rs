@@ -26,7 +26,6 @@ use crate::internal::object::types::ObjectType;
 /// allows for easier adaptation to different hash algorithms while keeping the underlying implementation consistent and
 /// understandable. - Nov 26, 2023 (by @genedna)
 ///
-#[allow(unused)]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Deserialize, Serialize,
 )]
