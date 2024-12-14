@@ -62,7 +62,7 @@ pub fn format_commit_msg(msg: &str, gpg_sig: Option<&str>) -> String {
 }
 
 /// parse commit message
-pub fn parse_commit_msg<'a>(msg_gpg: &'a str) -> (&'a str, Option<&'a str>) {
+pub fn parse_commit_msg(msg_gpg: &str) -> (&str, Option<&str>) {
     const SIG_PATTERN: &str = r"^(gpgsig -----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*?-----END (?:PGP|SSH) SIGNATURE-----)";
     let sig_regex = Regex::new(SIG_PATTERN).unwrap();
     if let Some(caps) = sig_regex.captures(msg_gpg) {
