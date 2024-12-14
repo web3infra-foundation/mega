@@ -254,21 +254,6 @@ impl Pack {
         // Check if the object type is valid
         let t = ObjectType::from_u8(type_bits)?;
 
-        // util lambda: return data with result capacity after rebuilding, for Memory Control
-        let reserve_delta_data = |data: Vec<u8>| -> Vec<u8> {
-            let result_size = { // Read `result-size` of delta_obj
-                let mut reader = Cursor::new(&data);
-                let _ = utils::read_varint_le(&mut reader).unwrap().0; // base_size
-                utils::read_varint_le(&mut reader).unwrap().0 // size after rebuilding
-            };
-            // capacity() == result_size, len() == data.len()
-            // just for accurate Memory Control (rely on `heap_size()` that based on capacity)
-            // Seems wasteful temporarily, but for final memory limit.
-            let mut data_result_cap = Vec::with_capacity(result_size as usize);
-            data_result_cap.extend(data);
-            data_result_cap
-        };
-
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                 let (data, raw_size) = self.decompress_data(pack, size)?;
@@ -292,7 +277,7 @@ impl Pack {
 
                 Ok(CacheObject {
                     base_offset,
-                    data_decompress: reserve_delta_data(data),
+                    data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
                     mem_recorder: None,
@@ -310,7 +295,7 @@ impl Pack {
 
                 Ok(CacheObject {
                     base_ref: ref_sha1,
-                    data_decompress: reserve_delta_data(data),
+                    data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
                     mem_recorder: None,
