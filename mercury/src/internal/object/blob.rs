@@ -35,8 +35,6 @@ use crate::internal::object::types::ObjectType;
 use crate::internal::object::ObjectTrait;
 
 /// **The Blob Object**
-///
-#[allow(unused)]
 #[derive(Eq, Debug, Clone)]
 pub struct Blob {
     pub id: SHA1,
@@ -46,7 +44,7 @@ pub struct Blob {
 impl PartialEq for Blob {
     /// The Blob object is equal to another Blob object if their IDs are equal.
     fn eq(&self, other: &Self) -> bool {
-        self.data == other.data
+        self.id == other.id
     }
 }
 
