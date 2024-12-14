@@ -9,9 +9,9 @@ use lru_mem::{HeapSize, MemSize};
 use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
 
+use crate::internal::pack::entry::Entry;
 use crate::internal::pack::utils;
 use crate::{hash::SHA1, internal::object::types::ObjectType};
-use crate::internal::pack::entry::Entry;
 
 // /// record heap-size of all CacheObjects, used for memory limit.
 // static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
@@ -56,7 +56,14 @@ pub struct CacheObject {
     pub data_decompress: Vec<u8>,
     pub offset: usize,
     pub hash: SHA1,
-    pub mem_recorder: Option<Arc<AtomicUsize>> // record mem-size of all CacheObjects of a Pack
+    /// If a [`CacheObject`] is an [`ObjectType::HashDelta`] or an [`ObjectType::OffsetDelta`],
+    /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
+    /// we record the size of the expanded object as well as that of the object itself.
+    /// 
+    /// See https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481 for more details.
+    #[serde(skip, default = "usize::default")]
+    pub final_size: usize,
+    pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
 }
 
 impl Clone for CacheObject {
@@ -68,6 +75,7 @@ impl Clone for CacheObject {
             data_decompress: self.data_decompress.clone(),
             offset: self.offset,
             hash: self.hash,
+            final_size: self.final_size,
             mem_recorder: self.mem_recorder.clone(),
         };
         obj.record_mem_size();
@@ -87,6 +95,7 @@ impl Default for CacheObject {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::default(),
+            final_size: 0,
             mem_recorder: None,
         };
         obj.record_mem_size();
@@ -98,8 +107,11 @@ impl Default for CacheObject {
 // ! the implementation of HeapSize is not accurate, only calculate the size of the data_decompress
 // Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
+    /// For [`ObjectType::OffsetDelta`] and [`ObjectType::HashDelta`], 
+    /// `final_size` is the size of the expanded object;
+    /// for other types, `final_size` is 0.
     fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size()
+        self.data_decompress.heap_size() + self.final_size
     }
 }
 
@@ -111,7 +123,6 @@ impl Drop for CacheObject {
         if let Some(mem_recorder) = &self.mem_recorder {
             mem_recorder.fetch_sub((*self).mem_size(), Ordering::SeqCst);
         }
-
     }
 }
 
@@ -146,7 +157,7 @@ impl MemSizeRecorder for CacheObject {
 }
 
 impl CacheObject {
-    /// Create a new CacheObject witch is not offset_delta or hash_delta
+    /// Create a new CacheObject which is neither [`ObjectType::OffsetDelta`] nor [`ObjectType::HashDelta`].
     pub fn new_for_undeltified(obj_type: ObjectType, data: Vec<u8>, offset: usize) -> Self {
         let hash = utils::calculate_object_hash(obj_type, &data);
         CacheObject {
@@ -154,6 +165,7 @@ impl CacheObject {
             obj_type,
             offset,
             hash,
+            final_size: 0, // Only delta objects have final_size
             mem_recorder: None,
             ..Default::default()
         }
@@ -162,13 +174,11 @@ impl CacheObject {
     /// transform the CacheObject to Entry
     pub fn to_entry(&self) -> Entry {
         match self.obj_type {
-            ObjectType::Blob | ObjectType::Tree | ObjectType::Commit | ObjectType::Tag => {
-                Entry {
-                    obj_type: self.obj_type,
-                    data: self.data_decompress.clone(),
-                    hash: self.hash,
-                }
-            }
+            ObjectType::Blob | ObjectType::Tree | ObjectType::Commit | ObjectType::Tag => Entry {
+                obj_type: self.obj_type,
+                data: self.data_decompress.clone(),
+                hash: self.hash,
+            },
             _ => {
                 unreachable!("delta object should not persist!")
             }
@@ -177,10 +187,16 @@ impl CacheObject {
 }
 
 /// trait alias for simple use
-pub trait ArcWrapperBounds: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static {}
+pub trait ArcWrapperBounds:
+    HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static
+{
+}
 // You must impl `Alias Trait` for all the `T` satisfying Constraints
 // Or, `T` will not satisfy `Alias Trait` even if it satisfies the Original traits
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds for T {}
+impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds
+    for T
+{
+}
 
 /// Implementing encapsulation of Arc to enable third-party Trait HeapSize implementation for the Arc type
 /// Because of use Arc in LruCache, the LruCache is not clear whether a pointer will drop the referenced
@@ -300,6 +316,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
+            final_size: 0,
             mem_recorder: None,
         };
         assert!(a.heap_size() == 1024);
@@ -318,6 +335,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
+            final_size: 0,
             mem_recorder: None,
         };
         println!("a.heap_size() = {}", a.heap_size());
@@ -329,6 +347,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![1; 20]),
+            final_size: 0,
             mem_recorder: None,
         };
         {
@@ -433,6 +452,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
+            final_size: 0,
             mem_recorder: None,
         };
         let s = bincode::serialize(&a).unwrap();
