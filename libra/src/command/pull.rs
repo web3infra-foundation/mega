@@ -4,8 +4,10 @@ use super::{fetch, merge};
 use clap::Parser;
 #[derive(Parser, Debug)]
 pub struct PullArgs {
+    /// The repository to pull from
     repository: Option<String>,
 
+    /// The refspec to pull, usually a branch name
     #[clap(requires("repository"))]
     refspec: Option<String>,
 }
