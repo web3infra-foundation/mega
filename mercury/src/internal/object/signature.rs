@@ -13,6 +13,7 @@ use std::{fmt::Display, str::FromStr};
 
 use bstr::ByteSlice;
 use chrono::Offset;
+use serde::{Deserialize, Serialize};
 
 use crate::errors::GitError;
 
@@ -29,7 +30,7 @@ use crate::errors::GitError;
 /// ```
 ///
 /// So, we design a `SignatureType` enum to indicate the signature type.
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub enum SignatureType {
     Author,
     Committer,
@@ -74,7 +75,7 @@ impl SignatureType {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct Signature {
     pub signature_type: SignatureType,
     pub name: String,

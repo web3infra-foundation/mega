@@ -15,6 +15,8 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use bstr::ByteSlice;
+use serde::Deserialize;
+use serde::Serialize;
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::signature::Signature;
@@ -31,7 +33,7 @@ use crate::internal::object::ObjectType;
 ///   history of a repository with a single commit object at its root.
 /// - The author and committer fields contain the name, email address, timestamp and timezone.
 /// - The message field contains the commit message, which maybe include signed or DCO.
-#[derive(Eq, Debug, Clone)]
+#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub id: SHA1,
     pub tree_id: SHA1,

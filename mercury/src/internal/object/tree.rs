@@ -16,6 +16,8 @@
 //!
 use std::fmt::Display;
 use colored::Colorize;
+use serde::Deserialize;
+use serde::Serialize;
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::ObjectTrait;
@@ -26,7 +28,7 @@ use crate::internal::object::ObjectType;
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
 /// type of the object. The first digit specifies the object type, and the remaining two digits
 /// specify the file mode or permissions.
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum TreeItemMode {
     Blob,
     BlobExecutable,
@@ -127,7 +129,7 @@ impl TreeItemMode {
 /// 100644 hello-world\0<blob object ID>
 /// 040000 data\0<tree object ID>
 /// ```
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct TreeItem {
     pub mode: TreeItemMode,
     pub id: SHA1,
@@ -217,7 +219,7 @@ impl TreeItem {
 
 /// A tree object is a Git object that represents a directory. It contains a list of entries, one
 /// for each file or directory in the tree.
-#[derive(Eq, Debug, Clone)]
+#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct Tree {
     pub id: SHA1,
     pub tree_items: Vec<TreeItem>,
