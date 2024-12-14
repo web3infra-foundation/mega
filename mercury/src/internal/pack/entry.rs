@@ -13,7 +13,7 @@ use crate::internal::object::{GitObject, ObjectTrait};
 ///
 /// Git object data from pack file
 ///
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, Clone, Debug, Serialize, Deserialize)]
 pub struct Entry {
     pub obj_type: ObjectType,
     pub data: Vec<u8>,
@@ -25,8 +25,6 @@ impl PartialEq for Entry {
         self.obj_type == other.obj_type && self.hash == other.hash
     }
 }
-
-impl Eq for Entry {}
 
 impl Hash for Entry {
     fn hash<H: Hasher>(&self, state: &mut H) {
