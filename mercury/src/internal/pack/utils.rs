@@ -24,7 +24,6 @@ use crate::internal::object::types::ObjectType;
 /// # Returns
 ///
 /// true if the reader reached EOF, false otherwise
-#[allow(unused)]
 pub fn is_eof(reader: &mut dyn Read) -> bool {
     let mut buf = [0; 1];
     matches!(reader.read(&mut buf), Ok(0))
@@ -42,7 +41,6 @@ pub fn is_eof(reader: &mut dyn Read) -> bool {
 /// Returns an `io::Result` containing a tuple. The first element is the value of the first 7 bits,
 /// and the second element is a boolean indicating whether more bytes need to be read.
 ///
-#[allow(unused)]
 pub fn read_byte_and_check_continuation<R: Read>(stream: &mut R) -> io::Result<(u8, bool)> {
     // Create a buffer for a single byte
     let mut bytes = [0; 1];
@@ -74,7 +72,6 @@ pub fn read_byte_and_check_continuation<R: Read>(stream: &mut R) -> io::Result<(
 /// # Returns
 /// Returns an `io::Result` containing a tuple of the type and the computed size.
 ///
-#[allow(unused)]
 pub fn read_type_and_varint_size<R: Read>(stream: &mut R, offset: &mut usize) -> io::Result<(u8, usize)> {
     let (first_byte, continuation) = read_byte_and_check_continuation(stream)?;
 
@@ -116,7 +113,6 @@ pub fn read_type_and_varint_size<R: Read>(stream: &mut R, offset: &mut usize) ->
 /// * A tuple of the decoded `u64` value and the number of bytes read (`offset`).
 /// * An `io::Error` in case of any reading error or if the VarInt is too long.
 ///
-#[allow(unused)]
 pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
     // The decoded value
     let mut value: u64 = 0;

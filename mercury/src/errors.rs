@@ -4,7 +4,6 @@ use std::string::FromUtf8Error;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-#[allow(unused)]
 pub enum GitError {
     #[error("The `{0}` is not a valid git object type.")]
     InvalidObjectType(String),
