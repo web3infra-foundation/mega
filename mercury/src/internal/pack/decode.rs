@@ -350,13 +350,14 @@ impl Pack {
         let mut offset: usize = 12;
         let mut i = 0;
         while i < self.number {
-            // log per 2000&more then 1 se objects
+            // log per 1000 objects and 1 second
+            if i%1000 == 0 {
                 let time_now = time.elapsed().as_millis();
                 if time_now - last_update_time > 1000 {
                     log_info(i, self);
                     last_update_time = time_now;
                 }
-            
+            }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
             while self.pool.queued_count() > 2000 
