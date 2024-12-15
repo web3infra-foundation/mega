@@ -283,7 +283,7 @@ impl Pack {
                     data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
-                    final_size,
+                    delta_final_size: final_size,
                     mem_recorder: None,
                     ..Default::default()
                 })
@@ -305,7 +305,7 @@ impl Pack {
                     data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
-                    final_size,
+                    delta_final_size: final_size,
                     mem_recorder: None,
                     ..Default::default()
                 })
@@ -314,8 +314,6 @@ impl Pack {
     }
 
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
-    ///
-    ///
     pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Send), callback: F) -> Result<(), GitError>
     where
         F: Fn(Entry, usize) + Sync + Send + 'static
@@ -612,7 +610,7 @@ impl Pack {
             data_decompress: result,
             obj_type: base_obj.obj_type, // Same as the Type of base object
             hash,
-            final_size: 0, // The new object is not a delta obj, so set its final size to 0.
+            delta_final_size: 0, // The new object is not a delta obj, so set its final size to 0.
             mem_recorder: None, // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
             ..delta_obj // This syntax is actually move `delta_obj` to `new_obj`
         } // Canonical form (Complete Object)
