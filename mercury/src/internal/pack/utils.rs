@@ -153,8 +153,6 @@ pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
     Ok((value, offset))
 }
 
-
-
 /// The offset for an OffsetDelta object(big-endian order)
 /// # Arguments
 ///
@@ -230,6 +228,26 @@ pub fn read_partial_int<R: Read>(
     }
 
     Ok(value)
+}
+
+/// Reads the base size and result size of a delta object from the given stream.
+/// 
+/// **Note**: The stream MUST be positioned at the start of the delta object.
+/// 
+/// The base size and result size are encoded as variable-length integers in little-endian order.
+/// 
+/// The base size is the size of the base object, and the result size is the size of the result object.
+/// 
+/// # Parameters
+/// * `stream`: The stream from which the sizes are read.
+/// 
+/// # Returns
+/// Returns a tuple containing the base size and result size.
+/// 
+pub fn read_delta_object_size<R: Read>(stream: &mut R) -> io::Result<(usize, usize)> {
+    let base_size = read_varint_le(stream)?.0 as usize;
+    let result_size = read_varint_le(stream)?.0 as usize;
+    Ok((base_size, result_size))
 }
 
 /// Calculate the SHA1 hash of the given object.
