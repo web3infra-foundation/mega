@@ -276,8 +276,7 @@ impl Pack {
                     .unwrap();
 
                 let mut reader = Cursor::new(&data);
-                let _ = utils::read_varint_le(&mut reader).unwrap().0; // Base size
-                let final_size = utils::read_varint_le(&mut reader).unwrap().0 as usize; // Final size
+                let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
                     base_offset,
@@ -297,12 +296,9 @@ impl Pack {
 
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
-
                 
                 let mut reader = Cursor::new(&data);
-                let _ = utils::read_varint_le(&mut reader).unwrap().0;
-                let final_size = utils::read_varint_le(&mut reader).unwrap().0 as usize;
-
+                let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
                     base_ref: ref_sha1,
@@ -550,12 +546,11 @@ impl Pack {
 
         // Read the base object size
         // (Size Encoding)
-        let base_size = utils::read_varint_le(&mut stream).unwrap().0 as usize;
-        let result_size = utils::read_varint_le(&mut stream).unwrap().0 as usize;
+        let (base_size, result_size) = utils::read_delta_object_size(&mut stream).unwrap();
 
         //Get the base object row data
         let base_info = &base_obj.data_decompress;
-        assert_eq!(base_info.len(), base_size);
+        assert_eq!(base_info.len(), base_size, "Base object size mismatch");
 
         let mut result = Vec::with_capacity(result_size);
 
@@ -609,7 +604,7 @@ impl Pack {
                 }
             }
         }
-        assert_eq!(result_size, result.len());
+        assert_eq!(result_size, result.len(), "Result size mismatch");
 
         let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording

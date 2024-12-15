@@ -60,7 +60,7 @@ pub struct CacheObject {
     /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
     /// we record the size of the expanded object as well as that of the object itself.
     /// 
-    /// See https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481 for more details.
+    /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
     #[serde(skip, default = "usize::default")]
     pub final_size: usize,
     pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
