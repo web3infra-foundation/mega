@@ -62,7 +62,7 @@ pub struct CacheObject {
     /// 
     /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
     #[serde(skip, default = "usize::default")]
-    pub final_size: usize,
+    pub delta_final_size: usize,
     pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
 }
 
@@ -75,7 +75,7 @@ impl Clone for CacheObject {
             data_decompress: self.data_decompress.clone(),
             offset: self.offset,
             hash: self.hash,
-            final_size: self.final_size,
+            delta_final_size: self.delta_final_size,
             mem_recorder: self.mem_recorder.clone(),
         };
         obj.record_mem_size();
@@ -95,7 +95,7 @@ impl Default for CacheObject {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::default(),
-            final_size: 0,
+            delta_final_size: 0,
             mem_recorder: None,
         };
         obj.record_mem_size();
@@ -108,10 +108,20 @@ impl Default for CacheObject {
 // Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
     /// For [`ObjectType::OffsetDelta`] and [`ObjectType::HashDelta`], 
-    /// `final_size` is the size of the expanded object;
-    /// for other types, `final_size` is 0.
+    /// `delta_final_size` is the size of the expanded object;
+    /// for other types, `delta_final_size` is 0 as they won't expand.
     fn heap_size(&self) -> usize {
-        self.data_decompress.heap_size() + self.final_size
+        // To those who are concerned about why these two values are added,
+        // let's consider the lifetime of two `CacheObject`s, say `delta_obj`
+        // and `final_obj` in the function `Pack::rebuild_delta`. 
+        //
+        // `delta_obj` is dropped only after `Pack::rebuild_delta` returns,
+        // but the space for `final_obj` is allocated in that function.
+        //
+        // Therefore, during the execution of `Pack::rebuild_delta`, both `delta_obj`
+        // and `final_obj` coexist. The maximum memory usage is the sum of the memory
+        // usage of `delta_obj` and `final_obj`.
+        self.data_decompress.heap_size() + self.delta_final_size
     }
 }
 
@@ -165,7 +175,7 @@ impl CacheObject {
             obj_type,
             offset,
             hash,
-            final_size: 0, // Only delta objects have final_size
+            delta_final_size: 0, // Only delta objects have `delta_final_size`
             mem_recorder: None,
             ..Default::default()
         }
@@ -316,7 +326,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
-            final_size: 0,
+            delta_final_size: 0,
             mem_recorder: None,
         };
         assert!(a.heap_size() == 1024);
@@ -335,7 +345,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
-            final_size: 0,
+            delta_final_size: 0,
             mem_recorder: None,
         };
         println!("a.heap_size() = {}", a.heap_size());
@@ -347,7 +357,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![1; 20]),
-            final_size: 0,
+            delta_final_size: 0,
             mem_recorder: None,
         };
         {
@@ -452,7 +462,7 @@ mod test {
             obj_type: ObjectType::Blob,
             offset: 0,
             hash: SHA1::new(&vec![0; 20]),
-            final_size: 0,
+            delta_final_size: 0,
             mem_recorder: None,
         };
         let s = bincode::serialize(&a).unwrap();
