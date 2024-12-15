@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::{time::Duration, convert::Infallible};
 use axum::extract::Path;
 use dashmap::DashSet;
+use futures_util::StreamExt;
 use once_cell::sync::Lazy;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
-use crate::{buck_controller, util};
+use crate::buck_controller;
 
 pub fn routers() -> Router {
     Router::new()
@@ -35,7 +36,7 @@ struct BuildResult {
 }
 
 static BUILDING: Lazy<DashSet<String>> = Lazy::new(|| DashSet::new());
-
+// TODO avoid multi-task in one repo?
 async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
     let id = Uuid::now_v7();
     let id_c = id.clone();
@@ -98,17 +99,14 @@ async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
 
 /// SSE
 async fn build_output(Path(id): Path<String>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> { // impl IntoResponse
-    let mut path = format!("{}/{}", BUILD_LOG_DIR, id);
+    let path = format!("{}/{}", BUILD_LOG_DIR, id);
     if !std::path::Path::new(&path).exists() {
-        // use File rather than return Stream directly, because 2 return types must same, which is hard
+        // 2 return types must same, which is hard without `.boxed()`
         // `Sse<Unfold<Reader<File>, ..., ...>>` != Sse<Once<..., ..., ...>> != Sse<Unfold<bool, ..., ...>>
-        path = format!("{}/404", BUILD_LOG_DIR);
-        if !std::path::Path::new(&path).exists() {
-            util::ensure_file_content(&path, "Build task not found").unwrap();
-        }
+        return Sse::new(stream::once(async { Ok(Event::default().data("Build task not found")) }).boxed());
     }
 
-    let file = tokio::fs::File::open(&path).await.unwrap();
+    let file = tokio::fs::File::open(&path).await.unwrap(); // read-only mode
     let reader = tokio::io::BufReader::new(file);
 
     let stream = stream::unfold(reader, move |mut reader| {
@@ -141,5 +139,5 @@ async fn build_output(Path(id): Path<String>) -> Sse<impl Stream<Item = Result<E
         }
     });
 
-    Sse::new(stream).keep_alive(KeepAlive::new()) // empty comment to keep alive
+    Sse::new(stream.boxed()).keep_alive(KeepAlive::new()) // empty comment to keep alive
 }

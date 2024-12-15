@@ -23,5 +23,5 @@ pub fn build(repo: String, target: String, args: Vec<String>, log_path: String) 
     let mut child = cmd.spawn()?;
     child.wait()?;
 
-    Ok("BUILD SUCCEEDED".to_string())
+    Ok("BUILD ENDED".to_string())
 }

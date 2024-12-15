@@ -20,6 +20,7 @@ pub fn ensure_parent_dirs(path: impl AsRef<Path>) -> io::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 /// Ensure the file exists and has the specified content.
 pub fn ensure_file_content(path: impl AsRef<Path>, content: &str) -> io::Result<()> {
     ensure_parent_dirs(path.as_ref())?;
