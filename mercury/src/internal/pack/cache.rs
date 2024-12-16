@@ -230,51 +230,54 @@ mod test {
     use std::env;
 
     use super::*;
-    use crate::hash::SHA1;
+    use crate::{hash::SHA1, internal::{object::types::ObjectType, pack::cache_object::CachedObjectInfo}};
 
     #[test]
     fn test_cache_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
+        let a_hash = SHA1::new(&String::from("a").into_bytes());
+        let b_hash = SHA1::new(&String::from("b").into_bytes());
         let a = CacheObject {
+            info: CachedObjectInfo::BaseObject(ObjectType::Blob, a_hash),
             data_decompress: vec![0; 1024],
-            hash: SHA1::new(&String::from("a").into_bytes()),
             mem_recorder: None,
-            ..Default::default()
+            offset: 0,
         };
         let b = CacheObject {
+            info: CachedObjectInfo::BaseObject(ObjectType::Blob, b_hash),
             data_decompress: vec![0; 1636],
-            hash: SHA1::new(&String::from("b").into_bytes()),
             mem_recorder: None,
-            ..Default::default()
+            offset: 0,
         };
         // insert a
-        cache.insert(a.offset, a.hash, a.clone());
-        assert!(cache.hash_set.contains(&a.hash));
-        assert!(cache.try_get(a.hash).is_some());
+        cache.insert(a.offset, a_hash, a.clone());
+        assert!(cache.hash_set.contains(&a_hash));
+        assert!(cache.try_get(a_hash).is_some());
 
         // insert b and make a invalidate
-        cache.insert(b.offset, b.hash, b.clone());
-        assert!(cache.hash_set.contains(&b.hash));
-        assert!(cache.try_get(b.hash).is_some());
-        assert!(cache.try_get(a.hash).is_none());
+        cache.insert(b.offset, b_hash, b.clone());
+        assert!(cache.hash_set.contains(&b_hash));
+        assert!(cache.try_get(b_hash).is_some());
+        assert!(cache.try_get(a_hash).is_none());
 
         // get a and make b invalidate
-        let _ = cache.get_by_hash(a.hash);
-        assert!(cache.try_get(a.hash).is_some());
-        assert!(cache.try_get(b.hash).is_none());
+        let _ = cache.get_by_hash(a_hash);
+        assert!(cache.try_get(a_hash).is_some());
+        assert!(cache.try_get(b_hash).is_none());
 
+        let c_hash = SHA1::new(&String::from("c").into_bytes());
         // insert too large c, a will still be in the cache
         let c = CacheObject {
+            info: CachedObjectInfo::BaseObject(ObjectType::Blob, c_hash),
             data_decompress: vec![0; 2049],
-            hash: SHA1::new(&String::from("c").into_bytes()),
             mem_recorder: None,
-            ..Default::default()
+            offset: 0,
         };
-        cache.insert(c.offset, c.hash, c.clone());
-        assert!(cache.try_get(a.hash).is_some());
-        assert!(cache.try_get(b.hash).is_none());
-        assert!(cache.try_get(c.hash).is_none());
-        assert!(cache.get_by_hash(c.hash).is_some());
+        cache.insert(c.offset, c_hash, c.clone());
+        assert!(cache.try_get(a_hash).is_some());
+        assert!(cache.try_get(b_hash).is_none());
+        assert!(cache.try_get(c_hash).is_none());
+        assert!(cache.get_by_hash(c_hash).is_some());
     }
 }
