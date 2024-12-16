@@ -5,15 +5,20 @@ use axum::routing::{get, post};
 use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
 use std::{time::Duration, convert::Infallible};
-use axum::extract::Path;
+use axum::extract::{Path, State};
 use dashmap::DashSet;
 use futures_util::StreamExt;
 use once_cell::sync::Lazy;
+use sea_orm::ActiveModelTrait;
+use sea_orm::ActiveValue::Set;
+use sea_orm::sqlx::types::chrono;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 use crate::buck_controller;
+use crate::model::builds;
+use crate::server::AppState;
 
-pub fn routers() -> Router {
+pub fn routers() -> Router<AppState> {
     Router::new()
         .route("/build", post(buck_build))
         .route("/build-output/:id", get(build_output))
@@ -32,36 +37,46 @@ struct BuildRequest {
 struct BuildResult {
     success: bool,
     id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exit_code: Option<i32>,
     message: String,
 }
 
 static BUILDING: Lazy<DashSet<String>> = Lazy::new(|| DashSet::new());
 // TODO avoid multi-task in one repo?
-async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
+// #[debug_handler] // better error msg
+// `Json` must be last arg, because it consumes the request body
+async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>) -> impl IntoResponse {
     let id = Uuid::now_v7();
     let id_c = id.clone();
     BUILDING.insert(id.to_string());
     tracing::info!("Start build task: {}", id);
-    tokio::task::spawn_blocking(move || {
+    tokio::spawn(async move {
+        let start_at = chrono::Utc::now();
+        let output_path = format!("{}/{}", BUILD_LOG_DIR, id_c.to_string());
         let build_resp = match buck_controller::build(
-            req.repo,
-            req.target,
+            req.repo.clone(),
+            req.target.clone(),
             req.args.unwrap_or_default(),
-            format!("{}/{}", BUILD_LOG_DIR, id_c.to_string()))
-        {
-            Ok(output) => {
-                tracing::info!("Build success: {}", output);
+            output_path.clone()
+        ).await {
+            Ok(status) => {
+                let message = format!("Build {}",
+                                      if status.success() {"success"} else {"failed"});
+                tracing::info!("{}; Exit code: {:?}", message, status.code());
                 BuildResult {
-                    success: true,
+                    success: status.success(),
                     id: id_c.to_string(),
-                    message: output,
+                    exit_code: status.code(),
+                    message,
                 }
             }
             Err(e) => {
-                tracing::error!("Build failed: {}", e);
+                tracing::error!("Run buck2 failed: {}", e);
                 BuildResult {
                     success: false,
                     id: id_c.to_string(),
+                    exit_code: None,
                     message: e.to_string(),
                 }
             }
@@ -69,12 +84,24 @@ async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
 
         BUILDING.remove(&id_c.to_string());
 
+        let model = builds::ActiveModel {
+            build_id: Set(id_c),
+            output: Set(std::fs::read_to_string(&output_path).unwrap_or_default()),
+            exit_code: Set(build_resp.exit_code),
+            start_at: Set(start_at),
+            end_at: Set(chrono::Utc::now()),
+            repo_name: Set(req.repo),
+            target: Set(req.target),
+            ..Default::default()
+        };
+        model.insert(&state.conn).await.unwrap();
+
         // notify webhook
         if let Some(webhook) = req.webhook {
-            let client = reqwest::blocking::Client::new();
+            let client = reqwest::Client::new();
             let resp = client.post(webhook.clone())
                 .json(&build_resp)
-                .send();
+                .send().await;
             match resp {
                 Ok(resp) => {
                     if resp.status().is_success() {
@@ -93,6 +120,7 @@ async fn buck_build(Json(req): Json<BuildRequest>) -> impl IntoResponse {
     Json(BuildResult {
         success: true,
         id: id.to_string(),
+        exit_code: None,
         message: "Build started".to_string(),
     })
 }
