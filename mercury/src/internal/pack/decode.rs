@@ -75,7 +75,7 @@ impl Pack {
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
-            mem_limit: mem_limit.unwrap_or(usize::MAX),
+            mem_limit,
             cache_objs_mem: Arc::new(AtomicUsize::default()),
             clean_tmp,
         }
@@ -254,21 +254,6 @@ impl Pack {
         // Check if the object type is valid
         let t = ObjectType::from_u8(type_bits)?;
 
-        // util lambda: return data with result capacity after rebuilding, for Memory Control
-        let reserve_delta_data = |data: Vec<u8>| -> Vec<u8> {
-            let result_size = { // Read `result-size` of delta_obj
-                let mut reader = Cursor::new(&data);
-                let _ = utils::read_varint_le(&mut reader).unwrap().0; // base_size
-                utils::read_varint_le(&mut reader).unwrap().0 // size after rebuilding
-            };
-            // capacity() == result_size, len() == data.len()
-            // just for accurate Memory Control (rely on `heap_size()` that based on capacity)
-            // Seems wasteful temporarily, but for final memory limit.
-            let mut data_result_cap = Vec::with_capacity(result_size as usize);
-            data_result_cap.extend(data);
-            data_result_cap
-        };
-
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                 let (data, raw_size) = self.decompress_data(pack, size)?;
@@ -290,31 +275,37 @@ impl Pack {
                     })
                     .unwrap();
 
+                let mut reader = Cursor::new(&data);
+                let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
+
                 Ok(CacheObject {
                     base_offset,
-                    data_decompress: reserve_delta_data(data),
+                    data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
+                    delta_final_size: final_size,
                     mem_recorder: None,
                     ..Default::default()
                 })
             },
             ObjectType::HashDelta => {
                 // Read 20 bytes to get the reference object SHA1 hash
-                let mut buf_ref = [0; 20];
-                pack.read_exact(&mut buf_ref).unwrap();
-                let ref_sha1 = SHA1::from_bytes(buf_ref.as_ref()); //TODO SHA1::from_stream()
+                let ref_sha1 = SHA1::from_stream(pack).unwrap();
                 // Offset is incremented by 20 bytes
-                *offset += 20; //TODO 改为常量
+                *offset += SHA1::SIZE;
 
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
+                
+                let mut reader = Cursor::new(&data);
+                let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
                     base_ref: ref_sha1,
-                    data_decompress: reserve_delta_data(data),
+                    data_decompress: data,
                     obj_type: t,
                     offset: init_offset,
+                    delta_final_size: final_size,
                     mem_recorder: None,
                     ..Default::default()
                 })
@@ -323,8 +314,6 @@ impl Pack {
     }
 
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
-    ///
-    ///
     pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Send), callback: F) -> Result<(), GitError>
     where
         F: Fn(Entry, usize) + Sync + Send + 'static
@@ -355,7 +344,7 @@ impl Pack {
         let mut offset: usize = 12;
         let mut i = 0;
         while i < self.number {
-            // log per 2000&more then 1 se objects
+            // log per 1000 objects and 1 second
             if i%1000 == 0 {
                 let time_now = time.elapsed().as_millis();
                 if time_now - last_update_time > 1000 {
@@ -365,7 +354,8 @@ impl Pack {
             }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
-            while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {
+            while self.pool.queued_count() > 2000 
+                || self.mem_limit.map(|limit| self.memory_used() > limit).unwrap_or(false) {
                 thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
@@ -426,15 +416,13 @@ impl Pack {
         }
         log_info(i, self);
         let render_hash = reader.final_hash();
-        let mut trailer_buf = [0; 20];
-        reader.read_exact(&mut trailer_buf).unwrap();
-        self.signature = SHA1::from_bytes(trailer_buf.as_ref());
+        self.signature = SHA1::from_stream(&mut reader).unwrap();
 
         if render_hash != self.signature {
             return Err(GitError::InvalidPackFile(format!(
                 "The pack file hash {} does not match the trailer hash {}",
-                render_hash.to_plain_str(),
-                self.signature.to_plain_str()
+                render_hash,
+                self.signature
             )));
         }
 
@@ -554,16 +542,15 @@ impl Pack {
 
         let mut stream = Cursor::new(&delta_obj.data_decompress);
 
-        // Read the base object size & Result Size
+        // Read the base object size
         // (Size Encoding)
-        let base_size = utils::read_varint_le(&mut stream).unwrap().0;
-        let result_size = utils::read_varint_le(&mut stream).unwrap().0;
+        let (base_size, result_size) = utils::read_delta_object_size(&mut stream).unwrap();
 
         //Get the base object row data
         let base_info = &base_obj.data_decompress;
-        assert_eq!(base_info.len() as u64, base_size);
+        assert_eq!(base_info.len(), base_size, "Base object size mismatch");
 
-        let mut result = Vec::with_capacity(result_size as usize);
+        let mut result = Vec::with_capacity(result_size);
 
         loop {
             // Check if the stream has ended, meaning the new object is done
@@ -615,7 +602,7 @@ impl Pack {
                 }
             }
         }
-        assert_eq!(result_size, result.len() as u64);
+        assert_eq!(result_size, result.len(), "Result size mismatch");
 
         let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
@@ -623,6 +610,7 @@ impl Pack {
             data_decompress: result,
             obj_type: base_obj.obj_type, // Same as the Type of base object
             hash,
+            delta_final_size: 0, // The new object is not a delta obj, so set its final size to 0.
             mem_recorder: None, // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
             ..delta_obj // This syntax is actually move `delta_obj` to `new_obj`
         } // Canonical form (Complete Object)
@@ -714,6 +702,19 @@ mod tests {
     }
 
     #[test]
+    fn test_pack_decode_no_mem_limit() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
+
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+
+        let f = fs::File::open(source).unwrap();
+        let mut buffered = BufReader::new(f);
+        let mut p = Pack::new(None, None, Some(tmp), true);
+        p.decode(&mut buffered, |_,_|{}).unwrap();
+    }
+
+    #[test]
     fn test_pack_decode_with_large_file_with_delta_without_ref() {
         init_logger();
 
@@ -726,7 +727,7 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
         let rt = p.decode(&mut buffered, |_obj, _offset|{
-            // println!("{:?} {}", obj.hash.to_plain_str(), offset);
+            // println!("{:?} {}", obj.hash.to_string(), offset);
         });
         if let Err(e) = rt {
             fs::remove_dir_all(tmp).unwrap();

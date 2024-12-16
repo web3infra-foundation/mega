@@ -55,7 +55,7 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<String, GitError> {
+    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
@@ -65,25 +65,19 @@ impl PackHandler for ImportRepo {
             if entry_list.len() >= 10000 {
                 let stg_clone = storage.clone();
                 let handle = tokio::spawn(async move {
-                    stg_clone
-                        .save_entry(repo_id, entry_list)
-                        .await
-                        .unwrap();
+                    stg_clone.save_entry(repo_id, entry_list).await.unwrap();
                 });
                 join_tasks.push(handle);
                 entry_list = vec![];
             }
         }
         join_all(join_tasks).await;
-        storage
-            .save_entry(repo_id, entry_list)
-            .await
-            .unwrap();
+        storage.save_entry(repo_id, entry_list).await.unwrap();
         self.attach_to_monorepo_parent().await.unwrap();
-        Ok(String::new())
+        Ok(None)
     }
 
-    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+    async fn full_pack(&self, _: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let pack_config = &self.context.config.pack;
         let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
@@ -194,7 +188,7 @@ impl PackHandler for ImportRepo {
         // traverse commit's all parents to find the commit that client does not have
         while let Some(temp) = traversal_list.pop() {
             for p_commit_id in temp.parent_commit_ids {
-                let p_commit_id = p_commit_id.to_plain_str();
+                let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
@@ -212,7 +206,7 @@ impl PackHandler for ImportRepo {
 
         let want_tree_ids = want_commits
             .iter()
-            .map(|c| c.tree_id.to_plain_str())
+            .map(|c| c.tree_id.to_string())
             .collect();
         let want_trees: HashMap<SHA1, Tree> = storage
             .get_trees_by_hashes(self.repo.repo_id, want_tree_ids)
@@ -294,12 +288,16 @@ impl PackHandler for ImportRepo {
             .await
     }
 
-    async fn handle_mr(&self, _: &str) -> Result<(), GitError> {
-        // do nothing in import_repo
-        Ok(())
+    async fn handle_mr(&self, _: &str) -> Result<String, GitError> {
+        unreachable!()
     }
 
-    async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
+    async fn update_refs(
+        &self,
+        _: Option<String>,
+        _: Option<Commit>,
+        refs: &RefCommand,
+    ) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {
             CommandType::Create => {
@@ -366,14 +364,14 @@ impl ImportRepo {
         let new_commit = Commit::from_tree_id(
             save_trees.back().unwrap().id,
             vec![SHA1::from_str(&root_ref.ref_commit_hash).unwrap()],
-            &commit_msg,
+            &format!("\n{}", commit_msg),
         );
 
         let save_trees: Vec<mega_tree::ActiveModel> = save_trees
             .into_iter()
             .map(|tree| {
                 let mut model: mega_tree::Model = tree.into();
-                model.commit_id = new_commit.id.to_plain_str();
+                model.commit_id = new_commit.id.to_string();
                 model.into()
             })
             .collect();
@@ -382,8 +380,8 @@ impl ImportRepo {
             .await
             .unwrap();
 
-        root_ref.ref_commit_hash = new_commit.id.to_plain_str();
-        root_ref.ref_tree_hash = new_commit.tree_id.to_plain_str();
+        root_ref.ref_commit_hash = new_commit.id.to_string();
+        root_ref.ref_tree_hash = new_commit.tree_id.to_string();
         storage.update_ref(root_ref).await.unwrap();
         storage.save_mega_commits(vec![new_commit]).await.unwrap();
         Ok(())

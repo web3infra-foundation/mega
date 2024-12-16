@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use callisto::{mega_blob, mega_refs, mega_tree, raw_blob};
 use common::config::MonoConfig;
-use common::utils::generate_id;
+use common::utils::{generate_id, MEGA_BRANCH_NAME};
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
@@ -69,7 +69,7 @@ impl MegaModelConverter {
     fn traverse_from_root(&self) {
         let root_tree = &self.root_tree;
         let mut mega_tree: mega_tree::Model = root_tree.to_owned().into();
-        mega_tree.commit_id = self.commit.id.to_plain_str();
+        mega_tree.commit_id = self.commit.id.to_string();
         self.mega_trees
             .borrow_mut()
             .insert(root_tree.id, mega_tree.clone().into());
@@ -81,7 +81,7 @@ impl MegaModelConverter {
             if item.mode == TreeItemMode::Tree {
                 let child_tree = self.tree_maps.get(&item.id).unwrap();
                 let mut mega_tree: mega_tree::Model = child_tree.to_owned().into();
-                mega_tree.commit_id = self.commit.id.to_plain_str();
+                mega_tree.commit_id = self.commit.id.to_string();
                 self.mega_trees
                     .borrow_mut()
                     .insert(child_tree.id, mega_tree.clone().into());
@@ -89,7 +89,7 @@ impl MegaModelConverter {
             } else {
                 let blob = self.blob_maps.get(&item.id).unwrap();
                 let mut mega_blob: mega_blob::Model = blob.into();
-                mega_blob.commit_id = self.commit.id.to_plain_str();
+                mega_blob.commit_id = self.commit.id.to_string();
                 self.mega_blobs
                     .borrow_mut()
                     .insert(blob.id, mega_blob.clone().into());
@@ -101,13 +101,14 @@ impl MegaModelConverter {
 
     pub fn init(mono_config: &MonoConfig) -> Self {
         let (tree_maps, blob_maps, root_tree) = init_trees(mono_config);
-        let commit = Commit::from_tree_id(root_tree.id, vec![], "Init Mega Directory");
+        let commit = Commit::from_tree_id(root_tree.id, vec![], "\nInit Mega Directory");
 
         let mega_ref = mega_refs::Model {
             id: generate_id(),
             path: "/".to_owned(),
-            ref_commit_hash: commit.id.to_plain_str(),
-            ref_tree_hash: commit.tree_id.to_plain_str(),
+            ref_name: MEGA_BRANCH_NAME.to_owned(),
+            ref_commit_hash: commit.id.to_string(),
+            ref_tree_hash: commit.tree_id.to_string(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
@@ -155,7 +156,7 @@ mod test {
         let commit = Commit::from_tree_id(
             SHA1::from_str("bd4a28f2d8b2efc371f557c3b80d320466ed83f3").unwrap(),
             vec![],
-            "Init Mega Directory",
+            "\nInit Mega Directory",
         );
         println!("{}", commit);
     }

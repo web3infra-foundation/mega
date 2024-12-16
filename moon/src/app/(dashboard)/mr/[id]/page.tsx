@@ -1,12 +1,18 @@
 'use client'
-import { useCallback, useEffect, useState } from "react";
-import { Card, Button, List, Tabs, TabsProps, Space, Timeline, Flex } from 'antd/lib';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { Card, Tabs, TabsProps, Space, Timeline, Flex } from 'antd';
 import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
-import RichEditor from "@/components/rich-editor/RichEditor";
-import MRComment from "@/components/MRComment";
-import * as React from 'react'
-import { useRouter } from "next/navigation";
+import RichEditor from '@/components/rich-editor/RichEditor';
+import MRComment from '@/components/MRComment';
+import { useRouter } from 'next/navigation';
+import * as Diff2Html from 'diff2html';
+import 'diff2html/bundles/css/diff2html.min.css';
+import FilesChanged from '@/components/page/mr/files-changed';
+import { Button } from '@/components/ui/button';
+import { ReloadIcon } from '@radix-ui/react-icons';
+import { cn } from '@/lib/utils';
 
 interface MRDetail {
     status: string,
@@ -38,6 +44,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
     const [filedata, setFileData] = useState([]);
     const [loadings, setLoadings] = useState<boolean[]>([]);
     const router = useRouter();
+    const [outputHtml, setOutputHtml] = useState('');
 
     const checkLogin = async () => {
         const res = await fetch(`/api/auth`);
@@ -60,6 +67,12 @@ export default function MRDetailPage({ params }: { params: Params }) {
             cancel_loading(2)
         }
     }, [id]);
+
+    const get_diff_content = useCallback(async () => {
+        const detail = await fetch(`/api/mr/${id}/files-changed`);
+        const res = await detail.json();
+        setOutputHtml(Diff2Html.html(res.data.data, { drawFileList: true, matching: 'lines' }));
+    }, [id])
 
     useEffect(() => {
         fetchDetail()
@@ -154,6 +167,15 @@ export default function MRDetailPage({ params }: { params: Params }) {
         return element
     });
 
+    const onTabsChange = (key: string) => {
+        console.log(key);
+        if (key === '2') {
+            get_diff_content()
+        }
+    };
+
+    const buttonClasses= 'cursor-pointer';
+
     const tab_items: TabsProps['items'] = [
         {
             key: '1',
@@ -165,46 +187,60 @@ export default function MRDetailPage({ params }: { params: Params }) {
                     <RichEditor setEditorState={setEditorState} />
                     <Flex gap="small" justify={"flex-end"}>
                         {mrDetail && mrDetail.status === "open" &&
-                            <Button loading={loadings[3]} disabled={!login} onClick={() => close_mr()}>Close Merge Request</Button>
+                          <Button
+                            disabled={!login}
+                            onClick={() => close_mr()}
+                            aria-label="Close Merge Request"
+                            className={cn(buttonClasses)}
+                          >
+                            {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                            Close Merge Request
+                          </Button>
                         }
                         {mrDetail && mrDetail.status === "closed" &&
-                            <Button loading={loadings[3]} disabled={!login} onClick={() => reopen_mr()}>Reopen Merge Request</Button>
+                          <Button
+                            disabled={!login}
+                            onClick={() => reopen_mr()}
+                            aria-label="Reopen Merge Request"
+                            className={cn(buttonClasses)}
+                          >
+                            {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                            Reopen Merge Request
+                          </Button>
                         }
-                        <Button loading={loadings[3]} disabled={!login} onClick={() => save_comment(editorState)}>Comment</Button>
+                        <Button
+                          disabled={login}
+                          onClick={() => save_comment(editorState)}
+                          aria-label="Comment"
+                          className={cn(buttonClasses)}
+                        >
+                          {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                          Comment
+                        </Button>
                     </Flex>
                 </Space>
         },
         {
             key: '2',
             label: 'Files Changed',
-            children: <Space style={{ width: '100%' }}>
-                <List
-                    header={<div>Change File List</div>}
-                    bordered
-                    dataSource={filedata}
-                    loading={loadings[2]}
-                    renderItem={(item) => (
-                        <List.Item>
-                            {item}
-                        </List.Item>
-                    )}
-                />
-            </Space>
+            children: <FilesChanged outputHtml={outputHtml} />
         }
     ];
 
     return (
         <Card title={mrDetail.title + " #" + id}>
             {mrDetail && mrDetail.status === "open" &&
-                <Button
-                    loading={loadings[1]}
-                    onClick={() => approve_mr()}
-                    disabled={!login}
-                >
-                    Merge MR
-                </Button>
+              <Button
+                disabled={!login}
+                onClick={() => approve_mr()}
+                aria-label="Merge MR"
+                className={cn(buttonClasses)}
+              >
+                  {loadings[1] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                  Merge MR
+              </Button>
             }
-            <Tabs defaultActiveKey="1" items={tab_items} />
+            <Tabs defaultActiveKey="1" items={tab_items} onChange={onTabsChange} />
         </Card>
     )
 }

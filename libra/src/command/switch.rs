@@ -14,12 +14,15 @@ use super::{
 
 #[derive(Parser, Debug)]
 pub struct SwitchArgs {
+    /// branch name
     #[clap(required_unless_present("create"), required_unless_present("detach"))]
     branch: Option<String>,
 
+    /// Create a new branch based on the given branch or current HEAD, and switch to it
     #[clap(long, short, group = "sub")]
     create: Option<String>,
 
+    /// Switch to a commit
     #[clap(long, short, action, default_value = "false", group = "sub")]
     detach: bool,
 }
@@ -91,7 +94,7 @@ async fn restore_to_commit(commit_id: SHA1) {
     let restore_args = RestoreArgs {
         worktree: true,
         staged: true,
-        source: Some(commit_id.to_plain_str()),
+        source: Some(commit_id.to_string()),
         pathspec: vec![util::working_dir_string()],
     };
     restore::execute(restore_args).await;
@@ -113,7 +116,7 @@ mod tests {
             "--worktree",
             "--staged",
             "--source",
-            &commit_id.to_plain_str(),
+            &commit_id.to_string(),
             util::working_dir().to_str().unwrap(),
         ]);
         println!("{:?}", restore_args);

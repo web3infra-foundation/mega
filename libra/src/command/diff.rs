@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt,
     io::{self, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use clap::Parser;
@@ -33,21 +33,25 @@ use crate::utils::path_ext::PathExt;
 
 #[derive(Parser, Debug)]
 pub struct DiffArgs {
-    #[clap(long, help = "Old commit, defaults is staged or HEAD")]
+    /// Old commit, default is HEAD
+    #[clap(long, value_name = "COMMIT")]
     pub old: Option<String>,
 
-    #[clap(long, help = "New commit, default is working directory")]
+    /// New commit, default is working directory
+    #[clap(long, value_name = "COMMIT")]
     #[clap(requires = "old", group = "op_new")]
     pub new: Option<String>,
 
-    #[clap(long, help = "use stage as new commit")]
+    /// Use stage as new commit. This option is conflict with --new.
+    #[clap(long)]
     #[clap(group = "op_new")]
     pub staged: bool,
 
     #[clap(help = "Files to compare")]
     pathspec: Vec<String>,
 
-    #[clap(long)]
+    // Print the result to file
+    #[clap(long, value_name = "FILENAME")]
     pub output: Option<String>,
 }
 
@@ -57,13 +61,6 @@ pub async fn execute(args: DiffArgs) {
     }
     tracing::debug!("diff args: {:?}", args);
     let index = Index::load(path::index()).unwrap();
-    #[cfg(unix)]
-    let mut child = Command::new("less")
-        .arg("-R")
-        .arg("-F")
-        .stdin(Stdio::piped())
-        .spawn()
-        .expect("failed to execute process");
 
     let mut w = match args.output {
         Some(ref path) => {
@@ -123,13 +120,7 @@ pub async fn execute(args: DiffArgs) {
     };
 
     // use pathspec to filter files
-    let paths: Vec<PathBuf> = args
-        .pathspec
-        .iter()
-        .map(|s| {
-            util::to_workdir_path(s)
-        })
-        .collect();
+    let paths: Vec<PathBuf> = args.pathspec.iter().map(util::to_workdir_path).collect();
 
     let mut buf: Vec<u8> = Vec::new();
     // filter files, cross old and new files, and pathspec
@@ -142,6 +133,13 @@ pub async fn execute(args: DiffArgs) {
         None => {
             #[cfg(unix)]
             {
+                #[cfg(unix)]
+                let mut child = Command::new("less")
+                    .arg("-R")
+                    .arg("-F")
+                    .stdin(Stdio::piped())
+                    .spawn()
+                    .expect("failed to execute process");
                 let stdin = child.stdin.as_mut().unwrap();
                 stdin.write_all(&buf).unwrap();
                 child.wait().unwrap();
@@ -174,10 +172,10 @@ pub async fn diff(
     let read_content = |file: &PathBuf, hash: &SHA1| {
         // read content from blob or file
         match load_object::<Blob>(hash) {
-            Ok(blob) => String::from_utf8(blob.data).unwrap(),
+            Ok(blob) => blob.data,
             Err(_) => {
                 let file = util::workdir_to_absolute(file);
-                std::fs::read_to_string(&file)
+                std::fs::read(&file)
                     .map_err(|e| {
                         eprintln!("fatal: could not read file '{}': {}", file.display(), e);
                     })
@@ -199,13 +197,13 @@ pub async fn diff(
             continue;
         }
 
-        let old_content = match &old_hash.as_ref() {
+        let old_content = match old_hash.as_ref() {
             Some(hash) => read_content(&file, hash),
-            None => String::new(),
+            None => Vec::new(),
         };
-        let new_content = match &new_hash.as_ref() {
+        let new_content = match new_hash.as_ref() {
             Some(hash) => read_content(&file, hash),
-            None => String::new(),
+            None => Vec::new(),
         };
 
         writeln!(
@@ -222,16 +220,30 @@ pub async fn diff(
             writeln!(w, "deleted file mode 100644").unwrap();
         }
 
-        let old_index = old_hash.map_or("0000000".to_string(), |h| {
-            h.to_plain_str()[0..8].to_string()
-        });
-        let new_index = new_hash.map_or("0000000".to_string(), |h| {
-            h.to_plain_str()[0..8].to_string()
-        });
+        let old_index = old_hash.map_or("0000000".to_string(), |h| h.to_string()[0..8].to_string());
+        let new_index = new_hash.map_or("0000000".to_string(), |h| h.to_string()[0..8].to_string());
         writeln!(w, "index {}..{}", old_index, new_index).unwrap();
-
-        // diff_result(&old_content, &new_content, w);
-        imara_diff_result(&old_content, &new_content, w);
+        // check is the content is valid utf-8 or maybe binary
+        let old_type = infer::get(&old_content);
+        let new_type = infer::get(&new_content);
+        match (
+            String::from_utf8(old_content),
+            String::from_utf8(new_content),
+        ) {
+            (Ok(old_text), Ok(new_text)) => {
+                imara_diff_result(&old_text, &new_text, w);
+            }
+            _ => {
+                // TODO: Handle non-UTF-8 data as binary for now; consider optimization in the future.
+                writeln!(
+                    w,
+                    "Binary files a/{} and b/{} differ",
+                    file_display(&file, old_hash, old_type),
+                    file_display(&file, new_hash, new_type)
+                )
+                .unwrap();
+            }
+        }
     }
 }
 
@@ -251,6 +263,25 @@ fn get_files_blobs(files: &[PathBuf]) -> Vec<(PathBuf, SHA1)> {
             (p.to_owned(), calculate_object_hash(ObjectType::Blob, &data))
         })
         .collect()
+}
+
+// display file with type
+fn file_display(file: &Path, hash: Option<&SHA1>, file_type: Option<infer::Type>) -> String {
+    let file_name = match hash {
+        Some(_) => file.display().to_string(),
+        None => "dev/null".to_string(),
+    };
+
+    if let Some(file_type) = file_type {
+        // Check if the file type is displayable in browser, like image, audio, video, etc.
+        if matches!(
+            file_type.matcher_type(),
+            infer::MatcherType::Audio | infer::MatcherType::Video | infer::MatcherType::Image
+        ) {
+            return format!("{} ({})", file_name, file_type.mime_type()).to_string();
+        }
+    }
+    file_name
 }
 
 struct Line(Option<usize>);

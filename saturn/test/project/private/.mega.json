@@ -12,7 +12,7 @@
             "euid": "Repository::\"/project/bens_private\"",
             "is_private": true,
             "admins": "UserGroup::\"admin\"",
-            "maintainers": "UserGroup::\"matainer\"",
+            "maintainers": "UserGroup::\"maintainer\"",
             "readers": "UserGroup::\"reader\"",
             "parents": []
         }
@@ -21,11 +21,11 @@
         "UserGroup::\"admin\"": {
             "euid": "UserGroup::\"admin\"",
             "parents": [
-                "UserGroup::\"matainer\""
+                "UserGroup::\"maintainer\""
             ]
         },
-        "UserGroup::\"matainer\"": {
-            "euid": "UserGroup::\"matainer\"",
+        "UserGroup::\"maintainer\"": {
+            "euid": "UserGroup::\"maintainer\"",
             "parents": [
                 "UserGroup::\"reader\""
             ]

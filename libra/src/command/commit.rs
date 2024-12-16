@@ -6,22 +6,28 @@ use crate::internal::head::Head;
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::util;
-use mercury::internal::index::Index;
 use clap::Parser;
+use common::utils::{check_conventional_commits_message, format_commit_msg};
 use mercury::hash::SHA1;
+use mercury::internal::index::Index;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::ObjectTrait;
 
-use super::{format_commit_msg, save_object};
+use super::save_object;
 
 #[derive(Parser, Debug)]
 pub struct CommitArgs {
     #[arg(short, long)]
     pub message: String,
 
+    /// allow commit with empty index
     #[arg(long)]
     pub allow_empty: bool,
+
+    /// check if commit message follows conventional commits
+    #[arg(long, requires("message"))]
+    pub conventional: bool,
 }
 
 pub async fn execute(args: CommitArgs) {
@@ -30,7 +36,12 @@ pub async fn execute(args: CommitArgs) {
     let storage = ClientStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
-        panic!("fatal: no changes added to commit, use --allow-empty to override");
+        println!("fatal: no changes added to commit, use --allow-empty to override");
+        return;
+    }
+    if args.conventional && !check_conventional_commits_message(&args.message) {
+        println!("fatal: commit message does not follow conventional commits");
+        return;
     }
 
     /* Create tree */
@@ -39,7 +50,11 @@ pub async fn execute(args: CommitArgs) {
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids().await;
     // There must be a `blank line`(\n) before `message`, or remote unpack failed
-    let commit = Commit::from_tree_id(tree.id, parents_commit_ids, &format_commit_msg(&args.message, None));
+    let commit = Commit::from_tree_id(
+        tree.id,
+        parents_commit_ids,
+        &format_commit_msg(&args.message, None),
+    );
 
     // TODO  default signature created in `from_tree_id`, wait `git config` to set correct user info
 
@@ -48,7 +63,7 @@ pub async fn execute(args: CommitArgs) {
         .unwrap();
 
     /* update HEAD */
-    update_head(&commit.id.to_plain_str()).await;
+    update_head(&commit.id.to_string()).await;
 }
 
 /// recursively create tree from index's tracked entries
@@ -161,6 +176,23 @@ mod test {
     };
 
     use super::*;
+    #[test]
+    fn test_parse_args() {
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init"]);
+        assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init", "--allow-empty"]);
+        assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "--conventional", "-m", "init"]);
+        assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "--conventional"]);
+        assert!(args.is_err(), "conventional should require message");
+
+        let args = CommitArgs::try_parse_from(["commit"]);
+        assert!(args.is_err(), "message is required");
+    }
 
     #[tokio::test]
     async fn test_create_tree() {
@@ -191,6 +223,7 @@ mod test {
         let args = CommitArgs {
             message: "init".to_string(),
             allow_empty: false,
+            conventional: false,
         };
         execute(args).await;
     }
@@ -203,6 +236,7 @@ mod test {
             let args = CommitArgs {
                 message: "init".to_string(),
                 allow_empty: true,
+                conventional: false,
             };
             execute(args).await;
 
@@ -219,7 +253,7 @@ mod test {
             let branch = Branch::find_branch(&branch_name, None).await.unwrap();
             assert_eq!(branch.commit, commit.id);
         }
-        
+
         // create a new commit
         {
             // create `a.txt` `bb/b.txt` `bb/c.txt`
@@ -239,6 +273,7 @@ mod test {
             let args = CommitArgs {
                 message: "add some files".to_string(),
                 allow_empty: false,
+                conventional: false,
             };
             execute(args).await;
 

@@ -17,7 +17,7 @@ pub struct BranchArgs {
     #[clap(requires = "new_branch")]
     commit_hash: Option<String>,
 
-    /// list all branches
+    /// list all branches, don't include remote branches
     #[clap(short, long, group = "sub", default_value = "true")]
     list: bool,
 
@@ -25,7 +25,7 @@ pub struct BranchArgs {
     #[clap(short = 'D', long, group = "sub")]
     delete: Option<String>,
 
-    /// Set up current branch's tracking information
+    ///  Set up `branchname`>`'s tracking information so `<`upstream`>` is considered `<`branchname`>`'s upstream branch.
     #[clap(short = 'u', long, group = "sub")]
     set_upstream_to: Option<String>,
 
@@ -53,7 +53,7 @@ pub async fn execute(args: BranchArgs) {
             }
         };
     } else if args.list {
-        // 兜底list
+        // default behavior
         list_branches(args.remotes).await;
     } else {
         panic!("should not reach here")
@@ -112,7 +112,7 @@ pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>)
         .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{}'", commit_id));
 
     // create branch
-    Branch::update_branch(&new_branch, &commit_id.to_plain_str(), None).await;
+    Branch::update_branch(&new_branch, &commit_id.to_string(), None).await;
 }
 
 async fn delete_branch(branch_name: String) {
@@ -138,7 +138,7 @@ async fn show_current_branch() {
     let head = Head::current().await;
     match head {
         Head::Detached(commit_hash) => {
-            println!("HEAD detached at {}", &commit_hash.to_plain_str()[..8]);
+            println!("HEAD detached at {}", &commit_hash.to_string()[..8]);
         }
         Head::Branch(name) => {
             println!("{}", name);
@@ -163,7 +163,7 @@ async fn list_branches(remotes: bool) {
 
     let head = Head::current().await;
     if let Head::Detached(commit) = head {
-        let s = "HEAD detached at  ".to_string() + &commit.to_plain_str()[..8];
+        let s = "HEAD detached at  ".to_string() + &commit.to_string()[..8];
         let s = s.green();
         println!("{}", s);
     };
@@ -234,6 +234,7 @@ mod tests {
         let commit_args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(commit_args).await;
         let first_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -241,6 +242,7 @@ mod tests {
         let commit_args = CommitArgs {
             message: "second".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(commit_args).await;
         let second_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -250,7 +252,7 @@ mod tests {
             let first_branch_name = "first_branch".to_string();
             let args = BranchArgs {
                 new_branch: Some(first_branch_name.clone()),
-                commit_hash: Some(first_commit_id.to_plain_str()),
+                commit_hash: Some(first_commit_id.to_string()),
                 list: false,
                 delete: None,
                 set_upstream_to: None,
@@ -318,10 +320,11 @@ mod tests {
         let args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(args).await;
         let hash = Head::current_commit().await.unwrap();
-        Branch::update_branch("master", &hash.to_plain_str(), Some("origin")).await; // create remote branch
+        Branch::update_branch("master", &hash.to_string(), Some("origin")).await; // create remote branch
         assert!(get_target_commit("origin/master").await.is_ok());
 
         let args = BranchArgs {
@@ -349,6 +352,7 @@ mod tests {
         let args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
+            conventional: false,
         };
         commit::execute(args).await;
 

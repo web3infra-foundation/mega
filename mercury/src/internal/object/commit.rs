@@ -15,8 +15,8 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use bstr::ByteSlice;
-use serde::{Deserialize,Serialize};
-
+use serde::Deserialize;
+use serde::Serialize;
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::signature::Signature;
@@ -33,8 +33,7 @@ use crate::internal::object::ObjectType;
 ///   history of a repository with a single commit object at its root.
 /// - The author and committer fields contain the name, email address, timestamp and timezone.
 /// - The message field contains the commit message, which maybe include signed or DCO.
-#[allow(unused)]
-#[derive(Eq, Debug, Clone,Serialize,Deserialize)]
+#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub id: SHA1,
     pub tree_id: SHA1,
@@ -45,7 +44,7 @@ pub struct Commit {
 }
 impl PartialEq for Commit {
     fn eq(&self, other: &Self) -> bool {
-        self.tree_id == other.tree_id
+        self.id == other.id
     }
 }
 
@@ -194,12 +193,12 @@ impl ObjectTrait for Commit {
         let mut data = Vec::new();
 
         data.extend(b"tree ");
-        data.extend(self.tree_id.to_plain_str().as_bytes());
+        data.extend(self.tree_id.to_string().as_bytes());
         data.extend(&[0x0a]);
 
         for parent_tree_id in &self.parent_commit_ids {
             data.extend(b"parent ");
-            data.extend(parent_tree_id.to_plain_str().as_bytes());
+            data.extend(parent_tree_id.to_string().as_bytes());
             data.extend(&[0x0a]);
         }
 

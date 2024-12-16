@@ -9,7 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::{stream, StreamExt};
 use russh::server::{self, Auth, Msg, Session};
 use russh::{Channel, ChannelId, MethodSet};
-use russh_keys::key;
+use russh_keys::{self, HashAlg, PublicKey};
 use tokio::io::AsyncReadExt;
 
 use ceres::lfs::lfs_structs::Link;
@@ -25,7 +25,6 @@ type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct SshServer {
-    pub client_pubkey: Arc<russh_keys::key::PublicKey>,
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
     pub context: Context,
@@ -96,13 +95,13 @@ impl server::Handler for SshServer {
                 // TODO handler ProtocolError
                 let res = smart_protocol.git_info_refs().await.unwrap();
                 self.smart_protocol = Some(smart_protocol);
-                session.data(channel, res.to_vec().into());
-                session.channel_success(channel);
+                session.data(channel, res.to_vec().into())?;
+                session.channel_success(channel)?;
             }
             //Note that currently mega does not support pure ssh to transfer files, still relay on the https server.
             //see https://github.com/git-lfs/git-lfs/blob/main/docs/proposals/ssh_adapter.md for more details about pure ssh file transfer.
             "git-lfs-transfer" => {
-                session.data(channel, "not implemented yet".as_bytes().to_vec().into());
+                session.data(channel, "not implemented yet".as_bytes().to_vec().into())?;
             }
             // When connecting over SSH, the first attempt will be made to use
             // `git-lfs-transfer`, the pure SSH protocol, and if it fails, Git LFS will fall
@@ -119,7 +118,7 @@ impl server::Handler for SshServer {
                         expire_time.to_rfc3339()
                     },
                 };
-                session.data(channel, serde_json::to_vec(&link).unwrap().into());
+                session.data(channel, serde_json::to_vec(&link).unwrap().into())?;
             }
             command => tracing::error!("Not Supported command! {}", command),
         }
@@ -129,15 +128,15 @@ impl server::Handler for SshServer {
     async fn auth_publickey(
         &mut self,
         user: &str,
-        public_key: &key::PublicKey,
+        public_key: &PublicKey,
     ) -> Result<Auth, Self::Error> {
+        let fingerprint = public_key.fingerprint(HashAlg::Sha256).to_string();
+
         tracing::info!(
-            "auth_publickey: {} / {:?}/ {}",
+            "auth_publickey: {} / {}",
             user,
-            public_key.name(),
-            public_key.fingerprint()
+            fingerprint
         );
-        let fingerprint = public_key.fingerprint();
         let res = self.context.user_stg().search_ssh_key_finger(&fingerprint).await.unwrap();
         if !res.is_empty() {
             tracing::info!("Client public key verified successfully!");
@@ -171,7 +170,7 @@ impl server::Handler for SshServer {
                 self.data_combined.extend_from_slice(data);
             }
         };
-        session.channel_success(channel);
+        session.channel_success(channel)?;
         Ok(())
     }
 
@@ -190,8 +189,8 @@ impl server::Handler for SshServer {
             let mut clients = self.clients.lock().await;
             clients.remove(&(self.id, channel));
         }
-        session.exit_status_request(channel, 0000);
-        session.close(channel);
+        session.exit_status_request(channel, 0000)?;
+        session.close(channel)?;
         Ok(())
     }
 }
@@ -206,7 +205,7 @@ impl SshServer {
             .unwrap();
 
         tracing::info!("buf is {:?}", buf);
-        session.data(channel, String::from_utf8(buf.to_vec()).unwrap().into());
+        session.data(channel, String::from_utf8(buf.to_vec()).unwrap().into()).unwrap();
 
         while let Some(chunk) = send_pack_data.next().await {
             let mut reader = chunk.as_slice();
@@ -218,10 +217,10 @@ impl SshServer {
                     break;
                 }
                 let bytes_out = smart_protocol.build_side_band_format(temp, length);
-                session.data(channel, bytes_out.to_vec().into());
+                session.data(channel, bytes_out.to_vec().into()).unwrap();
             }
         }
-        session.data(channel, smart::PKT_LINE_END_MARKER.to_vec().into());
+        session.data(channel, smart::PKT_LINE_END_MARKER.to_vec().into()).unwrap();
     }
 
     async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
@@ -247,6 +246,6 @@ impl SshServer {
         }
 
         tracing::info!("report status: {:?}", report_status);
-        session.data(channel, report_status.to_vec().into());
+        session.data(channel, report_status.to_vec().into()).unwrap();
     }
 }

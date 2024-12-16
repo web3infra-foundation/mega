@@ -1,8 +1,10 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::{env, fs};
 
 use axum::async_trait;
+use tokio::process::Command;
 
 use callisto::db_enums::ConvType;
 use callisto::{mega_blob, mega_tree, raw_blob};
@@ -95,7 +97,7 @@ impl ApiHandler for MonoApiService {
         let commit = Commit::from_tree_id(
             p_tree.id,
             vec![SHA1::from_str(&refs.ref_commit_hash).unwrap()],
-            &format!("create file {} commit", file_info.name),
+            &format!("\ncreate file {} commit", file_info.name),
         );
 
         // Update the parent tree with the new commit
@@ -225,7 +227,7 @@ impl MonoApiService {
                 tree_comparation.left_tree.pop_front()
             {
                 let new_tree: Tree = storage
-                    .get_tree_by_hash(&new_tree.to_plain_str())
+                    .get_tree_by_hash(&new_tree.to_string())
                     .await
                     .unwrap()
                     .unwrap()
@@ -233,7 +235,7 @@ impl MonoApiService {
 
                 let base_tree = if let Some(base_tree) = base_tree {
                     let base_tree: Tree = storage
-                        .get_tree_by_hash(&base_tree.to_plain_str())
+                        .get_tree_by_hash(&base_tree.to_string())
                         .await
                         .unwrap()
                         .unwrap()
@@ -330,10 +332,10 @@ impl MonoApiService {
                         vec![SHA1::from_str(&p_ref.ref_commit_hash).unwrap()],
                         &commit.message,
                     );
-                    p_commit_id = p_commit.id.to_plain_str();
+                    p_commit_id = p_commit.id.to_string();
                     // update p_ref
-                    p_ref.ref_commit_hash = p_commit.id.to_plain_str();
-                    p_ref.ref_tree_hash = target_hash.to_plain_str();
+                    p_ref.ref_commit_hash = p_commit.id.to_string();
+                    p_ref.ref_tree_hash = target_hash.to_string();
                     storage.update_ref(p_ref).await.unwrap();
                     storage.save_mega_commits(vec![p_commit]).await.unwrap();
                 } else {
@@ -354,6 +356,82 @@ impl MonoApiService {
             .unwrap();
         Ok(p_commit_id)
     }
+
+    pub async fn content_diff(&self, mr_link: &str) -> Result<String, GitError> {
+        let stg = self.context.mr_stg();
+        if let Some(mr) = stg.get_mr(mr_link).await.unwrap() {
+            let base_path = self.context.config.base_dir.clone();
+            env::set_current_dir(&base_path).unwrap();
+            let clone_path = base_path.join(mr_link);
+            if !fs::exists(&clone_path).unwrap() {
+                // fs::remove_dir_all(&clone_path).unwrap();
+                Command::new("mkdir")
+                    .arg(mr_link)
+                    .output()
+                    .await
+                    .expect("Failed to mkdir");
+                // cd mr
+                env::set_current_dir(&clone_path).unwrap();
+                // libra init
+                Command::new("libra")
+                    .arg("init")
+                    .output()
+                    .await
+                    .expect("Failed to execute libra init");
+                // libra remote add origin http://localhost:8000/project
+                Command::new("libra")
+                    .arg("remote")
+                    .arg("add")
+                    .arg("origin")
+                    .arg(format!("http://localhost:8000{}", mr.path))
+                    .output()
+                    .await
+                    .expect("Failed to execute libra remote add");
+                // libra fetch origin QB0X1X1K
+                Command::new("libra")
+                    .arg("fetch")
+                    .arg("origin")
+                    .arg(mr_link)
+                    .output()
+                    .await
+                    .expect("Failed to execute libra fetch");
+                // libra branch QB0X1X1K origin/QB0X1X1K
+                Command::new("libra")
+                    .arg("branch")
+                    .arg(mr_link)
+                    .arg(format!("origin/{}", mr_link))
+                    .output()
+                    .await
+                    .expect("Failed to execute libra branch");
+                // libra switch QB0X1X1K
+                Command::new("libra")
+                    .arg("switch")
+                    .arg(mr_link)
+                    .output()
+                    .await
+                    .expect("Failed to execute libra switch");
+            } else {
+                env::set_current_dir(&clone_path).unwrap();
+            }
+            // libra diff --old hash
+            let output = Command::new("libra")
+                .arg("diff")
+                .arg("--old")
+                .arg(mr.from_hash)
+                .output()
+                .await
+                .expect("Failed to execute libra diff");
+            if output.status.success() {
+                return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+            } else {
+                tracing::error!(
+                    "Command failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        }
+        Ok(String::new())
+    }
 }
 
 pub struct TreeComparation {
@@ -372,7 +450,7 @@ impl TreeComparation {
     //     let diff: Vec<_> = new_set.symmetric_difference(&base_set).cloned().collect();
     //     for item in diff {
     //         if item.mode == TreeItemMode::Tree {
-    //             let t_id = item.id.to_plain_str();
+    //             let t_id = item.id.to_string();
     //             if !self.left_tree.contains(&t_id) {
     //                 self.left_tree.push_back(t_id);
     //             }

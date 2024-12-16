@@ -15,7 +15,6 @@ import {
   SidebarBody,
   SidebarFooter,
   SidebarHeader,
-  SidebarHeading,
   SidebarItem,
   SidebarLabel,
   SidebarSection,
@@ -24,17 +23,13 @@ import {
 import { SidebarLayout } from '@/components/catalyst/sidebar-layout'
 import {
   ArrowRightStartOnRectangleIcon,
-  ChevronDownIcon,
   ChevronUpIcon,
-  Cog8ToothIcon,
   LightBulbIcon,
-  PlusIcon,
   ShieldCheckIcon,
   UserCircleIcon,
   KeyIcon,
 } from '@heroicons/react/16/solid'
 import {
-  Cog6ToothIcon,
   HomeIcon,
   QuestionMarkCircleIcon,
   SparklesIcon,
@@ -86,7 +81,7 @@ export function ApplicationLayout({
 }: {
   children: React.ReactNode
 }) {
-  let pathname = usePathname()
+  const pathname = usePathname()
 
   const [user, setUser] = useState<User | null>(null);
 
