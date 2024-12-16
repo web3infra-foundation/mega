@@ -14,7 +14,7 @@ pub async fn build(repo: String, target: String, args: Vec<String>, log_path: St
         .arg("build")
         .args(args)
         .arg(target)
-        .current_dir(&format!("{}/{}", PROJECT_ROOT, repo))
+        .current_dir(format!("{}/{}", PROJECT_ROOT, repo))
         .stdout(output_file.try_clone()?)
         .stderr(output_file);
     // actually, some info (like: "BUILD SUCCESSFUL") is printed to stderr

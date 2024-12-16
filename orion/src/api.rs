@@ -42,18 +42,18 @@ struct BuildResult {
     message: String,
 }
 
-static BUILDING: Lazy<DashSet<String>> = Lazy::new(|| DashSet::new());
+static BUILDING: Lazy<DashSet<String>> = Lazy::new(DashSet::new);
 // TODO avoid multi-task in one repo?
 // #[debug_handler] // better error msg
 // `Json` must be last arg, because it consumes the request body
 async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>) -> impl IntoResponse {
     let id = Uuid::now_v7();
-    let id_c = id.clone();
+    let id_c = id;
     BUILDING.insert(id.to_string());
     tracing::info!("Start build task: {}", id);
     tokio::spawn(async move {
         let start_at = chrono::Utc::now();
-        let output_path = format!("{}/{}", BUILD_LOG_DIR, id_c.to_string());
+        let output_path = format!("{}/{}", BUILD_LOG_DIR, id_c);
         let build_resp = match buck_controller::build(
             req.repo.clone(),
             req.target.clone(),
