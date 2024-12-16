@@ -11,7 +11,7 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use lru_mem::LruCache;
 use once_cell::sync::Lazy;
-use mercury::internal::pack::cache_object::CacheObject;
+use mercury::internal::pack::cache_object::{CacheObject, CachedObjectInfo};
 use mercury::internal::pack::Pack;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
@@ -237,7 +237,7 @@ impl ClientStorage {
         for idx in idxes {
             let res = Self::read_pack_by_idx(&idx, obj_id)?;
             if let Some(data) = res {
-                return Ok(Some((data.data_decompress.clone(), data.obj_type)));
+                return Ok(Some((data.data_decompress.clone(), data.object_type())));
             }
         }
 
@@ -327,18 +327,15 @@ impl ClientStorage {
             let mut offset = offset as usize;
             pack.decode_pack_object(&mut pack_reader, &mut offset)? // offset will be updated!
         };
-        let full_obj = match obj.obj_type {
-            ObjectType::OffsetDelta => {
-                let base_offset = obj.base_offset;
+        let full_obj = match obj.info {
+            CachedObjectInfo::OffsetDelta(base_offset, _) => {
                 let base_obj = Self::read_pack_obj(pack_file, base_offset as u64)?;
                 let base_obj = Arc::new(base_obj);
                 Pack::rebuild_delta(obj, base_obj) // new obj
-            }
-            ObjectType::HashDelta => {
-                let base_hash = obj.base_ref;
+            },
+            CachedObjectInfo::HashDelta(base_hash, _) => {
                 let idx_file = pack_file.with_extension("idx");
                 let base_offset = Self::read_idx(&idx_file, &base_hash)?.unwrap();
-
                 let base_obj = Self::read_pack_obj(pack_file, base_offset)?;
                 let base_obj = Arc::new(base_obj);
                 Pack::rebuild_delta(obj, base_obj) // new obj
