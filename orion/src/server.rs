@@ -1,6 +1,7 @@
 use axum::Router;
 use axum::routing::get;
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, ExecResult, Schema};
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, TransactionTrait};
+use sea_orm::sea_query::Index;
 use crate::api;
 use crate::model::builds;
 
@@ -28,11 +29,25 @@ pub async fn start_server(port: u16) {
     axum::serve(addr, app.into_make_service()).await.unwrap();
 }
 
-async fn setup_tables(conn: &DatabaseConnection) -> Result<ExecResult, DbErr> {
+/// create if not exists
+async fn setup_tables(conn: &DatabaseConnection) -> Result<(), DbErr> {
+    let trans = conn.begin().await?;
+
     let builder = conn.get_database_backend();
     let schema = Schema::new(builder);
     let mut table_statement = schema.create_table_from_entity(builds::Entity);
-    table_statement.if_not_exists(); //
+    table_statement.if_not_exists();
     let statement = builder.build(&table_statement);
-    conn.execute(statement).await
+    trans.execute(statement).await?;
+
+    let idx_build_id = Index::create()
+        .name("idx-builds-build_id")
+        .table(builds::Entity)
+        .col(builds::Column::BuildId)
+        .unique()
+        .if_not_exists()
+        .to_owned();
+    trans.execute(builder.build(&idx_build_id)).await?;
+
+    trans.commit().await
 }

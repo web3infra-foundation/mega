@@ -18,3 +18,13 @@ pub struct Model {
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
+
+impl Model {
+    pub async fn get_by_build_id(build_id: Uuid, conn: DatabaseConnection) -> Option<Model> {
+        Entity::find()
+            .filter(Column::BuildId.eq(build_id))
+            .one(&conn)
+            .await
+            .expect("Failed to get by `build_id`")
+    }
+}

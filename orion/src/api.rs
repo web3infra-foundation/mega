@@ -82,8 +82,6 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
             }
         };
 
-        BUILDING.remove(&id_c.to_string());
-
         let model = builds::ActiveModel {
             build_id: Set(id_c),
             output: Set(std::fs::read_to_string(&output_path).unwrap_or_default()),
@@ -95,6 +93,18 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
             ..Default::default()
         };
         model.insert(&state.conn).await.unwrap();
+
+        // remove log file
+        // TODO on Linux, it's okay to delete a file that is being read
+        //  but on Windows, it may cause `Permission denied`
+        //  we can retry after every SSE read with file
+        if std::fs::remove_file(&output_path).is_err() {
+            tracing::warn!("Remove log file failed: {}", output_path);
+        } else {
+            tracing::info!("Remove log file: {}", output_path);
+        }
+
+        BUILDING.remove(&id_c.to_string()); // MUST after database insert to ensure data accessible
 
         // notify webhook
         if let Some(webhook) = req.webhook {
@@ -126,7 +136,24 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
 }
 
 /// SSE
-async fn build_output(Path(id): Path<String>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> { // impl IntoResponse
+async fn build_output(State(state): State<AppState>, Path(id): Path<String>)
+    -> Sse<impl Stream<Item = Result<Event, Infallible>>> // impl IntoResponse
+{
+    if !BUILDING.contains(&id) { // build end, no file, in database
+        let build_id: Uuid = id.parse().expect("Invalid build id");
+        let output = builds::Model::get_by_build_id(build_id, state.conn).await;
+        let output = match output {
+            Some(model) => model.output,
+            None => {
+                let msg = format!("Build task not found in db: {}", id);
+                tracing::error!(msg);
+                msg
+            }
+        };
+        return Sse::new(stream::once(async { Ok(Event::default().data(output)) }).boxed());
+    }
+
+    // building, read from file
     let path = format!("{}/{}", BUILD_LOG_DIR, id);
     if !std::path::Path::new(&path).exists() {
         // 2 return types must same, which is hard without `.boxed()`
@@ -150,11 +177,11 @@ async fn build_output(Path(id): Path<String>) -> Sse<impl Stream<Item = Result<E
                     let size = reader.read_to_string(&mut buf).await.unwrap();
                     if size > 0 {
                         tracing::debug!("Read: {}", buf); // little duplicate code, but more efficient
-                        Some((Ok::<Event, Infallible>(Event::default().data(buf)), reader))
+                        Some((Ok(Event::default().data(buf)), reader))
                     } else {
                         tracing::debug!("Not Modified, waiting...");
                         // return control to `axum`, or it can't auto-detect client disconnect & close
-                        Some((Ok::<Event, Infallible>(Event::default().comment("")), reader))
+                        Some((Ok(Event::default().comment("")), reader))
                     }
                 } else {
                     // build end & no more content
@@ -162,7 +189,7 @@ async fn build_output(Path(id): Path<String>) -> Sse<impl Stream<Item = Result<E
                 }
             } else {
                 tracing::debug!("Read: {}", buf);
-                Some((Ok::<Event, Infallible>(Event::default().data(buf)), reader))
+                Some((Ok(Event::default().data(buf)), reader))
             }
         }
     });
