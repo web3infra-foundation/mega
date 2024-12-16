@@ -28,6 +28,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/mr/:link/close", post(close_mr))
         .route("/mr/:link/reopen", post(reopen_mr))
         .route("/mr/:link/files", get(get_mr_files))
+        .route("/mr/:link/files-changed", get(get_mr_files_changed))
         .route("/mr/:link/comment", post(save_comment))
         .route("/mr/comment/:conv_id/delete", post(delete_comment))
 }
@@ -184,6 +185,18 @@ async fn get_mr_files(
     Ok(Json(res))
 }
 
+async fn get_mr_files_changed(
+    Path(link): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<String>>, ApiError> {
+    let res = state.monorepo().content_diff(&link).await;
+    let res = match res {
+        Ok(data) => CommonResult::success(Some(data)),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+    Ok(Json(res))
+}
+
 async fn save_comment(
     user: LoginUser,
     Path(link): Path<String>,
@@ -196,7 +209,12 @@ async fn save_comment(
     let res = if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
         state
             .mr_stg()
-            .add_mr_conversation(&model.link, user.user_id, ConvType::Comment, Some(json_string))
+            .add_mr_conversation(
+                &model.link,
+                user.user_id,
+                ConvType::Comment,
+                Some(json_string),
+            )
             .await
             .unwrap();
         CommonResult::success(None)

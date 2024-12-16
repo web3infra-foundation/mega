@@ -5,7 +5,8 @@ import { Space_Mono, Space_Grotesk } from "next/font/google";
 import { Footer } from "@/components/footer";
 import "@/styles/globals.css";
 
-import { GoogleAnalytics } from '@next/third-parties/google'
+import { GoogleAnalytics } from "@next/third-parties/google";
+import { Analytics } from "@vercel/analytics/react";
 
 const GeistSans = Space_Grotesk({
   subsets: ["latin"],
@@ -51,6 +52,7 @@ export default function RootLayout({
           </main>
           <Footer />
         </ThemeProvider>
+        <Analytics />
       </body>
 
       <GoogleAnalytics gaId="G-WCSCZGFL72" />

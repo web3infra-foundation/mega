@@ -3,11 +3,11 @@
 //! location in the Git internal and mega database.
 //!
 
-use std::fmt::Display;
+use std::{fmt::Display, io};
 
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use sha1_smol::Digest;
+use sha1::Digest;
 
 use crate::internal::object::types::ObjectType;
 
@@ -26,7 +26,6 @@ use crate::internal::object::types::ObjectType;
 /// allows for easier adaptation to different hash algorithms while keeping the underlying implementation consistent and
 /// understandable. - Nov 26, 2023 (by @genedna)
 ///
-#[allow(unused)]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Deserialize, Serialize,
 )]
@@ -36,15 +35,15 @@ pub struct SHA1(pub [u8; 20]);
 impl Display for SHA1 {
     /// # Attention
     /// cause of the color chars for ,if you want to use the string without color ,
-    /// please call the func:`to_plain_str()` rather than the func:`to_string()`
+    /// please call the func:`to_string()` rather than the func:`to_string()`
     /// # Example
     ///  the hash value `18fd2deaaf152c7f1222c52fb2673f6192b375f0`<br>
     ///  will be the `1;31m8d2deaaf152c7f1222c52fb2673f6192b375f00m`
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_plain_str().red().bold())
+        write!(f, "{}", hex::encode(self.0))
     }
 }
-impl AsRef<[u8]> for SHA1{
+impl AsRef<[u8]> for SHA1 {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
@@ -62,14 +61,11 @@ impl std::str::FromStr for SHA1 {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut h = SHA1::default();
-
-        let d = Digest::from_str(s);
-
-        match d {
-            Ok(d) => h.0.copy_from_slice(d.bytes().as_slice()),
-            Err(e) => return Err(e.to_string()),
+        if s.len() != 40 {
+            return Err("The length of the string is not 40".to_string());
         }
-
+        let bytes = hex::decode(s).map_err(|e| e.to_string())?;
+        h.0.copy_from_slice(bytes.as_slice());
         Ok(h)
     }
 }
@@ -89,23 +85,20 @@ impl std::str::FromStr for SHA1 {
 ///
 /// 3. `to` Prefix:
 ///    Methods with the `to` prefix are used for outputting the `SHA1` value in various formats. This prefix indicates a transformation or
-///    conversion of the `SHA1` instance into another representation. For example, `pub fn to_plain_str(self) -> String` converts the SHA1
+///    conversion of the `SHA1` instance into another representation. For example, `pub fn to_string(self) -> String` converts the SHA1
 ///    value to a plain hexadecimal string, and `pub fn to_data(self) -> Vec<u8>` converts it into a byte vector. The `to` prefix
 ///    thus serves as a clear indicator that the method is exporting or transforming the SHA1 value into a different format.
 ///
 /// These method naming conventions (`new`, `from`, `to`) provide clarity and predictability in the API, making it easier for users
 /// to understand the intended use and functionality of each method within the `SHA1` struct.
 impl SHA1 {
+    // The size of the SHA-1 hash value in bytes
+    pub const SIZE: usize = 20;
+
     /// Calculate the SHA-1 hash of `Vec<u8>` data, then create a Hash value
     pub fn new(data: &Vec<u8>) -> SHA1 {
-        // Create a Sha1 object for calculating the SHA-1 hash
-        let s = sha1_smol::Sha1::from(data);
-        // Get the result of the hash
-        let sha1 = s.digest();
-        // Convert the result to a 20-byte array
-        let result = sha1.bytes();
-
-        SHA1(result)
+        let h = sha1::Sha1::digest(data);
+        SHA1::from_bytes(h.as_slice())
     }
 
     pub fn from_type_and_data(object_type: ObjectType, data: &[u8]) -> SHA1 {
@@ -122,13 +115,20 @@ impl SHA1 {
     pub fn from_bytes(bytes: &[u8]) -> SHA1 {
         let mut h = SHA1::default();
         h.0.copy_from_slice(bytes);
-
         h
     }
 
-    /// Export sha1 value to plain String without the color chars
-    pub fn to_plain_str(self) -> String {
-        hex::encode(self.0)
+    /// Read the Hash value from the stream
+    /// This function will read exactly 20 bytes from the stream
+    pub fn from_stream(data: &mut impl io::Read) -> io::Result<SHA1> {
+        let mut h = SHA1::default();
+        data.read_exact(&mut h.0)?;
+        Ok(h)
+    }
+
+    /// Export sha1 value to String with the color
+    pub fn to_color_str(self) -> String {
+        self.to_string().red().bold().to_string()
     }
 
     /// Export sha1 value to a byte array
@@ -139,6 +139,7 @@ impl SHA1 {
 
 #[cfg(test)]
 mod tests {
+
     use std::io::BufReader;
     use std::io::Read;
     use std::io::Seek;
@@ -159,7 +160,7 @@ mod tests {
         // Known SHA1 hash for "Hello, world!"
         let expected_sha1_hash = "943a702d06f34599aee1f8da8ef9f7296031d699";
 
-        assert_eq!(sha1.to_plain_str(), expected_sha1_hash);
+        assert_eq!(sha1.to_string(), expected_sha1_hash);
     }
 
     #[test]
@@ -175,7 +176,7 @@ mod tests {
         buffered.read_exact(&mut buffer).unwrap();
         let signature = SHA1::from_bytes(buffer.as_ref());
         assert_eq!(
-            signature.to_plain_str(),
+            signature.to_string(),
             "1d0e6c14760c956c173ede71cb28f33d921e232f"
         );
     }
@@ -187,10 +188,18 @@ mod tests {
             0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
         ]);
 
-        assert_eq!(
-            sha1.to_plain_str(),
-            "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-        );
+        assert_eq!(sha1.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
+    }
+
+    #[test]
+    fn test_from_stream() {
+        let source = [
+            0x8a, 0xb6, 0x86, 0xea, 0xfe, 0xb1, 0xf4, 0x47, 0x02, 0x73, 0x8c, 0x8b, 0x0f, 0x24,
+            0xf2, 0x56, 0x7c, 0x36, 0xda, 0x6d,
+        ];
+        let mut reader = std::io::Cursor::new(source);
+        let sha1 = SHA1::from_stream(&mut reader).unwrap();
+        assert_eq!(sha1.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
     }
 
     #[test]
@@ -199,25 +208,19 @@ mod tests {
 
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
-                assert_eq!(
-                    hash.to_plain_str(),
-                    "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-                );
+                assert_eq!(hash.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
             }
             Err(e) => println!("Error: {}", e),
         }
     }
 
     #[test]
-    fn test_sha1_to_plain_str() {
+    fn test_sha1_to_string() {
         let hash_str = "8ab686eafeb1f44702738c8b0f24f2567c36da6d";
 
         match SHA1::from_str(hash_str) {
             Ok(hash) => {
-                assert_eq!(
-                    hash.to_plain_str(),
-                    "8ab686eafeb1f44702738c8b0f24f2567c36da6d"
-                );
+                assert_eq!(hash.to_string(), "8ab686eafeb1f44702738c8b0f24f2567c36da6d");
             }
             Err(e) => println!("Error: {}", e),
         }

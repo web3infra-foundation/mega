@@ -16,7 +16,6 @@ pub mod smart;
 pub mod repo;
 pub mod import_refs;
 pub mod mr;
-pub mod mega_refs;
 
 #[derive(Clone)]
 pub struct SmartProtocol {

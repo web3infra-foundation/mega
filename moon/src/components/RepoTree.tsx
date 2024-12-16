@@ -1,15 +1,25 @@
 import 'github-markdown-css/github-markdown-light.css'
 import { DownOutlined } from '@ant-design/icons/lib'
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname  } from 'next/navigation'
 import { Tree } from 'antd/lib'
 import styles from './RepoTree.module.css'
 
+type TreeNode = {
+    title: string;
+    key: string;
+    isLeaf: boolean;
+    path: string;
+    expanded: boolean;
+    children: TreeNode[];
+}
+
 const RepoTree = ({ directory }) => {
     const router = useRouter();
-    const [treeData, setTreeData] = useState();
+    const pathname = usePathname();
+    const [treeData, setTreeData] = useState<TreeNode[]>([]);
     const [updateTree, setUpdateTree] = useState(false);
-    const [expandedKeys, setExpandedKeys] = useState([]);
+    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
     const convertToTreeData = useCallback((directory) => {
         return sortProjectsByType(directory).map(item => {
@@ -50,9 +60,9 @@ const RepoTree = ({ directory }) => {
     };
 
     // append the clicked dir to the treeData
-    const appendTreeData = (treeData, subItems, clickedNodeKey) => {
+    const appendTreeData = (treeData, subItems, clickedNodeTitle: string) => {
         return treeData.map(item => {
-            if (item.key === clickedNodeKey) {
+            if (item.title === clickedNodeTitle) {
                 return {
                     ...item,
                     children: subItems
@@ -60,49 +70,103 @@ const RepoTree = ({ directory }) => {
             } else if (Array.isArray(item.children)) {
                 return {
                     ...item,
-                    children: appendTreeData(item.children, subItems, clickedNodeKey)
+                    children: appendTreeData(item.children, subItems, clickedNodeTitle)
                 };
             }
         });
     };
 
-    const onExpand = async (keys, { expanded, node }) => {
-        // push new url and query to router
-        console.log("OnExpanded!");
-        console.log("keys", keys);
-        console.log("node", node.path);
-        // router.push({ query: { repo_path: "/projects/freighter", object_id: node.key } });
-        var responseData;
-        try {
-            const response = await fetch(`/api/tree?path=${node.path}`);
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch tree data');
-            }
-
-            console.log('Response status:', response.status);
-
-            responseData = await response.json();
-            console.log('Response data:', responseData);
-
-        } catch (error) {
-            console.error('Error fetching tree data:', error);
-        }
-        // onRenderTree(node.key);
+    const onExpand = async (expandedKeys, {expanded, node}) => {
         if (expanded) {
-            const subTreeData = convertToTreeData(responseData.items);
-            const newTreeData = appendTreeData(treeData, subTreeData, node.key);
-            // setExpandedKeys([...expandedKeys, node.key]);
+            let responseData;
+            try {
+                // query tree by path
+                const reqPath = pathname.replace('/tree', '') + '/' + node.title;
+                if (node.path && node.path !== '' && node.path !== undefined) {
+                    responseData = await fetch(`/api/tree?path=${node.path}`)
+                      .then(response => response.json())
+                      .catch(e => {
+                          throw new Error('Failed to fetch tree data');
+                      })
+                } else {
+                    responseData = await fetch(`/api/tree?path=${reqPath}`)
+                      .then(response => response.json())
+                      .catch(e => {
+                          throw new Error('Failed to fetch tree data');
+                      })
+                }
+            } catch (error) {
+                console.error('Error fetching tree data:', error);
+            }
+            const subTreeData = convertToTreeData(responseData.data.data);
+            const newTreeData = appendTreeData(treeData, subTreeData, node.title);
+            setExpandedKeys([...expandedKeys, node.key]);
             setTreeData(newTreeData);
-            // setCurrentPath([...currentPath, node.title]); // for breadcrumb
         } else {
             setExpandedKeys(expandedKeys.filter(key => key !== node.key));
         }
     };
 
-    const onSelect = (keys, info) => {
-        router.push(`/?object_id=${keys}`);
-        console.log('Trigger Select', keys, info);
+    const onSelect = (selectedKeys, e:{selected: boolean, selectedNodes, node, event}) => {
+        // only click one, example: click the first one is ['0-0'], then the array index is 0
+        const pathArray = selectedKeys[0].split('-').map(part => parseInt(part, 10));
+        // according to the current route, splicing the next route and determine the type to jump
+        const real_path = pathname.replace('/tree', '');
+        if (Array.isArray(treeData) && treeData?.length > 0) {
+            if (Array.isArray(pathArray) && pathArray.length === 2) {
+                // root folder
+                const clickNode = treeData[pathArray[1]] as TreeNode
+                // determine file type and router push
+                if (clickNode.isLeaf) {
+                    router.push(`/blob/${real_path}/${clickNode.title}`);
+                } else {
+                    router.push(`${pathname}/${clickNode.title}`);
+                }
+            } else {
+                // child list, recursively find the target node
+                const findNode = (data: TreeNode[], indices: number[]): TreeNode | null => {
+                    if (indices.length === 0) return null;
+                    if (indices.length === 1) return data[indices[0]];
+
+                    const node = data[indices[1]] as TreeNode;
+                    let current = node;
+                    
+                    for (let i = 2; i < indices.length; i++) {
+                        if (!current.children) return null;
+                        current = current.children[indices[i]] as TreeNode;
+                    }
+                    
+                    return current;
+                };
+
+                // build the path
+                const buildPath = (indices: number[]): string => {
+                    let path = '';
+                    let current = treeData[indices[1]] as TreeNode;
+                    path += current.title;
+                    
+                    for (let i = 2; i < indices.length; i++) {
+                        if (!current.children) break;
+                        current = current.children[indices[i]] as TreeNode;
+                        path += '/' + current.title;
+                    }
+                    
+                    return path;
+                };
+
+                const targetNode = findNode(treeData, pathArray);
+                if (targetNode) {
+                    const fullPath = buildPath(pathArray);
+                    if (targetNode.isLeaf) {
+                        router.push(`/blob/${real_path}/${fullPath}`);
+                    } else {
+                        router.push(`${pathname}/${fullPath}`);
+                    }
+                }
+            }
+        } else {
+            router.push(`${pathname}`)
+        }
     };
 
     return (

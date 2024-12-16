@@ -48,7 +48,7 @@ use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
 
 /// The tag object is used to Annotated tag
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(Eq, Debug, Clone)]
 pub struct Tag {
     pub id: SHA1,
     pub object_hash: SHA1,
@@ -56,6 +56,12 @@ pub struct Tag {
     pub tag_name: String,
     pub tagger: Signature,
     pub message: String,
+}
+
+impl PartialEq for Tag {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 
 impl Display for Tag {
@@ -155,7 +161,7 @@ impl ObjectTrait for Tag {
 
         data.extend_from_slice("object".as_bytes());
         data.extend_from_slice(0x20u8.to_be_bytes().as_ref());
-        data.extend_from_slice(self.object_hash.to_plain_str().as_bytes());
+        data.extend_from_slice(self.object_hash.to_string().as_bytes());
         data.extend_from_slice(0x0au8.to_be_bytes().as_ref());
 
         data.extend_from_slice("type".as_bytes());

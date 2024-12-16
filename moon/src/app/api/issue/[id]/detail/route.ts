@@ -1,5 +1,3 @@
-import { ok } from "assert";
-
 type Params = Promise<{ id: string }>
 
 export async function GET(request: Request, props: { params: Params }) {

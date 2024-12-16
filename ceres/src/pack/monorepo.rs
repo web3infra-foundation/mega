@@ -34,7 +34,6 @@ use crate::{
     pack::PackHandler,
     protocol::{
         import_refs::{RefCommand, Refs},
-        mega_refs::MegaRefs,
         mr::MergeRequest,
     },
 };
@@ -51,10 +50,10 @@ impl PackHandler for MonoRepo {
     async fn head_hash(&self) -> (String, Vec<Refs>) {
         let storage = self.context.services.mono_storage.clone();
 
-        let result = storage.get_ref(self.path.to_str().unwrap()).await.unwrap();
-        let refs = if result.is_some() {
-            let mega_refs: MegaRefs = result.unwrap().into();
-            vec![mega_refs.into()]
+        let result = storage.get_refs(self.path.to_str().unwrap()).await.unwrap();
+        let refs = if !result.is_empty() {
+            let refs: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
+            refs
         } else {
             let target_path = self.path.clone();
             let refs = storage.get_ref("/").await.unwrap().unwrap();
@@ -84,7 +83,7 @@ impl PackHandler for MonoRepo {
                         .map(|x| x.id);
                     if let Some(sha1) = sha1 {
                         tree = storage
-                            .get_trees_by_hashes(vec![sha1.to_plain_str()])
+                            .get_trees_by_hashes(vec![sha1.to_string()])
                             .await
                             .unwrap()[0]
                             .clone()
@@ -105,8 +104,9 @@ impl PackHandler for MonoRepo {
             storage
                 .save_ref(
                     self.path.to_str().unwrap(),
-                    &c.id.to_plain_str(),
-                    &c.tree_id.to_plain_str(),
+                    None,
+                    &c.id.to_string(),
+                    &c.tree_id.to_string(),
                 )
                 .await
                 .unwrap();
@@ -114,7 +114,7 @@ impl PackHandler for MonoRepo {
 
             vec![Refs {
                 ref_name: MEGA_BRANCH_NAME.to_string(),
-                ref_hash: c.id.to_plain_str(),
+                ref_hash: c.id.to_string(),
                 default_branch: true,
                 ..Default::default()
             }]
@@ -122,18 +122,18 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<String, GitError> {
+    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.mono_storage.clone();
         let mut entry_list = Vec::new();
         let mut join_tasks = vec![];
         let mut current_commit_id = String::new();
-        let mut mr_title = String::new();
+        let mut current_commit = None;
         for entry in receiver {
-            if current_commit_id.is_empty() {
+            if current_commit.is_none() {
                 if entry.obj_type == ObjectType::Commit {
-                    current_commit_id = entry.hash.to_plain_str();
+                    current_commit_id = entry.hash.to_string();
                     let commit = Commit::from_bytes(&entry.data, entry.hash).unwrap();
-                    mr_title = commit.format_message();
+                    current_commit = Some(commit);
                 }
             } else {
                 if entry.obj_type == ObjectType::Commit {
@@ -158,14 +158,15 @@ impl PackHandler for MonoRepo {
             .save_entry(&current_commit_id, entry_list)
             .await
             .unwrap();
-        Ok(mr_title)
+        Ok(current_commit)
     }
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
-    async fn full_pack(&self) -> Result<ReceiverStream<Vec<u8>>, GitError> {
+    async fn full_pack(&self, want: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError> {
         let pack_config = &self.context.config.pack;
         let storage = self.context.services.mono_storage.clone();
         let obj_num = AtomicUsize::new(0);
+        let mut trees = Vec::new();
 
         let refs = storage
             .get_ref(self.path.to_str().unwrap())
@@ -184,18 +185,51 @@ impl PackHandler for MonoRepo {
             .unwrap()
             .unwrap()
             .into();
-        self.traverse_for_count(tree.clone(), &HashSet::new(), &mut HashSet::new(), &obj_num)
+        trees.push(tree.clone());
+        let mut exist_objs = HashSet::new();
+        let mut counted_obj = HashSet::new();
+        self.traverse_for_count(tree.clone(), &exist_objs, &mut counted_obj, &obj_num)
             .await;
-
         obj_num.fetch_add(1, Ordering::SeqCst);
+
+        exist_objs.extend(counted_obj.clone());
 
         let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
         let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
 
+        let want_c = want.first().unwrap();
+        if refs.ref_commit_hash != *want_c {
+            let refs = storage
+                .get_ref_by_commit(self.path.to_str().unwrap(), want_c)
+                .await
+                .unwrap()
+                .unwrap();
+            let commit: Commit = storage
+                .get_commit_by_hash(&refs.ref_commit_hash)
+                .await
+                .unwrap()
+                .unwrap()
+                .into();
+            let tree: Tree = storage
+                .get_tree_by_hash(&refs.ref_tree_hash)
+                .await
+                .unwrap()
+                .unwrap()
+                .into();
+            trees.push(tree.clone());
+            self.traverse_for_count(tree, &exist_objs, &mut counted_obj, &obj_num)
+                .await;
+            obj_num.fetch_add(1, Ordering::SeqCst);
+            entry_tx.send(commit.into()).await.unwrap();
+        }
+
         let encoder = PackEncoder::new(obj_num.into_inner(), 0, stream_tx);
         encoder.encode_async(entry_rx).await.unwrap();
-        self.traverse(tree, &mut HashSet::new(), Some(&entry_tx))
-            .await;
+        let mut send_exist = HashSet::new();
+        for tree in trees {
+            self.traverse(tree, &mut send_exist, Some(&entry_tx))
+                .await;
+        }
         entry_tx.send(commit.into()).await.unwrap();
         drop(entry_tx);
         Ok(ReceiverStream::new(stream_rx))
@@ -225,7 +259,7 @@ impl PackHandler for MonoRepo {
         // traverse commit's all parents to find the commit that client does not have
         while let Some(temp) = traversal_list.pop() {
             for p_commit_id in temp.parent_commit_ids {
-                let p_commit_id = p_commit_id.to_plain_str();
+                let p_commit_id = p_commit_id.to_string();
 
                 if !have.contains(&p_commit_id) && !want_clone.contains(&p_commit_id) {
                     let parent: Commit = storage
@@ -243,7 +277,7 @@ impl PackHandler for MonoRepo {
 
         let want_tree_ids = want_commits
             .iter()
-            .map(|c| c.tree_id.to_plain_str())
+            .map(|c| c.tree_id.to_string())
             .collect();
         let want_trees: HashMap<SHA1, Tree> = storage
             .get_trees_by_hashes(want_tree_ids)
@@ -318,7 +352,7 @@ impl PackHandler for MonoRepo {
             .await
     }
 
-    async fn handle_mr(&self, title: &str) -> Result<(), GitError> {
+    async fn handle_mr(&self, title: &str) -> Result<String, GitError> {
         let storage = self.context.mr_stg();
         let path_str = self.path.to_str().unwrap();
 
@@ -338,18 +372,40 @@ impl PackHandler for MonoRepo {
                     path: path_str.to_owned(),
                     from_hash: self.from_hash.clone(),
                     to_hash: self.to_hash.clone(),
-                    link,
+                    link: link.clone(),
                     title: title.to_string(),
                     ..Default::default()
                 };
                 storage.save_mr(mr.clone().into()).await.unwrap();
-                Ok(())
+                Ok(link)
             }
         }
     }
 
-    async fn update_refs(&self, _: &RefCommand) -> Result<(), GitError> {
-        //do nothing in monorepo because we use mr to handle refs update
+    async fn update_refs(
+        &self,
+        mr_link: Option<String>,
+        commit: Option<Commit>,
+        refs: &RefCommand,
+    ) -> Result<(), GitError> {
+        let ref_name = utils::mr_ref_name(&mr_link.unwrap());
+
+        let storage = self.context.services.mono_storage.clone();
+        if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
+            mr_ref.ref_commit_hash = refs.new_id.clone();
+            mr_ref.ref_tree_hash = commit.unwrap().tree_id.to_string();
+            storage.update_ref(mr_ref).await.unwrap();
+        } else {
+            storage
+                .save_ref(
+                    self.path.to_str().unwrap(),
+                    Some(ref_name),
+                    &refs.new_id,
+                    &commit.unwrap().tree_id.to_string(),
+                )
+                .await
+                .unwrap();
+        }
         Ok(())
     }
 
@@ -373,7 +429,7 @@ impl MonoRepo {
         &self,
         mr: &mut MergeRequest,
         storage: &MrStorage,
-    ) -> Result<(), GitError> {
+    ) -> Result<String, GitError> {
         if mr.from_hash == self.from_hash {
             if mr.to_hash != self.to_hash {
                 let comment = self.comment_for_force_update(&mr.to_hash, &self.to_hash);
@@ -399,7 +455,7 @@ impl MonoRepo {
         }
 
         storage.update_mr(mr.clone().into()).await.unwrap();
-        Ok(())
+        Ok(mr.link.clone())
     }
 
     fn comment_for_force_update(&self, from: &str, to: &str) -> String {

@@ -39,7 +39,7 @@ impl ClientStorage {
 
     /// e.g. 6ae8a755... -> 6a/e8a755...
     fn transform_path(&self, hash: &SHA1) -> String {
-        let hash = hash.to_plain_str();
+        let hash = hash.to_string();
         Path::new(&hash[0..2])
             .join(&hash[2..hash.len()])
             .into_os_string()
@@ -61,7 +61,7 @@ impl ClientStorage {
         } else {
             self.get_from_pack(obj_id)?
                 .map(|x| x.1)
-                .ok_or(GitError::ObjectNotFound(obj_id.to_plain_str()))
+                .ok_or(GitError::ObjectNotFound(obj_id.to_string()))
         }
     }
 
@@ -79,7 +79,7 @@ impl ClientStorage {
         objs.extend(self.list_objects_loose());
 
         objs.into_iter()
-            .filter(|x| x.to_plain_str().starts_with(obj_id))
+            .filter(|x| x.to_string().starts_with(obj_id))
             .collect()
     }
 
@@ -170,7 +170,7 @@ impl ClientStorage {
             // Ok(self.get_from_pack(object_id)?.unwrap().0)
             self.get_from_pack(object_id)?
                 .map(|x| x.0)
-                .ok_or(GitError::ObjectNotFound(object_id.to_plain_str()))
+                .ok_or(GitError::ObjectNotFound(object_id.to_string()))
         }
     }
 

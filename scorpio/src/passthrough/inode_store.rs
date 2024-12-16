@@ -101,7 +101,6 @@ mod test {
     use super::super::*;
     use super::*;
 
-    use std::ffi::CStr;
     use std::mem::MaybeUninit;
     use std::os::unix::io::AsRawFd;
     use vmm_sys_util::tempfile::TempFile;
@@ -129,7 +128,7 @@ mod test {
 
     fn stat_fd(fd: &impl AsRawFd) -> std::io::Result<libc::stat64> {
         let mut st = MaybeUninit::<libc::stat64>::zeroed();
-        let null_path = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
+        let null_path =  c"";
 
         // Safe because the kernel will only write data in `st` and we check the return value.
         let res = unsafe {

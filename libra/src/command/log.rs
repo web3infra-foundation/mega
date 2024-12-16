@@ -16,7 +16,7 @@ use std::str::FromStr;
 use mercury::hash::SHA1;
 use mercury::internal::object::commit::Commit;
 
-use super::parse_commit_msg;
+use common::utils::parse_commit_msg;
 #[derive(Parser, Debug)]
 pub struct LogArgs {
     /// Limit the number of output
@@ -44,7 +44,7 @@ pub async fn get_reachable_commits(commit_hash: String) -> Vec<Commit> {
 
         let parent_commit_ids = commit.parent_commit_ids.clone();
         for parent_commit_id in parent_commit_ids {
-            queue.push_back(parent_commit_id.to_plain_str());
+            queue.push_back(parent_commit_id.to_string());
         }
         reachable_commits.push(commit);
     }
@@ -73,7 +73,7 @@ pub async fn execute(args: LogArgs) {
         }
     }
 
-    let commit_hash = Head::current_commit().await.unwrap().to_plain_str();
+    let commit_hash = Head::current_commit().await.unwrap().to_string();
 
     let mut reachable_commits = get_reachable_commits(commit_hash.clone()).await;
     // default sort with signature time
@@ -90,7 +90,7 @@ pub async fn execute(args: LogArgs) {
             let mut message = format!(
                 "{} {}",
                 "commit".yellow(),
-                &commit.id.to_plain_str().yellow()
+                &commit.id.to_string().yellow()
             );
 
             // TODO other branch's head should shown branch name
@@ -209,8 +209,8 @@ mod tests {
             _ => panic!("should be branch"),
         };
 
-        Branch::update_branch(&branch_name, &commit_6.id.to_plain_str(), None).await;
+        Branch::update_branch(&branch_name, &commit_6.id.to_string(), None).await;
 
-        commit_6.id.to_plain_str()
+        commit_6.id.to_string()
     }
 }
