@@ -353,7 +353,7 @@ mod test {
         let mut cache = LruCache::new(2048);
         
         let hash_a = SHA1::default();
-        let hash_b = SHA1::new(&[b'b']); // whatever different hash
+        let hash_b = SHA1::new(b"b"); // whatever different hash
         let a = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, hash_a),
             offset: 0,

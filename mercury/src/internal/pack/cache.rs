@@ -97,7 +97,7 @@ impl Caches {
     }
 
     fn read_from_temp(path: &Path) -> io::Result<CacheObject> {
-        let obj = CacheObject::f_load(&path)?;
+        let obj = CacheObject::f_load(path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
         obj.record_mem_size();
@@ -236,8 +236,8 @@ mod test {
     fn test_cache_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
-        let a_hash = SHA1::new(&String::from("a").into_bytes());
-        let b_hash = SHA1::new(&String::from("b").into_bytes());
+        let a_hash = SHA1::new(String::from("a").as_bytes());
+        let b_hash = SHA1::new(String::from("b").as_bytes());
         let a = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, a_hash),
             data_decompressed: vec![0; 1024],
@@ -266,7 +266,7 @@ mod test {
         assert!(cache.try_get(a_hash).is_some());
         assert!(cache.try_get(b_hash).is_none());
 
-        let c_hash = SHA1::new(&String::from("c").into_bytes());
+        let c_hash = SHA1::new(String::from("c").as_bytes());
         // insert too large c, a will still be in the cache
         let c = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, c_hash),
