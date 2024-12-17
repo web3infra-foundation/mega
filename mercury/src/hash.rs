@@ -95,8 +95,8 @@ impl SHA1 {
     // The size of the SHA-1 hash value in bytes
     pub const SIZE: usize = 20;
 
-    /// Calculate the SHA-1 hash of `Vec<u8>` data, then create a Hash value
-    pub fn new(data: &Vec<u8>) -> SHA1 {
+    /// Calculate the SHA-1 hash of the byte slice, then create a Hash value
+    pub fn new(data: &[u8]) -> SHA1 {
         let h = sha1::Sha1::digest(data);
         SHA1::from_bytes(h.as_slice())
     }

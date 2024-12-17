@@ -58,10 +58,11 @@ impl Caches {
     /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
     /// fall back to temp to get item. **invoker should ensure the hash is in the cache, or it will block forever**
     fn get_fallback(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
+        let path = self.generate_temp_path(&self.tmp_path, hash);
         // read from tmp file
         let obj = {
             loop {
-                match self.read_from_temp(hash) {
+                match Self::read_from_temp(&path) {
                     Ok(x) => break x,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
                         sleep(std::time::Duration::from_millis(10));
@@ -79,7 +80,7 @@ impl Caches {
             self.complete_signal.clone(),
             Some(self.pool.clone()),
         );
-        x.set_store_path(self.generate_temp_path(&self.tmp_path, hash));
+        x.set_store_path(path);
         let _ = map.insert(hash, x); // handle the error
         Ok(obj)
     }
@@ -95,8 +96,7 @@ impl Caches {
         path
     }
 
-    fn read_from_temp(&self, hash: SHA1) -> io::Result<CacheObject> {
-        let path = self.generate_temp_path(&self.tmp_path, hash);
+    fn read_from_temp(path: &Path) -> io::Result<CacheObject> {
         let obj = CacheObject::f_load(&path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
@@ -240,13 +240,13 @@ mod test {
         let b_hash = SHA1::new(&String::from("b").into_bytes());
         let a = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, a_hash),
-            data_decompress: vec![0; 1024],
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
             offset: 0,
         };
         let b = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, b_hash),
-            data_decompress: vec![0; 1636],
+            data_decompressed: vec![0; 1636],
             mem_recorder: None,
             offset: 0,
         };
@@ -270,7 +270,7 @@ mod test {
         // insert too large c, a will still be in the cache
         let c = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, c_hash),
-            data_decompress: vec![0; 2049],
+            data_decompressed: vec![0; 2049],
             mem_recorder: None,
             offset: 0,
         };

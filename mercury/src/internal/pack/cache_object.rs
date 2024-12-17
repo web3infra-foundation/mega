@@ -87,8 +87,8 @@ impl CachedObjectInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CacheObject {
     pub info: CachedObjectInfo,
-    pub data_decompress: Vec<u8>,
     pub offset: usize,
+    pub data_decompressed: Vec<u8>,
     pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
 }
 
@@ -96,8 +96,8 @@ impl Clone for CacheObject {
     fn clone(&self) -> Self {
         let obj = CacheObject {
             info: self.info.clone(),
-            data_decompress: self.data_decompress.clone(),
             offset: self.offset,
+            data_decompressed: self.data_decompressed.clone(),
             mem_recorder: self.mem_recorder.clone(),
         };
         obj.record_mem_size();
@@ -109,14 +109,18 @@ impl Clone for CacheObject {
 // ! the implementation of HeapSize is not accurate, only calculate the size of the data_decompress
 // Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
-    /// If a [`CacheObject`] is an [`ObjectType::HashDelta`] or an [`ObjectType::OffsetDelta`],
+    /// If a [`CacheObject`] is [`ObjectType::HashDelta`] or [`ObjectType::OffsetDelta`],
     /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
     /// we record the size of the expanded object as well as that of the object itself.
+    /// 
+    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`], 
+    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same 
+    /// as the size of the data.
     ///
     /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
     fn heap_size(&self) -> usize {
         match &self.info {
-            CachedObjectInfo::BaseObject(_, _) => self.data_decompress.heap_size(),
+            CachedObjectInfo::BaseObject(_, _) => self.data_decompressed.heap_size(),
             CachedObjectInfo::OffsetDelta(_, delta_final_size)
             | CachedObjectInfo::HashDelta(_, delta_final_size) => {
                 // To those who are concerned about why these two values are added,
@@ -129,7 +133,7 @@ impl HeapSize for CacheObject {
                 // Therefore, during the execution of `Pack::rebuild_delta`, both `delta_obj`
                 // and `final_obj` coexist. The maximum memory usage is the sum of the memory
                 // usage of `delta_obj` and `final_obj`.
-                self.data_decompress.heap_size() + delta_final_size
+                self.data_decompressed.heap_size() + delta_final_size
             }
         }
     }
@@ -182,8 +186,8 @@ impl CacheObject {
         let hash = utils::calculate_object_hash(obj_type, &data);
         CacheObject {
             info: CachedObjectInfo::BaseObject(obj_type, hash),
-            data_decompress: data,
             offset,
+            data_decompressed: data,
             mem_recorder: None,
         }
     }
@@ -198,7 +202,7 @@ impl CacheObject {
         match self.info {
             CachedObjectInfo::BaseObject(obj_type, hash) => Entry {
                 obj_type,
-                data: self.data_decompress.clone(),
+                data: self.data_decompressed.clone(),
                 hash,
             },
             _ => {
@@ -317,8 +321,8 @@ mod test {
     fn test_heap_size_record() {
         let mut obj = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
-            data_decompress: vec![0; 1024],
             offset: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
         let mem = Arc::new(AtomicUsize::default());
@@ -334,8 +338,8 @@ mod test {
     fn test_cache_object_with_same_size() {
         let a = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
-            data_decompress: vec![0; 1024],
             offset: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
         assert!(a.heap_size() == 1024);
@@ -345,34 +349,35 @@ mod test {
         assert!(b.heap_size() == 1024);
     }
     #[test]
-    fn test_chache_object_with_lru() {
+    fn test_cache_object_with_lru() {
         let mut cache = LruCache::new(2048);
         
-        let hash = SHA1::default();
+        let hash_a = SHA1::default();
+        let hash_b = SHA1::new(&[b'b']); // whatever different hash
         let a = CacheObject {
-            info: CachedObjectInfo::BaseObject(ObjectType::Blob, hash),
-            data_decompress: vec![0; 1024],
+            info: CachedObjectInfo::BaseObject(ObjectType::Blob, hash_a),
             offset: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
         println!("a.heap_size() = {}", a.heap_size());
 
         let b = CacheObject {
-            info: CachedObjectInfo::BaseObject(ObjectType::Blob, hash),
-            data_decompress: vec![0; (1024.0 * 1.5) as usize],
+            info: CachedObjectInfo::BaseObject(ObjectType::Blob, hash_b),
             offset: 0,
+            data_decompressed: vec![0; (1024.0 * 1.5) as usize],
             mem_recorder: None,
         };
         {
             let r = cache.insert(
-                hash.to_string(),
+                hash_a.to_string(),
                 ArcWrapper::new(Arc::new(a.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok())
         }
         {
             let r = cache.try_insert(
-                hash.to_string(),
+                hash_b.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_err());
@@ -382,14 +387,14 @@ mod test {
                 panic!("Expected WouldEjectLru error");
             }
             let r = cache.insert(
-                hash.to_string(),
+                hash_b.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok());
         }
         {
             // a should be ejected
-            let r = cache.get(&hash.to_string());
+            let r = cache.get(&hash_a.to_string());
             assert!(r.is_none());
         }
     }
@@ -460,14 +465,14 @@ mod test {
     fn test_cache_object_serialize() {
         let a = CacheObject {
             info: CachedObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
-            data_decompress: vec![0; 1024],
             offset: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
         let s = bincode::serialize(&a).unwrap();
         let b: CacheObject = bincode::deserialize(&s).unwrap();
         assert_eq!(a.info, b.info);
-        assert_eq!(a.data_decompress, b.data_decompress);
+        assert_eq!(a.data_decompressed, b.data_decompressed);
         assert_eq!(a.offset, b.offset);
     }
 
