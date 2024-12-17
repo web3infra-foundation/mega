@@ -240,13 +240,13 @@ mod test {
         let b_hash = SHA1::new(String::from("b").as_bytes());
         let a = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, a_hash),
-            data_decompress: vec![0; 1024],
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
             offset: 0,
         };
         let b = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, b_hash),
-            data_decompress: vec![0; 1636],
+            data_decompressed: vec![0; 1636],
             mem_recorder: None,
             offset: 0,
         };
@@ -270,7 +270,7 @@ mod test {
         // insert too large c, a will still be in the cache
         let c = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, c_hash),
-            data_decompress: vec![0; 2049],
+            data_decompressed: vec![0; 2049],
             mem_recorder: None,
             offset: 0,
         };

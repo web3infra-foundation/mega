@@ -78,7 +78,6 @@ impl CacheObjectInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CacheObject {
     pub(crate) info: CacheObjectInfo,
-    pub data_decompress: Vec<u8>,
     pub offset: usize,
     pub data_decompressed: Vec<u8>,
     pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
@@ -112,7 +111,7 @@ impl HeapSize for CacheObject {
     /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
     fn heap_size(&self) -> usize {
         match &self.info {
-            CacheObjectInfo::BaseObject(_, _) => self.data_decompress.heap_size(),
+            CacheObjectInfo::BaseObject(_, _) => self.data_decompressed.heap_size(),
             CacheObjectInfo::OffsetDelta(_, delta_final_size)
             | CacheObjectInfo::HashDelta(_, delta_final_size) => {
                 // To those who are concerned about why these two values are added,
@@ -178,7 +177,6 @@ impl CacheObject {
         let hash = utils::calculate_object_hash(obj_type, &data);
         CacheObject {
             info: CacheObjectInfo::BaseObject(obj_type, hash),
-            data_decompress: data,
             offset,
             data_decompressed: data,
             mem_recorder: None,
@@ -344,7 +342,6 @@ mod test {
     fn test_heap_size_record() {
         let mut obj = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
-            data_decompress: vec![0; 1024],
             offset: 0,
             data_decompressed: vec![0; 1024],
             mem_recorder: None,
@@ -362,7 +359,6 @@ mod test {
     fn test_cache_object_with_same_size() {
         let a = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
-            data_decompress: vec![0; 1024],
             offset: 0,
             data_decompressed: vec![0; 1024],
             mem_recorder: None,
@@ -381,7 +377,6 @@ mod test {
         let hash_b = SHA1::new(b"b"); // whatever different hash
         let a = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, hash_a),
-            data_decompress: vec![0; 1024],
             offset: 0,
             data_decompressed: vec![0; 1024],
             mem_recorder: None,
@@ -390,7 +385,6 @@ mod test {
 
         let b = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, hash_b),
-            data_decompress: vec![0; (1024.0 * 1.5) as usize],
             offset: 0,
             data_decompressed: vec![0; (1024.0 * 1.5) as usize],
             mem_recorder: None,
@@ -492,7 +486,6 @@ mod test {
     fn test_cache_object_serialize() {
         let a = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
-            data_decompress: vec![0; 1024],
             offset: 0,
             data_decompressed: vec![0; 1024],
             mem_recorder: None,
