@@ -282,7 +282,6 @@ impl Pack {
 
                 Ok(CacheObject {
                     info: CacheObjectInfo::OffsetDelta(base_offset, final_size),
-                    data_decompress: data,
                     offset: init_offset,
                     data_decompressed: data,
                     mem_recorder: None,
@@ -302,7 +301,6 @@ impl Pack {
 
                 Ok(CacheObject {
                     info: CacheObjectInfo::HashDelta(ref_sha1, final_size),
-                    data_decompress: data,
                     offset: init_offset,
                     data_decompressed: data,
                     mem_recorder: None,
@@ -604,7 +602,6 @@ impl Pack {
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
         CacheObject {
             info: CacheObjectInfo::BaseObject(base_obj.object_type(), hash),
-            data_decompress: result,
             offset: delta_obj.offset,
             data_decompressed: result,
             mem_recorder: None,
