@@ -67,7 +67,7 @@ mod test{
     fn init_test_d(){
         let db = sled::open("path.db").unwrap();
         let t = Tree::from_tree_items(vec![
-            TreeItem::new(TreeItemMode::Blob, SHA1::new(&vec![4u8,4u8,4u8,64u8,84u8,84u8]), String::from("test") )
+            TreeItem::new(TreeItemMode::Blob, SHA1::new(&[4u8,4u8,4u8,64u8,84u8,84u8]), String::from("test") )
         ]).unwrap();
             
         if let Some(encoded_value) = db.get(t.id.as_ref()).unwrap() {

@@ -536,22 +536,22 @@ mod test {
         let base = Tree::from_tree_items(vec![
             TreeItem {
                 mode: TreeItemMode::Tree,
-                id: SHA1::new(&"src".as_bytes().to_vec()),
+                id: SHA1::new(b"src"),
                 name: "src".to_string(),
             },
             TreeItem {
                 mode: TreeItemMode::Tree,
-                id: SHA1::new(&"mega".as_bytes().to_vec()),
+                id: SHA1::new(b"mega"),
                 name: "mega".to_string(),
             },
             TreeItem {
                 mode: TreeItemMode::Blob,
-                id: SHA1::new(&"delete.txt".as_bytes().to_vec()),
+                id: SHA1::new(b"delete.txt"),
                 name: "delete.txt".to_string(),
             },
             TreeItem {
                 mode: TreeItemMode::Blob,
-                id: SHA1::new(&"README.md".as_bytes().to_vec()),
+                id: SHA1::new(b"README.md"),
                 name: "README.md".to_string(),
             },
         ])
@@ -560,22 +560,22 @@ mod test {
         let new = Tree::from_tree_items(vec![
             TreeItem {
                 mode: TreeItemMode::Tree,
-                id: SHA1::new(&"src".as_bytes().to_vec()),
+                id: SHA1::new(b"src"),
                 name: "src_new".to_string(),
             },
             TreeItem {
                 mode: TreeItemMode::Tree,
-                id: SHA1::new(&"mega222".as_bytes().to_vec()),
+                id: SHA1::new(b"mega222"),
                 name: "mega".to_string(),
             },
             TreeItem {
                 mode: TreeItemMode::Blob,
-                id: SHA1::new(&"Cargo.toml".as_bytes().to_vec()),
+                id: SHA1::new(b"Cargo.toml"),
                 name: "Cargo.toml".to_string(),
             },
             TreeItem {
                 mode: TreeItemMode::Blob,
-                id: SHA1::new(&"README.md".as_bytes().to_vec()),
+                id: SHA1::new(b"README.md"),
                 name: "README.md".to_string(),
             },
         ])
