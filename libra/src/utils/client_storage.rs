@@ -237,7 +237,7 @@ impl ClientStorage {
         for idx in idxes {
             let res = Self::read_pack_by_idx(&idx, obj_id)?;
             if let Some(data) = res {
-                return Ok(Some((data.data_decompress.clone(), data.object_type())));
+                return Ok(Some((data.data_decompressed.clone(), data.object_type())));
             }
         }
 

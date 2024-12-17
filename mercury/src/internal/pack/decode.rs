@@ -282,8 +282,8 @@ impl Pack {
 
                 Ok(CacheObject {
                     info: CachedObjectInfo::OffsetDelta(base_offset, final_size),
-                    data_decompress: data,
                     offset: init_offset,
+                    data_decompressed: data,
                     mem_recorder: None,
                 })
             },
@@ -301,8 +301,8 @@ impl Pack {
 
                 Ok(CacheObject {
                     info: CachedObjectInfo::HashDelta(ref_sha1, final_size),
-                    data_decompress: data,
                     offset: init_offset,
+                    data_decompressed: data,
                     mem_recorder: None,
                 })
             }
@@ -534,14 +534,14 @@ impl Pack {
         const COPY_SIZE_BYTES: u8 = 3;
         const COPY_ZERO_SIZE: usize = 0x10000;
 
-        let mut stream = Cursor::new(&delta_obj.data_decompress);
+        let mut stream = Cursor::new(&delta_obj.data_decompressed);
 
         // Read the base object size
         // (Size Encoding)
         let (base_size, result_size) = utils::read_delta_object_size(&mut stream).unwrap();
 
         //Get the base object row data
-        let base_info = &base_obj.data_decompress;
+        let base_info = &base_obj.data_decompressed;
         assert_eq!(base_info.len(), base_size, "Base object size mismatch");
 
         let mut result = Vec::with_capacity(result_size);
@@ -602,8 +602,8 @@ impl Pack {
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
         CacheObject {
             info: CachedObjectInfo::BaseObject(base_obj.object_type(), hash),
-            data_decompress: result,
             offset: delta_obj.offset,
+            data_decompressed: result,
             mem_recorder: None,
         } // Canonical form (Complete Object)
         // mem_size recorder will be set later outside, to keep this func param clear
