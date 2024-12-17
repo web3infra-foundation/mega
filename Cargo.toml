@@ -15,6 +15,7 @@ members = [
     "taurus",
     "lunar/src-tauri",
     "atlas",
+    "orion",
     "panel",
 ]
 default-members = ["mega", "mono", "libra", "aries"]
@@ -59,7 +60,7 @@ futures = "0.3.30"
 futures-util = "0.3.30"
 go-defer = "0.1.0"
 russh = "0.49.0"
-russh-keys = "0.48.1"
+russh-keys = "0.49.1"
 axum = "0.7.7"
 axum-extra = "0.9.4"
 axum-server = "0.7.1"
