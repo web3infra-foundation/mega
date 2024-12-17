@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Card, Button, Tabs, TabsProps, Space, Timeline, Flex } from 'antd';
+import { Card, Tabs, TabsProps, Space, Timeline, Flex } from 'antd';
 import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from '@/components/rich-editor/RichEditor';
@@ -10,6 +10,9 @@ import { useRouter } from 'next/navigation';
 import * as Diff2Html from 'diff2html';
 import 'diff2html/bundles/css/diff2html.min.css';
 import FilesChanged from '@/components/page/mr/files-changed';
+import { Button } from '@/components/ui/button';
+import { ReloadIcon } from '@radix-ui/react-icons';
+import { cn } from '@/lib/utils';
 
 interface MRDetail {
     status: string,
@@ -171,6 +174,8 @@ export default function MRDetailPage({ params }: { params: Params }) {
         }
     };
 
+    const buttonClasses= 'cursor-pointer';
+
     const tab_items: TabsProps['items'] = [
         {
             key: '1',
@@ -182,12 +187,36 @@ export default function MRDetailPage({ params }: { params: Params }) {
                     <RichEditor setEditorState={setEditorState} />
                     <Flex gap="small" justify={"flex-end"}>
                         {mrDetail && mrDetail.status === "open" &&
-                            <Button loading={loadings[3]} disabled={!login} onClick={() => close_mr()}>Close Merge Request</Button>
+                          <Button
+                            disabled={!login}
+                            onClick={() => close_mr()}
+                            aria-label="Close Merge Request"
+                            className={cn(buttonClasses)}
+                          >
+                            {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                            Close Merge Request
+                          </Button>
                         }
                         {mrDetail && mrDetail.status === "closed" &&
-                            <Button loading={loadings[3]} disabled={!login} onClick={() => reopen_mr()}>Reopen Merge Request</Button>
+                          <Button
+                            disabled={!login}
+                            onClick={() => reopen_mr()}
+                            aria-label="Reopen Merge Request"
+                            className={cn(buttonClasses)}
+                          >
+                            {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                            Reopen Merge Request
+                          </Button>
                         }
-                        <Button loading={loadings[3]} disabled={!login} onClick={() => save_comment(editorState)}>Comment</Button>
+                        <Button
+                          disabled={login}
+                          onClick={() => save_comment(editorState)}
+                          aria-label="Comment"
+                          className={cn(buttonClasses)}
+                        >
+                          {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                          Comment
+                        </Button>
                     </Flex>
                 </Space>
         },
@@ -201,13 +230,15 @@ export default function MRDetailPage({ params }: { params: Params }) {
     return (
         <Card title={mrDetail.title + " #" + id}>
             {mrDetail && mrDetail.status === "open" &&
-                <Button
-                    loading={loadings[1]}
-                    onClick={() => approve_mr()}
-                    disabled={!login}
-                >
-                    Merge MR
-                </Button>
+              <Button
+                disabled={!login}
+                onClick={() => approve_mr()}
+                aria-label="Merge MR"
+                className={cn(buttonClasses)}
+              >
+                  {loadings[1] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                  Merge MR
+              </Button>
             }
             <Tabs defaultActiveKey="1" items={tab_items} onChange={onTabsChange} />
         </Card>

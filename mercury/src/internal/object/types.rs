@@ -22,7 +22,7 @@ use crate::errors::GitError;
 /// identify the type of an object and perform the appropriate operations on it. when parsing a Git
 /// repository, Git can use the integer value of an object's type to determine how to parse
 /// the object's content.
-#[derive(PartialEq, Eq, Hash, Ord, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ObjectType {
     Commit,
     Tree,
