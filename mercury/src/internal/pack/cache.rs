@@ -230,7 +230,7 @@ mod test {
     use std::env;
 
     use super::*;
-    use crate::{hash::SHA1, internal::{object::types::ObjectType, pack::cache_object::CachedObjectInfo}};
+    use crate::{hash::SHA1, internal::{object::types::ObjectType, pack::cache_object::CacheObjectInfo}};
 
     #[test]
     fn test_cache_single_thread() {
@@ -239,14 +239,14 @@ mod test {
         let a_hash = SHA1::new(String::from("a").as_bytes());
         let b_hash = SHA1::new(String::from("b").as_bytes());
         let a = CacheObject {
-            info: CachedObjectInfo::BaseObject(ObjectType::Blob, a_hash),
-            data_decompressed: vec![0; 1024],
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, a_hash),
+            data_decompress: vec![0; 1024],
             mem_recorder: None,
             offset: 0,
         };
         let b = CacheObject {
-            info: CachedObjectInfo::BaseObject(ObjectType::Blob, b_hash),
-            data_decompressed: vec![0; 1636],
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, b_hash),
+            data_decompress: vec![0; 1636],
             mem_recorder: None,
             offset: 0,
         };
@@ -269,8 +269,8 @@ mod test {
         let c_hash = SHA1::new(String::from("c").as_bytes());
         // insert too large c, a will still be in the cache
         let c = CacheObject {
-            info: CachedObjectInfo::BaseObject(ObjectType::Blob, c_hash),
-            data_decompressed: vec![0; 2049],
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, c_hash),
+            data_decompress: vec![0; 2049],
             mem_recorder: None,
             offset: 0,
         };

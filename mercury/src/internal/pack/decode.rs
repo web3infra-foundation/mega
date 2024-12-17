@@ -27,7 +27,7 @@ use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
 use crate::internal::pack::channel_reader::ChannelReader;
 use crate::internal::pack::entry::Entry;
 
-use super::cache_object::CachedObjectInfo;
+use super::cache_object::CacheObjectInfo;
 
 /// For Convenient to pass Params
 struct SharedParams {
@@ -281,7 +281,8 @@ impl Pack {
                 let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
-                    info: CachedObjectInfo::OffsetDelta(base_offset, final_size),
+                    info: CacheObjectInfo::OffsetDelta(base_offset, final_size),
+                    data_decompress: data,
                     offset: init_offset,
                     data_decompressed: data,
                     mem_recorder: None,
@@ -300,7 +301,8 @@ impl Pack {
                 let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
-                    info: CachedObjectInfo::HashDelta(ref_sha1, final_size),
+                    info: CacheObjectInfo::HashDelta(ref_sha1, final_size),
+                    data_decompress: data,
                     offset: init_offset,
                     data_decompressed: data,
                     mem_recorder: None,
@@ -373,10 +375,10 @@ impl Pack {
                     let waitlist = self.waitlist.clone();
                     self.pool.execute(move || {
                         match obj.info {
-                            CachedObjectInfo::BaseObject(_, _) => {
+                            CacheObjectInfo::BaseObject(_, _) => {
                                 Self::cache_obj_and_process_waitlist(params, obj);
                             },
-                            CachedObjectInfo::OffsetDelta(base_offset, _) => {
+                            CacheObjectInfo::OffsetDelta(base_offset, _) => {
                                 if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
@@ -389,7 +391,7 @@ impl Pack {
                                     }
                                 }
                             },
-                            CachedObjectInfo::HashDelta(base_ref, _) => {
+                            CacheObjectInfo::HashDelta(base_ref, _) => {
                                 if let Some(base_obj) = caches.get_by_hash(base_ref) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
@@ -514,12 +516,12 @@ impl Pack {
     /// Cache the new object & process the objects waiting for it (in multi-threading).
     fn cache_obj_and_process_waitlist(shared_params: Arc<SharedParams>, new_obj: CacheObject) {
         (shared_params.callback)(new_obj.to_entry(), new_obj.offset);
-        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.info.base_object_hash(), new_obj);
+        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.base_object_hash().unwrap(), new_obj);
         Self::process_waitlist(shared_params, new_obj);
     }
 
     fn process_waitlist(shared_params: Arc<SharedParams>, base_obj: Arc<CacheObject>) {
-        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.info.base_object_hash());
+        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.base_object_hash().unwrap());
         for obj in wait_objs {
             // Process the objects waiting for the new object(base_obj = new_obj)
             Self::process_delta(shared_params.clone(), obj, base_obj.clone());
@@ -601,7 +603,8 @@ impl Pack {
         let hash = utils::calculate_object_hash(base_obj.object_type(), &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
         CacheObject {
-            info: CachedObjectInfo::BaseObject(base_obj.object_type(), hash),
+            info: CacheObjectInfo::BaseObject(base_obj.object_type(), hash),
+            data_decompress: result,
             offset: delta_obj.offset,
             data_decompressed: result,
             mem_recorder: None,

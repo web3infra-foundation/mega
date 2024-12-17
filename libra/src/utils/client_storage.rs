@@ -11,7 +11,7 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use lru_mem::LruCache;
 use once_cell::sync::Lazy;
-use mercury::internal::pack::cache_object::{CacheObject, CachedObjectInfo};
+use mercury::internal::pack::cache_object::CacheObject;
 use mercury::internal::pack::Pack;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
@@ -327,13 +327,15 @@ impl ClientStorage {
             let mut offset = offset as usize;
             pack.decode_pack_object(&mut pack_reader, &mut offset)? // offset will be updated!
         };
-        let full_obj = match obj.info {
-            CachedObjectInfo::OffsetDelta(base_offset, _) => {
+        let full_obj = match obj.object_type() {
+            ObjectType::OffsetDelta => {
+                let base_offset = obj.offset_delta().unwrap();
                 let base_obj = Self::read_pack_obj(pack_file, base_offset as u64)?;
                 let base_obj = Arc::new(base_obj);
                 Pack::rebuild_delta(obj, base_obj) // new obj
             },
-            CachedObjectInfo::HashDelta(base_hash, _) => {
+            ObjectType::HashDelta => {
+                let base_hash = obj.hash_delta().unwrap();
                 let idx_file = pack_file.with_extension("idx");
                 let base_offset = Self::read_idx(&idx_file, &base_hash)?.unwrap();
                 let base_obj = Self::read_pack_obj(pack_file, base_offset)?;
