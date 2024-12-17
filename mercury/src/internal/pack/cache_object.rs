@@ -48,55 +48,48 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
         Ok(())
     }
 }
+
+/// Represents the metadata of a cache object, indicating whether it is a delta or not.
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+pub(crate) enum CacheObjectInfo {
+    /// The object is one of the four basic types:
+    /// [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`], or [`ObjectType::Tag`].
+    /// The metadata contains the [`ObjectType`] and the [`SHA1`] hash of the object.
+    BaseObject(ObjectType, SHA1),
+    /// The object is an offset delta with a specified offset delta [`usize`],
+    /// and the size of the expanded object (previously `delta_final_size`).
+    OffsetDelta(usize, usize),
+    /// The object is a hash delta with a specified [`SHA1`] hash,
+    /// and the size of the expanded object (previously `delta_final_size`).
+    HashDelta(SHA1, usize),
+}
+
+impl CacheObjectInfo {
+    /// Get the [`ObjectType`] of the object.
+    pub(crate) fn object_type(&self) -> ObjectType {
+        match self {
+            CacheObjectInfo::BaseObject(obj_type, _) => *obj_type,
+            CacheObjectInfo::OffsetDelta(_, _) => ObjectType::OffsetDelta,
+            CacheObjectInfo::HashDelta(_, _) => ObjectType::HashDelta,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CacheObject {
-    pub base_offset: usize,
-    pub base_ref: SHA1,
-    pub obj_type: ObjectType,
-    pub data_decompress: Vec<u8>,
+    pub(crate) info: CacheObjectInfo,
     pub offset: usize,
-    pub hash: SHA1,
-    /// If a [`CacheObject`] is an [`ObjectType::HashDelta`] or an [`ObjectType::OffsetDelta`],
-    /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
-    /// we record the size of the expanded object as well as that of the object itself.
-    /// 
-    /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
-    #[serde(skip, default = "usize::default")]
-    pub delta_final_size: usize,
+    pub data_decompressed: Vec<u8>,
     pub mem_recorder: Option<Arc<AtomicUsize>>, // record mem-size of all CacheObjects of a Pack
 }
 
 impl Clone for CacheObject {
     fn clone(&self) -> Self {
         let obj = CacheObject {
-            base_offset: self.base_offset,
-            base_ref: self.base_ref,
-            obj_type: self.obj_type,
-            data_decompress: self.data_decompress.clone(),
+            info: self.info.clone(),
             offset: self.offset,
-            hash: self.hash,
-            delta_final_size: self.delta_final_size,
+            data_decompressed: self.data_decompressed.clone(),
             mem_recorder: self.mem_recorder.clone(),
-        };
-        obj.record_mem_size();
-        obj
-    }
-}
-
-// For Convenience
-impl Default for CacheObject {
-    // It will be called in "struct update syntax": `..Default::default()`
-    // So, mem-record should happen here!
-    fn default() -> Self {
-        let obj = CacheObject {
-            base_offset: 0,
-            base_ref: SHA1::default(),
-            data_decompress: Vec::new(),
-            obj_type: ObjectType::Blob,
-            offset: 0,
-            hash: SHA1::default(),
-            delta_final_size: 0,
-            mem_recorder: None,
         };
         obj.record_mem_size();
         obj
@@ -107,21 +100,33 @@ impl Default for CacheObject {
 // ! the implementation of HeapSize is not accurate, only calculate the size of the data_decompress
 // Note that: mem_size == value_size + heap_size, and we only need to impl HeapSize because value_size is known
 impl HeapSize for CacheObject {
-    /// For [`ObjectType::OffsetDelta`] and [`ObjectType::HashDelta`], 
-    /// `delta_final_size` is the size of the expanded object;
-    /// for other types, `delta_final_size` is 0 as they won't expand.
+    /// If a [`CacheObject`] is [`ObjectType::HashDelta`] or [`ObjectType::OffsetDelta`],
+    /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
+    /// we record the size of the expanded object as well as that of the object itself.
+    /// 
+    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`], 
+    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same 
+    /// as the size of the data.
+    ///
+    /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
     fn heap_size(&self) -> usize {
-        // To those who are concerned about why these two values are added,
-        // let's consider the lifetime of two `CacheObject`s, say `delta_obj`
-        // and `final_obj` in the function `Pack::rebuild_delta`. 
-        //
-        // `delta_obj` is dropped only after `Pack::rebuild_delta` returns,
-        // but the space for `final_obj` is allocated in that function.
-        //
-        // Therefore, during the execution of `Pack::rebuild_delta`, both `delta_obj`
-        // and `final_obj` coexist. The maximum memory usage is the sum of the memory
-        // usage of `delta_obj` and `final_obj`.
-        self.data_decompress.heap_size() + self.delta_final_size
+        match &self.info {
+            CacheObjectInfo::BaseObject(_, _) => self.data_decompressed.heap_size(),
+            CacheObjectInfo::OffsetDelta(_, delta_final_size)
+            | CacheObjectInfo::HashDelta(_, delta_final_size) => {
+                // To those who are concerned about why these two values are added,
+                // let's consider the lifetime of two `CacheObject`s, say `delta_obj`
+                // and `final_obj` in the function `Pack::rebuild_delta`.
+                //
+                // `delta_obj` is dropped only after `Pack::rebuild_delta` returns,
+                // but the space for `final_obj` is allocated in that function.
+                //
+                // Therefore, during the execution of `Pack::rebuild_delta`, both `delta_obj`
+                // and `final_obj` coexist. The maximum memory usage is the sum of the memory
+                // usage of `delta_obj` and `final_obj`.
+                self.data_decompressed.heap_size() + delta_final_size
+            }
+        }
     }
 }
 
@@ -171,23 +176,55 @@ impl CacheObject {
     pub fn new_for_undeltified(obj_type: ObjectType, data: Vec<u8>, offset: usize) -> Self {
         let hash = utils::calculate_object_hash(obj_type, &data);
         CacheObject {
-            data_decompress: data,
-            obj_type,
+            info: CacheObjectInfo::BaseObject(obj_type, hash),
             offset,
-            hash,
-            delta_final_size: 0, // Only delta objects have `delta_final_size`
+            data_decompressed: data,
             mem_recorder: None,
-            ..Default::default()
+        }
+    }
+
+    /// Get the [`ObjectType`] of the object.
+    pub fn object_type(&self) -> ObjectType {
+        self.info.object_type()
+    }
+
+    /// Get the [`SHA1`] hash of the object.
+    /// 
+    /// If the object is a delta object, return [`None`].
+    pub fn base_object_hash(&self) -> Option<SHA1> {
+        match &self.info {
+            CacheObjectInfo::BaseObject(_, hash) => Some(*hash),
+            _ => None,
+        }
+    }
+
+    /// Get the offset delta of the object.
+    /// 
+    /// If the object is not an offset delta, return [`None`].
+    pub fn offset_delta(&self) -> Option<usize> {
+        match &self.info {
+            CacheObjectInfo::OffsetDelta(offset, _) => Some(*offset),
+            _ => None,
+        }
+    }
+
+    /// Get the hash delta of the object.
+    /// 
+    /// If the object is not a hash delta, return [`None`].
+    pub fn hash_delta(&self) -> Option<SHA1> {
+        match &self.info {
+            CacheObjectInfo::HashDelta(hash, _) => Some(*hash),
+            _ => None,
         }
     }
 
     /// transform the CacheObject to Entry
     pub fn to_entry(&self) -> Entry {
-        match self.obj_type {
-            ObjectType::Blob | ObjectType::Tree | ObjectType::Commit | ObjectType::Tag => Entry {
-                obj_type: self.obj_type,
-                data: self.data_decompress.clone(),
-                hash: self.hash,
+        match self.info {
+            CacheObjectInfo::BaseObject(obj_type, hash) => Entry {
+                obj_type,
+                data: self.data_decompressed.clone(),
+                hash,
             },
             _ => {
                 unreachable!("delta object should not persist!")
@@ -304,9 +341,10 @@ mod test {
     // 只在单线程测试
     fn test_heap_size_record() {
         let mut obj = CacheObject {
-            data_decompress: vec![0; 1024],
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
+            offset: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
-            ..Default::default()
         };
         let mem = Arc::new(AtomicUsize::default());
         assert_eq!(mem.load(Ordering::Relaxed), 0);
@@ -320,13 +358,9 @@ mod test {
     #[test]
     fn test_cache_object_with_same_size() {
         let a = CacheObject {
-            base_offset: 0,
-            base_ref: SHA1::new(&vec![0; 20]),
-            data_decompress: vec![0; 1024],
-            obj_type: ObjectType::Blob,
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
             offset: 0,
-            hash: SHA1::new(&vec![0; 20]),
-            delta_final_size: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
         assert!(a.heap_size() == 1024);
@@ -336,40 +370,35 @@ mod test {
         assert!(b.heap_size() == 1024);
     }
     #[test]
-    fn test_chache_object_with_lru() {
+    fn test_cache_object_with_lru() {
         let mut cache = LruCache::new(2048);
+        
+        let hash_a = SHA1::default();
+        let hash_b = SHA1::new(b"b"); // whatever different hash
         let a = CacheObject {
-            base_offset: 0,
-            base_ref: SHA1::new(&vec![0; 20]),
-            data_decompress: vec![0; 1024],
-            obj_type: ObjectType::Blob,
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, hash_a),
             offset: 0,
-            hash: SHA1::new(&vec![0; 20]),
-            delta_final_size: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
         println!("a.heap_size() = {}", a.heap_size());
 
         let b = CacheObject {
-            base_offset: 0,
-            base_ref: SHA1::new(&vec![0; 20]),
-            data_decompress: vec![0; (1024.0 * 1.5) as usize],
-            obj_type: ObjectType::Blob,
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, hash_b),
             offset: 0,
-            hash: SHA1::new(&vec![1; 20]),
-            delta_final_size: 0,
+            data_decompressed: vec![0; (1024.0 * 1.5) as usize],
             mem_recorder: None,
         };
         {
             let r = cache.insert(
-                a.hash.to_string(),
+                hash_a.to_string(),
                 ArcWrapper::new(Arc::new(a.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok())
         }
         {
             let r = cache.try_insert(
-                b.clone().hash.to_string(),
+                hash_b.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_err());
@@ -379,14 +408,14 @@ mod test {
                 panic!("Expected WouldEjectLru error");
             }
             let r = cache.insert(
-                b.hash.to_string(),
+                hash_a.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok());
         }
         {
             // a should be ejected
-            let r = cache.get(&a.hash.to_string());
+            let r = cache.get(&hash_a.to_string());
             assert!(r.is_none());
         }
     }
@@ -456,18 +485,16 @@ mod test {
     #[test]
     fn test_cache_object_serialize() {
         let a = CacheObject {
-            base_offset: 0,
-            base_ref: SHA1::new(&vec![0; 20]),
-            data_decompress: vec![0; 1024],
-            obj_type: ObjectType::Blob,
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, SHA1::default()),
             offset: 0,
-            hash: SHA1::new(&vec![0; 20]),
-            delta_final_size: 0,
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
         let s = bincode::serialize(&a).unwrap();
         let b: CacheObject = bincode::deserialize(&s).unwrap();
-        assert!(a.base_offset == b.base_offset);
+        assert_eq!(a.info, b.info);
+        assert_eq!(a.data_decompressed, b.data_decompressed);
+        assert_eq!(a.offset, b.offset);
     }
 
     #[test]

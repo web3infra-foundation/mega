@@ -27,6 +27,8 @@ use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
 use crate::internal::pack::channel_reader::ChannelReader;
 use crate::internal::pack::entry::Entry;
 
+use super::cache_object::CacheObjectInfo;
+
 /// For Convenient to pass Params
 struct SharedParams {
     pub pool: Arc<ThreadPool>,
@@ -279,13 +281,10 @@ impl Pack {
                 let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
-                    base_offset,
-                    data_decompress: data,
-                    obj_type: t,
+                    info: CacheObjectInfo::OffsetDelta(base_offset, final_size),
                     offset: init_offset,
-                    delta_final_size: final_size,
+                    data_decompressed: data,
                     mem_recorder: None,
-                    ..Default::default()
                 })
             },
             ObjectType::HashDelta => {
@@ -301,13 +300,10 @@ impl Pack {
                 let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
-                    base_ref: ref_sha1,
-                    data_decompress: data,
-                    obj_type: t,
+                    info: CacheObjectInfo::HashDelta(ref_sha1, final_size),
                     offset: init_offset,
-                    delta_final_size: final_size,
+                    data_decompressed: data,
                     mem_recorder: None,
-                    ..Default::default()
                 })
             }
         }
@@ -376,30 +372,28 @@ impl Pack {
                     let caches = caches.clone();
                     let waitlist = self.waitlist.clone();
                     self.pool.execute(move || {
-                        match obj.obj_type {
-                            ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
+                        match obj.info {
+                            CacheObjectInfo::BaseObject(_, _) => {
                                 Self::cache_obj_and_process_waitlist(params, obj);
                             },
-                            ObjectType::OffsetDelta => {
-                                if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
+                            CacheObjectInfo::OffsetDelta(base_offset, _) => {
+                                if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
                                     // You can delete this 'if' block ↑, because there are Second check in 'else'
                                     // It will be more readable, but the performance will be slightly reduced
-                                    let base_offset = obj.base_offset;
-                                    waitlist.insert_offset(obj.base_offset, obj);
+                                    waitlist.insert_offset(base_offset, obj);
                                     // Second check: prevent that the base_obj thread has finished before the waitlist insert
                                     if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                         Self::process_waitlist(params, base_obj);
                                     }
                                 }
                             },
-                            ObjectType::HashDelta => {
-                                if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
+                            CacheObjectInfo::HashDelta(base_ref, _) => {
+                                if let Some(base_obj) = caches.get_by_hash(base_ref) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
-                                    let base_ref = obj.base_ref;
-                                    waitlist.insert_ref(obj.base_ref, obj);
+                                    waitlist.insert_ref(base_ref, obj);
                                     if let Some(base_obj) = caches.get_by_hash(base_ref) {
                                         Self::process_waitlist(params, base_obj);
                                     }
@@ -520,12 +514,12 @@ impl Pack {
     /// Cache the new object & process the objects waiting for it (in multi-threading).
     fn cache_obj_and_process_waitlist(shared_params: Arc<SharedParams>, new_obj: CacheObject) {
         (shared_params.callback)(new_obj.to_entry(), new_obj.offset);
-        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.hash, new_obj);
+        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.base_object_hash().unwrap(), new_obj);
         Self::process_waitlist(shared_params, new_obj);
     }
 
     fn process_waitlist(shared_params: Arc<SharedParams>, base_obj: Arc<CacheObject>) {
-        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.hash);
+        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.base_object_hash().unwrap());
         for obj in wait_objs {
             // Process the objects waiting for the new object(base_obj = new_obj)
             Self::process_delta(shared_params.clone(), obj, base_obj.clone());
@@ -540,14 +534,14 @@ impl Pack {
         const COPY_SIZE_BYTES: u8 = 3;
         const COPY_ZERO_SIZE: usize = 0x10000;
 
-        let mut stream = Cursor::new(&delta_obj.data_decompress);
+        let mut stream = Cursor::new(&delta_obj.data_decompressed);
 
         // Read the base object size
         // (Size Encoding)
         let (base_size, result_size) = utils::read_delta_object_size(&mut stream).unwrap();
 
         //Get the base object row data
-        let base_info = &base_obj.data_decompress;
+        let base_info = &base_obj.data_decompressed;
         assert_eq!(base_info.len(), base_size, "Base object size mismatch");
 
         let mut result = Vec::with_capacity(result_size);
@@ -604,15 +598,13 @@ impl Pack {
         }
         assert_eq!(result_size, result.len(), "Result size mismatch");
 
-        let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
+        let hash = utils::calculate_object_hash(base_obj.object_type(), &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
         CacheObject {
-            data_decompress: result,
-            obj_type: base_obj.obj_type, // Same as the Type of base object
-            hash,
-            delta_final_size: 0, // The new object is not a delta obj, so set its final size to 0.
-            mem_recorder: None, // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
-            ..delta_obj // This syntax is actually move `delta_obj` to `new_obj`
+            info: CacheObjectInfo::BaseObject(base_obj.object_type(), hash),
+            offset: delta_obj.offset,
+            data_decompressed: result,
+            mem_recorder: None,
         } // Canonical form (Complete Object)
         // mem_size recorder will be set later outside, to keep this func param clear
     }
