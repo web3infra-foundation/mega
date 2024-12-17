@@ -135,7 +135,7 @@ mod test {
     #[tokio::test]
     async fn test_save_load_object() {
         test::setup_with_new_libra().await;
-        let object = Commit::from_tree_id(SHA1::new(&vec![1; 20]), vec![], "Commit_1");
+        let object = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "Commit_1");
         save_object(&object, &object.id).unwrap();
         let _ = load_object::<Commit>(&object.id).unwrap();
     }

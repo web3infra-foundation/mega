@@ -155,7 +155,7 @@ mod tests {
         let data = "Hello, world!".as_bytes();
 
         // Generate SHA1 hash from the input data
-        let sha1 = SHA1::new(&data.to_vec());
+        let sha1 = SHA1::new(&data);
 
         // Known SHA1 hash for "Hello, world!"
         let expected_sha1_hash = "943a702d06f34599aee1f8da8ef9f7296031d699";
