@@ -58,10 +58,11 @@ impl Caches {
     /// !IMPORTANT: because of the process of pack, the file must be written / be writing before, so it won't be dead lock
     /// fall back to temp to get item. **invoker should ensure the hash is in the cache, or it will block forever**
     fn get_fallback(&self, hash: SHA1) -> io::Result<Arc<CacheObject>> {
+        let path = self.generate_temp_path(&self.tmp_path, hash);
         // read from tmp file
         let obj = {
             loop {
-                match self.read_from_temp(hash) {
+                match Self::read_from_temp(&path) {
                     Ok(x) => break x,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => {
                         sleep(std::time::Duration::from_millis(10));
@@ -79,7 +80,7 @@ impl Caches {
             self.complete_signal.clone(),
             Some(self.pool.clone()),
         );
-        x.set_store_path(self.generate_temp_path(&self.tmp_path, hash));
+        x.set_store_path(path);
         let _ = map.insert(hash, x); // handle the error
         Ok(obj)
     }
@@ -95,9 +96,8 @@ impl Caches {
         path
     }
 
-    fn read_from_temp(&self, hash: SHA1) -> io::Result<CacheObject> {
-        let path = self.generate_temp_path(&self.tmp_path, hash);
-        let obj = CacheObject::f_load(&path)?;
+    fn read_from_temp(path: &Path) -> io::Result<CacheObject> {
+        let obj = CacheObject::f_load(path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
         obj.record_mem_size();
@@ -230,51 +230,54 @@ mod test {
     use std::env;
 
     use super::*;
-    use crate::hash::SHA1;
+    use crate::{hash::SHA1, internal::{object::types::ObjectType, pack::cache_object::CacheObjectInfo}};
 
     #[test]
     fn test_cache_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
+        let a_hash = SHA1::new(String::from("a").as_bytes());
+        let b_hash = SHA1::new(String::from("b").as_bytes());
         let a = CacheObject {
-            data_decompress: vec![0; 1024],
-            hash: SHA1::new(&String::from("a").into_bytes()),
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, a_hash),
+            data_decompressed: vec![0; 1024],
             mem_recorder: None,
-            ..Default::default()
+            offset: 0,
         };
         let b = CacheObject {
-            data_decompress: vec![0; 1636],
-            hash: SHA1::new(&String::from("b").into_bytes()),
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, b_hash),
+            data_decompressed: vec![0; 1636],
             mem_recorder: None,
-            ..Default::default()
+            offset: 0,
         };
         // insert a
-        cache.insert(a.offset, a.hash, a.clone());
-        assert!(cache.hash_set.contains(&a.hash));
-        assert!(cache.try_get(a.hash).is_some());
+        cache.insert(a.offset, a_hash, a.clone());
+        assert!(cache.hash_set.contains(&a_hash));
+        assert!(cache.try_get(a_hash).is_some());
 
         // insert b and make a invalidate
-        cache.insert(b.offset, b.hash, b.clone());
-        assert!(cache.hash_set.contains(&b.hash));
-        assert!(cache.try_get(b.hash).is_some());
-        assert!(cache.try_get(a.hash).is_none());
+        cache.insert(b.offset, b_hash, b.clone());
+        assert!(cache.hash_set.contains(&b_hash));
+        assert!(cache.try_get(b_hash).is_some());
+        assert!(cache.try_get(a_hash).is_none());
 
         // get a and make b invalidate
-        let _ = cache.get_by_hash(a.hash);
-        assert!(cache.try_get(a.hash).is_some());
-        assert!(cache.try_get(b.hash).is_none());
+        let _ = cache.get_by_hash(a_hash);
+        assert!(cache.try_get(a_hash).is_some());
+        assert!(cache.try_get(b_hash).is_none());
 
+        let c_hash = SHA1::new(String::from("c").as_bytes());
         // insert too large c, a will still be in the cache
         let c = CacheObject {
-            data_decompress: vec![0; 2049],
-            hash: SHA1::new(&String::from("c").into_bytes()),
+            info: CacheObjectInfo::BaseObject(ObjectType::Blob, c_hash),
+            data_decompressed: vec![0; 2049],
             mem_recorder: None,
-            ..Default::default()
+            offset: 0,
         };
-        cache.insert(c.offset, c.hash, c.clone());
-        assert!(cache.try_get(a.hash).is_some());
-        assert!(cache.try_get(b.hash).is_none());
-        assert!(cache.try_get(c.hash).is_none());
-        assert!(cache.get_by_hash(c.hash).is_some());
+        cache.insert(c.offset, c_hash, c.clone());
+        assert!(cache.try_get(a_hash).is_some());
+        assert!(cache.try_get(b_hash).is_none());
+        assert!(cache.try_get(c_hash).is_none());
+        assert!(cache.get_by_hash(c_hash).is_some());
     }
 }
