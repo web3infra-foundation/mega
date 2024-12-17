@@ -738,7 +738,7 @@ mod tests {
         let stream = ReaderStream::new(f).map_err(|e| {
             axum::Error::new(e)
         });
-        let p = Pack::new(Some(20), None, Some(tmp.clone()), true);
+        let p = Pack::new(Some(20), Some(1024*1024*1024*4), Some(tmp.clone()), true);
 
         let (tx, rx) = std::sync::mpsc::channel();
         let (pack, _ ) = p.decode_stream(stream, 1024 * 1024 * 1024, tx).await;
