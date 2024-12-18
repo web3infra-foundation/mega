@@ -29,7 +29,7 @@ use crate::internal::pack::entry::Entry;
 
 use super::cache_object::CacheObjectInfo;
 
-/// For Convenient to pass Params
+/// For the convenience of passing parameters
 struct SharedParams {
     pub pool: Arc<ThreadPool>,
     pub waitlist: Arc<Waitlist>,
@@ -55,8 +55,7 @@ impl Pack {
     ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
     /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
     ///   For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
-    /// - `clean_tmp`: whether to remove temp dir
-    ///
+    /// - `clean_tmp`: whether to remove temp directory when Pack is dropped
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>, clean_tmp: bool) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from(DEFAULT_TMP_DIR));
         // add 8 random characters as subdirectory, check if the directory exists
@@ -85,7 +84,7 @@ impl Pack {
 
     /// Checks and reads the header of a Git pack file.
     ///
-    /// This function reads the first 12 bytes of a pack file, which include the "PACK" magic identifier,
+    /// This function reads the first 12 bytes of a pack file, which include the b"PACK" magic identifier,
     /// the version number, and the number of objects in the pack. It verifies that the magic identifier
     /// is correct and that the version number is 2 (which is the version currently supported by Git).
     /// It also collects these header bytes for later use, such as for hashing the entire pack file.
@@ -99,7 +98,7 @@ impl Pack {
     /// * `Ok((u32, Vec<u8>))`: On successful reading and validation of the header, returns a tuple where:
     ///     - The first element is the number of objects in the pack file (`u32`).
     ///     - The second element is a vector containing the bytes of the pack file header (`Vec<u8>`).
-    /// * `Err(GitError)`: On failure, returns a `GitError` with a description of the issue.
+    /// * `Err(GitError)`: On failure, returns a [`GitError`] with a description of the issue.
     ///
     /// # Errors
     /// This function can return an error in the following situations:
@@ -128,11 +127,11 @@ impl Pack {
                     )));
                 }
             },
-            Err(_e) => {
+            Err(e) => {
                 // If there is an error in reading, return a GitError
-                return Err(GitError::InvalidPackHeader(format!(
-                    "{},{},{},{}",
-                    magic[0], magic[1], magic[2], magic[3]
+                return Err(GitError::InvalidPackFile(format!(
+                    "Error reading magic identifier: {}",
+                    e
                 )));
             }
         }
@@ -154,13 +153,12 @@ impl Pack {
                         version
                     )));
                 }
-                // If read is successful, proceed
             },
-            Err(_e) => {
+            Err(e) => {
                 // If there is an error in reading, return a GitError
-                return Err(GitError::InvalidPackHeader(format!(
-                    "{},{},{},{}",
-                    version_bytes[0], version_bytes[1], version_bytes[2], version_bytes[3]
+                return Err(GitError::InvalidPackFile(format!(
+                    "Error reading version number: {}",
+                    e
                 )));
             }
         }
@@ -178,11 +176,11 @@ impl Pack {
                 // Return the number of objects and the header data for further processing
                 Ok((object_num, header_data))
             },
-            Err(_e) => {
+            Err(e) => {
                 // If there is an error in reading, return a GitError
-                Err(GitError::InvalidPackHeader(format!(
-                    "{},{},{},{}",
-                    object_num_bytes[0], object_num_bytes[1], object_num_bytes[2], object_num_bytes[3]
+                Err(GitError::InvalidPackFile(format!(
+                    "Error reading object number: {}",
+                    e
                 )))
             }
         }
@@ -196,11 +194,10 @@ impl Pack {
     ///
     /// # Returns
     /// Returns a `Result` containing either:
-    /// * A tuple with a `Vec<u8>` of decompressed data, a `Vec<u8>` of the original compressed data,
-    ///   and the total number of input bytes processed,
+    /// * A tuple with a `Vec<u8>` of the decompressed data and the total number of input bytes processed,
     /// * Or a `GitError` in case of a mismatch in expected size or any other reading error.
     ///
-    pub fn decompress_data(&mut self, pack: &mut (impl BufRead + Send), expected_size: usize, ) -> Result<(Vec<u8>, usize), GitError> {
+    pub fn decompress_data(&mut self, pack: &mut (impl BufRead + Send), expected_size: usize) -> Result<(Vec<u8>, usize), GitError> {
         // Create a buffer with the expected size for the decompressed data
         let mut buf = Vec::with_capacity(expected_size);
         // Create a new Zlib decoder with the original data
@@ -229,7 +226,7 @@ impl Pack {
         }
     }
 
-    /// Decodes a pack object from a given Read and BufRead source and returns the original compressed data.
+    /// Decodes a pack object from a given Read and BufRead source and returns the object as a [`CacheObject`].
     ///
     /// # Parameters
     /// * `pack`: A source that implements both Read and BufRead traits.
@@ -309,7 +306,8 @@ impl Pack {
         }
     }
 
-    /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
+    /// Decodes a pack file from a given Read and BufRead source, for each object in the pack,
+    /// it decodes the object and processes it using the provided callback function.
     pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Send), callback: F) -> Result<(), GitError>
     where
         F: Fn(Entry, usize) + Sync + Send + 'static
@@ -445,8 +443,8 @@ impl Pack {
         Ok(())
     }
 
-    /// Decode Pack in a new thread and send the CacheObjects while decoding.
-    /// <br> Attention: It will consume the `pack` and return in JoinHandle
+    /// Decode a Pack in a new thread and send the CacheObjects while decoding.
+    /// <br> Attention: It will consume the `pack` and return in a JoinHandle.
     pub fn decode_async(mut self, mut pack: (impl BufRead + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
@@ -456,7 +454,7 @@ impl Pack {
         })
     }
 
-    /// Decode `Pack` with inputting a `Stream` of `Bytes`, and send the `Entry` while decoding.
+    /// Decodes a `Pack` from a `Stream` of `Bytes`, and sends the `Entry` while decoding.
     pub async fn decode_stream(mut self,
                                mut stream: impl Stream<Item = Result<Bytes, Error>> + Unpin + Send + 'static,
                                pack_limit: usize,
@@ -472,7 +470,7 @@ impl Pack {
                 let data = chunk.unwrap().to_vec();
                 total_size += data.len();
                 if total_size > pack_limit {
-                    eprintln!("Body size exceeded limit. Terminating connection.");
+                    eprintln!("Body size ({}) exceeded limit ({}). Terminating connection.", total_size, pack_limit);
                     return Err(ProtocolError::TooLarge(total_size.to_string()))
                 }
                 tx.send(data).unwrap();
@@ -527,7 +525,7 @@ impl Pack {
     }
 
     /// Reconstruct the Delta Object based on the "base object"
-    /// and return a New object.
+    /// and return the new object.
     pub fn rebuild_delta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
         const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
         const COPY_OFFSET_BYTES: u8 = 4;
@@ -540,7 +538,7 @@ impl Pack {
         // (Size Encoding)
         let (base_size, result_size) = utils::read_delta_object_size(&mut stream).unwrap();
 
-        //Get the base object row data
+        // Get the base object data
         let base_info = &base_obj.data_decompressed;
         assert_eq!(base_info.len(), base_size, "Base object size mismatch");
 
@@ -606,7 +604,7 @@ impl Pack {
             data_decompressed: result,
             mem_recorder: None,
         } // Canonical form (Complete Object)
-        // mem_size recorder will be set later outside, to keep this func param clear
+        // Memory recording will happen after this function returns. See `process_delta`
     }
 }
 
