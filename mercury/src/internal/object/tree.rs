@@ -15,7 +15,6 @@
 //! operations like merging and rebasing more quickly and accurately.
 //!
 use std::fmt::Display;
-use std::hash::Hash;
 use colored::Colorize;
 use serde::Deserialize;
 use serde::Serialize;
@@ -29,8 +28,7 @@ use crate::internal::object::ObjectType;
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
 /// type of the object. The first digit specifies the object type, and the remaining two digits
 /// specify the file mode or permissions.
-#[allow(unused)]
-#[derive(PartialEq, Eq, Hash, Ord, PartialOrd, Debug, Clone, Copy,Serialize,Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum TreeItemMode {
     Blob,
     BlobExecutable,
@@ -81,7 +79,6 @@ impl TreeItemMode {
     /// Submodules can be a powerful tool for managing dependencies between different projects and
     /// components. However, they can also add complexity to your workflow, so it's important to
     /// understand how they work and when to use them.
-    #[allow(unused)]
     pub fn tree_item_type_from_bytes(mode: &[u8]) -> Result<TreeItemMode, GitError> {
         Ok(match mode {
             b"40000" => TreeItemMode::Tree,
@@ -103,7 +100,6 @@ impl TreeItemMode {
     /// - 4-bit object type: valid values in binary are 1000 (regular file), 1010 (symbolic link) and 1110 (gitlink)
     /// - 3-bit unused
     /// - 9-bit unix permission: Only 0755 and 0644 are valid for regular files. Symbolic links and gitlink have value 0 in this field.
-    #[allow(unused)]
     pub fn to_bytes(self) -> &'static [u8] {
         match self {
             TreeItemMode::Blob => b"100644",
@@ -133,8 +129,7 @@ impl TreeItemMode {
 /// 100644 hello-world\0<blob object ID>
 /// 040000 data\0<tree object ID>
 /// ```
-#[allow(unused)]
-#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone,Serialize,Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct TreeItem {
     pub mode: TreeItemMode,
     pub id: SHA1,
@@ -170,7 +165,6 @@ impl TreeItem {
     /// // Create a tree TreeItem with a custom Hash, and directory name
     /// let dir_item = TreeItem::new(TreeItemMode::Tree, SHA1::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("data"));
     /// ```
-    #[allow(unused)]
     pub fn new(mode: TreeItemMode, id: SHA1, name: String) -> Self {
         TreeItem { mode, id, name }
     }
@@ -210,7 +204,6 @@ impl TreeItem {
     ///
     //  let bytes = tree_item.to_bytes();
     /// ```
-    #[allow(unused)]
     pub fn to_data(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
@@ -226,10 +219,16 @@ impl TreeItem {
 
 /// A tree object is a Git object that represents a directory. It contains a list of entries, one
 /// for each file or directory in the tree.
-#[derive(PartialEq, Eq, Debug, Hash, Ord, PartialOrd, Clone,Serialize,Deserialize)]
+#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct Tree {
     pub id: SHA1,
     pub tree_items: Vec<TreeItem>,
+}
+
+impl PartialEq for Tree {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 
 impl Display for Tree {
@@ -238,7 +237,6 @@ impl Display for Tree {
         for item in &self.tree_items {
             writeln!(f, "{}", item)?;
         }
-
         Ok(())
     }
 }
@@ -272,6 +270,7 @@ impl Tree {
         self.id = SHA1::from_type_and_data(ObjectType::Tree, &data);
     }
 }
+
 impl TryFrom<&[u8]> for Tree{
     type Error = GitError;
     fn try_from(data: &[u8]) -> Result<Self, Self::Error>  {

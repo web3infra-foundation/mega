@@ -14,7 +14,7 @@ use super::{
 
 #[derive(Parser, Debug)]
 pub struct MergeArgs {
-    /// The branch to merge into the current branch
+    /// The branch to merge into the current branch, could be remote branch
     pub branch: String,
 }
 

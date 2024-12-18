@@ -28,8 +28,10 @@ const DEFAULT_REMOTE: &str = "origin";
 
 #[derive(Parser, Debug)]
 pub struct FetchArgs {
+    /// Repository to fetch from
     pub repository: Option<String>,
 
+    /// Refspec to fetch, usually a branch name
     #[clap(requires("repository"))]
     pub refspec: Option<String>,
 
@@ -178,7 +180,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
 
     /* save pack file */
     let pack_file = {
-        let hash = SHA1::new(&pack_data[..pack_data.len() - 20].to_vec());
+        let hash = SHA1::new(&pack_data[..pack_data.len() - 20]);
 
         let checksum = SHA1::from_bytes(&pack_data[pack_data.len() - 20..]);
         assert_eq!(hash, checksum);

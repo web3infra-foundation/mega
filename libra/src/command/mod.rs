@@ -135,7 +135,7 @@ mod test {
     #[tokio::test]
     async fn test_save_load_object() {
         test::setup_with_new_libra().await;
-        let object = Commit::from_tree_id(SHA1::new(&vec![1; 20]), vec![], "Commit_1");
+        let object = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "Commit_1");
         save_object(&object, &object.id).unwrap();
         let _ = load_object::<Commit>(&object.id).unwrap();
     }
@@ -146,15 +146,21 @@ mod test {
             let msg = "commit message";
             let gpg_sig =
                 "gpgsig -----BEGIN PGP SIGNATURE-----\ncontent\n-----END PGP SIGNATURE-----";
+            let ssh_sig =
+                "gpgsig -----BEGIN SSH SIGNATURE-----\ncontent1\n-----END SSH SIGNATURE-----";
             let msg_gpg = format_commit_msg(msg, Some(gpg_sig));
+            let msg_ssh = format_commit_msg(msg, Some(ssh_sig));
             let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
+            let (msg__, ssh_sig__) = parse_commit_msg(&msg_ssh);
             assert_eq!(msg, msg_);
+            assert_eq!(msg, msg__);
             assert_eq!(gpg_sig, gpg_sig_.unwrap());
+            assert_eq!(ssh_sig, ssh_sig__.unwrap());
 
-            let msg_gpg = format_commit_msg(msg, None);
-            let (msg_, gpg_sig_) = parse_commit_msg(&msg_gpg);
+            let msg_none = format_commit_msg(msg, None);
+            let (msg_, sig_) = parse_commit_msg(&msg_none);
             assert_eq!(msg, msg_);
-            assert_eq!(None, gpg_sig_);
+            assert_eq!(None, sig_);
         }
 
         {

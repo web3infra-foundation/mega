@@ -161,28 +161,28 @@ mod tests {
     //           \  / \
     ///            4   7
     async fn create_test_commit_tree() -> String {
-        let mut commit_1 = Commit::from_tree_id(SHA1::new(&vec![1; 20]), vec![], "Commit_1");
+        let mut commit_1 = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "Commit_1");
         commit_1.committer.timestamp = 1;
         // save_object(&commit_1);
         save_object(&commit_1, &commit_1.id).unwrap();
 
         let mut commit_2 =
-            Commit::from_tree_id(SHA1::new(&vec![2; 20]), vec![commit_1.id], "Commit_2");
+            Commit::from_tree_id(SHA1::new(&[2; 20]), vec![commit_1.id], "Commit_2");
         commit_2.committer.timestamp = 2;
         save_object(&commit_2, &commit_2.id).unwrap();
 
         let mut commit_3 =
-            Commit::from_tree_id(SHA1::new(&vec![3; 20]), vec![commit_2.id], "Commit_3");
+            Commit::from_tree_id(SHA1::new(&[3; 20]), vec![commit_2.id], "Commit_3");
         commit_3.committer.timestamp = 3;
         save_object(&commit_3, &commit_3.id).unwrap();
 
         let mut commit_4 =
-            Commit::from_tree_id(SHA1::new(&vec![4; 20]), vec![commit_2.id], "Commit_4");
+            Commit::from_tree_id(SHA1::new(&[4; 20]), vec![commit_2.id], "Commit_4");
         commit_4.committer.timestamp = 4;
         save_object(&commit_4, &commit_4.id).unwrap();
 
         let mut commit_5 = Commit::from_tree_id(
-            SHA1::new(&vec![5; 20]),
+            SHA1::new(&[5; 20]),
             vec![commit_2.id, commit_4.id],
             "Commit_5",
         );
@@ -190,7 +190,7 @@ mod tests {
         save_object(&commit_5, &commit_5.id).unwrap();
 
         let mut commit_6 = Commit::from_tree_id(
-            SHA1::new(&vec![6; 20]),
+            SHA1::new(&[6; 20]),
             vec![commit_3.id, commit_5.id],
             "Commit_6",
         );
@@ -198,7 +198,7 @@ mod tests {
         save_object(&commit_6, &commit_6.id).unwrap();
 
         let mut commit_7 =
-            Commit::from_tree_id(SHA1::new(&vec![7; 20]), vec![commit_5.id], "Commit_7");
+            Commit::from_tree_id(SHA1::new(&[7; 20]), vec![commit_5.id], "Commit_7");
         commit_7.committer.timestamp = 7;
         save_object(&commit_7, &commit_7.id).unwrap();
 

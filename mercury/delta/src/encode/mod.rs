@@ -5,7 +5,7 @@ use diffs::Diff;
 const DATA_INS_LEN: usize = 0x7f;
 const VAR_INT_ENCODING_BITS: u8 = 7;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Optype {
     Data,
     Copy,
@@ -17,6 +17,7 @@ struct DeltaOp {
     begin: usize,
     len: usize,
 }
+
 #[derive(Debug)]
 pub struct DeltaDiff<'a> {
     ops: Vec<DeltaOp>,
