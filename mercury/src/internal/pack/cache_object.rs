@@ -1,53 +1,19 @@
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::{fs, io};
 use std::{ops::Deref, sync::Arc};
 
 use lru_mem::{HeapSize, MemSize};
 use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
 
+use crate::hash::SHA1;
 use crate::internal::pack::entry::Entry;
 use crate::internal::pack::utils;
-use crate::{hash::SHA1, internal::object::types::ObjectType};
+use crate::internal::object::types::ObjectType;
+use crate::utils::storable::{DefaultFileStorageStrategy, Storable};
 
 // /// record heap-size of all CacheObjects, used for memory limit.
 // static CACHE_OBJS_MEM_SIZE: AtomicUsize = AtomicUsize::new(0);
-
-/// file load&store trait
-pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
-    fn f_load(path: &Path) -> Result<Self, io::Error>;
-    fn f_save(&self, path: &Path) -> Result<(), io::Error>;
-}
-
-// trait alias, so that impl FileLoadStore == impl Serialize + Deserialize
-impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
-    fn f_load(path: &Path) -> Result<T, io::Error> {
-        let data = fs::read(path)?;
-        let obj: T =
-            bincode::deserialize(&data).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        Ok(obj)
-    }
-    fn f_save(&self, path: &Path) -> Result<(), io::Error> {
-        if path.exists() {
-            return Ok(());
-        }
-        let data = bincode::serialize(&self).unwrap();
-        let path = path.with_extension("temp");
-        {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path.clone())?;
-            file.write_all(&data)?;
-        }
-        let final_path = path.with_extension("");
-        fs::rename(&path, final_path.clone())?;
-        Ok(())
-    }
-}
 
 /// Represents the metadata of a cache object, indicating whether it is a delta or not.
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
@@ -139,6 +105,11 @@ impl Drop for CacheObject {
             mem_recorder.fetch_sub((*self).mem_size(), Ordering::SeqCst);
         }
     }
+}
+
+impl Storable for CacheObject {
+    type Location = Path;
+    type Strategy = DefaultFileStorageStrategy;
 }
 
 /// Heap-size recorder for a class(struct)
@@ -235,12 +206,12 @@ impl CacheObject {
 
 /// trait alias for simple use
 pub trait ArcWrapperBounds:
-    HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static
+    HeapSize + Storable<Location = Path> + Send + Sync + 'static
 {
 }
 // You must impl `Alias Trait` for all the `T` satisfying Constraints
 // Or, `T` will not satisfy `Alias Trait` even if it satisfies the Original traits
-impl<T: HeapSize + Serialize + for<'a> Deserialize<'a> + Send + Sync + 'static> ArcWrapperBounds
+impl<T: HeapSize + Storable<Location = Path> + Send + Sync + 'static> ArcWrapperBounds
     for T
 {
 }
@@ -293,6 +264,7 @@ impl<T: ArcWrapperBounds> Deref for ArcWrapper<T> {
         &self.data
     }
 }
+
 impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
     // `drop` will be called in `lru_cache.insert()` when cache full & eject the LRU
     // `lru_cache.insert()` is protected by Mutex
@@ -311,7 +283,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                         }
                         pool.execute(move || {
                             if !complete_signal.load(Ordering::SeqCst) {
-                                let res = data_copy.f_save(&path_copy);
+                                let res = data_copy.store(&path_copy);
                                 if let Err(e) = res {
                                     println!("[f_save] {:?} error: {:?}", path_copy, e);
                                 }
@@ -319,7 +291,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                         });
                     }
                     None => {
-                        let res = self.data.f_save(path);
+                        let res = self.data.store(path);
                         if let Err(e) = res {
                             println!("[f_save] {:?} error: {:?}", path, e);
                         }
@@ -434,6 +406,11 @@ mod test {
             self.a
         }
     }
+    impl Storable for Test {
+        type Location = Path;
+        type Strategy = DefaultFileStorageStrategy;
+    }
+
     #[test]
     fn test_lru_drop() {
         println!("insert a");
@@ -502,7 +479,7 @@ mod test {
         let mut path = PathBuf::from(".cache_temp/test_arc_wrapper_drop_store");
         fs::create_dir_all(&path).unwrap();
         path.push("test_obj");
-        let mut a = ArcWrapper::new(Arc::new(1024), Arc::new(AtomicBool::new(false)), None);
+        let mut a = ArcWrapper::new(Arc::new(Test { a: 1024 }), Arc::new(AtomicBool::new(false)), None);
         a.set_store_path(path.clone());
         drop(a);
 
@@ -525,7 +502,7 @@ mod test {
         {
             let mut a = ArcWrapper::new(Arc::new(Test { a: 1024 }), shared_flag.clone(), None);
             a.set_store_path(a_path.clone());
-            let b = ArcWrapper::new(Arc::new(1024), shared_flag.clone(), None);
+            let b = ArcWrapper::new(Arc::new(Test { a: 1024 }), shared_flag.clone(), None);
             assert!(b.store_path.is_none());
 
             println!("insert a with heap size: {:?}", a.heap_size());

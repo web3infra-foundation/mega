@@ -12,7 +12,9 @@ use threadpool::ThreadPool;
 
 use crate::time_it;
 use crate::hash::SHA1;
-use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder, FileLoadStore};
+use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder};
+
+use crate::utils::storable::Storable;
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
@@ -97,7 +99,7 @@ impl Caches {
     }
 
     fn read_from_temp(path: &Path) -> io::Result<CacheObject> {
-        let obj = CacheObject::f_load(path)?;
+        let obj = CacheObject::load(path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
         obj.record_mem_size();
