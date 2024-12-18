@@ -4,7 +4,7 @@ use sha1::{Sha1, Digest};
 
 use crate::hash::SHA1;
 
-/// `Wrapper` is a wrapper around a reader that also computes the SHA1 hash of the data read.
+/// [`Wrapper`] is a wrapper around a reader that also computes the SHA1 hash of the data read.
 ///
 /// It is designed to work with any reader that implements `BufRead`.
 ///
@@ -22,7 +22,7 @@ impl<R> Wrapper<R>
 where
     R: BufRead,
 {
-    /// Constructs a new `Wrapper` with the given reader and a flag to enable or disable hashing.
+    /// Constructs a new [`Wrapper`] with the given reader and a flag to enable or disable hashing.
     ///
     /// # Parameters
     /// * `inner`: The reader to wrap.
