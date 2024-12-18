@@ -31,21 +31,21 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
         Ok(obj)
     }
     fn f_save(&self, path: &Path) -> Result<(), io::Error> {
-        if path.exists() {
-            return Ok(());
-        }
-        let data = bincode::serialize(&self).unwrap();
-        let path = path.with_extension("temp");
+        let tmp_path = path.with_extension("temp");
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
         {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path.clone())?;
-            file.write_all(&data)?;
+            Ok(mut file) => {
+                let data = bincode::serialize(&self).unwrap();
+                file.write_all(&data)?;
+                fs::rename(tmp_path, path)?;
+                Ok(())
+            }
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            Err(e) => Err(e),
         }
-        let final_path = path.with_extension("");
-        fs::rename(&path, final_path.clone())?;
-        Ok(())
     }
 }
 
@@ -103,9 +103,9 @@ impl HeapSize for CacheObject {
     /// If a [`CacheObject`] is [`ObjectType::HashDelta`] or [`ObjectType::OffsetDelta`],
     /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
     /// we record the size of the expanded object as well as that of the object itself.
-    /// 
-    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`], 
-    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same 
+    ///
+    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`],
+    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same
     /// as the size of the data.
     ///
     /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
@@ -189,7 +189,7 @@ impl CacheObject {
     }
 
     /// Get the [`SHA1`] hash of the object.
-    /// 
+    ///
     /// If the object is a delta object, return [`None`].
     pub fn base_object_hash(&self) -> Option<SHA1> {
         match &self.info {
@@ -199,7 +199,7 @@ impl CacheObject {
     }
 
     /// Get the offset delta of the object.
-    /// 
+    ///
     /// If the object is not an offset delta, return [`None`].
     pub fn offset_delta(&self) -> Option<usize> {
         match &self.info {
@@ -209,7 +209,7 @@ impl CacheObject {
     }
 
     /// Get the hash delta of the object.
-    /// 
+    ///
     /// If the object is not a hash delta, return [`None`].
     pub fn hash_delta(&self) -> Option<SHA1> {
         match &self.info {
@@ -372,7 +372,7 @@ mod test {
     #[test]
     fn test_cache_object_with_lru() {
         let mut cache = LruCache::new(2048);
-        
+
         let hash_a = SHA1::default();
         let hash_b = SHA1::new(b"b"); // whatever different hash
         let a = CacheObject {
