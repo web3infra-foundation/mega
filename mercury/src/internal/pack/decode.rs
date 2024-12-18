@@ -497,7 +497,7 @@ impl Pack {
 
     /// The total memory used by the CacheObjects of this Pack
     fn cache_objs_mem_used(&self) -> usize {
-        self.cache_objs_mem.load(Ordering::Relaxed)
+        self.cache_objs_mem.load(Ordering::Acquire)
     }
 
     /// Rebuild the Delta Object in a new thread & process the objects waiting for it recursively.
@@ -752,10 +752,10 @@ mod tests {
                 cnt += 1; //use entry here
             }
             tracing::info!("Received: {}", cnt);
-            count_c.store(cnt, Ordering::Relaxed);
+            count_c.store(cnt, Ordering::Release);
         }).await.unwrap();
         let p = pack.await.unwrap();
-        assert_eq!(count.load(Ordering::Relaxed), p.number);
+        assert_eq!(count.load(Ordering::Acquire), p.number);
     }
 
     #[test]
