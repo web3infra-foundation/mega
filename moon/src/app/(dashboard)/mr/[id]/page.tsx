@@ -177,70 +177,70 @@ export default function MRDetailPage({ params }: { params: Params }) {
     const buttonClasses= 'cursor-pointer';
 
     const tab_items: TabsProps['items'] = [
-        {
-            key: '1',
-            label: 'Conversation',
-            children:
-                <Space direction="vertical" style={{ width: '100%' }}>
-                    <Timeline items={conv_items} />
-                    <h1>Add a comment</h1>
-                    <RichEditor setEditorState={setEditorState} />
-                    <Flex gap="small" justify={"flex-end"}>
-                        {mrDetail && mrDetail.status === "open" &&
-                          <Button
-                            disabled={!login}
-                            onClick={() => close_mr()}
-                            aria-label="Close Merge Request"
-                            className={cn(buttonClasses)}
-                          >
-                            {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
-                            Close Merge Request
-                          </Button>
-                        }
-                        {mrDetail && mrDetail.status === "closed" &&
-                          <Button
-                            disabled={!login}
-                            onClick={() => reopen_mr()}
-                            aria-label="Reopen Merge Request"
-                            className={cn(buttonClasses)}
-                          >
-                            {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
-                            Reopen Merge Request
-                          </Button>
-                        }
-                        <Button
-                          disabled={!login}
-                          onClick={() => save_comment(editorState)}
-                          aria-label="Comment"
-                          className={cn(buttonClasses)}
-                        >
-                          {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
-                          Comment
-                        </Button>
-                    </Flex>
-                </Space>
-        },
-        {
-            key: '2',
-            label: 'Files Changed',
-            children: <FilesChanged outputHtml={outputHtml} />
-        }
+      {
+        key: '1',
+        label: 'Conversation',
+        children:
+          <div className="flex flex-col w-full">
+            <Timeline items={conv_items}/>
+            <h1>Add a comment</h1>
+            <RichEditor setEditorState={setEditorState}/>
+            <div className="flex gap-2 justify-end">
+              {mrDetail && mrDetail.status === "open" &&
+                <Button
+                  disabled={!login}
+                  onClick={() => close_mr()}
+                  aria-label="Close Merge Request"
+                  className={cn(buttonClasses)}
+                >
+                  {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                  Close Merge Request
+                </Button>
+              }
+              {mrDetail && mrDetail.status === "closed" &&
+                <Button
+                  disabled={!login}
+                  onClick={() => reopen_mr()}
+                  aria-label="Reopen Merge Request"
+                  className={cn(buttonClasses)}
+                >
+                  {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                  Reopen Merge Request
+                </Button>
+              }
+              <Button
+                disabled={!login}
+                onClick={() => save_comment(editorState)}
+                aria-label="Comment"
+                className={cn(buttonClasses)}
+              >
+                {loadings[3] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                Comment
+              </Button>
+            </div>
+          </div>
+      },
+      {
+        key: '2',
+        label: 'Files Changed',
+        children: <FilesChanged outputHtml={outputHtml}/>
+      }
     ];
 
     return (
-        <Card title={mrDetail.title + " #" + id}>
-            {mrDetail && mrDetail.status === "open" &&
-              <Button
-                disabled={!login}
-                onClick={() => approve_mr()}
-                aria-label="Merge MR"
-                className={cn(buttonClasses)}
-              >
-                  {loadings[1] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
-                  Merge MR
-              </Button>
-            }
-            <Tabs defaultActiveKey="1" items={tab_items} onChange={onTabsChange} />
-        </Card>
+      <Card title={mrDetail.title + " #" + id}>
+          {mrDetail && mrDetail.status === "open" &&
+            <Button
+              disabled={!login}
+              onClick={() => approve_mr()}
+              aria-label="Merge MR"
+              className={cn(buttonClasses)}
+            >
+                {loadings[1] && <ReloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                Merge MR
+            </Button>
+          }
+          <Tabs defaultActiveKey="1" items={tab_items} onChange={onTabsChange}/>
+      </Card>
     )
 }

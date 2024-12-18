@@ -55,7 +55,7 @@ export default function RichEditor({ setEditorState }) {
 
   return (
     <LexicalComposer initialConfig={editorConfig}>
-      <div className="editor-container">
+      <div className="editor-container w-full">
         <ToolbarPlugin />
         <div className="editor-inner">
           <RichTextPlugin
