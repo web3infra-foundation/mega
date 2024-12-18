@@ -135,6 +135,12 @@ impl SHA1 {
     pub fn to_data(self) -> Vec<u8> {
         self.0.to_vec()
     }
+
+    /// [`core::fmt::Display`] is somewhat expensive, 
+    /// use this hack to get a string more efficiently
+    pub fn _to_string(&self) -> String {
+        hex::encode(self.0)
+    }
 }
 
 #[cfg(test)]
