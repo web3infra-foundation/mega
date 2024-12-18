@@ -209,7 +209,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
                           </Button>
                         }
                         <Button
-                          disabled={login}
+                          disabled={!login}
                           onClick={() => save_comment(editorState)}
                           aria-label="Comment"
                           className={cn(buttonClasses)}
