@@ -27,6 +27,8 @@ use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
 use crate::internal::pack::channel_reader::ChannelReader;
 use crate::internal::pack::entry::Entry;
 
+use super::cache_object::CacheObjectInfo;
+
 /// For Convenient to pass Params
 struct SharedParams {
     pub pool: Arc<ThreadPool>,
@@ -75,7 +77,7 @@ impl Pack {
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
             caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
-            mem_limit: mem_limit.unwrap_or(usize::MAX),
+            mem_limit,
             cache_objs_mem: Arc::new(AtomicUsize::default()),
             clean_tmp,
         }
@@ -254,21 +256,6 @@ impl Pack {
         // Check if the object type is valid
         let t = ObjectType::from_u8(type_bits)?;
 
-        // util lambda: return data with result capacity after rebuilding, for Memory Control
-        let reserve_delta_data = |data: Vec<u8>| -> Vec<u8> {
-            let result_size = { // Read `result-size` of delta_obj
-                let mut reader = Cursor::new(&data);
-                let _ = utils::read_varint_le(&mut reader).unwrap().0; // base_size
-                utils::read_varint_le(&mut reader).unwrap().0 // size after rebuilding
-            };
-            // capacity() == result_size, len() == data.len()
-            // just for accurate Memory Control (rely on `heap_size()` that based on capacity)
-            // Seems wasteful temporarily, but for final memory limit.
-            let mut data_result_cap = Vec::with_capacity(result_size as usize);
-            data_result_cap.extend(data);
-            data_result_cap
-        };
-
         match t {
             ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
                 let (data, raw_size) = self.decompress_data(pack, size)?;
@@ -290,13 +277,14 @@ impl Pack {
                     })
                     .unwrap();
 
+                let mut reader = Cursor::new(&data);
+                let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
+
                 Ok(CacheObject {
-                    base_offset,
-                    data_decompress: reserve_delta_data(data),
-                    obj_type: t,
+                    info: CacheObjectInfo::OffsetDelta(base_offset, final_size),
                     offset: init_offset,
+                    data_decompressed: data,
                     mem_recorder: None,
-                    ..Default::default()
                 })
             },
             ObjectType::HashDelta => {
@@ -307,22 +295,21 @@ impl Pack {
 
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
+                
+                let mut reader = Cursor::new(&data);
+                let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
                 Ok(CacheObject {
-                    base_ref: ref_sha1,
-                    data_decompress: reserve_delta_data(data),
-                    obj_type: t,
+                    info: CacheObjectInfo::HashDelta(ref_sha1, final_size),
                     offset: init_offset,
+                    data_decompressed: data,
                     mem_recorder: None,
-                    ..Default::default()
                 })
             }
         }
     }
 
     /// Decodes a pack file from a given Read and BufRead source and get a vec of objects.
-    ///
-    ///
     pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Send), callback: F) -> Result<(), GitError>
     where
         F: Fn(Entry, usize) + Sync + Send + 'static
@@ -353,7 +340,7 @@ impl Pack {
         let mut offset: usize = 12;
         let mut i = 0;
         while i < self.number {
-            // log per 2000&more then 1 se objects
+            // log per 1000 objects and 1 second
             if i%1000 == 0 {
                 let time_now = time.elapsed().as_millis();
                 if time_now - last_update_time > 1000 {
@@ -363,7 +350,8 @@ impl Pack {
             }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
-            while self.memory_used() > self.mem_limit || self.pool.queued_count() > 2000 {
+            while self.pool.queued_count() > 2000 
+                || self.mem_limit.map(|limit| self.memory_used() > limit).unwrap_or(false) {
                 thread::yield_now();
             }
             let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
@@ -384,30 +372,28 @@ impl Pack {
                     let caches = caches.clone();
                     let waitlist = self.waitlist.clone();
                     self.pool.execute(move || {
-                        match obj.obj_type {
-                            ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
+                        match obj.info {
+                            CacheObjectInfo::BaseObject(_, _) => {
                                 Self::cache_obj_and_process_waitlist(params, obj);
                             },
-                            ObjectType::OffsetDelta => {
-                                if let Some(base_obj) = caches.get_by_offset(obj.base_offset) {
+                            CacheObjectInfo::OffsetDelta(base_offset, _) => {
+                                if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
                                     // You can delete this 'if' block ↑, because there are Second check in 'else'
                                     // It will be more readable, but the performance will be slightly reduced
-                                    let base_offset = obj.base_offset;
-                                    waitlist.insert_offset(obj.base_offset, obj);
+                                    waitlist.insert_offset(base_offset, obj);
                                     // Second check: prevent that the base_obj thread has finished before the waitlist insert
                                     if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                         Self::process_waitlist(params, base_obj);
                                     }
                                 }
                             },
-                            ObjectType::HashDelta => {
-                                if let Some(base_obj) = caches.get_by_hash(obj.base_ref) {
+                            CacheObjectInfo::HashDelta(base_ref, _) => {
+                                if let Some(base_obj) = caches.get_by_hash(base_ref) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
-                                    let base_ref = obj.base_ref;
-                                    waitlist.insert_ref(obj.base_ref, obj);
+                                    waitlist.insert_ref(base_ref, obj);
                                     if let Some(base_obj) = caches.get_by_hash(base_ref) {
                                         Self::process_waitlist(params, base_obj);
                                     }
@@ -528,12 +514,12 @@ impl Pack {
     /// Cache the new object & process the objects waiting for it (in multi-threading).
     fn cache_obj_and_process_waitlist(shared_params: Arc<SharedParams>, new_obj: CacheObject) {
         (shared_params.callback)(new_obj.to_entry(), new_obj.offset);
-        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.hash, new_obj);
+        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.base_object_hash().unwrap(), new_obj);
         Self::process_waitlist(shared_params, new_obj);
     }
 
     fn process_waitlist(shared_params: Arc<SharedParams>, base_obj: Arc<CacheObject>) {
-        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.hash);
+        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.base_object_hash().unwrap());
         for obj in wait_objs {
             // Process the objects waiting for the new object(base_obj = new_obj)
             Self::process_delta(shared_params.clone(), obj, base_obj.clone());
@@ -548,18 +534,17 @@ impl Pack {
         const COPY_SIZE_BYTES: u8 = 3;
         const COPY_ZERO_SIZE: usize = 0x10000;
 
-        let mut stream = Cursor::new(&delta_obj.data_decompress);
+        let mut stream = Cursor::new(&delta_obj.data_decompressed);
 
-        // Read the base object size & Result Size
+        // Read the base object size
         // (Size Encoding)
-        let base_size = utils::read_varint_le(&mut stream).unwrap().0;
-        let result_size = utils::read_varint_le(&mut stream).unwrap().0;
+        let (base_size, result_size) = utils::read_delta_object_size(&mut stream).unwrap();
 
         //Get the base object row data
-        let base_info = &base_obj.data_decompress;
-        assert_eq!(base_info.len() as u64, base_size);
+        let base_info = &base_obj.data_decompressed;
+        assert_eq!(base_info.len(), base_size, "Base object size mismatch");
 
-        let mut result = Vec::with_capacity(result_size as usize);
+        let mut result = Vec::with_capacity(result_size);
 
         loop {
             // Check if the stream has ended, meaning the new object is done
@@ -611,16 +596,15 @@ impl Pack {
                 }
             }
         }
-        assert_eq!(result_size, result.len() as u64);
+        assert_eq!(result_size, result.len(), "Result size mismatch");
 
-        let hash = utils::calculate_object_hash(base_obj.obj_type, &result);
+        let hash = utils::calculate_object_hash(base_obj.object_type(), &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
         CacheObject {
-            data_decompress: result,
-            obj_type: base_obj.obj_type, // Same as the Type of base object
-            hash,
-            mem_recorder: None, // This filed(Arc) can't be moved from `delta_obj` by `struct update syntax`
-            ..delta_obj // This syntax is actually move `delta_obj` to `new_obj`
+            info: CacheObjectInfo::BaseObject(base_obj.object_type(), hash),
+            offset: delta_obj.offset,
+            data_decompressed: result,
+            mem_recorder: None,
         } // Canonical form (Complete Object)
         // mem_size recorder will be set later outside, to keep this func param clear
     }
@@ -707,6 +691,19 @@ mod tests {
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
         p.decode(&mut buffered,|_,_|{}).unwrap();
+    }
+
+    #[test]
+    fn test_pack_decode_no_mem_limit() {
+        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
+
+        let tmp = PathBuf::from("/tmp/.cache_temp");
+
+        let f = fs::File::open(source).unwrap();
+        let mut buffered = BufReader::new(f);
+        let mut p = Pack::new(None, None, Some(tmp), true);
+        p.decode(&mut buffered, |_,_|{}).unwrap();
     }
 
     #[test]

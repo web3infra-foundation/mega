@@ -26,7 +26,6 @@ use crate::internal::object::types::ObjectType;
 /// allows for easier adaptation to different hash algorithms while keeping the underlying implementation consistent and
 /// understandable. - Nov 26, 2023 (by @genedna)
 ///
-#[allow(unused)]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Deserialize, Serialize,
 )]
@@ -92,8 +91,8 @@ impl SHA1 {
     // The size of the SHA-1 hash value in bytes
     pub const SIZE: usize = 20;
 
-    /// Calculate the SHA-1 hash of [`Vec<u8>`] data, then create a Hash value
-    pub fn new(data: &Vec<u8>) -> SHA1 {
+    /// Calculate the SHA-1 hash of the byte slice, then create a Hash value
+    pub fn new(data: &[u8]) -> SHA1 {
         let h = sha1::Sha1::digest(data);
         SHA1::from_bytes(h.as_slice())
     }
@@ -152,7 +151,7 @@ mod tests {
         let data = "Hello, world!".as_bytes();
 
         // Generate SHA1 hash from the input data
-        let sha1 = SHA1::new(&data.to_vec());
+        let sha1 = SHA1::new(data);
 
         // Known SHA1 hash for "Hello, world!"
         let expected_sha1_hash = "943a702d06f34599aee1f8da8ef9f7296031d699";
