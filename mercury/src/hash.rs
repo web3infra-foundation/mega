@@ -39,6 +39,7 @@ impl Display for SHA1 {
         write!(f, "{}", hex::encode(self.0))
     }
 }
+
 impl AsRef<[u8]> for SHA1 {
     fn as_ref(&self) -> &[u8] {
         &self.0
