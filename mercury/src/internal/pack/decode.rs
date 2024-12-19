@@ -23,9 +23,10 @@ use crate::internal::pack::cache::_Cache;
 use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
-use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
+use crate::internal::pack::{utils, Pack};
 use crate::internal::pack::channel_reader::ChannelReader;
 use crate::internal::pack::entry::Entry;
+use crate::MERCURY_DEFAULT_TMP_DIR;
 
 use super::cache_object::CacheObjectInfo;
 
@@ -53,12 +54,12 @@ impl Pack {
     /// - `mem_limit`: The maximum size of the memory cache in bytes, or None for unlimited.
     ///   The 80% of it will be used for [Caches]  <br>
     ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
-    /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
+    /// - `temp_path`: The path to a directory for temporary files, default is [`MERCURY_DEFAULT_TMP_DIR`].
     ///   For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
     /// - `clean_tmp`: whether to remove temp dir
     ///
     pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>, clean_tmp: bool) -> Self {
-        let mut temp_path = temp_path.unwrap_or(PathBuf::from(DEFAULT_TMP_DIR));
+        let mut temp_path = temp_path.unwrap_or(PathBuf::from(MERCURY_DEFAULT_TMP_DIR));
         // add 8 random characters as subdirectory, check if the directory exists
         loop {
             let sub_dir = Uuid::new_v4().to_string()[..8].to_string();
@@ -628,6 +629,8 @@ mod tests {
     use crate::internal::pack::Pack;
     use futures_util::TryStreamExt;
 
+    use super::MERCURY_DEFAULT_TMP_DIR;
+
     #[test]
     fn test_pack_check_header() {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
@@ -669,7 +672,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
 
-        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let tmp = PathBuf::from(MERCURY_DEFAULT_TMP_DIR);
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
@@ -685,8 +688,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/ref-delta-65d47638aa7cb7c39f1bd1d5011a415439b887a8.pack");
 
-        let tmp = PathBuf::from("/tmp/.cache_temp");
-
+        let tmp = PathBuf::from(MERCURY_DEFAULT_TMP_DIR);
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
@@ -698,7 +700,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-1d0e6c14760c956c173ede71cb28f33d921e232f.pack");
 
-        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let tmp = PathBuf::from(MERCURY_DEFAULT_TMP_DIR);
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
@@ -713,7 +715,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
-        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let tmp = PathBuf::from(MERCURY_DEFAULT_TMP_DIR);
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
@@ -733,7 +735,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
-        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let tmp = PathBuf::from(MERCURY_DEFAULT_TMP_DIR);
         let f = tokio::fs::File::open(source).await.unwrap();
         let stream = ReaderStream::new(f).map_err(|e| {
             axum::Error::new(e)
@@ -763,7 +765,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
-        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let tmp = PathBuf::from(MERCURY_DEFAULT_TMP_DIR);
         let f = fs::File::open(source).unwrap();
         let buffered = BufReader::new(f);
         let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
@@ -783,7 +785,7 @@ mod tests {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/pack-d50df695086eea6253a237cb5ac44af1629e7ced.pack");
 
-        let tmp = PathBuf::from("/tmp/.cache_temp");
+        let tmp = PathBuf::from(MERCURY_DEFAULT_TMP_DIR);
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);

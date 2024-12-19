@@ -21,7 +21,6 @@ use crate::internal::object::ObjectTrait;
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::waitlist::Waitlist;
 
-const DEFAULT_TMP_DIR: &str = "./.cache_temp";
 pub struct Pack {
     pub number: usize,
     pub signature: SHA1,
