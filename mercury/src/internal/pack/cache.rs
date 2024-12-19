@@ -87,12 +87,15 @@ impl Caches {
 
     /// generate the temp file path, hex string of the hash
     fn generate_temp_path(&self, tmp_path: &Path, hash: SHA1) -> PathBuf {
-        let mut path = tmp_path.to_path_buf();
-        path.push(&hash.to_string()[..2]); // use first 2 chars as the directory
+        // This is enough for the original path, 2 chars directory, 40 chars hash, and extra slashes
+        let mut path = PathBuf::with_capacity(self.tmp_path.capacity() + SHA1::SIZE * 2 + 5); 
+        path.push(tmp_path);
+        let hash_str = hash._to_string();
+        path.push(&hash_str[..2]); // use first 2 chars as the directory
         self.path_prefixes[hash.as_ref()[0] as usize].call_once(|| {
             fs::create_dir(&path).unwrap();
         });
-        path.push(hash.to_string());
+        path.push(hash_str);
         path
     }
 
