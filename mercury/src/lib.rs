@@ -9,6 +9,11 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
+#[cfg(not(target_os = "windows"))]
+pub(crate) const MERCURY_DEFAULT_TMP_DIR: &str = "/tmp/.cache_temp";
+#[cfg(target_os = "windows")]
+pub(crate) const MERCURY_DEFAULT_TMP_DIR: &str = "%TEMP%\\.cache_temp";
+
 pub mod internal;
 pub mod hash;
 pub mod errors;
