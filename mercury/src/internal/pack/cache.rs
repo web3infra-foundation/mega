@@ -213,7 +213,7 @@ impl _Cache for Caches {
     }
     fn clear(&self) {
         time_it!("Caches clear", {
-            self.complete_signal.store(true, Ordering::SeqCst);
+            self.complete_signal.store(true, Ordering::Release);
             self.pool.join();
             self.lru_cache.lock().unwrap().clear();
             self.hash_set.clear();
