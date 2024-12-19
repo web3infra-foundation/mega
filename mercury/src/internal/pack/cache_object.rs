@@ -382,7 +382,7 @@ mod test {
                 panic!("Expected WouldEjectLru error");
             }
             let r = cache.insert(
-                hash_a.to_string(),
+                hash_b.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok());
@@ -478,7 +478,7 @@ mod test {
 
     #[test]
     fn test_arc_wrapper_drop_store() {
-        let mut path = PathBuf::from(format!("{}/test_arc_wrapper_drop_store", MERCURY_DEFAULT_TMP_DIR));
+        let mut path = PathBuf::from(MERCURY_DEFAULT_TMP_DIR).join("test_arc_wrapper_drop_store");
         fs::create_dir_all(&path).unwrap();
         path.push("test_obj");
         let mut a = ArcWrapper::new(Arc::new(Test { a: 1024 }), Arc::new(AtomicBool::new(false)), None);
@@ -494,7 +494,7 @@ mod test {
     /// test warpper can't correctly store the data when lru eject it
     fn test_arc_wrapper_with_lru() {
         let mut cache = LruCache::new(1500);
-        let path = PathBuf::from(format!("{}/test_arc_wrapper_with_lru", MERCURY_DEFAULT_TMP_DIR));
+        let path = PathBuf::from(MERCURY_DEFAULT_TMP_DIR).join("test_arc_wrapper_with_lru");
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
         let shared_flag = Arc::new(AtomicBool::new(false));
