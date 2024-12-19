@@ -335,7 +335,7 @@ impl Index {
 }
 
 impl Index {
-    /// Load index, if not exist, return an empty index
+    /// Load index. If it does not exist, return an empty index.
     pub fn load(index_file: impl AsRef<Path>) -> Result<Self, GitError> {
         let path = index_file.as_ref();
         if !path.exists() {

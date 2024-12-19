@@ -102,7 +102,7 @@ impl Drop for CacheObject {
     fn drop(&mut self) {
         // (&*self).heap_size() != self.heap_size()
         if let Some(mem_recorder) = &self.mem_recorder {
-            mem_recorder.fetch_sub((*self).mem_size(), Ordering::SeqCst);
+            mem_recorder.fetch_sub((*self).mem_size(), Ordering::Release);
         }
     }
 }
@@ -129,7 +129,7 @@ impl MemSizeRecorder for CacheObject {
     /// <br> since that, DO NOT modify `CacheObj` after recording
     fn record_mem_size(&self) {
         if let Some(mem_recorder) = &self.mem_recorder {
-            mem_recorder.fetch_add(self.mem_size(), Ordering::SeqCst);
+            mem_recorder.fetch_add(self.mem_size(), Ordering::Release);
         }
     }
 
@@ -138,7 +138,7 @@ impl MemSizeRecorder for CacheObject {
     }
 
     // fn get_mem_size() -> usize {
-    //     CACHE_OBJS_MEM_SIZE.load(Ordering::SeqCst)
+    //     CACHE_OBJS_MEM_SIZE.load(Ordering::Acquire)
     // }
 }
 
@@ -269,7 +269,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
     // `drop` will be called in `lru_cache.insert()` when cache full & eject the LRU
     // `lru_cache.insert()` is protected by Mutex
     fn drop(&mut self) {
-        if !self.complete_signal.load(Ordering::SeqCst) {
+        if !self.complete_signal.load(Ordering::Acquire) {
             if let Some(path) = &self.store_path {
                 match &self.pool {
                     Some(pool) => {
@@ -282,7 +282,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                             std::thread::yield_now();
                         }
                         pool.execute(move || {
-                            if !complete_signal.load(Ordering::SeqCst) {
+                            if !complete_signal.load(Ordering::Acquire) {
                                 let res = data_copy.store(&path_copy);
                                 if let Err(e) = res {
                                     println!("[f_save] {:?} error: {:?}", path_copy, e);
@@ -529,7 +529,7 @@ mod test {
         }
         assert!(a_path.exists());
         assert!(!b_path.exists());
-        shared_flag.store(true, Ordering::SeqCst);
+        shared_flag.store(true, Ordering::Release);
         fs::remove_dir_all(path).unwrap();
         // should pass even b's path not exists
     }
