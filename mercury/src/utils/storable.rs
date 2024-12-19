@@ -13,20 +13,20 @@
 //! ## Examples
 //!
 //! ### Using `DefaultFileStorageStrategy`
-//! 
+//!
 //! If you have a struct that implements `Serialize` and `Deserialize`, you can use
 //! [`Storable`] for free by specifying the `Location` type as `Path` and the `Strategy`
 //! as `DefaultFileStorageStrategy`:
-//! 
+//!
 //! ```rust
 //! use std::path::Path;
 //! use serde::{Serialize, Deserialize};
-//! 
+//!
 //! #[derive(Serialize, Deserialize)]
 //! struct MyData {
 //!    value: i32,
 //! }
-//! 
+//!
 //! impl Storable for MyData {
 //!    type Location = Path;
 //!    type Strategy = DefaultFileStorageStrategy;
@@ -260,23 +260,23 @@ impl<T> StorageStrategy<T> for DefaultFileStorageStrategy
 where
     T: Serialize + for<'de> Deserialize<'de> + Storable<Location = Path>,
 {
-    fn load(location: &T::Location) -> Result<T, io::Error> {
+    fn load(location: &Path) -> Result<T, io::Error> {
         let data = fs::read(location)?;
-        let obj: T =
+        let obj =
             bincode::deserialize(&data).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         Ok(obj)
     }
 
-    fn store(obj: &T, location: &T::Location) -> Result<(), io::Error> {
+    fn store(obj: &T, location: &Path) -> Result<(), io::Error> {
         if location.exists() {
             return Ok(());
         }
-        let data = bincode::serialize(obj).unwrap();
         let tmp_path = location.with_extension("temp");
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&tmp_path)?;
+        let data = bincode::serialize(obj).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         file.write_all(&data)?;
         fs::rename(tmp_path, location)?;
         Ok(())
@@ -304,7 +304,10 @@ mod tests {
     #[test]
     fn test_default_file_storage_strategy() {
         fs::create_dir_all(MERCURY_DEFAULT_TMP_DIR).unwrap();
-        let data = MyData { value: 42, complex_field: (vec![1, 2, 3], "hello".to_string()) };
+        let data = MyData {
+            value: 42,
+            complex_field: (vec![1, 2, 3], "hello".to_string()),
+        };
         let path = PathBuf::from(MERCURY_DEFAULT_TMP_DIR).join("data.bin");
         data.store(&path).unwrap();
         let loaded = MyData::load(&path).unwrap();
@@ -315,7 +318,10 @@ mod tests {
     #[test]
     fn test_arc_indirect_storage_strategy() {
         fs::create_dir_all(MERCURY_DEFAULT_TMP_DIR).unwrap();
-        let data = Arc::new(MyData { value: 42 , complex_field: (vec![1, 2, 3], "hello".to_string()) });
+        let data = Arc::new(MyData {
+            value: 42,
+            complex_field: (vec![1, 2, 3], "hello".to_string()),
+        });
         let path = PathBuf::from(MERCURY_DEFAULT_TMP_DIR).join("arcdata.bin");
         data.store(&path).unwrap();
         let loaded = MyData::load(&path).unwrap();

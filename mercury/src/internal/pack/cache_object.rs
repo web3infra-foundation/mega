@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use threadpool::ThreadPool;
 
 use crate::hash::SHA1;
+use crate::internal::object::types::ObjectType;
 use crate::internal::pack::entry::Entry;
 use crate::internal::pack::utils;
-use crate::internal::object::types::ObjectType;
 use crate::utils::storable::{DefaultFileStorageStrategy, Storable};
 
 // /// record heap-size of all CacheObjects, used for memory limit.
@@ -69,9 +69,9 @@ impl HeapSize for CacheObject {
     /// If a [`CacheObject`] is [`ObjectType::HashDelta`] or [`ObjectType::OffsetDelta`],
     /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
     /// we record the size of the expanded object as well as that of the object itself.
-    /// 
-    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`], 
-    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same 
+    ///
+    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`],
+    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same
     /// as the size of the data.
     ///
     /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
@@ -107,6 +107,7 @@ impl Drop for CacheObject {
     }
 }
 
+/// Allow CacheObject to be stored and loaded to/from a file.
 impl Storable for CacheObject {
     type Location = Path;
     type Strategy = DefaultFileStorageStrategy;
@@ -160,7 +161,7 @@ impl CacheObject {
     }
 
     /// Get the [`SHA1`] hash of the object.
-    /// 
+    ///
     /// If the object is a delta object, return [`None`].
     pub fn base_object_hash(&self) -> Option<SHA1> {
         match &self.info {
@@ -170,7 +171,7 @@ impl CacheObject {
     }
 
     /// Get the offset delta of the object.
-    /// 
+    ///
     /// If the object is not an offset delta, return [`None`].
     pub fn offset_delta(&self) -> Option<usize> {
         match &self.info {
@@ -180,7 +181,7 @@ impl CacheObject {
     }
 
     /// Get the hash delta of the object.
-    /// 
+    ///
     /// If the object is not a hash delta, return [`None`].
     pub fn hash_delta(&self) -> Option<SHA1> {
         match &self.info {
@@ -204,17 +205,10 @@ impl CacheObject {
     }
 }
 
-/// trait alias for simple use
-pub trait ArcWrapperBounds:
-    HeapSize + Storable<Location = Path> + Send + Sync + 'static
-{
-}
-// You must impl `Alias Trait` for all the `T` satisfying Constraints
-// Or, `T` will not satisfy `Alias Trait` even if it satisfies the Original traits
-impl<T: HeapSize + Storable<Location = Path> + Send + Sync + 'static> ArcWrapperBounds
-    for T
-{
-}
+/// trait alias for simplicity
+pub trait ArcWrapperBounds: HeapSize + Storable<Location = Path> + Send + Sync + 'static {}
+// Auto implement the trait alias for all types that implement the required traits
+impl<T: HeapSize + Storable<Location = Path> + Send + Sync + 'static> ArcWrapperBounds for T {}
 
 /// Implementing encapsulation of Arc to enable third-party Trait HeapSize implementation for the Arc type
 /// Because of use Arc in LruCache, the LruCache is not clear whether a pointer will drop the referenced
@@ -225,6 +219,7 @@ pub struct ArcWrapper<T: ArcWrapperBounds> {
     pool: Option<Arc<ThreadPool>>,
     pub store_path: Option<PathBuf>, // path to store when drop
 }
+
 impl<T: ArcWrapperBounds> ArcWrapper<T> {
     /// Create a new ArcWrapper
     pub fn new(data: Arc<T>, share_flag: Arc<AtomicBool>, pool: Option<Arc<ThreadPool>>) -> Self {
@@ -285,7 +280,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                             if !complete_signal.load(Ordering::Acquire) {
                                 let res = data_copy.store(&path_copy);
                                 if let Err(e) = res {
-                                    println!("[f_save] {:?} error: {:?}", path_copy, e);
+                                    eprintln!("[{}] Error while storing {:?}: {:?}", std::any::type_name::<Self>(), path_copy, e);
                                 }
                             }
                         });
@@ -293,7 +288,7 @@ impl<T: ArcWrapperBounds> Drop for ArcWrapper<T> {
                     None => {
                         let res = self.data.store(path);
                         if let Err(e) = res {
-                            println!("[f_save] {:?} error: {:?}", path, e);
+                            eprintln!("[{}] Error while storing {:?}: {:?}", std::any::type_name::<Self>(), path, e);
                         }
                     }
                 }
@@ -307,6 +302,7 @@ mod test {
 
     use lru_mem::LruCache;
 
+    use crate::utils::storable::DefaultFileStorageStrategy;
     use crate::MERCURY_DEFAULT_TMP_DIR;
 
     use super::*;
@@ -346,7 +342,7 @@ mod test {
     #[test]
     fn test_cache_object_with_lru() {
         let mut cache = LruCache::new(2048);
-        
+
         let hash_a = SHA1::default();
         let hash_b = SHA1::new(b"b"); // whatever different hash
         let a = CacheObject {
@@ -481,7 +477,11 @@ mod test {
         let mut path = PathBuf::from(MERCURY_DEFAULT_TMP_DIR).join("test_arc_wrapper_drop_store");
         fs::create_dir_all(&path).unwrap();
         path.push("test_obj");
-        let mut a = ArcWrapper::new(Arc::new(Test { a: 1024 }), Arc::new(AtomicBool::new(false)), None);
+        let mut a = ArcWrapper::new(
+            Arc::new(Test { a: 1024 }),
+            Arc::new(AtomicBool::new(false)),
+            None,
+        );
         a.set_store_path(path.clone());
         drop(a);
 
