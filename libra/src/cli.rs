@@ -1,7 +1,7 @@
 //! This is the main entry point for the Libra.
 //! It includes the definition of the CLI and the main function.
 //!
-//!
+//!use clap::Arg;
 use clap::{Parser, Subcommand};
 use mercury::errors::GitError;
 use crate::command;
@@ -61,6 +61,8 @@ enum Commands {
 
     #[command(subcommand, about = "Manage set of tracked repositories")]
     Remote(command::remote::RemoteCmds),
+    #[command(about = "Manage repository configurations")]
+    Config(command::config::ConfigArgs),
 
     // other hidden commands
     #[command(
@@ -111,6 +113,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Diff(args) => command::diff::execute(args).await,
         Commands::Remote(cmd) => command::remote::execute(cmd).await,
         Commands::Pull(args) => command::pull::execute(args).await,
+        Commands::Config(args) => command::config::execute(args).await,
     }
     Ok(())
 }
