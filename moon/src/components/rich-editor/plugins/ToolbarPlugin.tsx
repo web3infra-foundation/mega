@@ -82,7 +82,7 @@ export default function ToolbarPlugin() {
   }, [editor, $updateToolbar]);
 
   return (
-    <div className="toolbar" ref={toolbarRef}>
+    <div className="toolbar overflow-y-auto" ref={toolbarRef}>
       <button
         disabled={!canUndo}
         onClick={() => {
