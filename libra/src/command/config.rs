@@ -72,7 +72,7 @@ pub async fn execute(args: ConfigArgs) {
 async fn parse_key(mut origin_key: String) -> Key {
     let configuration: String;
     let name: Option<String>;
-    let key: String;
+    let key = origin_key;
     (configuration, origin_key) = match origin_key.split_once(".") {
         Some((first_part, remainer)) => (
             first_part.to_string(), 
@@ -92,7 +92,6 @@ async fn parse_key(mut origin_key: String) -> Key {
             origin_key
         )
     };
-    key = origin_key;
     Key {
         configuration, name, key
     }
