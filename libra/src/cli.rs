@@ -1,7 +1,7 @@
 //! This is the main entry point for the Libra.
 //! It includes the definition of the CLI and the main function.
 //!
-//!use clap::Arg;
+//!
 use clap::{Parser, Subcommand};
 use mercury::errors::GitError;
 use crate::command;
