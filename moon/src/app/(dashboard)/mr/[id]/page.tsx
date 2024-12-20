@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 
 interface MRDetail {
     status: string,
-    conversions: Conversation[],
+    conversations: Conversation[],
     title: string,
 }
 interface Conversation {
@@ -37,7 +37,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
     const [mrDetail, setMrDetail] = useState<MRDetail>(
         {
             status: "",
-            conversions: [],
+            conversations: [],
             title: "",
         }
     );
@@ -149,7 +149,7 @@ export default function MRDetailPage({ params }: { params: Params }) {
         }
     }
 
-    let conv_items = mrDetail?.conversions.map(conv => {
+    let conv_items = mrDetail?.conversations.map(conv => {
         let icon;
         let children;
         switch (conv.conv_type) {
