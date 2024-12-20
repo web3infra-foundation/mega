@@ -5,6 +5,8 @@ import { TreeStoreProvider } from '@/app/providers/tree-store-providers';
 
 import { GoogleAnalytics } from "@next/third-parties/google";
 
+const google_analytics_id = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || '';
+
 export const metadata: Metadata = {
   title: {
     template: '%s - Mega',
@@ -32,7 +34,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
         </TreeStoreProvider>
       </body>
 
-      <GoogleAnalytics gaId="G-WCSCZGFL72" />
+      <GoogleAnalytics gaId={google_analytics_id} />
     </html>
   )
 }

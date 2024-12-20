@@ -40,7 +40,7 @@ pub struct MRDetail {
     pub status: String,
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
-    pub conversions: Vec<MegaConversion>,
+    pub conversations: Vec<MegaConversation>,
 }
 
 impl From<mega_mr::Model> for MRDetail {
@@ -52,13 +52,13 @@ impl From<mega_mr::Model> for MRDetail {
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
             merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),
-            conversions: vec![],
+            conversations: vec![],
         }
     }
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MegaConversion {
+pub struct MegaConversation {
     pub id: i64,
     pub user_id: i64,
     pub conv_type: String,
@@ -67,7 +67,7 @@ pub struct MegaConversion {
     pub updated_at: i64,
 }
 
-impl From<mega_conversation::Model> for MegaConversion {
+impl From<mega_conversation::Model> for MegaConversation {
     fn from(value: mega_conversation::Model) -> Self {
         Self {
             id: value.id,
@@ -78,4 +78,16 @@ impl From<mega_conversation::Model> for MegaConversion {
             updated_at: value.updated_at.and_utc().timestamp(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct FilesChangedItem {
+    pub path: String,
+    pub status: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct FilesChangedList {
+    pub files: Vec<FilesChangedItem>,
+    pub content: String,
 }
