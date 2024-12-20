@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 
 interface IssueDetail {
     status: string,
-    conversions: Conversation[],
+    conversations: Conversation[],
     title: string,
 }
 interface Conversation {
@@ -30,7 +30,7 @@ export default function IssueDetailPage({ params }: { params: Params }) {
     const [info, setInfo] = useState<IssueDetail>(
         {
             status: "",
-            conversions: [],
+            conversations: [],
             title: "",
         }
     );
@@ -106,7 +106,7 @@ export default function IssueDetailPage({ params }: { params: Params }) {
         }
     }
 
-    const conv_items = info?.conversions.map(conv => {
+    const conv_items = info?.conversations.map(conv => {
         let icon;
         let children;
         switch (conv.conv_type) {

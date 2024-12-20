@@ -56,8 +56,8 @@ async fn issue_detail(
         Ok(data) => {
             if let Some(model) = data {
                 let mut detail: IssueDetail = model.into();
-                let conversions = state.mr_stg().get_mr_conversations(&link).await.unwrap();
-                detail.conversions = conversions.into_iter().map(|x| x.into()).collect();
+                let conversations = state.mr_stg().get_mr_conversations(&link).await.unwrap();
+                detail.conversations = conversations.into_iter().map(|x| x.into()).collect();
                 CommonResult::success(Some(detail))
             } else {
                 CommonResult::success(None)
