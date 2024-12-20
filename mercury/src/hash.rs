@@ -11,7 +11,7 @@ use sha1::Digest;
 
 use crate::internal::object::types::ObjectType;
 
-/// The `SHA1` struct, encapsulating a `[u8; 20]` array, is specifically designed to represent Git hash IDs.
+/// The [`SHA1`] struct, encapsulating a `[u8; 20]` array, is specifically designed to represent Git hash IDs.
 /// In Git's context, these IDs are 40-character hexadecimal strings generated via the SHA-1 algorithm.
 /// Each Git object receives a unique hash ID based on its content, serving as an identifier for its location
 /// within the Git internal database. Utilizing a dedicated struct for these hash IDs enhances code readability and
@@ -31,24 +31,21 @@ use crate::internal::object::types::ObjectType;
 )]
 pub struct SHA1(pub [u8; 20]);
 
-/// Display trait for SHA1, and colored output improve the readability in the terminal.
+/// Display trait for SHA1.
 impl Display for SHA1 {
-    /// # Attention
-    /// cause of the color chars for ,if you want to use the string without color ,
-    /// please call the func:`to_string()` rather than the func:`to_string()`
-    /// # Example
-    ///  the hash value `18fd2deaaf152c7f1222c52fb2673f6192b375f0`<br>
-    ///  will be the `1;31m8d2deaaf152c7f1222c52fb2673f6192b375f00m`
+    /// Allows [`SHA1::to_string()`] to be used.
+    /// Note: If you want a terminal-friendly colorized output, use [`SHA1::to_color_str()`].
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0))
     }
 }
+
 impl AsRef<[u8]> for SHA1 {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
-/// Implementation of the `FromStr` trait for the `SHA1` type.
+/// Implementation of the [`std::str::FromStr`] trait for the [`SHA1`] type.
 ///
 /// To effectively use the `from_str` method for converting a string to a `SHA1` object, consider the following:
 ///   1. The input string `s` should be a pre-calculated hexadecimal string, exactly 40 characters in length. This string
@@ -134,6 +131,12 @@ impl SHA1 {
     /// Export sha1 value to a byte array
     pub fn to_data(self) -> Vec<u8> {
         self.0.to_vec()
+    }
+
+    /// [`core::fmt::Display`] is somewhat expensive, 
+    /// use this hack to get a string more efficiently
+    pub fn _to_string(&self) -> String {
+        hex::encode(self.0)
     }
 }
 
