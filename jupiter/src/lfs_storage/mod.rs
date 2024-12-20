@@ -12,14 +12,6 @@ use crate::lfs_storage::local_storage::LocalStorage;
 
 pub mod local_storage;
 
-#[derive(Debug, Clone, Default)]
-pub struct BlobLink {
-    pub version: String,
-    pub object_type: String,
-    pub storage_type: String,
-    pub storge_location: String,
-}
-
 #[async_trait]
 pub trait LfsStorage: Sync + Send {
     async fn get_ref(&self, repo_id: i64, ref_name: &str) -> Result<String, MegaError>;

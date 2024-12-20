@@ -1,7 +1,7 @@
 use callisto::mega_issue;
 use serde::{Deserialize, Serialize};
 
-use crate::api::mr::MegaConversion;
+use crate::api::mr::MegaConversation;
 
 pub mod issue_router;
 
@@ -43,7 +43,7 @@ pub struct IssueDetail {
     pub title: String,
     pub status: String,
     pub open_timestamp: i64,
-    pub conversions: Vec<MegaConversion>,
+    pub conversations: Vec<MegaConversation>,
 }
 
 impl From<mega_issue::Model> for IssueDetail {
@@ -54,7 +54,7 @@ impl From<mega_issue::Model> for IssueDetail {
             title: value.title,
             status: value.status.to_string(),
             open_timestamp: value.created_at.and_utc().timestamp(),
-            conversions: vec![],
+            conversations: vec![],
         }
     }
 }
