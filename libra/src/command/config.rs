@@ -26,7 +26,7 @@ pub struct ConfigArgs {
     #[clap(value_name("key"), required_unless_present("list"))]
     key: Option<String>,
     /// the value or the possible value pattern of the configuration entry
-    #[clap(value_name("value-pattern"), required_unless_present("mode"))]
+    #[clap(value_name("value_pattern"), required_unless_present("mode"))]
     valuepattern: Option<String>,
 }
 
