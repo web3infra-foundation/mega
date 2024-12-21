@@ -175,7 +175,6 @@ impl Config {
     // pub async fn remove_by_section(configuration: &str) {
     //     unimplemented!();
     // }
-
     pub async fn remove_remote(name: &str) -> Result<(), String> {
         let db = get_db_conn_instance().await;
         let remote = config::Entity::find()
