@@ -113,7 +113,33 @@ export const ROUTES: EachRoute[] = [
           {
             title: "Mono Module",
             href: "/mono",
-            items: [{ title: "Protocol API", href: "/protocol" }],
+            items: [
+              { title: "Git Protocol API", href: "/protocol" },
+              {
+                title: "MR Management",
+                href: "/mergerequest",
+                noLink: true,
+                items: [
+                  { title: "Fetch MR List", href: "/fetch-mr" },
+                  { title: "Merge MR", href: "/merge-mr" },
+                  { title: "Close MR", href: "/close-mr" },
+                  { title: "Reopen MR", href: "/reopen-mr" },
+                  { title: "Files Changed", href: "/files-changed" },
+                  { title: "MR Deatil", href: "/detail" },
+                  { title: "Comment", href: "/comment" },
+                  { title: "Delete Comment", href: "/delete-comment" },
+                ]
+              },
+              {
+                title: "Code Preview",
+                href: "/code-preview",
+                noLink: true,
+                items: [
+                  { title: "Tree", href: "/tree" },
+                  { title: "Blob", href: "/blob" },
+                ]
+              }
+            ]
           },
           { title: "Mega Module", href: "/mega" },
         ],
