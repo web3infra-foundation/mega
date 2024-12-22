@@ -42,12 +42,12 @@ pub struct TagArgs {
 }
 
 pub async fn execute(args: TagArgs) {
-    if args.tag_name.is_some() {
+    if args.delete {
+        delete_tag(args.tag_name.unwrap()).await;
+    } else if args.tag_name.is_some() {
         create_tag(args.tag_name.unwrap(), args.commit_hash).await;
     } else if args.annotate.is_some() {
         create_annotated_tag(args.annotate.unwrap(), args.message,  args.commit_hash).await;
-    } else if args.delete {
-        delete_tag(args.tag_name.unwrap()).await;
     } else if args.list {
         // default behavior
         list_tags().await;
@@ -109,14 +109,16 @@ async fn create_annotated_tag(tag_name: String, message: Option<String>, commit_
         }
         None => Head::current_commit().await.unwrap(),
     };
-    let author = config::Config::get("user", None, "name").await.unwrap();
-    let email = config::Config::get("user", None, "email").await.unwrap();
+    //let author = config::Config::get("user", None, "name").await.unwrap();
+    //let email = config::Config::get("user", None, "email").await.unwrap();
+    let author = "hemu";
+    let email = "hemu@buaa.edu.cn";
     let tag = Tag {
         id: SHA1::default(),
         object_hash: commit_id,
         object_type: ObjectType::Tag,
         tag_name: tag_name,
-        tagger: Signature::new(SignatureType::Tagger, author, email),
+        tagger: Signature::new(SignatureType::Tagger, author.to_owned(), email.to_owned()),
         message: message.unwrap_or_else(|| "".to_string()),
     };
     save_object(&tag, &tag.id).unwrap();
