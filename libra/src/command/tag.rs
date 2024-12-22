@@ -17,11 +17,11 @@ pub struct TagArgs {
     list: bool,
 
     /// Name of the tag to create, delete, or inspect
-    #[clap(short = 'n', long, group = "sub")]
+    #[clap(short = 'n', long, group = "sub", group = "create")]
     new_tag: Option<String>,
 
     /// Create a new tag (lightweight or annotated)
-    #[clap(short = 'a', long, group = "sub")]
+    #[clap(short = 'a', long, group = "sub", group = "create")]
     annotate: Option<String>,
 
     /// The message for an annotated tag
@@ -37,10 +37,7 @@ pub struct TagArgs {
     show: bool,
 
     /// Commit hash or tag name to tag (default is HEAD)
-    #[clap(requires_ifs([
-        ("new_tag", "commit_hash"),
-        ("annotate", "commit_hash")
-    ]))]
+    #[clap(requires = "create")]
     commit_hash: Option<String>,
 }
 
@@ -100,7 +97,7 @@ pub async fn create_tag(new_tag: String, commit_hash: Option<String>){
 
 
 async fn create_annotated_tag(new_tag: String, message: Option<String>, commit_hash: Option<String>) {
-    create_tag(new_tag.clone(), commit_hash.clone());
+    create_tag(new_tag.clone(), commit_hash.clone()).await;
     let commit_id = match commit_hash {
         Some(commit_hash) => {
             let commit = get_target_commit(&commit_hash).await;
