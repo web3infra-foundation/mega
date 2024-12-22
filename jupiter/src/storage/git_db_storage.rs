@@ -23,7 +23,7 @@ pub struct GitDbStorage {
 
 #[derive(Debug)]
 struct GitObjects {
-    pub commits: Vec<git_commit::ActiveModel>,
+    commits: Vec<git_commit::ActiveModel>,
     trees: Vec<git_tree::ActiveModel>,
     blobs: Vec<git_blob::ActiveModel>,
     raw_blobs: Vec<raw_blob::ActiveModel>,

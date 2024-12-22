@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::mem::swap;
 
 use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter};
 
 use crate::internal::db::get_db_conn_instance;
 use crate::internal::head::Head;
@@ -38,11 +38,37 @@ impl Config {
         config.save(db).await.unwrap();
     }
 
+    // Update one configuration entry in database using given configuration, name, key and value
+    pub async fn update(configuration: &str, name: Option<&str>, key: &str, value: &str) -> Model {
+        let db = get_db_conn_instance().await;
+        let mut config: ActiveModel = config::Entity::find()
+            .filter(config::Column::Configuration.eq(configuration))
+            .filter(
+                match name {
+                    Some(str) => config::Column::Name.eq(str),
+                    None => config::Column::Name.is_null()
+                }
+            )
+            .filter(config::Column::Key.eq(key))
+            .one(db)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+        config.value = Set(value.to_owned());
+        config.update(db).await.unwrap()
+    }
+
     async fn query(configuration: &str, name: Option<&str>, key: &str) -> Vec<Model> {
         let db = get_db_conn_instance().await;
         config::Entity::find()
             .filter(config::Column::Configuration.eq(configuration))
-            .filter(config::Column::Name.eq(name))
+            .filter(
+                match name {
+                    Some(str) => config::Column::Name.eq(str),
+                    None => config::Column::Name.is_null()
+                }
+            )
             .filter(config::Column::Key.eq(key))
             .all(db)
             .await
@@ -101,6 +127,54 @@ impl Config {
             .collect()
     }
 
+    /// Get literally all the entries in database without any filtering
+    pub async fn list_all() -> Vec<(String, String)> {
+        let db = get_db_conn_instance().await;
+        config::Entity::find()
+            .all(db)
+            .await
+            .unwrap()
+            .iter()
+            .map(|m| 
+                (
+                    match &m.name {
+                        Some(n) => m.configuration.to_owned() + "." + n + "." + &m.key,
+                        None => m.configuration.to_owned() + "." + &m.key
+                    },
+                    m.value.to_owned()
+                )
+            )
+            .collect()
+    }
+
+    /// Delete one or all configuration using given key and value pattern
+    pub async fn remove_config(configuration: &str, name: Option<&str>, key: &str, valuepattern: Option<&str>, delete_all: bool) {
+        let db = get_db_conn_instance().await;
+        let entries: Vec<Model> = Self::query(configuration, name, key).await;
+        for e in entries {
+            let _res = match valuepattern {
+                Some(vp) => {
+                    if e.value.contains(vp) {
+                        e.delete(db).await
+                    }
+                    else {
+                        continue;
+                    }
+                }
+                None => {
+                    e.delete(db).await
+                }
+            };
+            if !delete_all {
+                break;
+            }
+        }
+    }
+
+    /// Delete all the configuration entries using given configuration field (--remove-section)
+    // pub async fn remove_by_section(configuration: &str) {
+    //     unimplemented!();
+    // }
     pub async fn remove_remote(name: &str) -> Result<(), String> {
         let db = get_db_conn_instance().await;
         let remote = config::Entity::find()

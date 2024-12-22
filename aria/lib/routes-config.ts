@@ -19,6 +19,18 @@ export const ROUTES: EachRoute[] = [
     ],
   },
   {
+    title: "Development",
+    href: "/development",
+    noLink: true,
+    items: [
+      { title: "Quick Start", href: "/quick-start" },
+      { title: "Config File", href: "/config-file" },
+      { title: "Test", href: "/test" },
+      { title: "Code Guide", href: "/code-guideline" },
+      { title: "Database", href: "/database" },
+    ]
+  },
+  {
     title: "Libra",
     href: "/libra",
     items: [
@@ -67,6 +79,15 @@ export const ROUTES: EachRoute[] = [
     ],
   },
   {
+    title: "Licese",
+    href: "/license",
+    noLink: true,
+    items: [
+      { title: "LICENSE-APACHE", href: "/apache" },
+      { title: "LICENSE-MIT", href: "/mit" },
+    ],
+  },
+  {
     title: "Components",
     href: "/components",
     items: [
@@ -98,7 +119,11 @@ export const ROUTES: EachRoute[] = [
         title: "API Reference",
         href: "/api",
         items: [
-          { title: "Mono Module", href: "/mono" },
+          {
+            title: "Mono Module", href: "/mono", items: [
+              { title: "Protocol API", href: "/protocol" }
+            ]
+          },
           { title: "Mega Module", href: "/mega" },
         ],
       },
@@ -108,6 +133,11 @@ export const ROUTES: EachRoute[] = [
     title: "Git",
     href: "/git",
     items: [{ title: "Pack", href: "/pack" }],
+  },
+
+  {
+    title: "Deployment",
+    href: "/deployment",
   },
 ];
 
