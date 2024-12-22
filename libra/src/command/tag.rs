@@ -115,9 +115,9 @@ async fn create_annotated_tag(tag_name: String, message: Option<String>, commit_
         id: SHA1::default(),
         object_hash: commit_id,
         object_type: ObjectType::Tag,
-        tag_name: tag_name,
+        tag_name,
         tagger: Signature::new(SignatureType::Tagger, author.to_owned(), email.to_owned()),
-        message: message.unwrap_or_else(|| "".to_string()),
+        message: message.unwrap_or_default()
     };
     save_object(&tag, &tag.id).unwrap();
 }
@@ -139,7 +139,7 @@ async fn list_tags() {
 
 
 
-fn is_valid_git_tag_name(tag_name: &String) -> bool {
+fn is_valid_git_tag_name(tag_name: &str) -> bool {
     // Check for empty or invalid length
     if tag_name.is_empty() || tag_name.len() > 255 {
         return false;
@@ -149,7 +149,7 @@ fn is_valid_git_tag_name(tag_name: &String) -> bool {
     let reserved_names = [
         "HEAD", "@", "FETCH_HEAD", "ORIG_HEAD", "MERGE_HEAD", "REBASE_HEAD",
     ];
-    if reserved_names.contains(&tag_name.as_str()) {
+    if reserved_names.contains(&tag_name) {
         return false;
     }
 
