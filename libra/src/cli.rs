@@ -61,6 +61,8 @@ enum Commands {
 
     #[command(subcommand, about = "Manage set of tracked repositories")]
     Remote(command::remote::RemoteCmds),
+    #[command(about = "Manage repository configurations")]
+    Config(command::config::ConfigArgs),
     #[command(about = "set tag for the current commit")]
     Tag(command::tag::TagArgs),
 
@@ -114,6 +116,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Remote(cmd) => command::remote::execute(cmd).await,
         Commands::Pull(args) => command::pull::execute(args).await,
         Commands::Tag(args) => command::tag::execute(args).await,
+        Commands::Config(args) => command::config::execute(args).await,
     }
     Ok(())
 }
