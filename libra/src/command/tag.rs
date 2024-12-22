@@ -1,11 +1,11 @@
 use crate::{
-    command::get_target_commit, internal::{tag::TagInfo, head::Head}
+    command::get_target_commit, internal::{tag::TagInfo, head::Head}, internal::config
 };
 use clap::Parser;
 use mercury::internal::object::{commit::Commit, signature::SignatureType, tag::Tag, types::ObjectType};
 use mercury::internal::object::signature::Signature;
 use mercury::hash::SHA1;
-use libra::internal::config::get;
+
 
 use crate::command::load_object;
 use super::save_object;
@@ -48,7 +48,7 @@ pub async fn execute(args: TagArgs) {
     if args.new_tag.is_some() {
         create_tag(args.new_tag.unwrap(), args.commit_hash).await;
     } else if args.annotate.is_some() {
-        create_annotated_tag(args.annotate.unwrap(), args.message, args.tagger, args.commit_hash).await;
+        create_annotated_tag(args.annotate.unwrap(), args.message,  args.commit_hash).await;
     } else if args.delete.is_some() {
         delete_tag(args.delete.unwrap()).await;
     } else if args.show {
@@ -114,13 +114,14 @@ async fn create_annotated_tag(new_tag: String, message: Option<String>, commit_h
         }
         None => Head::current_commit().await.unwrap(),
     };
-    let author = get( )
+    let author = config::Config::get("user", None, "name").await.unwrap();
+    let email = config::Config::get("user", None, "email").await.unwrap();
     let tag = Tag {
         id: SHA1::default(),
         object_hash: commit_id,
         object_type: ObjectType::Tag,
         tag_name: new_tag,
-        tagger: Signature::new(SignatureType::Tagger, tagger.unwrap_or_else(|| "".to_string()), "".to_string()),
+        tagger: Signature::new(SignatureType::Tagger, author, email),
         message: message.unwrap_or_else(|| "".to_string()),
     };
     save_object(&tag, &tag.id).unwrap();
