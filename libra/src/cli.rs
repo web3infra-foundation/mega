@@ -61,6 +61,8 @@ enum Commands {
 
     #[command(subcommand, about = "Manage set of tracked repositories")]
     Remote(command::remote::RemoteCmds),
+    #[command(about = "set tag for the current commit")]
+    Tag(command::tag::TagArgs),
 
     // other hidden commands
     #[command(
@@ -111,6 +113,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Diff(args) => command::diff::execute(args).await,
         Commands::Remote(cmd) => command::remote::execute(cmd).await,
         Commands::Pull(args) => command::pull::execute(args).await,
+        Commands::Tag(args) => command::tag::execute(args).await,
     }
     Ok(())
 }
