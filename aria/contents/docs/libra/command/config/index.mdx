@@ -2,3 +2,32 @@
 title: The [config] Command
 description:
 ---
+
+# config
+
+The `config` command is used to get and set repository or global options, such as user information, aliases, and configuration settings.
+
+### Usage
+
+config [OPTIONS] [key] [value_pattern]
+
+### Arguments
+
+- `key` (optional): The key string of the configuration entry. Must follow the format `configuration.[name].key`. If the `list` mode is used, this argument is not required.
+- `value_pattern` (optional): The value or a possible value pattern of the configuration entry. Required for certain modes like `add` or `set`.
+
+### Description
+
+Key parsing rules:
+1. If the key does not contain a `.` symbol, an error is raised.
+2. If the key contains one `.` symbol, it is parsed as `configuration.key`.
+3. If the key contains more than one `.` symbol, it is parsed as `configuration.name.key`, where the first and last `.` are used to split the key.
+
+### OPTIONS
+
+- `--add`: Adds a new configuration entry to the database. Requires both `key` and `value_pattern`.
+- `--get`: Retrieves a single configuration entry that matches the key and optionally the value pattern.
+- `--get-all`: Retrieves all configuration entries that match the key and optionally the value pattern.
+- `--unset`: Removes a single configuration entry that matches the key and optionally the value pattern.
+- `--unset-all`: Removes all configuration entries that match the key and optionally the value pattern.
+- `--list`: Lists all configuration entries in the database. Does not require `key` or `value_pattern`.
