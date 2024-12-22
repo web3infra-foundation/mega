@@ -3,8 +3,7 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "builds")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = true)]
-    pub id: i64,
+    #[sea_orm(primary_key, auto_increment = false)]
     pub build_id: Uuid,
     pub output: String,
     pub exit_code: Option<i32>, // On Unix, return `None` if the process was terminated by a signal.

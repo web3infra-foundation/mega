@@ -90,7 +90,6 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
             end_at: Set(chrono::Utc::now()),
             repo_name: Set(req.repo),
             target: Set(req.target),
-            ..Default::default()
         };
         model.insert(&state.conn).await.unwrap();
 
