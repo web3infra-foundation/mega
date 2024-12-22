@@ -125,6 +125,7 @@ export const ROUTES: EachRoute[] = [
             ]
           },
           { title: "Mega Module", href: "/mega" },
+          { title: "Orion Module", href: "/orion" },
         ],
       },
     ],
