@@ -37,7 +37,7 @@ pub struct TagArgs {
     delete: bool,
 
     /// change current tag
-    #[clap(short = 'f', long, group = "sub")]
+    #[clap(short = 'f', long)]
     force: bool,
 }
 
@@ -45,9 +45,9 @@ pub async fn execute(args: TagArgs) {
     if args.delete {
         delete_tag(args.tag_name.unwrap()).await;
     } else if args.tag_name.is_some() {
-        create_tag(args.tag_name.unwrap(), args.commit_hash).await;
+        create_tag(args.tag_name.unwrap(), args.commit_hash, args.force).await;
     } else if args.annotate.is_some() {
-        create_annotated_tag(args.annotate.unwrap(), args.message,  args.commit_hash).await;
+        create_annotated_tag(args.annotate.unwrap(), args.message,  args.commit_hash, args.force).await;
     } else if args.list {
         // default behavior
         list_tags().await;
@@ -56,7 +56,7 @@ pub async fn execute(args: TagArgs) {
     }
 }
 
-pub async fn create_tag(tag_name: String, commit_hash: Option<String>){
+pub async fn create_tag(tag_name: String, commit_hash: Option<String>, force: bool){
     tracing::debug!("create tag: {} from {:?}", tag_name, commit_hash);
 
     if !is_valid_git_tag_name(&tag_name) {
@@ -66,7 +66,7 @@ pub async fn create_tag(tag_name: String, commit_hash: Option<String>){
 
     // check if tag exists
     let tag = TagInfo::find_tag(&tag_name).await;
-    if tag.is_some() {
+    if tag.is_some() && !force {
         panic!("fatal: A tag named '{}' already exists.", tag_name);
     }
 
@@ -94,8 +94,8 @@ pub async fn create_tag(tag_name: String, commit_hash: Option<String>){
 }
 
 
-async fn create_annotated_tag(tag_name: String, message: Option<String>, commit_hash: Option<String>) {
-    create_tag(tag_name.clone(), commit_hash.clone()).await;
+async fn create_annotated_tag(tag_name: String, message: Option<String>, commit_hash: Option<String>, force: bool) {
+    create_tag(tag_name.clone(), commit_hash.clone(), force).await;
     let commit_id = match commit_hash {
         Some(commit_hash) => {
             let commit = get_target_commit(&commit_hash).await;
