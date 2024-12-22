@@ -10,7 +10,11 @@ async fn main() {
         .with_max_level(tracing::Level::DEBUG)
         .init();
     tracing::info!("current dir: {:?}", std::env::current_dir().unwrap());
-    dotenvy::dotenv().unwrap();
+    dotenvy::dotenv().ok(); // .env file is optional
 
-    server::start_server(8001).await;
+    let port: u16 = std::env::var("PORT")
+        .unwrap_or_else(|_| "8001".to_string())
+        .parse()
+        .expect("PORT must be a number");
+    server::start_server(port).await;
 }
