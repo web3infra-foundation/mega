@@ -12,13 +12,17 @@ use super::save_object;
 
 #[derive(Parser, Debug)]
 pub struct TagArgs {
+    /// Name of the tag to create, delete, or inspect
+    #[clap(group = "create")]
+    tag_name: Option<String>,
+
+    /// Commit hash or tag name to tag (default is HEAD)
+    #[clap(requires = "create")]
+    commit_hash: Option<String>,
+
     /// List all tags
     #[clap(short, long, group = "sub", default_value = "true")]
     list: bool,
-
-    /// Name of the tag to create, delete, or inspect
-    #[clap(short = 'n', long, group = "sub", group = "create")]
-    new_tag: Option<String>,
 
     /// Create a new tag (lightweight or annotated)
     #[clap(short = 'a', long, group = "sub", group = "create")]
@@ -29,27 +33,21 @@ pub struct TagArgs {
     message: Option<String>,
 
     /// Delete a tag
-    #[clap(short = 'd', long, group = "sub")]
-    delete: Option<String>,
+    #[clap(short = 'd', long, group = "sub", requires = "tag_name")]
+    delete: bool,
 
-    /// Show tag details (same as git show <tag>)
-    #[clap(short = 's', long, group = "sub")]
-    show: bool,
-
-    /// Commit hash or tag name to tag (default is HEAD)
-    #[clap(requires = "create")]
-    commit_hash: Option<String>,
+    /// change current tag
+    #[clap(short = 'f', long, group = "sub")]
+    force: bool,
 }
 
 pub async fn execute(args: TagArgs) {
-    if args.new_tag.is_some() {
-        create_tag(args.new_tag.unwrap(), args.commit_hash).await;
+    if args.tag_name.is_some() {
+        create_tag(args.tag_name.unwrap(), args.commit_hash).await;
     } else if args.annotate.is_some() {
         create_annotated_tag(args.annotate.unwrap(), args.message,  args.commit_hash).await;
-    } else if args.delete.is_some() {
-        delete_tag(args.delete.unwrap()).await;
-    } else if args.show {
-        show_current_tag().await;
+    } else if args.delete {
+        delete_tag(args.tag_name.unwrap()).await;
     } else if args.list {
         // default behavior
         list_tags().await;
@@ -58,18 +56,18 @@ pub async fn execute(args: TagArgs) {
     }
 }
 
-pub async fn create_tag(new_tag: String, commit_hash: Option<String>){
-    tracing::debug!("create tag: {} from {:?}", new_tag, commit_hash);
+pub async fn create_tag(tag_name: String, commit_hash: Option<String>){
+    tracing::debug!("create tag: {} from {:?}", tag_name, commit_hash);
 
-    if !is_valid_git_tag_name(&new_tag) {
-        eprintln!("fatal: invalid tag name: {}", new_tag);
+    if !is_valid_git_tag_name(&tag_name) {
+        eprintln!("fatal: invalid tag name: {}", tag_name);
         return;
     }
 
     // check if tag exists
-    let tag = TagInfo::find_tag(&new_tag).await;
+    let tag = TagInfo::find_tag(&tag_name).await;
     if tag.is_some() {
-        panic!("fatal: A tag named '{}' already exists.", new_tag);
+        panic!("fatal: A tag named '{}' already exists.", tag_name);
     }
 
     let commit_id = match commit_hash {
@@ -92,12 +90,12 @@ pub async fn create_tag(new_tag: String, commit_hash: Option<String>){
         .unwrap_or_else(|_| panic!("fatal: not a valid object name: '{}'", commit_id));
 
     // create tag
-    TagInfo::update_tag(&new_tag, &commit_id.to_string()).await;
+    TagInfo::update_tag(&tag_name, &commit_id.to_string()).await;
 }
 
 
-async fn create_annotated_tag(new_tag: String, message: Option<String>, commit_hash: Option<String>) {
-    create_tag(new_tag.clone(), commit_hash.clone()).await;
+async fn create_annotated_tag(tag_name: String, message: Option<String>, commit_hash: Option<String>) {
+    create_tag(tag_name.clone(), commit_hash.clone()).await;
     let commit_id = match commit_hash {
         Some(commit_hash) => {
             let commit = get_target_commit(&commit_hash).await;
@@ -117,7 +115,7 @@ async fn create_annotated_tag(new_tag: String, message: Option<String>, commit_h
         id: SHA1::default(),
         object_hash: commit_id,
         object_type: ObjectType::Tag,
-        tag_name: new_tag,
+        tag_name: tag_name,
         tagger: Signature::new(SignatureType::Tagger, author, email),
         message: message.unwrap_or_else(|| "".to_string()),
     };
@@ -130,10 +128,6 @@ async fn delete_tag(tag_name: String) {
         .unwrap_or_else(|| panic!("fatal: tag '{}' not found", tag_name));
 
     TagInfo::delete_tag(&tag_name).await;
-}
-
-async fn show_current_tag() {
-    
 }
 
 async fn list_tags() {
