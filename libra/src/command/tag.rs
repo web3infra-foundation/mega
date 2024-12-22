@@ -109,10 +109,8 @@ async fn create_annotated_tag(tag_name: String, message: Option<String>, commit_
         }
         None => Head::current_commit().await.unwrap(),
     };
-    //let author = config::Config::get("user", None, "name").await.unwrap();
-    //let email = config::Config::get("user", None, "email").await.unwrap();
-    let author = "hemu";
-    let email = "hemu@buaa.edu.cn";
+    let author = config::Config::get("user", None, "name").await.unwrap();
+    let email = config::Config::get("user", None, "email").await.unwrap();
     let tag = Tag {
         id: SHA1::default(),
         object_hash: commit_id,
