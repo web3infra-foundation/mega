@@ -314,3 +314,14 @@ CREATE TABLE IF NOT EXISTS "access_token" (
 );
 CREATE INDEX "idx_token_user_id" ON "access_token" ("user_id");
 CREATE INDEX "idx_token" ON "access_token" ((left(token, 8)));
+
+
+CREATE TABLE IF NOT EXISTS "builds" (
+  "build_id" uuid NOT NULL PRIMARY KEY,
+  "output" varchar NOT NULL,
+  "exit_code" integer,
+  "start_at" timestamp with time zone NOT NULL,
+  "end_at" timestamp with time zone NOT NULL,
+  "repo_name" varchar NOT NULL,
+  "target" varchar NOT NULL
+);
