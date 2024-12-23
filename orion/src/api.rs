@@ -90,7 +90,6 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
             end_at: Set(chrono::Utc::now()),
             repo_name: Set(req.repo),
             target: Set(req.target),
-            ..Default::default()
         };
         model.insert(&state.conn).await.unwrap();
 
@@ -128,7 +127,7 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
     });
 
     Json(BuildResult {
-        success: true,
+        success: true, // TODO
         id: id.to_string(),
         exit_code: None,
         message: "Build started".to_string(),

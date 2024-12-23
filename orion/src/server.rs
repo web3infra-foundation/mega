@@ -1,7 +1,6 @@
 use axum::Router;
 use axum::routing::get;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, TransactionTrait};
-use sea_orm::sea_query::Index;
 use crate::api;
 use crate::model::builds;
 
@@ -39,15 +38,6 @@ async fn setup_tables(conn: &DatabaseConnection) -> Result<(), DbErr> {
     table_statement.if_not_exists();
     let statement = builder.build(&table_statement);
     trans.execute(statement).await?;
-
-    let idx_build_id = Index::create()
-        .name("idx-builds-build_id")
-        .table(builds::Entity)
-        .col(builds::Column::BuildId)
-        .unique()
-        .if_not_exists()
-        .to_owned();
-    trans.execute(builder.build(&idx_build_id)).await?;
 
     trans.commit().await
 }
