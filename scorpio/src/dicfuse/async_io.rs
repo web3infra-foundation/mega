@@ -8,12 +8,15 @@ use fuse3::raw::prelude::*;
 use fuse3::{Errno, Inode, Result};
 
 use futures::stream::{iter, Iter};
+use mercury::internal::object::tree::TreeItemMode;
+
 use std::vec::IntoIter;
 
 use crate::dicfuse::store::IntoEntry;
 
 use super::Dicfuse;
-
+use crate::manager::fetch::fetch_tree;
+use crate::util::GPath;use reqwest::Client;
 impl Filesystem for Dicfuse {
     /// dir entry stream given by [`readdir`][Filesystem::readdir].
     type DirEntryStream<'a>
@@ -65,7 +68,11 @@ impl Filesystem for Dicfuse {
         let store = self.store.clone();
         let _i = store.find_path(inode).await.ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
         let item = store.get_inode(inode).await?;
-        let e  =item.get_stat().await;
+        let mut e  =item.get_stat().await;
+        let rl = self.open_buff.read().await;
+        if let Some(datas) = rl.get(&inode){
+            e.attr.size = datas.len() as u64;
+        }
         Ok(ReplyAttr { ttl: e.ttl, attr: e.attr })
     }
     /// open a directory. Filesystem may store an arbitrary file handle (pointer, index, etc) in
@@ -93,7 +100,9 @@ impl Filesystem for Dicfuse {
     /// See `fuse_file_info` structure in
     /// [fuse_common.h](https://libfuse.github.io/doxygen/include_2fuse__common_8h_source.html) for
     /// more details.
-    async fn open(&self, _req: Request, _inode: Inode, _flags: u32) -> Result<ReplyOpen> {
+    async fn open(&self, _req: Request, inode: Inode, _flags: u32) -> Result<ReplyOpen> {
+        println!("open a new readonly one inode {}",inode);
+       // let trees = fetch_tree();
         Ok(ReplyOpen { fh: 0, flags: 0 })
     }
         /// read data. Read should send exactly the number of bytes requested except on EOF or error,
@@ -104,13 +113,19 @@ impl Filesystem for Dicfuse {
     async fn read(
         &self,
         _req: Request,
-        _inode: Inode,
+        inode: Inode,
         _fh: u64,
-        _offset: u64,
-        _size: u32,
+        offset: u64,
+        size: u32,
     ) -> Result<ReplyData> {
-        Ok(ReplyData{
-            data: Bytes::new(),
+        let read_lock  = self.open_buff.read().await;
+        let datas = read_lock.get(&inode).ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+        let _offset = offset as usize;
+        let end = (_offset + size as usize).min(datas.len());
+        let slice = &datas[_offset..end];
+        //println!("read result :{:?}",slice);
+        Ok(ReplyData {
+            data: Bytes::copy_from_slice(slice),
         })
     }
     async  fn access(&self,_req:Request,inode:Inode,_mask:u32) -> Result<()> {
@@ -121,9 +136,40 @@ impl Filesystem for Dicfuse {
     async  fn write(&self,_req:Request,_inode:Inode,_fh:u64,_offset:u64,data: &[u8],_write_flags:u32,_flags:u32,) -> Result<ReplyWrite> {
         Ok(ReplyWrite { written: data.len() as u32 })
     }
-    async  fn readdir(& self,_req:Request,parent:Inode,fh:u64,offset:i64,) -> Result<ReplyDirectory<Self::DirEntryStream<'_> > > {
+    async  fn readdir(& self,req:Request,parent:Inode,fh:u64,offset:i64,) -> Result<ReplyDirectory<Self::DirEntryStream<'_> > > {
         let items = self.store.do_readdir(parent, fh, offset as u64).await?;
         let mut d:Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
+
+        let parent_item = self.store.get_inode(parent).await?;
+        let tree = fetch_tree(&GPath::from(parent_item.get_path())).await.unwrap();
+        
+        let client = Client::new();
+        for i in tree.tree_items{
+            if i.mode!=TreeItemMode::Blob{
+                continue;
+            }
+            let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.
+            // Send GET request
+            let response = client.get(url).send().await.unwrap();//todo error 
+            
+            // Ensure that the response status is successful
+            if response.status().is_success() {
+                // Get the binary data from the response body
+                let content = response.bytes().await.unwrap();//TODO error
+                
+                // Store the content in a Vec<u8>
+                let data: Vec<u8> = content.to_vec();
+                let child_osstr = OsStr::new(&i.name);
+                let i_inode = self.lookup(req, parent,child_osstr).await?;
+                self.open_buff.write().await.insert(i_inode.attr.ino, data);
+                
+            } else {
+                eprintln!("Request failed with status: {}", response.status());
+            }
+            
+        }
+        
+
         for (index,item) in items.into_iter().enumerate(){
             d.push(Ok(
                 DirectoryEntry{
@@ -136,9 +182,38 @@ impl Filesystem for Dicfuse {
         }
         Ok(ReplyDirectory { entries: iter(d.into_iter()) })
     }
-    async fn readdirplus(&self,_req:Request,parent:Inode,fh:u64,offset:u64,_lock_owner:u64,) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_> > > {
+    async fn readdirplus(&self,req:Request,parent:Inode,fh:u64,offset:u64,_lock_owner:u64,) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_> > > {
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d:Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
+
+        let parent_item = self.store.get_inode(parent).await?;
+        let tree = fetch_tree(&GPath::from(parent_item.get_path())).await.unwrap();
+
+        let client = Client::new();
+        for i in tree.tree_items{
+            if i.mode!=TreeItemMode::Blob{
+                continue;
+            }
+            let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.
+            // Send GET request
+            let response = client.get(url).send().await.unwrap();//todo error 
+            
+            // Ensure that the response status is successful
+            if response.status().is_success() {
+                // Get the binary data from the response body
+                let content = response.bytes().await.unwrap();//TODO error
+                
+                // Store the content in a Vec<u8>
+                let data: Vec<u8> = content.to_vec();
+                let child_osstr = OsStr::new(&i.name);
+                let i_inode = self.lookup(req, parent,child_osstr).await?;
+                self.open_buff.write().await.insert(i_inode.attr.ino, data);
+                
+            } else {
+                eprintln!("Request failed with status: {}", response.status());
+            }
+            
+        }
         for (index,item) in items.into_iter().enumerate(){
             if index as u64 >= offset {
                 let attr = item.get_stat().await;
