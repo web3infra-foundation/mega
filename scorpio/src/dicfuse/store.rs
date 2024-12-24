@@ -1,6 +1,7 @@
 
 use fuse3::raw::reply::{FileAttr, ReplyEntry};
 use fuse3::{FileType, Timestamp};
+
 /// Read only file system for obtaining and displaying monorepo directory information
 use reqwest::Client;
 // Import Response explicitly
@@ -8,13 +9,14 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use std::io;
-use std::sync::atomic::AtomicU64;
+
 use std::time::Duration;
 use std::{collections::HashMap, error::Error};
 use std::collections::VecDeque;
 use once_cell::sync::Lazy;
 use radix_trie::{self, TrieCommon};
 use std::sync::Arc;
+use crate::util::atomic::AtomicU64;
 use crate::READONLY_INODE;
 
 use super::abi::{default_dic_entry, default_file_entry};
@@ -24,12 +26,13 @@ const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE :&str ="file";
 const INODE_DICTIONARY :&str ="directory";
 
-#[derive(Serialize, Deserialize, Debug,Clone)]
+#[derive(Serialize, Deserialize, Debug,Clone, Default,PartialEq)]
 pub struct Item {
-    name: String,
-    path: String,
-    content_type: String,
+    pub name: String,
+    pub path: String,
+    pub content_type: String,
 }
+
 #[allow(unused)]
 pub struct DicItem{
     inode:u64,
@@ -89,6 +92,9 @@ impl DicItem {
             ContentType::File => FileType::RegularFile,
             ContentType::Dictionary(_) => FileType::Directory,
         }
+    }
+    pub fn get_parent(&self)-> u64{
+        self.parent
     }
     pub async fn get_stat(&self) ->ReplyEntry{
         match self.get_tyep().await{
@@ -157,7 +163,7 @@ async fn fetch_tree(path: &str) -> Result<ApiResponse, Box<dyn Error>> {
     }
 }
 
-#[allow(unused)]
+
 pub struct DictionaryStore {
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
     next_inode: AtomicU64,
@@ -172,7 +178,7 @@ impl DictionaryStore {
     
             let items = fetch_tree("").await.unwrap().data.clone() ;
 
-            let root_inode = self.inodes.lock().await.get(&1).unwrap().clone();
+            let root_inode: Arc<DicItem> = self.inodes.lock().await.get(&1).unwrap().clone();
             for it in items{
                 println!("root item:{:?}",it);
                 self.update_inode(root_inode.clone(),it).await;
@@ -232,9 +238,9 @@ impl DictionaryStore {
         init
     }
     async fn  update_inode(&self,pitem:Arc<DicItem>,item:Item){
-        self.next_inode.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.next_inode.fetch_add(1).await;
         
-        let alloc_inode = self.next_inode.load(std::sync::atomic::Ordering::Relaxed);
+        let alloc_inode = self.next_inode.load().await;
         
         assert!(alloc_inode < READONLY_INODE );
         if item.content_type=="directory"{
