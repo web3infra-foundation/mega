@@ -328,7 +328,7 @@ mod tests {
 
     use crate::internal::object::blob::Blob;
     use crate::internal::pack::{tests::init_logger, Pack};
-    use crate::time_it;
+    use crate::{time_it, MERCURY_DEFAULT_TMP_DIR};
 
     use super::*;
 
@@ -336,7 +336,7 @@ mod tests {
         let mut p = Pack::new(
             None,
             Some(1024 * 1024 * 1024 * 6), // 6GB
-            Some(PathBuf::from("/tmp/.cache_temp")),
+            Some(PathBuf::from(MERCURY_DEFAULT_TMP_DIR)),
             true,
         );
         let mut reader = Cursor::new(data);
@@ -389,7 +389,7 @@ mod tests {
         let mut p = Pack::new(
             None,
             Some(1024 * 1024 * 1024 * 6),
-            Some(PathBuf::from("/tmp/.cache_temp")),
+            Some(PathBuf::from(MERCURY_DEFAULT_TMP_DIR)),
             true,
         );
 

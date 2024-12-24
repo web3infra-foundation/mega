@@ -10,7 +10,6 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::utils;
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::pack::wrapper::Wrapper;
@@ -246,7 +245,7 @@ impl Index {
                 uid: file.read_u32::<BigEndian>()?,
                 gid: file.read_u32::<BigEndian>()?,
                 size: file.read_u32::<BigEndian>()?,
-                hash: utils::read_sha1(file)?,
+                hash: SHA1::from_stream(file)?,
                 flags: Flags::from(file.read_u16::<BigEndian>()?),
                 name: String::new(),
             };
@@ -260,19 +259,21 @@ impl Index {
             // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
             // while keeping the name NUL-terminated. // so at least 1 byte nul
             let padding = 8 - ((22 + name_len) % 8); // 22 = sha1 + flags, others are 40 % 8 == 0
-            utils::read_bytes(file, padding)?;
+            // utils::read_bytes(file, padding)?;
+            file.read_exact(&mut vec![0; padding])?;
         }
 
         // Extensions
         while file.bytes_read() + SHA1::SIZE < total_size as usize {
             // The remaining 20 bytes must be checksum
-            let sign = utils::read_bytes(file, 4)?;
+            let mut sign = vec![0; 4];
+            file.read_exact(&mut sign)?;
             println!("{:?}", String::from_utf8(sign.clone())?);
             // If the first byte is 'A'...'Z' the extension is optional and can be ignored.
             if sign[0] >= b'A' && sign[0] <= b'Z' {
                 // Optional extension
                 let size = file.read_u32::<BigEndian>()?;
-                utils::read_bytes(file, size as usize)?; // Ignore the extension
+                file.read_exact(&mut vec![0; size as usize])?; // Ignore the extension
             } else {
                 // 'link' or 'sdir' extension
                 return Err(GitError::InvalidIndexFile(
@@ -283,7 +284,7 @@ impl Index {
 
         // check sum
         let file_hash = file.final_hash();
-        let check_sum = utils::read_sha1(file)?;
+        let check_sum = SHA1::from_stream(file)?;
         if file_hash != check_sum {
             return Err(GitError::InvalidIndexFile("Check sum failed".to_string()));
         }
