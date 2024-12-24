@@ -145,6 +145,14 @@ export const ROUTES: EachRoute[] = [
           { title: "Orion Module", href: "/orion" },
         ],
       },
+      {
+        title: "Database",
+        href: "/database",
+      },
+      {
+        title: "Policy",
+        href: "/policy",
+      }
     ],
   },
   {

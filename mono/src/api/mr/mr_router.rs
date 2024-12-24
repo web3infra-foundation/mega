@@ -27,7 +27,6 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/mr/:link/merge", post(merge))
         .route("/mr/:link/close", post(close_mr))
         .route("/mr/:link/reopen", post(reopen_mr))
-        // .route("/mr/:link/files", get(get_mr_files))
         .route("/mr/:link/files-changed", get(get_mr_files_changed))
         .route("/mr/:link/comment", post(save_comment))
         .route("/mr/comment/:conv_id/delete", post(delete_comment))
