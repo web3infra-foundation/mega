@@ -10,28 +10,6 @@ Mega's storage structure is mainly divided into the following parts:
 
 Similar to the 'tree' in Git, Mega maintains relationships between files and file names. In the database, Mega independently manages directory information for the current version.
 
-### b-link file*
-
-The purpose of the B-link file is to store file index information, serving as a replacement for blobs in Git. The design of this structure is inspired by the specification of Git LFS, as follows:
-
-```bash
-  version https://gitmega.dev/spec/v1
-  blob 3a739f77180d81aa45d9bd11eb6be7098bf1991f
-  storage_type local_fs
-  storage_location /tmp/.mega/{{reponame}}/.objects/3a/73/9f77180d81aa45d9bd11eb6be7098bf1991f
- ```
-
-```bash
-version https://gitmega.dev/spec/v1
-{{objectType}} {{sha1}}
-storage_type {{type}}
-storage_locaton {{location}}
-```
-
-It includes the following records:
-- version: Represents the version information of the structure.
-- blob: Points to the hash value of the actual blob.
-
 ### Import directory
 - The primary purpose of importing directories is to synchronize the original Git repository into the Mega directory. Projects within the import directory are maintained in a **read-only** state, preserving the original commit information.
 - Projects pushed to the import directory can have multiple commits.
