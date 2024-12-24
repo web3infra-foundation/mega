@@ -17,6 +17,7 @@ pub mod restore;
 pub mod status;
 pub mod switch;
 pub mod config;
+pub mod tag;
 
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
