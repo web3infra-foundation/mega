@@ -1,6 +1,6 @@
 
-use fuse3::raw::reply::{FileAttr, ReplyEntry};
-use fuse3::{FileType, Timestamp};
+use fuse3::raw::reply::ReplyEntry;
+use fuse3::FileType;
 
 /// Read only file system for obtaining and displaying monorepo directory information
 use reqwest::Client;
@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 
 use std::io;
 
-use std::time::Duration;
+
 use std::{collections::HashMap, error::Error};
 use std::collections::VecDeque;
 use once_cell::sync::Lazy;
@@ -104,39 +104,6 @@ impl DicItem {
     }
 }
 
-pub trait IntoEntry {
-   // async fn into_entry(self) -> Entry;
-    async fn into_reply(self) -> ReplyEntry;
-}
-
-impl IntoEntry for Arc<DicItem> {
-    async fn into_reply(self) -> ReplyEntry {
-        ReplyEntry{
-            ttl: Duration::new(500, 0),
-            attr: FileAttr{
-                ino: self.get_inode(),
-                size: 0,
-                blocks: 0,
-                atime: Timestamp::new(0, 0),
-                mtime: Timestamp::new(0, 0),
-                ctime: Timestamp::new(0, 0),
-                kind: {
-                    match *self.content_type.lock().await {
-                        ContentType::File => FileType::RegularFile,
-                        ContentType::Dictionary(_) => FileType::Directory,
-                    }
-                },
-                perm: 0o755,
-                nlink: 0,
-                uid: 0,
-                gid: 0,
-                rdev: 0,
-                blksize: 0,
-            },
-            generation: 0,
-        }
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug,Default,Clone)]
 struct ApiResponse {
