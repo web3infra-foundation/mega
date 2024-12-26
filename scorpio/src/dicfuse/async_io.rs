@@ -12,8 +12,6 @@ use mercury::internal::object::tree::TreeItemMode;
 
 use std::vec::IntoIter;
 
-use crate::dicfuse::store::IntoEntry;
-
 use super::Dicfuse;
 use crate::manager::fetch::fetch_tree;
 use crate::util::GPath;use reqwest::Client;
@@ -37,7 +35,8 @@ impl Filesystem for Dicfuse {
         //let pitem  = store.get_inode(parent).await?;
         ppath.push(name.to_string_lossy().into_owned());
         let chil = store.get_by_path(&ppath.to_string()).await?;
-        Ok(chil.into_reply().await)
+        let re = self.get_stat(chil).await;
+        Ok(re)
     }
    /// initialize filesystem. Called before any other filesystem method.
     async fn init(&self, _req: Request) -> Result<ReplyInit>{
@@ -68,11 +67,7 @@ impl Filesystem for Dicfuse {
         let store = self.store.clone();
         let _i = store.find_path(inode).await.ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
         let item = store.get_inode(inode).await?;
-        let mut e  =item.get_stat().await;
-        let rl = self.open_buff.read().await;
-        if let Some(datas) = rl.get(&inode){
-            e.attr.size = datas.len() as u64;
-        }
+        let e  =self.get_stat(item).await;
         Ok(ReplyAttr { ttl: e.ttl, attr: e.attr })
     }
     /// open a directory. Filesystem may store an arbitrary file handle (pointer, index, etc) in
@@ -188,6 +183,8 @@ impl Filesystem for Dicfuse {
 
         let parent_item = self.store.get_inode(parent).await?;
         let tree = fetch_tree(&GPath::from(parent_item.get_path())).await.unwrap();
+        
+        let mut is_first  = true;
 
         let client = Client::new();
         for i in tree.tree_items{
@@ -207,6 +204,18 @@ impl Filesystem for Dicfuse {
                 let data: Vec<u8> = content.to_vec();
                 let child_osstr = OsStr::new(&i.name);
                 let i_inode = self.lookup(req, parent,child_osstr).await?;
+                if is_first{
+                    match self.open_buff.write().await.get(&i_inode.attr.ino) {
+                        Some(_) => {
+                            break;
+                            // is loaded , no need to reload ;
+                        },
+                        None => {
+                            // this dictionary is not loaded ,  just go ahead.
+                            is_first = false;
+                        },
+                    }
+                }
                 self.open_buff.write().await.insert(i_inode.attr.ino, data);
                 
             } else {
@@ -216,7 +225,7 @@ impl Filesystem for Dicfuse {
         }
         for (index,item) in items.into_iter().enumerate(){
             if index as u64 >= offset {
-                let attr = item.get_stat().await;
+                let attr = self.get_stat(item.clone()).await;
                 let e_name =
                 if  index ==0{
                     String::from(".")

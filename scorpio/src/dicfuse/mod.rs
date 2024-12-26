@@ -5,7 +5,8 @@ mod tree_store;
 use std::{collections::HashMap,sync::Arc};
 
 
-use store::DictionaryStore;
+use fuse3::raw::reply::ReplyEntry;
+use store::{DicItem, DictionaryStore};
 pub struct Dicfuse{
     pub store: Arc<DictionaryStore>,
     open_buff: Arc<tokio::sync::RwLock<HashMap<u64, Vec<u8>>>>,
@@ -17,6 +18,14 @@ impl Dicfuse{
             store: DictionaryStore::new().await.into(), // Assuming DictionaryStore has a new() method
             open_buff: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         }
+    }
+    pub async fn get_stat(&self,item:Arc<DicItem>) -> ReplyEntry {
+        let mut e  =item.get_stat().await;
+        let rl = self.open_buff.read().await;
+        if let Some(datas) = rl.get(&item.get_inode()){
+            e.attr.size = datas.len() as u64;
+        }
+        e
     }
     // pub async fn pull_fiel(&self,parent_inode:u64)->Result<()>{
     //     let parent_item = self.store.get_inode(parent_inode).await?;
