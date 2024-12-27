@@ -8,13 +8,10 @@ use fuse3::raw::prelude::*;
 use fuse3::{Errno, Inode, Result};
 
 use futures::stream::{iter, Iter};
-use mercury::internal::object::tree::TreeItemMode;
-
 use std::vec::IntoIter;
 
 use super::Dicfuse;
-use crate::manager::fetch::fetch_tree;
-use crate::util::GPath;use reqwest::Client;
+
 impl Filesystem for Dicfuse {
     /// dir entry stream given by [`readdir`][Filesystem::readdir].
     type DirEntryStream<'a>
@@ -32,9 +29,12 @@ impl Filesystem for Dicfuse {
     async fn lookup(&self, _req: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
         let store = self.store.clone();
         let mut ppath  = store.find_path(parent).await.ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
-        //let pitem  = store.get_inode(parent).await?;
+        
         ppath.push(name.to_string_lossy().into_owned());
         let chil = store.get_by_path(&ppath.to_string()).await?;
+        if self.open_buff.read().await.get(&chil.get_inode()).is_none(){
+            let _ = self.load_one_file(parent, name).await;
+        }
         let re = self.get_stat(chil).await;
         Ok(re)
     }
@@ -131,38 +131,12 @@ impl Filesystem for Dicfuse {
     async  fn write(&self,_req:Request,_inode:Inode,_fh:u64,_offset:u64,data: &[u8],_write_flags:u32,_flags:u32,) -> Result<ReplyWrite> {
         Ok(ReplyWrite { written: data.len() as u32 })
     }
-    async  fn readdir(& self,req:Request,parent:Inode,fh:u64,offset:i64,) -> Result<ReplyDirectory<Self::DirEntryStream<'_> > > {
+    async  fn readdir(& self,_req:Request,parent:Inode,fh:u64,offset:i64,) -> Result<ReplyDirectory<Self::DirEntryStream<'_> > > {
         let items = self.store.do_readdir(parent, fh, offset as u64).await?;
         let mut d:Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
 
         let parent_item = self.store.get_inode(parent).await?;
-        let tree = fetch_tree(&GPath::from(parent_item.get_path())).await.unwrap();
-        
-        let client = Client::new();
-        for i in tree.tree_items{
-            if i.mode!=TreeItemMode::Blob{
-                continue;
-            }
-            let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.
-            // Send GET request
-            let response = client.get(url).send().await.unwrap();//todo error 
-            
-            // Ensure that the response status is successful
-            if response.status().is_success() {
-                // Get the binary data from the response body
-                let content = response.bytes().await.unwrap();//TODO error
-                
-                // Store the content in a Vec<u8>
-                let data: Vec<u8> = content.to_vec();
-                let child_osstr = OsStr::new(&i.name);
-                let i_inode = self.lookup(req, parent,child_osstr).await?;
-                self.open_buff.write().await.insert(i_inode.attr.ino, data);
-                
-            } else {
-                eprintln!("Request failed with status: {}", response.status());
-            }
-            
-        }
+        self.load_fiels(parent_item).await;
         
 
         for (index,item) in items.into_iter().enumerate(){
@@ -177,52 +151,12 @@ impl Filesystem for Dicfuse {
         }
         Ok(ReplyDirectory { entries: iter(d.into_iter()) })
     }
-    async fn readdirplus(&self,req:Request,parent:Inode,fh:u64,offset:u64,_lock_owner:u64,) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_> > > {
+    async fn readdirplus(&self,_req:Request,parent:Inode,fh:u64,offset:u64,_lock_owner:u64,) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_> > > {
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d:Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
 
         let parent_item = self.store.get_inode(parent).await?;
-        let tree = fetch_tree(&GPath::from(parent_item.get_path())).await.unwrap();
-        
-        let mut is_first  = true;
-
-        let client = Client::new();
-        for i in tree.tree_items{
-            if i.mode!=TreeItemMode::Blob{
-                continue;
-            }
-            let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.
-            // Send GET request
-            let response = client.get(url).send().await.unwrap();//todo error 
-            
-            // Ensure that the response status is successful
-            if response.status().is_success() {
-                // Get the binary data from the response body
-                let content = response.bytes().await.unwrap();//TODO error
-                
-                // Store the content in a Vec<u8>
-                let data: Vec<u8> = content.to_vec();
-                let child_osstr = OsStr::new(&i.name);
-                let i_inode = self.lookup(req, parent,child_osstr).await?;
-                if is_first{
-                    match self.open_buff.write().await.get(&i_inode.attr.ino) {
-                        Some(_) => {
-                            break;
-                            // is loaded , no need to reload ;
-                        },
-                        None => {
-                            // this dictionary is not loaded ,  just go ahead.
-                            is_first = false;
-                        },
-                    }
-                }
-                self.open_buff.write().await.insert(i_inode.attr.ino, data);
-                
-            } else {
-                eprintln!("Request failed with status: {}", response.status());
-            }
-            
-        }
+        self.load_fiels(parent_item).await;
         for (index,item) in items.into_iter().enumerate(){
             if index as u64 >= offset {
                 let attr = self.get_stat(item.clone()).await;
