@@ -13,7 +13,7 @@ use futures::{future::join_all, StreamExt};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{mega_tree, raw_blob};
+use callisto::{db_enums::RefType, mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::{context::Context, storage::batch_save_model};
 use mercury::{
@@ -204,10 +204,7 @@ impl PackHandler for ImportRepo {
             }
         }
 
-        let want_tree_ids = want_commits
-            .iter()
-            .map(|c| c.tree_id.to_string())
-            .collect();
+        let want_tree_ids = want_commits.iter().map(|c| c.tree_id.to_string()).collect();
         let want_trees: HashMap<SHA1, Tree> = storage
             .get_trees_by_hashes(self.repo.repo_id, want_tree_ids)
             .await
@@ -342,6 +339,16 @@ impl PackHandler for ImportRepo {
 impl ImportRepo {
     // attach import repo to monorepo parent tree
     async fn attach_to_monorepo_parent(&self) -> Result<(), GitError> {
+        let iter = self
+            .command_list
+            .clone()
+            .into_iter()
+            .find(|c| c.ref_type == RefType::Branch);
+        if iter.is_none() {
+            return Ok(());
+        }
+        let commit_id = iter.unwrap().new_id;
+
         let path = PathBuf::from(self.repo.repo_path.clone());
         let mono_api_service = MonoApiService {
             context: self.context.clone(),
@@ -350,12 +357,11 @@ impl ImportRepo {
         let save_trees = mono_api_service.search_and_create_tree(&path).await?;
 
         let mut root_ref = storage.get_ref("/").await.unwrap().unwrap();
-        let commit_id = &self.command_list.first().unwrap().new_id;
         let latest_commit: Commit = self
             .context
             .services
             .git_db_storage
-            .get_commit_by_hash(self.repo.repo_id, commit_id)
+            .get_commit_by_hash(self.repo.repo_id, &commit_id)
             .await
             .unwrap()
             .unwrap()
