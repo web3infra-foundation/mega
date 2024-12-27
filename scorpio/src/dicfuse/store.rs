@@ -38,7 +38,7 @@ pub struct DicItem{
     inode:u64,
     path_name:GPath,
     content_type: Arc<Mutex<ContentType>>,
-    children:Mutex<HashMap<String, Arc<DicItem>>>,
+    pub children:Mutex<HashMap<String, Arc<DicItem>>>,
     parent:u64,
 }
 
