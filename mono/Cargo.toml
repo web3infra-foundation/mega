@@ -58,6 +58,7 @@ base64 = { workspace = true }
 async-session = "3.0.0"
 http = "1.1.0"
 cedar-policy = { workspace = true }
+jemallocator = "0.5.4"
 
 [dev-dependencies]
 
