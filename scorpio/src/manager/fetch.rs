@@ -236,7 +236,6 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
         });
     }
 
-   
 
     let storepath = save_path.as_ref().parent().unwrap().join("tree.db");
     store_trees(storepath.to_str().unwrap(), rece).await;
@@ -296,7 +295,7 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-     let url = format!("http://localhost:8000/api/v1/file/blob/{}",url);//TODO: configabel.
+    let url = format!("http://localhost:8000/api/v1/file/blob/{}",url);//TODO: configabel.
     // Send GET request
     let response = client.get(url).send().await?;
     
@@ -319,7 +318,7 @@ async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<
 }
 
 #[allow(unused)]
-async fn fetch_tree(path: &GPath) -> Result<Tree, Box<dyn std::error::Error>> {
+pub async fn fetch_tree(path: &GPath) -> Result<Tree, Box<dyn std::error::Error>> {
     let url = format!("{}{}", BASE_URL, path);
     let response = reqwest::get(&url).await?;
     
@@ -345,7 +344,7 @@ mod tests {
         let client = Client::new();
         
         // Use the URL from environment variables or local test URL
-        let url = "http://localhost:8000/api/v1/file/tree?path=/third-part/";
+        let url = "http://localhost:8000/api/v1/file/tree?path=/third-part/mega";
         
         // Send GET request
         let response = client.get(url).send().await?;
