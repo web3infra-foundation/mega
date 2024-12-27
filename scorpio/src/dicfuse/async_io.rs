@@ -10,8 +10,6 @@ use fuse3::{Errno, Inode, Result};
 use futures::stream::{iter, Iter};
 use std::vec::IntoIter;
 
-use crate::dicfuse::store::IntoEntry;
-
 use super::Dicfuse;
 
 impl Filesystem for Dicfuse {
@@ -31,10 +29,14 @@ impl Filesystem for Dicfuse {
     async fn lookup(&self, _req: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
         let store = self.store.clone();
         let mut ppath  = store.find_path(parent).await.ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
-        //let pitem  = store.get_inode(parent).await?;
+        
         ppath.push(name.to_string_lossy().into_owned());
         let chil = store.get_by_path(&ppath.to_string()).await?;
-        Ok(chil.into_reply().await)
+        if self.open_buff.read().await.get(&chil.get_inode()).is_none(){
+            let _ = self.load_one_file(parent, name).await;
+        }
+        let re = self.get_stat(chil).await;
+        Ok(re)
     }
    /// initialize filesystem. Called before any other filesystem method.
     async fn init(&self, _req: Request) -> Result<ReplyInit>{
@@ -65,7 +67,7 @@ impl Filesystem for Dicfuse {
         let store = self.store.clone();
         let _i = store.find_path(inode).await.ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
         let item = store.get_inode(inode).await?;
-        let e  =item.get_stat().await;
+        let e  =self.get_stat(item).await;
         Ok(ReplyAttr { ttl: e.ttl, attr: e.attr })
     }
     /// open a directory. Filesystem may store an arbitrary file handle (pointer, index, etc) in
@@ -93,7 +95,9 @@ impl Filesystem for Dicfuse {
     /// See `fuse_file_info` structure in
     /// [fuse_common.h](https://libfuse.github.io/doxygen/include_2fuse__common_8h_source.html) for
     /// more details.
-    async fn open(&self, _req: Request, _inode: Inode, _flags: u32) -> Result<ReplyOpen> {
+    async fn open(&self, _req: Request, inode: Inode, _flags: u32) -> Result<ReplyOpen> {
+        println!("open a new readonly one inode {}",inode);
+       // let trees = fetch_tree();
         Ok(ReplyOpen { fh: 0, flags: 0 })
     }
         /// read data. Read should send exactly the number of bytes requested except on EOF or error,
@@ -104,13 +108,19 @@ impl Filesystem for Dicfuse {
     async fn read(
         &self,
         _req: Request,
-        _inode: Inode,
+        inode: Inode,
         _fh: u64,
-        _offset: u64,
-        _size: u32,
+        offset: u64,
+        size: u32,
     ) -> Result<ReplyData> {
-        Ok(ReplyData{
-            data: Bytes::new(),
+        let read_lock  = self.open_buff.read().await;
+        let datas = read_lock.get(&inode).ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
+        let _offset = offset as usize;
+        let end = (_offset + size as usize).min(datas.len());
+        let slice = &datas[_offset..end];
+        //println!("read result :{:?}",slice);
+        Ok(ReplyData {
+            data: Bytes::copy_from_slice(slice),
         })
     }
     async  fn access(&self,_req:Request,inode:Inode,_mask:u32) -> Result<()> {
@@ -124,6 +134,11 @@ impl Filesystem for Dicfuse {
     async  fn readdir(& self,_req:Request,parent:Inode,fh:u64,offset:i64,) -> Result<ReplyDirectory<Self::DirEntryStream<'_> > > {
         let items = self.store.do_readdir(parent, fh, offset as u64).await?;
         let mut d:Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
+
+        let parent_item = self.store.get_inode(parent).await?;
+        self.load_fiels(parent_item).await;
+        
+
         for (index,item) in items.into_iter().enumerate(){
             d.push(Ok(
                 DirectoryEntry{
@@ -139,9 +154,12 @@ impl Filesystem for Dicfuse {
     async fn readdirplus(&self,_req:Request,parent:Inode,fh:u64,offset:u64,_lock_owner:u64,) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_> > > {
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d:Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
+
+        let parent_item = self.store.get_inode(parent).await?;
+        self.load_fiels(parent_item).await;
         for (index,item) in items.into_iter().enumerate(){
             if index as u64 >= offset {
-                let attr = item.get_stat().await;
+                let attr = self.get_stat(item.clone()).await;
                 let e_name =
                 if  index ==0{
                     String::from(".")
