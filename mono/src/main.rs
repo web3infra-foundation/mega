@@ -13,6 +13,9 @@ pub mod api;
 pub mod git_protocol;
 pub mod server;
 
+#[global_allocator]
+static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
 fn main() {
     // Parse the command line arguments
     let result = cli::parse(None);

@@ -71,7 +71,8 @@ export default function MRDetailPage({ params }: { params: Params }) {
     const get_diff_content = useCallback(async () => {
         const detail = await fetch(`/api/mr/${id}/files-changed`);
         const res = await detail.json();
-        setOutputHtml(Diff2Html.html(res.data.data, { drawFileList: true, matching: 'lines' }));
+        const diff = Diff2Html.html(res.data.data.content, { drawFileList: true, matching: 'lines' })
+        setOutputHtml(diff);
     }, [id])
 
     useEffect(() => {
