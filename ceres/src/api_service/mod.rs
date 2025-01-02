@@ -3,7 +3,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use axum::async_trait;
+use async_trait::async_trait;
 
 use callisto::raw_blob;
 use common::errors::MegaError;

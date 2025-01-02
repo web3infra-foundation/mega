@@ -154,20 +154,20 @@ pub async fn app(
     // add TraceLayer for log record
     // add CorsLayer to add cors header
     Router::new()
-        .nest(
-            "/",
-            lfs_router::routers().with_state(mono_api_state.clone()),
-        )
-        .nest(
-            "/api/v1/mono",
-            mono::api::api_router::routers().with_state(mono_api_state.clone()),
-        )
-        .nest(
-            "/api/v1/mega",
-            mega_routers().with_state(mega_api_state.clone()),
+        .merge(lfs_router::routers().with_state(mono_api_state.clone()))
+        .merge(
+            Router::new()
+                .nest(
+                    "/api/v1/mono",
+                    mono::api::api_router::routers().with_state(mono_api_state.clone()),
+                )
+                .nest(
+                    "/api/v1/mega",
+                    mega_routers().with_state(mega_api_state.clone()),
+                ),
         )
         // Using Regular Expressions for Path Matching in Protocol
-        .route("/*path", get(get_method_router).post(post_method_router))
+        .route("/{*path}", get(get_method_router).post(post_method_router))
         .layer(
             ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
                 http::header::AUTHORIZATION,
