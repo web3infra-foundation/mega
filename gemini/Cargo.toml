@@ -25,6 +25,7 @@ reqwest = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 chrono = { workspace = true }
-secp256k1 = { workspace = true , features = ["serde", "rand","hashes"] }
+secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 ring = "0.17.8"
 hex = { workspace = true }
+async-trait = { workspace = true }
