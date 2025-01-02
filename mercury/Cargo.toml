@@ -34,6 +34,7 @@ futures-util = { workspace = true }
 bytes = { workspace = true }
 axum = { workspace = true }
 memchr = { workspace = true }
+encoding_rs = { workspace = true }
 rayon = "1.10.0"
 
 [target.'cfg(windows)'.dependencies] # only on Windows
