@@ -199,7 +199,7 @@ impl TreeItem {
         Ok(TreeItem {
             mode: TreeItemMode::tree_item_type_from_bytes(mode)?,
             id: SHA1::from_bytes(id),
-            name: name,
+            name,
         })
     }
 
