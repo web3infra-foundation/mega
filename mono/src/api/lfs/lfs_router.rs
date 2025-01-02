@@ -70,15 +70,15 @@ const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 /// document describes the server LFS discovery protocol.
 pub fn routers() -> Router<MonoApiServiceState> {
     Router::new()
-        .route("/objects/:object_id", get(lfs_download_object))
-        .route("/objects/:object_id/:chunk_id", get(lfs_download_chunk))
-        .route("/objects/:object_id", put(lfs_upload_object))
+        .route("/objects/{object_id}", get(lfs_download_object))
+        .route("/objects/{object_id}/{chunk_id}", get(lfs_download_chunk))
+        .route("/objects/{object_id}", put(lfs_upload_object))
         .route("/locks", get(list_locks))
         .route("/locks", post(create_lock))
         .route("/locks/verify", post(list_locks_for_verification))
-        .route("/locks/:id/unlock", post(delete_lock))
+        .route("/locks/{id}/unlock", post(delete_lock))
         .route("/objects/batch", post(lfs_process_batch))
-        .route("/objects/:object_id/chunks", get(lfs_fetch_chunk_ids))
+        .route("/objects/{object_id}/chunks", get(lfs_fetch_chunk_ids))
 }
 
 pub async fn list_locks(
@@ -103,7 +103,8 @@ pub async fn list_locks_for_verification(
     state: State<MonoApiServiceState>,
     Json(json): Json<VerifiableLockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_verify_lock(state.context.services.lfs_db_storage.clone(), json).await;
+    let result =
+        handler::lfs_verify_lock(state.context.services.lfs_db_storage.clone(), json).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -125,7 +126,8 @@ pub async fn create_lock(
     state: State<MonoApiServiceState>,
     Json(json): Json<LockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_create_lock(state.context.services.lfs_db_storage.clone(), json).await;
+    let result =
+        handler::lfs_create_lock(state.context.services.lfs_db_storage.clone(), json).await;
     match result {
         Ok(lock) => {
             let lock_response = LockResponse {

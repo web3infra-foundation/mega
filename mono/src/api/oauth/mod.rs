@@ -1,7 +1,6 @@
 use anyhow::Context;
 use async_session::{MemoryStore, Session, SessionStore};
 use axum::{
-    async_trait,
     extract::{FromRef, FromRequestParts, Query, State},
     http::{header::SET_COOKIE, HeaderMap},
     response::{IntoResponse, Redirect, Response},
@@ -79,7 +78,8 @@ async fn login_authorized(
     }
 
     let new_user: user::Model = github_user.into();
-    let user = state.user_stg()
+    let user = state
+        .user_stg()
         .find_user_by_email(&new_user.email)
         .await
         .unwrap();
@@ -190,7 +190,6 @@ impl IntoResponse for AuthRedirect {
     }
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for LoginUser
 where
     MemoryStore: FromRef<S>,
