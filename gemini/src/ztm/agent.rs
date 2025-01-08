@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use axum::async_trait;
+use async_trait::async_trait;
 use common::config::Config;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};

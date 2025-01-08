@@ -14,14 +14,17 @@ use crate::api::oauth::model::LoginUser;
 use crate::api::MonoApiServiceState;
 
 pub fn routers() -> Router<MonoApiServiceState> {
-    Router::new()
-        .route("/issue/list", post(fetch_issue_list))
-        .route("/issue/new", post(new_issue))
-        .route("/issue/:link/close", post(close_issue))
-        .route("/issue/:link/reopen", post(reopen_issue))
-        .route("/issue/:link/detail", get(issue_detail))
-        .route("/issue/:link/comment", post(save_comment))
-        .route("/issue/comment/:id/delete", post(delete_comment))
+    Router::new().nest(
+        "/issue",
+        Router::new()
+            .route("/list", post(fetch_issue_list))
+            .route("/new", post(new_issue))
+            .route("/{link}/close", post(close_issue))
+            .route("/{link}/reopen", post(reopen_issue))
+            .route("/{link}/detail", get(issue_detail))
+            .route("/{link}/comment", post(save_comment))
+            .route("/comment/{id}/delete", post(delete_comment)),
+    )
 }
 
 #[derive(Deserialize)]
