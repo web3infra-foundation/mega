@@ -151,15 +151,14 @@ pub async fn app(context: Context, host: String, port: u16, common: CommonOption
     // add TraceLayer for log record
     // add CorsLayer to add cors header
     Router::new()
-        .nest("/", lfs_router::routers())
-        .with_state(api_state.clone())
-        .nest(
+        .merge(lfs_router::routers().with_state(api_state.clone()))
+        .merge(Router::new().nest(
             "/api/v1",
             api_router::routers().with_state(api_state.clone()),
-        )
-        .nest("/auth", oauth::routers().with_state(api_state.clone()))
+        ))
+        .merge(Router::new().nest("/auth", oauth::routers().with_state(api_state.clone())))
         // Using Regular Expressions for Path Matching in Protocol
-        .route("/*path", get(get_method_router).post(post_method_router))
+        .route("/{*path}", get(get_method_router).post(post_method_router))
         .layer(
             ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
                 http::header::AUTHORIZATION,

@@ -1,5 +1,5 @@
 use ::serde::{Deserialize, Serialize};
-use axum::async_trait;
+use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
 
