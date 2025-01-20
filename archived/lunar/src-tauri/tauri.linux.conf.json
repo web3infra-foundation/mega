@@ -1,0 +1,7 @@
+{
+    "bundle": {
+        "resources": [
+            "libs/libpipy.so"
+        ]
+    }
+}
