@@ -13,7 +13,6 @@ members = [
     "aries",
     "saturn",
     "taurus",
-    "lunar/src-tauri",
     "atlas",
     "orion",
     "panel",
