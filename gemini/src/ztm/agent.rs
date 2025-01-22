@@ -141,7 +141,7 @@ impl LocalZTMAgent {
                 remove_dir_all(path).unwrap();
             }
 
-            neptune::start_agent(db_path, self.agent_port);
+            // neptune::start_agent(db_path, self.agent_port);
         });
     }
 }
