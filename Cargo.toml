@@ -9,7 +9,6 @@ members = [
     "ceres",
     "libra",
     "vault",
-    "neptune",
     "aries",
     "saturn",
     "taurus",
@@ -29,7 +28,6 @@ ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
-neptune = { path = "neptune" }
 saturn = { path = "saturn" }
 taurus = { path = "taurus" }
 mega = { path = "mega" }

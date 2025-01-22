@@ -23,7 +23,7 @@ pub struct LocalZTMHub {
 impl LocalZTMHub {
     pub fn start_ztm_hub(self) {
         tokio::spawn(async move {
-            neptune::start_hub(self.hub_port, self.name, &self.ca);
+            // neptune::start_hub(self.hub_port, self.name, &self.ca);
         });
     }
 }
