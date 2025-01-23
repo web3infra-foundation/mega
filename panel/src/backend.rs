@@ -12,9 +12,6 @@ pub(crate) async fn init(config: &MegaConfig) {
     };
     let ztm = ZtmOptions {
         ztm_agent_port: 7777,
-        #[cfg(feature = "p2p")]
-        bootstrap_node: None,
-        #[cfg(not(feature = "p2p"))]
         bootstrap_node: None,
         cache: false,
     };
