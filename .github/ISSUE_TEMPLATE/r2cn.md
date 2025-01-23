@@ -1,5 +1,5 @@
 ---
-name: r2cn_task
+name: r2cn
 about: r2cn 任务模板
 title: "[r2cn] "
 labels: r2cn
