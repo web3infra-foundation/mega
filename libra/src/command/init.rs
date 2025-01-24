@@ -23,8 +23,14 @@ pub struct InitArgs {
 }
 
 /// Execute the init function
-pub async fn execute(args: InitArgs) {
-    init(args).await.unwrap();
+pub async fn execute(args: InitArgs){
+   match init(args).await{
+    Ok(_) => {},
+    Err(e) => {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
+   }
 }
 
 /// Check if the repository has already been initialized based on the presence of the description file.
