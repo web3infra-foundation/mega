@@ -19,7 +19,7 @@ use std::path::Path;
 pub struct InitArgs {
     /// Create a bare repository
     #[clap(short, long, required = false)]
-    pub bare: bool,  // 默认值为 false
+    pub bare: bool,  // Defoult is false
 }
 
 /// Execute the init function
