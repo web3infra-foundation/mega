@@ -9,13 +9,18 @@ description:
 
 ### Usage
 
-libra init
+libra init [OPTIONS]
 
 ### Description
 
 This command creates the necessary directories and files for a new Libra repository.
 It also sets up the database and the initial configuration.
+By default, the repository is initialized with a .libra directory. 
+You can initialize a bare repository with the --bare flag, 
+which sets up the repository without a working directory, containing only Libra data.
 
 ### Options
 
+-   `--bare`
+    Initialize a bare repository.
 -   `-h`, `--help` Print help

@@ -72,8 +72,15 @@ pub async fn execute(args: CloneArgs) {
     // CAUTION: change [current_dir] to the repo directory
     env::set_current_dir(&local_path).unwrap();
     let init_args = command::init::InitArgs { bare: false };    
-    command::init::execute(init_args).await;
-
+    match command::init::execute(init_args).await {
+        Ok(_) => {
+            println!("Repository initialized successfully.");
+        }
+        Err(e) => {
+            eprintln!("Error initializing repository: {}", e);
+            std::process::exit(1); // exit with error
+        }
+    }
     /* fetch remote */
     let remote_config = RemoteConfig {
         name: "origin".to_string(),

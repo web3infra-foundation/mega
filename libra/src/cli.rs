@@ -25,7 +25,6 @@ enum Commands {
 
     // Init and Clone are the only commands that can be executed without a repository
     #[command(about = "Initialize a new repository")]
-    //Init,
     Init(command::init::InitArgs),
     #[command(about = "Clone a repository into a new directory")]
     Clone(command::clone::CloneArgs),
