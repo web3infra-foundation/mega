@@ -5,7 +5,6 @@
 // Import necessary standard libraries
 use std::{env, fs, io};
 
-// Import necessary libraries from sea_orm
 use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
 
 use clap::Parser;
@@ -19,7 +18,7 @@ use std::path::Path;
 pub struct InitArgs {
     /// Create a bare repository
     #[clap(short, long, required = false)]
-    pub bare: bool,  // Defoult is false
+    pub bare: bool,  // Default is false
 }
 
 /// Execute the init function
@@ -65,7 +64,12 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     if is_reinit(&cur_dir) {
         println!("Already initialized - [{}]", root_dir.display());
         //return Ok(());
-        return Err(io::Error::new(io::ErrorKind::AlreadyExists, "Already initialized"));    
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "Initialization failed: The repository is already initialized at the specified location. 
+            If you wish to reinitialize, please remove the existing directory or file.",
+        ));
+           
     }
 
     // Create .libra & sub-dirs
@@ -177,6 +181,29 @@ mod tests {
     use super::*;
     use crate::utils::test;
 
+    pub fn verify_init(base_dir: &Path){
+
+        // List of subdirectories to verify
+        let dirs = ["objects/pack", "objects/info", "info"];
+
+        // Loop through the directories and verify they exist
+        for dir in dirs {
+            let dir_path = base_dir.join(dir);
+            assert!(dir_path.exists(), "Directory {} does not exist", dir);
+        }
+
+        // Additional file verification
+        let files = [
+            "description",
+            "libra.db",
+            "info/exclude",
+        ];
+
+        for file in files {
+            let file_path = base_dir.join(file);
+            assert!(file_path.exists(), "File {} does not exist", file);
+        }
+    }
     /// Test the init function with no parameters
     #[tokio::test]
     async fn test_init() {
@@ -185,6 +212,13 @@ mod tests {
         let args = InitArgs {bare: false};
         // Run the init function
         init(args).await.unwrap();
+
+        // Verify that the `.libra` directory exists
+        let libra_dir = Path::new(".libra");
+        assert!(libra_dir.exists(), ".libra directory does not exist");
+
+        // Verify the contents of the other directory
+        verify_init(libra_dir);
     }
 
     //Test the init function with the --bare flag       
@@ -196,6 +230,10 @@ mod tests {
         let args = InitArgs {bare: true};
         // Run the init function
         init(args).await.unwrap();
+
+        let libra_dir = Path::new(".");
+        // Verify the contents of the other directory
+        verify_init(libra_dir);
     }
     //Test the init function with the --bare flag and an existing repository    
     #[tokio::test]
