@@ -2,35 +2,67 @@
 //!
 //!
 //!
-// Import necessary standard libraries
 use std::{env, fs, io};
 
-// Import necessary libraries from sea_orm
 use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
 
-// Import necessary modules from the internal crate
+use clap::Parser;
+
 use crate::internal::db;
 use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
+use std::path::Path;
+
+#[derive(Parser, Debug)]
+pub struct InitArgs {
+    /// Create a bare repository
+    #[clap(short, long, required = false)]
+    pub bare: bool,  // Default is false
+}
 
 /// Execute the init function
-pub async fn execute() {
-    init().await.unwrap();
+pub async fn execute(args: InitArgs){
+   match init(args).await{
+    Ok(_) => {},
+    Err(e) => {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
+   }
+}
+
+/// Check if the repository has already been initialized based on the presence of the description file.
+fn is_reinit(cur_dir: &Path) -> bool {
+    let bare_head_path = cur_dir.join("description");
+    let head_path = cur_dir.join(".libra/description");
+    // Check the presence of the description file
+    head_path.exists() || bare_head_path.exists()
 }
 
 /// Initialize a new Libra repository
 /// This function creates the necessary directories and files for a new Libra repository.
 /// It also sets up the database and the initial configuration.
 #[allow(dead_code)]
-pub async fn init() -> io::Result<()> {
+pub async fn init(args: InitArgs) -> io::Result<()> {
     // Get the current directory
     let cur_dir = env::current_dir()?;
     // Join the current directory with the root directory
-    let root_dir = cur_dir.join(ROOT_DIR);
+    let root_dir = if args.bare{
+        cur_dir.clone()
+    }else{
+        cur_dir.join(ROOT_DIR)
+    };
+
     // Check if the root directory already exists
-    if root_dir.exists() {
+    if is_reinit(&cur_dir) {
         println!("Already initialized - [{}]", root_dir.display());
-        return Ok(());
+        
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "Initialization failed: The repository is already initialized at the specified location. 
+            If you wish to reinitialize, please remove the existing directory or file.",
+        ));
+           
     }
 
     // Create .libra & sub-dirs
@@ -66,17 +98,17 @@ pub async fn init() -> io::Result<()> {
         .insert(&conn)
         .await
         .unwrap();
-
+    
+    
     // Set .libra as hidden
     set_dir_hidden(root_dir.to_str().unwrap())?;
     println!(
         "Initializing empty Libra repository in {}",
         root_dir.display()
     );
-
+      
     Ok(())
 }
-
 /// Initialize the configuration for the Libra repository
 /// This function creates the necessary configuration entries in the database.
 async fn init_config(conn: &DbConn) -> Result<(), DbErr> {
@@ -139,16 +171,83 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 /// Unit tests for the init module
 #[cfg(test)]
 mod tests {
-    use super::init;
+    use super::*;
     use crate::utils::test;
 
-    /// Test the init function
+    pub fn verify_init(base_dir: &Path){
+
+        // List of subdirectories to verify
+        let dirs = ["objects/pack", "objects/info", "info"];
+
+        // Loop through the directories and verify they exist
+        for dir in dirs {
+            let dir_path = base_dir.join(dir);
+            assert!(dir_path.exists(), "Directory {} does not exist", dir);
+        }
+
+        // Additional file verification
+        let files = [
+            "description",
+            "libra.db",
+            "info/exclude",
+        ];
+
+        for file in files {
+            let file_path = base_dir.join(file);
+            assert!(file_path.exists(), "File {} does not exist", file);
+        }
+    }
+    /// Test the init function with no parameters
     #[tokio::test]
     async fn test_init() {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
-
+        let args = InitArgs {bare: false};
         // Run the init function
-        init().await.unwrap();
+        init(args).await.unwrap();
+
+        // Verify that the `.libra` directory exists
+        let libra_dir = Path::new(".libra");
+        assert!(libra_dir.exists(), ".libra directory does not exist");
+
+        // Verify the contents of the other directory
+        verify_init(libra_dir);
     }
+
+    //Test the init function with the --bare flag       
+    #[tokio::test]
+    async fn test_init_bare() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+        // Run the init function with --bare flag
+        let args = InitArgs {bare: true};
+        // Run the init function
+        init(args).await.unwrap();
+
+        let libra_dir = Path::new(".");
+        // Verify the contents of the other directory
+        verify_init(libra_dir);
+    }
+    //Test the init function with the --bare flag and an existing repository    
+    #[tokio::test]
+    async fn test_init_bare_with_existing_repo() {
+        // Set up the test environment for a bare repository
+        test::setup_clean_testing_env();
+
+        // Initialize a bare repository
+        let init_args = InitArgs { bare: false };
+        init(init_args).await.unwrap(); // Execute init for bare repository
+    
+        // Simulate trying to reinitialize the bare repo
+        let result = async {
+        let args = InitArgs { bare: true };
+            init(args).await
+        };
+
+        // Check for the error
+        let err = result.await.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);  // Check error type
+        assert!(err.to_string().contains("Initialization failed"));  // Check error message contains "Already initialized"
+    }
+
 }
