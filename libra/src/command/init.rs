@@ -8,7 +8,7 @@ use std::{env, fs, io};
 use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
 
 use clap::Parser;
-// Import necessary modules from the internal crate
+
 use crate::internal::db;
 use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
@@ -37,11 +37,7 @@ fn is_reinit(cur_dir: &Path) -> bool {
     let bare_head_path = cur_dir.join("description");
     let head_path = cur_dir.join(".libra/description");
     // Check the presence of the description file
-    if head_path.exists() || bare_head_path.exists(){
-        true
-    } else {
-        false
-    }
+    head_path.exists() || bare_head_path.exists()
 }
 
 /// Initialize a new Libra repository
@@ -52,18 +48,16 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     // Get the current directory
     let cur_dir = env::current_dir()?;
     // Join the current directory with the root directory
-    let root_dir;
-
-    if args.bare{
-        root_dir = cur_dir.clone();
+    let root_dir = if args.bare{
+        cur_dir.clone()
     }else{
-        root_dir = cur_dir.join(ROOT_DIR);
-    }
+        cur_dir.join(ROOT_DIR)
+    };
 
     // Check if the root directory already exists
     if is_reinit(&cur_dir) {
         println!("Already initialized - [{}]", root_dir.display());
-        //return Ok(());
+        
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             "Initialization failed: The repository is already initialized at the specified location. 
@@ -254,7 +248,7 @@ mod tests {
         // Check for the error
         let err = result.await.unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);  // Check error type
-        assert!(err.to_string().contains("Already initialized"));  // Check error message contains "Already initialized"
+        assert!(err.to_string().contains("Initialization failed"));  // Check error message contains "Already initialized"
     }
 
 }
