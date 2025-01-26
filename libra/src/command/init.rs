@@ -13,7 +13,6 @@ use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
 use std::path::Path;
 use crate::command::branch;
-use crate::internal::head::Head;
 
 #[derive(Parser, Debug)]
 pub struct InitArgs {
@@ -75,7 +74,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
         if !branch::is_valid_git_branch_name(branch_name) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("fatal: invalid branch name: {}", branch_name),
+                format!("invalid branch name: '{}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name.", branch_name),
             ));
         }
     }
