@@ -13,6 +13,7 @@ use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
 use std::path::Path;
 use crate::command::branch;
+use crate::internal::head::Head;
 
 #[derive(Parser, Debug)]
 pub struct InitArgs {
@@ -262,6 +263,45 @@ mod tests {
         let err = result.await.unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);  // Check error type
         assert!(err.to_string().contains("Initialization failed"));  // Check error message contains "Already initialized"
+    }
+
+    /// Test the init function with an initial branch name
+    #[tokio::test]
+    async fn test_init_with_initial_branch() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+        let args = InitArgs { bare: false, initial_branch: Some("main".to_string()) };
+        // Run the init function
+        init(args).await.unwrap();
+
+        // Verify that the `.libra` directory exists
+        let libra_dir = Path::new(".libra");
+        assert!(libra_dir.exists(), ".libra directory does not exist");
+
+        // Verify the contents of the other directory
+        verify_init(libra_dir);
+
+        // Verify the HEAD reference
+        match Head::current().await {
+            Head::Branch(current_branch) => {
+                assert_eq!(current_branch, "main");
+            }
+            _ => panic!("should be branch"),
+        };
+    }
+
+    /// Test the init function with an invalid branch name
+    #[tokio::test]
+    async fn test_init_with_invalid_branch() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+        let args = InitArgs { bare: false, initial_branch: Some("/master".to_string()) };
+        // Run the init function
+        let result = init(args).await;
+        // Check for the error
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);  // Check error type
+        assert!(err.to_string().contains("fatal: invalid branch name"));  // Check error message contains "fatal: invalid branch name"
     }
 
 }
