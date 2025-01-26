@@ -186,7 +186,7 @@ async fn list_branches(remotes: bool) {
 }
 
 
-fn is_valid_git_branch_name(name: &str) -> bool {
+pub fn is_valid_git_branch_name(name: &str) -> bool {
     // 检查是否包含不允许的字符
     if name.contains(&[' ', '\t', '\\', ':', '"', '?', '*', '['][..])
         || name.chars().any(|c| c.is_ascii_control())
