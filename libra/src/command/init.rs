@@ -16,8 +16,12 @@ use std::path::Path;
 #[derive(Parser, Debug)]
 pub struct InitArgs {
     /// Create a bare repository
-    #[clap(short, long, required = false)]
+    #[clap(long, required = false)]
     pub bare: bool,  // Default is false
+
+    /// Set the initial branch name
+    #[clap(short = 'b', long, required = false)]
+    pub initial_branch: Option<String>,
 }
 
 /// Execute the init function
@@ -91,7 +95,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     // Create HEAD
     reference::ActiveModel {
-        name: Set(Some("master".to_owned())),
+        name: Set(Some(args.initial_branch.unwrap_or_else(|| "master".to_owned()))),
         kind: Set(reference::ConfigKind::Head),
         ..Default::default() // all others are `NotSet`
     }
@@ -202,7 +206,7 @@ mod tests {
     async fn test_init() {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
-        let args = InitArgs {bare: false};
+        let args = InitArgs { bare: false, initial_branch: None };
         // Run the init function
         init(args).await.unwrap();
 
@@ -220,7 +224,7 @@ mod tests {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         // Run the init function with --bare flag
-        let args = InitArgs {bare: true};
+        let args = InitArgs { bare: true, initial_branch: None };
         // Run the init function
         init(args).await.unwrap();
 
@@ -235,12 +239,12 @@ mod tests {
         test::setup_clean_testing_env();
 
         // Initialize a bare repository
-        let init_args = InitArgs { bare: false };
+        let init_args = InitArgs { bare: false, initial_branch: None };
         init(init_args).await.unwrap(); // Execute init for bare repository
     
         // Simulate trying to reinitialize the bare repo
         let result = async {
-        let args = InitArgs { bare: true };
+        let args = InitArgs { bare: true, initial_branch: None };
             init(args).await
         };
 
