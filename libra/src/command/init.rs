@@ -12,6 +12,7 @@ use crate::internal::db;
 use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
 use std::path::Path;
+use crate::command::branch;
 
 #[derive(Parser, Debug)]
 pub struct InitArgs {
@@ -66,7 +67,16 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
             "Initialization failed: The repository is already initialized at the specified location. 
             If you wish to reinitialize, please remove the existing directory or file.",
         ));
-           
+    }
+
+    // Check if the branch name is valid
+    if let Some(ref branch_name) = args.initial_branch {
+        if !branch::is_valid_git_branch_name(branch_name) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("fatal: invalid branch name: {}", branch_name),
+            ));
+        }
     }
 
     // Create .libra & sub-dirs
