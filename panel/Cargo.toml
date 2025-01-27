@@ -15,7 +15,7 @@ gateway.workspace = true
 
 
 # ===== Zed Gpui Dependencies ===== #
-gpui = { git = "https://github.com/zed-industries/zed" }
+gpui = { git = "https://github.com/zed-industries/zed", tag = "v0.167.2" }
 
 # ==== Third Part Dependencies ==== #
 tokio = { workspace = true, features = ["macros"]}
