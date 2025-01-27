@@ -293,9 +293,30 @@ mod tests {
     /// Test the init function with an invalid branch name
     #[tokio::test]
     async fn test_init_with_invalid_branch() {
+        // Cover all invalid branch name cases
+        test_invalid_branch_name("master ").await;
+        test_invalid_branch_name("master\t").await;
+        test_invalid_branch_name("master\\").await;
+        test_invalid_branch_name("master:").await;
+        test_invalid_branch_name("master\"").await;
+        test_invalid_branch_name("master?").await;
+        test_invalid_branch_name("master*").await;
+        test_invalid_branch_name("master[").await;
+        test_invalid_branch_name("/master").await;
+        test_invalid_branch_name("master/").await;
+        test_invalid_branch_name("master.").await;
+        test_invalid_branch_name("mast//er").await;
+        test_invalid_branch_name("mast..er").await;
+        test_invalid_branch_name("HEAD").await;
+        test_invalid_branch_name("mast@{er").await;
+        test_invalid_branch_name("").await;
+        test_invalid_branch_name(".").await;
+    }
+
+    async fn test_invalid_branch_name(branch_name: &str) {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
-        let args = InitArgs { bare: false, initial_branch: Some("/master".to_string()) };
+        let args = InitArgs { bare: false, initial_branch: Some(branch_name.to_string()) };
         // Run the init function
         let result = init(args).await;
         // Check for the error
