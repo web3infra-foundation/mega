@@ -187,14 +187,16 @@ async fn list_branches(remotes: bool) {
 
 
 pub fn is_valid_git_branch_name(name: &str) -> bool {
-    // 检查是否包含不允许的字符
+    // Validate branch name
+    // Not contain spaces, control characters or special characters
     if name.contains(&[' ', '\t', '\\', ':', '"', '?', '*', '['][..])
         || name.chars().any(|c| c.is_ascii_control())
     {
         return false;
     }
 
-    // 检查其他Git规则
+    // Not start or end with a slash ('/'), or end with a dot ('.')
+    // Not contain consecutive slashes ('//') or dots ('..')
     if name.starts_with('/')
         || name.ends_with('/')
         || name.ends_with('.')
@@ -204,12 +206,12 @@ pub fn is_valid_git_branch_name(name: &str) -> bool {
         return false;
     }
 
-    // 检查特殊的Git保留字
+    // Not be reserved names like 'HEAD' or contain '@{'
     if name == "HEAD" || name.contains("@{") {
         return false;
     }
 
-    // 检查是否是空字符串或只包含点
+    // Not be empty or just a dot ('.')
     if name.trim().is_empty() || name.trim() == "." {
         return false;
     }
