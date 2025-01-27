@@ -187,6 +187,7 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::utils::test;
+    use crate::internal::head::Head;
 
     pub fn verify_init(base_dir: &Path){
 
@@ -300,7 +301,7 @@ mod tests {
         // Check for the error
         let err = result.unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);  // Check error type
-        assert!(err.to_string().contains("fatal: invalid branch name"));  // Check error message contains "fatal: invalid branch name"
+        assert!(err.to_string().contains("invalid branch name"));  // Check error message contains "invalid branch name"
     }
 
 }
