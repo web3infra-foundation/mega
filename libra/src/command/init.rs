@@ -12,12 +12,17 @@ use crate::internal::db;
 use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
 use std::path::Path;
+use crate::command::branch;
 
 #[derive(Parser, Debug)]
 pub struct InitArgs {
     /// Create a bare repository
-    #[clap(short, long, required = false)]
+    #[clap(long, required = false)]
     pub bare: bool,  // Default is false
+
+    /// Set the initial branch name
+    #[clap(short = 'b', long, required = false)]
+    pub initial_branch: Option<String>,
 }
 
 /// Execute the init function
@@ -62,7 +67,16 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
             "Initialization failed: The repository is already initialized at the specified location. 
             If you wish to reinitialize, please remove the existing directory or file.",
         ));
-           
+    }
+
+    // Check if the branch name is valid
+    if let Some(ref branch_name) = args.initial_branch {
+        if !branch::is_valid_git_branch_name(branch_name) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid branch name: '{}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name.", branch_name),
+            ));
+        }
     }
 
     // Create .libra & sub-dirs
@@ -91,7 +105,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     // Create HEAD
     reference::ActiveModel {
-        name: Set(Some("master".to_owned())),
+        name: Set(Some(args.initial_branch.unwrap_or_else(|| "master".to_owned()))),
         kind: Set(reference::ConfigKind::Head),
         ..Default::default() // all others are `NotSet`
     }
@@ -173,6 +187,7 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::utils::test;
+    use crate::internal::head::Head;
 
     pub fn verify_init(base_dir: &Path){
 
@@ -202,7 +217,7 @@ mod tests {
     async fn test_init() {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
-        let args = InitArgs {bare: false};
+        let args = InitArgs { bare: false, initial_branch: None };
         // Run the init function
         init(args).await.unwrap();
 
@@ -220,7 +235,7 @@ mod tests {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         // Run the init function with --bare flag
-        let args = InitArgs {bare: true};
+        let args = InitArgs { bare: true, initial_branch: None };
         // Run the init function
         init(args).await.unwrap();
 
@@ -235,12 +250,12 @@ mod tests {
         test::setup_clean_testing_env();
 
         // Initialize a bare repository
-        let init_args = InitArgs { bare: false };
+        let init_args = InitArgs { bare: false, initial_branch: None };
         init(init_args).await.unwrap(); // Execute init for bare repository
     
         // Simulate trying to reinitialize the bare repo
         let result = async {
-        let args = InitArgs { bare: true };
+        let args = InitArgs { bare: true, initial_branch: None };
             init(args).await
         };
 
@@ -248,6 +263,66 @@ mod tests {
         let err = result.await.unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);  // Check error type
         assert!(err.to_string().contains("Initialization failed"));  // Check error message contains "Already initialized"
+    }
+
+    /// Test the init function with an initial branch name
+    #[tokio::test]
+    async fn test_init_with_initial_branch() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+        let args = InitArgs { bare: false, initial_branch: Some("main".to_string()) };
+        // Run the init function
+        init(args).await.unwrap();
+
+        // Verify that the `.libra` directory exists
+        let libra_dir = Path::new(".libra");
+        assert!(libra_dir.exists(), ".libra directory does not exist");
+
+        // Verify the contents of the other directory
+        verify_init(libra_dir);
+
+        // Verify the HEAD reference
+        match Head::current().await {
+            Head::Branch(current_branch) => {
+                assert_eq!(current_branch, "main");
+            }
+            _ => panic!("should be branch"),
+        };
+    }
+
+    /// Test the init function with an invalid branch name
+    #[tokio::test]
+    async fn test_init_with_invalid_branch() {
+        // Cover all invalid branch name cases
+        test_invalid_branch_name("master ").await;
+        test_invalid_branch_name("master\t").await;
+        test_invalid_branch_name("master\\").await;
+        test_invalid_branch_name("master:").await;
+        test_invalid_branch_name("master\"").await;
+        test_invalid_branch_name("master?").await;
+        test_invalid_branch_name("master*").await;
+        test_invalid_branch_name("master[").await;
+        test_invalid_branch_name("/master").await;
+        test_invalid_branch_name("master/").await;
+        test_invalid_branch_name("master.").await;
+        test_invalid_branch_name("mast//er").await;
+        test_invalid_branch_name("mast..er").await;
+        test_invalid_branch_name("HEAD").await;
+        test_invalid_branch_name("mast@{er").await;
+        test_invalid_branch_name("").await;
+        test_invalid_branch_name(".").await;
+    }
+
+    async fn test_invalid_branch_name(branch_name: &str) {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+        let args = InitArgs { bare: false, initial_branch: Some(branch_name.to_string()) };
+        // Run the init function
+        let result = init(args).await;
+        // Check for the error
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);  // Check error type
+        assert!(err.to_string().contains("invalid branch name"));  // Check error message contains "invalid branch name"
     }
 
 }
