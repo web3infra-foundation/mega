@@ -2,7 +2,7 @@
 //!
 //!
 //!
-use std::{env, fs, io};
+use std::{fs, io::{self, ErrorKind}, path::Path};
 
 use sea_orm::{ActiveModelTrait, DbConn, DbErr, Set, TransactionTrait};
 
@@ -11,7 +11,6 @@ use clap::Parser;
 use crate::internal::db;
 use crate::internal::model::{config, reference};
 use crate::utils::util::{DATABASE, ROOT_DIR};
-use std::path::Path;
 use crate::command::branch;
 
 #[derive(Parser, Debug)]
@@ -23,6 +22,10 @@ pub struct InitArgs {
     /// Set the initial branch name
     #[clap(short = 'b', long, required = false)]
     pub initial_branch: Option<String>,
+
+    /// Create a repository in the specified directory
+    #[clap(default_value = ".")]
+    pub repo_directory: String,
 }
 
 /// Execute the init function
@@ -44,13 +47,41 @@ fn is_reinit(cur_dir: &Path) -> bool {
     head_path.exists() || bare_head_path.exists()
 }
 
+/// Check if the target directory is writable
+fn is_writable(cur_dir: &Path) -> io::Result<()> {
+    match fs::metadata(cur_dir) {
+        Ok(metadata) => {
+            // Check if the target directory is a directory
+            if !metadata.is_dir() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "The target directory is not a directory.",
+                ));
+            }
+            // Check permissions
+            if metadata.permissions().readonly() {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "The target directory is read-only.",
+                ));
+            }
+        }
+        Err(e) if e.kind() != ErrorKind::NotFound => {
+            return Err(e);
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 /// Initialize a new Libra repository
 /// This function creates the necessary directories and files for a new Libra repository.
 /// It also sets up the database and the initial configuration.
 #[allow(dead_code)]
 pub async fn init(args: InitArgs) -> io::Result<()> {
     // Get the current directory
-    let cur_dir = env::current_dir()?;
+    // let cur_dir = env::current_dir()?;
+    let cur_dir = Path::new(&args.repo_directory).to_path_buf();
     // Join the current directory with the root directory
     let root_dir = if args.bare{
         cur_dir.clone()
@@ -76,6 +107,14 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
                 io::ErrorKind::InvalidInput,
                 format!("invalid branch name: '{}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name.", branch_name),
             ));
+        }
+    }
+
+    // Check if the target directory is writable
+    match is_writable(&cur_dir) {
+        Ok(_) => {}
+        Err(e) => {
+            return Err(e);
         }
     }
 
@@ -188,6 +227,7 @@ mod tests {
     use super::*;
     use crate::utils::test;
     use crate::internal::head::Head;
+    use std::{env, os::unix::fs::PermissionsExt};
 
     pub fn verify_init(base_dir: &Path){
 
@@ -217,7 +257,8 @@ mod tests {
     async fn test_init() {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
-        let args = InitArgs { bare: false, initial_branch: None };
+        let cur_dir = env::current_dir().unwrap();
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
         // Run the init function
         init(args).await.unwrap();
 
@@ -229,13 +270,14 @@ mod tests {
         verify_init(libra_dir);
     }
 
-    //Test the init function with the --bare flag       
+    /// Test the init function with the --bare flag       
     #[tokio::test]
     async fn test_init_bare() {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         // Run the init function with --bare flag
-        let args = InitArgs { bare: true, initial_branch: None };
+        let cur_dir = env::current_dir().unwrap();
+        let args = InitArgs { bare: true, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
         // Run the init function
         init(args).await.unwrap();
 
@@ -243,19 +285,20 @@ mod tests {
         // Verify the contents of the other directory
         verify_init(libra_dir);
     }
-    //Test the init function with the --bare flag and an existing repository    
+    /// Test the init function with the --bare flag and an existing repository    
     #[tokio::test]
     async fn test_init_bare_with_existing_repo() {
         // Set up the test environment for a bare repository
         test::setup_clean_testing_env();
 
         // Initialize a bare repository
-        let init_args = InitArgs { bare: false, initial_branch: None };
+        let cur_dir = env::current_dir().unwrap();
+        let init_args = InitArgs { bare: false, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
         init(init_args).await.unwrap(); // Execute init for bare repository
     
         // Simulate trying to reinitialize the bare repo
         let result = async {
-        let args = InitArgs { bare: true, initial_branch: None };
+        let args = InitArgs { bare: true, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
             init(args).await
         };
 
@@ -270,7 +313,8 @@ mod tests {
     async fn test_init_with_initial_branch() {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
-        let args = InitArgs { bare: false, initial_branch: Some("main".to_string()) };
+        let cur_dir = env::current_dir().unwrap();
+        let args = InitArgs { bare: false, initial_branch: Some("main".to_string()), repo_directory: cur_dir.to_str().unwrap().to_string() };
         // Run the init function
         init(args).await.unwrap();
 
@@ -316,13 +360,82 @@ mod tests {
     async fn test_invalid_branch_name(branch_name: &str) {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
-        let args = InitArgs { bare: false, initial_branch: Some(branch_name.to_string()) };
+        let cur_dir = env::current_dir().unwrap(); 
+        let args = InitArgs { bare: false, initial_branch: Some(branch_name.to_string()), repo_directory: cur_dir.to_str().unwrap().to_string() };
         // Run the init function
         let result = init(args).await;
         // Check for the error
         let err = result.unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);  // Check error type
         assert!(err.to_string().contains("invalid branch name"));  // Check error message contains "invalid branch name"
+    }
+
+    /// Test the init function with [directory] parameter
+    #[tokio::test]
+    async fn test_init_with_directory() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+
+        // Create a test directory
+        let cur_dir = env::current_dir().unwrap();
+        let test_dir = cur_dir.join("test");
+
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned() };
+        // Run the init function
+        init(args).await.unwrap();
+
+        // Verify that the `.libra` directory exists
+        let libra_dir = test_dir.join(".libra");
+        assert!(libra_dir.exists(), ".libra directory does not exist");
+
+        // Verify the contents of the other directory
+        verify_init(&libra_dir);
+    }
+
+    /// Test the init function with invalid [directory] parameter
+    #[tokio::test]
+    async fn test_init_with_invalid_directory() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+
+        // Create a test file instead of a directory
+        let cur_dir = env::current_dir().unwrap();
+        let test_dir = cur_dir.join("test.txt");
+
+        // Create a file with the same name as the test directory
+        fs::File::create(&test_dir).unwrap();
+
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned() };
+        // Run the init function
+        let result = init(args).await;
+
+        // Check for the error
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);  // Check error type
+        assert!(err.to_string().contains("The target directory is not a directory"));  // Check error message
+    }
+
+    #[tokio::test]
+    async fn test_init_with_unauthorized_directory() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+
+        // Create a test directory
+        let cur_dir = env::current_dir().unwrap();
+        let test_dir = cur_dir.join("test");
+
+        // Create a directory with restricted permissions
+        fs::create_dir(&test_dir).unwrap();
+        fs::set_permissions(&test_dir, fs::Permissions::from_mode(0o444)).unwrap();
+
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned() };
+        // Run the init function
+        let result = init(args).await;
+
+        // Check for the error
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);  // Check error type
+        assert!(err.to_string().contains("The target directory is read-only"));  // Check error message
     }
 
 }
