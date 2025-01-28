@@ -18,8 +18,9 @@ pub struct InitArgs {
     #[clap(short, long, required = false)]
     pub bare: bool,  // Default is false
 
+    /// Create a repository in the specified directory
     #[clap(default_value = ".")]
-    pub directory: String,
+    pub repo_directory: String,
 }
 
 /// Execute the init function
@@ -75,7 +76,7 @@ fn is_writable(cur_dir: &Path) -> io::Result<()> {
 pub async fn init(args: InitArgs) -> io::Result<()> {
     // Get the current directory
     // let cur_dir = env::current_dir()?;
-    let cur_dir = Path::new(&args.directory).to_path_buf();
+    let cur_dir = Path::new(&args.repo_directory).to_path_buf();
     // Join the current directory with the root directory
     let root_dir = if args.bare{
         cur_dir.clone()
@@ -89,8 +90,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
         
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            "Initialization failed: The repository is already initialized at the specified location. 
-            If you wish to reinitialize, please remove the existing directory or file.",
+            "Initialization failed: The repository is already initialized at the specified location. If you wish to reinitialize, please remove the existing directory or file.",
         ));
            
     }
@@ -241,7 +241,7 @@ mod tests {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         let cur_dir = env::current_dir().unwrap();
-        let args = InitArgs {bare: false, directory: cur_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs {bare: false, repo_directory: cur_dir.to_str().unwrap().to_owned() };
         // Run the init function
         init(args).await.unwrap();
 
@@ -260,7 +260,7 @@ mod tests {
         test::setup_clean_testing_env();
         // Run the init function with --bare flag
         let cur_dir = env::current_dir().unwrap();
-        let args = InitArgs {bare: true, directory: cur_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs {bare: true, repo_directory: cur_dir.to_str().unwrap().to_owned() };
         // Run the init function
         init(args).await.unwrap();
 
@@ -276,12 +276,12 @@ mod tests {
 
         // Initialize a bare repository
         let cur_dir = env::current_dir().unwrap();
-        let init_args = InitArgs { bare: false, directory: cur_dir.to_str().unwrap().to_owned() };
+        let init_args = InitArgs { bare: false, repo_directory: cur_dir.to_str().unwrap().to_owned() };
         init(init_args).await.unwrap(); // Execute init for bare repository
     
         // Simulate trying to reinitialize the bare repo
         let result = async {
-            let args = InitArgs { bare: true, directory: cur_dir.to_str().unwrap().to_owned() };
+            let args = InitArgs { bare: true, repo_directory: cur_dir.to_str().unwrap().to_owned() };
             init(args).await
         };
 
@@ -301,7 +301,7 @@ mod tests {
         let cur_dir = env::current_dir().unwrap();
         let test_dir = cur_dir.join("test");
 
-        let args = InitArgs {bare: false, directory: test_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs {bare: false, repo_directory: test_dir.to_str().unwrap().to_owned() };
         // Run the init function
         init(args).await.unwrap();
 
@@ -326,7 +326,7 @@ mod tests {
         // Create a file with the same name as the test directory
         fs::File::create(&test_dir).unwrap();
 
-        let args = InitArgs {bare: false, directory: test_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs {bare: false, repo_directory: test_dir.to_str().unwrap().to_owned() };
         // Run the init function
         let result = init(args).await;
 
@@ -349,7 +349,7 @@ mod tests {
         fs::create_dir(&test_dir).unwrap();
         fs::set_permissions(&test_dir, fs::Permissions::from_mode(0o444)).unwrap();
 
-        let args = InitArgs {bare: false, directory: test_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs {bare: false, repo_directory: test_dir.to_str().unwrap().to_owned() };
         // Run the init function
         let result = init(args).await;
 

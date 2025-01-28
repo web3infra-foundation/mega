@@ -107,7 +107,7 @@ pub fn setup_clean_testing_env() {
 pub async fn setup_with_new_libra() {
     setup_clean_testing_env();
     let cur_path = util::cur_dir();
-    let args = command::init::InitArgs { bare: false, directory: cur_path.to_str().unwrap().to_owned() };
+    let args = command::init::InitArgs { bare: false, repo_directory: cur_path.to_str().unwrap().to_owned() };
     command::init::init(args).await.unwrap();
 }
 
