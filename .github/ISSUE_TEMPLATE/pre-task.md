@@ -2,7 +2,7 @@
 name: pre-task
 about: r2cn 测试任务模板
 title: "[libra] "
-labels: pre-task
+labels: libra, pre-task
 assignees: ''
 
 ---
