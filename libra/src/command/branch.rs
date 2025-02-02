@@ -31,7 +31,7 @@ pub struct BranchArgs {
 
     /// show current branch
     #[clap(long, group = "sub")]
-    show_curren: bool,
+    show_current: bool,
 
     /// show remote branches
     #[clap(short, long)] // TODO limit to required `list` option, even in default
@@ -42,7 +42,7 @@ pub async fn execute(args: BranchArgs) {
         create_branch(args.new_branch.unwrap(), args.commit_hash).await;
     } else if args.delete.is_some() {
         delete_branch(args.delete.unwrap()).await;
-    } else if args.show_curren {
+    } else if args.show_current {
         show_current_branch().await;
     } else if args.set_upstream_to.is_some() {
         match Head::current().await {
@@ -258,7 +258,7 @@ mod tests {
                 list: false,
                 delete: None,
                 set_upstream_to: None,
-                show_curren: false,
+                show_current: false,
                 remotes: false,
             };
             execute(args).await;
@@ -285,7 +285,7 @@ mod tests {
                 list: false,
                 delete: None,
                 set_upstream_to: None,
-                show_curren: false,
+                show_current: false,
                 remotes: false,
             };
             execute(args).await;
@@ -304,7 +304,7 @@ mod tests {
             list: false,
             delete: None,
             set_upstream_to: None,
-            show_curren: true,
+            show_current: true,
             remotes: false,
         };
         execute(args).await;
@@ -335,7 +335,7 @@ mod tests {
             list: false,
             delete: None,
             set_upstream_to: None,
-            show_curren: false,
+            show_current: false,
             remotes: false,
         };
         execute(args).await;
@@ -364,7 +364,7 @@ mod tests {
             list: false,
             delete: None,
             set_upstream_to: None,
-            show_curren: false,
+            show_current: false,
             remotes: false,
         };
         execute(args).await;
