@@ -12,8 +12,8 @@ use callisto::user;
 use chrono::{Duration, Utc};
 use http::{header, request::Parts, StatusCode};
 use oauth2::{
-    basic::BasicClient, reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId,
-    ClientSecret, CsrfToken, RedirectUrl, Scope, TokenResponse, TokenUrl,
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
+    TokenResponse, TokenUrl,
 };
 
 use common::config::OauthConfig;
@@ -22,6 +22,8 @@ use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
 
 use crate::api::error::ApiError;
 use crate::api::MonoApiServiceState;
+
+use super::GithubClient;
 
 pub mod model;
 
@@ -34,7 +36,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/logout", get(logout))
 }
 
-async fn github_auth(State(client): State<BasicClient>) -> impl IntoResponse {
+async fn github_auth(State(client): State<GithubClient>) -> impl IntoResponse {
     // Issue for adding check to this example https://github.com/tokio-rs/axum/issues/2511
     let (auth_url, _csrf_token) = client
         .authorize_url(CsrfToken::new_random)
@@ -46,14 +48,19 @@ async fn github_auth(State(client): State<BasicClient>) -> impl IntoResponse {
 async fn login_authorized(
     Query(query): Query<OauthCallbackParams>,
     State(state): State<MonoApiServiceState>,
-    State(oauth_client): State<BasicClient>,
+    State(oauth_client): State<GithubClient>,
 ) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
     let config = state.context.config.oauth.as_ref().unwrap();
+
+    let http_client = reqwest::ClientBuilder::new()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+
     // Get an auth token
     let token = oauth_client
         .exchange_code(AuthorizationCode::new(query.code.clone()))
-        .request_async(async_http_client)
+        .request_async(&http_client)
         .await
         .context("failed in sending request request to authorization server")?;
 
@@ -160,7 +167,7 @@ async fn logout(
     Ok((headers, Redirect::to(&config.ui_domain)))
 }
 
-pub fn oauth_client(oauth_config: OauthConfig) -> Result<BasicClient, ApiError> {
+pub fn oauth_client(oauth_config: OauthConfig) -> Result<GithubClient, ApiError> {
     let client_id = oauth_config.github_client_id;
     let client_secret = oauth_config.github_client_secret;
     let ui_domain = oauth_config.ui_domain;
@@ -171,15 +178,14 @@ pub fn oauth_client(oauth_config: OauthConfig) -> Result<BasicClient, ApiError> 
 
     let token_url = "https://github.com/login/oauth/access_token".to_string();
 
-    Ok(BasicClient::new(
-        ClientId::new(client_id),
-        Some(ClientSecret::new(client_secret)),
-        AuthUrl::new(auth_url).context("failed to create new authorization server URL")?,
-        Some(TokenUrl::new(token_url).context("failed to create new token endpoint URL")?),
-    )
-    .set_redirect_uri(
-        RedirectUrl::new(redirect_url).context("failed to create new redirection URL")?,
-    ))
+    let client = GithubClient::new(ClientId::new(client_id))
+        .set_client_secret(ClientSecret::new(client_secret))
+        .set_auth_uri(AuthUrl::new(auth_url)?)
+        .set_token_uri(TokenUrl::new(token_url)?)
+        // Set the URL the user will be redirected to after the authorization process.
+        .set_redirect_uri(RedirectUrl::new(redirect_url)?);
+
+    Ok(client)
 }
 
 pub struct AuthRedirect;
