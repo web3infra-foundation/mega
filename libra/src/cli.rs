@@ -25,7 +25,7 @@ enum Commands {
 
     // Init and Clone are the only commands that can be executed without a repository
     #[command(about = "Initialize a new repository")]
-    Init,
+    Init(command::init::InitArgs),
     #[command(about = "Clone a repository into a new directory")]
     Clone(command::clone::CloneArgs),
 
@@ -88,14 +88,14 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         None => Cli::parse(),
     };
     // TODO: try check repo before parsing
-    if let Commands::Init = args.command {
+    if let Commands::Init(_) = args.command {
     } else if let Commands::Clone(_) = args.command {
     } else if !utils::util::check_repo_exist() {
         return Err(GitError::RepoNotFound);
     }
     // parse the command and execute the corresponding function with it's args
     match args.command {
-        Commands::Init => command::init::execute().await,
+        Commands::Init(args) => command::init::execute(args).await,
         Commands::Clone(args) => command::clone::execute(args).await,
         Commands::Add(args) => command::add::execute(args).await,
         Commands::Rm(args) => command::remove::execute(args).unwrap(),

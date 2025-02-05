@@ -31,7 +31,7 @@ pub struct BranchArgs {
 
     /// show current branch
     #[clap(long, group = "sub")]
-    show_curren: bool,
+    show_current: bool,
 
     /// show remote branches
     #[clap(short, long)] // TODO limit to required `list` option, even in default
@@ -42,7 +42,7 @@ pub async fn execute(args: BranchArgs) {
         create_branch(args.new_branch.unwrap(), args.commit_hash).await;
     } else if args.delete.is_some() {
         delete_branch(args.delete.unwrap()).await;
-    } else if args.show_curren {
+    } else if args.show_current {
         show_current_branch().await;
     } else if args.set_upstream_to.is_some() {
         match Head::current().await {
@@ -186,15 +186,17 @@ async fn list_branches(remotes: bool) {
 }
 
 
-fn is_valid_git_branch_name(name: &str) -> bool {
-    // 检查是否包含不允许的字符
+pub fn is_valid_git_branch_name(name: &str) -> bool {
+    // Validate branch name
+    // Not contain spaces, control characters or special characters
     if name.contains(&[' ', '\t', '\\', ':', '"', '?', '*', '['][..])
         || name.chars().any(|c| c.is_ascii_control())
     {
         return false;
     }
 
-    // 检查其他Git规则
+    // Not start or end with a slash ('/'), or end with a dot ('.')
+    // Not contain consecutive slashes ('//') or dots ('..')
     if name.starts_with('/')
         || name.ends_with('/')
         || name.ends_with('.')
@@ -204,12 +206,12 @@ fn is_valid_git_branch_name(name: &str) -> bool {
         return false;
     }
 
-    // 检查特殊的Git保留字
+    // Not be reserved names like 'HEAD' or contain '@{'
     if name == "HEAD" || name.contains("@{") {
         return false;
     }
 
-    // 检查是否是空字符串或只包含点
+    // Not be empty or just a dot ('.')
     if name.trim().is_empty() || name.trim() == "." {
         return false;
     }
@@ -256,7 +258,7 @@ mod tests {
                 list: false,
                 delete: None,
                 set_upstream_to: None,
-                show_curren: false,
+                show_current: false,
                 remotes: false,
             };
             execute(args).await;
@@ -283,7 +285,7 @@ mod tests {
                 list: false,
                 delete: None,
                 set_upstream_to: None,
-                show_curren: false,
+                show_current: false,
                 remotes: false,
             };
             execute(args).await;
@@ -302,7 +304,7 @@ mod tests {
             list: false,
             delete: None,
             set_upstream_to: None,
-            show_curren: true,
+            show_current: true,
             remotes: false,
         };
         execute(args).await;
@@ -333,7 +335,7 @@ mod tests {
             list: false,
             delete: None,
             set_upstream_to: None,
-            show_curren: false,
+            show_current: false,
             remotes: false,
         };
         execute(args).await;
@@ -362,7 +364,7 @@ mod tests {
             list: false,
             delete: None,
             set_upstream_to: None,
-            show_curren: false,
+            show_current: false,
             remotes: false,
         };
         execute(args).await;
