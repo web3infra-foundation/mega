@@ -3,13 +3,12 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Duration, Utc};
 use futures::{stream, StreamExt};
+use russh::keys::{HashAlg, PublicKey};
 use russh::server::{self, Auth, Msg, Session};
-use russh::{Channel, ChannelId, MethodSet};
-use russh_keys::{self, HashAlg, PublicKey};
+use russh::{Channel, ChannelId};
 use tokio::io::AsyncReadExt;
 
 use ceres::lfs::lfs_structs::Link;
@@ -41,7 +40,6 @@ impl server::Server for SshServer {
     }
 }
 
-#[async_trait]
 impl server::Handler for SshServer {
     type Error = anyhow::Error;
 
@@ -132,19 +130,20 @@ impl server::Handler for SshServer {
     ) -> Result<Auth, Self::Error> {
         let fingerprint = public_key.fingerprint(HashAlg::Sha256).to_string();
 
-        tracing::info!(
-            "auth_publickey: {} / {}",
-            user,
-            fingerprint
-        );
-        let res = self.context.user_stg().search_ssh_key_finger(&fingerprint).await.unwrap();
+        tracing::info!("auth_publickey: {} / {}", user, fingerprint);
+        let res = self
+            .context
+            .user_stg()
+            .search_ssh_key_finger(&fingerprint)
+            .await
+            .unwrap();
         if !res.is_empty() {
             tracing::info!("Client public key verified successfully!");
             Ok(Auth::Accept)
         } else {
             tracing::warn!("Client public key verification failed!");
             Ok(Auth::Reject {
-                proceed_with_methods: Some(MethodSet::PUBLICKEY),
+                proceed_with_methods: None,
             })
         }
     }
@@ -205,7 +204,9 @@ impl SshServer {
             .unwrap();
 
         tracing::info!("buf is {:?}", buf);
-        session.data(channel, String::from_utf8(buf.to_vec()).unwrap().into()).unwrap();
+        session
+            .data(channel, String::from_utf8(buf.to_vec()).unwrap().into())
+            .unwrap();
 
         while let Some(chunk) = send_pack_data.next().await {
             let mut reader = chunk.as_slice();
@@ -220,7 +221,9 @@ impl SshServer {
                 session.data(channel, bytes_out.to_vec().into()).unwrap();
             }
         }
-        session.data(channel, smart::PKT_LINE_END_MARKER.to_vec().into()).unwrap();
+        session
+            .data(channel, smart::PKT_LINE_END_MARKER.to_vec().into())
+            .unwrap();
     }
 
     async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
@@ -246,6 +249,8 @@ impl SshServer {
         }
 
         tracing::info!("report status: {:?}", report_status);
-        session.data(channel, report_status.to_vec().into()).unwrap();
+        session
+            .data(channel, report_status.to_vec().into())
+            .unwrap();
     }
 }
