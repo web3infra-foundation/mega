@@ -5,10 +5,12 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use clap::Args;
-
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
-use russh::{server::Server, Preferred};
-use russh_keys::{ssh_key::rand_core::OsRng, PrivateKey};
+use russh::{
+    keys::{ssh_key::rand_core::OsRng, Algorithm, PrivateKey},
+    server::Server,
+    Preferred,
+};
 
 use common::model::CommonOptions;
 use jupiter::context::Context;
@@ -73,8 +75,7 @@ pub fn load_key() -> PrivateKey {
         PrivateKey::from_openssh(secret_key).unwrap()
     } else {
         // generate a keypair if not exists
-        let keys =
-            russh_keys::PrivateKey::random(&mut OsRng, russh_keys::Algorithm::Ed25519).unwrap();
+        let keys = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
         let secret = serde_json::json!({
             "secret_key":
             *keys.to_openssh(LineEnding::CR).unwrap()
