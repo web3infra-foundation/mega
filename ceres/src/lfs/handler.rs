@@ -112,9 +112,9 @@ pub async fn lfs_create_lock(storage: LfsDbStorage, req: LockRequest) -> Result<
     let lock = Lock {
         id: {
             let mut random_num = String::new();
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             for _ in 0..8 {
-                random_num += &(rng.gen_range(0..9)).to_string();
+                random_num += &(rng.random_range(0..9)).to_string();
             }
             random_num
         },
