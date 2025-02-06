@@ -106,7 +106,7 @@ pub fn setup_clean_testing_env() {
 /// switch to test dir and create a new .libra
 pub async fn setup_with_new_libra() {
     setup_clean_testing_env();
-    let args = command::init::InitArgs { bare: false, initial_branch: None, repo_directory: util::cur_dir().to_str().unwrap().to_string() };
+    let args = command::init::InitArgs { bare: false, initial_branch: None, repo_directory: util::cur_dir().to_str().unwrap().to_string(),quiet:false };
     command::init::init(args).await.unwrap();
 }
 
