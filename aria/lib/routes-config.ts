@@ -26,7 +26,7 @@ export const ROUTES: EachRoute[] = [
       { title: "Quick Start", href: "/quick-start" },
       { title: "Config File", href: "/config-file" },
       { title: "Test", href: "/test" },
-      { title: "Code Guide", href: "/code-guideline" },
+      { title: "Code GuideLine", href: "/code-guideline" },
       { title: "Database", href: "/database" },
     ],
   },

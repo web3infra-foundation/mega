@@ -116,7 +116,7 @@ fn run_mega_server(data_dir: &Path) -> Child {
 
 fn generate_large_file(path: &str, size_mb: usize) -> io::Result<()> {
     let mut file = fs::File::create(path)?;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     const BUFFER_SIZE: usize = 1024 * 1024; // 1MB buffer
     let mut buffer = [0u8; BUFFER_SIZE];
