@@ -26,6 +26,10 @@ pub struct InitArgs {
     /// Create a repository in the specified directory
     #[clap(default_value = ".")]
     pub repo_directory: String,
+
+    /// Suppress all output
+    #[clap(long, short = 'q', required = false)]
+    pub quiet: bool,
 }
 
 /// Execute the init function
@@ -91,8 +95,9 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     // Check if the root directory already exists
     if is_reinit(&cur_dir) {
-        println!("Already initialized - [{}]", root_dir.display());
-        
+        if !args.quiet {
+            eprintln!("Already initialized - [{}]", root_dir.display());
+        }
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             "Initialization failed: The repository is already initialized at the specified location. 
@@ -155,10 +160,12 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     
     // Set .libra as hidden
     set_dir_hidden(root_dir.to_str().unwrap())?;
-    println!(
-        "Initializing empty Libra repository in {}",
-        root_dir.display()
-    );
+    if !args.quiet {
+        println!(
+            "Initializing empty Libra repository in {}",
+            root_dir.display()
+        );
+    }
       
     Ok(())
 }
@@ -258,7 +265,7 @@ mod tests {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         let cur_dir = env::current_dir().unwrap();
-        let args = InitArgs { bare: false, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:false };
         // Run the init function
         init(args).await.unwrap();
 
@@ -277,7 +284,7 @@ mod tests {
         test::setup_clean_testing_env();
         // Run the init function with --bare flag
         let cur_dir = env::current_dir().unwrap();
-        let args = InitArgs { bare: true, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
+        let args = InitArgs { bare: true, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:false};
         // Run the init function
         init(args).await.unwrap();
 
@@ -293,12 +300,12 @@ mod tests {
 
         // Initialize a bare repository
         let cur_dir = env::current_dir().unwrap();
-        let init_args = InitArgs { bare: false, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
+        let init_args = InitArgs { bare: false, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:false };
         init(init_args).await.unwrap(); // Execute init for bare repository
     
         // Simulate trying to reinitialize the bare repo
         let result = async {
-        let args = InitArgs { bare: true, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string() };
+        let args = InitArgs { bare: true, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:false };
             init(args).await
         };
 
@@ -314,7 +321,7 @@ mod tests {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         let cur_dir = env::current_dir().unwrap();
-        let args = InitArgs { bare: false, initial_branch: Some("main".to_string()), repo_directory: cur_dir.to_str().unwrap().to_string() };
+        let args = InitArgs { bare: false, initial_branch: Some("main".to_string()), repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:false };
         // Run the init function
         init(args).await.unwrap();
 
@@ -361,7 +368,7 @@ mod tests {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         let cur_dir = env::current_dir().unwrap(); 
-        let args = InitArgs { bare: false, initial_branch: Some(branch_name.to_string()), repo_directory: cur_dir.to_str().unwrap().to_string() };
+        let args = InitArgs { bare: false, initial_branch: Some(branch_name.to_string()), repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:false };
         // Run the init function
         let result = init(args).await;
         // Check for the error
@@ -380,7 +387,7 @@ mod tests {
         let cur_dir = env::current_dir().unwrap();
         let test_dir = cur_dir.join("test");
 
-        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned(),quiet:false };
         // Run the init function
         init(args).await.unwrap();
 
@@ -405,7 +412,7 @@ mod tests {
         // Create a file with the same name as the test directory
         fs::File::create(&test_dir).unwrap();
 
-        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned(),quiet:false };
         // Run the init function
         let result = init(args).await;
 
@@ -428,7 +435,7 @@ mod tests {
         fs::create_dir(&test_dir).unwrap();
         fs::set_permissions(&test_dir, fs::Permissions::from_mode(0o444)).unwrap();
 
-        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned() };
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: test_dir.to_str().unwrap().to_owned(),quiet:false };
         // Run the init function
         let result = init(args).await;
 
@@ -437,5 +444,22 @@ mod tests {
         assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);  // Check error type
         assert!(err.to_string().contains("The target directory is read-only"));  // Check error message
     }
+    
+    #[tokio::test]
+    /// Test the init function with the --quiet flag by using --show-output
+    async fn test_init_quiet() {
+        // Set up the test environment without a Libra repository
+        test::setup_clean_testing_env();
+        let cur_dir = env::current_dir().unwrap();
+        let args = InitArgs { bare: false, initial_branch: None, repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:true };
+        // Run the init function
+        init(args).await.unwrap();
 
+        // Verify that the `.libra` directory exists
+        let libra_dir = Path::new(".libra");
+        assert!(libra_dir.exists(), ".libra directory does not exist");
+
+        // Verify the contents of the other directory
+        verify_init(libra_dir);
+    }
 }
