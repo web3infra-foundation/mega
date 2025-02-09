@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <template class="RepoDetail" parent="GtkBox">
+        <property name="orientation">vertical</property>
+
+        <child>
+            <object class="AdwBanner" id="banner">
+                <property name="revealed">True</property>
+                <property name="title">You have uncommited changes here.</property>
+                <property name="button-label">Commit All</property>
+            </object>
+        </child>
+
+        <child>
+            <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="margin-top">12</property>
+                <property name="margin-start">24</property>
+                <property name="margin-end">24</property>
+                <property name="margin-bottom">12</property>
+                <property name="spacing">12</property>
+
+                <child>
+                    <object class="GtkBox">
+                        <property name="spacing">12</property>
+                        <child>
+                            <object class="GtkLabel">
+                                <property name="label">Test Repo 1</property>
+                                <property name="wrap">True</property>
+                                <property name="wrap-mode">word-char</property>
+                                <property name="xalign">0.0</property>
+                                <property name="margin-top">12</property>
+                                <property name="margin-bottom">12</property>
+                                <style>
+                                    <class name="title" />
+                                    <class name="title-1" />
+                                </style>
+                            </object>
+                        </child>
+                        <child>
+                            <object class="GtkLabel">
+                                <property name="label">Rust</property>
+                                <property name="valign">center</property>
+                                <style>
+                                    <class name="tag"/>
+                                    <class name="caption"/>
+                                </style>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+
+                <child>
+                    <object class="GtkSeparator"></object>
+                </child>
+
+                <child>
+                    <object class="AdwPreferencesGroup">
+                        <property name="title">Repository Information</property>
+
+                        <child>
+                            <object class="AdwActionRow">
+                                <property name="title">Current Branch</property>
+                                <property name="subtitle">main</property>
+                                <child>
+                                    <object class="GtkButton">
+                                        <property name="icon-name">view-list-symbolic</property>
+                                        <property name="valign">center</property>
+                                    </object>
+                                </child>
+                            </object>
+                        </child>
+
+                        <child>
+                            <object class="AdwActionRow">
+                                <property name="title">Last Commit</property>
+                                <property name="subtitle">feat: initial commit</property>
+                            </object>
+                        </child>
+
+                        <child>
+                            <object class="AdwActionRow">
+                                <property name="title">Remote URL</property>
+                                <property name="subtitle">https://github.com/example/repo.git</property>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+
+                <child>
+                    <object class="AdwPreferencesGroup">
+                        <property name="title">Quick Actions</property>
+
+                        <child>
+                            <object class="GtkBox">
+                                <property name="spacing">12</property>
+                                <property name="homogeneous">true</property>
+                                <property name="margin-top">6</property>
+                                <property name="margin-bottom">6</property>
+
+                                <child>
+                                    <object class="GtkButton">
+                                        <property name="tooltip-text">Pull from remote</property>
+                                        <child>
+                                            <object class="GtkBox">
+                                                <property name="spacing">6</property>
+                                                <child>
+                                                    <object class="GtkImage">
+                                                        <property name="icon-name">go-down-symbolic</property>
+                                                    </object>
+                                                </child>
+                                                <child>
+                                                    <object class="GtkLabel">
+                                                        <property name="label">Pull</property>
+                                                    </object>
+                                                </child>
+                                            </object>
+                                        </child>
+                                        <style>
+                                            <class name="suggested-action" />
+                                        </style>
+                                    </object>
+                                </child>
+
+                                <child>
+                                    <object class="GtkButton">
+                                        <property name="tooltip-text">Push to remote</property>
+                                        <child>
+                                            <object class="GtkBox">
+                                                <property name="spacing">6</property>
+                                                <child>
+                                                    <object class="GtkImage">
+                                                        <property name="icon-name">go-up-symbolic</property>
+                                                    </object>
+                                                </child>
+                                                <child>
+                                                    <object class="GtkLabel">
+                                                        <property name="label">Push</property>
+                                                    </object>
+                                                </child>
+                                            </object>
+                                        </child>
+                                    </object>
+                                </child>
+
+                                <child>
+                                    <object class="GtkButton">
+                                        <property name="tooltip-text">Fetch updates</property>
+                                        <child>
+                                            <object class="GtkBox">
+                                                <property name="spacing">6</property>
+                                                <child>
+                                                    <object class="GtkImage">
+                                                        <property name="icon-name">view-refresh-symbolic</property>
+                                                    </object>
+                                                </child>
+                                                <child>
+                                                    <object class="GtkLabel">
+                                                        <property name="label">Fetch</property>
+                                                    </object>
+                                                </child>
+                                            </object>
+                                        </child>
+                                    </object>
+                                </child>
+
+                                <child>
+                                    <object class="GtkButton">
+                                        <property name="tooltip-text">Stage all changes</property>
+                                        <child>
+                                            <object class="GtkBox">
+                                                <property name="spacing">6</property>
+                                                <child>
+                                                    <object class="GtkImage">
+                                                        <property name="icon-name">list-add-symbolic</property>
+                                                    </object>
+                                                </child>
+                                                <child>
+                                                    <object class="GtkLabel">
+                                                        <property name="label">Stage All</property>
+                                                    </object>
+                                                </child>
+                                            </object>
+                                        </child>
+                                    </object>
+                                </child>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+
+                <child>
+                    <object class="AdwPreferencesGroup">
+                        <property name="title">Commit History</property>
+
+                        <child>
+                            <object class="GtkListBox">
+                                <property name="selection-mode">none</property>
+                                <style>
+                                    <class name="boxed-list" />
+                                </style>
+
+                                <child>
+                                    <object class="GtkListBoxRow">
+                                        <child>
+                                            <object class="GtkBox">
+                                                <property name="orientation">vertical</property>
+                                                <property name="margin-top">12</property>
+                                                <property name="margin-bottom">12</property>
+                                                <property name="margin-start">12</property>
+                                                <property name="margin-end">12</property>
+                                                <property name="spacing">6</property>
+
+                                                <child>
+                                                    <object class="GtkLabel">
+                                                        <property name="label">feat: implement new feature</property>
+                                                        <property name="xalign">0</property>
+                                                        <attributes>
+                                                            <attribute name="weight" value="bold" />
+                                                        </attributes>
+                                                    </object>
+                                                </child>
+
+                                                <child>
+                                                    <object class="GtkLabel">
+                                                        <property name="label">Author: John Doe &lt;john@example.com&gt;</property>
+                                                        <property name="xalign">0</property>
+                                                        <style>
+                                                            <class name="dim-label" />
+                                                        </style>
+                                                    </object>
+                                                </child>
+
+                                                <child>
+                                                    <object class="GtkLabel">
+                                                        <property name="label">2023-12-01 10:30:00</property>
+                                                        <property name="xalign">0</property>
+                                                        <style>
+                                                            <class name="dim-label" />
+                                                        </style>
+                                                    </object>
+                                                </child>
+                                            </object>
+                                        </child>
+                                    </object>
+                                </child>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+            </object>
+        </child>
+    </template>
+</interface>
