@@ -46,5 +46,10 @@ impl CardBase {
     pub fn new() -> Self {
         glib::Object::new()
     }
+}
 
+impl Default for CardBase {
+    fn default() -> Self {
+        Self::new()
+    }
 }

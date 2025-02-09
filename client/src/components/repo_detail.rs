@@ -49,3 +49,9 @@ impl RepoDetail {
         glib::Object::new()
     }
 }
+
+impl Default for RepoDetail {
+    fn default() -> Self {
+        Self::new()
+    }
+}
