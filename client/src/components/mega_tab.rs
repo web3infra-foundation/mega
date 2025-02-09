@@ -80,3 +80,9 @@ impl MegaTab {
         glib::Object::new()
     }
 }
+
+impl Default for MegaTab {
+    fn default() -> Self {
+        Self::new()
+    }
+}

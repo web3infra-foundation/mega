@@ -104,3 +104,9 @@ impl RepoTab {
         // }
     }
 }
+
+impl Default for RepoTab {
+    fn default() -> Self {
+        Self::new()
+    }
+}
