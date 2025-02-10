@@ -21,9 +21,9 @@ To get started, you can clone the mega repository directly from GitHub.
     ```bash
     cd mega
     git submodule update --init --recursive
-    docker buildx build -t mono-pg:0.1-pre-release -f ./docker/mono-pg-dockerfile .
-    docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-dockerfile .
-    docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
+    docker buildx build -t mega:mono-pg-0.1-pre-release -f ./docker/mono-pg-dockerfile .
+    docker buildx build -t mega:mono-engine-0.1-pre-release -f ./docker/mono-engine-dockerfile .
+    docker buildx build -t mega:mono-ui-0.1-pre-release -f ./docker/mono-ui-dockerfile .
     ```
   </StepperItem>
 
@@ -55,9 +55,9 @@ To get started, you can clone the mega repository directly from GitHub.
       docker network create mono-network
 
       # run postgres
-      docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-      docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mono-engine:0.1-pre-release
-      docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
+      docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mega:mono-pg-0.1-pre-release
+      docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mega:mono-engine-0.1-pre-release
+      docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mega:mono-ui-0.1-pre-release
     ```
 
     Start whole mono engine stack on server with domain
@@ -67,9 +67,9 @@ To get started, you can clone the mega repository directly from GitHub.
       docker network create mono-network
 
       # run postgres
-      docker run --rm -it -d --name mono-pg --network mono-network --memory=4g -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-      docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 -p 22:9000 mono-engine:0.1-pre-release
-      docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmega.dev -p 3000:3000 mono-ui:0.1-pre-release
+      docker run --rm -it -d --name mono-pg --network mono-network --memory=4g -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mega:mono-pg-0.1-pre-release
+      docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 -p 22:9000 mega:mono-engine-0.1-pre-release
+      docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmega.dev -p 3000:3000 mega:mono-ui-0.1-pre-release
     ```
   </StepperItem>
 
