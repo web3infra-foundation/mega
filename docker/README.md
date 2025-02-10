@@ -4,22 +4,22 @@
 # cd root of the project
 
 # build postgres image
-docker buildx build -t mono-pg:0.1-pre-release -f ./docker/mono-pg-dockerfile .
+docker buildx build -t mega:mono-pg-0.1-pre-release -f ./docker/mono-pg-dockerfile .
 
 # build backend mono engine image (default in release mode)
-docker buildx build -t mono-engine:0.1-pre-release -f ./docker/mono-engine-dockerfile .
+docker buildx build -t mega:mono-engine-0.1-pre-release -f ./docker/mono-engine-dockerfile .
 
 # build backend mono engine in debug mode
 # docker buildx build -t mono-engine:0.1-pre-debug -f ./docker/mono-engine-dockerfile --build-arg BUILD_TYPE=debug .
 
 # build frontend mono ui image
-docker buildx build -t mono-ui:0.1-pre-release -f ./docker/mono-ui-dockerfile .
+docker buildx build -t mega:mono-ui-0.1-pre-release -f ./docker/mono-ui-dockerfile .
 
 # build aries engine image
-docker buildx build -t aries-engine:0.1-pre-release -f ./docker/aries-engine-dockerfile .
+docker buildx build -t mega:aries-engine-0.1-pre-release -f ./docker/aries-engine-dockerfile .
 
 # build mega engine image
-docker buildx build -t mega-engine:0.1-pre-release -f ./docker/mega-engine-dockerfile .
+docker buildx build -t mega:mega-engine-0.1-pre-release -f ./docker/mega-engine-dockerfile .
 ```
 
 ## Test Mono Engine
@@ -42,9 +42,9 @@ sudo ./docker/init-volume.sh /mnt/data ./docker/config.toml
 docker network create mono-network
 
 # run postgres
-docker run --rm -it -d --name mono-pg --network mono-network --memory=4g -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 -p 22:9000 mono-engine:0.1-pre-release
-docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmono.com -p 3000:3000 mono-ui:0.1-pre-release
+docker run --rm -it -d --name mono-pg --network mono-network --memory=4g -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mega:mono-pg-0.1-pre-release
+docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 -p 22:9000 mega:mono-engine-0.1-pre-release
+docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmega.net -p 3000:3000 mega:mono-ui-0.1-pre-release
 ```
 
 [3] Nginx configuration for Mono
@@ -160,9 +160,9 @@ server {
 docker network create aries-network
 
 # run postgres and aries engine
-docker run --rm -it -d --name mono-pg --network aries-network -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-docker run --rm -it -d --name aries-engine --network aries-network -e HUB_HOST=aries-engine  -v /mnt/data/mono/mono-data:/opt/mega -p 8001:8001 -p 8888:8888 aries-engine:0.1-pre-release
-docker run --rm -it -d --name mega-engine --network aries-network -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 mega-engine:0.1-pre-release
+docker run --rm -it -d --name mono-pg --network aries-network -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mega:mono-pg-0.1-pre-release
+docker run --rm -it -d --name aries-engine --network aries-network -e HUB_HOST=aries-engine  -v /mnt/data/mono/mono-data:/opt/mega -p 8001:8001 -p 8888:8888 mega:aries-engine-0.1-pre-release
+docker run --rm -it -d --name mega-engine --network aries-network -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 mega:mega-engine-0.1-pre-release
 ```
 
 [3] Nginx configuration for Aries
@@ -276,7 +276,7 @@ spec:
     spec:
       containers:
         - name: mono-pg
-          image: mono-pg:0.1-pre-release
+          image: mega:mono-pg-0.1-pre-release
           ports:
             - containerPort: 5432
           volumeMounts:
@@ -318,7 +318,7 @@ spec:
     spec:
       containers:
         - name: mono-engine
-          image: mono-engine:0.1-pre-release
+          image: mega:mono-engine-0.1-pre-release
           ports:
             - containerPort: 8000
           volumeMounts:
@@ -361,7 +361,7 @@ spec:
     spec:
       containers:
         - name: mono-ui
-          image: mono-ui:0.1-pre-release
+          image: mega:mono-ui-0.1-pre-release
           ports:
             - containerPort: 3000
           env:
