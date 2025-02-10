@@ -40,8 +40,8 @@ For now, the monorepo engine could be deployed on your host machine or insulated
 
 ```bash
 $ docker pull genedna/mega:mono-pg-0.1-pre-release
-$ docker pull genedna/mega:mono-engine:0.1-pre-release
-$ docker pull genedna/mega:mono-ui:0.1-pre-release
+$ docker pull genedna/mega:mono-engine-0.1-pre-release
+$ docker pull genedna/mega:mono-ui-0.1-pre-release
 ```
 
 2. Initialize for mono-engine and PostgreSQL
@@ -50,7 +50,7 @@ $ docker pull genedna/mega:mono-ui:0.1-pre-release
 $ git clone https://github.com/web3infra-foundation/mega.git
 $ cd mega
 # Linux or MacOS
-$ ./docker/init-volume.sh /mnt/data ./docker/config.toml
+$ ./docker/init-volume.sh /tmp/data ./docker/config.toml
 ```
 
 3. Run the mono-engine and PostgreSQL with docker, and open the mono-ui in your browser with `http://localhost:3000`.
