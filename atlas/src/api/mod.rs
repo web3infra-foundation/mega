@@ -1,8 +1,10 @@
 pub mod claude;
+pub mod deepseek;
 pub mod gemini;
 pub mod gitee;
 pub mod lingyiwanwu;
 pub mod openai;
+
 #[cfg(test)]
 mod test {
     use std::env;
