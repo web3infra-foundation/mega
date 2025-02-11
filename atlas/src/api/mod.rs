@@ -29,6 +29,10 @@ mod test {
         env::var("CLAUDE_KEY").unwrap().into()
     }
 
+    pub fn get_deepseek_key() -> Option<String> {
+        env::var("DEEPSEEK_KEY").unwrap().into()
+    }
+
     pub async fn test_client_with_context(client: impl crate::AskModel) {
         let _context = crate::ChatMessage {
             messages: vec![
