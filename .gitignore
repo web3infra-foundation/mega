@@ -25,3 +25,6 @@ ztm_agent_db*
 
 # buck2 out
 buck-out
+
+# Gtk4 resource files
+**/*.gresource
