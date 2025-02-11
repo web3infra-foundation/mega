@@ -9,8 +9,8 @@ pub mod vault;
 /// Initialize the Nostr ID if it's not found.
 /// - return: `(Nostr ID, secret_key)`
 /// - You can get `Public Key` by just `base58::decode(nostr)`
-pub fn init() -> (String, String) {
-    let mut id = read_secret("id").unwrap();
+pub async fn init() -> (String, String) {
+    let mut id = read_secret("id").await.unwrap();
     if id.is_none() {
         println!("Nostr ID not found, generating new one...");
         let (nostr, (secret_key, _)) = nostr::generate_nostr_id();
@@ -21,10 +21,10 @@ pub fn init() -> (String, String) {
         .as_object()
         .unwrap()
         .clone();
-        write_secret("id", Some(data)).unwrap_or_else(|e| {
+        write_secret("id", Some(data)).await.unwrap_or_else(|e| {
             panic!("Failed to write Nostr ID: {:?}", e);
         });
-        id = read_secret("id").unwrap();
+        id = read_secret("id").await.unwrap();
     }
     let id_data = id.unwrap().data.unwrap();
     (
@@ -33,13 +33,13 @@ pub fn init() -> (String, String) {
     )
 }
 
-pub fn get_peerid() -> String {
-    let (id, _sk) = init();
+pub async fn get_peerid() -> String {
+    let (id, _sk) = init().await;
     id
 }
 
-pub fn get_keypair() -> Keypair {
-    let (_, sk) = init();
+pub async fn get_keypair() -> Keypair {
+    let (_, sk) = init().await;
     let secp = Secp256k1::new();
     secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap()
 }
@@ -48,9 +48,9 @@ pub fn get_keypair() -> Keypair {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_init() {
-        let id = init();
+    #[tokio::test]
+    async fn test_init() {
+        let id = init().await;
         println!("Nostr ID: {:?}", id.0);
         println!("Secret Key: {:?}", id.1); // private key
     }

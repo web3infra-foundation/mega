@@ -2,25 +2,33 @@ use std::cmp::Ordering;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lazy_static::lazy_static;
 use openssl::asn1::Asn1Time;
 use openssl::x509::X509;
 use rusty_vault::core::Core;
 use serde_json::{json, Value};
+use tokio::sync::OnceCell;
 
 use super::vault::{CoreInfo, CORE, read_api, write_api};
 
 const ROLE: &str = "test";
+
+// DO NOT use `async_static!`, which will cause some compile errors
+static _CA: OnceCell<CoreInfo> = OnceCell::const_new();
 // Automatically initialize CA when you first use it
-lazy_static! {
-    static ref CA: CoreInfo = {
-        let c = CORE.clone();
-        // init CA if not
-        if read_api(&c.core.read().unwrap(), &c.token, "pki/ca/pem").is_err() { // err = not found
-            let token = &c.token;
-            config_ca(c.core.clone(), token);
-            generate_root(c.core.clone(), token, false);
-            config_role(c.core.clone(), token, json!({ // TODO You may want to customize this
+pub async fn ca() -> &'static CoreInfo {
+    _CA.get_or_init(|| async {
+        init_ca().await
+    }).await
+}
+
+async fn init_ca() -> CoreInfo {
+    let c = CORE.clone();
+    // init CA if not
+    let token = &c.token;
+    if read_api(&c.core.read().unwrap(), token, "pki/ca/pem").await.is_err() { // err = not found
+        config_ca(c.core.clone(), token).await;
+        generate_root(c.core.clone(), token, false).await;
+        config_role(c.core.clone(), token, json!({ // TODO You may want to customize this
                 "ttl": "60d",
                 "max_ttl": "365d",
                 "key_type": "rsa",
@@ -30,13 +38,12 @@ lazy_static! {
                 "locality": "Beijing",
                 "organization": "OpenAtom-Mega",
                 "no_store": false,
-            }));
-        }
-        c
-    };
+            })).await;
+    }
+    c
 }
 
-fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
+async fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
     let core = core.read().unwrap();
 
     // mount pki backend to path: pki/
@@ -47,12 +54,12 @@ fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
     .unwrap()
     .clone();
 
-    let resp = write_api(&core, token, "sys/mounts/pki/", Some(mount_data));
+    let resp = write_api(&core, token, "sys/mounts/pki/", Some(mount_data)).await;
     assert!(resp.is_ok());
 }
 
 /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
-pub fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
+pub async fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
     let core = core.read().unwrap();
 
     let role_data = data.as_object()
@@ -60,13 +67,13 @@ pub fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
         .clone();
 
     // config role
-    let result = write_api(&core, token, &format!("pki/roles/{}", ROLE), Some(role_data));
+    let result = write_api(&core, token, &format!("pki/roles/{}", ROLE), Some(role_data)).await;
     assert!(result.is_ok());
 }
 
 /// generate root cert, so that you can read from `pki/ca/pem`
 /// - if `exported` is true, then the response will contain `private key`
-fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
+async fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
     let core = core.read().unwrap();
 
     let key_type = "rsa";
@@ -88,16 +95,16 @@ fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
         token,
         format!("pki/root/generate/{}", if exported { "exported" } else { "internal" }).as_str(),
         Some(req_data),
-    );
+    ).await;
     assert!(resp.is_ok());
 }
 
 /// issue certificate
 /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
 /// - return: `(cert_pem, private_key)`
-pub fn issue_cert(data: Value) -> (String, String) {
-    let core = CA.core.read().unwrap();
-    let token = &CA.token;
+pub async fn issue_cert(data: Value) -> (String, String) {
+    let core = ca().await.core.read().unwrap();
+    let token = &ca().await.token;
 
     // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
     let issue_data = data.as_object()
@@ -105,7 +112,7 @@ pub fn issue_cert(data: Value) -> (String, String) {
         .clone();
 
     // issue cert
-    let resp = write_api(&core, token, &format!("pki/issue/{}", ROLE), Some(issue_data));
+    let resp = write_api(&core, token, &format!("pki/issue/{}", ROLE), Some(issue_data)).await;
     assert!(resp.is_ok());
     let resp_body = resp.unwrap();
     let cert_data = resp_body.unwrap().data.unwrap();
@@ -117,8 +124,8 @@ pub fn issue_cert(data: Value) -> (String, String) {
 }
 
 /// Verify certificate: time & signature
-pub fn verify_cert(cert_pem: &[u8]) -> bool {
-    let ca_cert = X509::from_pem(get_root_cert().as_ref()).unwrap();
+pub async fn verify_cert(cert_pem: &[u8]) -> bool {
+    let ca_cert = X509::from_pem(get_root_cert().await.as_ref()).unwrap();
 
     let cert = X509::from_pem(cert_pem).unwrap();
     // verify time
@@ -140,10 +147,10 @@ pub fn verify_cert(cert_pem: &[u8]) -> bool {
 }
 
 /// Get root certificate of CA
-pub fn get_root_cert() -> String {
-    let core = CA.core.read().unwrap();
+pub async fn get_root_cert() -> String {
+    let core = ca().await.core.read().unwrap();
 
-    let resp_ca_pem = read_api(&core, &CA.token, "pki/ca/pem").unwrap().unwrap();
+    let resp_ca_pem = read_api(&core, &ca().await.token, "pki/ca/pem").await.unwrap().unwrap();
     let ca_data = resp_ca_pem.data.unwrap();
 
     ca_data["certificate"].as_str().unwrap().to_owned()
@@ -155,17 +162,17 @@ mod tests {
     use std::io::Write;
     use super::*;
 
-    #[test]
-    fn test_pki_issue() {
+    #[tokio::test]
+    async fn test_pki_issue() {
         let (cert_pem, private_key) = issue_cert(json!({
             "ttl": "10d",
             "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
-        }));
+        })).await;
 
         println!("cert_pem: {}", cert_pem);
         println!("private_key: {}", private_key);
 
-        assert!(verify_cert(cert_pem.as_ref()));
+        assert!(verify_cert(cert_pem.as_ref()).await);
 
         let mut file = fs::File::create("/tmp/cert.crt").unwrap();
         file.write_all(cert_pem.as_ref()).unwrap();
@@ -185,25 +192,21 @@ mod tests_raw {
 
     use go_defer::defer;
     use openssl::{asn1::Asn1Time, ec::EcKey, nid::Nid, pkey::PKey, rsa::Rsa, x509::X509};
-    use rusty_vault::{
-        core::{Core, SealConfig},
-        logical::{Operation, Request},
-        storage::{barrier_aes_gcm, physical},
-    };
+    use rusty_vault::{core::{Core, SealConfig}, logical::{Operation, Request}, storage, storage::barrier_aes_gcm};
     use rusty_vault::errors::RvError;
     use rusty_vault::logical::Response;
     use serde_json::{json, Map, Value};
 
-    fn test_read_api(core: &Core, token: &str, path: &str, is_ok: bool) -> Result<Option<Response>, RvError> {
+    async fn test_read_api(core: &Core, token: &str, path: &str, is_ok: bool) -> Result<Option<Response>, RvError> {
         let mut req = Request::new(path);
         req.operation = Operation::Read;
         req.client_token = token.to_string();
-        let resp = core.handle_request(&mut req);
+        let resp = core.handle_request(&mut req).await;
         assert_eq!(resp.is_ok(), is_ok);
         resp
     }
 
-    fn test_write_api(
+    async fn test_write_api(
         core: &Core,
         token: &str,
         path: &str,
@@ -215,13 +218,13 @@ mod tests_raw {
         req.client_token = token.to_string();
         req.body = data;
 
-        let resp = core.handle_request(&mut req);
+        let resp = core.handle_request(&mut req).await;
         println!("path: {}, req.body: {:?}", path, req.body);
         assert_eq!(resp.is_ok(), is_ok);
         resp
     }
 
-    fn test_pki_config_ca(core: Arc<RwLock<Core>>, token: &str) {
+    async fn test_pki_config_ca(core: Arc<RwLock<Core>>, token: &str) {
         let core = core.read().unwrap();
 
         // mount pki backend to path: pki/
@@ -232,11 +235,11 @@ mod tests_raw {
             .unwrap()
             .clone();
 
-        let resp = test_write_api(&core, token, "sys/mounts/pki/", true, Some(mount_data));
+        let resp = test_write_api(&core, token, "sys/mounts/pki/", true, Some(mount_data)).await;
         assert!(resp.is_ok());
     }
 
-    fn test_pki_config_role(core: Arc<RwLock<Core>>, token: &str) {
+    async fn test_pki_config_role(core: Arc<RwLock<Core>>, token: &str) {
         let core = core.read().unwrap();
 
         let role_data = json!({
@@ -255,8 +258,8 @@ mod tests_raw {
             .clone();
 
         // config role
-        assert!(test_write_api(&core, token, "pki/roles/test", true, Some(role_data)).is_ok());
-        let resp = test_read_api(&core, token, "pki/roles/test", true);
+        assert!(test_write_api(&core, token, "pki/roles/test", true, Some(role_data)).await.is_ok());
+        let resp = test_read_api(&core, token, "pki/roles/test", true).await;
         assert!(resp.as_ref().unwrap().is_some());
         let resp = resp.unwrap();
         assert!(resp.is_some());
@@ -276,7 +279,7 @@ mod tests_raw {
         assert!(!role_data["no_store"].as_bool().unwrap());
     }
 
-    fn test_pki_generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool, is_ok: bool) {
+    async fn test_pki_generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool, is_ok: bool) {
         let core = core.read().unwrap();
 
         let key_type = "rsa";
@@ -299,7 +302,7 @@ mod tests_raw {
             format!("pki/root/generate/{}", if exported { "exported" } else { "internal" }).as_str(),
             is_ok,
             Some(req_data),
-        );
+        ).await;
         if !is_ok {
             return;
         }
@@ -309,7 +312,7 @@ mod tests_raw {
         assert!(data.is_some());
         let key_data = data.unwrap();
 
-        let resp_ca_pem = test_read_api(&core, token, "pki/ca/pem", true);
+        let resp_ca_pem = test_read_api(&core, token, "pki/ca/pem", true).await;
         let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
 
         let ca_cert = X509::from_pem(resp_ca_pem_cert_data["certificate"].as_str().unwrap().as_bytes()).unwrap();
@@ -346,7 +349,7 @@ mod tests_raw {
         }
     }
 
-    fn test_pki_issue_cert_by_generate_root(core: Arc<RwLock<Core>>, token: &str) {
+    async fn test_pki_issue_cert_by_generate_root(core: Arc<RwLock<Core>>, token: &str) {
         let core = core.read().unwrap();
 
         let dns_sans = ["test.com", "a.test.com", "b.test.com"];
@@ -360,7 +363,7 @@ mod tests_raw {
             .clone();
 
         // issue cert
-        let resp = test_write_api(&core, token, "pki/issue/test", true, Some(issue_data));
+        let resp = test_write_api(&core, token, "pki/issue/test", true, Some(issue_data)).await;
         assert!(resp.is_ok());
         let resp_body = resp.unwrap();
         assert!(resp_body.is_some());
@@ -406,7 +409,7 @@ mod tests_raw {
 
         println!("authority_key_id: {}", hex::encode(authority_key_id.unwrap().as_slice()));
 
-        let resp_ca_pem = test_read_api(&core, token, "pki/ca/pem", true);
+        let resp_ca_pem = test_read_api(&core, token, "pki/ca/pem", true).await;
         let resp_ca_pem_cert_data = resp_ca_pem.unwrap().unwrap().data.unwrap();
 
         let ca_cert = X509::from_pem(resp_ca_pem_cert_data["certificate"].as_str().unwrap().as_bytes()).unwrap();
@@ -417,8 +420,8 @@ mod tests_raw {
         assert_eq!(ca_cert.subject_key_id().unwrap().as_slice(), authority_key_id.unwrap().as_slice());
     }
 
-    #[test]
-    fn test_pki_module() {
+    #[tokio::test]
+    async fn test_pki_module() {
         let dir = env::temp_dir().join("rusty_vault_pki_module");
         assert!(fs::create_dir(&dir).is_ok());
         defer! (
@@ -431,7 +434,7 @@ mod tests_raw {
         let mut conf: HashMap<String, Value> = HashMap::new();
         conf.insert("path".to_string(), Value::String(dir.to_string_lossy().into_owned()));
 
-        let backend = physical::new_backend("file", &conf).unwrap();
+        let backend = storage::new_backend("file", &conf).unwrap();
         let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
 
         let c = Arc::new(RwLock::new(Core { physical: backend, barrier: Arc::new(barrier), ..Default::default() }));
@@ -462,10 +465,10 @@ mod tests_raw {
 
         {
             println!("root_token: {:?}", root_token);
-            test_pki_config_ca(Arc::clone(&c), &root_token);
-            test_pki_generate_root(Arc::clone(&c), &root_token, false, true);
-            test_pki_config_role(Arc::clone(&c), &root_token);
-            test_pki_issue_cert_by_generate_root(Arc::clone(&c), &root_token);
+            test_pki_config_ca(Arc::clone(&c), &root_token).await;
+            test_pki_generate_root(Arc::clone(&c), &root_token, false, true).await;
+            test_pki_config_role(Arc::clone(&c), &root_token).await;
+            test_pki_issue_cert_by_generate_root(Arc::clone(&c), &root_token).await;
         }
     }
 }
