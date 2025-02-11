@@ -32,9 +32,9 @@ let api_base Option<String> = ...;
 let model = OpenAIModels::GPT4O;
 
 // The parameters are api key, model name and api base Option parameters.
-let client = DeepSeekClient::new(api_key, model, Some("https://..."));
-// Or default api base
-let client = DeepSeekClient::new(api_key, model, None);
+let client = OpenAIClient::new(api_key, model, Some("https://..."));
+// Or default api base. (Usually it is the official address)
+let client = OpenAIClient::new(api_key, model, None);
 
 // And, send message
 let res = client.ask_model("Hello, I am an automated testing program. Please reply directly with \"Received\" without punctuation marks or unnecessary content.").await;
