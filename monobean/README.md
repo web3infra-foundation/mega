@@ -35,8 +35,9 @@ cargo build --bin monobean
 ```
 
 ### For Windows Users
-Things are a bit more complex here.
-You can download precompiled Gtk4 libraries from [gvsbuild](https://github.com/wingtk/gvsbuild#development-environment). Then set up environmental variables like [this](https://github.com/wingtk/gvsbuild?tab=readme-ov-file#environmental-variables):
+> You can either use the python script [setup.py](setup.py) (Recommended) or follow the instructions below. It's equivalent to what the script does.
+
+Download precompiled Gtk4 libraries from [gvsbuild](https://github.com/wingtk/gvsbuild#development-environment). Then set up environmental variables like [this](https://github.com/wingtk/gvsbuild?tab=readme-ov-file#environmental-variables):
 ```powershell
 $env:Path = "C:\gtk\bin;" + $env:Path
 $env:LIB = "C:\gtk\lib;" + $env:LIB
@@ -46,7 +47,7 @@ Then build the package:
 ```pwsh
 cargo build --bin monobean
 ```
-You can also refer to the [gtk-rs documentation](https://gtk-rs.org/gtk4-rs/stable/latest/book/installation_windows.html) for more detailed instructions.
+Also refer to the [gtk-rs documentation](https://gtk-rs.org/gtk4-rs/stable/latest/book/installation_windows.html) for more detailed instructions.
 
 ## Troubleshooting
 1. `error: process didn't exit successfully: 'monobean.exe' (exit code: 0xc0000139, STATUS_ENTRYPOINT_NOT_FOUND)`
