@@ -1,12 +1,12 @@
 [package]
-name = "mega_client"
+name = "monobean"
 version = "0.0.1"
 edition = "2021"
 license = "MIT"
 authors = ["Neon<neonkk@qq.com>"]
 
 [[bin]]
-name = "mega_client"
+name = "monobean"
 path = "src/main.rs"
 
 [dependencies]

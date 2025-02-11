@@ -19,8 +19,8 @@ fn main() {
     .expect("Failed to get schema directory");
     std::fs::create_dir_all(&schemar_dir).expect("Failed to create schema directory");
     std::fs::copy(
-        "resources/org.Web3Infrastructure.MegaClient.gschema.xml",
-        schemar_dir.join("org.Web3Infrastructure.MegaClient.gschema.xml"),
+        "resources/org.Web3Infrastructure.Monobean.gschema.xml",
+        schemar_dir.join("org.Web3Infrastructure.Monobean.gschema.xml"),
     )
     .unwrap();
 
@@ -40,10 +40,10 @@ fn main() {
             current_dir.join("resources/gtk"),
         ],
         current_dir
-            .join("resources/org.Web3Infrastructure.MegaClient.gresource.xml")
+            .join("resources/org.Web3Infrastructure.Monobean.gresource.xml")
             .to_str()
             .unwrap(),
-        current_dir.join("MegaClient.gresource").to_str().unwrap(),
+        current_dir.join("Monobean.gresource").to_str().unwrap(),
     );
 
     println!("cargo:info=Resources compiled");
