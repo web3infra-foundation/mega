@@ -27,7 +27,15 @@ sudo apt install -y libgtk-4-dev libadwaita-1-0 libadwaita-1-dev
 cargo build -p monobean
 ```
 
-**For Windows users**, things are getting a little bit complex.
+### For MacOS Users
+Install GTK 4 by executing the following in your terminal then build:
+```bash
+brew install gtk4
+cargo build -p monobean
+```
+
+### For Windows users
+Things would be a little bit complex here.
 You can download precompiled Gtk4 libraries from [gvsbuild](https://github.com/wingtk/gvsbuild#development-environment). Then setup environmental variables like [this](https://github.com/wingtk/gvsbuild?tab=readme-ov-file#environmental-variables):
 ```powershell
 $env:Path = "C:\gtk\bin;" + $env:Path
@@ -38,6 +46,7 @@ Then build the package:
 ```powershell
 cargo build -p monobean
 ```
+You can also refer to the [gtk-rs doc](https://gtk-rs.org/gtk4-rs/stable/latest/book/installation_windows.html) for more detailed instructions.
 
 ## Contributing
 
