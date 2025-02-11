@@ -1,11 +1,11 @@
 <interface>
     <requires lib="gtk" version="4.0" />
-    <template class="MegaClientWindow" parent="AdwApplicationWindow">
+    <template class="MonobeanWindow" parent="AdwApplicationWindow">
         <property name="default-width">1160</property>
         <property name="default-height">820</property>
         <property name="height-request">600</property>
         <property name="width-request">450</property>
-        <property name="title" translatable="true">MegaClient</property>
+        <property name="title" translatable="true">Monobean</property>
 
         <child>
             <object class="AdwToastOverlay" id="toast_overlay">

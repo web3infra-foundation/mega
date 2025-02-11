@@ -6,7 +6,7 @@ mod imp {
     use super::*;
 
     #[derive(Debug, Default, CompositeTemplate)]
-    #[template(resource = "/org/Web3Infrastructure/MegaClient/gtk/repo_detail.ui")]
+    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/repo_detail.ui")]
     pub struct RepoDetail {
         // #[template_child]
         // pub repo_name: TemplateChild<gtk::Label>,

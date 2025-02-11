@@ -6,7 +6,7 @@ mod imp {
     use super::*;
 
     #[derive(Default, CompositeTemplate)]
-    #[template(resource = "/org/Web3Infrastructure/MegaClient/gtk/card_base.ui")]
+    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/card_base.ui")]
     pub struct CardBase {
 
     }
