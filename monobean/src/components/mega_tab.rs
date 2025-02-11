@@ -17,7 +17,7 @@ mod imp {
     use super::*;
 
     #[derive(Default, CompositeTemplate)]
-    #[template(resource = "/org/Web3Infrastructure/MegaClient/gtk/mega_tab.ui")]
+    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/mega_tab.ui")]
     pub struct MegaTab {
         #[template_child]
         pub toggle_mega: TemplateChild<Button>,
