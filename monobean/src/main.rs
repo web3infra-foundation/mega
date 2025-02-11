@@ -3,7 +3,7 @@ extern crate gtk;
 use std::sync::LazyLock;
 
 use adw::prelude::*;
-use application::MegaClientApplication;
+use application::MonobeanApplication;
 use gtk::{gio, glib};
 
 mod application;
@@ -12,9 +12,9 @@ mod window;
 mod components;
 mod config;
 
-const APP_ID: &str = "org.Web3Infrastructure.MegaClient";
-const APP_NAME: &str = "MegaClient";
-const PREFIX: &str = "/org/Web3Infrastructure/MegaClient";
+const APP_ID: &str = "org.Web3Infrastructure.Monobean";
+const APP_NAME: &str = "Monobean";
+const PREFIX: &str = "/org/Web3Infrastructure/Monobean";
 
 pub static CONTEXT: LazyLock<glib::MainContext> = LazyLock::new(glib::MainContext::default);
 
@@ -23,7 +23,7 @@ fn main() -> glib::ExitCode {
         std::env::set_current_dir(cargo_dir).expect("Failed to set workspace dir");
     }
 
-    let resources = gio::Resource::load("MegaClient.gresource").expect("Failed to load resources");
+    let resources = gio::Resource::load("Monobean.gresource").expect("Failed to load resources");
     gio::resources_register(&resources);
 
     glib::set_application_name(APP_NAME);
@@ -31,7 +31,7 @@ fn main() -> glib::ExitCode {
     // Create a new GtkApplication. The application manages our main loop,
     // application windows, integration with the window manager/compositor, and
     // desktop features such as file opening and single-instance applications.
-    let app = MegaClientApplication::new(APP_ID, &gio::ApplicationFlags::empty());
+    let app = MonobeanApplication::new(APP_ID, &gio::ApplicationFlags::empty());
     let _guard = CONTEXT.acquire().unwrap();
 
     // Run the application. This function will block until the application

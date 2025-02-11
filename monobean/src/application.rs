@@ -1,6 +1,6 @@
 use crate::config::WEBSITE;
 use crate::CONTEXT;
-use crate::{mega::MegaCore, window::MegaClientWindow};
+use crate::{mega::MegaCore, window::MonobeanWindow};
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
@@ -11,7 +11,7 @@ use std::cell::{OnceCell, RefCell};
 use std::path::PathBuf;
 
 glib::wrapper! {
-    pub struct MegaClientApplication(ObjectSubclass<imp::MegaClientApplication>)
+    pub struct MonobeanApplication(ObjectSubclass<imp::MonobeanApplication>)
         @extends gio::Application, gtk::Application, adw::Application,
         @implements gio::ActionGroup, gio::ActionMap;
 }
@@ -36,17 +36,17 @@ mod imp {
 
     use super::*;
 
-    pub struct MegaClientApplication {
+    pub struct MonobeanApplication {
         pub mega_core: OnceCell<MegaCore>,
-        pub window: OnceCell<WeakRef<MegaClientWindow>>,
+        pub window: OnceCell<WeakRef<MonobeanWindow>>,
         pub sender: Sender<Action>,
         pub receiver: RefCell<Option<Receiver<Action>>>,
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for MegaClientApplication {
-        const NAME: &'static str = "MegaClientApplication";
-        type Type = super::MegaClientApplication;
+    impl ObjectSubclass for MonobeanApplication {
+        const NAME: &'static str = "MonobeanApplication";
+        type Type = super::MonobeanApplication;
         type ParentType = adw::Application;
 
         fn new() -> Self {
@@ -65,7 +65,7 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for MegaClientApplication {
+    impl ObjectImpl for MonobeanApplication {
         fn constructed(&self) {
             let obj = self.obj();
             self.parent_constructed();
@@ -74,7 +74,7 @@ mod imp {
         }
     }
 
-    impl ApplicationImpl for MegaClientApplication {
+    impl ApplicationImpl for MonobeanApplication {
         // We connect to the activate callback to create a window when the application
         // has been launched. Additionally, this callback notifies us when the user
         // tries to launch a "second instance" of the application. When they try
@@ -82,7 +82,7 @@ mod imp {
         fn activate(&self) {
             let obj = self.obj();
             let app = obj
-                .downcast_ref::<super::MegaClientApplication>()
+                .downcast_ref::<super::MonobeanApplication>()
                 .unwrap();
 
             if let Some(weak_window) = self.window.get() {
@@ -114,11 +114,11 @@ mod imp {
         }
     }
 
-    impl GtkApplicationImpl for MegaClientApplication {}
-    impl AdwApplicationImpl for MegaClientApplication {}
+    impl GtkApplicationImpl for MonobeanApplication {}
+    impl AdwApplicationImpl for MonobeanApplication {}
 }
 
-impl MegaClientApplication {
+impl MonobeanApplication {
     pub fn new(application_id: &str, flags: &gio::ApplicationFlags) -> Self {
         glib::Object::builder()
         .property("application-id", application_id)
@@ -130,12 +130,12 @@ impl MegaClientApplication {
         self.imp().sender.clone()
     }
 
-    pub fn window(&self) -> Option<MegaClientWindow> {
+    pub fn window(&self) -> Option<MonobeanWindow> {
         self.imp().window.get().map(|w| w.upgrade().expect("Window not setup yet."))
     }
 
-    fn create_window(&self) -> MegaClientWindow {
-        let window = MegaClientWindow::new(&self.clone(), self.sender());
+    fn create_window(&self) -> MonobeanWindow {
+        let window = MonobeanWindow::new(&self.clone(), self.sender());
 
         self.add_window(&window);
         window.present();

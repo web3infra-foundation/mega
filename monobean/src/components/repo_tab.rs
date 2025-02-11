@@ -13,7 +13,7 @@ mod imp {
     use super::*;
 
     #[derive(Default, CompositeTemplate)]
-    #[template(resource = "/org/Web3Infrastructure/MegaClient/gtk/repo_tab.ui")]
+    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/repo_tab.ui")]
     pub struct RepoTab {
         #[template_child]
         pub nav_view: TemplateChild<NavigationSplitView>,
