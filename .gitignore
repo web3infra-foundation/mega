@@ -28,3 +28,4 @@ buck-out
 
 # Gtk4 resource files
 **/*.gresource
+monobean/resources/lib
