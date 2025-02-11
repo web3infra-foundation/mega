@@ -15,7 +15,7 @@ bytes = { workspace = true }
 ceres = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-color-backtrace = "0.6.1"
+color-backtrace = "0.7.0"
 colored = { workspace = true }
 common = { workspace = true }
 flate2 = { workspace = true } # add features = ["zlib"] if slow
