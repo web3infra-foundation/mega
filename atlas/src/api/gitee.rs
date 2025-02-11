@@ -2,9 +2,8 @@
 //! Note that GiteeAI does not guarantee to maintain the same API structure as OpenAI, so this may break in the future.
 //! GiteeAI uses URL parameters to specify the model, so there's no need to set the model in the request body.
 
+use crate::api::openai::OpenAIClient;
 use crate::{AskModel, Model};
-
-use super::openai::OpenAIClient;
 
 /// [GiteeAI Serverless API](https://ai.gitee.com/serverless-api)
 #[derive(Debug, Clone)]
@@ -30,10 +29,11 @@ pub struct GiteeServerlessClient {
 }
 
 impl GiteeServerlessClient {
-    pub fn new(api_key: String, model: GiteeServerlessModels) -> Self {
+    pub fn new(api_key: String, model: GiteeServerlessModels, api_base: Option<String>) -> Self {
+        let api_base = api_base.unwrap_or(GITEE_SERVERLESS_API_BASE.to_owned());
         let config = async_openai::config::OpenAIConfig::new()
             .with_api_key(&api_key)
-            .with_api_base(format!("{}/{}", GITEE_SERVERLESS_API_BASE, model.as_str()));
+            .with_api_base(format!("{}/{}", api_base, model.as_str()));
         let client = async_openai::Client::with_config(config);
         Self {
             openai_client: OpenAIClient::from_client_and_model(client, Box::new(model)),
@@ -56,12 +56,15 @@ mod test {
         ChatCompletionRequestSystemMessageArgs, CreateChatCompletionRequestArgs,
     };
 
-    use super::*;
-    use crate::api::test::{get_giteeai_key, test_client_with_context};
+    use crate::api::{
+        gitee::{GiteeServerlessClient, GiteeServerlessModels},
+        test::test_client_with_context,
+    };
+
     #[tokio::test]
     async fn test_openai_rs_with_gitee() {
         let config = async_openai::config::OpenAIConfig::new()
-            .with_api_key(get_giteeai_key().unwrap())
+            .with_api_key(std::env::var("GITEEAI_KEY").unwrap())
             .with_api_base("https://ai.gitee.com/api/inference/serverless/H87ZZLSFILML");
         let client = async_openai::Client::with_config(config);
 
@@ -81,9 +84,29 @@ mod test {
 
     #[tokio::test]
     async fn test_gitee_serverless_client_with_context() {
-        let api_key = get_giteeai_key().unwrap();
-        let model = GiteeServerlessModels::Qwen2_7bInstruct;
-        let client = GiteeServerlessClient::new(api_key, model);
-        test_client_with_context(client).await;
+        let api_key = std::env::var("GITEEAI_KEY");
+        let api_base = std::env::var("GITEEAI_API_BASE");
+
+        match (api_key, api_base) {
+            (Ok(api_key), Ok(api_base)) => {
+                let client = GiteeServerlessClient::new(
+                    api_key,
+                    GiteeServerlessModels::Qwen2_7bInstruct,
+                    Some(api_base),
+                );
+
+                test_client_with_context(client).await;
+            }
+            (Ok(api_key), Err(_)) => {
+                let client = GiteeServerlessClient::new(
+                    api_key,
+                    GiteeServerlessModels::Qwen2_7bInstruct,
+                    None,
+                );
+
+                test_client_with_context(client).await;
+            }
+            _ => eprintln!("GITEEAI_KEY is not set, skip this test."),
+        }
     }
 }

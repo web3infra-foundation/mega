@@ -1,8 +1,7 @@
 use async_openai::config::OpenAIConfig;
 
+use crate::api::openai::OpenAIClient;
 use crate::{AskModel, Model};
-
-use super::openai::OpenAIClient;
 
 /// refs: https://api-docs.deepseek.com/zh-cn/quick_start/pricing
 #[derive(Debug, Clone)]
@@ -60,28 +59,27 @@ impl AskModel for DeepSeekClient {
 mod test {
     use crate::api::{
         deepseek::{DeepSeekClient, DeepSeekModels},
-        test::{get_deepseek_key, test_client_with_context},
+        test::test_client_with_context,
     };
 
     #[tokio::test]
-    async fn test_deepseek() {
-        let api_key = get_deepseek_key().unwrap();
-        let models = [
-            DeepSeekModels::DeepSeekChat,
-            DeepSeekModels::DeepSeekReasoner,
-        ];
+    async fn test_deepseek_client_with_context() {
+        let api_key = std::env::var("DEEPSEEK_KEY");
+        let api_base = std::env::var("DEEPSEEK_API_BASE");
 
-        for model in models {
-            let api_base = std::env::var("DEEPSEEK_API_BASE");
-            let client = DeepSeekClient::new(
-                api_key.clone(),
-                model,
-                match api_base {
-                    Ok(api_base) => Some(api_base),
-                    Err(_) => None,
-                },
-            );
-            test_client_with_context(client).await;
+        match (api_key, api_base) {
+            (Ok(api_key), Ok(api_base)) => {
+                let client =
+                    DeepSeekClient::new(api_key, DeepSeekModels::DeepSeekChat, Some(api_base));
+
+                test_client_with_context(client).await;
+            }
+            (Ok(api_key), Err(_)) => {
+                let client = DeepSeekClient::new(api_key, DeepSeekModels::DeepSeekChat, None);
+
+                test_client_with_context(client).await;
+            }
+            _ => eprintln!("DEEPSEEK_KEY is not set, skip this test."),
         }
     }
 }

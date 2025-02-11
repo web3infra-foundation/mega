@@ -35,9 +35,15 @@ impl crate::Model for OpenAIModels {
 }
 
 impl OpenAIClient {
-    pub fn new(api_key: String, model: OpenAIModels) -> Self {
-        let config = OpenAIConfig::new().with_api_key(&api_key);
+    pub fn new(api_key: String, model: OpenAIModels, api_base: Option<String>) -> Self {
+        let config = match api_base {
+            Some(api_base) => OpenAIConfig::new()
+                .with_api_key(&api_key)
+                .with_api_base(api_base),
+            None => OpenAIConfig::new().with_api_key(&api_key),
+        };
         let client = Client::with_config(config);
+
         Self {
             model: Box::new(model),
             client,
@@ -78,7 +84,7 @@ impl AskModel for OpenAIClient {
                 }
             }
         }
-        
+
         let request = CreateChatCompletionRequestArgs::default()
             .model(self.model.as_str())
             .messages(messages)
@@ -93,5 +99,33 @@ impl AskModel for OpenAIClient {
             .map_err(|e| format!("Failed to get response : {}", e))?;
 
         Ok(response.choices[0].message.content.clone().unwrap())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::api::{
+        openai::{OpenAIClient, OpenAIModels},
+        test::test_client_with_context,
+    };
+
+    #[tokio::test]
+    async fn test_deepseek_client_with_context() {
+        let api_key = std::env::var("OPENAI_KEY");
+        let api_base = std::env::var("OPENAI_API_BASE");
+
+        match (api_key, api_base) {
+            (Ok(api_key), Ok(api_base)) => {
+                let client = OpenAIClient::new(api_key, OpenAIModels::GPT4O, Some(api_base));
+
+                test_client_with_context(client).await;
+            }
+            (Ok(api_key), Err(_)) => {
+                let client = OpenAIClient::new(api_key, OpenAIModels::GPT4O, None);
+
+                test_client_with_context(client).await;
+            }
+            _ => eprintln!("OPENAI_KEY is not set, skip this test."),
+        }
     }
 }

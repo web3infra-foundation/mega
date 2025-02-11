@@ -35,21 +35,23 @@ impl ClaudeModels {
     }
 }
 
-const CLAUDE_MESSAGE_URL: &str = "https://api.anthropic.com/v1/messages";
+const CLAUDE_API_BASE: &str = "https://api.anthropic.com/v1";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
 #[derive(Debug, Clone)]
 pub struct ClaudeClient {
     api_key: String,
     model: ClaudeModels,
+    api_base: String,
     http_client: reqwest::Client,
 }
 
 impl ClaudeClient {
-    pub fn new(api_key: String, model: ClaudeModels) -> Self {
+    pub fn new(api_key: String, model: ClaudeModels, api_base: Option<String>) -> Self {
         Self {
             api_key,
             model,
+            api_base: api_base.unwrap_or(CLAUDE_API_BASE.to_owned()),
             http_client: reqwest::Client::new(),
         }
     }
@@ -77,7 +79,7 @@ impl AskModel for ClaudeClient {
         let body = serde_json::to_string(&request_body)?;
         let res = self
             .http_client
-            .post(CLAUDE_MESSAGE_URL)
+            .post(format!("{}/messages", &self.api_base))
             .body(body)
             .header("Content-Type", "application/json; charset=utf-8")
             .header("x-api-key", &self.api_key)
@@ -160,12 +162,29 @@ struct Usage {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::api::test::{get_claude_key, test_client_with_context};
+    use crate::api::{
+        claude::{ClaudeClient, ClaudeModels},
+        test::test_client_with_context,
+    };
+
     #[tokio::test]
     async fn test_claude_client_with_context() {
-        let client = ClaudeClient::new(get_claude_key().unwrap(), ClaudeModels::Claude3_5Sonnet);
+        let api_key = std::env::var("CLAUDE_KEY");
+        let api_base = std::env::var("CLAUDE_API_BASE");
 
-        test_client_with_context(client).await;
+        match (api_key, api_base) {
+            (Ok(api_key), Ok(api_base)) => {
+                let client =
+                    ClaudeClient::new(api_key, ClaudeModels::Claude3_5Sonnet, Some(api_base));
+
+                test_client_with_context(client).await;
+            }
+            (Ok(api_key), Err(_)) => {
+                let client = ClaudeClient::new(api_key, ClaudeModels::Claude3_5Sonnet, None);
+
+                test_client_with_context(client).await;
+            }
+            _ => eprintln!("CLAUDE_KEY is not set, skip this test."),
+        }
     }
 }
