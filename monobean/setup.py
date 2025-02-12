@@ -42,25 +42,27 @@ def download_file_with_resume(url, save_path):
         print(f"Failed to download: {e}")
 
 def setup_environmental_variables():
-    if "resources\\lib\\bin" in os.environ["Path"]:
+    if os.path.abspath("resources/lib/bin") in os.environ["Path"].split(os.pathsep):
         print("Environment variables already set!")
         return
 
     env_vars_set = {
         "Path": "resources/lib/bin;",
         "LIB": "resources/lib/lib;",
-        "INCLUDE": "resources/lib/include;resources/lib/include/cairo;resources/lib/include/glib-2.0;resources/lib/include/gobject-introspection-1.0;resources/lib/lib/glib-2.0/include;",
         "PKG_CONFIG_PATH": "resources/lib/lib/pkgconfig;"
+        "INCLUDE": "resources/lib/include;resources/lib/include/cairo;resources/lib/include/glib-2.0;resources/lib/include/gobject-introspection-1.0;resources/lib/lib/glib-2.0/include;",
     }
 
+    commands = []
     for key, value in env_vars_set.items():
         # convert to abs path
-        value = os.pathsep.join([os.path.abspath(p) for p in value.split(';')])
+        value = os.pathsep.join([os.path.abspath(p) for p in value.split(';')[:-1]])
 
-        if key in os.environ:
-            os.environ[key] = f"{value}{os.pathsep}{os.environ[key]}"
-        else:
-            os.environ[key] = value
+        commands.append(f'$env:{key} = "$env:{key};{value}"')
+
+    print("Copy and paste these commands to set environment variables in PowerShell:\n")
+    for cmd in commands:
+        print(cmd)
 
 
 if __name__ == "__main__":
@@ -101,6 +103,5 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"Error: {e}")
-
 
     os.chdir(cwd)
