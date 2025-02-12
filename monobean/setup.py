@@ -42,7 +42,7 @@ def download_file_with_resume(url, save_path):
         print(f"Failed to download: {e}")
 
 def setup_environmental_variables():
-    if "resources\\lib\\bin" in os.environ["Path"]:
+    if os.path.abspath("resources/lib/bin") in os.environ["Path"].split(os.pathsep):
         print("Environment variables already set!")
         return
 
