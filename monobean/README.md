@@ -41,6 +41,7 @@ Download precompiled Gtk4 libraries from [gvsbuild](https://github.com/wingtk/gv
 ```powershell
 $env:Path = "C:\gtk\bin;" + $env:Path
 $env:LIB = "C:\gtk\lib;" + $env:LIB
+$env:PKG_CONFIG_PATH = "C:\gtk\lib\pkgconfig" + $env:PKG_CONFIG_PATH
 $env:INCLUDE = "C:\gtk\include;C:\gtk\include\cairo;C:\gtk\include\glib-2.0;C:\gtk\include\gobject-introspection-1.0;C:\gtk\lib\glib-2.0\include;" + $env:INCLUDE
 ```
 Then build the package:
