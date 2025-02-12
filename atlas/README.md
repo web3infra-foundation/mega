@@ -24,7 +24,7 @@ Support ChatGPT, Claude, DeepSeek, Gemini, Gitee and 01.ai (https://www.lingyiwa
 // The required information is api_key, model name (of course atlas provides model name enumeration). 
 // And if necessary, you can pass in api_base in some clients.
 let api_key: &str = ...;
-let api_base Option<String> = ...;
+let api_base: Option<String> = ...;
 
 // There are also enumerations of other supported models in OpenAIModels.
 // For other LLM platforms, there are corresponding Models enumerations.
@@ -47,7 +47,7 @@ let _context = crate::ChatMessage {
     messages: vec![
         (
             crate::ChatRole::User,
-            "Resposponse a '0' no matter what you receive".into(),
+            "Response a '0' no matter what you receive".into(),
         ),
         (
             crate::ChatRole::Model,
