@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <schemalist>
-    <schema id="org.Web3Infrastructure.MegaClient" path="/org/Web3Infrastructure/MegaClient/">
+    <schema id="org.Web3Infrastructure.Monobean" path="/org/Web3Infrastructure/Monobean/">
         <key name="width" type="i">
             <default>1280</default>
         </key>

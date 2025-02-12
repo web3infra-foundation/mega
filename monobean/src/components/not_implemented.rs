@@ -8,7 +8,7 @@ mod imp {
     use super::*;
 
     #[derive(Default, CompositeTemplate)]
-    #[template(resource = "/org/Web3Infrastructure/MegaClient/gtk/not_implemented.ui")]
+    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/not_implemented.ui")]
     pub struct NotImplemented;
 
     #[glib::object_subclass]
