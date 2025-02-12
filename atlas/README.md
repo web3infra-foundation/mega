@@ -8,9 +8,9 @@ Support ChatGPT, Claude, DeepSeek, Gemini, Gitee and 01.ai (https://www.lingyiwa
 
 **ChatGPT** `gpt-4o-mini` `gpt-4-turbo` `gpt-4` `gpt-3.5-turbo`
 
-**Claude** `claude-3-5-sonnet-20240620` ` claude-3-opus-20240229` `claude-3-sonnet-20240229` `claude-3-haiku-20240307`
+**Claude** `claude-3-5-sonnet-20240620` `claude-3-opus-20240229` `claude-3-sonnet-20240229` `claude-3-haiku-20240307`
 
-**DeepSeek** ` deepseek-chat` `deepseek-reasoner`
+**DeepSeek** `deepseek-chat` `deepseek-reasoner`
 
 **Gemini** `models/chat-bison-001` `models/text-bison-001` `models/embedding-gecko-001` `models/gemini-1.0-pro-latest` `models/gemini-1.0-pro` `models/gemini-pro` `models/gemini-1.0-pro-001` `models/gemini-1.0-pro-vision-latest` `models/gemini-pro-vision` `models/gemini-1.5-pro-latest` `models/gemini-1.5-pro-001` `models/gemini-1.5-pro` `models/gemini-1.5-flash-latest` `models/gemini-1.5-flash-001` `models/gemini-1.5-flash` `models/embedding-001` `models/text-embedding-004` `models/aqa`
 
