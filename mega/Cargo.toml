@@ -39,6 +39,12 @@ config = { workspace = true }
 shadow-rs = { workspace = true }
 ctrlc = { workspace = true }
 
+[target.'cfg(not(windows))'.dependencies]
+jemallocator = "0.5.4"
+
+[target.'cfg(windows)'.dependencies]
+mimalloc = "0.1.43"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 serial_test = "3.1.1"

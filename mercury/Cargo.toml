@@ -37,9 +37,6 @@ memchr = { workspace = true }
 encoding_rs = { workspace = true }
 rayon = "1.10.0"
 
-[target.'cfg(windows)'.dependencies] # only on Windows
-mimalloc = "0.1.39" # avoid sticking on dropping on Windows
-
 [dev-dependencies]
 tracing-test = "0.2.4"
 tokio = { workspace = true, features = ["full"] }
