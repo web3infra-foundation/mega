@@ -1,4 +1,5 @@
 
+
 use fuse3::raw::{Filesystem, Request};
 use inode_alloc::InodeAlloc;
 use tokio::sync::Mutex;
@@ -16,24 +17,42 @@ pub struct MegaFuse{
     pub dic: Arc<Dicfuse>,
     overlayfs:Arc<Mutex<HashMap<u64,Arc<OverlayFs>>>>, // Inode -> overlayyfs 
     inodes_alloc: InodeAlloc,
+   
 }
 
 
 #[allow(unused)]
 impl MegaFuse{
     pub async fn new() -> Self{
+        
         Self{
+            
             dic: Arc::new(Dicfuse::new().await),
             overlayfs: Arc::new(Mutex::new(HashMap::new())),
             inodes_alloc: InodeAlloc::new(),
+            
         }
     }
     pub async fn new_from_manager(manager: &ScorpioManager) -> MegaFuse {
+
+        
         let megafuse = MegaFuse::new().await;
+        //megafuse.dic.store.import().await;
+        //For Buck path . associate with code-/src/dicfuse/store.rs:235 // import buck_out inode for buck2 , which inode number is 2.
+        // let inode =megafuse.dic.store.get_by_path("buck_out").await.unwrap().get_inode();//buck out path .
+        // println!("buck_out inode is :{}",inode);
+        // let mut buck_path =PathBuf::from(&manager.store_path);
+        // buck_path.push("buck_out");
+        // std::fs::create_dir_all(&buck_path).unwrap();
+        // megafuse.overlay_mount(inode, &buck_path).await;
+        
+        // mount user works.
         for dir in &manager.works {
             let _lower = PathBuf::from(&manager.store_path).join(&dir.hash);
             megafuse.overlay_mount(dir.node, &_lower).await;
         }
+
+
         megafuse
     }
 
@@ -61,7 +80,9 @@ impl MegaFuse{
                 lower_layers.push(Arc::new(layer));
                 // Rest of the code...
             } else {
-                panic!("Lower directory does not exist: {}", lower.to_str().unwrap());
+                std::fs::create_dir_all(lower_path);
+                let layer = new_passthroughfs_layer(lower.to_str().unwrap()).await.unwrap();
+                lower_layers.push(Arc::new(layer));
             }
         }
         // Check if the upper directory exists
@@ -105,14 +126,19 @@ impl MegaFuse{
     pub async fn is_mount(&self,inode:u64) -> bool{
         self.overlayfs.lock().await.get(&inode).is_some()
     }
-    pub async fn after_mount_new(&self){
+    // alloc inode batch number to every overlayfs .
+    pub async fn after_mount_new(&self) {
+        // clear inode alloc
         self.inodes_alloc.clear();
+        // lock  overlayfs map
         let map_lock = &self.overlayfs.lock().await;
         
-        for (inode,ovl_fs) in map_lock.iter(){
-            println!("re mount :{}",inode);
+        for (inode, ovl_fs) in map_lock.iter() {
+            // alloc new  inode batch.
             let inode_batch = self.inodes_alloc.alloc_inode(*inode).await;
+            // extend inode alloc
             ovl_fs.extend_inode_alloc(inode_batch).await;
+            // init overlay filesystem
             ovl_fs.init(Request::default()).await;
         }
     
