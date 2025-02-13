@@ -20,6 +20,7 @@ use crate::util::atomic::AtomicU64;
 use crate::READONLY_INODE;
 
 use super::abi::{default_dic_entry, default_file_entry};
+use super::tree_store::TreeStorage;
 use crate::util::GPath;
 const MEGA_TREE_URL: &str = "localhost:8000";//TODO: make it configable
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
@@ -46,7 +47,7 @@ pub struct DicItem{
 #[derive(PartialEq,Debug)]
 enum ContentType {
     File,
-    Dictionary(bool),// if this dictionary is loaded.
+    Directory(bool),// if this dictionary is loaded.
 }
 #[allow(unused)]
 impl DicItem {
@@ -56,7 +57,7 @@ impl DicItem {
             path_name: item.path.into(), // GPath can be created from String
             content_type: match item.content_type.as_str() {
                 INODE_FILE =>Arc::new(Mutex::new(ContentType::File)),
-                INODE_DICTIONARY =>Arc::new(Mutex::new(ContentType::Dictionary(false))),
+                INODE_DICTIONARY =>Arc::new(Mutex::new(ContentType::Directory(false))),
                 _ => panic!("Unknown content type"),
             },
             children: Mutex::new(HashMap::new()),
@@ -83,14 +84,14 @@ impl DicItem {
         let t  = self.content_type.lock().await;
         match *t{
             ContentType::File => ContentType::File,
-            ContentType::Dictionary(a) => ContentType::Dictionary(a),
+            ContentType::Directory(a) => ContentType::Directory(a),
         }
     }
     pub async fn get_filetype(&self)-> FileType{
         let t  = self.content_type.lock().await;
         match *t{
             ContentType::File => FileType::RegularFile,
-            ContentType::Dictionary(_) => FileType::Directory,
+            ContentType::Directory(_) => FileType::Directory,
         }
     }
     pub fn get_parent(&self)-> u64{
@@ -99,7 +100,7 @@ impl DicItem {
     pub async fn get_stat(&self) ->ReplyEntry{
         match self.get_tyep().await{
             ContentType::File => default_file_entry(self.inode),
-            ContentType::Dictionary(_) => default_dic_entry(self.inode),
+            ContentType::Directory(_) => default_dic_entry(self.inode),
         }
     }
 }
@@ -132,10 +133,12 @@ async fn fetch_tree(path: &str) -> Result<ApiResponse, Box<dyn Error>> {
 
 
 pub struct DictionaryStore {
+    
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
     next_inode: AtomicU64,
     queue: Arc<Mutex<VecDeque<u64>>>,
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
+    persistent_path_store :Arc<Mutex<TreeStorage>>,// persistent path store for saving and retrieving file paths
 }
 
 #[allow(unused)]
@@ -160,9 +163,9 @@ impl DictionaryStore {
                     let it = self.inodes.lock().await.get(&one_inode).unwrap().clone();
                     let mut ct =it.content_type.lock().await;
                     let path=String::new();
-                    if let ContentType::Dictionary(load) = *ct{
+                    if let ContentType::Directory(load) = *ct{
                         if !load{
-                            *ct = ContentType::Dictionary(true);
+                            *ct = ContentType::Directory(true);
                             let path = it.get_path();
                             println!("fetch path :{}",path);
                         }
@@ -188,19 +191,27 @@ impl DictionaryStore {
         
     }
     pub async fn new() -> Self {
+        let tree_store =  TreeStorage::new().expect("Failed to create TreeStorage");
+        tree_store.insert_item(1, UNKNOW_INODE, Item{
+            name: "".to_string(),
+            path: "/".to_string(),
+            content_type: INODE_DICTIONARY.to_string(),
+        });
         let mut init = DictionaryStore {
             next_inode: AtomicU64::new(2),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             queue: Arc::new(Mutex::new(VecDeque::new())),
+            persistent_path_store:  Arc::new(Mutex::new(tree_store))
         };
         let root_item = DicItem{
             inode: 1,
             path_name: GPath::new(),
-            content_type: Arc::new(Mutex::new(ContentType::Dictionary(false))),
+            content_type: Arc::new(Mutex::new(ContentType::Directory(false))),
             children: Mutex::new(HashMap::new()),
             parent: UNKNOW_INODE, //  root dictory has no parent
         };
+        
         init.inodes.lock().await.insert(1, root_item.into());
         init
     }
@@ -210,17 +221,18 @@ impl DictionaryStore {
         let alloc_inode = self.next_inode.load().await;
         
         assert!(alloc_inode < READONLY_INODE );
-        if item.content_type=="directory"{
+        if item.content_type==INODE_DICTIONARY{
             self.queue.lock().await.push_back(alloc_inode);
         }
         
         
         let parent = pitem;
-        let newitem = Arc::new(DicItem::new(alloc_inode, parent.get_inode(),item));
+        let newitem = Arc::new(DicItem::new(alloc_inode, parent.get_inode(),item.clone()));
        
         parent.push_children(newitem.clone()).await;
         self.radix_trie.lock().await.insert(newitem.get_path(), alloc_inode);
         self.inodes.lock().await.insert(alloc_inode, newitem);
+        self.persistent_path_store.lock().await.insert_item(alloc_inode, parent.get_inode(), item);
 
     }
 
@@ -229,6 +241,8 @@ impl DictionaryStore {
         let items =  fetch_tree("").await.unwrap().data;
         
         let root_inode = self.inodes.lock().await.get(&1).unwrap().clone();
+
+
         for it in items{
             println!("root item:{:?}",it);
             self.update_inode(root_inode.clone(),it).await;
@@ -241,7 +255,7 @@ impl DictionaryStore {
             let mut new_items = Vec::new();
             {
                 let it = self.inodes.lock().await.get(&one_inode).unwrap().clone();
-                if let ContentType::Dictionary(load) = *it.content_type.lock().await{
+                if let ContentType::Directory(load) = *it.content_type.lock().await{
                     if !load{
                         let path = it.get_path();
                         println!("fetch path :{}",path);
@@ -258,7 +272,7 @@ impl DictionaryStore {
                     self.update_inode(pc.clone(),newit).await; // Await the update_inode call
                 }
                 let mut content_type = pc.content_type.lock().await;
-                *content_type = ContentType::Dictionary(true);
+                *content_type = ContentType::Directory(true);
             }
             new_items = Vec::new();
         }
@@ -297,7 +311,7 @@ impl DictionaryStore {
         let mut re = vec![dictionary.clone(),p_dictionary.clone()];
         //let mut re = vec![];
          // 2. 确保目录项是一个目录
-         if let ContentType::Dictionary(_) = dictionary.get_tyep().await {
+         if let ContentType::Directory(_) = dictionary.get_tyep().await {
              // 3. 获取子目录项
              let  children = dictionary.children.lock().await;
              let mut total_bytes_written = 0;
