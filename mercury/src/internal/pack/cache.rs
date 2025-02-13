@@ -12,7 +12,9 @@ use threadpool::ThreadPool;
 
 use crate::time_it;
 use crate::hash::SHA1;
-use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder, FileLoadStore};
+use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder};
+
+use crate::utils::storable::Storable;
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
@@ -100,7 +102,7 @@ impl Caches {
     }
 
     fn read_from_temp(path: &Path) -> io::Result<CacheObject> {
-        let obj = CacheObject::f_load(path)?;
+        let obj = CacheObject::load(path)?;
         // Deserializing will also create an object but without Construction outside and `::new()`
         // So if you want to do sth. while Constructing, impl Deserialize trait yourself
         obj.record_mem_size();
@@ -230,15 +232,12 @@ impl _Cache for Caches {
 
 #[cfg(test)]
 mod test {
-    use std::env;
-
     use super::*;
-    use crate::{hash::SHA1, internal::{object::types::ObjectType, pack::cache_object::CacheObjectInfo}};
+    use crate::{hash::SHA1, internal::{object::types::ObjectType, pack::cache_object::CacheObjectInfo}, MERCURY_DEFAULT_TMP_DIR};
 
     #[test]
     fn test_cache_single_thread() {
-        let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
+        let cache = Caches::new(Some(2048), MERCURY_DEFAULT_TMP_DIR.into(), 1);
         let a_hash = SHA1::new(String::from("a").as_bytes());
         let b_hash = SHA1::new(String::from("b").as_bytes());
         let a = CacheObject {
