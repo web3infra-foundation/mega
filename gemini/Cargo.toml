@@ -28,3 +28,9 @@ secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 ring = "0.17.8"
 hex = { workspace = true }
 async-trait = { workspace = true }
+quinn = "0.11"
+anyhow = { workspace = true }
+lazy_static = { workspace = true }
+rcgen = "0.13"
+dashmap = "6.0.1"
+uuid = { workspace = true }

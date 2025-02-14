@@ -123,7 +123,7 @@ async fn send(
         .unwrap()
         .unwrap();
 
-    let bootstrap_node = match state.ztm.bootstrap_node.clone() {
+    let bootstrap_node = match state.p2p.bootstrap_node.clone() {
         Some(b) => b,
         None => {
             return Err((
