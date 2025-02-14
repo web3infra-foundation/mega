@@ -16,7 +16,6 @@ use gemini::nostr::{
 };
 use jupiter::storage::ztm_storage::ZTMStorage;
 use serde_json::Value;
-use tokio::task;
 use uuid::Uuid;
 
 use crate::service::{relay_server::AppState, Req};
@@ -70,13 +69,13 @@ async fn recieve(
             storage.insert_nostr_event(ztm_nostr_event).await.unwrap();
 
             //Event is forwarded to subscribed nodes
-            let nostr_event_clone = nostr_event.clone();
-            let storage_clone = storage.clone();
-            let ztm_agent_port = state.relay_option.clone().ztm_agent_port;
-            task::spawn(async move {
-                transfer_event_to_subscribed_nodes(storage_clone, nostr_event_clone, ztm_agent_port)
-                    .await
-            });
+            // let nostr_event_clone = nostr_event.clone();
+            // let storage_clone = storage.clone();
+            // let ztm_agent_port = state.relay_option.clone().ztm_agent_port;
+            // task::spawn(async move {
+            //     transfer_event_to_subscribed_nodes(storage_clone, nostr_event_clone, ztm_agent_port)
+            //         .await
+            // });
 
             let res = RelayMessage::new_ok(nostr_event.id, true, "ok".to_string());
             let value = serde_json::to_value(res).unwrap();
