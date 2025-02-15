@@ -4,12 +4,14 @@ mod async_io;
 mod tree_store;
 use std::{collections::HashMap, ffi::{OsStr, OsString}, sync::Arc};
 use crate::manager::fetch::fetch_tree;
-use crate::util::GPath;
+
 use mercury::internal::object::tree::TreeItemMode;
 use reqwest::Client;
-
 use fuse3::raw::reply::ReplyEntry;
-use store::{DicItem, DictionaryStore};
+use store::DictionaryStore;
+use tree_store::StorageItem;
+
+
 pub struct Dicfuse{
     pub store: Arc<DictionaryStore>,
     open_buff: Arc<tokio::sync::RwLock<HashMap<u64, Vec<u8>>>>,
@@ -22,8 +24,8 @@ impl Dicfuse{
             open_buff: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         }
     }
-    pub async fn get_stat(&self,item:Arc<DicItem>) -> ReplyEntry {
-        let mut e  =item.get_stat().await;
+    pub async fn get_stat(&self,item:StorageItem) -> ReplyEntry {
+        let mut e  =item.get_stat();
         let rl = self.open_buff.read().await;
         if let Some(datas) = rl.get(&item.get_inode()){
             e.attr.size = datas.len() as u64;
@@ -31,8 +33,8 @@ impl Dicfuse{
         e
     }
     async fn load_one_file(&self, parent: u64, name: &OsStr) -> std::io::Result<()>{
-        let parent_item = self.store.get_inode(parent).await?;
-        let tree = fetch_tree(&GPath::from(parent_item.get_path())).await.unwrap();
+        let mut parent_item = self.store.find_path(parent).await.unwrap();
+        let tree = fetch_tree(&parent_item).await.unwrap();
        
         let client = Client::new();
         for i in tree.tree_items{
@@ -55,10 +57,11 @@ impl Dicfuse{
                 // Store the content in a Vec<u8>
                 let data: Vec<u8> = content.to_vec();
                 //let child_osstr = OsStr::new(&i.name);
-                let c_lock =parent_item.children.lock().await;
-                let child = c_lock.get(&i.name).unwrap();
+                parent_item.push(i.name.clone());
 
-                self.open_buff.write().await.insert(child.get_inode(), data);
+                let it_temp = self.store.get_by_path(&parent_item.to_string()).await?;
+
+                self.open_buff.write().await.insert(it_temp.get_inode(), data);
                 
             } else {
                 eprintln!("Request failed with status: {}", response.status());
@@ -68,9 +71,9 @@ impl Dicfuse{
         }
         Ok(())
     }
-    pub async fn load_fiels(&self, parent_item :Arc<DicItem>){
-        let tree = fetch_tree(&GPath::from(parent_item.get_path())).await.unwrap();
-        
+    pub async fn load_files(&self, parent_item :StorageItem,items:&Vec<StorageItem>){
+        let gpath = self.store.find_path(parent_item.get_inode()).await.unwrap();
+        let tree = fetch_tree(&gpath).await.unwrap(); 
         let mut is_first  = true;
         let client = Client::new();
         for i in tree.tree_items{
@@ -88,11 +91,20 @@ impl Dicfuse{
                 
                 // Store the content in a Vec<u8>
                 let data: Vec<u8> = content.to_vec();
-                //let child_osstr = OsStr::new(&i.name);
-                let c_lock =parent_item.children.lock().await;
-                let child = c_lock.get(&i.name).unwrap();
-                if is_first{
-                    match self.open_buff.write().await.get(&child.get_inode()) {
+
+                // Get the hit inodes.
+                let mut hit_inodes: Option<u64> = None;
+                for it in items {
+                    if it.name.eq(&i.name) {
+                        hit_inodes = Some(it.get_inode());
+                    }
+                }
+                assert!(hit_inodes.is_some()); // must find an inode from child.
+                let hit_inodes = hit_inodes.unwrap();
+                
+                // Look up the buff, find Loaded file. 
+                if is_first {
+                    match self.open_buff.write().await.get(&hit_inodes) {
                         Some(_) => {
                             break;
                             // is loaded , no need to reload ;
@@ -103,7 +115,7 @@ impl Dicfuse{
                         },
                     }
                 }
-                self.open_buff.write().await.insert(child.get_inode(), data);
+                self.open_buff.write().await.insert(hit_inodes, data);
                 
             } else {
                 eprintln!("Request failed with status: {}", response.status());

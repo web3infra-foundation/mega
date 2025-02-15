@@ -1,21 +1,56 @@
 
+use fuse3::raw::reply::ReplyEntry;
+use fuse3::FileType;
 use sled::Db;
 use serde::{Serialize, Deserialize};
 use std::io::{Error, ErrorKind};
 use std::io;
+use crate::util::GPath;
+
+use super::abi::{default_dic_entry, default_file_entry};
 use super::store::Item;
 #[allow(unused)]
 pub struct TreeStorage {
     db: Db,
 }
 const CONFIG_PATH: &str = "config.toml";
-#[derive(Serialize,Deserialize)]
-struct StorageItem{
+#[derive(Serialize,Deserialize,Clone)]
+pub struct StorageItem{
     inode: u64,
     parent : u64,
-    name : String ,
+    pub name : String ,
     is_dir: bool , // True for Directory . 
     children:Vec<u64>
+}
+impl StorageItem {
+    pub fn get_inode(&self) -> u64{
+        self.inode
+    }
+    pub fn is_dir(&self) -> bool{
+        self.is_dir
+    }
+    pub fn get_children(&self)->Vec<u64>{
+        self.children.clone()
+    }
+    pub fn get_stat(&self) ->ReplyEntry{
+        if self.is_dir{
+            default_dic_entry(self.inode)
+        }else {
+            default_file_entry(self.inode)
+        }
+    }
+    pub async fn get_filetype(&self)-> FileType{
+        
+        if self.is_dir{
+            FileType::Directory
+        }else{
+            FileType::RegularFile
+        }
+            
+    }
+    pub fn get_name(&self) -> String{
+        self.name.clone()
+    }
 }
 use toml::Value;
 #[allow(unused)]
@@ -55,9 +90,10 @@ impl TreeStorage {
             .map_err(|e| Error::new(ErrorKind::Other, e))?;
 
         if parent != 0 {
-            let mut parent_item: StorageItem = self.get_storage_item(parent)?
-                .ok_or_else(|| Error::new(ErrorKind::NotFound, "Parent not found"))?;
+            let mut parent_item: StorageItem = self.get_storage_item(parent)?;
+            //Append the children inode.
             parent_item.children.push(inode);
+            // write back
             self.db
                 .insert(parent.to_be_bytes(), bincode::serialize(&parent_item).map_err(|e| Error::new(ErrorKind::Other, e))?)
                 .map_err(|e| Error::new(ErrorKind::Other, e))?;
@@ -67,35 +103,13 @@ impl TreeStorage {
     }
 
     /// Get a dic item.
-    pub fn get_item(&self, inode: u64) -> Option<Item> {
-
-        match self.get_storage_item(inode){
-            Ok(storage_item) => {
-                if let Some(storage_item) = storage_item{
-                    let item = Item {
-                        name: storage_item.name,
-                        path: String::new(), 
-                        content_type: if storage_item.is_dir {
-                            "directory".to_string()
-                        } else {
-                            "file".to_string()
-                        },
-                    };
-                    Some(item)
-                }else {
-                    None
-                }
-            },
-            Err(_) =>{
-                None
-            },
-        }
-       
+    pub fn get_item(&self, inode: u64) -> io::Result<StorageItem> {
+        self.get_storage_item(inode)
     }
 
     /// Delete an item and recursively delete its sub-items.
     pub fn remove_item(&self, inode: u64) -> std::io::Result<()> {
-        if let Some(storage_item) = self.get_storage_item(inode)? {
+        if let Ok(storage_item) = self.get_storage_item(inode) {
             // Recursively delete child items.
             for child_inode in storage_item.children {
                 self.remove_item(child_inode)?;
@@ -103,8 +117,7 @@ impl TreeStorage {
 
             // Remove from the parent item's children list.
             if storage_item.parent != 0 {
-                let mut parent_item: StorageItem = self.get_storage_item(storage_item.parent)?
-                    .ok_or_else(|| Error::new(ErrorKind::NotFound, "Parent not found"))?;
+                let mut parent_item: StorageItem = self.get_storage_item(storage_item.parent)?;
                 parent_item.children.retain(|&x| x != inode);
                 self.db
                     .insert(storage_item.parent.to_be_bytes(), bincode::serialize(&parent_item).map_err(|e| Error::new(ErrorKind::Other, e))?)
@@ -118,17 +131,48 @@ impl TreeStorage {
         }
         Ok(())
     }
-
+    pub fn append_child(&self, parent: u64, inode: u64)-> io::Result<()> {
+        let mut st = self.get_storage_item(parent)?;
+        st.children.push(inode);
+        self.db
+            .insert(parent.to_be_bytes(), bincode::serialize(&st).map_err(|e| Error::new(ErrorKind::Other, e))?)
+            .map_err(|e| Error::new(ErrorKind::Other, e))?;
+        Ok(())
+    }
+    pub fn get_children(&self,inode: u64) -> io::Result<Vec<StorageItem>>{
+        let mut children = Vec::new();
+        let inode = self.get_storage_item(inode)?;
+        for child in inode.children{
+            match self.get_item(child) {
+                Ok(item) => children.push(item),
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(children)
+    }
     /// Get StorageItem
-    fn get_storage_item(&self, inode: u64) -> io::Result<Option<StorageItem>> {
+    pub fn get_storage_item(&self, inode: u64) -> io::Result<StorageItem> {
         match self.db.get(inode.to_be_bytes())? {
             Some(value) => {
                 let item: StorageItem = bincode::deserialize(&value)
                     .map_err(|e| Error::new(ErrorKind::Other, e))?;
-                Ok(Some(item))
+                Ok(item)
             }
-            None => Ok(None),
+            None => Err(Error::new(ErrorKind::NotFound, "Item not found")),
         }
+    }
+    pub fn get_all_path(&self, inode: u64) -> io::Result<GPath>{
+        let mut names = Vec::new();
+        let mut ino = inode;
+        while ino!=1 {
+            let temp_item = self.get_item(ino).unwrap();
+            names.push(temp_item.name);
+            ino = temp_item.parent;
+        }
+        names.reverse();// reverse the names to get the all path of this item.
+        Ok(GPath{
+            path: names,
+        })
     }
 }
 #[cfg(test)]
@@ -195,7 +239,7 @@ mod tests {
     fn test_get_nonexistent_item() {
         let storage = setup("test_get_nonexistent_item");
         let result = storage.get_item(999);
-        assert_eq!(result,None);
+        assert!(result.is_err());
         unset("test_get_nonexistent_item");
     }
 
@@ -215,17 +259,19 @@ mod tests {
         println!("test begin...");
         // Function to traverse and collect directory structure
         fn traverse(storage: &TreeStorage, inode: u64, depth: usize) {
-            if let Some(item) = storage.get_item(inode) {
-                if item.content_type == "directory" {
-                    println!("{}Directory: {}", "  ".repeat(depth), item.name);
-                    if let Some(storage_item) = storage.get_storage_item(inode).unwrap() {
-                        for child_inode in storage_item.children {
+            if let Ok(item) = storage.get_item(inode) {
+                
+                    for child_inode in item.children {
+                        if item.is_dir{
+                            println!("{}Directory: {}", "  ".repeat(depth), item.name);
                             traverse(storage, child_inode, depth + 1);
+                        }else {
+                            println!("{}File: {}", "  ".repeat(depth), item.name);
                         }
+                        
                     }
-                } else {
-                    println!("{}File: {}", "  ".repeat(depth), item.name);
-                }
+                    
+                
             }
         }
 

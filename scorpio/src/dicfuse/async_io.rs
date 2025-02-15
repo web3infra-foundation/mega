@@ -136,7 +136,7 @@ impl Filesystem for Dicfuse {
         let mut d:Vec<std::result::Result<DirectoryEntry, Errno>> = Vec::new();
 
         let parent_item = self.store.get_inode(parent).await?;
-        self.load_fiels(parent_item).await;
+        self.load_files(parent_item,&items).await;
         
 
         for (index,item) in items.into_iter().enumerate(){
@@ -154,9 +154,9 @@ impl Filesystem for Dicfuse {
     async fn readdirplus(&self,_req:Request,parent:Inode,fh:u64,offset:u64,_lock_owner:u64,) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'_> > > {
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d:Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
-
+       
         let parent_item = self.store.get_inode(parent).await?;
-        self.load_fiels(parent_item).await;
+        self.load_files(parent_item,&items).await;
         for (index,item) in items.into_iter().enumerate(){
             if index as u64 >= offset {
                 let attr = self.get_stat(item.clone()).await;
@@ -183,6 +183,7 @@ impl Filesystem for Dicfuse {
             }
             
         }
+        println!("{:?}",d);
         Ok(ReplyDirectoryPlus { entries: iter(d.into_iter()) })
     }
 }
