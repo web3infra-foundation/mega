@@ -49,7 +49,7 @@ def setup_environmental_variables():
     env_vars_set = {
         "Path": "resources/lib/bin;",
         "LIB": "resources/lib/lib;",
-        "PKG_CONFIG_PATH": "resources/lib/lib/pkgconfig;"
+        "PKG_CONFIG_PATH": "resources/lib/lib/pkgconfig;",
         "INCLUDE": "resources/lib/include;resources/lib/include/cairo;resources/lib/include/glib-2.0;resources/lib/include/gobject-introspection-1.0;resources/lib/lib/glib-2.0/include;",
     }
 

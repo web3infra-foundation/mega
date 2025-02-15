@@ -253,8 +253,6 @@ mod tests {
 
     use super::*;
     use crate::{internal::head::Head, utils::test};
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
 
     pub fn verify_init(base_dir: &Path) {
         // List of subdirectories to verify
