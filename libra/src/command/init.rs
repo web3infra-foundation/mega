@@ -157,7 +157,7 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        // On Unix-like systems, we does no more
+        // On Unix-like systems, we do no more
         conn = db::create_database(database.to_str().unwrap()).await?;
     }
 
