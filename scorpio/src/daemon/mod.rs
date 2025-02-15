@@ -186,8 +186,9 @@ async fn umount_handler(
                 let _ = state.manager.lock().await.remove_workspace(path).await;
             }else{
                 //todo be path by inode . 
-                let item = state.fuse.dic.store.get_inode(req.inode.unwrap()).await.unwrap();
-                let _ = state.manager.lock().await.remove_workspace(&item.get_path()).await;
+                let path = state.fuse.dic.store.find_path(req.inode.unwrap()).await.unwrap();
+                
+                let _ = state.manager.lock().await.remove_workspace(&path.to_string()).await;
 
             }
            
