@@ -302,7 +302,7 @@ impl RealInode {
         );
         let k = join_all(a_map.collect::<Vec<_>>().await).await ;
         drop(k);
-         // 现在可以安全地调用 into_inner
+         // Now into_inner func is safety.
         let re = Arc::try_unwrap(child_real_inodes)
         .map_err(|_|Errno::new_not_exist())? 
         .into_inner() ;
@@ -315,7 +315,7 @@ impl RealInode {
             return Err(Error::from_raw_os_error(libc::EROFS));
         }
 
-            // 将 &str 转换为 &OsStr
+            // from &str to &OsStr
         let name_osstr = OsStr::new(name);
             let entry = self
                 .layer
@@ -1108,14 +1108,6 @@ impl OverlayFs {
             attr: st.attr,
             generation: 0,
         })
-        // Ok(Entry {
-        //     inode: node.inode,
-        //     generation: 0,
-        //     attr: st,
-        //     attr_flags: 0,
-        //     attr_timeout: self.config.attr_timeout,
-        //     entry_timeout: self.config.entry_timeout,
-        // })
     }
 
     async fn do_statvfs(&self, ctx: Request, inode: Inode) -> Result<ReplyStatFs> {
@@ -1279,16 +1271,6 @@ impl OverlayFs {
                     entry_ttl: st.ttl, 
                     attr_ttl:st.ttl
                 };
-                // let pentry = DirectoryEntryPlus{
-                //     inode,
-                //     generation: 0,
-                //     kind: st.attr.kind,
-                //     name: name.into(),
-                //     offset: (index + 1) as i64,
-                //     attr: st.attr,
-                //     entry_ttl: todo!(),
-                //     attr_ttl: todo!(),
-                // }
                 d.push(Ok(dir_entry));
             }
         }
@@ -2213,12 +2195,6 @@ impl OverlayFs {
         let limit_inode = next_inode + INODE_ALLOC_BATCH -1;
         self.inodes.write().await.extend_inode_number(next_inode, limit_inode);
     }
-}
-
-
-#[cfg(test)]
-mod tests {
- 
 }
 
 
