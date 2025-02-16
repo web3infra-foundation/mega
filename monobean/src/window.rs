@@ -3,7 +3,7 @@ use gtk::style_context_add_provider_for_display;
 use gtk::CssProvider;
 
 use crate::components::{mega_tab::MegaTab, not_implemented::NotImplemented, repo_tab::RepoTab};
-use crate::PREFIX;
+use crate::config::PREFIX;
 use adw::gio;
 use adw::subclass::prelude::*;
 use gtk::gio::Settings;
