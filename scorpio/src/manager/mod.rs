@@ -90,7 +90,7 @@ impl ScorpioManager {
     }
     pub  async fn push_commit(&self,mono_path:&str) ->Result<reqwest::Response, Box<dyn std::error::Error>>{
         
-        let work_dir = self.select_work(mono_path).unwrap(); // 错误处理根据实际需求实现
+        let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
         let mut path = self.store_path.clone();
         path.push_str(&work_dir.hash);
         path.push_str("commit");
