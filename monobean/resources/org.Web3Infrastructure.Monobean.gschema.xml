@@ -7,5 +7,23 @@
         <key name="height" type="i">
             <default>720</default>
         </key>
+
+        <!-- Mega Core Settings -->
+        <key name="http_address" type="s">
+            <default>0.0.0.0</default>
+            <summary>Address the http(s) service listening</summary>
+        </key>
+        <key name="http_port" type="u">
+            <default>8080</default>
+            <summary>Port the http(s) service listening</summary>
+            </key>
+        <key name="ssh_address" type="s">
+            <default>0.0.0.0</default>
+            <summary>Address the ssh service listening</summary>
+        </key>
+        <key name="ssh_port" type="u">
+            <default>22</default>
+            <summary>Port the ssh service listening</summary>
+        </key>
     </schema>
 </schemalist>

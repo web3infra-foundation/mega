@@ -11,8 +11,8 @@ mod application;
 mod components;
 mod config;
 mod error;
-mod mega;
 mod window;
+mod core;
 
 pub static CONTEXT: LazyLock<glib::MainContext> = LazyLock::new(glib::MainContext::default);
 
