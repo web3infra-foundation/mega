@@ -1,5 +1,5 @@
 // Copyright (C) 2023 Ant Group. All rights reserved.
-//  2024 From [fuse_backend_rs](https://github.com/cloud-hypervisor/fuse-backend-rs) 
+// 2024 From [fuse_backend_rs](https://github.com/cloud-hypervisor/fuse-backend-rs) 
 // SPDX-License-Identifier: Apache-2.0
 
 use std::io::{Error, ErrorKind, Result};
