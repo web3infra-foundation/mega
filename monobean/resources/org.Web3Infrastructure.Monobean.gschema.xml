@@ -9,21 +9,25 @@
         </key>
 
         <!-- Mega Core Settings -->
-        <key name="http_address" type="s">
-            <default>0.0.0.0</default>
-            <summary>Address the http(s) service listening</summary>
+        <key name="http-address" type="s">
+            <default>"0.0.0.0"</default>
+            <summary>HTTP Address</summary>
+            <description>Address the http(s) service listening</description>
         </key>
-        <key name="http_port" type="u">
+        <key name="http-port" type="u">
             <default>8080</default>
-            <summary>Port the http(s) service listening</summary>
+            <summary>HTTP Port</summary>
+            <description>Port the http(s) service listening</description>
             </key>
-        <key name="ssh_address" type="s">
-            <default>0.0.0.0</default>
-            <summary>Address the ssh service listening</summary>
+        <key name="ssh-address" type="s">
+            <default>'0.0.0.0'</default>
+            <summary>SSH Address</summary>
+            <description>Address the ssh service listening</description>
         </key>
-        <key name="ssh_port" type="u">
+        <key name="ssh-port" type="u">
             <default>22</default>
-            <summary>Port the ssh service listening</summary>
+            <summary>SSH Port</summary>
+            <description>Port the ssh service listening</description>
         </key>
     </schema>
 </schemalist>

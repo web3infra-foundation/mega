@@ -18,7 +18,7 @@ pub struct MegaDelegate {
 impl MegaDelegate {
     pub fn new(action_sender: Sender<Action>) -> &'static Self {
         static DELEGATE: OnceLock<MegaDelegate> = OnceLock::new();
-        
+
         DELEGATE.get_or_init(move | |{
             let (cmd_sender, cmd_receiver) = async_channel::unbounded();
             let core = Arc::new(Mutex::new(MegaCore::new(action_sender, cmd_receiver)));
@@ -26,12 +26,12 @@ impl MegaDelegate {
                 inner: cmd_sender,
                 core,
             };
-            
+
             ret.init_core();
             ret
         })
     }
-    
+
     pub fn init_core(&self) {
         let core = self.core.clone();
         std::thread::spawn(move || {
@@ -44,7 +44,7 @@ impl MegaDelegate {
             });
         });
     }
-    
+
     pub fn send_command(&self, cmd: MegaCommands) {
         let _ = self.inner.send_blocking(cmd);
     }

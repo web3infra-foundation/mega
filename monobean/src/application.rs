@@ -12,13 +12,14 @@ use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
+use crate::core::mega_core::MegaCommands::MegaStart;
 
 glib::wrapper! {
     pub struct MonobeanApplication(ObjectSubclass<imp::MonobeanApplication>)
@@ -77,7 +78,7 @@ mod imp {
         fn constructed(&self) {
             let obj = self.obj();
             self.parent_constructed();
-
+            
             obj.setup_settings();
             obj.bind_settings();
             obj.setup_gactions();
@@ -91,6 +92,7 @@ mod imp {
         // to do that, we'll just present any existing window.
         fn activate(&self) {
             let obj = self.obj();
+            
             let app = obj.downcast_ref::<super::MonobeanApplication>().unwrap();
 
             if let Some(weak_window) = self.window.get() {
@@ -115,39 +117,8 @@ mod imp {
                     }
                 ),
             );
-
-            // The first Action of the application, so it can never block the gui thread.
-            let http_addr = app
-                .settings()
-                .strv("http_address")
-                .to_value()
-                .get::<String>()
-                .unwrap();
-            let http_port = app
-                .settings()
-                .uint("http_port")
-                .to_value()
-                .get::<i32>()
-                .unwrap();
-            let ssh_addr = app
-                .settings()
-                .strv("ssh_address")
-                .to_value()
-                .get::<String>()
-                .unwrap();
-            let ssh_port = app
-                .settings()
-                .uint("ssh_port")
-                .to_value()
-                .get::<i32>()
-                .unwrap();
-
-            let http_addr = IpAddr::V4(http_addr.parse().unwrap());
-            let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
-            app.send_command(MegaStart(
-                Option::from(SocketAddr::new(http_addr, http_port as u16)),
-                Option::from(SocketAddr::new(ssh_addr, ssh_port as u16)),
-            ));
+            
+            app.start_mega();
 
             // Ask the window manager/compositor to present the window
             window.present();
@@ -185,24 +156,6 @@ impl MonobeanApplication {
         window
     }
 
-    fn setup_settings(&self) {
-        let settings = Settings::new(crate::APP_ID);
-        self.imp()
-            .settings
-            .set(settings)
-            .expect("Could not set `Settings`.");
-    }
-
-    pub fn settings(&self) -> &Settings {
-        self.imp().settings.get().expect("Could not get settings.")
-    }
-
-    fn bind_settings(&self) {
-        // self.settings().bind("title", self, "window-title")
-        //     .flags(glib::BindingFlags::SYNC_CREATE)
-        //     .build();
-    }
-
     fn setup_gactions(&self) {
         let quit_action = gio::SimpleAction::new("quit", None);
         let about_action = gio::SimpleAction::new("about", None);
@@ -227,6 +180,24 @@ impl MonobeanApplication {
         self.add_action(&about_action);
     }
 
+    fn setup_settings(&self) {
+        let settings = Settings::new(crate::APP_ID);
+        self.imp()
+            .settings
+            .set(settings)
+            .expect("Could not set `Settings`.");
+    }
+
+    pub fn settings(&self) -> &Settings {
+        self.imp().settings.get().expect("Could not get settings.")
+    }
+
+    fn bind_settings(&self) {
+        // self.settings().bind("title", self, "window-title")
+        //     .flags(glib::BindingFlags::SYNC_CREATE)
+        //     .build();
+    }
+
     fn show_about(&self) {
         let window = self.active_window().unwrap();
         let dialog = gtk::AboutDialog::builder()
@@ -246,6 +217,41 @@ impl MonobeanApplication {
 
     pub fn send_command(&self, cmd: MegaCommands) {
         self.imp().mega_delegate.send_command(cmd);
+    }
+    
+    pub fn start_mega(&self) {
+        // The first Action of the application, so it can never block the gui thread.
+        let http_addr = self
+            .settings()
+            .strv("http-address")
+            .to_value()
+            .get::<String>()
+            .unwrap();
+        let http_port = self
+            .settings()
+            .uint("http-port")
+            .to_value()
+            .get::<i32>()
+            .unwrap();
+        let ssh_addr = self
+            .settings()
+            .strv("ssh-address")
+            .to_value()
+            .get::<String>()
+            .unwrap();
+        let ssh_port = self
+            .settings()
+            .uint("ssh-port")
+            .to_value()
+            .get::<i32>()
+            .unwrap();
+        
+        let http_addr = IpAddr::V4(http_addr.parse().unwrap());
+        let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
+        self.send_command(MegaStart(
+            Option::from(SocketAddr::new(http_addr, http_port as u16)),
+            Option::from(SocketAddr::new(ssh_addr, ssh_port as u16)),
+        ));
     }
 
     fn process_action(&self, action: Action) {
