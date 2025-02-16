@@ -4,14 +4,16 @@ use gtk::CssProvider;
 
 use crate::components::{mega_tab::MegaTab, not_implemented::NotImplemented, repo_tab::RepoTab};
 use crate::config::PREFIX;
-use adw::gio;
+use adw::{gio, Toast};
 use adw::subclass::prelude::*;
 use gtk::gio::Settings;
 use gtk::glib;
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
-
+use adw::glib::Priority;
+use adw::prelude::ObjectExt;
 use crate::application::Action;
+use crate::core::mega_core::MegaCommands;
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
@@ -42,7 +44,7 @@ mod imp {
         pub not_implemented: TemplateChild<NotImplemented>,
 
         pub sender: OnceCell<Sender<Action>>,
-        pub settings: OnceCell<Settings>,
+        
     }
 
     #[glib::object_subclass]
@@ -64,10 +66,8 @@ mod imp {
     impl ObjectImpl for MonobeanWindow {
         fn constructed(&self) {
             self.parent_constructed();
-
             let obj = self.obj();
-            obj.setup_settings();
-            obj.bind_settings();
+            
         }
     }
     impl WidgetImpl for MonobeanWindow {}
@@ -91,23 +91,29 @@ impl MonobeanWindow {
         // window.init_page_data();
         window
     }
-
-    fn setup_settings(&self) {
-        let settings = Settings::new(crate::APP_ID);
-        self.imp()
-            .settings
-            .set(settings)
-            .expect("Could not set `Settings`.");
+    
+    fn sender(&self) -> Sender<Action> {
+        self.imp().sender.get().unwrap().clone()
     }
+    
+    pub fn add_toast(&self, message: String) {
+        let pre = self.property::<Toast>("toast");
 
-    pub fn settings(&self) -> &Settings {
-        self.imp().settings.get().expect("Could not get settings.")
-    }
+        let toast = Toast::builder()
+            .title(glib::markup_escape_text(&message))
+            .priority(adw::ToastPriority::High)
+            .build();
+        self.set_property("toast", &toast);
+        self.imp().toast_overlay.add_toast(toast);
 
-    fn bind_settings(&self) {
-        // self.settings().bind("title", self, "window-title")
-        //     .flags(glib::BindingFlags::SYNC_CREATE)
-        //     .build();
+        // seems that dismiss will clear something used by animation
+        // cause adw_animation_skip emit 'done' segfault on closure(https://github.com/gmg137/netease-cloud-music-gtk/issues/202)
+        // delay to wait for animation skipped/done
+        crate::CONTEXT.spawn_local_with_priority(Priority::DEFAULT_IDLE, async move {
+            glib::timeout_future(std::time::Duration::from_millis(500)).await;
+            // removed from overlay toast queue by signal
+            pre.dismiss();
+        });
     }
 }
 

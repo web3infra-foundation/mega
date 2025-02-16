@@ -1,22 +1,24 @@
 use crate::config::WEBSITE;
 use crate::CONTEXT;
-use crate::{mega::MegaCore, window::MonobeanWindow};
 
+use crate::core::mega_core::MegaCommands;
+use crate::window::MonobeanWindow;
+use adw::gio::Settings;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
+use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
+use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
+use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::OnceLock;
+use std::thread;
 use tokio::runtime::Runtime;
-
-// For running mega core, we should set up tokio runtime.
-pub fn runtime() -> &'static Runtime {
-    static RUNTIME: OnceLock<Runtime> = OnceLock::new();
-    RUNTIME.get_or_init(|| Runtime::new().expect("Setting up tokio runtime must succeed."))
-}
+use tokio::sync::Mutex;
 
 glib::wrapper! {
     pub struct MonobeanApplication(ObjectSubclass<imp::MonobeanApplication>)
@@ -29,26 +31,23 @@ pub enum Action {
     // Mega Frontend Related Actions
     AddToast(String),
 
-    // Mega Backend Related Actions
-    MegaShutdown,
-    MegaRestart,
-    FuseMount(PathBuf),
-    FuseUnmount,
-    SaveFileChange(PathBuf),
+    // Mega Core Related Actions
+    MegaCore(MegaCommands),
 }
 
 mod imp {
-
-    use async_channel::unbounded;
-    use gtk::glib::{clone, Priority};
-
     use super::*;
+    use crate::core::delegate::MegaDelegate;
+    use crate::core::mega_core::MegaCommands::MegaStart;
+    use crate::window::MonobeanWindow;
+    use std::net::IpAddr;
 
     pub struct MonobeanApplication {
-        pub mega_core: OnceCell<MegaCore>,
+        pub mega_delegate: &'static MegaDelegate,
         pub window: OnceCell<WeakRef<MonobeanWindow>>,
         pub sender: Sender<Action>,
         pub receiver: RefCell<Option<Receiver<Action>>>,
+        pub settings: OnceCell<Settings>,
     }
 
     #[glib::object_subclass]
@@ -61,13 +60,15 @@ mod imp {
             let (sender, r) = unbounded();
             let receiver = RefCell::new(Some(r));
             let window = OnceCell::new();
-            let mega_core = OnceCell::new();
+            let mega_delegate = MegaDelegate::new(sender.clone());
+            let settings = OnceCell::new();
 
             Self {
-                mega_core,
+                mega_delegate,
                 window,
                 sender,
                 receiver,
+                settings,
             }
         }
     }
@@ -77,6 +78,8 @@ mod imp {
             let obj = self.obj();
             self.parent_constructed();
 
+            obj.setup_settings();
+            obj.bind_settings();
             obj.setup_gactions();
         }
     }
@@ -97,9 +100,6 @@ mod imp {
 
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
-            self.mega_core
-                .set(MegaCore::new(self.sender.clone()))
-                .unwrap();
 
             // Setup action channel
             let receiver = self.receiver.borrow_mut().take().unwrap();
@@ -115,6 +115,39 @@ mod imp {
                     }
                 ),
             );
+
+            // The first Action of the application, so it can never block the gui thread.
+            let http_addr = app
+                .settings()
+                .strv("http_address")
+                .to_value()
+                .get::<String>()
+                .unwrap();
+            let http_port = app
+                .settings()
+                .uint("http_port")
+                .to_value()
+                .get::<i32>()
+                .unwrap();
+            let ssh_addr = app
+                .settings()
+                .strv("ssh_address")
+                .to_value()
+                .get::<String>()
+                .unwrap();
+            let ssh_port = app
+                .settings()
+                .uint("ssh_port")
+                .to_value()
+                .get::<i32>()
+                .unwrap();
+
+            let http_addr = IpAddr::V4(http_addr.parse().unwrap());
+            let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
+            app.send_command(MegaStart(
+                Option::from(SocketAddr::new(http_addr, http_port as u16)),
+                Option::from(SocketAddr::new(ssh_addr, ssh_port as u16)),
+            ));
 
             // Ask the window manager/compositor to present the window
             window.present();
@@ -150,6 +183,24 @@ impl MonobeanApplication {
         self.add_window(&window);
         window.present();
         window
+    }
+
+    fn setup_settings(&self) {
+        let settings = Settings::new(crate::APP_ID);
+        self.imp()
+            .settings
+            .set(settings)
+            .expect("Could not set `Settings`.");
+    }
+
+    pub fn settings(&self) -> &Settings {
+        self.imp().settings.get().expect("Could not get settings.")
+    }
+
+    fn bind_settings(&self) {
+        // self.settings().bind("title", self, "window-title")
+        //     .flags(glib::BindingFlags::SYNC_CREATE)
+        //     .build();
     }
 
     fn setup_gactions(&self) {
@@ -193,18 +244,21 @@ impl MonobeanApplication {
         dialog.present();
     }
 
+    pub fn send_command(&self, cmd: MegaCommands) {
+        self.imp().mega_delegate.send_command(cmd);
+    }
+
     fn process_action(&self, action: Action) {
         if self.active_window().is_none() {
             return;
         }
 
         match action {
-            Action::AddToast(_) => todo!(),
-            Action::MegaShutdown => todo!(),
-            Action::MegaRestart => todo!(),
-            Action::FuseMount(_path_buf) => todo!(),
-            Action::FuseUnmount => todo!(),
-            Action::SaveFileChange(_path_buf) => todo!(),
+            Action::AddToast(msg) => {
+                self.window().unwrap().add_toast(msg);
+            }
+
+            Action::MegaCore(cmd) => self.send_command(cmd),
         }
     }
 }

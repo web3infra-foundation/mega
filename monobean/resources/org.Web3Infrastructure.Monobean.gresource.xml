@@ -4,9 +4,9 @@
         <file preprocess="xml-stripblanks" compressed="true">org.Web3Infrastructure.Monobean.gschema.xml</file>
         
         <!-- Mega Related Resources -->
-        <file compressed="true">mega/config.toml</file>
-        <file compressed="true">mega/key.pem</file>
-        <file compressed="true">mega/cert.pem</file>
+        <file>mega/config.toml</file>
+        <file>mega/key.pem</file>
+        <file>mega/cert.pem</file>
 
         <!-- Composite Templates -->
         <file compressed="true">gtk/window.ui</file>
