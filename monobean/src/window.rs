@@ -44,6 +44,7 @@ mod imp {
         pub not_implemented: TemplateChild<NotImplemented>,
 
         pub sender: OnceCell<Sender<Action>>,
+        pub settings: OnceCell<Settings>,
         
     }
 
@@ -67,7 +68,9 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             let obj = self.obj();
-            
+
+            obj.setup_settings();
+            obj.bind_settings();
         }
     }
     impl WidgetImpl for MonobeanWindow {}
@@ -114,6 +117,24 @@ impl MonobeanWindow {
             // removed from overlay toast queue by signal
             pre.dismiss();
         });
+    }
+
+    fn setup_settings(&self) {
+        let settings = Settings::new(crate::APP_ID);
+        self.imp()
+            .settings
+            .set(settings)
+            .expect("Could not set `Settings`.");
+    }
+
+    pub fn settings(&self) -> &Settings {
+        self.imp().settings.get().expect("Could not get settings.")
+    }
+
+    fn bind_settings(&self) {
+        // self.settings().bind("title", self, "window-title")
+        //     .flags(glib::BindingFlags::SYNC_CREATE)
+        //     .build();
     }
 }
 

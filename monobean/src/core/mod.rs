@@ -1,14 +1,14 @@
-use std::sync::OnceLock;
 use adw::gio;
 use adw::gio::ResourceLookupFlags;
 use adw::prelude::*;
+use common::config::LogConfig;
+use std::sync::OnceLock;
 use tokio::runtime::Runtime;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
-use common::config::LogConfig;
 
 pub mod delegate;
-pub mod servers;
 pub mod mega_core;
+pub mod servers;
 
 // For running mega core, we should set up tokio runtime.
 pub fn runtime() -> &'static Runtime {
@@ -21,12 +21,8 @@ pub fn runtime() -> &'static Runtime {
 }
 
 pub fn load_mega_resource(path: &str) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    let _ = gio::resources_open_stream(path, ResourceLookupFlags::all())
-        .expect("Failed to load mega core settings")
-        .read_all(&mut bytes, gio::Cancellable::NONE)
-        .expect("Failed to read mega core settings");
-    bytes
+    let bytes = gio::resources_lookup_data(path, ResourceLookupFlags::all()).unwrap();
+    bytes.as_ref().into()
 }
 
 // TODO: move to `application.rs` to globally initialize the log

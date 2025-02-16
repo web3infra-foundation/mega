@@ -24,10 +24,9 @@ pub struct MegaCore {
     receiver: Receiver<MegaCommands>,
 }
 
+/// Mega Backend Related Actions
 #[derive(Debug, Clone)]
 pub enum MegaCommands {
-    // Mega Backend Related Actions
-    // These actions will be transfer to the mega core event loop.
     MegaStart(Option<SocketAddr>, Option<SocketAddr>),
     MegaShutdown,
     MegaRestart(Option<SocketAddr>, Option<SocketAddr>),
