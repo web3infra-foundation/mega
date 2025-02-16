@@ -16,7 +16,7 @@ use ceres::{
     },
     protocol::repo::Repo,
 };
-use common::{errors::ProtocolError, model::CommonOptions};
+use common::errors::ProtocolError;
 use jupiter::{
     context::Context,
     storage::{issue_storage::IssueStorage, mr_storage::MrStorage, user_storage::UserStorage},
@@ -52,7 +52,6 @@ pub type GithubClient<
 #[derive(Clone)]
 pub struct MonoApiServiceState {
     pub context: Context,
-    pub common: CommonOptions,
     pub oauth_client: Option<GithubClient>,
     // TODO: Replace MemoryStore
     pub store: Option<MemoryStore>,
