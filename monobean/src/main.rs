@@ -2,30 +2,28 @@ extern crate gtk;
 
 use std::sync::LazyLock;
 
+use self::config::{APP_ID, APP_NAME};
 use adw::prelude::*;
 use application::MonobeanApplication;
 use gtk::{gio, glib};
 
 mod application;
-mod mega;
-mod window;
 mod components;
 mod config;
-
-const APP_ID: &str = "org.Web3Infrastructure.Monobean";
-const APP_NAME: &str = "Monobean";
-const PREFIX: &str = "/org/Web3Infrastructure/Monobean";
+mod error;
+mod mega;
+mod window;
 
 pub static CONTEXT: LazyLock<glib::MainContext> = LazyLock::new(glib::MainContext::default);
 
 fn main() -> glib::ExitCode {
+    // GTK related initialization
     if let Some(cargo_dir) = std::option_env!("CARGO_MANIFEST_DIR") {
         std::env::set_current_dir(cargo_dir).expect("Failed to set workspace dir");
     }
 
     let resources = gio::Resource::load("Monobean.gresource").expect("Failed to load resources");
     gio::resources_register(&resources);
-
     glib::set_application_name(APP_NAME);
 
     // Create a new GtkApplication. The application manages our main loop,

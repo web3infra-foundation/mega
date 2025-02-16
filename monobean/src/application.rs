@@ -9,6 +9,14 @@ use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::path::PathBuf;
+use std::sync::OnceLock;
+use tokio::runtime::Runtime;
+
+// For running mega core, we should set up tokio runtime.
+pub fn runtime() -> &'static Runtime {
+    static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+    RUNTIME.get_or_init(|| Runtime::new().expect("Setting up tokio runtime must succeed."))
+}
 
 glib::wrapper! {
     pub struct MonobeanApplication(ObjectSubclass<imp::MonobeanApplication>)
@@ -55,7 +63,6 @@ mod imp {
             let window = OnceCell::new();
             let mega_core = OnceCell::new();
 
-
             Self {
                 mega_core,
                 window,
@@ -81,9 +88,7 @@ mod imp {
         // to do that, we'll just present any existing window.
         fn activate(&self) {
             let obj = self.obj();
-            let app = obj
-                .downcast_ref::<super::MonobeanApplication>()
-                .unwrap();
+            let app = obj.downcast_ref::<super::MonobeanApplication>().unwrap();
 
             if let Some(weak_window) = self.window.get() {
                 weak_window.upgrade().unwrap().present();
@@ -91,8 +96,10 @@ mod imp {
             }
 
             let window = app.create_window();
-            let _ = self.window.set(window.downgrade());
-            let _ = self.mega_core.set(MegaCore::new());
+            self.window.set(window.downgrade()).unwrap();
+            self.mega_core
+                .set(MegaCore::new(self.sender.clone()))
+                .unwrap();
 
             // Setup action channel
             let receiver = self.receiver.borrow_mut().take().unwrap();
@@ -121,9 +128,9 @@ mod imp {
 impl MonobeanApplication {
     pub fn new(application_id: &str, flags: &gio::ApplicationFlags) -> Self {
         glib::Object::builder()
-        .property("application-id", application_id)
-        .property("flags", flags)
-        .build()
+            .property("application-id", application_id)
+            .property("flags", flags)
+            .build()
     }
 
     pub fn sender(&self) -> Sender<Action> {
@@ -131,7 +138,10 @@ impl MonobeanApplication {
     }
 
     pub fn window(&self) -> Option<MonobeanWindow> {
-        self.imp().window.get().map(|w| w.upgrade().expect("Window not setup yet."))
+        self.imp()
+            .window
+            .get()
+            .map(|w| w.upgrade().expect("Window not setup yet."))
     }
 
     fn create_window(&self) -> MonobeanWindow {
