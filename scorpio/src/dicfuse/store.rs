@@ -190,6 +190,23 @@ impl DictionaryStore {
         Ok(alloc_inode)
     }
 
+    pub async fn add_temp_point(&self,path:&str)-> Result<u64,io::Error>{
+        let item_path = path.to_string();
+        let mut path = GPath::from(path.to_string());
+        let name =  path.pop();
+        let parent = self.get_by_path(&path.to_string()).await?;
+        let name = match name {
+            Some(n) => n,
+            None => return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid path")),
+        };
+        self.update_inode(parent.get_inode(), Item{
+            name,
+            path: item_path,
+            content_type: INODE_DICTIONARY.to_string(),
+        }).await
+
+    }
+
     pub async fn import(&self){
         
         let items =  fetch_tree("").await.unwrap().data;
@@ -261,7 +278,7 @@ impl DictionaryStore {
     }
 
     pub async fn do_readdir(&self,parent:u64,fh:u64,offset:u64) -> Result<Vec<StorageItem>, io::Error>{
-        //  1. 获取目录项
+        //  1. get the parent directory.
         let  item = self.get_inode(parent).await?; // current_dictionary
         let  mut parent_path = self.find_path(parent).await.unwrap();
         parent_path.pop();
@@ -270,16 +287,16 @@ impl DictionaryStore {
 
         
         let mut re = vec![item.clone(),parent_item.clone()];
-        //let mut re = vec![];
-         // 2. 确保目录项是一个目录
+        
+        // 2. make sure this item is a directory
          if item.is_dir(){
-             // 3. 获取子目录项
+             // 3. Get the children of the directory
              
              let children = self.persistent_path_store.lock().await.get_children(parent)?;
              let mut total_bytes_written = 0;
              let mut current_offset = 0;
 
-             // 4. 遍历子目录项
+             // 4. build a list of StorageItem structs for each child.
              for (i,  child) in children.iter().enumerate() {
                 re.push(child.clone());
              }
