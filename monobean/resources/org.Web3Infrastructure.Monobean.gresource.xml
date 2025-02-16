@@ -2,7 +2,11 @@
 <gresources>
     <gresource prefix="/org/Web3Infrastructure/Monobean">
         <file preprocess="xml-stripblanks" compressed="true">org.Web3Infrastructure.Monobean.gschema.xml</file>
-        <file compressed="true">config.toml</file>
+        
+        <!-- Mega Related Resources -->
+        <file compressed="true">mega/config.toml</file>
+        <file compressed="true">mega/key.pem</file>
+        <file compressed="true">mega/cert.pem</file>
 
         <!-- Composite Templates -->
         <file compressed="true">gtk/window.ui</file>
