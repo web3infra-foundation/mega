@@ -4,11 +4,12 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::Router;
 use axum::routing::{post, get};
+use mercury::hash::SHA1;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
-use crate::manager::ScorpioManager;
+use crate::manager::{ScorpioManager, WorkDir};
 use crate::util::GPath;
 mod git;
 const SUCCESS: &str   = "Success";
@@ -102,15 +103,18 @@ async fn mount_handler(
 
     // transform by GPath , is case of wrong format.
     let mono_path = GPath::from(req.path.clone()).to_string();
+
+    // bool to indicate if it is a temp path for buck2.
+    let mut temp_mount = false;
     // get inode by this path .
     let inode = match state.fuse.get_inode(&mono_path).await{
         Ok(a) => a,
-        Err(err) => return axum::Json(MountResponse {
-            status: FAIL.into(),
-            mount: MountInfo::default(),
-            message: format!("Wrong Mono Path.err:{}",err),
-        }),
+        Err(_) => {
+            temp_mount = true;
+            state.fuse.dic.store.add_temp_point(&mono_path).await.unwrap()
+        },
     };
+
     // return fail if this inode is mounted.
     if state.fuse.is_mount(inode).await{
         return axum::Json(MountResponse {
@@ -129,6 +133,34 @@ async fn mount_handler(
         })
     }
     let store_path = ml.store_path.clone();
+    // if it is a temp mount , mount it & return the hash and path.
+    if temp_mount{
+        let temp_hash = {
+            let hasher = SHA1::new(store_path.as_bytes());
+            hasher.to_string()
+        };
+
+        let store_path = PathBuf::from(store_path).join(&temp_hash);
+        let _ = state.fuse.overlay_mount(inode, store_path).await;
+        let mount_info = MountInfo{
+            hash: temp_hash.clone(),
+            path: mono_path.clone(),
+            inode,
+        };
+        ml.works.push(
+            WorkDir{
+                path: mono_path,
+                node: inode,
+                hash: temp_hash,
+            }
+        );
+        let _ =  ml.to_toml("config.toml");
+        return  axum::Json(MountResponse {
+             status: SUCCESS.into(),
+             mount: mount_info,
+             message: "Directory mounted successfully".to_string(),
+         })
+    }
     // fetch the dionary node info from mono.
     let work_dir = fetch(&mut ml,inode, mono_path).await;
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
@@ -225,7 +257,7 @@ async fn update_config_handler(
     State(_state): State<ScoState>,
     req: axum::Json<ConfigRequest>,
 ) -> axum::Json<ConfigResponse> {
-    // 根据请求更新配置
+    // update the Configration by request.
     let config_info = ConfigInfo {
         mega_url: req.mega_url.clone().unwrap_or_default(),
         mount_path: req.mount_path.clone().unwrap_or_default(),

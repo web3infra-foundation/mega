@@ -97,9 +97,10 @@ impl Dicfuse{
                 for it in items {
                     if it.name.eq(&i.name) {
                         hit_inodes = Some(it.get_inode());
+                        break;
                     }
                 }
-                assert!(hit_inodes.is_some()); // must find an inode from child.
+                assert!(hit_inodes.is_some()); // must find an inode from children.
                 let hit_inodes = hit_inodes.unwrap();
                 
                 // Look up the buff, find Loaded file. 
