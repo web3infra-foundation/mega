@@ -36,6 +36,7 @@ impl HttpOptions {
         let key = crate::core::load_mega_resource(MEGA_HTTPS_KEY);
         let tls_config = RustlsConfig::from_pem(cert, key).await;
 
+        tracing::info!("Starting HTTPS server on: {}", self.addr);
         if let Ok(tls_config) = tls_config {
             axum_server::bind_rustls(self.addr, tls_config)
                 .handle(self.handle.clone())
@@ -89,6 +90,7 @@ impl SshOptions {
             data_combined: BytesMut::new(),
         };
 
+        tracing::info!("Starting SSH server on: {}", self.addr);
         loop {
             tokio::select! {
                 _ = rx.recv() => {

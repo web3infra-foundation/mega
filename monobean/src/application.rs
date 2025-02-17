@@ -223,7 +223,7 @@ impl MonobeanApplication {
         // The first Action of the application, so it can never block the gui thread.
         let http_addr = self
             .settings()
-            .strv("http-address")
+            .string("http-address")
             .to_value()
             .get::<String>()
             .unwrap();
@@ -231,11 +231,11 @@ impl MonobeanApplication {
             .settings()
             .uint("http-port")
             .to_value()
-            .get::<i32>()
+            .get::<u32>()
             .unwrap();
         let ssh_addr = self
             .settings()
-            .strv("ssh-address")
+            .string("ssh-address")
             .to_value()
             .get::<String>()
             .unwrap();
@@ -243,7 +243,7 @@ impl MonobeanApplication {
             .settings()
             .uint("ssh-port")
             .to_value()
-            .get::<i32>()
+            .get::<u32>()
             .unwrap();
         
         let http_addr = IpAddr::V4(http_addr.parse().unwrap());
