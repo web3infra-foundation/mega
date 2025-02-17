@@ -1,15 +1,15 @@
+use crate::application::Action;
+use crate::config::MEGA_CONFIG_PATH;
+use crate::core::load_mega_resource;
+use crate::core::servers::{HttpOptions, SshOptions};
+use crate::error::{MonoBeanError, MonoBeanResult};
+use async_channel::{Receiver, Sender};
+use common::config::Config;
+use jupiter::context::Context as MegaContext;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use async_channel::{Receiver, Sender};
-use common::config::Config;
-use jupiter::context::Context as MegaContext;
-use crate::application::Action;
-use crate::config::MEGA_CONFIG_PATH;
-use crate::core::{init_mega_log, load_mega_resource};
-use crate::core::servers::{HttpOptions, SshOptions};
-use crate::error::{MonoBeanError, MonoBeanResult};
 
 pub struct MegaCore {
     config: Config,
@@ -21,7 +21,7 @@ pub struct MegaCore {
     mounted: bool,
 
     sender: Sender<Action>,
-    receiver: Receiver<MegaCommands>,
+    pub receiver: Receiver<MegaCommands>,
 }
 
 /// Mega Backend Related Actions
@@ -52,8 +52,6 @@ impl MegaCore {
         let config =
             Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
 
-        init_mega_log(&config.log);
-
         Self {
             config,
             running_context: Default::default(),
@@ -70,35 +68,33 @@ impl MegaCore {
     /// Entry point of Mega Core.
     /// ## Warning:
     /// This function must be called in a tokio runtime.
-    pub async fn process_commands(&mut self) {
-        while let Ok(cmd) = self.receiver.recv().await {
-            match cmd {
-                MegaCommands::MegaStart(http_addr, ssh_addr) => {
-                    tracing::info!("Starting Mega Core");
-                    self.launch(http_addr, ssh_addr).await.unwrap();
-                }
-                MegaCommands::MegaShutdown => {
-                    tracing::info!("Shutting down Mega Core");
-                    self.shutdown();
-                }
-                MegaCommands::MegaRestart(http_addr, ssh_addr) => {
-                    tracing::info!("Restarting Mega Core");
-                    self.shutdown();
-                    self.launch(http_addr, ssh_addr).await.unwrap();
-                }
-                MegaCommands::FuseMount(path) => {
-                    tracing::info!("Mounting fuse at {:?}", path);
-                    self.mount_point = Some(path);
-                    self.mounted = true;
-                }
-                MegaCommands::FuseUnmount => {
-                    tracing::info!("Unmounting fuse");
-                    self.mount_point = None;
-                    self.mounted = false;
-                }
-                MegaCommands::SaveFileChange(path) => {
-                    tracing::info!("Saving file change at {:?}", path);
-                }
+    pub(crate) async fn process_command(&mut self, cmd: MegaCommands) {
+        match cmd {
+            MegaCommands::MegaStart(http_addr, ssh_addr) => {
+                tracing::info!("Starting Mega Core");
+                self.launch(http_addr, ssh_addr).await.unwrap();
+            }
+            MegaCommands::MegaShutdown => {
+                tracing::info!("Shutting down Mega Core");
+                self.shutdown();
+            }
+            MegaCommands::MegaRestart(http_addr, ssh_addr) => {
+                tracing::info!("Restarting Mega Core");
+                self.shutdown();
+                self.launch(http_addr, ssh_addr).await.unwrap();
+            }
+            MegaCommands::FuseMount(path) => {
+                tracing::info!("Mounting fuse at {:?}", path);
+                self.mount_point = Some(path);
+                self.mounted = true;
+            }
+            MegaCommands::FuseUnmount => {
+                tracing::info!("Unmounting fuse");
+                self.mount_point = None;
+                self.mounted = false;
+            }
+            MegaCommands::SaveFileChange(path) => {
+                tracing::info!("Saving file change at {:?}", path);
             }
         }
     }

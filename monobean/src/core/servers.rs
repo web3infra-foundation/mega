@@ -34,6 +34,9 @@ impl HttpOptions {
         let app = app(mega_ctx, self.addr.ip().to_string(), self.addr.port()).await;
         let cert = crate::core::load_mega_resource(MEGA_HTTPS_CERT);
         let key = crate::core::load_mega_resource(MEGA_HTTPS_KEY);
+        
+        // I don't know why I must manually install it, or it will panic on the next line...
+        rustls::crypto::ring::default_provider().install_default().unwrap();
         let tls_config = RustlsConfig::from_pem(cert, key).await;
 
         tracing::info!("Starting HTTPS server on: {}", self.addr);
@@ -44,6 +47,7 @@ impl HttpOptions {
                 .await?;
         } else {
             tracing::warn!("Failed to load tls config, falling back to HTTP server...");
+            tracing::debug!("TLS error: {:?}", tls_config.err());
             axum_server::bind(self.addr)
                 .handle(self.handle.clone())
                 .serve(app.into_make_service())
@@ -73,6 +77,7 @@ impl SshOptions {
     pub async fn run_server(&self, mega_ctx: MegaContext) -> MonoBeanResult<()> {
         // Use rusty vault configurations...
         let (tx, mut rx) = mpsc::channel::<()>(1);
+        *self.abort.borrow_mut() = Some(tx);
         let key = mono::server::ssh_server::load_key();
         let ssh_config = russh::server::Config {
             auth_rejection_time: std::time::Duration::from_secs(3),

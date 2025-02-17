@@ -1,4 +1,3 @@
-use std::cell::OnceCell;
 use std::sync::{Arc, OnceLock};
 use async_channel::Sender;
 use tokio::sync::{Mutex};
@@ -8,7 +7,7 @@ use crate::core::runtime;
 
 /// The delegate for the Mega core.
 /// If we directly use mega core in the application,
-/// it's hard to operate cross glib and tokio runtimes.
+/// it would be hard to operate cross glib and tokio runtimes.
 /// So we use this struct to build up a channel and delegate the commands to the mega core.
 pub struct MegaDelegate {
     inner: Sender<MegaCommands>,
@@ -37,7 +36,11 @@ impl MegaDelegate {
         std::thread::spawn(move || {
             runtime().block_on(async move {
                 if let Ok(mut lock) = core.try_lock() {
-                    lock.process_commands().await;
+                    tokio::select! {
+                        Ok(cmd) = lock.receiver.recv() => {
+                            lock.process_command(cmd).await;
+                        }
+                    }
                 } else {
                     panic!("Failed to lock mega core.");
                 }
