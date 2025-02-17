@@ -2,8 +2,10 @@ use crate::config::WEBSITE;
 use crate::CONTEXT;
 
 use crate::core::mega_core::MegaCommands;
+use crate::core::mega_core::MegaCommands::MegaStart;
 use crate::window::MonobeanWindow;
 use adw::gio::Settings;
+use adw::glib::{LogLevel, LogLevels};
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use async_channel::unbounded;
@@ -13,10 +15,11 @@ use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::net::{IpAddr, SocketAddr};
-use tracing_subscriber::{fmt};
+use adw::glib::translate::IntoGlib;
+use tracing::{event, Level};
+use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use crate::core::mega_core::MegaCommands::MegaStart;
 
 glib::wrapper! {
     pub struct MonobeanApplication(ObjectSubclass<imp::MonobeanApplication>)
@@ -36,9 +39,8 @@ pub enum Action {
 mod imp {
     use super::*;
     use crate::core::delegate::MegaDelegate;
-    
+
     use crate::window::MonobeanWindow;
-    
 
     pub struct MonobeanApplication {
         pub mega_delegate: &'static MegaDelegate,
@@ -75,7 +77,7 @@ mod imp {
         fn constructed(&self) {
             let obj = self.obj();
             self.parent_constructed();
-            
+
             obj.setup_settings();
             obj.bind_settings();
             obj.setup_gactions();
@@ -89,7 +91,7 @@ mod imp {
         // to do that, we'll just present any existing window.
         fn activate(&self) {
             let obj = self.obj();
-            
+
             let app = obj.downcast_ref::<super::MonobeanApplication>().unwrap();
 
             if let Some(weak_window) = self.window.get() {
@@ -99,7 +101,7 @@ mod imp {
 
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
-            
+
             app.setup_log();
 
             // Setup action channel
@@ -116,7 +118,7 @@ mod imp {
                     }
                 ),
             );
-            
+
             app.start_mega();
 
             // Ask the window manager/compositor to present the window
@@ -196,11 +198,31 @@ impl MonobeanApplication {
         //     .flags(glib::BindingFlags::SYNC_CREATE)
         //     .build();
     }
-    
+
     fn setup_log(&self) {
-        // Use gtk settings for log level.
+        // TODO: Use gtk settings for log level.
         let filter = tracing_subscriber::EnvFilter::new("warn,monobean=debug");
-        tracing_subscriber::registry().with(fmt::layer()).with(filter).init();
+        tracing_subscriber::registry()
+            .with(fmt::layer())
+            .with(filter)
+            .init();
+        
+        glib::log_set_handler(
+            Some(crate::APP_ID),
+            LogLevels::all(),
+            false,
+            false, 
+            |_, glib_level,msg| {
+                let glib_level = LogLevels::from_bits(glib_level.into_glib()).unwrap();
+                match glib_level {
+                    LogLevels::LEVEL_CRITICAL | LogLevels::LEVEL_ERROR => tracing::error!(target: "monobean", "{}", msg),
+                    LogLevels::LEVEL_WARNING => tracing::warn!(target: "monobean", "{}", msg),
+                    LogLevels::LEVEL_MESSAGE => tracing::info!(target: "monobean", "{}", msg),
+                    LogLevels::LEVEL_INFO => tracing::debug!(target: "monobean", "{}", msg),
+                    _ => tracing::trace!(target: "monobean", "{}", msg),
+                };
+            }
+        );
     }
 
     fn show_about(&self) {
@@ -223,7 +245,7 @@ impl MonobeanApplication {
     pub fn send_command(&self, cmd: MegaCommands) {
         self.imp().mega_delegate.send_command(cmd);
     }
-    
+
     pub fn start_mega(&self) {
         // The first Action of the application, so it can never block the gui thread.
         let http_addr = self
@@ -250,7 +272,7 @@ impl MonobeanApplication {
             .to_value()
             .get::<u32>()
             .unwrap();
-        
+
         let http_addr = IpAddr::V4(http_addr.parse().unwrap());
         let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
         self.send_command(MegaStart(
