@@ -25,7 +25,7 @@
             <description>Address the ssh service listening</description>
         </key>
         <key name="ssh-port" type="u">
-            <default>22</default>
+            <default>2222</default>
             <summary>SSH Port</summary>
             <description>Port the ssh service listening</description>
         </key>

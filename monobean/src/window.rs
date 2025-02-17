@@ -13,7 +13,6 @@ use std::cell::OnceCell;
 use adw::glib::Priority;
 use adw::prelude::ObjectExt;
 use crate::application::Action;
-use crate::core::mega_core::MegaCommands;
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)

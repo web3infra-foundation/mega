@@ -13,12 +13,9 @@ use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::OnceLock;
-use std::thread;
-use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
+use tracing_subscriber::{fmt};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use crate::core::mega_core::MegaCommands::MegaStart;
 
 glib::wrapper! {
@@ -39,9 +36,9 @@ pub enum Action {
 mod imp {
     use super::*;
     use crate::core::delegate::MegaDelegate;
-    use crate::core::mega_core::MegaCommands::MegaStart;
+    
     use crate::window::MonobeanWindow;
-    use std::net::IpAddr;
+    
 
     pub struct MonobeanApplication {
         pub mega_delegate: &'static MegaDelegate,
@@ -102,6 +99,8 @@ mod imp {
 
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
+            
+            app.setup_log();
 
             // Setup action channel
             let receiver = self.receiver.borrow_mut().take().unwrap();
@@ -196,6 +195,12 @@ impl MonobeanApplication {
         // self.settings().bind("title", self, "window-title")
         //     .flags(glib::BindingFlags::SYNC_CREATE)
         //     .build();
+    }
+    
+    fn setup_log(&self) {
+        // Use gtk settings for log level.
+        let filter = tracing_subscriber::EnvFilter::new("warn,monobean=debug");
+        tracing_subscriber::registry().with(fmt::layer()).with(filter).init();
     }
 
     fn show_about(&self) {
