@@ -107,7 +107,7 @@ impl MegaCore {
         http_addr: Option<SocketAddr>,
         ssh_addr: Option<SocketAddr>,
     ) -> MonoBeanResult<()> {
-        if self.is_core_running() {
+        if !self.is_core_running() {
             let inner = MegaContext::new(self.config.clone()).await;
             inner
                 .services
