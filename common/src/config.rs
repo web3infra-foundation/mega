@@ -405,8 +405,8 @@ mod test {
         use crate::config::PackConfig;
 
         assert_eq!(
-            PackConfig::get_size_from_str("1MB", || Ok(1 * 1000 * 1000)).unwrap(),
-            1 * 1000 * 1000
+            PackConfig::get_size_from_str("1MB", || Ok(1000 * 1000)).unwrap(),
+            1000 * 1000
         );
         assert_eq!(
             PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(),
@@ -439,7 +439,7 @@ mod test {
         );
         assert_eq!(
             PackConfig::get_size_from_str("1", || Ok(100)).unwrap(),
-            1 * 1024 * 1024 * 1024
+            1024 * 1024 * 1024
         );
     }
 }
