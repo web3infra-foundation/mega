@@ -1,11 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <schemalist>
     <schema id="org.Web3Infrastructure.Monobean" path="/org/Web3Infrastructure/Monobean/">
+
+        <!-- MonoBean Application Settings -->
+        <key name="first-start" type="b">
+            <default>false</default>
+        </key>
         <key name="width" type="i">
             <default>1280</default>
         </key>
         <key name="height" type="i">
             <default>720</default>
+        </key>
+        <key name="color-theme" type="s">
+            <default>"system"</default>
+            <summary>Color Theme</summary>
+            <description>Color theme for the application</description>
         </key>
 
         <!-- Mega Core Settings -->

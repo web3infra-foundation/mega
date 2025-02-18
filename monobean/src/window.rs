@@ -21,6 +21,7 @@ glib::wrapper! {
 }
 
 mod imp {
+    use crate::components::hello_page::HelloPage;
     use super::*;
 
     #[derive(Default, CompositeTemplate)]
@@ -29,11 +30,16 @@ mod imp {
         #[template_child]
         pub header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
+        pub base_stack: TemplateChild<gtk::Stack>,
+        #[template_child]
         pub back_button: TemplateChild<gtk::Button>,
         #[template_child]
         pub toast_overlay: TemplateChild<adw::ToastOverlay>,
         #[template_child]
         pub primary_menu_button: TemplateChild<gtk::MenuButton>,
+
+        #[template_child]
+        pub hello_page: TemplateChild<HelloPage>,
         #[template_child]
         pub mega_tab: TemplateChild<MegaTab>,
         #[template_child]
@@ -44,7 +50,7 @@ mod imp {
 
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
-        
+
     }
 
     #[glib::object_subclass]
@@ -70,6 +76,7 @@ mod imp {
 
             obj.setup_settings();
             obj.bind_settings();
+            obj.setup_page();
         }
     }
     impl WidgetImpl for MonobeanWindow {}
@@ -93,11 +100,19 @@ impl MonobeanWindow {
         // window.init_page_data();
         window
     }
-    
+
     fn sender(&self) -> Sender<Action> {
         self.imp().sender.get().unwrap().clone()
     }
-    
+
+    fn setup_page(&self) {
+        let setting = self.settings();
+
+        // We are developing, so always show hello_page for debug
+        let stack = self.imp().base_stack.clone();
+        stack.set_visible_child_name("hello_page");
+    }
+
     pub fn add_toast(&self, message: String) {
         let pre = self.property::<Toast>("toast");
 
@@ -138,7 +153,7 @@ impl MonobeanWindow {
 }
 
 fn load_css() {
-    const CSS_FILES: [&str; 2] = ["tag.css", "card.css"];
+    const CSS_FILES: [&str; 3] = ["tag.css", "card.css", "common.css"];
 
     let _ = CSS_FILES
         .into_iter()
