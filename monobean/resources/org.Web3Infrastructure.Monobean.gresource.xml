@@ -2,7 +2,7 @@
 <gresources>
     <gresource prefix="/org/Web3Infrastructure/Monobean">
         <file preprocess="xml-stripblanks" compressed="true">org.Web3Infrastructure.Monobean.gschema.xml</file>
-        
+
         <!-- Mega Related Resources -->
         <file>mega/config.toml</file>
         <file>mega/key.pem</file>
@@ -10,6 +10,7 @@
 
         <!-- Composite Templates -->
         <file compressed="true">gtk/window.ui</file>
+        <file compressed="true">gtk/hello_page.ui</file>
         <file compressed="true">gtk/mega_tab.ui</file>
         <file compressed="true">gtk/repo_tab.ui</file>
         <file compressed="true">gtk/repo_detail.ui</file>
@@ -20,6 +21,7 @@
         <!-- Themed CSS -->
         <file compressed="true">css/tag.css</file>
         <file compressed="true">css/card.css</file>
+        <file compressed="true">css/common.css</file>
 
     </gresource>
 </gresources>

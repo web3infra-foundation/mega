@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk+" version="3.0" />
+  <template class="HelloPage" parent="GtkBox">
+    <property name="orientation">vertical</property>
+    <property name="hexpand">true</property>
+    <property name="vexpand">true</property>
+
+    <menu id="primary_menu">
+      <section>
+        <item>
+          <attribute name="custom">theme</attribute>
+        </item>
+      </section>
+
+      <section>
+        <item>
+          <attribute name="label" translatable="yes">_File</attribute>
+          <attribute name="action">app.file</attribute>
+        </item>
+
+        <item>
+          <attribute name="label" translatable="yes">_About MonoBean</attribute>
+          <attribute name="action">app.about</attribute>
+        </item>
+      </section>
+    </menu>
+
+    <child>
+      <object class="AdwToolbarView">
+
+        <!-- Header bar -->
+        <child type="top">
+          <object class="AdwHeaderBar" id="header_bar">
+            <property name="centering-policy">strict</property>
+            <child type="start">
+              <object class="GtkButton" id="back_button">
+                <property name="visible">false</property>
+                <property name="action-name">win.back-button</property>
+                <property name="icon-name">go-previous-symbolic</property>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkMenuButton" id="primary_menu_button">
+                <property name="menu-model">primary_menu</property>
+                <property name="icon-name">open-menu-symbolic</property>
+              </object>
+            </child>
+            <child type="title">
+              <object class="GtkLabel">Hello</object>
+            </child>
+          </object>
+        </child>
+
+        <!-- Content box, for setting basic infomation and display... -->
+        <property name="content">
+          <object class="GtkGrid">
+            <property name="orientation">horizontal</property>
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+
+            <!-- Left side box -->
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="vexpand">true</property>
+                <property name="hexpand">true</property>
+                <property name="margin-top">12</property>
+                <property name="margin-bottom">12</property>
+                <property name="margin-start">12</property>
+                <property name="margin-end">12</property>
+                <property name="spacing">16</property>
+                <property name="halign">center</property>
+                <property name="valign">center</property>
+
+                <layout>
+                  <property name="column">0</property>
+                  <property name="column-span">3</property>
+                </layout>
+
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label" translatable="yes">Welcome to MonoBean</property>
+                    <property name="wrap">True</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="justify">center</property>
+                    <style>
+                      <class name="title" />
+                      <class name="title-1" />
+                    </style>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkSeparator"></object>
+                </child>
+
+                <!-- Enter email and passwd here -->
+                <child>
+                  <object class="AdwPreferencesGroup">
+                    <property name="title" translatable="yes">Git User Config</property>
+                    <child>
+                      <object class="AdwEntryRow">
+                        <property name="title" translatable="yes">Name</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwEntryRow">
+                        <property name="title" translatable="yes">Email</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkSeparator"></object>
+                </child>
+
+                <!-- Set GPG here -->
+                <child>
+                  <object class="AdwPreferencesGroup">
+
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title" translatable="yes">GPG Key</property>
+                        <child>
+                          <object class="GtkButton">
+                            <property name="label" translatable="yes">General</property>
+                            <property name="valign">center</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkSeparator"></object>
+                </child>
+
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">12</property>
+                    <property name="halign">center</property>
+                    <property name="valign">center</property>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="tooltip-text">card</property>
+                        <style>
+                          <class name="card" />
+                        </style>
+                        <property name="child">
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Import Repository</property>
+                            <property name="wrap">True</property>
+                            <property name="wrap-mode">word-char</property>
+                          </object>
+                        </property>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="tooltip-text">card</property>
+                        <style>
+                          <class name="card" />
+                        </style>
+                        <property name="child">
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">Connect Network</property>
+                            <property name="wrap">True</property>
+                            <property name="wrap-mode">word-char</property>
+                          </object>
+                        </property>
+                      </object>
+                    </child>
+
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkSeparator"></object>
+                </child>
+
+                <child>
+                  <object class="AdwBin">
+                    <property name="margin-top">12</property>
+                    <property name="margin-bottom">12</property>
+                    <property name="margin-start">12</property>
+                    <property name="margin-end">12</property>
+
+                    <property name="child">
+                      <object class="AdwPreferencesGroup">
+                        <property name="title" translatable="yes">Quick Start</property>
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">MonoBean Docs&lt;/a&gt;</property>
+                                <property name="wrap">True</property>
+                                <property name="wrap-mode">word-char</property>
+                                <property name="use-markup">True</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">Watch Videos&lt;/a&gt;</property>
+                                <property name="wrap">True</property>
+                                <property name="wrap-mode">word-char</property>
+                                <property name="use-markup">True</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+
+              </object>
+            </child>
+
+            <!-- Right side box -->
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="hexpand">true</property>
+                <property name="vexpand">true</property>
+                <property name="valign">center</property>
+                <property name="halign">center</property>
+                <property name="margin-start">12</property>
+                <property name="margin-end">12</property>
+
+                <layout>
+                  <property name="column">3</property>
+                  <property name="column-span">2</property>
+                </layout>
+
+                <child>
+                  <object class="AdwClamp">
+                    <property name="maximum-size">400</property>
+                    <property name="tightening-threshold">150</property>
+                    <property name="hexpand">true</property>
+                    <property name="vexpand">true</property>
+                    <property name="child">
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="margin-top">24</property>
+                        <property name="margin-bottom">24</property>
+                        <property name="margin-start">24</property>
+                        <property name="margin-end">24</property>
+                        <property name="hexpand">true</property>
+                        <property name="vexpand">true</property>
+
+                        <style>
+                          <class name="card" />
+                          <class name="right-side-box" />
+                        </style>
+
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">dialog-information-symbolic</property>
+                            <property name="icon-size">dialog</property>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="AdwBin">
+                            <property name="margin-end">24</property>
+                            <property name="margin-bottom">24</property>
+                            <property name="child">
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes">MonoBean</property>
+                                <property name="wrap">True</property>
+                                <property name="wrap-mode">word-char</property>
+                                <property name="xalign">1.0</property>
+
+                                <style>
+                                  <class name="title" />
+                                  <class name="title-1" />
+                                </style>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+
+                      </object>
+                    </property>
+                  </object>
+                </child>
+
+              </object>
+            </child>
+
+
+          </object>
+        </property>
+      </object>
+    </child>
+  </template>
+</interface>

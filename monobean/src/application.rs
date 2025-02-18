@@ -206,12 +206,12 @@ impl MonobeanApplication {
             .with(fmt::layer())
             .with(filter)
             .init();
-        
+
         glib::log_set_handler(
             Some(crate::APP_ID),
             LogLevels::all(),
             false,
-            false, 
+            false,
             |_, glib_level,msg| {
                 let glib_level = LogLevels::from_bits(glib_level.into_glib()).unwrap();
                 match glib_level {
