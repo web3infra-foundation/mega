@@ -291,6 +291,7 @@ impl PackConfig {
     /// assert_eq!(PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(), 2 * 1024 * 1024);
     /// assert_eq!(PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(), 3 * 1000 * 1000 * 1000);
     /// assert_eq!(PackConfig::get_size_from_str("4GiB", || Ok(4 * 1024 * 1024 * 1024)).unwrap(), 4 * 1024 * 1024 * 1024);
+    /// assert_eq!(PackConfig::get_size_from_str("4G", || Ok(4 * 1024 * 1024 * 1024)).unwrap(), 4 * 1024 * 1024 * 1024);
     /// assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
     /// assert_eq!(PackConfig::get_size_from_str("50%", || Ok(100)).unwrap(), 50);
     /// assert_eq!(PackConfig::get_size_from_str("0.01", || Ok(100)).unwrap(), 1);
@@ -355,14 +356,14 @@ impl PackConfig {
 
         let bytes = match unit.as_str() {
             "B" => value,
-            "KB" | "K" => value * 1_000.0,
-            "MB" | "M" => value * 1_000.0 * 1_000.0,
-            "GB" | "G" => value * 1_000.0 * 1_000.0 * 1_000.0,
-            "TB" | "T" => value * 1_000.0 * 1_000.0 * 1_000.0 * 1_000.0,
-            "KIB" => value * 1_024.0,
-            "MIB" => value * 1_024.0 * 1_024.0,
-            "GIB" => value * 1_024.0 * 1_024.0 * 1_024.0,
-            "TIB" => value * 1_099_511_627_776.0,
+            "KB" => value * 1_000.0,
+            "MB" => value * 1_000.0 * 1_000.0,
+            "GB"=> value * 1_000.0 * 1_000.0 * 1_000.0,
+            "TB" => value * 1_000.0 * 1_000.0 * 1_000.0 * 1_000.0,
+            "KIB" | "K" => value * 1_024.0,
+            "MIB" | "M" => value * 1_024.0 * 1_024.0,
+            "GIB" | "G"  => value * 1_024.0 * 1_024.0 * 1_024.0,
+            "TIB" | "T" => value * 1_099_511_627_776.0,
             _ => Err(format!("Invalid unit: {}", unit))?,
         };
 
@@ -417,6 +418,10 @@ mod test {
         );
         assert_eq!(
             PackConfig::get_size_from_str("4GiB", || Ok(4 * 1024 * 1024 * 1024)).unwrap(),
+            4 * 1024 * 1024 * 1024
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("4G", || Ok(4 * 1024 * 1024 * 1024)).unwrap(),
             4 * 1024 * 1024 * 1024
         );
         assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
