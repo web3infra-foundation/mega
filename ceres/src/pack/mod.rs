@@ -94,7 +94,7 @@ pub trait PackHandler: Send + Sync {
         let (sender, receiver) = std::sync::mpsc::channel();
         let p = Pack::new(
             None,
-            Some(1024 * 1024 * 1024 * pack_config.pack_decode_mem_size),
+            Some(1024 * 1024 * 1024 * pack_config.pack_decode_mem_size.parse::<usize>().unwrap()),
             Some(pack_config.pack_decode_cache_path.clone()),
             pack_config.clean_cache_after_decode,
         );
