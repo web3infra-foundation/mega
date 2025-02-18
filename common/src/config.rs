@@ -27,8 +27,12 @@ impl Config {
     pub fn new(path: &str) -> Result<Self, ConfigError> {
         let builder = c::Config::builder()
             .add_source(c::File::new(path, FileFormat::Toml))
-            .add_source(c::Environment::with_prefix("mega").prefix_separator("_").separator("__")); // e.g. MEGA_BASE_DIR == base_dir
-                                                              // support ${} variable substitution
+            .add_source(
+                c::Environment::with_prefix("mega")
+                    .prefix_separator("_")
+                    .separator("__"),
+            ); // e.g. MEGA_BASE_DIR == base_dir
+               // support ${} variable substitution
         let config = variable_placeholder_substitute(builder);
 
         Config::from_config(config)
@@ -243,7 +247,7 @@ impl Default for AuthConfig {
             enable_http_auth: false,
             enable_test_user: false,
             test_user_name: String::from("mega"),
-            test_user_token: String::from("mega")
+            test_user_token: String::from("mega"),
         }
     }
 }
@@ -278,11 +282,11 @@ impl PackConfig {
     /// - Percentage of total memory: "1%", "50%"
     /// - Decimal ratio of total memory: "0.01", "0.5"
     /// - For compatibility: Any integer greater than or equal to 1, for example "1" will be interpreted as 1Gib.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use common::config::PackConfig;
-    /// 
+    ///
     /// assert_eq!(PackConfig::get_size_from_str("1MB", || Ok(1 * 1000 * 1000)).unwrap(), 1 * 1000 * 1000);
     /// assert_eq!(PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(), 2 * 1024 * 1024);
     /// assert_eq!(PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(), 3 * 1000 * 1000 * 1000);
@@ -293,36 +297,30 @@ impl PackConfig {
     /// assert_eq!(PackConfig::get_size_from_str("0.5", || Ok(1)).unwrap(), 512);
     /// assert_eq!(PackConfig::get_size_from_str("1", || Ok(1)).unwrap(), 1 * 1024 * 1024 * 1024);
     /// ```
-    pub fn get_size_from_str(size_str: &str, fn_get_total_capacity: fn() -> Result<usize, String>) -> Result<usize, String> {
+    pub fn get_size_from_str(
+        size_str: &str,
+        fn_get_total_capacity: fn() -> Result<usize, String>,
+    ) -> Result<usize, String> {
         let size_str = size_str.trim();
-        
+
         // Try to parse as percentage or decimal ratio
         if size_str.ends_with('%') {
-            let percentage_result = size_str.trim_end_matches('%').parse::<f64>();
-            if percentage_result.is_err() {
-                return Err(format!("Invalid percentage: {}", size_str));
-            }
+            let percentage: f64 = size_str
+                .trim_end_matches('%')
+                .parse()
+                .map_err(|_| format!("Invalid percentage: {}", size_str))?;
+            let total_mem = fn_get_total_capacity()? * 1024;
 
-            let percentage: f64 = percentage_result.unwrap();
-            let total_mem_result = fn_get_total_capacity();
-            if total_mem_result.is_err() {
-                return Err(format!("Failed to get total memory: {}", total_mem_result.unwrap_err()));
-            }
-
-            let total_mem = total_mem_result.unwrap() * 1024;
             return Ok((total_mem as f64 * percentage / 100.0) as usize);
         }
-        
+
         let ratio_result = size_str.parse::<f64>();
         if ratio_result.is_ok() {
-            let total_mem_result = fn_get_total_capacity();
-                if total_mem_result.is_err() {
-                return Err(format!("Failed to get total memory: {}", total_mem_result.unwrap_err()));
-            }
-
             let ratio = ratio_result.unwrap();
+
             if ratio > 0.0 && ratio < 1.0 {
-                let total_mem = total_mem_result.unwrap() * 1024;
+                let total_mem = fn_get_total_capacity()? * 1024;
+
                 return Ok((total_mem as f64 * ratio) as usize);
             }
         }
@@ -330,7 +328,7 @@ impl PackConfig {
         // Parse size with units
         let mut chars = size_str.chars().peekable();
         let mut number = String::new();
-        
+
         // Parse the numeric part
         while let Some(&c) = chars.peek() {
             if c.is_ascii_digit() || c == '.' {
@@ -340,21 +338,18 @@ impl PackConfig {
                 break;
             }
         }
-        
-        let value_result = number.parse::<f64>();
-        if value_result.is_err() {
-            return Err(format!("Invalid size: {}", size_str));
-        }
 
-        let value: f64 = value_result.unwrap();
+        let value: f64 = number
+            .parse()
+            .map_err(|_| format!("Invalid size: {}", size_str))?;
         let unit = chars.collect::<String>().to_uppercase();
 
-        // For compatibility, 
+        // For compatibility,
         // old configuration files use integer and use GiB as the default unit.
         if unit.is_empty() {
             return Ok((value * 1024.0 * 1024.0 * 1024.0) as usize);
         }
-        
+
         let bytes = match unit.as_str() {
             "B" => value,
             "KB" | "K" => value * 1_000.0,
@@ -367,7 +362,7 @@ impl PackConfig {
             "TIB" => value * 1_099_511_627_776.0,
             _ => Err(format!("Invalid unit: {}", unit))?,
         };
-        
+
         Ok(bytes as usize)
     }
 }
