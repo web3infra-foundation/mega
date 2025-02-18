@@ -250,7 +250,8 @@ impl Default for AuthConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PackConfig {
-    pub pack_decode_mem_size: usize,
+    pub pack_decode_mem_size: String,
+    pub pack_decode_disk_size: String,
     pub pack_decode_cache_path: PathBuf,
     pub clean_cache_after_decode: bool,
     pub channel_message_size: usize,
@@ -260,12 +261,115 @@ pub struct PackConfig {
 impl Default for PackConfig {
     fn default() -> Self {
         Self {
-            pack_decode_mem_size: 4,
+            pack_decode_mem_size: "4G".to_string(),
+            pack_decode_disk_size: "20%".to_string(),
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
             maximum_pack_size: 4,
         }
+    }
+}
+
+impl PackConfig {
+
+    /// Converts a size string to bytes
+    /// Supports formats:
+    /// - Bytes with units: "1MB", "2MiB", "3GB", "4GiB"
+    /// - Percentage of total memory: "1%", "50%"
+    /// - Decimal ratio of total memory: "0.01", "0.5"
+    /// - For compatibility: Any integer greater than 1 is entered, such as "1" will be interpreted as 1Gib.
+    /// 
+    /// # Examples
+    /// ```
+    /// use common::config::PackConfig;
+    /// 
+    /// assert_eq!(PackConfig::get_size_from_str("1MB", || Ok(1 * 1000 * 1000)).unwrap(), 1 * 1000 * 1000);
+    /// assert_eq!(PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(), 2 * 1024 * 1024);
+    /// assert_eq!(PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(), 3 * 1000 * 1000 * 1000);
+    /// assert_eq!(PackConfig::get_size_from_str("4GiB", || Ok(4 * 1024 * 1024 * 1024)).unwrap(), 4 * 1024 * 1024 * 1024);
+    /// assert_eq!(PackConfig::get_size_from_str("1%", || Ok(1)).unwrap(), 10);
+    /// assert_eq!(PackConfig::get_size_from_str("50%", || Ok(1)).unwrap(), 512);
+    /// assert_eq!(PackConfig::get_size_from_str("0.01", || Ok(1)).unwrap(), 10);
+    /// assert_eq!(PackConfig::get_size_from_str("0.5", || Ok(1)).unwrap(), 512);
+    /// assert_eq!(PackConfig::get_size_from_str("1", || Ok(1)).unwrap(), 1 * 1000 * 1000);
+    /// ```
+    pub fn get_size_from_str(size_str: &str, fn_get_total_capacity: fn() -> Result<usize, String>) -> Result<usize, String> {
+        let size_str = size_str.trim();
+        
+        // Try to parse as percentage or decimal ratio
+        if size_str.ends_with('%') {
+            let percentage_result = size_str.trim_end_matches('%').parse::<f64>();
+            if percentage_result.is_err() {
+                return Err(format!("Invalid percentage: {}", size_str));
+            }
+
+            let percentage: f64 = percentage_result.unwrap();
+            let total_mem_result = fn_get_total_capacity();
+            if total_mem_result.is_err() {
+                return Err(format!("Failed to get total memory: {}", total_mem_result.unwrap_err()));
+            }
+
+            let total_mem = total_mem_result.unwrap() * 1024;
+            return Ok((total_mem as f64 * percentage / 100.0) as usize);
+        }
+        
+        let ratio_result = size_str.parse::<f64>();
+        if ratio_result.is_ok() {
+            let total_mem_result = fn_get_total_capacity();
+                if total_mem_result.is_err() {
+                return Err(format!("Failed to get total memory: {}", total_mem_result.unwrap_err()));
+            }
+
+            let ratio = ratio_result.unwrap();
+            if ratio > 0.0 && ratio <= 1.0 {
+                let total_mem = total_mem_result.unwrap() * 1024;
+                return Ok((total_mem as f64 * ratio) as usize);
+            }
+        }
+
+        // Parse size with units
+        let mut chars = size_str.chars().peekable();
+        let mut number = String::new();
+        
+        // Parse the numeric part
+        while let Some(&c) = chars.peek() {
+            if c.is_ascii_digit() || c == '.' {
+                number.push(c);
+                chars.next();
+            } else {
+                break;
+            }
+        }
+        
+        let value_result = number.parse::<f64>();
+        if value_result.is_err() {
+            return Err(format!("Invalid size: {}", size_str));
+        }
+
+        let value: f64 = value_result.unwrap();
+        let unit = chars.collect::<String>().to_uppercase();
+
+        // For compatibility, 
+        // old configuration files use integer and use GiB as the default unit.
+        if unit.is_empty() {
+            return Ok((value * 1024.0 * 1024.0 * 1024.0) as usize);
+        }
+        
+        let bytes = match unit.as_str() {
+            "B" => value,
+            "KB" | "K" => value * 1_000.0,
+            "MB" | "M" => value * 1_000.0 * 1_000.0,
+            "GB" | "G" => value * 1_000.0 * 1_000.0 * 1_000.0,
+            "TB" | "T" => value * 1_000.0 * 1_000.0 * 1_000.0 * 1_000.0,
+            "KIB" => value * 1_024.0,
+            "MIB" => value * 1_024.0 * 1_024.0,
+            "GIB" => value * 1_024.0 * 1_024.0 * 1_024.0,
+            "TIB" => value * 1_099_511_627_776.0,
+            _ => Err(format!("Invalid unit: {}", unit))?,
+        };
+        
+        Ok(bytes as usize)
     }
 }
 
