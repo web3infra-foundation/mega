@@ -291,12 +291,15 @@ impl PackConfig {
     /// assert_eq!(PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(), 2 * 1024 * 1024);
     /// assert_eq!(PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(), 3 * 1000 * 1000 * 1000);
     /// assert_eq!(PackConfig::get_size_from_str("4GiB", || Ok(4 * 1024 * 1024 * 1024)).unwrap(), 4 * 1024 * 1024 * 1024);
-    /// assert_eq!(PackConfig::get_size_from_str("1%", || Ok(1)).unwrap(), 10);
-    /// assert_eq!(PackConfig::get_size_from_str("50%", || Ok(1)).unwrap(), 512);
-    /// assert_eq!(PackConfig::get_size_from_str("0.01", || Ok(1)).unwrap(), 10);
-    /// assert_eq!(PackConfig::get_size_from_str("0.5", || Ok(1)).unwrap(), 512);
-    /// assert_eq!(PackConfig::get_size_from_str("1", || Ok(1)).unwrap(), 1 * 1024 * 1024 * 1024);
+    /// assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
+    /// assert_eq!(PackConfig::get_size_from_str("50%", || Ok(100)).unwrap(), 50);
+    /// assert_eq!(PackConfig::get_size_from_str("0.01", || Ok(100)).unwrap(), 1);
+    /// assert_eq!(PackConfig::get_size_from_str("0.5", || Ok(100)).unwrap(), 50);
+    /// assert_eq!(PackConfig::get_size_from_str("1", || Ok(100)).unwrap(), 1 * 1024 * 1024 * 1024);
     /// ```
+    /// # Notes
+    /// - fn_get_total_capacity is a function that returns the total memory capacity in bytes.
+    ///   If the function fails, it returns a String error message.
     pub fn get_size_from_str(
         size_str: &str,
         fn_get_total_capacity: fn() -> Result<usize, String>,
@@ -309,7 +312,7 @@ impl PackConfig {
                 .trim_end_matches('%')
                 .parse()
                 .map_err(|_| format!("Invalid percentage: {}", size_str))?;
-            let total_mem = fn_get_total_capacity()? * 1024;
+            let total_mem = fn_get_total_capacity()?;
 
             return Ok((total_mem as f64 * percentage / 100.0) as usize);
         }
@@ -319,7 +322,7 @@ impl PackConfig {
             let ratio = ratio_result.unwrap();
 
             if ratio > 0.0 && ratio < 1.0 {
-                let total_mem = fn_get_total_capacity()? * 1024;
+                let total_mem = fn_get_total_capacity()?;
 
                 return Ok((total_mem as f64 * ratio) as usize);
             }
@@ -392,4 +395,46 @@ pub struct OauthConfig {
     pub github_client_secret: String,
     pub ui_domain: String,
     pub cookie_domain: String,
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_get_size_from_str() {
+        use crate::config::PackConfig;
+
+        assert_eq!(
+            PackConfig::get_size_from_str("1MB", || Ok(1 * 1000 * 1000)).unwrap(),
+            1 * 1000 * 1000
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(),
+            2 * 1024 * 1024
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(),
+            3 * 1000 * 1000 * 1000
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("4GiB", || Ok(4 * 1024 * 1024 * 1024)).unwrap(),
+            4 * 1024 * 1024 * 1024
+        );
+        assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
+        assert_eq!(
+            PackConfig::get_size_from_str("50%", || Ok(100)).unwrap(),
+            50
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("0.01", || Ok(100)).unwrap(),
+            1
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("0.5", || Ok(100)).unwrap(),
+            50
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("1", || Ok(100)).unwrap(),
+            1 * 1024 * 1024 * 1024
+        );
+    }
 }

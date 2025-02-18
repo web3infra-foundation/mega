@@ -10,6 +10,7 @@ use std::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
+use sysinfo::System;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::protocol::import_refs::{RefCommand, Refs};
@@ -91,10 +92,21 @@ pub trait PackHandler: Send + Sync {
         pack_config: &PackConfig,
         stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
     ) -> Result<Receiver<Entry>, ProtocolError> {
+        let total_mem = || {
+            let sys = System::new_all();
+            Ok(sys.total_memory() as usize)
+        };
+
+        let cache_mem =
+            match PackConfig::get_size_from_str(&pack_config.pack_decode_mem_size, total_mem) {
+                Ok(mem) => mem,
+                Err(err) => return Err(ProtocolError::InvalidInput(err)),
+            };
+
         let (sender, receiver) = std::sync::mpsc::channel();
         let p = Pack::new(
             None,
-            Some(1024 * 1024 * 1024 * pack_config.pack_decode_mem_size.parse::<usize>().unwrap()),
+            Some(1024 * 1024 * 1024 * cache_mem),
             Some(pack_config.pack_decode_cache_path.clone()),
             pack_config.clean_cache_after_decode,
         );
