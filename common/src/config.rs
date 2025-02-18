@@ -272,13 +272,12 @@ impl Default for PackConfig {
 }
 
 impl PackConfig {
-
     /// Converts a size string to bytes
     /// Supports formats:
     /// - Bytes with units: "1MB", "2MiB", "3GB", "4GiB"
     /// - Percentage of total memory: "1%", "50%"
     /// - Decimal ratio of total memory: "0.01", "0.5"
-    /// - For compatibility: Any integer greater than 1 is entered, such as "1" will be interpreted as 1Gib.
+    /// - For compatibility: Any integer greater than or equal to 1, for example "1" will be interpreted as 1Gib.
     /// 
     /// # Examples
     /// ```
@@ -292,7 +291,7 @@ impl PackConfig {
     /// assert_eq!(PackConfig::get_size_from_str("50%", || Ok(1)).unwrap(), 512);
     /// assert_eq!(PackConfig::get_size_from_str("0.01", || Ok(1)).unwrap(), 10);
     /// assert_eq!(PackConfig::get_size_from_str("0.5", || Ok(1)).unwrap(), 512);
-    /// assert_eq!(PackConfig::get_size_from_str("1", || Ok(1)).unwrap(), 1 * 1000 * 1000);
+    /// assert_eq!(PackConfig::get_size_from_str("1", || Ok(1)).unwrap(), 1 * 1024 * 1024 * 1024);
     /// ```
     pub fn get_size_from_str(size_str: &str, fn_get_total_capacity: fn() -> Result<usize, String>) -> Result<usize, String> {
         let size_str = size_str.trim();
@@ -322,7 +321,7 @@ impl PackConfig {
             }
 
             let ratio = ratio_result.unwrap();
-            if ratio > 0.0 && ratio <= 1.0 {
+            if ratio > 0.0 && ratio < 1.0 {
                 let total_mem = total_mem_result.unwrap() * 1024;
                 return Ok((total_mem as f64 * ratio) as usize);
             }
