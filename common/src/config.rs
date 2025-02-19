@@ -2,7 +2,7 @@ use c::{ConfigError, FileFormat};
 use config as c;
 use config::builder::DefaultState;
 use config::{Source, ValueKind};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -254,7 +254,9 @@ impl Default for AuthConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PackConfig {
+    #[serde(deserialize_with = "string_or_usize")]
     pub pack_decode_mem_size: String,
+    #[serde(deserialize_with = "string_or_usize")]
     pub pack_decode_disk_size: String,
     pub pack_decode_cache_path: PathBuf,
     pub clean_cache_after_decode: bool,
@@ -273,6 +275,23 @@ impl Default for PackConfig {
             maximum_pack_size: 4,
         }
     }
+}
+
+fn string_or_usize<'deserialize, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'deserialize>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrUSize {
+        String(String),
+        USize(usize),
+    }
+
+    Ok(match StringOrUSize::deserialize(deserializer)? {
+        StringOrUSize::String(v) => v,
+        StringOrUSize::USize(v) => v.to_string(),
+    })
 }
 
 impl PackConfig {
@@ -358,11 +377,11 @@ impl PackConfig {
             "B" => value,
             "KB" => value * 1_000.0,
             "MB" => value * 1_000.0 * 1_000.0,
-            "GB"=> value * 1_000.0 * 1_000.0 * 1_000.0,
+            "GB" => value * 1_000.0 * 1_000.0 * 1_000.0,
             "TB" => value * 1_000.0 * 1_000.0 * 1_000.0 * 1_000.0,
             "KIB" | "K" => value * 1_024.0,
             "MIB" | "M" => value * 1_024.0 * 1_024.0,
-            "GIB" | "G"  => value * 1_024.0 * 1_024.0 * 1_024.0,
+            "GIB" | "G" => value * 1_024.0 * 1_024.0 * 1_024.0,
             "TIB" | "T" => value * 1_099_511_627_776.0,
             _ => Err(format!("Invalid unit: {}", unit))?,
         };
