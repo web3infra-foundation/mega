@@ -137,6 +137,7 @@ mod tests {
     use serde_json::json;
     use super::*;
 
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn test_secret() {
         // create secret

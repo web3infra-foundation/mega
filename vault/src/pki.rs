@@ -20,7 +20,7 @@ pub async fn ca() -> &'static CoreInfo {
         init_ca().await
     }).await
 }
-
+#[allow(clippy::await_holding_lock)]
 async fn init_ca() -> CoreInfo {
     let c = CORE.clone();
     // init CA if not
@@ -43,6 +43,7 @@ async fn init_ca() -> CoreInfo {
     c
 }
 
+#[allow(clippy::await_holding_lock)]
 async fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
     let core = core.read().unwrap();
 
@@ -59,6 +60,7 @@ async fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
 }
 
 /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
+#[allow(clippy::await_holding_lock)]
 pub async fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
     let core = core.read().unwrap();
 
@@ -73,6 +75,7 @@ pub async fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
 
 /// generate root cert, so that you can read from `pki/ca/pem`
 /// - if `exported` is true, then the response will contain `private key`
+#[allow(clippy::await_holding_lock)]
 async fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
     let core = core.read().unwrap();
 
@@ -102,6 +105,7 @@ async fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
 /// issue certificate
 /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
 /// - return: `(cert_pem, private_key)`
+#[allow(clippy::await_holding_lock)]
 pub async fn issue_cert(data: Value) -> (String, String) {
     let core = ca().await.core.read().unwrap();
     let token = &ca().await.token;
@@ -146,6 +150,7 @@ pub async fn verify_cert(cert_pem: &[u8]) -> bool {
     cert.verify(&ca_cert.public_key().unwrap()).unwrap()
 }
 
+#[allow(clippy::await_holding_lock)]
 /// Get root certificate of CA
 pub async fn get_root_cert() -> String {
     let core = ca().await.core.read().unwrap();
@@ -179,6 +184,7 @@ mod tests {
     }
 }
 
+#[allow(clippy::await_holding_lock)]
 #[cfg(test)]
 mod tests_raw {
     use std::{
