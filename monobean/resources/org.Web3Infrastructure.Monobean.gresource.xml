@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-    <gresource prefix="/org/Web3Infrastructure/MegaClient">
-        <file preprocess="xml-stripblanks" compressed="true">org.Web3Infrastructure.MegaClient.gschema.xml</file>
+    <gresource prefix="/org/Web3Infrastructure/Monobean">
+        <file preprocess="xml-stripblanks" compressed="true">org.Web3Infrastructure.Monobean.gschema.xml</file>
         <file compressed="true">config.toml</file>
 
         <!-- Composite Templates -->

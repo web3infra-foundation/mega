@@ -71,7 +71,7 @@ mod test{
         ]).unwrap();
             
         if let Some(encoded_value) = db.get(t.id.as_ref()).unwrap() {
-            // 使用 bincode 反序列化为原始的结构体
+            // use bincode to deserialize the value .
             let decoded:Tree = bincode::deserialize(&encoded_value).unwrap();
             println!(" {}", decoded);
         };

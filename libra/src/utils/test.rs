@@ -87,9 +87,9 @@ pub fn setup_clean_testing_env() {
     if root_path.exists() {
         fs::remove_dir_all(&root_path).unwrap();
     }
-    
-    // Define the directories that are present in a bare repository         
-    let bare_repo_dirs = ["objects", "info", "description", "libra.db"]; 
+
+    // Define the directories that are present in a bare repository
+    let bare_repo_dirs = ["objects", "info", "description", "libra.db"];
 
     // Remove the directories that are present in a bare repository if they exist
     for dir in bare_repo_dirs.iter() {
@@ -97,7 +97,7 @@ pub fn setup_clean_testing_env() {
         if bare_repo_path.exists() && bare_repo_path.is_dir() {
             fs::remove_dir_all(&bare_repo_path).unwrap();
         } else if bare_repo_path.exists() && !bare_repo_path.is_dir() {
-            // Remove the file if it exists 
+            // Remove the file if it exists
             fs::remove_file(&bare_repo_path).unwrap();
         }
     }
