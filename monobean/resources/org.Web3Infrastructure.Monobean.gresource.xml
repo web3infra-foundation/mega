@@ -20,7 +20,6 @@
 
         <!-- Themed CSS -->
         <file compressed="true">css/tag.css</file>
-        <file compressed="true">css/card.css</file>
         <file compressed="true">css/common.css</file>
 
     </gresource>
