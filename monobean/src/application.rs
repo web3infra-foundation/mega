@@ -5,17 +5,20 @@ use crate::core::mega_core::MegaCommands;
 use crate::core::mega_core::MegaCommands::MegaStart;
 use crate::window::MonobeanWindow;
 use adw::gio::Settings;
+use adw::glib::translate::IntoGlib;
 use adw::glib::{LogLevel, LogLevels};
 use adw::prelude::*;
 use adw::subclass::prelude::*;
+use adw::{ColorScheme, StyleManager};
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
+use std::fmt::Display;
 use std::net::{IpAddr, SocketAddr};
-use adw::glib::translate::IntoGlib;
+use std::path::PathBuf;
 use tracing::{event, Level};
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
@@ -29,11 +32,14 @@ glib::wrapper! {
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    // Mega Frontend Related Actions
-    AddToast(String),
-
     // Mega Core Related Actions
     MegaCore(MegaCommands),
+
+    // Mega Frontend Related Actions
+    AddToast(String),
+    UpdateGitConfig(String, String),
+    ShowHelloPage,
+    ShowMainPage,
 }
 
 mod imp {
@@ -79,7 +85,7 @@ mod imp {
             self.parent_constructed();
 
             obj.setup_settings();
-            obj.bind_settings();
+            // obj.bind_settings();
             obj.setup_gactions();
         }
     }
@@ -193,14 +199,24 @@ impl MonobeanApplication {
         self.imp().settings.get().expect("Could not get settings.")
     }
 
-    fn bind_settings(&self) {
-        // self.settings().bind("title", self, "window-title")
-        //     .flags(glib::BindingFlags::SYNC_CREATE)
-        //     .build();
+    pub fn git_config(&self) -> gix_config::File<'static> {
+        let config = gix_config::File::from_globals();
+        if let Ok(config) = config {
+            config
+        } else {
+            let mut home = PathBuf::from("~").canonicalize().unwrap();
+            home.push(".gitconfig");
+            tracing::warn!("Git config file not detected, created named {}", home.display());
+            std::fs::File::create(home.as_path()).expect("Cannot create default git config file");
+
+            gix_config::File::from_path_no_includes(home, gix_config::Source::User)
+                .unwrap()
+        }
     }
 
     fn setup_log(&self) {
         // TODO: Use gtk settings for log level.
+        // FIXME: currently not working for glib logs.
         let filter = tracing_subscriber::EnvFilter::new("warn,monobean=debug");
         tracing_subscriber::registry()
             .with(fmt::layer())
@@ -208,20 +224,22 @@ impl MonobeanApplication {
             .init();
 
         glib::log_set_handler(
-            Some(crate::APP_ID),
+            None,
             LogLevels::all(),
-            false,
-            false,
-            |_, glib_level,msg| {
-                let glib_level = LogLevels::from_bits(glib_level.into_glib()).unwrap();
-                match glib_level {
-                    LogLevels::LEVEL_CRITICAL | LogLevels::LEVEL_ERROR => tracing::error!(target: "monobean", "{}", msg),
-                    LogLevels::LEVEL_WARNING => tracing::warn!(target: "monobean", "{}", msg),
-                    LogLevels::LEVEL_MESSAGE => tracing::info!(target: "monobean", "{}", msg),
-                    LogLevels::LEVEL_INFO => tracing::debug!(target: "monobean", "{}", msg),
-                    _ => tracing::trace!(target: "monobean", "{}", msg),
+            true,
+            true,
+            |domain, log_level, fields| {
+                let level = match log_level {
+                    glib::LogLevel::Error => tracing::Level::ERROR,
+                    glib::LogLevel::Critical => tracing::Level::ERROR,
+                    glib::LogLevel::Warning => tracing::Level::WARN,
+                    glib::LogLevel::Message => tracing::Level::INFO,
+                    glib::LogLevel::Info => tracing::Level::INFO,
+                    glib::LogLevel::Debug => tracing::Level::DEBUG,
                 };
-            }
+
+                println!("{}: {}", level, fields);
+            },
         );
     }
 
@@ -287,11 +305,46 @@ impl MonobeanApplication {
         }
 
         match action {
+            Action::MegaCore(cmd) => self.send_command(cmd),
             Action::AddToast(msg) => {
                 self.window().unwrap().add_toast(msg);
             }
+            Action::UpdateGitConfig(name, email) => {
+                let mut config = self.git_config();
+                config
+                    .set_raw_value(&"user.name", name.as_bytes())
+                    .unwrap();
+                config
+                    .set_raw_value(&"user.email", email.as_bytes())
+                    .unwrap();
 
-            Action::MegaCore(cmd) => self.send_command(cmd),
+                let toast = Action::AddToast("Git config updated!".to_string());
+                self.sender().send_blocking(toast).unwrap();
+            }
+
+            Action::ShowHelloPage => {
+                let window = self.imp().window.get().unwrap().upgrade().unwrap();
+                
+                let stack = window.imp().base_stack.clone();
+                stack.set_visible_child_name("hello_page");
+
+                let config = self.git_config();
+                let name = match config.string("user.name") {
+                    Some(name) => Some(name.to_string()),
+                    None => None,
+                };
+                let email = match config.string("user.email") {
+                    Some(email) => Some(email.to_string()),
+                    None => None,
+                };
+
+                window.show_hello_page(name, email);
+            }
+
+            Action::ShowMainPage => {
+                let window = self.imp().window.get().unwrap().upgrade().unwrap();
+                window.show_main_page();
+            }
         }
     }
 }

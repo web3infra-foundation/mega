@@ -1,18 +1,20 @@
 use async_channel::Sender;
-use gtk::style_context_add_provider_for_display;
 use gtk::CssProvider;
+use gtk::{style_context_add_provider_for_display, PopoverMenu};
 
+use crate::application::Action;
+use crate::components::theme_selector::ThemeSelector;
 use crate::components::{mega_tab::MegaTab, not_implemented::NotImplemented, repo_tab::RepoTab};
 use crate::config::PREFIX;
-use adw::{gio, Toast};
+use adw::glib::Priority;
+use adw::prelude::{Cast, ObjectExt, SettingsExtManual, ToValue};
 use adw::subclass::prelude::*;
+use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::glib;
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
-use adw::glib::Priority;
-use adw::prelude::ObjectExt;
-use crate::application::Action;
+use std::path::PathBuf;
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
@@ -21,8 +23,8 @@ glib::wrapper! {
 }
 
 mod imp {
-    use crate::components::hello_page::HelloPage;
     use super::*;
+    use crate::components::hello_page::HelloPage;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/window.ui")]
@@ -47,10 +49,9 @@ mod imp {
 
         #[template_child]
         pub not_implemented: TemplateChild<NotImplemented>,
-
+        
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
-
     }
 
     #[glib::object_subclass]
@@ -74,9 +75,7 @@ mod imp {
             self.parent_constructed();
             let obj = self.obj();
 
-            obj.setup_settings();
             obj.bind_settings();
-            obj.setup_page();
         }
     }
     impl WidgetImpl for MonobeanWindow {}
@@ -95,9 +94,9 @@ impl MonobeanWindow {
             .build();
 
         window.imp().sender.set(sender).unwrap();
-        // window.setup_widget();
+        window.setup_widget();
         // window.setup_action();
-        // window.init_page_data();
+        window.setup_page();
         window
     }
 
@@ -105,12 +104,46 @@ impl MonobeanWindow {
         self.imp().sender.get().unwrap().clone()
     }
 
+    pub fn settings(&self) -> &Settings {
+        self.imp()
+            .settings
+            .get_or_init(|| Settings::new(crate::APP_ID))
+    }
+
     fn setup_page(&self) {
+        let imp = self.imp();
         let setting = self.settings();
+        
+        imp.hello_page.setup_hello_page(self.sender());
 
         // We are developing, so always show hello_page for debug
-        let stack = self.imp().base_stack.clone();
+        let stack = imp.base_stack.clone();
         stack.set_visible_child_name("hello_page");
+
+        // If there exist name and email in config already,
+        // we will show them as default value.
+        imp.hello_page.fill_entries(None, None);
+    }
+    
+    pub fn show_main_page(&self) {
+        let stack = self.imp().base_stack.clone();
+        stack.set_visible_child_name("mega_tab");
+    }
+    
+    pub fn show_hello_page(&self, name: Option<String>, email: Option<String>) {
+        let stack = self.imp().base_stack.clone();
+        let page = self.imp().hello_page.clone();
+        page.fill_entries(name, email);
+        stack.set_visible_child_name("hello_page");
+    }
+
+    fn setup_widget(&self) {
+        let imp = self.imp();
+        let prim_btn = imp.primary_menu_button.get();
+        let popover = prim_btn.popover().unwrap();
+        let popover = popover.downcast::<PopoverMenu>().unwrap();
+        let theme = ThemeSelector::new();
+        popover.add_child(&theme, "theme");
     }
 
     pub fn add_toast(&self, message: String) {
@@ -133,22 +166,23 @@ impl MonobeanWindow {
         });
     }
 
-    fn setup_settings(&self) {
-        let settings = Settings::new(crate::APP_ID);
-        self.imp()
-            .settings
-            .set(settings)
-            .expect("Could not set `Settings`.");
-    }
-
-    pub fn settings(&self) -> &Settings {
-        self.imp().settings.get().expect("Could not get settings.")
-    }
-
     fn bind_settings(&self) {
-        // self.settings().bind("title", self, "window-title")
-        //     .flags(glib::BindingFlags::SYNC_CREATE)
-        //     .build();
+        let style = StyleManager::default();
+        self.settings()
+            .bind("style-variant", &style, "color-scheme")
+            .mapping(|themes, _| {
+                let themes = themes
+                    .get::<String>()
+                    .expect("The variant needs to be of type `String`.");
+                let scheme = match themes.as_str() {
+                    "system" => ColorScheme::Default,
+                    "light" => ColorScheme::ForceLight,
+                    "dark" => ColorScheme::ForceDark,
+                    _ => ColorScheme::Default,
+                };
+                Some(scheme.to_value())
+            })
+            .build();
     }
 }
 

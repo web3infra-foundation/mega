@@ -12,10 +12,14 @@
         <key name="height" type="i">
             <default>720</default>
         </key>
-        <key name="color-theme" type="s">
-            <default>"system"</default>
-            <summary>Color Theme</summary>
-            <description>Color theme for the application</description>
+        <key name="style-variant" type="s">
+            <choices>
+                <choice value='system' />
+                <choice value='light' />
+                <choice value='dark' />
+            </choices>
+            <default>'system'</default>
+            <summary>Settings theme</summary>
         </key>
 
         <!-- Mega Core Settings -->

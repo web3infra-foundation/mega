@@ -161,7 +161,7 @@
                         <property name="margin-bottom">12</property>
                         <property name="margin-start">12</property>
                         <property name="margin-end">12</property>
-                        <property name="spacing">16</property>
+                        <property name="spacing">24</property>
                         <property name="halign">fill</property>
                         <property name="valign">center</property>
 
@@ -187,13 +187,13 @@
                           <object class="AdwPreferencesGroup">
                             <property name="title" translatable="yes">Git User Config</property>
                             <child>
-                              <object class="AdwEntryRow">
+                              <object class="AdwEntryRow" id="name_entry">
                                 <property name="title" translatable="yes">Name</property>
                                 <property name="use_underline">True</property>
                               </object>
                             </child>
                             <child>
-                              <object class="AdwEntryRow">
+                              <object class="AdwEntryRow" id="email_entry">
                                 <property name="title" translatable="yes">Email</property>
                               </object>
                             </child>
@@ -231,7 +231,7 @@
                             <property name="orientation">horizontal</property>
                             <property name="spacing">12</property>
                             <property name="homogeneous">True</property>
-                            <property name="height-request">80</property>
+                            <property name="height-request">60</property>
                             <property name="valign">center</property>
 
                             <child>
@@ -323,38 +323,19 @@
 
                         <child>
                           <object class="AdwBin">
-                            <property name="margin-top">12</property>
-                            <property name="margin-bottom">12</property>
-                            <property name="margin-start">12</property>
-                            <property name="margin-end">12</property>
-
+                            <property name="halign">center</property>
                             <property name="child">
-                              <object class="AdwPreferencesGroup">
-                                <property name="title" translatable="yes">Quick Start</property>
-                                <child>
-                                  <object class="GtkBox">
-                                    <property name="orientation">vertical</property>
-                                    <child>
-                                      <object class="GtkLabel">
-                                        <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">MonoBean Docs&lt;/a&gt;</property>
-                                        <property name="wrap">True</property>
-                                        <property name="wrap-mode">word-char</property>
-                                        <property name="use-markup">True</property>
-                                        <property name="xalign">0</property>
-                                      </object>
-                                    </child>
-                                    <child>
-                                      <object class="GtkLabel">
-                                        <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">Watch Videos&lt;/a&gt;</property>
-                                        <property name="wrap">True</property>
-                                        <property name="wrap-mode">word-char</property>
-                                        <property name="use-markup">True</property>
-                                        <property name="xalign">0</property>
-                                      </object>
-                                    </child>
-                                  </object>
-                                </child>
-                              </object>
+
+                                <object class="GtkButton">
+                                  <property name="label" translatable="yes">Go Ahead!</property>
+                                  <property name="valign">center</property>
+                                  <property name="action-name">win.get-start</property>
+                                  <style>
+                                    <class name="suggested-action" />
+                                    <class name="pill"/>
+                                  </style>
+                                </object>
+
                             </property>
                           </object>
                         </child>
@@ -381,7 +362,7 @@
 
                 <layout>
                   <property name="column">3</property>
-                  <property name="column-span">2</property>
+                  <property name="column-span">1</property>
                 </layout>
 
                 <style>
@@ -410,22 +391,71 @@
                 </child>
 
                 <child>
-                  <object class="AdwBin">
-                    <property name="margin-end">24</property>
-                    <property name="margin-bottom">24</property>
-                    <property name="child">
-                      <object class="GtkLabel">
-                        <property name="label" translatable="yes">MonoBean</property>
-                        <property name="wrap">True</property>
-                        <property name="wrap-mode">word-char</property>
-                        <property name="xalign">1.0</property>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="hexpand">True</property>
 
-                        <style>
-                          <class name="title" />
-                          <class name="title-1" />
-                        </style>
+                    <child>
+                      <object class="AdwBin">
+                        <property name="hexpand">True</property>
+                        <property name="halign">start</property>
+
+                        <property name="child">
+                          <object class="AdwPreferencesGroup">
+                            <property name="margin-bottom">24</property>
+                            <property name="margin-end">24</property>
+                            <property name="margin-start">12</property>
+                            <property name="margin-top">12</property>
+                            <property name="opacity">0.8</property>
+                            <property name="title" translatable="yes">Quick Start</property>
+                            <child>
+                              <object class="GtkBox">
+                                <property name="orientation">vertical</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">MonoBean Docs&lt;/a&gt;</property>
+                                    <property name="wrap">True</property>
+                                    <property name="wrap-mode">word-char</property>
+                                    <property name="use-markup">True</property>
+                                    <property name="xalign">0</property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">Watch Videos&lt;/a&gt;</property>
+                                    <property name="wrap">True</property>
+                                    <property name="wrap-mode">word-char</property>
+                                    <property name="use-markup">True</property>
+                                    <property name="xalign">0</property>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </property>
                       </object>
-                    </property>
+                    </child>
+
+                    <child>
+                      <object class="AdwBin">
+                        <property name="margin-end">24</property>
+                        <property name="child">
+                          <object class="GtkLabel">
+                            <property name="label" translatable="yes">MonoBean</property>
+                            <property name="wrap">True</property>
+                            <property name="wrap-mode">word-char</property>
+                            <property name="xalign">1.0</property>
+                            <property name="hexpand">True</property>
+                            <property name="opacity">0.8</property>
+
+                            <style>
+                              <class name="title" />
+                              <class name="title-1" />
+                            </style>
+                          </object>
+                        </property>
+                      </object>
+                    </child>
                   </object>
                 </child>
 
