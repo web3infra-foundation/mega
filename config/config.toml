@@ -1,6 +1,6 @@
 # the directory where the data files is located, such as logs, database, etc.
 # can be overrided by environment variable `MEGA_BASE_DIR`
-base_dir = "/tmp/.mega"
+base_dir = "/tmp/.mono"
 
 # Filling the following environment variables with values you set
 ## Logging Configuration
@@ -18,19 +18,19 @@ print_std = true
 [database]
 # "sqlite" | "postgres"
 # "sqlite" will use `db_path` and ignore `db_url`
-db_type = "sqlite"
+db_type = "postgres"
 
 # used for sqlite
-db_path = "${base_dir}/mega.db"
+db_path = ""
 
-# database connection url
-db_url = ""
+# database connection url, set to "postgres://mono:mono@mono-pg:5432/mono" if you're using docker
+db_url = "postgres://mono:mono@localhost:5432/mono"
 
 # db max connection, setting it to twice the number of CPU cores would be appropriate.
-max_connection = 32
+max_connection = 16
 
 # db min connection, setting it to the number of CPU cores would be appropriate.
-min_connection = 16
+min_connection = 8
 
 # Whether to disabling SQLx Log
 sqlx_logging = false
@@ -91,7 +91,7 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 # Maximum pack size, unit GB, enforces to use LFS off the limit
-maximum_pack_size = 4
+maximum_pack_size = 8
 
 [lfs]
 # LFS Server url
@@ -107,3 +107,13 @@ enable_split = true  # Default is disabled. Set to true to enable file splitting
 # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
 split_size = 20971520 # Default size is 20MB (20971520 bytes)
 
+[oauth]
+# GitHub OAuth application client id and secret
+github_client_id = ""
+github_client_secret = ""
+
+# Used for redirect to ui after login, for example: https://console.gitmono.com
+ui_domain = "http://localhost:3000"
+
+# Set your own domain here, for example: .gitmono.com
+cookie_domain = "localhost"
