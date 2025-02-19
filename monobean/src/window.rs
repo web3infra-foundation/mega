@@ -153,7 +153,7 @@ impl MonobeanWindow {
 }
 
 fn load_css() {
-    const CSS_FILES: [&str; 3] = ["tag.css", "card.css", "common.css"];
+    const CSS_FILES: [&str; 2] = ["tag.css", "common.css"];
 
     let _ = CSS_FILES
         .into_iter()
