@@ -15,12 +15,14 @@
         <file compressed="true">gtk/repo_tab.ui</file>
         <file compressed="true">gtk/repo_detail.ui</file>
 
-        <file compressed="true">gtk/card_base.ui</file>
         <file compressed="true">gtk/not_implemented.ui</file>
 
         <!-- Themed CSS -->
         <file compressed="true">css/tag.css</file>
         <file compressed="true">css/common.css</file>
+
+        <!-- Icons -->
+
 
     </gresource>
 </gresources>
