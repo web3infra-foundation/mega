@@ -293,8 +293,12 @@ import_dir = "/third-part"
 disable_http_push = false
 
 [pack]
-# The maximum memory used by decode, Unit is GB
-pack_decode_mem_size = 4
+# The maximum memory used by decode
+# Support the following units/notations: K, M, G, T, KB, MB, GB, TB, KiB, MiB, GiB, TiB, `%` and decimal percentages
+# Capacity units are case-insensitive and can also be spelled as mb or Mb
+# Abbreviated units are treated as binary byte units, for example M is treated as MiB
+pack_decode_mem_size = "4G"
+pack_decode_disk_size = "20%"
 
 # The location where the object stored when the memory used by decode exceeds the limit
 pack_decode_cache_path = "${base_dir}/cache"
