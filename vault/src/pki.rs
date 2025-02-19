@@ -62,14 +62,15 @@ async fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
 /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
 #[allow(clippy::await_holding_lock)]
 pub async fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
-    let core = core.read().unwrap();
-
     let role_data = data.as_object()
         .expect("`data` must be a JSON object")
         .clone();
 
     // config role
-    let result = write_api(&core, token, &format!("pki/roles/{}", ROLE), Some(role_data)).await;
+    let result = async_std::task::block_on(async {
+        let core = core.read().unwrap();
+        write_api(&core, token, &format!("pki/roles/{}", ROLE), Some(role_data)).await
+    });
     assert!(result.is_ok());
 }
 
@@ -107,16 +108,17 @@ async fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
 /// - return: `(cert_pem, private_key)`
 #[allow(clippy::await_holding_lock)]
 pub async fn issue_cert(data: Value) -> (String, String) {
-    let core = ca().await.core.read().unwrap();
-    let token = &ca().await.token;
-
     // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
     let issue_data = data.as_object()
         .expect("`data` must be a JSON object")
         .clone();
 
     // issue cert
-    let resp = write_api(&core, token, &format!("pki/issue/{}", ROLE), Some(issue_data)).await;
+    let resp = async_std::task::block_on(async {
+        let core = ca().await.core.read().unwrap();
+        let token = &ca().await.token;
+        write_api(&core, token, &format!("pki/issue/{}", ROLE), Some(issue_data)).await
+    });
     assert!(resp.is_ok());
     let resp_body = resp.unwrap();
     let cert_data = resp_body.unwrap().data.unwrap();
@@ -153,9 +155,11 @@ pub async fn verify_cert(cert_pem: &[u8]) -> bool {
 #[allow(clippy::await_holding_lock)]
 /// Get root certificate of CA
 pub async fn get_root_cert() -> String {
-    let core = ca().await.core.read().unwrap();
+    let resp_ca_pem = async_std::task::block_on(async {
+        let core = ca().await.core.read().unwrap();
+        read_api(&core, &ca().await.token, "pki/ca/pem").await.unwrap().unwrap()
+    });
 
-    let resp_ca_pem = read_api(&core, &ca().await.token, "pki/ca/pem").await.unwrap().unwrap();
     let ca_data = resp_ca_pem.data.unwrap();
 
     ca_data["certificate"].as_str().unwrap().to_owned()
