@@ -14,7 +14,7 @@ use std::cell::OnceCell;
 use crate::application::Action;
 
 glib::wrapper! {
-    pub struct MegaClientWindow(ObjectSubclass<imp::MegaClientWindow>)
+    pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
         @extends gtk::Widget, gtk::Window, gtk::ApplicationWindow,
         @implements gio::ActionGroup, gio::ActionMap;
 }
@@ -23,8 +23,8 @@ mod imp {
     use super::*;
 
     #[derive(Default, CompositeTemplate)]
-    #[template(resource = "/org/Web3Infrastructure/MegaClient/gtk/window.ui")]
-    pub struct MegaClientWindow {
+    #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/window.ui")]
+    pub struct MonobeanWindow {
         #[template_child]
         pub header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
@@ -46,9 +46,9 @@ mod imp {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for MegaClientWindow {
-        const NAME: &'static str = "MegaClientWindow";
-        type Type = super::MegaClientWindow;
+    impl ObjectSubclass for MonobeanWindow {
+        const NAME: &'static str = "MonobeanWindow";
+        type Type = super::MonobeanWindow;
         type ParentType = adw::ApplicationWindow;
 
         fn class_init(klass: &mut Self::Class) {
@@ -61,7 +61,7 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for MegaClientWindow {
+    impl ObjectImpl for MonobeanWindow {
         fn constructed(&self) {
             self.parent_constructed();
 
@@ -70,18 +70,18 @@ mod imp {
             obj.bind_settings();
         }
     }
-    impl WidgetImpl for MegaClientWindow {}
-    impl WindowImpl for MegaClientWindow {}
-    impl ApplicationWindowImpl for MegaClientWindow {}
-    impl AdwApplicationWindowImpl for MegaClientWindow {}
+    impl WidgetImpl for MonobeanWindow {}
+    impl WindowImpl for MonobeanWindow {}
+    impl ApplicationWindowImpl for MonobeanWindow {}
+    impl AdwApplicationWindowImpl for MonobeanWindow {}
 }
 
-impl MegaClientWindow {
+impl MonobeanWindow {
     pub fn new<P: glib::object::IsA<gtk::Application>>(
         application: &P,
         sender: Sender<Action>,
     ) -> Self {
-        let window: MegaClientWindow = glib::Object::builder()
+        let window: MonobeanWindow = glib::Object::builder()
             .property("application", application)
             .build();
 

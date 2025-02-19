@@ -14,9 +14,8 @@ members = [
     "taurus",
     "atlas",
     "orion",
-    "client"
 ]
-default-members = ["mega", "mono", "libra", "aries", "client"]
+default-members = ["mega", "mono", "libra", "aries"]
 resolver = "1"
 
 [workspace.dependencies]
@@ -33,7 +32,6 @@ taurus = { path = "taurus" }
 mega = { path = "mega" }
 mono = { path = "mono" }
 libra = { path = "libra" }
-client = { path = "client" }
 
 anyhow = "1.0.93"
 serde = "1.0.215"

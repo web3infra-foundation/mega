@@ -80,8 +80,8 @@ pub(super) struct PushRequest {
 }
 
 pub(super) async fn git_push_handler(
-    State(state): State<ScoState>, // 假设 ScoState 包含一些应用程序状态
-    axum::Json(payload): axum::Json<PushRequest>,   // 提取请求的 JSON 数据
+    State(state): State<ScoState>, 
+    axum::Json(payload): axum::Json<PushRequest>,
 ) -> impl IntoResponse {
     match state.manager.lock().await.push_commit(&payload.monopath).await {
         Ok(response) => {
