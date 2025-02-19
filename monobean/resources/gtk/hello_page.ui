@@ -26,30 +26,109 @@
       </section>
     </menu>
 
+    <menu id="menubar">
+      <submenu>
+        <attribute name="label" translatable="yes">_File</attribute>
+        <section>
+          <item>
+            <attribute name="label" translatable="yes">_New</attribute>
+            <attribute name="action">win.new</attribute>
+          </item>
+          <item>
+            <attribute name="label" translatable="yes">_Open</attribute>
+            <attribute name="action">win.open</attribute>
+          </item>
+          <item>
+            <attribute name="label" translatable="yes">_Save</attribute>
+            <attribute name="action">win.save</attribute>
+          </item>
+          <item>
+            <attribute name="label" translatable="yes">Save _As</attribute>
+            <attribute name="action">win.save-as</attribute>
+          </item>
+        </section>
+        <section>
+          <item>
+            <attribute name="label" translatable="yes">_Quit</attribute>
+            <attribute name="action">win.quit</attribute>
+          </item>
+        </section>
+      </submenu>
+      <submenu>
+        <attribute name="label" translatable="yes">_Edit</attribute>
+        <section>
+          <item>
+            <attribute name="label" translatable="yes">_Copy</attribute>
+            <attribute name="action">win.copy</attribute>
+          </item>
+          <item>
+            <attribute name="label" translatable="yes">_Cut</attribute>
+            <attribute name="action">win.cut</attribute>
+          </item>
+          <item>
+            <attribute name="label" translatable="yes">_Paste</attribute>
+            <attribute name="action">win.paste</attribute>
+          </item>
+        </section>
+      </submenu>
+      <submenu>
+        <attribute name="label" translatable="yes">_Help</attribute>
+        <section>
+          <item>
+            <attribute name="label" translatable="yes">_Help</attribute>
+            <attribute name="action">win.help</attribute>
+          </item>
+          <item>
+            <attribute name="label" translatable="yes">_About</attribute>
+            <attribute name="action">win.about</attribute>
+          </item>
+        </section>
+      </submenu>
+    </menu>
+
     <child>
       <object class="AdwToolbarView">
 
         <!-- Header bar -->
         <child type="top">
-          <object class="AdwHeaderBar" id="header_bar">
-            <property name="centering-policy">strict</property>
-            <child type="start">
-              <object class="GtkButton" id="back_button">
-                <property name="visible">false</property>
-                <property name="action-name">win.back-button</property>
-                <property name="icon-name">go-previous-symbolic</property>
-              </object>
-            </child>
-            <child type="end">
-              <object class="GtkMenuButton" id="primary_menu_button">
-                <property name="menu-model">primary_menu</property>
-                <property name="icon-name">open-menu-symbolic</property>
-              </object>
-            </child>
-            <child type="title">
-              <object class="GtkLabel">Hello</object>
-            </child>
-          </object>
+          <!-- Title Bar -->
+
+            <object class="AdwHeaderBar" id="header_bar">
+              <property name="centering-policy">strict</property>
+              <child type="start">
+                <object class="GtkBox">
+                  <property name="orientation">horizontal</property>
+
+                  <!-- MenuBar -->
+                  <child>
+                    <object class="GtkPopoverMenuBar" id="menubar1">
+                      <property name="menu-model">menubar</property>
+                      <accessibility>
+                        <property name="label">Main Menu</property>
+                      </accessibility>
+                    </object>
+                  </child>
+
+                  <child>
+                    <object class="GtkButton" id="back_button">
+                      <property name="visible">false</property>
+                      <property name="action-name">win.back-button</property>
+                      <property name="icon-name">go-previous-symbolic</property>
+                    </object>
+                  </child>
+                </object>
+              </child>
+              <child type="end">
+                <object class="GtkMenuButton" id="primary_menu_button">
+                  <property name="menu-model">primary_menu</property>
+                  <property name="icon-name">open-menu-symbolic</property>
+                </object>
+              </child>
+              <child type="title">
+                <object class="GtkLabel">Hello</object>
+              </child>
+            </object>
+
         </child>
 
         <!-- Content box, for setting basic infomation and display... -->
@@ -350,26 +429,8 @@
                   </object>
                 </child>
 
-                <!-- <child>
-
-                      <object class="GtkBox">
-                        <property name="orientation">vertical</property>
-                        <property name="margin-top">24</property>
-                        <property name="margin-bottom">24</property>
-                        <property name="margin-start">24</property>
-                        <property name="margin-end">24</property>
-                        <property name="hexpand">true</property>
-                        <property name="vexpand">true</property>
-                        <property name="halign">center</property>
-                        <property name="valign">center</property>
-
-                      </object>
-
-                </child> -->
-
               </object>
             </child>
-
 
           </object>
         </property>
