@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::path::PathBuf;
 
-use axum::async_trait;
+use async_trait::async_trait;
 
 use jupiter::context::Context;
 use mercury::errors::GitError;

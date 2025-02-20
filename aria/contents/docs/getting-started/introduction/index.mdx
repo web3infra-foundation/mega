@@ -3,14 +3,30 @@ title: Introduction
 description: Mega is an unofficial open source implementation of Google Piper. It is a monorepo & monolithic codebase management system that supports Git. Mega is designed to manage large-scale codebases, streamline development, and foster collaboration.
 ---
 
-Welcome to **Mega**! Mega is an unofficial open source implementation of Google Piper. It is a monorepo & monolithic codebase management system that supports Git. Mega is designed to manage large-scale codebases, streamline development, and foster collaboration.
+Whether you're dealing with large repository size affecting usability, performance, and management, or complex dependency relationships, multiple teams collaborating in the same repository, or optimizing build and CI/CD processes, Mega offers tools and workflows tailored to streamline your development experience. With Mega, managing monorepo & monolithic repositority becomes more efficient and less time-consuming, enabling you to focus on building great software.
+
+## Monorepo VS Monolithic
+
+A Monolithic repository (often abbreviated as Monolithic) refers to the practice of storing all code in a single repository. This could mean the entire codebase for a monolithic application, or even the complete codebase for all projects within a company, including applications, libraries, and tools. The goal of Monolithic repositories is to centralize code management, simplify dependency sharing, and promote consistent practices across projects.
+
+In contrast, a Monorepo is a structured approach to managing a Monolithic repository. While Monolithic describes the idea of storing all code together, Monorepo emphasizes specific tools, workflows, and best practices for maintaining such repositories. Monorepos often include features like dependency isolation, incremental builds, and advanced versioning systems to address the challenges of scale and complexity in a large Monolithic repository.
+
+Monorepo and Monolithic both involve managing large codebases and share some common challenges, but they differ in their purpose, scope, and approach.
+
+| **Aspect**          | **Monorepo**                                                                                                              | **Monolithic**                                                                                                             |
+|---------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| Definition          | A version control strategy where all code for multiple projects, libraries, or services is stored in a single repository. | A codebase structure where all components of an application or a company’s projects are stored together in one repository. |
+| Purpose             | Optimized for managing diverse projects with shared dependencies and workflows.                                           | Focuses on centralizing the code for a single application or an organization in one repository.                            |
+| Scope	              | Can include multiple applications, libraries, and tools, with modular or microservice architectures.                      | Typically refers to a single application or a company’s codebase, which might not follow modular design principles.        |
+| Tools and Workflows | Relies heavily on tools like Bazel, Nx, or Lerna to manage dependencies, builds, and scalability.                         | May or may not use advanced tools, as the emphasis is on central storage rather than optimized management.                 |
+| Modularity          | Encourages modularity, even within a single repository, to facilitate isolated builds and testing.                        | Often lacks modularity if applied to a monolithic application; everything is tightly coupled.                              |
 
 ##  Open Source Philosophy
 
 Mega is proudly **Open Source**! 🎉 We believe in creating an accessible, collaborative platform that thrives on community contributions.
 
 <Note title="Contribute">
- Interested in helping us improve? Check out our [Mega](https://github.com/web3infra-foundation/mega) to get started! From feature suggestions to bug fixes, all contributions are welcome.
+ Interested in helping us improve? Check out our [repository](https://github.com/web3infra-foundation/mega) to get started! From feature suggestions to bug fixes, all contributions are welcome.
 </Note>
 
 ## Project Overview

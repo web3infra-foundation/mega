@@ -78,3 +78,56 @@ To get started with blogs, follow these steps:
 
 This section serves as your starting point for exploring the application. By following the steps above, you can quickly and easily set up your content. For more customization and control, please refer to the following pages.
 
+
+## LFS Usage Configuration
+
+1. **Why you need to do this?**
+
+By default, Git LFS will append .git/info/lfs to the end of a Git remote url to build the LFS server URL it will use:
+```bash
+Git Remote: https://git-server.com/foo/bar
+LFS Server: https://git-server.com/foo/bar.git/info/lfs
+
+Git Remote: https://git-server.com/foo/bar.git
+LFS Server: https://git-server.com/foo/bar.git/info/lfs
+```
+see more details at [LFS doc](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
+
+Because Mega uses a monorepo with multiple layers of paths, LFS by default appends parameters to the request path. However, Axum’s support for wildcard paths is not sufficiently robust, making it difficult to include wildcards `(*)` in nested routes. Adapting wildcard `(*)` routes has become a challenging task.
+
+Therefore, we need to manually configure the LFS server’s address so that all requests start from the server’s root route. This simplifies the implementation of this part of the work.
+
+1. **Configure LFS Server URL for a Specific Repository**
+
+Go to your repository folder, set:
+```bash
+git config lfs.url https://git.gitmega.dev
+```
+
+Or manually edit the .git/config file in your repository and add or modify the lfs.url entry:
+
+```bash
+[remote "origin"]
+    url = https://git.gitmega.dev/your-repo.git
+
+[lfs]
+    url = https://git.gitmega.dev
+```
+
+3. **Set a Global LFS Server URL**
+
+To specify a global LFS server URL for all repositories, update your global Git configuration:
+
+```bash
+git config --global lfs.url https://git.gitmega.dev
+```
+Alternatively, directly edit the global configuration file ~/.gitconfig and add:
+
+```bash
+[lfs]
+    url = https://git.gitmega.dev
+```
+
+<Note type="warning" title="Note">
+If you choose to modify the global configuration, remember to remove the global LFS server configuration after testing Mega to ensure that the original SCM LFS service (e.g., GitHub) functions properly.
+</Note>

@@ -2,7 +2,13 @@ use std::path::PathBuf;
 
 use async_session::MemoryStore;
 use axum::extract::FromRef;
-use oauth2::basic::BasicClient;
+use oauth2::{
+    basic::{
+        BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
+        BasicTokenResponse,
+    },
+    Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
+};
 
 use ceres::{
     api_service::{
@@ -24,11 +30,30 @@ pub mod mr;
 pub mod oauth;
 pub mod user;
 
+pub type GithubClient<
+    HasAuthUrl = EndpointSet,
+    HasDeviceAuthUrl = EndpointNotSet,
+    HasIntrospectionUrl = EndpointNotSet,
+    HasRevocationUrl = EndpointNotSet,
+    HasTokenUrl = EndpointSet,
+> = Client<
+    BasicErrorResponse,
+    BasicTokenResponse,
+    BasicTokenIntrospectionResponse,
+    StandardRevocableToken,
+    BasicRevocationErrorResponse,
+    HasAuthUrl,
+    HasDeviceAuthUrl,
+    HasIntrospectionUrl,
+    HasRevocationUrl,
+    HasTokenUrl,
+>;
+
 #[derive(Clone)]
 pub struct MonoApiServiceState {
     pub context: Context,
     pub common: CommonOptions,
-    pub oauth_client: Option<BasicClient>,
+    pub oauth_client: Option<GithubClient>,
     // TODO: Replace MemoryStore
     pub store: Option<MemoryStore>,
 }
@@ -39,7 +64,7 @@ impl FromRef<MonoApiServiceState> for MemoryStore {
     }
 }
 
-impl FromRef<MonoApiServiceState> for BasicClient {
+impl FromRef<MonoApiServiceState> for GithubClient {
     fn from_ref(state: &MonoApiServiceState) -> Self {
         state.oauth_client.clone().unwrap()
     }

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{env, fs};
 
-use axum::async_trait;
+use async_trait::async_trait;
 use tokio::process::Command;
 
 use callisto::db_enums::ConvType;

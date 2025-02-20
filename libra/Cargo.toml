@@ -15,7 +15,7 @@ bytes = { workspace = true }
 ceres = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-color-backtrace = "0.6.1"
+color-backtrace = "0.7.0"
 colored = { workspace = true }
 common = { workspace = true }
 flate2 = { workspace = true } # add features = ["zlib"] if slow
@@ -25,7 +25,7 @@ gemini = { workspace = true, optional = true }
 hex = { workspace = true }
 imara-diff = "0.1.7"
 indicatif = "0.17.8"
-infer = "0.16.0"
+infer = "0.19.0"
 lazy_static = { workspace = true }
 lru-mem = "0.3.0"
 mercury = { workspace = true }
@@ -52,7 +52,6 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 url = "2.5.3"
 wax = "0.6.0"
-
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = "0.16.0"
 

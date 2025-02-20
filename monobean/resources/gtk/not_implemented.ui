@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <template class="NotImplemented" parent="GtkBox">
+        <property name="vexpand">True</property>
+        <property name="hexpand">True</property>
+        <child>
+            <object class="AdwStatusPage" id="status_page">
+                <property name="vexpand">True</property>
+                <property name="hexpand">True</property>
+                <property name="title">Not Implemented</property>
+                <property name="description">This feature has not been implemented yet.</property>
+                <property name="icon-name">dialog-warning-symbolic</property>
+            </object>
+        </child>
+    </template>
+</interface>

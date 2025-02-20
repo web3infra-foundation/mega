@@ -194,19 +194,23 @@ pub async fn git_receive_pack(
     let mut data_stream = req.into_body().into_data_stream();
     let mut report_status = Bytes::new();
 
+    let mut chunk_buffer = BytesMut::new(); // Used to cache the data of chunks before the PACK subsequence is found.
     // Process the data stream to handle the Git receive-pack protocol.
     while let Some(chunk) = data_stream.next().await {
         let chunk = chunk.unwrap();
         // Process the data up to the "PACK" subsequence.
         if let Some(pos) = search_subsequence(&chunk, b"PACK") {
-            pack_protocol.git_receive_pack_protocol(Bytes::copy_from_slice(&chunk[0..pos]));
+            chunk_buffer.extend_from_slice(&chunk[0..pos]);
+            pack_protocol.git_receive_pack_protocol(Bytes::copy_from_slice(&chunk_buffer));
             // Create a new stream from the remaining bytes and the rest of the data stream.
-            let remaining_bytes = Bytes::copy_from_slice(&chunk[pos..]);
-            let remaining_stream = stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
+            let left_chunk_bytes = Bytes::copy_from_slice(&chunk[pos..]);
+            let pack_stream = stream::once(async { Ok(left_chunk_bytes) }).chain(data_stream);
             report_status = pack_protocol
-                .git_receive_pack_stream(Box::pin(remaining_stream))
+                .git_receive_pack_stream(Box::pin(pack_stream))
                 .await?;
             break;
+        } else {
+            chunk_buffer.extend_from_slice(&chunk);
         }
     }
     tracing::info!("report status:{:?}", report_status);

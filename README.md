@@ -40,8 +40,8 @@ For now, the monorepo engine could be deployed on your host machine or insulated
 
 ```bash
 $ docker pull genedna/mega:mono-pg-0.1-pre-release
-$ docker pull genedna/mega:mono-engine:0.1-pre-release
-$ docker pull genedna/mega:mono-ui:0.1-pre-release
+$ docker pull genedna/mega:mono-engine-0.1-pre-release
+$ docker pull genedna/mega:mono-ui-0.1-pre-release
 ```
 
 2. Initialize for mono-engine and PostgreSQL
@@ -50,7 +50,7 @@ $ docker pull genedna/mega:mono-ui:0.1-pre-release
 $ git clone https://github.com/web3infra-foundation/mega.git
 $ cd mega
 # Linux or MacOS
-$ ./docker/init-volume.sh /mnt/data ./docker/config.toml
+$ ./docker/init-volume.sh /tmp/data ./docker/config.toml
 ```
 
 3. Run the mono-engine and PostgreSQL with docker, and open the mono-ui in your browser with `http://localhost:3000`.
@@ -60,9 +60,9 @@ $ ./docker/init-volume.sh /mnt/data ./docker/config.toml
 $ docker network create mono-network
 
 # run postgres
-$ docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mono-pg:0.1-pre-release
-$ docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 mono-engine:0.1-pre-release
-$ docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 mono-ui:0.1-pre-release
+$ docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 genedna/mega:mono-pg-0.1-pre-release
+$ docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 genedna/mega:mono-engine-0.1-pre-release
+$ docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 genedna/mega:mono-ui-0.1-pre-release
 ```
 
 4. Try to upload a repository to mono-engine

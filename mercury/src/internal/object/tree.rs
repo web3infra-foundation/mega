@@ -14,15 +14,15 @@
 //! have been added, modified, or deleted between two points in time. This allows Git to perform
 //! operations like merging and rebasing more quickly and accurately.
 //!
-use std::fmt::Display;
-use colored::Colorize;
-use serde::Deserialize;
-use serde::Serialize;
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
-
+use colored::Colorize;
+use encoding_rs::GBK;
+use serde::Deserialize;
+use serde::Serialize;
+use std::fmt::Display;
 
 /// In Git, the mode field in a tree object's entry specifies the type of the object represented by
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
@@ -180,13 +180,26 @@ impl TreeItem {
         let mode = parts.next().unwrap();
         let rest = parts.next().unwrap();
         let mut parts = rest.splitn(2, |b| *b == b'\0');
-        let name = parts.next().unwrap();
+        let raw_name = parts.next().unwrap();
         let id = parts.next().unwrap();
 
+        let name = if String::from_utf8(raw_name.to_vec()).is_ok() {
+            String::from_utf8(raw_name.to_vec()).unwrap()
+        } else {
+            let (decoded, _, had_errors) = GBK.decode(raw_name);
+            if had_errors {
+                return Err(GitError::InvalidTreeItem(format!(
+                    "Unsupported raw format: {:?}",
+                    raw_name
+                )));
+            } else {
+                decoded.to_string()
+            }
+        };
         Ok(TreeItem {
             mode: TreeItemMode::tree_item_type_from_bytes(mode)?,
             id: SHA1::from_bytes(id),
-            name: String::from_utf8(name.to_vec())?,
+            name,
         })
     }
 
@@ -262,7 +275,7 @@ impl Tree {
     }
 
     /// After the subdirectory is changed, the hash value of the tree is recalculated.
-    pub fn rehash(&mut self){
+    pub fn rehash(&mut self) {
         let mut data = Vec::new();
         for item in &self.tree_items {
             data.extend_from_slice(item.to_data().as_slice());
@@ -271,9 +284,9 @@ impl Tree {
     }
 }
 
-impl TryFrom<&[u8]> for Tree{
+impl TryFrom<&[u8]> for Tree {
     type Error = GitError;
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error>  {
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let h = SHA1::from_type_and_data(ObjectType::Tree, data);
         Tree::from_bytes(data, h)
     }

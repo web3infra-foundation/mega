@@ -29,13 +29,11 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
 russh = { workspace = true }
-russh-keys = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
-async-trait = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = [
     "cors",
@@ -58,7 +56,12 @@ base64 = { workspace = true }
 async-session = "3.0.0"
 http = "1.1.0"
 cedar-policy = { workspace = true }
+
+[target.'cfg(not(windows))'.dependencies]
 jemallocator = "0.5.4"
+
+[target.'cfg(windows)'.dependencies]
+mimalloc = "0.1.43"
 
 [dev-dependencies]
 

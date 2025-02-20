@@ -20,6 +20,9 @@ impl GPath{
     pub fn push(&mut self, path:String){
         self.path.push(path);
     }
+    pub fn pop(&mut self)->Option<String>  {
+        self.path.pop()
+    }
     pub fn name(&self) -> String{
         self.path.last().unwrap().clone()
     }

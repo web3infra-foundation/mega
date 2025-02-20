@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use russh_keys::{parse_public_key_base64, HashAlg};
+use russh::keys::{parse_public_key_base64, HashAlg};
 
 use common::model::CommonResult;
 
@@ -16,15 +16,18 @@ use crate::api::MonoApiServiceState;
 use crate::api::{error::ApiError, oauth::model::LoginUser, util};
 
 pub fn routers() -> Router<MonoApiServiceState> {
-    Router::new()
-        .route("/user", get(user))
-        .route("/user/ssh", get(list_key))
-        .route("/user/ssh", post(add_key))
-        .route("/user/ssh/:key_id/delete", post(remove_key))
-        .route("/user/token/generate", post(generate_token))
-        .route("/user/token/list", get(list_token))
-        .route("/user/token/:key_id/delete", post(remove_token))
-        .route("/repo-permissions", get(repo_permissions))
+    Router::new().nest(
+        "/user",
+        Router::new()
+            .route("/", get(user))
+            .route("/ssh", get(list_key))
+            .route("/ssh", post(add_key))
+            .route("/ssh/{key_id}/delete", post(remove_key))
+            .route("/token/generate", post(generate_token))
+            .route("/token/list", get(list_token))
+            .route("/token/{key_id}/delete", post(remove_token))
+            .route("/repo-permissions", get(repo_permissions)),
+    )
 }
 
 async fn user(
@@ -54,7 +57,12 @@ async fn add_key(
 
     let res = state
         .user_stg()
-        .save_ssh_key(user.user_id, &title, &json.ssh_key, &key.fingerprint(HashAlg::Sha256).to_string())
+        .save_ssh_key(
+            user.user_id,
+            &title,
+            &json.ssh_key,
+            &key.fingerprint(HashAlg::Sha256).to_string(),
+        )
         .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),

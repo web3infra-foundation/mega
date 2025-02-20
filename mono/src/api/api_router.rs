@@ -35,7 +35,7 @@ pub fn routers() -> Router<MonoApiServiceState> {
         .route("/tree/path-can-clone", get(path_can_be_cloned))
         .route("/tree", get(get_tree_info))
         .route("/blob", get(get_blob_string))
-        .route("/file/blob/:object_id", get(get_blob_file))
+        .route("/file/blob/{object_id}", get(get_blob_file))
         .route("/file/tree", get(get_tree_file));
     Router::new()
         .merge(router)

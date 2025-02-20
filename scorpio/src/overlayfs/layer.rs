@@ -21,7 +21,7 @@ pub trait Layer: Filesystem {
     async fn create_whiteout(&self, ctx: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
         // Use temp value to avoid moved 'parent'.
         let ino: u64 = parent;
-        match self.lookup(ctx, ino, name).await {//FXIME: errir 
+        match self.lookup(ctx, ino, name).await {//FXIME: errir
             Ok(v) => {
                 // Find whiteout char dev.
                 if is_whiteout(&v.attr) {
@@ -46,7 +46,7 @@ pub trait Layer: Filesystem {
                     }
                     None => return Err(e.into()),
                 }
-               
+
             },
         }
 
@@ -126,7 +126,7 @@ pub trait Layer: Filesystem {
             return Err(Error::from_raw_os_error(libc::ENOTDIR).into());
         }
 
-       
+
         // Return Result<is_opaque>.
         let check_attr = |inode: Inode, attr_name: &'static str, attr_size: u32| async move {
             let cname = OsStr::new(attr_name);
@@ -134,7 +134,7 @@ pub trait Layer: Filesystem {
                 Ok(v) => {
                     // xattr name exists and we get value.
                     if let ReplyXAttr::Data(bufs)  = v {
-                        if bufs.len() == 1 && bufs[0].to_ascii_lowercase() == b'y' {
+                        if bufs.len() == 1 && bufs[0].eq_ignore_ascii_case(&b'y') {
                             return Ok(true);
                         }
                     }

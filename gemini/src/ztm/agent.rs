@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use axum::async_trait;
+use async_trait::async_trait;
 use common::config::Config;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
@@ -141,7 +141,7 @@ impl LocalZTMAgent {
                 remove_dir_all(path).unwrap();
             }
 
-            neptune::start_agent(db_path, self.agent_port);
+            // neptune::start_agent(db_path, self.agent_port);
         });
     }
 }
