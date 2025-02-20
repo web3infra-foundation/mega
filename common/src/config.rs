@@ -261,7 +261,6 @@ pub struct PackConfig {
     pub pack_decode_cache_path: PathBuf,
     pub clean_cache_after_decode: bool,
     pub channel_message_size: usize,
-    pub maximum_pack_size: String,
 }
 
 impl Default for PackConfig {
@@ -272,7 +271,6 @@ impl Default for PackConfig {
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
-            maximum_pack_size: "8G".to_string(),
         }
     }
 }

@@ -110,21 +110,7 @@ pub trait PackHandler: Send + Sync {
             Some(pack_config.pack_decode_cache_path.clone()),
             pack_config.clean_cache_after_decode,
         );
-
-        let maximum_pack_size =
-            match PackConfig::get_size_from_str(&pack_config.maximum_pack_size, || Ok(0)) {
-                Ok(mem) => mem,
-                Err(err) => return Err(ProtocolError::InvalidInput(err)),
-            };
-        let (unpack_handle, convert) = p.decode_stream(stream, maximum_pack_size, sender).await;
-        match convert.await.unwrap() {
-            Ok(_) => (),
-            Err(err) => {
-                // not working in spawn_blocking?
-                unpack_handle.abort();
-                return Err(err);
-            }
-        }
+        p.decode_stream(stream, sender).await;
         Ok(receiver)
     }
 
