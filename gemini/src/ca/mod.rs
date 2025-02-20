@@ -23,10 +23,10 @@ impl ErrorResult {
 pub async fn get_certificate(name: String) -> Result<Response, (StatusCode, String)> {
     if name == "ca" {
         return Ok(Response::builder()
-            .body(Body::from(vault::pki::get_root_cert()))
+            .body(Body::from(vault::pki::get_root_cert().await))
             .unwrap());
     }
-    let cert_option = get_from_vault(name);
+    let cert_option = get_from_vault(name).await;
     match cert_option {
         Some(cert) => Ok(Response::builder().body(Body::from(cert)).unwrap()),
         None => response_error(
@@ -53,9 +53,9 @@ pub async fn issue_certificate(name: String) -> Result<Response, (StatusCode, St
     let (cert_pem, private_key) = vault::pki::issue_cert(json!({
         "ttl": "10d",
         "common_name": name,
-    }));
+    })).await;
     //save cert to vault
-    save_to_vault(name, cert_pem);
+    save_to_vault(name, cert_pem).await;
     Ok(Response::builder().body(Body::from(private_key)).unwrap())
 }
 
@@ -70,7 +70,7 @@ pub async fn sign_certificate(
             "Reserved username".to_string(),
         );
     }
-    let cert_option = get_from_vault(name.clone());
+    let cert_option = get_from_vault(name.clone()).await;
     if cert_option.is_some() {
         return response_error(
             StatusCode::CONFLICT.as_u16(),
@@ -80,9 +80,9 @@ pub async fn sign_certificate(
     let (cert_pem, private_key) = vault::pki::issue_cert(json!({
         "ttl": "10d",
         "common_name": name,
-    }));
+    })).await;
     //save cert to vault
-    save_to_vault(name, cert_pem);
+    save_to_vault(name, cert_pem).await;
     Ok(Response::builder().body(Body::from(private_key)).unwrap())
 }
 
@@ -129,7 +129,7 @@ fn is_hub_name(_name: String) -> bool {
     false
 }
 
-fn save_to_vault(key: String, value: String) {
+async fn save_to_vault(key: String, value: String) {
     let key_f = format!("ca_{key}");
     let kv_data = json!({
         key_f.clone(): value,
@@ -137,12 +137,12 @@ fn save_to_vault(key: String, value: String) {
     .as_object()
     .unwrap()
     .clone();
-    vault::vault::write_secret(key_f.as_str(), Some(kv_data.clone())).unwrap();
+    vault::vault::write_secret(key_f.as_str(), Some(kv_data.clone())).await.unwrap();
 }
 
-fn get_from_vault(key: String) -> Option<String> {
+async fn get_from_vault(key: String) -> Option<String> {
     let key_f = format!("ca_{key}");
-    let secret = match vault::vault::read_secret(key_f.as_str()).unwrap() {
+    let secret = match vault::vault::read_secret(key_f.as_str()).await.unwrap() {
         Some(res) => res.data,
         None => return None,
     };

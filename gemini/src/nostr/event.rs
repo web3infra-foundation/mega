@@ -135,10 +135,10 @@ impl TryFrom<ztm_nostr_event::Model> for NostrEvent {
 }
 
 impl NostrEvent {
-    pub fn new(tags: Vec<Tag>, content: String) -> Self {
+    pub async fn new(tags: Vec<Tag>, content: String) -> Self {
         let created_at = get_utc_timestamp();
 
-        let (_, sk) = init();
+        let (_, sk) = init().await;
         let secp = Secp256k1::new();
         let keypair = secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap();
 

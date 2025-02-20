@@ -44,7 +44,7 @@ async fn recieve(
         event,
     } = relay_msg
     {
-        if subscription_id.to_string() != vault::init().0 {
+        if subscription_id.to_string() != vault::init().await.0 {
             return Err((StatusCode::BAD_REQUEST, String::from("bad subscription id")));
         }
         //save event to database
@@ -72,9 +72,9 @@ pub struct GitEventReq {
 }
 
 impl GitEventReq {
-    pub fn to_git_event(&self, identifier: String, commit: String) -> GitEvent {
+    pub async fn to_git_event(&self, identifier: String, commit: String) -> GitEvent {
         GitEvent {
-            peer: vault::get_peerid(),
+            peer: vault::get_peerid().await,
             uri: identifier,
             action: self.action.clone(),
             r#ref: "".to_string(),
@@ -115,7 +115,7 @@ async fn send(
         }
     };
     let http_port = state.port;
-    let identifier = repo_path_to_identifier(http_port, git_model.clone().repo_path);
+    let identifier = repo_path_to_identifier(http_port, git_model.clone().repo_path).await;
 
     let git_ref = git_db_storage
         .get_default_ref(git_model.id)
@@ -133,7 +133,7 @@ async fn send(
         }
     };
 
-    let git_event = git_event_req.to_git_event(identifier, git_ref.ref_git_id);
+    let git_event = git_event_req.to_git_event(identifier, git_ref.ref_git_id).await;
 
     match git_event.sent_to_relay(bootstrap_node.clone()).await {
         Ok(_) => {

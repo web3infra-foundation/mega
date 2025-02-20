@@ -50,7 +50,7 @@ async fn repo_provide(
         state.inner.context.clone(),
         path,
         alias,
-        get_peerid(),
+        get_peerid().await,
     )
     .await
     {
@@ -86,7 +86,7 @@ async fn repo_fork(
 
     //nostr subscribe to Events
     if let Some(bootstrap_node) = state.ztm.bootstrap_node.clone() {
-        let _ = subscribe_git_event(identifier.to_string(), get_peerid(), bootstrap_node).await;
+        let _ = subscribe_git_event(identifier.to_string(), get_peerid().await, bootstrap_node).await;
     }
 
     Ok(Json(res))
@@ -96,7 +96,7 @@ async fn peer_id(
     Query(_query): Query<HashMap<String, String>>,
     _state: State<MegaApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
-    let (peer_id, _) = vault::init();
+    let (peer_id, _) = vault::init().await;
     Ok(Json(CommonResult::success(Some(peer_id))))
 }
 

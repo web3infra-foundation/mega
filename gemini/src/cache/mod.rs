@@ -72,7 +72,7 @@ async fn cache_public_repository_handler(
         }
     };
     for repo in repo_list {
-        if !repo.peer_online && repo.origin != get_peerid() {
+        if !repo.peer_online && repo.origin != get_peerid().await {
             continue;
         }
         let bootstrap_node = bootstrap_node.clone();
@@ -268,7 +268,7 @@ async fn cache_public_lfs_handler(
         }
     };
     for lfs in lfs_list {
-        if !lfs.peer_online || lfs.peer_id == get_peerid() {
+        if !lfs.peer_online || lfs.peer_id == get_peerid().await {
             continue;
         }
         let lfs_object = context
