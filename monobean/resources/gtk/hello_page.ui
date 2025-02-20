@@ -231,7 +231,7 @@
                             <property name="orientation">horizontal</property>
                             <property name="spacing">12</property>
                             <property name="homogeneous">True</property>
-                            <property name="height-request">60</property>
+                            <property name="height-request">50</property>
                             <property name="valign">center</property>
 
                             <child>
@@ -326,10 +326,10 @@
                             <property name="halign">center</property>
                             <property name="child">
 
-                                <object class="GtkButton">
+                                <object class="GtkButton" id="continue_button">
                                   <property name="label" translatable="yes">Go Ahead!</property>
                                   <property name="valign">center</property>
-                                  <property name="action-name">win.get-start</property>
+                                  <property name="sensitive">False</property>
                                   <style>
                                     <class name="suggested-action" />
                                     <class name="pill"/>
