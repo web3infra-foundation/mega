@@ -48,7 +48,9 @@ impl InodeStore {
         self.data.insert(data.inode, data);
     }
 
+    
     /// Remove an inode from the manager, keeping the (key, ino) mapping if `remove_data_only` is true.
+    #[allow(unused)]
     pub fn remove(&mut self, inode: &Inode, remove_data_only: bool) -> Option<Arc<InodeData>> {
         let data = self.data.remove(inode);
         if remove_data_only {
