@@ -77,6 +77,7 @@ pub fn routers() -> Router<AppState> {
     Router::new()
         .merge(router)
         .merge(api::nostr_router::routers())
+        .merge(api::ca_router::routers())
 }
 
 async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
