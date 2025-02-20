@@ -49,7 +49,7 @@ mod imp {
 
         #[template_child]
         pub not_implemented: TemplateChild<NotImplemented>,
-        
+
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
     }
@@ -113,7 +113,7 @@ impl MonobeanWindow {
     fn setup_page(&self) {
         let imp = self.imp();
         let setting = self.settings();
-        
+
         imp.hello_page.setup_hello_page(self.sender());
 
         // We are developing, so always show hello_page for debug
@@ -124,12 +124,12 @@ impl MonobeanWindow {
         // we will show them as default value.
         imp.hello_page.fill_entries(None, None);
     }
-    
+
     pub fn show_main_page(&self) {
         let stack = self.imp().base_stack.clone();
-        stack.set_visible_child_name("mega_tab");
+        stack.set_visible_child_name("main_page");
     }
-    
+
     pub fn show_hello_page(&self, name: Option<String>, email: Option<String>) {
         let stack = self.imp().base_stack.clone();
         let page = self.imp().hello_page.clone();
