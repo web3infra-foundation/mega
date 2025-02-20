@@ -78,7 +78,7 @@ pub async fn get_or_create_remote_mega_tunnel(
     ztm_agent_port: u16,
     remote_peer_id: String,
 ) -> Result<u16, String> {
-    let bound_name = get_ztm_app_tunnel_bound_name(remote_peer_id.clone());
+    let bound_name = get_ztm_app_tunnel_bound_name(remote_peer_id.clone()).await;
 
     //Check if the tunnel exists
     let local_port = search_tunnel_inbound_port(ztm_agent_port, bound_name.clone()).await;

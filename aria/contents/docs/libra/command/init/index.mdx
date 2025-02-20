@@ -1,21 +1,32 @@
 ---
 title: The [init] Command
-description:
+description: Create an empty Libra repository
 ---
-
-# init
-
-**Create an empty Libra repository**
 
 ### Usage
 
-libra init
+libra init [OPTIONS]
 
 ### Description
 
 This command creates the necessary directories and files for a new Libra repository.
 It also sets up the database and the initial configuration.
+By default, the repository is initialized with a .libra directory.
+You can initialize a bare repository with the --bare flag,
+which sets up the repository without a working directory, containing only Libra data.
 
 ### Options
 
+-   `--bare`
+    Initialize a bare repository.
+    <Note type="danger" title="Git bare VS Libra bare">
+    **Note**：Unlike Git's `--bare`, the Libra init `--bare` initializes a bare repository that contains Libra's own SQLite database.
+    </Note>
+-   `-b`, `--initial-branch <INITIAL_BRANCH>`
+    Override the name of the initial branch
 -   `-h`, `--help` Print help
+-   `[directory]`
+    Initialize the repository with specified directory
+-   `-q`,`--quiet`
+    Suppress all output except for errors
+    

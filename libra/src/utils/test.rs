@@ -78,21 +78,36 @@ pub fn setup_clean_testing_env() {
     setup_env();
 
     // Get the current directory
-    let mut path = util::cur_dir();
+    let cur_path = util::cur_dir();
 
     // Append the Libra root directory to the current directory
-    path.push(util::ROOT_DIR);
+    let root_path=cur_path.join(util::ROOT_DIR);
 
     // If the Libra root directory exists, remove it
-    if path.exists() {
-        fs::remove_dir_all(&path).unwrap();
+    if root_path.exists() {
+        fs::remove_dir_all(&root_path).unwrap();
+    }
+
+    // Define the directories that are present in a bare repository
+    let bare_repo_dirs = ["objects", "info", "description", "libra.db"];
+
+    // Remove the directories that are present in a bare repository if they exist
+    for dir in bare_repo_dirs.iter() {
+        let bare_repo_path = cur_path.join(dir);
+        if bare_repo_path.exists() && bare_repo_path.is_dir() {
+            fs::remove_dir_all(&bare_repo_path).unwrap();
+        } else if bare_repo_path.exists() && !bare_repo_path.is_dir() {
+            // Remove the file if it exists
+            fs::remove_file(&bare_repo_path).unwrap();
+        }
     }
 }
 
 /// switch to test dir and create a new .libra
 pub async fn setup_with_new_libra() {
     setup_clean_testing_env();
-    command::init::init().await.unwrap();
+    let args = command::init::InitArgs { bare: false, initial_branch: None, repo_directory: util::cur_dir().to_str().unwrap().to_string(),quiet:false };
+    command::init::init(args).await.unwrap();
 }
 
 pub fn init_debug_logger() {

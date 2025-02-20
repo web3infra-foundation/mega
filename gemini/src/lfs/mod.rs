@@ -39,7 +39,7 @@ pub async fn share_lfs(
         file_hash,
         hash_type,
         file_size,
-        peer_id: vault::get_peerid(),
+        peer_id: vault::get_peerid().await,
         origin,
     };
     tracing::info!("Share lfs {:?}", lfs);
@@ -148,9 +148,10 @@ pub async fn create_lfs_download_tunnel(
             return Err(e.to_string());
         }
     };
+    let peer_id = vault::get_peerid().await;
     let peer_list: HashSet<String> = lfs_list
         .iter()
-        .filter(|x| x.file_hash == file_hash && x.peer_online && x.peer_id != vault::get_peerid())
+        .filter(|x| x.file_hash == file_hash && x.peer_online && x.peer_id != peer_id)
         .map(|x| x.peer_id.clone())
         .collect();
     tracing::info!("Search lfs[{}] download peer:{:?}", file_hash, peer_list);

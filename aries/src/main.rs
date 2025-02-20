@@ -45,7 +45,7 @@ async fn main() {
     tracing::info!("{:?}", option);
 
     if option.only_agent {
-        let (peer_id, _) = vault::init();
+        let (peer_id, _) = vault::init().await;
         let ztm_agent: LocalZTMAgent = LocalZTMAgent {
             agent_port: option.ztm_agent_port,
         };

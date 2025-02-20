@@ -51,15 +51,22 @@ impl GeminiModels {
     }
 }
 
+const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com";
+
 #[derive(Debug, Clone)]
 pub struct GeminiClient {
     api_key: String,
     model: GeminiModels,
+    api_base: String,
 }
 
 impl GeminiClient {
-    pub fn new(api_key: String, model: GeminiModels) -> Self {
-        Self { api_key, model }
+    pub fn new(api_key: String, model: GeminiModels, api_base: Option<String>) -> Self {
+        Self {
+            api_key,
+            model,
+            api_base: api_base.unwrap_or(GEMINI_API_BASE.to_owned()),
+        }
     }
 }
 
@@ -69,7 +76,8 @@ impl AskModel for GeminiClient {
         _context: ChatMessage,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/{}:generateContent?key={}",
+            "{}/v1beta/{}:generateContent?key={}",
+            self.api_base,
             self.model.as_str(),
             self.api_key
         );
@@ -153,12 +161,29 @@ struct UsageMegadata {
 
 #[cfg(test)]
 mod test {
-    use crate::api::test::test_client_with_context;
+    use crate::api::{
+        gemini::{GeminiClient, GeminiModels},
+        test::test_client_with_context,
+    };
 
     #[tokio::test]
     async fn test_gemini_client_with_context() {
-        let api_key = super::super::test::get_gemini_key().unwrap();
-        let client = super::GeminiClient::new(api_key, super::GeminiModels::Gemini15Flash);
-        test_client_with_context(client).await;
+        let api_key = std::env::var("GOOGLE_GEMINI_KEY");
+        let api_base = std::env::var("GOOGLE_GEMINI_API_BASE");
+
+        match (api_key, api_base) {
+            (Ok(api_key), Ok(api_base)) => {
+                let client =
+                    GeminiClient::new(api_key, GeminiModels::Gemini15Flash, Some(api_base));
+
+                test_client_with_context(client).await;
+            }
+            (Ok(api_key), Err(_)) => {
+                let client = GeminiClient::new(api_key, GeminiModels::Gemini15Flash, None);
+
+                test_client_with_context(client).await;
+            }
+            _ => eprintln!("GOOGLE_GEMINI_KEY is not set, skip this test."),
+        }
     }
 }

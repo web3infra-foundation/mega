@@ -6,7 +6,8 @@ use lazy_static::lazy_static;
 use rusty_vault::core::{Core, SealConfig};
 use rusty_vault::errors::RvError;
 use rusty_vault::logical::{Operation, Request, Response};
-use rusty_vault::storage::{barrier_aes_gcm, physical};
+use rusty_vault::storage;
+use rusty_vault::storage::barrier_aes_gcm;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -42,7 +43,7 @@ fn init() -> CoreInfo {
     let mut conf: HashMap<String, Value> = HashMap::new();
     conf.insert("path".to_string(), Value::String(dir.to_string_lossy().into_owned()));
 
-    let backend = physical::new_backend("file", &conf).unwrap(); // file or database
+    let backend = storage::new_backend("file", &conf).unwrap(); // file or database
     let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
 
     let c = Arc::new(RwLock::new(Core { physical: backend, barrier: Arc::new(barrier), ..Default::default() }));
@@ -96,14 +97,14 @@ fn init() -> CoreInfo {
     CoreInfo { core: c, token: root_token }
 }
 
-pub fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
+pub async fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
     let mut req = Request::new(path);
     req.operation = Operation::Read;
     req.client_token = token.to_string();
-    core.handle_request(&mut req)
+    core.handle_request(&mut req).await // !Send
 }
 
-pub fn write_api(
+pub async fn write_api(
     core: &Core,
     token: &str,
     path: &str,
@@ -114,19 +115,21 @@ pub fn write_api(
     req.client_token = token.to_string();
     req.body = data;
 
-    let resp = core.handle_request(&mut req);
+    let resp = core.handle_request(&mut req).await; // !Send
     println!("path: {}, req.body: {:?}", path, req.body);
     resp
 }
 
 /// Write a secret to the vault (k-v)
-pub fn write_secret(name: &str, data: Option<Map<String, Value>>) -> Result<Option<Response>, RvError> {
-    write_api(&CORE.core.read().unwrap(), &CORE.token, &format!("secret/{}", name), data)
+pub async fn write_secret(name: &str, data: Option<Map<String, Value>>) -> Result<Option<Response>, RvError> {
+    // async_std: stop spread of `!Send` (RwLockReadGuard cross .await), for `tokio::spawn`
+    async_std::task::block_on(write_api(&CORE.core.read().unwrap(), &CORE.token, &format!("secret/{}", name), data))
 }
 
 /// Read a secret from the vault (k-v)
-pub fn read_secret(name: &str) -> Result<Option<Response>, RvError> {
-    read_api(&CORE.core.read().unwrap(), &CORE.token, &format!("secret/{}", name))
+pub async fn read_secret(name: &str) -> Result<Option<Response>, RvError> {
+    // async_std: stop spread of `!Send` (RwLockReadGuard cross .await), for `tokio::spawn`
+    async_std::task::block_on(read_api(&CORE.core.read().unwrap(), &CORE.token, &format!("secret/{}", name)))
 }
 
 #[cfg(test)]
@@ -134,8 +137,9 @@ mod tests {
     use serde_json::json;
     use super::*;
 
-    #[test]
-    fn test_secret() {
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test]
+    async fn test_secret() {
         // create secret
         let kv_data = json!({
             "foo": "bar",
@@ -144,13 +148,13 @@ mod tests {
         .as_object()
         .unwrap()
         .clone();
-        write_secret("keyInfo", Some(kv_data.clone())).unwrap();
+        write_secret("keyInfo", Some(kv_data.clone())).await.unwrap();
 
-        let secret = read_secret("keyInfo").unwrap().unwrap().data;
+        let secret = read_secret("keyInfo").await.unwrap().unwrap().data;
         assert_eq!(secret, Some(kv_data));
         println!("secret: {:?}", secret.unwrap());
 
-        assert!(read_secret("foo").unwrap().is_none());
-        assert!(read_api(&CORE.core.read().unwrap(), &CORE.token, "secret1/foo").is_err());
+        assert!(read_secret("foo").await.unwrap().is_none());
+        assert!(read_api(&CORE.core.read().unwrap(), &CORE.token, "secret1/foo").await.is_err());
     }
 }

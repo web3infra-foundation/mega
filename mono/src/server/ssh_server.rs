@@ -5,10 +5,12 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use clap::Args;
-
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
-use russh::{server::Server, Preferred};
-use russh_keys::{ssh_key::rand_core::OsRng, PrivateKey};
+use russh::{
+    keys::{ssh_key::rand_core::OsRng, Algorithm, PrivateKey},
+    server::Server,
+    Preferred,
+};
 
 use common::model::CommonOptions;
 use jupiter::context::Context;
@@ -35,7 +37,7 @@ pub struct SshCustom {
 /// start a ssh server
 pub async fn start_server(context: Context, command: &SshOptions) {
     // we need to persist the key to prevent key expired after server restart.
-    let p_key = load_key();
+    let p_key = load_key().await;
     let ru_config = russh::server::Config {
         auth_rejection_time: std::time::Duration::from_secs(3),
         keys: vec![p_key],
@@ -65,16 +67,15 @@ pub async fn start_server(context: Context, command: &SshOptions) {
     ssh_server.run_on_address(ru_config, addr).await.unwrap();
 }
 
-pub fn load_key() -> PrivateKey {
-    let ssh_key = read_secret("ssh_server_key").unwrap();
+pub async fn load_key() -> PrivateKey {
+    let ssh_key = read_secret("ssh_server_key").await.unwrap();
     if let Some(ssh_key) = ssh_key {
         let data = ssh_key.data.unwrap();
         let secret_key = data["secret_key"].as_str().unwrap();
         PrivateKey::from_openssh(secret_key).unwrap()
     } else {
         // generate a keypair if not exists
-        let keys =
-            russh_keys::PrivateKey::random(&mut OsRng, russh_keys::Algorithm::Ed25519).unwrap();
+        let keys = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
         let secret = serde_json::json!({
             "secret_key":
             *keys.to_openssh(LineEnding::CR).unwrap()
@@ -82,7 +83,7 @@ pub fn load_key() -> PrivateKey {
         .as_object()
         .unwrap()
         .clone();
-        write_secret("ssh_server_key", Some(secret)).unwrap_or_else(|e| {
+        write_secret("ssh_server_key", Some(secret)).await.unwrap_or_else(|e| {
             panic!("Failed to write ssh_server_key: {:?}", e);
         });
         keys

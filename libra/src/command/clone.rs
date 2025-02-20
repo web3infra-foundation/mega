@@ -71,8 +71,9 @@ pub async fn execute(args: CloneArgs) {
 
     // CAUTION: change [current_dir] to the repo directory
     env::set_current_dir(&local_path).unwrap();
-    command::init::execute().await;
-
+    let init_args = command::init::InitArgs { bare: false, initial_branch: None, repo_directory: local_path.to_str().unwrap().to_string(),quiet:false };    
+    command::init::execute(init_args).await;
+    
     /* fetch remote */
     let remote_config = RemoteConfig {
         name: "origin".to_string(),

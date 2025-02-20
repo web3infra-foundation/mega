@@ -13,3 +13,5 @@ lazy_static = "1.5.0"
 bs58 = "0.5.1"
 serde = { version = "1.0.117", features = ["derive"] }
 secp256k1 = { workspace = true , features = ["serde", "rand","hashes"] }
+tokio = {workspace = true, features = ["full"]}
+async-std = "1.13.0"

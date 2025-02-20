@@ -2,7 +2,7 @@ use c::{ConfigError, FileFormat};
 use config as c;
 use config::builder::DefaultState;
 use config::{Source, ValueKind};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -27,8 +27,12 @@ impl Config {
     pub fn new(path: &str) -> Result<Self, ConfigError> {
         let builder = c::Config::builder()
             .add_source(c::File::new(path, FileFormat::Toml))
-            .add_source(c::Environment::with_prefix("mega").prefix_separator("_").separator("__")); // e.g. MEGA_BASE_DIR == base_dir
-                                                              // support ${} variable substitution
+            .add_source(
+                c::Environment::with_prefix("mega")
+                    .prefix_separator("_")
+                    .separator("__"),
+            ); // e.g. MEGA_BASE_DIR == base_dir
+               // support ${} variable substitution
         let config = variable_placeholder_substitute(builder);
 
         Config::from_config(config)
@@ -243,14 +247,17 @@ impl Default for AuthConfig {
             enable_http_auth: false,
             enable_test_user: false,
             test_user_name: String::from("mega"),
-            test_user_token: String::from("mega")
+            test_user_token: String::from("mega"),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PackConfig {
-    pub pack_decode_mem_size: usize,
+    #[serde(deserialize_with = "string_or_usize")]
+    pub pack_decode_mem_size: String,
+    #[serde(deserialize_with = "string_or_usize")]
+    pub pack_decode_disk_size: String,
     pub pack_decode_cache_path: PathBuf,
     pub clean_cache_after_decode: bool,
     pub channel_message_size: usize,
@@ -260,12 +267,126 @@ pub struct PackConfig {
 impl Default for PackConfig {
     fn default() -> Self {
         Self {
-            pack_decode_mem_size: 4,
+            pack_decode_mem_size: "4G".to_string(),
+            pack_decode_disk_size: "20%".to_string(),
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
             maximum_pack_size: 4,
         }
+    }
+}
+
+fn string_or_usize<'deserialize, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'deserialize>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrUSize {
+        String(String),
+        USize(usize),
+    }
+
+    Ok(match StringOrUSize::deserialize(deserializer)? {
+        StringOrUSize::String(v) => v,
+        StringOrUSize::USize(v) => v.to_string(),
+    })
+}
+
+impl PackConfig {
+    /// Converts a size string to bytes
+    /// Supports formats:
+    /// - Bytes with units: "1MB", "2MiB", "3GB", "4GiB"
+    /// - Percentage of total memory: "1%", "50%"
+    /// - Decimal ratio of total memory: "0.01", "0.5"
+    /// - For compatibility: Any integer greater than or equal to 1, for example "1" will be interpreted as 1Gib.
+    ///
+    /// # Examples
+    /// ```
+    /// use common::config::PackConfig;
+    ///
+    /// assert_eq!(PackConfig::get_size_from_str("1MB", || Ok(1 * 1000 * 1000)).unwrap(), 1 * 1000 * 1000);
+    /// assert_eq!(PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(), 2 * 1024 * 1024);
+    /// assert_eq!(PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(), 3 * 1000 * 1000 * 1000);
+    /// assert_eq!(PackConfig::get_size_from_str("4GiB", || Ok(4 * 1024 * 1024 * 1024)).unwrap(), 4 * 1024 * 1024 * 1024);
+    /// assert_eq!(PackConfig::get_size_from_str("4G", || Ok(4 * 1024 * 1024 * 1024)).unwrap(), 4 * 1024 * 1024 * 1024);
+    /// assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
+    /// assert_eq!(PackConfig::get_size_from_str("50%", || Ok(100)).unwrap(), 50);
+    /// assert_eq!(PackConfig::get_size_from_str("0.01", || Ok(100)).unwrap(), 1);
+    /// assert_eq!(PackConfig::get_size_from_str("0.5", || Ok(100)).unwrap(), 50);
+    /// assert_eq!(PackConfig::get_size_from_str("1", || Ok(100)).unwrap(), 1 * 1024 * 1024 * 1024);
+    /// ```
+    /// # Notes
+    /// - fn_get_total_capacity is a function that returns the total memory capacity in bytes.
+    ///   If the function fails, it returns a String error message.
+    pub fn get_size_from_str(
+        size_str: &str,
+        fn_get_total_capacity: fn() -> Result<usize, String>,
+    ) -> Result<usize, String> {
+        let size_str = size_str.trim();
+
+        // Try to parse as percentage or decimal ratio
+        if size_str.ends_with('%') {
+            let percentage: f64 = size_str
+                .trim_end_matches('%')
+                .parse()
+                .map_err(|_| format!("Invalid percentage: {}", size_str))?;
+            let total_mem = fn_get_total_capacity()?;
+
+            return Ok((total_mem as f64 * percentage / 100.0) as usize);
+        }
+
+        let ratio_result = size_str.parse::<f64>();
+        if ratio_result.is_ok() {
+            let ratio = ratio_result.unwrap();
+
+            if ratio > 0.0 && ratio < 1.0 {
+                let total_mem = fn_get_total_capacity()?;
+
+                return Ok((total_mem as f64 * ratio) as usize);
+            }
+        }
+
+        // Parse size with units
+        let mut chars = size_str.chars().peekable();
+        let mut number = String::new();
+
+        // Parse the numeric part
+        while let Some(&c) = chars.peek() {
+            if c.is_ascii_digit() || c == '.' {
+                number.push(c);
+                chars.next();
+            } else {
+                break;
+            }
+        }
+
+        let value: f64 = number
+            .parse()
+            .map_err(|_| format!("Invalid size: {}", size_str))?;
+        let unit = chars.collect::<String>().to_uppercase();
+
+        // For compatibility,
+        // old configuration files use integer and use GiB as the default unit.
+        if unit.is_empty() {
+            return Ok((value * 1024.0 * 1024.0 * 1024.0) as usize);
+        }
+
+        let bytes = match unit.as_str() {
+            "B" => value,
+            "KB" => value * 1_000.0,
+            "MB" => value * 1_000.0 * 1_000.0,
+            "GB" => value * 1_000.0 * 1_000.0 * 1_000.0,
+            "TB" => value * 1_000.0 * 1_000.0 * 1_000.0 * 1_000.0,
+            "KIB" | "K" => value * 1_024.0,
+            "MIB" | "M" => value * 1_024.0 * 1_024.0,
+            "GIB" | "G" => value * 1_024.0 * 1_024.0 * 1_024.0,
+            "TIB" | "T" => value * 1_099_511_627_776.0,
+            _ => Err(format!("Invalid unit: {}", unit))?,
+        };
+
+        Ok(bytes as usize)
     }
 }
 
@@ -294,4 +415,50 @@ pub struct OauthConfig {
     pub github_client_secret: String,
     pub ui_domain: String,
     pub cookie_domain: String,
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_get_size_from_str() {
+        use crate::config::PackConfig;
+
+        assert_eq!(
+            PackConfig::get_size_from_str("1MB", || Ok(1000 * 1000)).unwrap(),
+            1000 * 1000
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("2MiB", || Ok(2 * 1024 * 1024)).unwrap(),
+            2 * 1024 * 1024
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(),
+            3 * 1000 * 1000 * 1000
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("4GiB", || Ok(4 * 1024 * 1024 * 1024)).unwrap(),
+            4 * 1024 * 1024 * 1024
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("4G", || Ok(4 * 1024 * 1024 * 1024)).unwrap(),
+            4 * 1024 * 1024 * 1024
+        );
+        assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
+        assert_eq!(
+            PackConfig::get_size_from_str("50%", || Ok(100)).unwrap(),
+            50
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("0.01", || Ok(100)).unwrap(),
+            1
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("0.5", || Ok(100)).unwrap(),
+            50
+        );
+        assert_eq!(
+            PackConfig::get_size_from_str("1", || Ok(100)).unwrap(),
+            1024 * 1024 * 1024
+        );
+    }
 }

@@ -62,7 +62,7 @@ pub async fn https_server(context: Context, options: HttpsOptions) {
         ztm,
     } = options.clone();
 
-    check_run_with_ztm(context.clone(), options.ztm.clone(), https_port);
+    check_run_with_ztm(context.clone(), options.ztm.clone(), https_port).await;
 
     let app = app(
         context,
@@ -91,7 +91,7 @@ pub async fn http_server(context: Context, options: HttpOptions) {
         ztm,
     } = options.clone();
 
-    check_run_with_ztm(context.clone(), options.ztm.clone(), http_port);
+    check_run_with_ztm(context.clone(), options.ztm.clone(), http_port).await;
 
     let app = app(
         context,
@@ -179,7 +179,7 @@ pub async fn app(
         .with_state(state)
 }
 
-pub fn check_run_with_ztm(context: Context, ztm: ZtmOptions, http_port: u16) {
+pub async fn check_run_with_ztm(context: Context, ztm: ZtmOptions, http_port: u16) {
     //Mega server join a ztm mesh
     match ztm.bootstrap_node {
         Some(bootstrap_node) => {
@@ -187,7 +187,7 @@ pub fn check_run_with_ztm(context: Context, ztm: ZtmOptions, http_port: u16) {
                 "The bootstrap node is {}, prepare to join ztm network",
                 bootstrap_node.clone()
             );
-            let (peer_id, _) = vault::init();
+            let (peer_id, _) = vault::init().await;
             let ztm_agent: LocalZTMAgent = LocalZTMAgent {
                 agent_port: ztm.ztm_agent_port,
             };

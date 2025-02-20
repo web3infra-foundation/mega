@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use russh_keys::{parse_public_key_base64, HashAlg};
+use russh::keys::{parse_public_key_base64, HashAlg};
 
 use common::model::CommonResult;
 

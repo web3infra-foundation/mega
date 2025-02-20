@@ -57,7 +57,7 @@ impl MessageCache {
         let inner = self.inner.clone();
 
         let mut locked  = inner.lock().unwrap();
-        if locked.len() != 0 {
+        if !locked.is_empty() {
             swap(locked.as_mut(), &mut res);
         }
 

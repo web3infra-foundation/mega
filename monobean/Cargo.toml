@@ -1,0 +1,26 @@
+[package]
+name = "monobean"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+authors = ["Neon<neonkk@qq.com>"]
+
+[workspace]
+
+[[bin]]
+name = "monobean"
+path = "src/main.rs"
+
+[dependencies]
+gtk = { version = "~0.9", package = "gtk4", features = ["v4_14"] }
+adw = { version = "~0.7", package = "libadwaita", features = ["v1_5"] }
+
+# mega = { path = "../mega"}
+# common ={ path = "../common"}
+# jupiter = { path = "../jupiter"}
+# gateway = { path = "../gateway"}
+
+async-channel = "2.3.1"
+
+[build-dependencies]
+glib-build-tools = "0.20.0"

@@ -45,20 +45,20 @@ pub async fn handle_response(
     }
 }
 
-pub fn repo_alias_to_identifier(alias: String) -> String {
-    let (peer_id, _) = vault::init();
+pub async fn repo_alias_to_identifier(alias: String) -> String {
+    let (peer_id, _) = vault::init().await;
     format!("p2p://{}/{alias}", peer_id.clone())
 }
 
-pub fn repo_path_to_identifier(http_port: u16, repo_path: String) -> String {
-    let (peer_id, _) = vault::init();
+pub async fn repo_path_to_identifier(http_port: u16, repo_path: String) -> String {
+    let (peer_id, _) = vault::init().await;
     format!("p2p://{}/{http_port}{repo_path}.git", peer_id.clone())
 }
 
-pub fn get_ztm_app_tunnel_bound_name(remote_peer_id: String) -> String {
+pub async fn get_ztm_app_tunnel_bound_name(remote_peer_id: String) -> String {
     format!(
         "{}_{}",
-        get_short_peer_id(vault::get_peerid()),
+        get_short_peer_id(vault::get_peerid().await),
         get_short_peer_id(remote_peer_id)
     )
 }

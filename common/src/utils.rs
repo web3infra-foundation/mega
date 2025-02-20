@@ -1,5 +1,5 @@
 use idgenerator::IdInstance;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::prelude::*;
 use regex::Regex;
 use serde_json::{json, Value};
 
@@ -14,8 +14,9 @@ pub fn generate_id() -> i64 {
 }
 
 pub fn generate_link() -> String {
-    let str: String = thread_rng()
-        .sample_iter(&Alphanumeric)
+    let rng = rand::rng();
+    let str: String = rng
+        .sample_iter(rand::distr::Alphanumeric)
         .take(8)
         .map(char::from)
         .collect();
@@ -159,5 +160,15 @@ mod test {
 
         let msg = "()(common): add new feature"; // unssupported characters in type
         assert!(!check_conventional_commits_message(msg));
+    }
+
+    #[test]
+    fn test_link_generate() {
+        let link = generate_link();
+        println!("MR Link: '{:?}'", link);
+        assert!(
+            link.chars().count() == 8
+                && link.chars().all(|c| !c.is_alphabetic() || c.is_uppercase())
+        )
     }
 }
