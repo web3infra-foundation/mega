@@ -160,7 +160,7 @@
    $ sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
    ```
 
-4. Config `confg.toml`. See [Configuration](#configuration).
+4. Config `config.toml`. See [Configuration](#configuration).
 
 5. Init Mega.
 
