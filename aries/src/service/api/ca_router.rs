@@ -1,61 +1,22 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
-
-use axum::body::{to_bytes, Body};
-use axum::extract::{Query, State};
-use axum::http::{Request, Response, StatusCode, Uri};
-use axum::routing::get;
-use axum::Router;
-use common::config::Config;
+use axum::{
+    body::{to_bytes, Body},
+    extract::{Query, State},
+    http::{Request, Response, StatusCode, Uri},
+    routing::get,
+    Router,
+};
 use gemini::RelayGetParams;
-use jupiter::context::Context;
 use regex::Regex;
-use tower::ServiceBuilder;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::decompression::RequestDecompressionLayer;
-use tower_http::trace::TraceLayer;
 
-pub async fn run_ca_server(config: Config, port: u16) {
-    let host = "127.0.0.1".to_string();
-    let app = app(config.clone(), host.clone(), port).await;
+use crate::service::relay_server::AppState;
 
-    let server_url = format!("{}:{}", host, port);
-    tracing::info!("start ca server: {server_url}");
-    let addr = SocketAddr::from_str(&server_url).unwrap();
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service())
-        .await
-        .unwrap();
-}
-
-#[derive(Clone)]
-pub struct AppState {
-    pub context: Context,
-    pub host: String,
-    pub port: u16,
-}
-
-pub async fn app(config: Config, host: String, port: u16) -> Router {
-    let state = AppState {
-        host,
-        port,
-        context: Context::new(config.clone()).await,
-    };
-    routers(state)
-}
-
-pub fn routers(state: AppState) -> Router {
-    Router::new()
-        .route(
-            "/*path",
-            get(get_method_router)
-                .post(post_method_router)
-                .delete(delete_method_router),
-        )
-        .layer(ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any)))
-        .layer(TraceLayer::new_for_http())
-        .layer(RequestDecompressionLayer::new())
-        .with_state(state)
+pub fn routers() -> Router<AppState> {
+    Router::new().route(
+        "/{*path}",
+        get(get_method_router)
+            .post(post_method_router)
+            .delete(delete_method_router),
+    )
 }
 
 async fn get_method_router(
@@ -103,7 +64,7 @@ async fn post_method_router(
             }
         };
         return gemini::ca::issue_certificate(name).await;
-    } else if Regex::new(r"/sign/hub/[a-zA-Z0-9]+$")
+    } else if Regex::new(r"/sign/[a-zA-Z0-9]+$")
         .unwrap()
         .is_match(uri.path())
     {
@@ -142,6 +103,3 @@ async fn delete_method_router(
         String::from("Operation not supported\n"),
     ))
 }
-
-#[cfg(test)]
-mod tests {}
