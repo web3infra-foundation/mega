@@ -160,7 +160,7 @@
    $ sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
    ```
 
-4. Config `confg.toml`. See [Configuration](#configuration).
+4. Config `config.toml`. See [Configuration](#configuration).
 
 5. Init Mega.
 
@@ -213,11 +213,11 @@ sudo -u postgres psql mega -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public to me
 sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to mega;"
 ```
 
-Config `confg.toml` file for the Mega project.
-
 ---
 ## Configuration
-Config `confg.toml` file for the Mega project.
+Setting `config.toml` file for the Mega project, default config file can be found under [config directory](/config/config.toml).
+
+Currently, the mono bin and mega bin use two different files, each with a different default database type: mono uses `Postgres`, while mega uses `SQLite`.
 
 ### Path
 - Default: automatically load `config.toml` in current directory.
@@ -233,101 +233,6 @@ Config `confg.toml` file for the Mega project.
   - only support `String` type
   - substitute from up to down
   - see codes in [config.rs](/common/src/config.rs)
-
-```toml
-# The directory where the data files is located, such as logs, database, etc.
-# can be overrided by environment variable `MEGA_BASE_DIR`
-base_dir = "/tmp/.mega"
-
-# Filling the following environment variables with values you set
-## Logging Configuration
-[log]
-# The path which log file is saved
-log_path = "${base_dir}/logs"
-
-# log level
-level = "debug"
-
-# print std log in console, disable it on production for performance
-print_std = true
-
-
-[database]
-# "sqlite" | "postgres"
-# "sqlite" will use `db_path` and ignore `db_url`
-db_type = "sqlite"
-
-# used for sqlite
-db_path = "${base_dir}/mega.db"
-
-# database connection url
-db_url = "postgres://mega:mega@localhost:5432/mega"
-
-# db max connection, setting it to twice the number of CPU cores would be appropriate.
-max_connection = 32
-
-# db min connection, setting it to the number of CPU cores would be appropriate.
-min_connection = 16
-
-# Whether to disabling SQLx Log
-sqlx_logging = false
-
-
-[storage]
-
-obs_access_key = ""
-obs_secret_key = ""
-
-# cloud storage region
-obs_region = "cn-east-3"
-
-# Override the endpoint URL used for remote storage services
-obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
-
-
-[monorepo]
-## Only import directory support multi-branch commit and tag, monorepo only support main branch
-## Mega treats files under this directory as import repo and other directories as monorepo
-import_dir = "/third-part"
-
-disable_http_push = false
-
-[pack]
-# The maximum memory used by decode
-# Support the following units/notations: K, M, G, T, KB, MB, GB, TB, KiB, MiB, GiB, TiB, `%` and decimal percentages
-# Capacity units are case-insensitive and can also be spelled as mb or Mb
-# Abbreviated units are treated as binary byte units, for example M is treated as MiB
-pack_decode_mem_size = "4G"
-pack_decode_disk_size = "20%"
-
-# The location where the object stored when the memory used by decode exceeds the limit
-pack_decode_cache_path = "${base_dir}/cache"
-
-clean_cache_after_decode = true
-
-# The maximum meesage size in channel buffer while decode
-channel_message_size = 1_000_000
-
-
-[ztm]
-ca = "http://127.0.0.1:9999"
-hub = "http://127.0.0.1:8888"
-agent = "http://127.0.0.1:7777"
-
-[lfs]
-# LFS Server url
-url = "https://git.gitmono.com"
-
-# set the local path of the lfs storage
-lfs_obj_local_path = "${base_dir}/lfs"
-
-## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
-# Enable or disable splitting large files into smaller chunks
-enable_split = false  # Default is disabled. Set to true to enable file splitting.
-
-# Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
-split_size = 20971520 # Default size is 20MB (20971520 bytes)
-```
 
 ---
 ## Database maintenance

@@ -1,6 +1,6 @@
 ---
 title: Configuration File
-description: Config `confg.toml` file for the Mega project.
+description: Config `config.toml` file for the Mega project.
 ---
 
 
@@ -29,8 +29,8 @@ description: Config `confg.toml` file for the Mega project.
     <TabsContent value="mono-module">
       ```yaml:config.toml showLineNumbers
       # the directory where the data files is located, such as logs, database, etc.
-      # can be overrided by environment variable `MEGA_BASE_DIR`
-      base_dir = "/tmp/.mega"
+      # can be overridden by environment variable `MEGA_BASE_DIR`
+      base_dir = "/tmp/.mono"
 
       # Filling the following environment variables with values you set
       ## Logging Configuration
@@ -51,16 +51,16 @@ description: Config `confg.toml` file for the Mega project.
       db_type = "postgres"
 
       # used for sqlite
-      db_path = "${base_dir}/mono.db"
+      db_path = "${base_dir}/mega.db"
 
-      # database connection url
+      # database connection url, set to "postgres://mono:mono@mono-pg:5432/mono" if you're using docker
       db_url = "postgres://mono:mono@localhost:5432/mono"
 
       # db max connection, setting it to twice the number of CPU cores would be appropriate.
-      max_connection = 32
+      max_connection = 16
 
       # db min connection, setting it to the number of CPU cores would be appropriate.
-      min_connection = 16
+      min_connection = 8
 
       # Whether to disabling SQLx Log
       sqlx_logging = false
@@ -117,11 +117,8 @@ description: Config `confg.toml` file for the Mega project.
 
       clean_cache_after_decode = true
 
-      # The maximum meesage size in channel buffer while decode
+      # The maximum message size in channel buffer while decode
       channel_message_size = 1_000_000
-
-      # Maximum pack size, unit GB, enforces to use LFS off the limit
-      maximum_pack_size = 4
 
       [lfs]
       # LFS Server url
@@ -134,8 +131,8 @@ description: Config `confg.toml` file for the Mega project.
       # Enable or disable splitting large files into smaller chunks
       enable_split = true  # Default is disabled. Set to true to enable file splitting.
 
-      # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
-      split_size = 20971520 # Default size is 20MB (20971520 bytes)
+      # Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
+      split_size = "20M"
 
       [oauth]
       # GitHub OAuth application client id and secret
@@ -153,7 +150,7 @@ description: Config `confg.toml` file for the Mega project.
     <TabsContent value="mega-module">
       ```yaml:config.toml showLineNumbers
       # the directory where the data files is located, such as logs, database, etc.
-      # can be overrided by environment variable `MEGA_BASE_DIR`
+      # can be overridden by environment variable `MEGA_BASE_DIR`
       base_dir = "/tmp/.mega"
 
       # Filling the following environment variables with values you set
@@ -178,7 +175,7 @@ description: Config `confg.toml` file for the Mega project.
       db_path = "${base_dir}/mega.db"
 
       # database connection url
-      db_url = "postgres://mega:mega@localhost:5432/mega"
+      db_url = ""
 
       # db max connection, setting it to twice the number of CPU cores would be appropriate.
       max_connection = 32
@@ -241,11 +238,8 @@ description: Config `confg.toml` file for the Mega project.
 
       clean_cache_after_decode = true
 
-      # The maximum meesage size in channel buffer while decode
+      # The maximum message size in channel buffer while decode
       channel_message_size = 1_000_000
-
-      # Maximum pack size, unit GB, enforces to use LFS off the limit
-      maximum_pack_size = 4
 
       [lfs]
       # LFS Server url
@@ -258,8 +252,8 @@ description: Config `confg.toml` file for the Mega project.
       # Enable or disable splitting large files into smaller chunks
       enable_split = true  # Default is disabled. Set to true to enable file splitting.
 
-      # Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
-      split_size = 20971520 # Default size is 20MB (20971520 bytes)
+      # Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
+      split_size = "20M"
       ```
       </TabsContent>
   </Tabs>

@@ -11,6 +11,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use callisto::{lfs_locks, lfs_objects, lfs_split_relations};
 use chrono::{prelude::*, Duration};
+use common::config::PackConfig;
 use common::errors::{GitLFSError, MegaError};
 use futures::Stream;
 use jupiter::context::Context;
@@ -295,20 +296,23 @@ pub async fn lfs_upload_object(
     let lfs_storage = context.services.lfs_storage.clone();
 
     let meta = lfs_get_meta(storage.clone(), &request_vars.oid)
-        .await
-        .unwrap();
+        .await?;
     tracing::debug!("upload lfs object {} size: {}", meta.oid, meta.size);
+    let split_size = match PackConfig::get_size_from_str(&config.split_size, || Ok(0)) {
+        Ok(split_size) => split_size,
+        Err(err) => return Err(GitLFSError::GeneralError(err)),
+    };
     if config.enable_split && meta.splited {
         // assert!(request_vars.size == body_bytes.len() as i64, "size didn't match: {} != {}", request_vars.size, body_bytes.len()); // TODO: git client, request_vars.size is `0`!!
         // split object to blocks
 
         let mut sub_ids = vec![];
-        for chunk in body_bytes.chunks(config.split_size) {
+        for chunk in body_bytes.chunks(split_size) {
             // sha256
             let sub_id = hex::encode(ring::digest::digest(&ring::digest::SHA256, chunk));
             let res = lfs_storage.put_object(&sub_id, chunk).await;
             if res.is_err() {
-                lfs_delete_meta(&storage, request_vars).await.unwrap();
+                lfs_delete_meta(&storage, request_vars).await?;
                 // TODO: whether/how to delete the uploaded blocks.
                 return Err(GitLFSError::GeneralError(String::from(
                     "Header not acceptable!",
@@ -327,7 +331,7 @@ pub async fn lfs_upload_object(
         let tx = con.begin().await.unwrap();
         let mut offset = 0;
         for sub_id in sub_ids {
-            let size = min(config.split_size as i64, body_bytes.len() as i64 - offset);
+            let size = min(split_size as i64, body_bytes.len() as i64 - offset);
             let result = lfs_put_relation(&tx, &meta.oid, &sub_id, offset, size).await;
             if result.is_err() {
                 tx.rollback().await.unwrap();
