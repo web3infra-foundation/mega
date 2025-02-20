@@ -1091,6 +1091,7 @@ impl OverlayFs {
         let node = self.lookup_node(ctx, parent, name).await?;
 
         if node.whiteout.load().await {
+            eprintln!("Error: node.whiteout.load() called.");
             return Err(Error::from_raw_os_error(libc::ENOENT));
         }
 
