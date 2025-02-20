@@ -10,8 +10,9 @@ use quinn::{rustls, ClientConfig, Connection, Endpoint};
 use tokio::sync::mpsc;
 use tracing::info;
 use uuid::Uuid;
+use vault::get_peerid;
 
-use crate::p2p::relay::ReceiveData;
+use crate::p2p::relay::{ReceiveData, SenderData};
 use crate::p2p::Action;
 
 use super::{get_certificate, ALPN_QUIC_HTTP};
@@ -92,9 +93,7 @@ pub async fn get_client_connection(bootstrap_node: String) -> anyhow::Result<Con
 
     client_crypto.alpn_protocols = ALPN_QUIC_HTTP.iter().map(|&x| x.into()).collect();
     let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(client_crypto)?));
-    info!("Connection");
     let mut endpoint = Endpoint::client(SocketAddr::from_str("127.0.0.1:0").unwrap())?;
-    info!("Connection2");
     endpoint.set_default_client_config(client_config);
 
     let server_addr: SocketAddr = bootstrap_node.parse()?;
@@ -102,6 +101,70 @@ pub async fn get_client_connection(bootstrap_node: String) -> anyhow::Result<Con
         .connect(server_addr, "localhost")?
         .await
         .map_err(|e| anyhow!("failed to connect: {}", e))?;
-    info!("Connection3");
     Ok(conn)
+}
+
+pub async fn send(
+    to_peer_id: String,
+    func: String,
+    data: Vec<u8>,
+    bootstrap_node: String,
+) -> anyhow::Result<Vec<u8>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    // 建立 QUIC 连接
+    let connection = get_client_connection(bootstrap_node).await?;
+
+    let remote_address = connection.remote_address();
+    let stable_id = connection.stable_id();
+    info!("established connection: {remote_address:#?},{stable_id:#?}");
+    let connection = Arc::new(connection);
+
+    let connection_clone = connection.clone();
+    let local_peer_id = get_peerid();
+    tokio::spawn(async move {
+        let (mut sender, _) = connection_clone.open_bi().await.unwrap();
+        let send = ReceiveData {
+            from: local_peer_id.clone(),
+            data: data.clone(),
+            func: func.to_string(),
+            action: Action::Send,
+            to: to_peer_id.to_string(),
+            req_id: Uuid::new_v4().into(),
+        };
+        let json = serde_json::to_string(&send).unwrap();
+        sender.write_all(json.as_bytes()).await.unwrap();
+        sender.finish().unwrap();
+    });
+
+    let connection_clone = connection.clone();
+
+    tokio::spawn(async move {
+        let (_, mut quic_recv) = connection_clone.accept_bi().await.unwrap();
+        // 等待接收一个新的双向流
+        let buffer = quic_recv.read_to_end(1024 * 1024).await.unwrap();
+        println!("QUIC Received:\n{}", String::from_utf8_lossy(&*buffer));
+        if tx.send(buffer).is_err() {
+            println!("Receiver closed");
+            return;
+        }
+    });
+    let message = match rx.await {
+        Ok(r) => r,
+        Err(e) => {
+            return Err(anyhow!("QUIC Received Error:\n{:?}", e));
+        }
+    };
+    println!(
+        "Channel Received message: {}",
+        String::from_utf8_lossy(&message)
+    );
+    let data: SenderData = match serde_json::from_slice(&*message) {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!("QUIC Received Error:\n{:?}", e);
+            return Err(anyhow!("QUIC Received Error:\n{:?}", e));
+        }
+    };
+    return Ok(data.data);
 }
