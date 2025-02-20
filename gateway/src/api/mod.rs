@@ -1,14 +1,14 @@
-use common::model::ZtmOptions;
+use common::model::P2pOptions;
 use mono::api::MonoApiServiceState;
 
 pub mod github_router;
+mod model;
 pub mod nostr_router;
 pub mod ztm_router;
-mod model;
 
 #[derive(Clone)]
 pub struct MegaApiServiceState {
     pub inner: MonoApiServiceState,
     pub port: u16,
-    pub ztm: ZtmOptions,
+    pub p2p: P2pOptions,
 }
