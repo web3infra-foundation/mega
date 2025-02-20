@@ -261,7 +261,7 @@ pub struct PackConfig {
     pub pack_decode_cache_path: PathBuf,
     pub clean_cache_after_decode: bool,
     pub channel_message_size: usize,
-    pub maximum_pack_size: usize,
+    pub maximum_pack_size: String,
 }
 
 impl Default for PackConfig {
@@ -272,7 +272,7 @@ impl Default for PackConfig {
             pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
-            maximum_pack_size: 4,
+            maximum_pack_size: "8G".to_string(),
         }
     }
 }
@@ -395,7 +395,8 @@ pub struct LFSConfig {
     pub url: String,
     pub lfs_obj_local_path: PathBuf,
     pub enable_split: bool,
-    pub split_size: usize,
+    #[serde(deserialize_with = "string_or_usize")]
+    pub split_size: String,
 }
 
 impl Default for LFSConfig {
@@ -404,7 +405,7 @@ impl Default for LFSConfig {
             url: "http://localhost:8000".to_string(),
             lfs_obj_local_path: PathBuf::from("/tmp/.mega/lfs"),
             enable_split: true,
-            split_size: 20 * 1024 * 1024, // 20MB
+            split_size: "20M".to_string(),
         }
     }
 }
@@ -432,6 +433,10 @@ mod test {
             2 * 1024 * 1024
         );
         assert_eq!(
+            PackConfig::get_size_from_str("20M", || Ok(0)).unwrap(),
+            20 * 1024 * 1024
+        );
+        assert_eq!(
             PackConfig::get_size_from_str("3GB", || Ok(3 * 1000 * 1000 * 1000)).unwrap(),
             3 * 1000 * 1000 * 1000
         );
@@ -443,7 +448,10 @@ mod test {
             PackConfig::get_size_from_str("4G", || Ok(4 * 1024 * 1024 * 1024)).unwrap(),
             4 * 1024 * 1024 * 1024
         );
-        assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
+        assert_eq!(
+            PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(),
+            1
+        );
         assert_eq!(
             PackConfig::get_size_from_str("50%", || Ok(100)).unwrap(),
             50
@@ -460,5 +468,6 @@ mod test {
             PackConfig::get_size_from_str("1", || Ok(100)).unwrap(),
             1024 * 1024 * 1024
         );
+        
     }
 }
