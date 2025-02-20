@@ -90,9 +90,6 @@ clean_cache_after_decode = true
 # The maximum message size in channel buffer while decode
 channel_message_size = 1_000_000
 
-# Maximum pack size, enforces to use LFS off the limit
-maximum_pack_size = "8G"
-
 [lfs]
 # LFS Server url
 url = "http://localhost:8000"
