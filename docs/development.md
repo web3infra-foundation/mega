@@ -215,7 +215,7 @@ sudo -u postgres psql mega -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public to me
 
 ---
 ## Configuration
-Setting `confg.toml` file for the Mega project, default config file can be found under [config directory](/config/config.toml).
+Setting `config.toml` file for the Mega project, default config file can be found under [config directory](/config/config.toml).
 
 Currently, the mono bin and mega bin use two different files, each with a different default database type: mono uses `Postgres`, while mega uses `SQLite`.
 

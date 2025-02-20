@@ -21,7 +21,7 @@ print_std = true
 db_type = "postgres"
 
 # used for sqlite
-db_path = ""
+db_path = "${base_dir}/mega.db"
 
 # database connection url, set to "postgres://mono:mono@mono-pg:5432/mono" if you're using docker
 db_url = "postgres://mono:mono@localhost:5432/mono"
@@ -90,8 +90,8 @@ clean_cache_after_decode = true
 # The maximum message size in channel buffer while decode
 channel_message_size = 1_000_000
 
-# Maximum pack size, unit GB, enforces to use LFS off the limit
-maximum_pack_size = 8
+# Maximum pack size, enforces to use LFS off the limit
+maximum_pack_size = "8G"
 
 [lfs]
 # LFS Server url
@@ -104,8 +104,8 @@ lfs_obj_local_path = "${base_dir}/lfs"
 # Enable or disable splitting large files into smaller chunks
 enable_split = true  # Default is disabled. Set to true to enable file splitting.
 
-# Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
-split_size = 20971520 # Default size is 20MB (20971520 bytes)
+# Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
+split_size = "20M"
 
 [oauth]
 # GitHub OAuth application client id and secret
