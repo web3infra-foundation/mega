@@ -4,6 +4,7 @@ version = "0.0.1"
 edition = "2021"
 license = "MIT"
 authors = ["Neon<neonkk@qq.com>"]
+build = "build.rs"
 
 [workspace]
 
@@ -15,12 +16,25 @@ path = "src/main.rs"
 gtk = { version = "~0.9", package = "gtk4", features = ["v4_14"] }
 adw = { version = "~0.7", package = "libadwaita", features = ["v1_5"] }
 
-# mega = { path = "../mega"}
-# common ={ path = "../common"}
-# jupiter = { path = "../jupiter"}
-# gateway = { path = "../gateway"}
+# To run mega core, we have to add these:
+mono = { path = "../mono" }
+common = { path = "../common" }
+jupiter = { path = "../jupiter" }
+taurus = { path = "../taurus" }
+tokio = "1.43.0"
+russh = "0.50.2"
+axum = "0.8.1"
+axum-server = "0.7.1"
+bytes = "1.10.0"
 
 async-channel = "2.3.1"
+thiserror = { version = "2.0.11", features = ["default"]}
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"]}
+rustls = "0.23.23"
+gix-config = "0.43.0"
+home = "0.5.11"
+regex = "1.11.1" # there's a bug in glib, so use this alternatively
 
 [build-dependencies]
 glib-build-tools = "0.20.0"

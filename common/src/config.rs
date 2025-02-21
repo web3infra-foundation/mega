@@ -38,6 +38,16 @@ impl Config {
         Config::from_config(config)
     }
 
+    pub fn load_str(content: &str) -> Result<Self, c::ConfigError> {
+        let builder = c::Config::builder()
+            .add_source(c::File::from_str(content, FileFormat::Toml))
+            .add_source(c::Environment::with_prefix("mega").prefix_separator("_").separator("__"));
+
+        let config = variable_placeholder_substitute(builder);
+
+        Config::from_config(config)
+    }
+
     pub fn from_config(config: c::Config) -> Result<Self, c::ConfigError> {
         // config.get::<Self>(env!("CARGO_PKG_NAME"))
         config.try_deserialize::<Config>()

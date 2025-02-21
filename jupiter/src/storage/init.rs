@@ -1,5 +1,5 @@
 use std::{path::Path, time::Duration};
-
+use std::error::Error;
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement, TransactionError, TransactionTrait};
 use tracing::log;
 
@@ -7,41 +7,51 @@ use common::config::DbConfig;
 
 use crate::utils::id_generator;
 
+/// Create a database connection.
+/// When postgres is set but not available, it will fall back to sqlite automatically.
 pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
     id_generator::set_up_options().unwrap();
 
-    let is_sqlite = db_config.db_type == "sqlite";
-    let db_path = &db_config.db_path;
-    let db_url = if is_sqlite {
-        if !Path::new(db_path).exists() {
-            log::info!("Creating new sqlite database: {}", db_path);
-            std::fs::File::create(db_path).expect("Failed to create sqlite database");
+    if db_config.db_type == "postgres" {
+        match postgres_connection(db_config).await {
+            Ok(conn) => conn,
+            Err(e) => {
+                log::error!("Failed to connect to postgres: {}", e);
+                log::info!("Falling back to sqlite");
+                sqlite_connection(db_config).await.expect("Cannot connect to any database")
+            }
         }
-        &format!("sqlite://{}", db_path)
     } else {
-        &db_config.db_url
-    };
+        sqlite_connection(db_config).await.unwrap()
+    }
+}
+
+async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection, DbErr> {
+    let db_url = db_config.db_url.to_owned();
     log::info!("Connecting to database: {}", db_url);
 
-    let mut opt = ConnectOptions::new(db_url.to_owned());
-    opt.max_connections(db_config.max_connection)
-        .min_connections(db_config.min_connection)
-        .acquire_timeout(Duration::from_secs(30))
-        .connect_timeout(Duration::from_secs(20))
-        .idle_timeout(Duration::from_secs(8))
-        .max_lifetime(Duration::from_secs(8))
-        .sqlx_logging(db_config.sqlx_logging)
-        .sqlx_logging_level(log::LevelFilter::Debug);
-    let conn = Database::connect(opt)
-        .await
-        .expect("Database connection failed");
+    let opt = setup_option(db_url);
+    Database::connect(opt).await
+}
 
-    // setup sqlite database (execute .sql)
-    if is_sqlite && is_file_empty(db_path) {
-        log::info!("Setting up sqlite database");
-        setup_sql(&conn).await.expect("Failed to setup sqlite database");
+async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, Box<dyn Error>> {
+    if !Path::new(&db_config.db_path).exists() {
+        eprintln!("Creating new sqlite database: {}", db_config.db_path);
+        std::fs::create_dir_all(Path::new(&db_config.db_path).parent().unwrap())?;
+        std::fs::File::create(&db_config.db_path)?;
     }
-    conn
+    let db_url = format!("sqlite://{}", db_config.db_path);
+    log::info!("Connecting to database: {}", db_url);
+
+    let opt = setup_option(db_url);
+    let conn = Database::connect(opt).await?;
+    
+    // setup sqlite database (execute .sql)
+    if is_file_empty(&db_config.db_path) {
+        log::info!("Setting up sqlite database");
+        setup_sql(&conn).await?;
+    }
+    Ok(conn)
 }
 
 /// create table from .sql file
@@ -62,4 +72,17 @@ async fn setup_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbE
 fn is_file_empty(path: &str) -> bool {
     let metadata = std::fs::metadata(path).unwrap();
     metadata.len() == 0
+}
+
+fn setup_option(db_url: String) -> ConnectOptions {
+    let mut opt = ConnectOptions::new(db_url);
+    opt.max_connections(5)
+        .min_connections(1)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect_timeout(Duration::from_secs(3))
+        .idle_timeout(Duration::from_secs(8))
+        .max_lifetime(Duration::from_secs(8))
+        .sqlx_logging(true)
+        .sqlx_logging_level(log::LevelFilter::Debug);
+    opt
 }
