@@ -26,7 +26,6 @@ impl ThemeSelector {
 }
 
 mod imp {
-
     use super::*;
 
     #[derive(Debug, Default, CompositeTemplate)]

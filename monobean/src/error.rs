@@ -1,5 +1,5 @@
-use thiserror::Error;
 use common::errors::ProtocolError;
+use thiserror::Error;
 
 pub type MonoBeanResult<T> = Result<T, MonoBeanError>;
 
