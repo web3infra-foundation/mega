@@ -32,7 +32,7 @@ pub async fn repo_provide(
         .unwrap();
 
     let name = git_model.repo_name;
-    let identifier = repo_alias_to_identifier(alias);
+    let identifier = repo_alias_to_identifier(alias).await;
     let update_time = git_model.created_at.and_utc().timestamp();
     let repo_info = RepoInfo {
         name,

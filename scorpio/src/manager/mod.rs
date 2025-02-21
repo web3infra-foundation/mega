@@ -73,7 +73,7 @@ impl ScorpioManager {
         data.extend(pack(commit.clone(),trees,blobs).await);
         let mut commit_path = path.clone();
         commit_path.push("commit");  
-        // 写入文件
+        // write back the commit file.
         let mut file = File::create(commit_path).await?;  
         file.write_all(&data).await?;  
         Ok(commit)
@@ -86,16 +86,16 @@ impl ScorpioManager {
             }
         }
         Err(Box::from("WorkDir not found"))
-        /* `&WorkDir` value */
+        
     }
     pub  async fn push_commit(&self,mono_path:&str) ->Result<reqwest::Response, Box<dyn std::error::Error>>{
         
-        let work_dir = self.select_work(mono_path).unwrap(); // 错误处理根据实际需求实现
+        let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
         let mut path = self.store_path.clone();
         path.push_str(&work_dir.hash);
         path.push_str("commit");
 
-        // 检查 path 是否存在
+        // check path is exist
         if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
             eprintln!("Path does not exist: {}", path);
             return Err(Box::new(std::io::Error::new(
@@ -103,11 +103,11 @@ impl ScorpioManager {
                 format!("Path does not exist: {}", path),
             )));
         }
-        // 读取现有文件内容作为 body 发送
+        // read the file as the body to send
         let commit_data = tokio::fs::read(&path).await?;
 
 
-        // 发送数据到远程服务器
+        // Send Commit data to remote mono.
         let url = format!("{}/{}/git-receive-pack",self.url,mono_path);
         let client = reqwest::Client::new();
         client
