@@ -708,7 +708,7 @@ impl<S: BitmapSlice + Send + Sync> PassthroughFs<S> {
                         ).into());
                     }
                     drop(inodes);
-                    self.inode_map.inodes.write().await.insert(Arc::new(InodeData::new(inode, handle, 1, id, st.st.st_mode)));
+                    self.inode_map.inodes.write().await.insert(Arc::new(InodeData::new(inode, handle, 2, id, st.st.st_mode)));
         
                     inode
                 }
@@ -769,8 +769,8 @@ impl<S: BitmapSlice + Send + Sync> PassthroughFs<S> {
                         // We just removed the last refcount for this inode.
                         // The allocated inode number should be kept in the map when use_host_ino
                         // is false or host inode(don't use the virtual 56bit inode) is bigger than MAX_HOST_INO.
-                        let keep_mapping = !self.cfg.use_host_ino || data.id.ino > MAX_HOST_INO;
-                        inodes.remove(&inode, keep_mapping);
+                        // let keep_mapping = !self.cfg.use_host_ino || data.id.ino > MAX_HOST_INO;
+                        // inodes.remove(&inode, keep_mapping);
                     }
                     break;
                 }

@@ -124,7 +124,11 @@ impl MegaFuse{
             let entries = std::fs::read_dir(&upperdir)?;
             for entry in entries {
                 let entry = entry?;
-                std::fs::remove_file(entry.path())?;
+                if entry.file_type()?.is_dir() {
+                    std::fs::remove_dir_all(entry.path())?;
+                } else {
+                    std::fs::remove_file(entry.path())?;
+                }
             }
         }
         // Create upper layer

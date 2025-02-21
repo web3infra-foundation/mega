@@ -15,6 +15,7 @@ use std::vec::IntoIter;
 impl<S: BitmapSlice + Send + Sync> PassthroughFs<S> {
     async fn open_inode(&self, inode: Inode, flags: i32) -> io::Result<File> {
         let data = self.inode_map.get(inode).await?;
+        data.refcount.fetch_add(1).await;
         if !is_safe_inode(data.mode) {
             Err(ebadf())
         } else {
@@ -620,6 +621,7 @@ impl Filesystem for PassthroughFs {
         let empty = unsafe { CStr::from_bytes_with_nul_unchecked(EMPTY_CSTR) };
         let mut buf = Vec::<u8>::with_capacity(libc::PATH_MAX as usize);
         let data = self.inode_map.get(inode).await?;
+        data.refcount.fetch_add(1).await;
         let file = data.get_file()?;
 
         // Safe because this will only modify the contents of `buf` and we check the return value.
