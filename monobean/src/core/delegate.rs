@@ -1,9 +1,9 @@
-use std::sync::{Arc, OnceLock};
-use async_channel::Sender;
-use tokio::sync::{Mutex};
 use crate::application::Action;
 use crate::core::mega_core::{MegaCommands, MegaCore};
 use crate::core::runtime;
+use async_channel::Sender;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Mutex;
 
 /// The delegate for the Mega core.
 /// If we directly use mega core in the application,

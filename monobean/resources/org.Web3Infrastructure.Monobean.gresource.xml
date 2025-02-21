@@ -4,7 +4,7 @@
         <file preprocess="xml-stripblanks" compressed="true">org.Web3Infrastructure.Monobean.gschema.xml</file>
 
         <!-- Mega Related Resources -->
-        <file alias="mega/config.toml">mega/config.toml</file>
+        <file alias="mega/config.toml">../../config/config.toml</file>
         <file>mega/key.pem</file>
         <file>mega/cert.pem</file>
 

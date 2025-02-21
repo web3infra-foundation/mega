@@ -5,9 +5,6 @@ use gtk::{Box, Stack};
 use gtk::subclass::prelude::*;
 
 mod imp {
-
-
-
     use crate::components::repo_detail::RepoDetail;
 
     use super::*;

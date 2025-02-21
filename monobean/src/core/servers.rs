@@ -1,16 +1,16 @@
-use std::net::{IpAddr, SocketAddr};
-use std::cell::RefCell;
-use tokio::sync::{mpsc, Mutex};
-use jupiter::context::Context as MegaContext;
-use std::sync::Arc;
-use mono::git_protocol::ssh::SshServer;
-use std::collections::HashMap;
-use bytes::BytesMut;
-use axum_server::tls_rustls::RustlsConfig;
-use russh::server::Server;
-use mono::server::https_server::app;
 use crate::config::{MEGA_HTTPS_CERT, MEGA_HTTPS_KEY};
 use crate::error::MonoBeanResult;
+use axum_server::tls_rustls::RustlsConfig;
+use bytes::BytesMut;
+use jupiter::context::Context as MegaContext;
+use mono::git_protocol::ssh::SshServer;
+use mono::server::https_server::app;
+use russh::server::Server;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
 
 #[derive(Debug, Clone)]
 pub struct SshOptions {
@@ -78,7 +78,7 @@ impl SshOptions {
         // Use rusty vault configurations...
         let (tx, mut rx) = mpsc::channel::<()>(1);
         *self.abort.borrow_mut() = Some(tx);
-        let key = mono::server::ssh_server::load_key();
+        let key = mono::server::ssh_server::load_key().await;
         let ssh_config = russh::server::Config {
             auth_rejection_time: std::time::Duration::from_secs(3),
             keys: vec![key],

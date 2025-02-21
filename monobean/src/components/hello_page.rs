@@ -8,9 +8,9 @@ use gtk::{glib, CompositeTemplate};
 mod imp {
     use super::*;
     use crate::application::Action;
-    
+
     use async_channel::Sender;
-    
+
     use std::cell::OnceCell;
 
     #[derive(Default, CompositeTemplate)]

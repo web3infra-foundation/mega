@@ -12,9 +12,9 @@ use adw::subclass::prelude::*;
 use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::glib;
+use gtk::prelude::GtkWindowExt;
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
-use gtk::prelude::GtkWindowExt;
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
@@ -23,11 +23,11 @@ glib::wrapper! {
 }
 
 mod imp {
-    use std::cell::RefCell;
-    use std::sync::LazyLock;
-    use adw::glib::{ParamSpec, ParamSpecObject, Value};
     use super::*;
     use crate::components::hello_page::HelloPage;
+    use adw::glib::{ParamSpec, ParamSpecObject, Value};
+    use std::cell::RefCell;
+    use std::sync::LazyLock;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/window.ui")]
