@@ -28,7 +28,7 @@ pub struct GitEvent {
 
 impl GitEvent {
     pub async fn sent_to_relay(&self, bootstrap_node: String) -> Result<(), String> {
-        let keypair = vault::get_keypair();
+        let keypair = vault::get_keypair().await;
         let event = NostrEvent::new_git_event(keypair, self.clone());
         let client_message = ClientMessage::new_event(event);
 

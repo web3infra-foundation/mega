@@ -37,7 +37,7 @@ pub struct SshCustom {
 /// start a ssh server
 pub async fn start_server(context: Context, command: &SshOptions) {
     // we need to persist the key to prevent key expired after server restart.
-    let p_key = load_key();
+    let p_key = load_key().await;
     let ru_config = russh::server::Config {
         auth_rejection_time: std::time::Duration::from_secs(3),
         keys: vec![p_key],
@@ -67,8 +67,8 @@ pub async fn start_server(context: Context, command: &SshOptions) {
     ssh_server.run_on_address(ru_config, addr).await.unwrap();
 }
 
-pub fn load_key() -> PrivateKey {
-    let ssh_key = read_secret("ssh_server_key").unwrap();
+pub async fn load_key() -> PrivateKey {
+    let ssh_key = read_secret("ssh_server_key").await.unwrap();
     if let Some(ssh_key) = ssh_key {
         let data = ssh_key.data.unwrap();
         let secret_key = data["secret_key"].as_str().unwrap();
@@ -83,7 +83,7 @@ pub fn load_key() -> PrivateKey {
         .as_object()
         .unwrap()
         .clone();
-        write_secret("ssh_server_key", Some(secret)).unwrap_or_else(|e| {
+        write_secret("ssh_server_key", Some(secret)).await.unwrap_or_else(|e| {
             panic!("Failed to write ssh_server_key: {:?}", e);
         });
         keys

@@ -1,25 +1,26 @@
-use std::io;
+use std::io::{self};
 use std::io::{BufRead, Read};
 use std::sync::mpsc::Receiver;
 
 /// Custom BufRead implementation that reads from the channel
-pub(crate) struct ChannelReader {
+pub(crate) struct StreamBufReader {
     receiver: Receiver<Vec<u8>>,
     buffer: io::Cursor<Vec<u8>>,
 }
 
-impl ChannelReader {
+impl StreamBufReader {
     pub(crate) fn new(receiver: Receiver<Vec<u8>>) -> Self {
-        ChannelReader {
+        StreamBufReader {
             receiver,
             buffer: io::Cursor::new(Vec::new()),
         }
     }
 }
 
-impl Read for ChannelReader {
+impl Read for StreamBufReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if self.buffer.position() as usize == self.buffer.get_ref().len() { // buffer has been read completely
+        if self.buffer.position() as usize == self.buffer.get_ref().len() {
+            // buffer has been read completely
             match self.receiver.recv() {
                 Ok(data) => {
                     self.buffer = io::Cursor::new(data);
@@ -31,7 +32,7 @@ impl Read for ChannelReader {
     }
 }
 
-impl BufRead for ChannelReader {
+impl BufRead for StreamBufReader {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         if self.buffer.position() as usize == self.buffer.get_ref().len() {
             match self.receiver.recv() {
