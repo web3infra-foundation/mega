@@ -3,6 +3,7 @@ use common::errors::ProtocolError;
 
 pub type MonoBeanResult<T> = Result<T, MonoBeanError>;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Error, Debug)]
 pub enum MonoBeanError {
     #[error("Mega Core Error: {0}")]

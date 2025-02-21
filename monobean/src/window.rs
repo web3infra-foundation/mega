@@ -9,12 +9,11 @@ use crate::config::PREFIX;
 use adw::glib::Priority;
 use adw::prelude::{Cast, ObjectExt, SettingsExtManual, ToValue};
 use adw::subclass::prelude::*;
-use adw::{gio, Application, ColorScheme, StyleManager, Toast};
+use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::glib;
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
-use std::path::PathBuf;
 use gtk::prelude::GtkWindowExt;
 
 glib::wrapper! {
@@ -24,9 +23,9 @@ glib::wrapper! {
 }
 
 mod imp {
-    use std::cell::{LazyCell, RefCell};
+    use std::cell::RefCell;
     use std::sync::LazyLock;
-    use adw::glib::{ParamSpec, ParamSpecEnum, ParamSpecObject, Value};
+    use adw::glib::{ParamSpec, ParamSpecObject, Value};
     use super::*;
     use crate::components::hello_page::HelloPage;
 
@@ -148,7 +147,7 @@ impl MonobeanWindow {
 
     fn setup_page(&self) {
         let imp = self.imp();
-        let setting = self.settings();
+        // let setting = self.settings();
 
         imp.hello_page.setup_hello_page(self.sender());
 

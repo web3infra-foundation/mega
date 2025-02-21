@@ -1,26 +1,21 @@
 use crate::config::WEBSITE;
 use crate::CONTEXT;
-use std::borrow::Cow;
 
 use crate::core::mega_core::MegaCommands;
 use crate::core::mega_core::MegaCommands::MegaStart;
 use crate::window::MonobeanWindow;
 use adw::gio::Settings;
-use adw::glib::translate::IntoGlib;
-use adw::glib::{LogLevel, LogLevels};
+use adw::glib::LogLevels;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use adw::{ColorScheme, StyleManager};
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
-use tracing::{event, Level};
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -225,7 +220,7 @@ impl MonobeanApplication {
             LogLevels::all(),
             true,
             true,
-            |domain, log_level, fields| {
+            |_domain, log_level, fields| {
                 let level = match log_level {
                     glib::LogLevel::Error => tracing::Level::ERROR,
                     glib::LogLevel::Critical => tracing::Level::ERROR,
@@ -331,14 +326,8 @@ impl MonobeanApplication {
                 stack.set_visible_child_name("hello_page");
 
                 let config = self.git_config();
-                let name = match config.string("user.name") {
-                    Some(name) => Some(name.to_string()),
-                    None => None,
-                };
-                let email = match config.string("user.email") {
-                    Some(email) => Some(email.to_string()),
-                    None => None,
-                };
+                let name = config.string("user.name").map(|name| name.to_string());
+                let email = config.string("user.email").map(|email| email.to_string());
 
                 window.show_hello_page(name, email);
             }

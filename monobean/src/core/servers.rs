@@ -111,7 +111,7 @@ impl SshOptions {
     pub fn shutdown_server(&self) {
         if self.abort.borrow().is_some() {
             let abort = self.abort.borrow_mut().take().unwrap();
-            if let Ok(_) = abort.try_send(()) {
+            if abort.try_send(()).is_ok() {
                 return;
             }
         }
