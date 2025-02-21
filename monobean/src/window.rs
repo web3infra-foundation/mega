@@ -24,6 +24,9 @@ glib::wrapper! {
 }
 
 mod imp {
+    use std::cell::{LazyCell, RefCell};
+    use std::sync::LazyLock;
+    use adw::glib::{ParamSpec, ParamSpecEnum, ParamSpecObject, Value};
     use super::*;
     use crate::components::hello_page::HelloPage;
 
@@ -53,6 +56,8 @@ mod imp {
 
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
+        
+        toast: RefCell<Option<Toast>>,
     }
 
     #[glib::object_subclass]
@@ -75,8 +80,35 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             let obj = self.obj();
+            self.toast.replace(Some(Toast::new("")));
 
             obj.bind_settings();
+        }
+
+        fn properties() -> &'static [ParamSpec] {
+            static PROPERTIES: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
+                vec![
+                    ParamSpecObject::builder::<Toast>("toast").build(),
+                ]
+            });
+            PROPERTIES.as_ref()
+        }
+
+        fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
+            match pspec.name() {
+                "toast" => {
+                    let toast = value.get().unwrap();
+                    self.toast.replace(toast);
+                }
+                _ => unimplemented!(),
+            }
+        }
+
+        fn property(&self, _id: usize, pspec: &ParamSpec) -> Value {
+            match pspec.name() {
+                "toast" => self.toast.borrow().to_value(),
+                _ => unimplemented!(),
+            }
         }
     }
     impl WidgetImpl for MonobeanWindow {}
@@ -93,13 +125,13 @@ impl MonobeanWindow {
         let window: MonobeanWindow = glib::Object::new();
         window.set_application(Some(application));
         window.imp().sender.set(sender).unwrap();
-        
+
         window.setup_widget();
         // window.setup_action();
         window.setup_page();
         window
     }
-    
+
     pub fn monobean_app(&self) -> MonobeanApplication {
         self.application().unwrap().downcast().unwrap()
     }
