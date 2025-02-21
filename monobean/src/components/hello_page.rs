@@ -1,6 +1,5 @@
 use crate::application::Action;
-use adw::glib::{clone, GStr, GString, Regex, RegexCompileFlags, RegexMatchFlags};
-use adw::prelude::SettingsExtManual;
+use adw::glib::{clone, GString};
 use async_channel::Sender;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
 use gtk::subclass::prelude::*;
@@ -9,10 +8,10 @@ use gtk::{glib, CompositeTemplate};
 mod imp {
     use super::*;
     use crate::application::Action;
-    use adw::gio::Settings;
+    
     use async_channel::Sender;
-    use gtk::prelude::WidgetExt;
-    use std::cell::{OnceCell, RefCell};
+    
+    use std::cell::OnceCell;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/hello_page.ui")]
@@ -88,7 +87,7 @@ impl HelloPage {
         let email_entry = self.imp().email_entry.clone();
         let name_entry = self.imp().name_entry.clone();
 
-        let should_continue = (move |name: GString, email: GString| -> bool {
+        let should_continue = move |name: GString, email: GString| -> bool {
             // FIXME: There's a bug in glib regex, 
             // we have to find a temporary solution for this.
             
@@ -105,7 +104,7 @@ impl HelloPage {
             //     && !name.is_empty()
             
             !name.is_empty() && !email.is_empty()
-        });
+        };
 
         email_entry.connect_changed(clone!(
             #[weak]

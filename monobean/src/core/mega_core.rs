@@ -19,7 +19,8 @@ pub struct MegaCore {
     http_options: Option<HttpOptions>,
 
     mounted: bool,
-
+    
+    #[allow(dead_code)]
     sender: Sender<Action>,
     pub receiver: Receiver<MegaCommands>,
 }
@@ -128,11 +129,11 @@ impl MegaCore {
             ssh_clone.run_server(self.running_context.clone().unwrap())
         );
 
-        let _ = http_res.map_err(|e| {
-            MonoBeanError::MegaCoreError(format!("Failed to serve http: {}", e.to_string()))
+        http_res.map_err(|e| {
+            MonoBeanError::MegaCoreError(format!("Failed to serve http: {}", e))
         })?;
-        let _ = ssh_res.map_err(|e| {
-            MonoBeanError::MegaCoreError(format!("Failed to serve ssh: {}", e.to_string()))
+        ssh_res.map_err(|e| {
+            MonoBeanError::MegaCoreError(format!("Failed to serve ssh: {}", e))
         })?;
         Ok(())
     }
