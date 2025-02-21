@@ -136,7 +136,7 @@ async fn mount_handler(
     // if it is a temp mount , mount it & return the hash and path.
     if temp_mount{
         let temp_hash = {
-            let hasher = SHA1::new(store_path.as_bytes());
+            let hasher = SHA1::new(mono_path.as_bytes());
             hasher.to_string()
         };
 

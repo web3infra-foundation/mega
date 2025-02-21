@@ -236,6 +236,7 @@ impl Filesystem for OverlayFs{
     // no entry or whiteout
     let pnode = self.lookup_node(req, parent, "").await?;
     if pnode.whiteout.load().await {
+          
         return Err(Error::from_raw_os_error(libc::ENOENT).into());
     }
 
