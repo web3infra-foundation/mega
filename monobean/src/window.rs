@@ -2,19 +2,20 @@ use async_channel::Sender;
 use gtk::CssProvider;
 use gtk::{style_context_add_provider_for_display, PopoverMenu};
 
-use crate::application::Action;
+use crate::application::{Action, MonobeanApplication};
 use crate::components::theme_selector::ThemeSelector;
 use crate::components::{mega_tab::MegaTab, not_implemented::NotImplemented, repo_tab::RepoTab};
 use crate::config::PREFIX;
 use adw::glib::Priority;
 use adw::prelude::{Cast, ObjectExt, SettingsExtManual, ToValue};
 use adw::subclass::prelude::*;
-use adw::{gio, ColorScheme, StyleManager, Toast};
+use adw::{gio, Application, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::glib;
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
 use std::path::PathBuf;
+use gtk::prelude::GtkWindowExt;
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
@@ -89,15 +90,18 @@ impl MonobeanWindow {
         application: &P,
         sender: Sender<Action>,
     ) -> Self {
-        let window: MonobeanWindow = glib::Object::builder()
-            .property("application", application)
-            .build();
-
+        let window: MonobeanWindow = glib::Object::new();
+        window.set_application(Some(application));
         window.imp().sender.set(sender).unwrap();
+        
         window.setup_widget();
         // window.setup_action();
         window.setup_page();
         window
+    }
+    
+    pub fn monobean_app(&self) -> MonobeanApplication {
+        self.application().unwrap().downcast().unwrap()
     }
 
     fn sender(&self) -> Sender<Action> {
@@ -120,9 +124,8 @@ impl MonobeanWindow {
         let stack = imp.base_stack.clone();
         stack.set_visible_child_name("hello_page");
 
-        // If there exist name and email in config already,
-        // we will show them as default value.
-        imp.hello_page.fill_entries(None, None);
+        let action = Action::ShowHelloPage;
+        self.sender().send_blocking(action).unwrap();
     }
 
     pub fn show_main_page(&self) {
