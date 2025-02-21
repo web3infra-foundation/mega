@@ -150,17 +150,4 @@ impl MegaCore {
     pub fn is_core_running(&self) -> bool {
         self.running_context.is_some()
     }
-
-    pub fn update_network_options(
-        &mut self,
-        http_options: Option<HttpOptions>,
-        ssh_options: Option<SshOptions>,
-    ) {
-        if let Some(http_options) = http_options {
-            self.http_options = Some(http_options);
-        }
-        if let Some(ssh_options) = ssh_options {
-            self.ssh_options = Some(ssh_options);
-        }
-    }
 }

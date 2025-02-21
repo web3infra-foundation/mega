@@ -1,5 +1,6 @@
 use crate::config::WEBSITE;
 use crate::CONTEXT;
+use std::borrow::Cow;
 
 use crate::core::mega_core::MegaCommands;
 use crate::core::mega_core::MegaCommands::MegaStart;
@@ -16,7 +17,7 @@ use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use tracing::{event, Level};
@@ -171,6 +172,7 @@ impl MonobeanApplication {
             #[weak(rename_to = app)]
             self,
             move |_, _| {
+                app.send_command(MegaCommands::MegaShutdown);
                 app.quit();
             }
         ));
@@ -200,18 +202,13 @@ impl MonobeanApplication {
     }
 
     pub fn git_config(&self) -> gix_config::File<'static> {
-        let config = gix_config::File::from_globals();
-        if let Ok(config) = config {
-            config
-        } else {
-            let mut home = PathBuf::from("~").canonicalize().unwrap();
-            home.push(".gitconfig");
-            tracing::warn!("Git config file not detected, created named {}", home.display());
-            std::fs::File::create(home.as_path()).expect("Cannot create default git config file");
-
-            gix_config::File::from_path_no_includes(home, gix_config::Source::User)
-                .unwrap()
+        let home_dir = home::home_dir().expect("Cannot find home directory");
+        let target = home_dir.join(".gitconfig");
+        if !target.exists() {
+            std::fs::File::create_new(&target).unwrap();
         }
+
+        gix_config::File::from_path_no_includes(target, gix_config::Source::User).unwrap()
     }
 
     fn setup_log(&self) {
@@ -311,12 +308,17 @@ impl MonobeanApplication {
             }
             Action::UpdateGitConfig(name, email) => {
                 let mut config = self.git_config();
-                config
-                    .set_raw_value(&"user.name", name.as_bytes())
-                    .unwrap();
+                config.set_raw_value(&"user.name", name.as_bytes()).unwrap();
                 config
                     .set_raw_value(&"user.email", email.as_bytes())
                     .unwrap();
+
+                // gix_config does not write back to file automatically
+                // so we need to write it back manually.
+                let loc = config.meta().path.clone().unwrap();
+                let mut fd = std::fs::File::create(loc).unwrap();
+                config.write_to(&mut fd).unwrap();
+                tracing::debug!("Git config: {:?}", config.meta());
 
                 let toast = Action::AddToast("Git config updated!".to_string());
                 self.sender().send_blocking(toast).unwrap();
@@ -324,7 +326,7 @@ impl MonobeanApplication {
 
             Action::ShowHelloPage => {
                 let window = self.imp().window.get().unwrap().upgrade().unwrap();
-                
+
                 let stack = window.imp().base_stack.clone();
                 stack.set_visible_child_name("hello_page");
 
