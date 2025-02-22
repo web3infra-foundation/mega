@@ -1,0 +1,7 @@
+extra_srcs = [
+    "md_doc/pid.md",
+    "md_doc/supported_signals.md",
+    "md_doc/minimum_cpu_update_interval.md",
+    "md_doc/is_supported.md",
+    "README.md"
+]
