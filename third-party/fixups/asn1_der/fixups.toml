@@ -1,0 +1,3 @@
+extra_srcs = [
+    "README.md"  # 明确指定 macros.rs 文件
+]

@@ -1,0 +1,22 @@
+[package]
+name = "rust-third-party"
+version = "0.1.0"
+edition = "2021"
+
+# Dummy target to keep Cargo happy
+[[bin]]
+name = "top"
+path = "top/main.rs"
+
+[dependencies]
+rusty_vault = "0.2.1"
+serde_json = "1.0.117"
+go-defer = "0.1.0"
+openssl = "0.10.68"
+hex = "0.4.3"
+lazy_static = "1.5.0"
+bs58 = "0.5.1"
+serde = { version = "1.0.117", features = ["derive"] }
+secp256k1 = { version = "0.30.0" , features = ["serde", "rand","hashes"] }
+tokio = {version = "1.43.0", features = ["full"]}
+async-std = "1.13.0"
