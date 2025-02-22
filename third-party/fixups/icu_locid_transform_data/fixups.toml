@@ -1,4 +1,4 @@
 extra_srcs = [
     "data/macros/**/*",
-    "data/macros.rs"  # 明确指定 macros.rs 文件
+    "data/macros.rs"
 ]
