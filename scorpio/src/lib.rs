@@ -1,11 +1,15 @@
 
+#[macro_use]
+extern crate log;
 
-mod passthrough;
+pub mod passthrough;
 mod overlayfs;
 
-mod fuse;
+pub mod fuse;
 mod dicfuse;
 mod util;
-mod manager;
-mod server;
-mod daemon;
+pub mod manager;
+pub mod server;
+pub mod daemon;
+//const VFS_MAX_INO: u64 = 0xff_ffff_ffff_ffff;
+const READONLY_INODE :u64 = 0xffff_ffff;

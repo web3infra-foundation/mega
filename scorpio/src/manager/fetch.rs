@@ -14,10 +14,12 @@ use crate::manager::store::store_trees;
 use crate::util::GPath;
 
 use super::{ScorpioManager, WorkDir};
+
+#[allow(unused)]
 #[async_trait]
 pub trait CheckHash{
     async fn check(&mut self);
-    #[allow(unused)]
+    
     async fn fetch<P: AsRef<Path>+ std::marker::Send  >(&mut self,inode:u64,monopath :P)-> WorkDir;
 }
 
