@@ -26,6 +26,7 @@ impl  TreeStore for sled::Db {
         Ok(decoded)
     }
 }
+#[allow(unused)]
 pub trait CommitStore{
     fn store_commit(&self,commit:Commit) -> Result<()>;
     fn get_commit(&self) -> Result<Commit>;

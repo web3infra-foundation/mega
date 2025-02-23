@@ -56,7 +56,7 @@ The following interfaces are currently available:
 curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/scorpio"}'
 curl -X GET http://localhost:2725/api/fs/mpoint
 curl -X POST http://localhost:2725/api/fs/umount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/scorpio"}'
-
+curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/ts"}'
 ```
 ### How to Contribute?
 

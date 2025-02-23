@@ -17,6 +17,7 @@ use super::{ScorpioManager, WorkDir};
 #[async_trait]
 pub trait CheckHash{
     async fn check(&mut self);
+    #[allow(unused)]
     async fn fetch<P: AsRef<Path>+ std::marker::Send  >(&mut self,inode:u64,monopath :P)-> WorkDir;
 }
 
@@ -381,7 +382,7 @@ mod tests {
         let client = Client::new();
 
         // Use the URL from environment variables or local test URL
-        let url = "http://localhost:8000/api/v1/file/blob/d12d12579799a658b29808fe695abd919a033ac9";
+        let url = "http://localhost:8000/api/v1/file/blob/841b6fe34540e866e1f458d77b1bd03d3cb0e782";
         // Send a GET request
         let response = client.get(url).send().await.unwrap();
 
