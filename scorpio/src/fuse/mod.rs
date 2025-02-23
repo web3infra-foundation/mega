@@ -29,7 +29,7 @@ pub struct MegaFuse{
    
 }
 
-
+#[allow(unused)]
 impl MegaFuse{
 
     /// Creates a new instance of `MegaFuse` asynchronously.

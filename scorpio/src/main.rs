@@ -11,24 +11,16 @@
 // use scorpio::deamon::deamon_main;
 // use tokio::runtime::Handle;
 
-#[macro_use]
-extern crate log;
-
-
-
-
-//const VFS_MAX_INO: u64 = 0xff_ffff_ffff_ffff;
-const READONLY_INODE :u64 = 0xffff_ffff;
-
 
 use std::{ffi::OsStr, sync::Arc};
 
-use daemon::daemon_main;
-use fuse::MegaFuse;
-use manager::{fetch::CheckHash, ScorpioManager};
-use server::mount_filesystem;
+use scorpio::daemon::daemon_main;
+use scorpio::fuse::MegaFuse;
+use scorpio::manager::{fetch::CheckHash, ScorpioManager};
+use scorpio::server::mount_filesystem;
 use tokio::signal;
-use passthrough::newlogfs::LoggingFileSystem;
+use scorpio::passthrough::newlogfs::LoggingFileSystem;
+
 #[tokio::main]
 async fn main() {
    
