@@ -65,8 +65,7 @@ pub async fn https_server(context: Context, options: HttpsOptions) {
         context,
         host.clone(),
         https_port,
-        options.common.clone(),
-        p2p.clone(),
+        ztm.clone(),
     )
     .await;
 
@@ -94,8 +93,7 @@ pub async fn http_server(context: Context, options: HttpOptions) {
         context,
         host.clone(),
         http_port,
-        options.common.clone(),
-        p2p.clone(),
+        ztm.clone(),
     )
     .await;
 
@@ -112,20 +110,17 @@ pub async fn app(
     context: Context,
     host: String,
     port: u16,
-    common: CommonOptions,
-    p2p: P2pOptions,
+    ztm: ZtmOptions,
 ) -> Router {
     let state = AppState {
         host,
         port,
         context: context.clone(),
-        common: common.clone(),
     };
 
     let mega_api_state = MegaApiServiceState {
         inner: MonoApiServiceState {
             context: context.clone(),
-            common: common.clone(),
             oauth_client: None,
             store: None,
         },
@@ -135,7 +130,6 @@ pub async fn app(
 
     let mono_api_state = MonoApiServiceState {
         context: context.clone(),
-        common: common.clone(),
         oauth_client: None,
         store: None,
     };
