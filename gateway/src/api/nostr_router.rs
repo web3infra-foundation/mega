@@ -19,7 +19,6 @@ use crate::api::MegaApiServiceState;
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
         .route("/nostr", post(recieve))
-        .route("/nostr/quic/send_event", post(send_quic))
         .route("/nostr/send_event", post(send))
         .route("/nostr/event_list", get(event_list))
 }
@@ -134,7 +133,9 @@ async fn send(
         }
     };
 
-    let git_event = git_event_req.to_git_event(identifier, git_ref.ref_git_id).await;
+    let git_event = git_event_req
+        .to_git_event(identifier, git_ref.ref_git_id)
+        .await;
 
     match git_event.sent_to_relay(bootstrap_node.clone()).await {
         Ok(_) => {
@@ -148,35 +149,6 @@ async fn send(
             return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
         }
     }
-    Ok(Json(CommonResult::success(None)))
-}
-
-async fn send_quic(
-    state: State<MegaApiServiceState>,
-    body: String,
-) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
-    let bootstrap_node = match state.p2p.bootstrap_node.clone() {
-        Some(b) => b,
-        None => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "bootstrap node is not set".to_string(),
-            ));
-        }
-    };
-
-    match gemini::p2p::client::send(
-        "1".to_string(),
-        "nostr_event".to_string(),
-        "hello".as_bytes().to_vec(),
-        bootstrap_node,
-    )
-    .await
-    {
-        Ok(_) => {}
-        Err(_) => {}
-    }
-
     Ok(Json(CommonResult::success(None)))
 }
 

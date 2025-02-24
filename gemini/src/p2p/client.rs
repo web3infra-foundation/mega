@@ -4,26 +4,36 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
-use anyhow::{bail, Context, Result};
+use anyhow::Ok;
+use anyhow::Result;
 use quinn::crypto::rustls::QuicClientConfig;
-use quinn::{rustls, ClientConfig, Connection, Endpoint};
+use quinn::rustls::pki_types::pem::PemObject;
+use quinn::rustls::pki_types::CertificateDer;
+use quinn::rustls::pki_types::PrivateKeyDer;
+use quinn::{rustls, ClientConfig, Endpoint};
 use tokio::sync::mpsc;
 use tracing::info;
 use uuid::Uuid;
 use vault::get_peerid;
 
+use crate::ca;
 use crate::p2p::relay::{ReceiveData, SenderData};
 use crate::p2p::Action;
 
-use super::{get_certificate, ALPN_QUIC_HTTP};
+use super::ALPN_QUIC_HTTP;
 
 pub async fn run(bootstrap_node: String) -> Result<()> {
-    info!("Start");
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
-    let connection = get_client_connection(bootstrap_node).await?;
+    let endpoint = get_client_endpoint(bootstrap_node.clone()).await?;
+
+    let server_addr: SocketAddr = bootstrap_node.parse()?;
+    let connection = endpoint
+        .connect(server_addr, "localhost")?
+        .await
+        .map_err(|e| anyhow!("failed to connect: {}", e))?;
 
     let remote_address = connection.remote_address();
     let stable_id = connection.stable_id();
@@ -34,7 +44,7 @@ pub async fn run(bootstrap_node: String) -> Result<()> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let peer_id = vault::get_peerid();
+    let peer_id = vault::get_peerid().await;
 
     tokio::spawn(async move {
         loop {
@@ -50,7 +60,7 @@ pub async fn run(bootstrap_node: String) -> Result<()> {
             let json = serde_json::to_string(&ping).unwrap();
             quic_send.write_all(json.as_ref()).await.unwrap();
             quic_send.finish().unwrap();
-            tokio::time::sleep(Duration::from_secs(20)).await;
+            tokio::time::sleep(Duration::from_secs(60)).await;
         }
     });
 
@@ -59,7 +69,7 @@ pub async fn run(bootstrap_node: String) -> Result<()> {
         loop {
             let (_, mut quic_recv) = connection_clone.accept_bi().await.unwrap();
             let buffer = quic_recv.read_to_end(1024 * 1024).await.unwrap();
-            info!("QUIC Received:\n{}", String::from_utf8_lossy(&*buffer));
+            info!("QUIC Received:\n{}", String::from_utf8_lossy(&buffer));
             if tx.send(buffer).await.is_err() {
                 info!("Receiver closed");
                 return;
@@ -78,30 +88,25 @@ pub async fn run(bootstrap_node: String) -> Result<()> {
     Ok(())
 }
 
-pub async fn get_client_connection(bootstrap_node: String) -> anyhow::Result<Connection> {
-    let (certs, _key) = get_certificate().await?;
+pub async fn get_client_endpoint(bootstrap_node: String) -> anyhow::Result<Endpoint> {
+    let (user_cert, user_key) = get_user_cert_from_ca(bootstrap_node.clone()).await?;
+    let ca_cert = get_ca_cert_from_ca(bootstrap_node.clone()).await?;
 
     let mut roots = rustls::RootCertStore::empty();
 
-    for ele in certs {
-        roots.add(ele)?;
-    }
+    roots.add(ca_cert).unwrap();
 
     let mut client_crypto = rustls::ClientConfig::builder()
         .with_root_certificates(roots)
-        .with_no_client_auth();
-
+        .with_client_auth_cert([user_cert].to_vec(), user_key)
+        .unwrap();
     client_crypto.alpn_protocols = ALPN_QUIC_HTTP.iter().map(|&x| x.into()).collect();
+    client_crypto.enable_early_data = true;
     let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(client_crypto)?));
     let mut endpoint = Endpoint::client(SocketAddr::from_str("127.0.0.1:0").unwrap())?;
     endpoint.set_default_client_config(client_config);
 
-    let server_addr: SocketAddr = bootstrap_node.parse()?;
-    let conn = endpoint
-        .connect(server_addr, "localhost")?
-        .await
-        .map_err(|e| anyhow!("failed to connect: {}", e))?;
-    Ok(conn)
+    Ok(endpoint)
 }
 
 pub async fn send(
@@ -109,11 +114,16 @@ pub async fn send(
     func: String,
     data: Vec<u8>,
     bootstrap_node: String,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>> {
     let (tx, rx) = tokio::sync::oneshot::channel();
 
-    // 建立 QUIC 连接
-    let connection = get_client_connection(bootstrap_node).await?;
+    let endpoint = get_client_endpoint(bootstrap_node.clone()).await?;
+
+    let server_addr: SocketAddr = bootstrap_node.parse()?;
+    let connection = endpoint
+        .connect(server_addr, "localhost")?
+        .await
+        .map_err(|e| anyhow!("failed to connect: {}", e))?;
 
     let remote_address = connection.remote_address();
     let stable_id = connection.stable_id();
@@ -121,7 +131,7 @@ pub async fn send(
     let connection = Arc::new(connection);
 
     let connection_clone = connection.clone();
-    let local_peer_id = get_peerid();
+    let local_peer_id = get_peerid().await;
     tokio::spawn(async move {
         let (mut sender, _) = connection_clone.open_bi().await.unwrap();
         let send = ReceiveData {
@@ -141,30 +151,33 @@ pub async fn send(
 
     tokio::spawn(async move {
         let (_, mut quic_recv) = connection_clone.accept_bi().await.unwrap();
-        // 等待接收一个新的双向流
         let buffer = quic_recv.read_to_end(1024 * 1024).await.unwrap();
-        println!("QUIC Received:\n{}", String::from_utf8_lossy(&*buffer));
+        info!("QUIC Received:\n{}", String::from_utf8_lossy(&buffer));
         if tx.send(buffer).is_err() {
-            println!("Receiver closed");
-            return;
+            info!("Receiver closed");
         }
     });
-    let message = match rx.await {
-        Ok(r) => r,
-        Err(e) => {
-            return Err(anyhow!("QUIC Received Error:\n{:?}", e));
-        }
-    };
-    println!(
+    let message = rx.await?;
+    info!(
         "Channel Received message: {}",
         String::from_utf8_lossy(&message)
     );
-    let data: SenderData = match serde_json::from_slice(&*message) {
-        Ok(data) => data,
-        Err(e) => {
-            eprintln!("QUIC Received Error:\n{:?}", e);
-            return Err(anyhow!("QUIC Received Error:\n{:?}", e));
-        }
-    };
-    return Ok(data.data);
+    let data: SenderData = serde_json::from_slice(&message)?;
+    Ok(data.data)
+}
+
+pub async fn get_user_cert_from_ca(
+    ca: String,
+) -> Result<(CertificateDer<'static>, PrivateKeyDer<'static>)> {
+    let cert = ca::client::get_user_cert_from_ca(ca).await?;
+    let cert = CertificateDer::from_pem_slice(cert.as_bytes())?;
+    let key = ca::client::get_user_key().await;
+    let key = PrivateKeyDer::from_pem_slice(key.as_bytes())?;
+    Ok((cert, key))
+}
+
+pub async fn get_ca_cert_from_ca(ca: String) -> Result<CertificateDer<'static>> {
+    let cert = ca::client::get_ca_cert_from_ca(ca).await?;
+    let cert = CertificateDer::from_pem_slice(cert.as_bytes())?;
+    Ok(cert)
 }

@@ -113,7 +113,7 @@ async fn recieve(
     }
 }
 
-async fn transfer_event_to_subscribed_nodes(
+async fn _transfer_event_to_subscribed_nodes(
     storage: ZTMStorage,
     nostr_event: NostrEvent,
     ztm_agent_port: u16,

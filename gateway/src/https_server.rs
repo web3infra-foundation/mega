@@ -1,27 +1,24 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{thread, time};
 
 use axum::routing::get;
 use axum::{http, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 
-use gemini::cache::cache_public_repo_and_lfs;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
 use common::model::{CommonOptions, P2pOptions};
-use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
 use jupiter::context::Context;
 use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
 use mono::server::https_server::{get_method_router, post_method_router, AppState};
 
-use crate::api::{github_router, nostr_router, ztm_router, MegaApiServiceState};
+use crate::api::{github_router, nostr_router, MegaApiServiceState};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {

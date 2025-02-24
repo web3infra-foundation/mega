@@ -1,20 +1,22 @@
 use anyhow::anyhow;
-use anyhow::{bail, Context, Result};
+use anyhow::Result;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
+use quinn::rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use quinn::rustls::server::WebPkiClientVerifier;
 use quinn::{
     crypto::rustls::QuicServerConfig,
-    rustls::{
-        self,
-        pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
-    },
+    rustls::{self},
     RecvStream, SendStream,
 };
+use quinn::{IdleTimeout, ServerConfig, TransportConfig, VarInt};
 use serde::{Deserialize, Serialize};
-use std::{fs, io, net::SocketAddr, str::FromStr, sync::Arc};
+use std::time::Duration;
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use tracing::{error, info, info_span, Instrument};
 
-use crate::p2p::{get_certificate, ALPN_QUIC_HTTP};
+use crate::ca;
+use crate::p2p::ALPN_QUIC_HTTP;
 
 use super::Action;
 
@@ -44,24 +46,11 @@ pub struct SenderData {
 }
 
 pub async fn run(host: String, port: u16) -> Result<()> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
-
-    let (certs, key) = get_certificate().await?;
-
-    let mut server_crypto = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, key)?;
-    server_crypto.alpn_protocols = ALPN_QUIC_HTTP.iter().map(|&x| x.into()).collect();
-
-    let server_config =
-        quinn::ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(server_crypto)?));
-
+    let server_config = get_server_config().await?;
     let addr = format!("{}:{}", host, port);
     let endpoint =
         quinn::Endpoint::server(server_config, SocketAddr::from_str(addr.as_str()).unwrap())?;
-    info!("listening on {}", endpoint.local_addr()?);
+    info!("Quic server listening on udp {}", endpoint.local_addr()?);
 
     while let Some(conn) = endpoint.accept().await {
         {
@@ -76,6 +65,39 @@ pub async fn run(host: String, port: u16) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub async fn get_server_config() -> Result<ServerConfig> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
+    let (certs, key) = get_root_certificate_from_vault().await?;
+
+    let mut roots = rustls::RootCertStore::empty();
+    for c in certs.clone() {
+        roots.add(c)?;
+    }
+
+    let client_verifier = WebPkiClientVerifier::builder(roots.into())
+        .build()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+    let mut server_crypto = rustls::ServerConfig::builder()
+        .with_client_cert_verifier(client_verifier)
+        .with_single_cert(certs, key)?;
+    server_crypto.alpn_protocols = ALPN_QUIC_HTTP.iter().map(|&x| x.into()).collect();
+    server_crypto.max_early_data_size = u32::MAX;
+
+    let mut server_config =
+        quinn::ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(server_crypto)?));
+
+    let mut transport_config = TransportConfig::default();
+    transport_config.max_idle_timeout(Some(IdleTimeout::from(VarInt::from_u32(300_000))));
+    transport_config.keep_alive_interval(Some(Duration::from_secs(15)));
+    server_config.transport_config(transport_config.into());
+
+    Ok(server_config)
 }
 
 async fn handle_connection(conn: quinn::Incoming) -> Result<()> {
@@ -139,12 +161,12 @@ async fn handle_receive(
 ) -> anyhow::Result<()> {
     let buffer_vec = recv.read_to_end(1024 * 10).await?;
     if buffer_vec.is_empty() {
-        println!("QUIC Received is empty");
+        error!("QUIC Received is empty");
         return Ok(());
     }
-    let result = String::from_utf8_lossy(&*buffer_vec);
+    let result = String::from_utf8_lossy(&buffer_vec);
 
-    let data: ReceiveData = match serde_json::from_str(&*result) {
+    let data: ReceiveData = match serde_json::from_str(&result) {
         Ok(data) => data,
         Err(e) => {
             error!("QUIC Received Error:\n{:?}", e);
@@ -168,7 +190,7 @@ async fn handle_receive(
             };
             let json = serde_json::to_string(&sender_data)?;
             let (mut quic_send, _) = connection.clone().open_bi().await?;
-            quic_send.write_all(&json.as_bytes()).await?;
+            quic_send.write_all(json.as_bytes()).await?;
             quic_send.finish()?;
         }
         Action::Send => {
@@ -190,7 +212,7 @@ async fn handle_receive(
             };
             let json = serde_json::to_string(&sender_data)?;
             let (mut send, _) = connection.open_bi().await?;
-            send.write_all(&json.as_bytes()).await?;
+            send.write_all(json.as_bytes()).await?;
             send.finish()?;
         }
         Action::Call => {
@@ -212,7 +234,7 @@ async fn handle_receive(
                 };
                 let json = serde_json::to_string(&sender_data)?;
                 let (mut send, _) = connection_to.open_bi().await?;
-                send.write_all(&json.as_bytes()).await?;
+                send.write_all(json.as_bytes()).await?;
                 send.finish()?;
             }
             let from_connection = connection;
@@ -238,7 +260,7 @@ async fn handle_receive(
                 };
                 let json = serde_json::to_string(&sender_data)?;
                 let (mut send, _) = connection.open_bi().await?;
-                send.write_all(&json.as_bytes()).await?;
+                send.write_all(json.as_bytes()).await?;
                 send.finish()?;
             }
             REQ_ID_MAP.remove(data.req_id.as_str());
@@ -254,4 +276,13 @@ async fn handle_receive(
     }
 
     Ok(())
+}
+
+///Relay
+pub async fn get_root_certificate_from_vault(
+) -> anyhow::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    let cert = ca::server::get_root_cert_der().await;
+    let key = ca::server::get_root_key_der().await;
+
+    Ok((vec![cert], key))
 }
