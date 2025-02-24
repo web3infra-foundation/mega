@@ -11,12 +11,7 @@ use regex::Regex;
 use crate::service::relay_server::AppState;
 
 pub fn routers() -> Router<AppState> {
-    Router::new().route(
-        "/{*path}",
-        get(get_method_router)
-            .post(post_method_router)
-            .delete(delete_method_router),
-    )
+    Router::new().route("/{*path}", get(get_method_router).post(post_method_router))
 }
 
 async fn get_method_router(
@@ -28,16 +23,16 @@ async fn get_method_router(
         .unwrap()
         .is_match(uri.path())
     {
-        let name = match gemini::ca::get_cert_name_from_path(uri.path()) {
+        let name = match gemini::ca::server::get_cert_name_from_path(uri.path()) {
             Some(n) => n,
             None => {
-                return gemini::ca::response_error(
-                    StatusCode::BAD_REQUEST.as_u16(),
-                    "Bad request".to_string(),
-                )
+                return Err((StatusCode::BAD_REQUEST, "Bad request".to_string()));
             }
         };
-        return gemini::ca::get_certificate(name).await;
+        return match gemini::ca::server::get_certificate(name).await {
+            Ok(cert) => Ok(Response::builder().body(Body::from(cert)).unwrap()),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        };
     }
     Err((
         StatusCode::NOT_FOUND,
@@ -54,49 +49,16 @@ async fn post_method_router(
         .unwrap()
         .is_match(uri.path())
     {
-        let name = match gemini::ca::get_cert_name_from_path(uri.path()) {
+        let name = match gemini::ca::server::get_cert_name_from_path(uri.path()) {
             Some(n) => n,
-            None => {
-                return gemini::ca::response_error(
-                    StatusCode::BAD_REQUEST.as_u16(),
-                    "Bad request".to_string(),
-                )
-            }
-        };
-        return gemini::ca::issue_certificate(name).await;
-    } else if Regex::new(r"/sign/[a-zA-Z0-9]+$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        let name = match gemini::ca::get_hub_name_from_path(uri.path()) {
-            Some(n) => n,
-            None => {
-                return gemini::ca::response_error(
-                    StatusCode::BAD_REQUEST.as_u16(),
-                    "Bad request".to_string(),
-                )
-            }
+            None => return Err((StatusCode::BAD_REQUEST, "Bad request".to_string())),
         };
         let bytes = to_bytes(req.into_body(), usize::MAX).await.unwrap();
-        let pubkey = String::from_utf8(bytes.to_vec()).unwrap();
-        return gemini::ca::sign_certificate(name, pubkey).await;
-    }
-    Err((
-        StatusCode::NOT_FOUND,
-        String::from("Operation not supported\n"),
-    ))
-}
-
-async fn delete_method_router(
-    _state: State<AppState>,
-    uri: Uri,
-    _req: Request<Body>,
-) -> Result<Response<Body>, (StatusCode, String)> {
-    if Regex::new(r"/certificates/[a-zA-Z0-9]+$")
-        .unwrap()
-        .is_match(uri.path())
-    {
-        return gemini::ca::delete_certificate(uri.path()).await;
+        let csr = String::from_utf8(bytes.to_vec()).unwrap();
+        return match gemini::ca::server::issue_certificate(name, csr).await {
+            Ok(cert) => Ok(Response::builder().body(Body::from(cert)).unwrap()),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        };
     }
     Err((
         StatusCode::NOT_FOUND,

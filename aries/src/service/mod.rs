@@ -3,7 +3,6 @@ use gemini::nostr::client_message::Filter;
 use serde::{Deserialize, Serialize};
 
 pub mod api;
-pub mod ca_server;
 pub mod relay_server;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

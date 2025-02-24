@@ -23,9 +23,6 @@ pub struct RelayOptions {
     #[arg(long, default_value_t = 8001)]
     pub relay_port: u16,
 
-    #[arg(long, default_value_t = 9999)]
-    pub ca_port: u16,
-
     #[arg(long, short)]
     pub config: Option<String>,
 }
