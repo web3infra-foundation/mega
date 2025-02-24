@@ -26,12 +26,12 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
     }
 }
 
-async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection, DbErr> {
+async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection, Box<dyn Error>> {
     let db_url = db_config.db_url.to_owned();
     log::info!("Connecting to database: {}", db_url);
 
     let opt = setup_option(db_url);
-    Database::connect(opt).await
+    Database::connect(opt).await.map_err(|e| e.into())
 }
 
 async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, Box<dyn Error>> {
