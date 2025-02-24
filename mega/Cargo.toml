@@ -12,10 +12,6 @@ build = "src/build.rs"
 name = "mega"
 path = "src/main.rs"
 
-[lib]
-name = "mega_lib"
-path = "src/lib.rs"
-
 [dependencies]
 mono = { workspace = true }
 jupiter = { workspace = true }

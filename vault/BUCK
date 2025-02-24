@@ -1,0 +1,18 @@
+rust_library (
+    name = "vault",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    deps = [
+        "//third-party:rusty_vault",
+        "//third-party:serde_json",
+        "//third-party:go-defer",
+        "//third-party:openssl",
+        "//third-party:hex",
+        "//third-party:lazy_static",
+        "//third-party:bs58",
+        "//third-party:serde",
+        "//third-party:secp256k1",
+        "//third-party:tokio",
+        "//third-party:async-std",
+    ],
+)

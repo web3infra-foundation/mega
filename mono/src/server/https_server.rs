@@ -58,7 +58,6 @@ pub struct AppState {
     pub context: Context,
     pub host: String,
     pub port: u16,
-    pub common: CommonOptions,
 }
 
 pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
@@ -73,7 +72,7 @@ pub async fn start_https(context: Context, options: HttpsOptions) {
         https_port,
     } = options.clone();
 
-    let app = app(context, host.clone(), https_port, options.common.clone()).await;
+    let app = app(context, host.clone(), https_port).await;
 
     let server_url = format!("{}:{}", host, https_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
@@ -92,7 +91,7 @@ pub async fn start_http(context: Context, options: HttpOptions) {
         http_port,
     } = options.clone();
 
-    let app = app(context, host.clone(), http_port, options.common.clone()).await;
+    let app = app(context, host.clone(), http_port).await;
 
     let server_url = format!("{}:{}", host, http_port);
 
@@ -132,17 +131,15 @@ pub async fn start_http(context: Context, options: HttpOptions) {
 ///   - GET        end of `Regex::new(r"/info/refs$")`
 ///   - POST       end of `Regex::new(r"/git-upload-pack$")`
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
-pub async fn app(context: Context, host: String, port: u16, common: CommonOptions) -> Router {
+pub async fn app(context: Context, host: String, port: u16) -> Router {
     let state = AppState {
         host,
         port,
         context: context.clone(),
-        common: common.clone(),
     };
 
     let api_state = MonoApiServiceState {
         context: context.clone(),
-        common: common.clone(),
         oauth_client: Some(oauth_client(context.config.oauth.unwrap()).unwrap()),
         store: Some(MemoryStore::new()),
     };

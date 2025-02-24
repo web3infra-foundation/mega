@@ -1,14 +1,13 @@
 use std::io::{self, BufRead, Cursor, ErrorKind, Read};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, mpsc};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use axum::Error;
 use bytes::Bytes;
-use common::errors::ProtocolError;
 use flate2::bufread::ZlibDecoder;
 use futures_util::{Stream, StreamExt};
 use threadpool::ThreadPool;
@@ -21,11 +20,11 @@ use crate::internal::object::types::ObjectType;
 use crate::internal::pack::cache::Caches;
 use crate::internal::pack::cache::_Cache;
 use crate::internal::pack::cache_object::{CacheObject, MemSizeRecorder};
+use crate::internal::pack::channel_reader::StreamBufReader;
+use crate::internal::pack::entry::Entry;
 use crate::internal::pack::waitlist::Waitlist;
 use crate::internal::pack::wrapper::Wrapper;
 use crate::internal::pack::{utils, Pack, DEFAULT_TMP_DIR};
-use crate::internal::pack::channel_reader::ChannelReader;
-use crate::internal::pack::entry::Entry;
 
 use super::cache_object::CacheObjectInfo;
 
@@ -35,7 +34,7 @@ struct SharedParams {
     pub waitlist: Arc<Waitlist>,
     pub caches: Arc<Caches>,
     pub cache_objs_mem_size: Arc<AtomicUsize>,
-    pub callback: Arc<dyn Fn(Entry, usize) + Sync + Send>
+    pub callback: Arc<dyn Fn(Entry, usize) + Sync + Send>,
 }
 
 impl Drop for Pack {
@@ -56,7 +55,12 @@ impl Pack {
     /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
     ///   For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
     /// - `clean_tmp`: whether to remove temp directory when Pack is dropped
-    pub fn new(thread_num: Option<usize>, mem_limit: Option<usize>, temp_path: Option<PathBuf>, clean_tmp: bool) -> Self {
+    pub fn new(
+        thread_num: Option<usize>,
+        mem_limit: Option<usize>,
+        temp_path: Option<PathBuf>,
+        clean_tmp: bool,
+    ) -> Self {
         let mut temp_path = temp_path.unwrap_or(PathBuf::from(DEFAULT_TMP_DIR));
         // add 8 random characters as subdirectory, check if the directory exists
         loop {
@@ -75,7 +79,7 @@ impl Pack {
             objects: Vec::new(),
             pool: Arc::new(ThreadPool::new(thread_num)),
             waitlist: Arc::new(Waitlist::new()),
-            caches:  Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
+            caches: Arc::new(Caches::new(cache_mem_size, temp_path, thread_num)),
             mem_limit,
             cache_objs_mem: Arc::new(AtomicUsize::default()),
             clean_tmp,
@@ -126,7 +130,7 @@ impl Pack {
                         magic[0], magic[1], magic[2], magic[3]
                     )));
                 }
-            },
+            }
             Err(e) => {
                 // If there is an error in reading, return a GitError
                 return Err(GitError::InvalidPackFile(format!(
@@ -153,7 +157,7 @@ impl Pack {
                         version
                     )));
                 }
-            },
+            }
             Err(e) => {
                 // If there is an error in reading, return a GitError
                 return Err(GitError::InvalidPackFile(format!(
@@ -175,7 +179,7 @@ impl Pack {
                 let object_num = u32::from_be_bytes(object_num_bytes);
                 // Return the number of objects and the header data for further processing
                 Ok((object_num, header_data))
-            },
+            }
             Err(e) => {
                 // If there is an error in reading, return a GitError
                 Err(GitError::InvalidPackFile(format!(
@@ -197,7 +201,11 @@ impl Pack {
     /// * A tuple with a `Vec<u8>` of the decompressed data and the total number of input bytes processed,
     /// * Or a `GitError` in case of a mismatch in expected size or any other reading error.
     ///
-    pub fn decompress_data(&mut self, pack: &mut (impl BufRead + Send), expected_size: usize) -> Result<(Vec<u8>, usize), GitError> {
+    pub fn decompress_data(
+        &mut self,
+        pack: &mut (impl BufRead + Send),
+        expected_size: usize,
+    ) -> Result<(Vec<u8>, usize), GitError> {
         // Create a buffer with the expected size for the decompressed data
         let mut buf = Vec::with_capacity(expected_size);
         // Create a new Zlib decoder with the original data
@@ -218,10 +226,13 @@ impl Pack {
                     Ok((buf, deflate.total_in() as usize))
                     // TODO this will likely be smaller than what the decompressor actually read from the underlying stream due to buffering.
                 }
-            },
+            }
             Err(e) => {
                 // If there is an error in reading, return a GitError
-                Err(GitError::InvalidPackFile(format!( "Decompression error: {}", e)))
+                Err(GitError::InvalidPackFile(format!(
+                    "Decompression error: {}",
+                    e
+                )))
             }
         }
     }
@@ -237,7 +248,11 @@ impl Pack {
     /// * A tuple of the next offset in the pack and the original compressed data as `Vec<u8>`,
     /// * Or a `GitError` in case of any reading or decompression error.
     ///
-    pub fn decode_pack_object(&mut self, pack: &mut (impl BufRead + Send), offset: &mut usize) -> Result<CacheObject, GitError> {
+    pub fn decode_pack_object(
+        &mut self,
+        pack: &mut (impl BufRead + Send),
+        offset: &mut usize,
+    ) -> Result<CacheObject, GitError> {
         let init_offset = *offset;
 
         // Attempt to read the type and size, handle potential errors
@@ -258,7 +273,7 @@ impl Pack {
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
                 Ok(CacheObject::new_for_undeltified(t, data, init_offset))
-            },
+            }
             ObjectType::OffsetDelta => {
                 let (delta_offset, bytes) = utils::read_offset_encoding(pack).unwrap();
                 *offset += bytes;
@@ -283,7 +298,7 @@ impl Pack {
                     data_decompressed: data,
                     mem_recorder: None,
                 })
-            },
+            }
             ObjectType::HashDelta => {
                 // Read 20 bytes to get the reference object SHA1 hash
                 let ref_sha1 = SHA1::from_stream(pack).unwrap();
@@ -292,7 +307,7 @@ impl Pack {
 
                 let (data, raw_size) = self.decompress_data(pack, size)?;
                 *offset += raw_size;
-                
+
                 let mut reader = Cursor::new(&data);
                 let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
@@ -308,9 +323,13 @@ impl Pack {
 
     /// Decodes a pack file from a given Read and BufRead source, for each object in the pack,
     /// it decodes the object and processes it using the provided callback function.
-    pub fn decode<F>(&mut self, pack: &mut (impl BufRead + Send), callback: F) -> Result<(), GitError>
+    pub fn decode<F>(
+        &mut self,
+        pack: &mut (impl BufRead + Send),
+        callback: F,
+    ) -> Result<(), GitError>
     where
-        F: Fn(Entry, usize) + Sync + Send + 'static
+        F: Fn(Entry, usize) + Sync + Send + 'static,
     {
         let time = Instant::now();
         let mut last_update_time = time.elapsed().as_millis();
@@ -329,7 +348,7 @@ impl Pack {
         match result {
             Ok((object_num, _)) => {
                 self.number = object_num as usize;
-            },
+            }
             Err(e) => {
                 return Err(e);
             }
@@ -339,7 +358,7 @@ impl Pack {
         let mut i = 0;
         while i < self.number {
             // log per 1000 objects and 1 second
-            if i%1000 == 0 {
+            if i % 1000 == 0 {
                 let time_now = time.elapsed().as_millis();
                 if time_now - last_update_time > 1000 {
                     log_info(i, self);
@@ -348,11 +367,16 @@ impl Pack {
             }
             // 3 parts: Waitlist + TheadPool + Caches
             // hardcode the limit of the tasks of threads_pool queue, to limit memory
-            while self.pool.queued_count() > 2000 
-                || self.mem_limit.map(|limit| self.memory_used() > limit).unwrap_or(false) {
+            while self.pool.queued_count() > 2000
+                || self
+                    .mem_limit
+                    .map(|limit| self.memory_used() > limit)
+                    .unwrap_or(false)
+            {
                 thread::yield_now();
             }
-            let r: Result<CacheObject, GitError> = self.decode_pack_object(&mut reader, &mut offset);
+            let r: Result<CacheObject, GitError> =
+                self.decode_pack_object(&mut reader, &mut offset);
             match r {
                 Ok(mut obj) => {
                     obj.set_mem_recorder(self.cache_objs_mem.clone());
@@ -364,7 +388,7 @@ impl Pack {
                         waitlist: self.waitlist.clone(),
                         caches: self.caches.clone(),
                         cache_objs_mem_size: self.cache_objs_mem.clone(),
-                        callback: callback.clone()
+                        callback: callback.clone(),
                     });
 
                     let caches = caches.clone();
@@ -373,7 +397,7 @@ impl Pack {
                         match obj.info {
                             CacheObjectInfo::BaseObject(_, _) => {
                                 Self::cache_obj_and_process_waitlist(params, obj);
-                            },
+                            }
                             CacheObjectInfo::OffsetDelta(base_offset, _) => {
                                 if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                     Self::process_delta(params, obj, base_obj);
@@ -386,7 +410,7 @@ impl Pack {
                                         Self::process_waitlist(params, base_obj);
                                     }
                                 }
-                            },
+                            }
                             CacheObjectInfo::HashDelta(base_ref, _) => {
                                 if let Some(base_obj) = caches.get_by_hash(base_ref) {
                                     Self::process_delta(params, obj, base_obj);
@@ -399,7 +423,7 @@ impl Pack {
                             }
                         }
                     });
-                },
+                }
                 Err(e) => {
                     return Err(e);
                 }
@@ -413,25 +437,27 @@ impl Pack {
         if render_hash != self.signature {
             return Err(GitError::InvalidPackFile(format!(
                 "The pack file hash {} does not match the trailer hash {}",
-                render_hash,
-                self.signature
+                render_hash, self.signature
             )));
         }
 
         let end = utils::is_eof(&mut reader);
         if !end {
             return Err(GitError::InvalidPackFile(
-                "The pack file is not at the end".to_string()
+                "The pack file is not at the end".to_string(),
             ));
         }
 
         self.pool.join(); // wait for all threads to finish
-        // !Attention: Caches threadpool may not stop, but it's not a problem (garbage file data)
-        // So that files != self.number
+                          // !Attention: Caches threadpool may not stop, but it's not a problem (garbage file data)
+                          // So that files != self.number
         assert_eq!(self.waitlist.map_offset.len(), 0);
         assert_eq!(self.waitlist.map_ref.len(), 0);
         assert_eq!(self.number, caches.total_inserted());
-        tracing::info!("The pack file has been decoded successfully, takes: [ {:?} ]", time.elapsed());
+        tracing::info!(
+            "The pack file has been decoded successfully, takes: [ {:?} ]",
+            time.elapsed()
+        );
         self.caches.clear(); // clear cached objects & stop threads
         assert_eq!(self.cache_objs_mem_used(), 0); // all the objs should be dropped until here
 
@@ -445,47 +471,51 @@ impl Pack {
 
     /// Decode a Pack in a new thread and send the CacheObjects while decoding.
     /// <br> Attention: It will consume the `pack` and return in a JoinHandle.
-    pub fn decode_async(mut self, mut pack: (impl BufRead + Send + 'static), sender: Sender<Entry>) -> JoinHandle<Pack> {
+    pub fn decode_async(
+        mut self,
+        mut pack: (impl BufRead + Send + 'static),
+        sender: Sender<Entry>,
+    ) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
                 sender.send(entry).unwrap();
-            }).unwrap();
+            })
+            .unwrap();
             self
         })
     }
 
     /// Decodes a `Pack` from a `Stream` of `Bytes`, and sends the `Entry` while decoding.
-    pub async fn decode_stream(mut self,
-                               mut stream: impl Stream<Item = Result<Bytes, Error>> + Unpin + Send + 'static,
-                               pack_limit: usize,
-                               sender: Sender<Entry>)
-        -> (tokio::task::JoinHandle<Pack>, tokio::task::JoinHandle<Result<(), ProtocolError>>)
-    {
-        let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
-        let mut reader = ChannelReader::new(rx);
-        let mut total_size = 0;
-        let convert_handle = tokio::spawn(async move {
-            // use Channel to connect `async` & `sync`
+    pub async fn decode_stream(
+        mut self,
+        mut stream: impl Stream<Item = Result<Bytes, Error>> + Unpin + Send + 'static,
+        sender: Sender<Entry>,
+    ) -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut reader = StreamBufReader::new(rx);
+        tokio::spawn(async move {
             while let Some(chunk) = stream.next().await {
                 let data = chunk.unwrap().to_vec();
-                total_size += data.len();
-                if total_size > pack_limit {
-                    eprintln!("Body size ({}) exceeded limit ({}). Terminating connection.", total_size, pack_limit);
-                    return Err(ProtocolError::TooLarge(total_size.to_string()))
+                if let Err(e) = tx.send(data) {
+                    eprintln!("Sending Error: {:?}", e);
+                    break;
                 }
-                tx.send(data).unwrap();
             }
-            Ok(())
         });
         // CPU-bound task, so use spawn_blocking
         // DO NOT use thread::spawn, because it will block tokio runtime (if single-threaded runtime, like in tests)
-        let unpack_handle = tokio::task::spawn_blocking(move || {
-            self.decode(&mut reader, move |entry, _| {
-                if sender.send(entry).is_ok() {}
-            }).unwrap();
+        tokio::task::spawn_blocking(move || {
+            self.decode(
+                &mut reader,
+                move |entry, _| {
+                    if sender.send(entry).is_ok() {}
+                },
+            )
+            .unwrap();
             self
-        });
-        (unpack_handle, convert_handle)
+        })
+        .await
+        .unwrap()
     }
 
     /// CacheObjects + Index size of Caches
@@ -500,7 +530,11 @@ impl Pack {
 
     /// Rebuild the Delta Object in a new thread & process the objects waiting for it recursively.
     /// <br> This function must be *static*, because [&self] can't be moved into a new thread.
-    fn process_delta(shared_params: Arc<SharedParams>, delta_obj: CacheObject, base_obj: Arc<CacheObject>) {
+    fn process_delta(
+        shared_params: Arc<SharedParams>,
+        delta_obj: CacheObject,
+        base_obj: Arc<CacheObject>,
+    ) {
         shared_params.pool.clone().execute(move || {
             let mut new_obj = Pack::rebuild_delta(delta_obj, base_obj);
             new_obj.set_mem_recorder(shared_params.cache_objs_mem_size.clone());
@@ -512,12 +546,18 @@ impl Pack {
     /// Cache the new object & process the objects waiting for it (in multi-threading).
     fn cache_obj_and_process_waitlist(shared_params: Arc<SharedParams>, new_obj: CacheObject) {
         (shared_params.callback)(new_obj.to_entry(), new_obj.offset);
-        let new_obj = shared_params.caches.insert(new_obj.offset, new_obj.base_object_hash().unwrap(), new_obj);
+        let new_obj = shared_params.caches.insert(
+            new_obj.offset,
+            new_obj.base_object_hash().unwrap(),
+            new_obj,
+        );
         Self::process_waitlist(shared_params, new_obj);
     }
 
     fn process_waitlist(shared_params: Arc<SharedParams>, base_obj: Arc<CacheObject>) {
-        let wait_objs = shared_params.waitlist.take(base_obj.offset, base_obj.base_object_hash().unwrap());
+        let wait_objs = shared_params
+            .waitlist
+            .take(base_obj.offset, base_obj.base_object_hash().unwrap());
         for obj in wait_objs {
             // Process the objects waiting for the new object(base_obj = new_obj)
             Self::process_delta(shared_params.clone(), obj, base_obj.clone());
@@ -577,8 +617,12 @@ impl Pack {
                 // | 1xxxxxxx | offset1 | offset2 | offset3 | offset4 | size1 | size2 | size3 |
                 // +----------+---------+---------+---------+---------+-------+-------+-------+
                 let mut nonzero_bytes = instruction;
-                let offset = utils::read_partial_int(&mut stream, COPY_OFFSET_BYTES, &mut nonzero_bytes).unwrap();
-                let mut size = utils::read_partial_int(&mut stream, COPY_SIZE_BYTES, &mut nonzero_bytes).unwrap();
+                let offset =
+                    utils::read_partial_int(&mut stream, COPY_OFFSET_BYTES, &mut nonzero_bytes)
+                        .unwrap();
+                let mut size =
+                    utils::read_partial_int(&mut stream, COPY_SIZE_BYTES, &mut nonzero_bytes)
+                        .unwrap();
                 if size == 0 {
                     // Copying 0 bytes doesn't make sense, so git assumes a different size
                     size = COPY_ZERO_SIZE;
@@ -604,7 +648,7 @@ impl Pack {
             data_decompressed: result,
             mem_recorder: None,
         } // Canonical form (Complete Object)
-        // Memory recording will happen after this function returns. See `process_delta`
+          // Memory recording will happen after this function returns. See `process_delta`
     }
 }
 
@@ -614,9 +658,9 @@ mod tests {
     use std::io::prelude::*;
     use std::io::BufReader;
     use std::io::Cursor;
-    use std::{env, path::PathBuf};
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::{env, path::PathBuf};
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
@@ -657,7 +701,7 @@ mod tests {
             Ok((decompressed_data, bytes_read)) => {
                 assert_eq!(bytes_read, compressed_size);
                 assert_eq!(decompressed_data, data);
-            },
+            }
             Err(e) => panic!("Decompression failed: {:?}", e),
         }
     }
@@ -671,8 +715,8 @@ mod tests {
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
-        p.decode(&mut buffered, |_,_|{}).unwrap();
+        let mut p = Pack::new(None, Some(1024 * 1024 * 20), Some(tmp), true);
+        p.decode(&mut buffered, |_, _| {}).unwrap();
     }
 
     #[test]
@@ -687,8 +731,8 @@ mod tests {
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
-        p.decode(&mut buffered,|_,_|{}).unwrap();
+        let mut p = Pack::new(None, Some(1024 * 1024 * 20), Some(tmp), true);
+        p.decode(&mut buffered, |_, _| {}).unwrap();
     }
 
     #[test]
@@ -701,7 +745,7 @@ mod tests {
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
         let mut p = Pack::new(None, None, Some(tmp), true);
-        p.decode(&mut buffered, |_,_|{}).unwrap();
+        p.decode(&mut buffered, |_, _| {}).unwrap();
     }
 
     #[test]
@@ -715,8 +759,13 @@ mod tests {
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
-        let rt = p.decode(&mut buffered, |_obj, _offset|{
+        let mut p = Pack::new(
+            Some(20),
+            Some(1024 * 1024 * 1024 * 2),
+            Some(tmp.clone()),
+            true,
+        );
+        let rt = p.decode(&mut buffered, |_obj, _offset| {
             // println!("{:?} {}", obj.hash.to_string(), offset);
         });
         if let Err(e) = rt {
@@ -733,14 +782,16 @@ mod tests {
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = tokio::fs::File::open(source).await.unwrap();
-        let stream = ReaderStream::new(f).map_err(|e| {
-            axum::Error::new(e)
-        });
-        let p = Pack::new(Some(20), Some(1024*1024*1024*4), Some(tmp.clone()), true);
+        let stream = ReaderStream::new(f).map_err(axum::Error::new);
+        let p = Pack::new(
+            Some(20),
+            Some(1024 * 1024 * 1024 * 4),
+            Some(tmp.clone()),
+            true,
+        );
 
         let (tx, rx) = std::sync::mpsc::channel();
-        let (pack, _ ) = p.decode_stream(stream, 1024 * 1024 * 1024, tx).await;
-
+        let handle = tokio::spawn(async move { p.decode_stream(stream, tx).await });
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
         // in tests, RUNTIME is single-threaded, so `sync code` will block the tokio runtime
@@ -751,8 +802,10 @@ mod tests {
             }
             tracing::info!("Received: {}", cnt);
             count_c.store(cnt, Ordering::Release);
-        }).await.unwrap();
-        let p = pack.await.unwrap();
+        })
+        .await
+        .unwrap();
+        let p = handle.await.unwrap();
         assert_eq!(count.load(Ordering::Acquire), p.number);
     }
 
@@ -764,7 +817,12 @@ mod tests {
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = fs::File::open(source).unwrap();
         let buffered = BufReader::new(f);
-        let p = Pack::new(Some(20), Some(1024*1024*1024*2), Some(tmp.clone()), true);
+        let p = Pack::new(
+            Some(20),
+            Some(1024 * 1024 * 1024 * 2),
+            Some(tmp.clone()),
+            true,
+        );
 
         let (tx, rx) = std::sync::mpsc::channel();
         let handle = p.decode_async(buffered, tx); // new thread
@@ -785,8 +843,8 @@ mod tests {
 
         let f = fs::File::open(source).unwrap();
         let mut buffered = BufReader::new(f);
-        let mut p = Pack::new(None, Some(1024*1024*20), Some(tmp), true);
-        p.decode(&mut buffered, |_,_|{}).unwrap();
+        let mut p = Pack::new(None, Some(1024 * 1024 * 20), Some(tmp), true);
+        p.decode(&mut buffered, |_, _| {}).unwrap();
     }
 
     #[test]

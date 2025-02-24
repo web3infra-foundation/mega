@@ -1,0 +1,4 @@
+extra_srcs = [
+    "data/macros/**/*",
+    "data/macros.rs"
+]

@@ -1,11 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <schemalist>
     <schema id="org.Web3Infrastructure.Monobean" path="/org/Web3Infrastructure/Monobean/">
+
+        <!-- MonoBean Application Settings -->
+        <key name="first-start" type="b">
+            <default>false</default>
+        </key>
         <key name="width" type="i">
             <default>1280</default>
         </key>
         <key name="height" type="i">
             <default>720</default>
+        </key>
+        <key name="style-variant" type="s">
+            <choices>
+                <choice value='system' />
+                <choice value='light' />
+                <choice value='dark' />
+            </choices>
+            <default>'system'</default>
+            <summary>Settings theme</summary>
+        </key>
+
+        <!-- Mega Core Settings -->
+        <key name="http-address" type="s">
+            <default>"0.0.0.0"</default>
+            <summary>HTTP Address</summary>
+            <description>Address the http(s) service listening</description>
+        </key>
+        <key name="http-port" type="u">
+            <default>8080</default>
+            <summary>HTTP Port</summary>
+            <description>Port the http(s) service listening</description>
+            </key>
+        <key name="ssh-address" type="s">
+            <default>'0.0.0.0'</default>
+            <summary>SSH Address</summary>
+            <description>Address the ssh service listening</description>
+        </key>
+        <key name="ssh-port" type="u">
+            <default>2222</default>
+            <summary>SSH Port</summary>
+            <description>Port the ssh service listening</description>
         </key>
     </schema>
 </schemalist>

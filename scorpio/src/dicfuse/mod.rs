@@ -77,7 +77,8 @@ impl Dicfuse{
         let mut is_first  = true;
         let client = Client::new();
         for i in tree.tree_items{
-            if i.mode!=TreeItemMode::Blob{
+            //TODO & POS_BUG: how to deal with the link?
+            if i.mode==TreeItemMode::Commit || i.mode==TreeItemMode::Tree{
                 continue;
             }
             let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.

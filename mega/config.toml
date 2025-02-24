@@ -1,5 +1,5 @@
 # the directory where the data files is located, such as logs, database, etc.
-# can be overrided by environment variable `MEGA_BASE_DIR`
+# can be overridden by environment variable `MEGA_BASE_DIR`
 base_dir = "/tmp/.mega"
 
 # Filling the following environment variables with values you set
@@ -24,7 +24,7 @@ db_type = "sqlite"
 db_path = "${base_dir}/mega.db"
 
 # database connection url
-db_url = "postgres://mega:mega@localhost:5432/mega"
+db_url = ""
 
 # db max connection, setting it to twice the number of CPU cores would be appropriate.
 max_connection = 32
@@ -87,11 +87,8 @@ pack_decode_cache_path = "${base_dir}/cache"
 
 clean_cache_after_decode = true
 
-# The maximum meesage size in channel buffer while decode
+# The maximum message size in channel buffer while decode
 channel_message_size = 1_000_000
-
-# Maximum pack size, unit GB, enforces to use LFS off the limit
-maximum_pack_size = 4
 
 [lfs]
 # LFS Server url
@@ -104,6 +101,6 @@ lfs_obj_local_path = "${base_dir}/lfs"
 # Enable or disable splitting large files into smaller chunks
 enable_split = true  # Default is disabled. Set to true to enable file splitting.
 
-# Size of each file chunk when splitting is enabled, in bytes. Ignored if splitting is disabled.
-split_size = 20971520 # Default size is 20MB (20971520 bytes)
+# Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
+split_size = "20M"
 
