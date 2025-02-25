@@ -7,6 +7,11 @@ is then used to analyze these dependencies and generate Buck2 build rules in the
 
 This setup allows you to reference dependencies using the format `//third-party:<package name>` in your own build rules.
 
+## Attention
+You need to pay special attention to these `fixups.toml` to ensure cross device compatibility:
+- borsh
+- openssl-sys
+
 ## Update dependencies
 ### 1. Update `Cargo.toml`
 You can treat **third-party** as a normal Cargo project that manages **all** dependencies for the `Mega` project.
