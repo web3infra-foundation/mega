@@ -1,0 +1,9 @@
+rust_library (
+    name = "callisto",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    deps = [
+        "//third-party:serde",
+        "//third-party:sea-orm",
+    ],
+)

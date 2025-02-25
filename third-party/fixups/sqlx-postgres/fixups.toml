@@ -1,0 +1,3 @@
+extra_srcs = [
+    "src/types/*.md"
+]
