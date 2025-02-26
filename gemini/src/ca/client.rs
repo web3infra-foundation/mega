@@ -25,18 +25,17 @@ pub async fn get_user_cert_from_ca(ca: String) -> Result<String> {
     let url = format!("{ca}/api/v1/ca/certificates/{name}");
     let url = add_http_to_url(url);
     let client = Client::new();
-    let response = client.get(url.clone()).send().await.unwrap();
+    let response = client.get(url.clone()).send().await?;
     if response.status().is_success() {
         //cert exists
-        return Ok(response.text().await.unwrap());
+        return Ok(response.text().await?);
     }
 
-    let params = CertificateParams::new(vec![name]).unwrap();
+    let params = CertificateParams::new(vec![name])?;
 
     let key = get_user_key().await;
-    let key = KeyPair::from_pem(&key).unwrap();
-    let user_csr = params.serialize_request(&key).unwrap();
-
+    let key = KeyPair::from_pem(&key)?;
+    let user_csr = params.serialize_request(&key)?;
     //request a new cert
     let response = client
         .post(url)
