@@ -64,7 +64,7 @@ pub async fn get_ca_cert_from_ca(ca: String) -> Result<String> {
 }
 
 fn add_http_to_url(url: String) -> String {
-    if url.starts_with("http://") {
+    if url.starts_with("http://") || url.starts_with("https://") {
         return url;
     }
 
