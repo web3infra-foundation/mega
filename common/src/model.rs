@@ -8,15 +8,9 @@ pub struct CommonOptions {
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct ZtmOptions {
-    #[arg(long, default_value_t = 7777)]
-    pub ztm_agent_port: u16,
-
+pub struct P2pOptions {
     #[arg(long)]
     pub bootstrap_node: Option<String>,
-
-    #[arg(long, default_value_t = false)]
-    pub cache: bool,
 }
 
 #[derive(Deserialize, Debug)]

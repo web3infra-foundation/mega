@@ -11,6 +11,7 @@ pub mod cache;
 pub mod http;
 pub mod lfs;
 pub mod nostr;
+pub mod p2p;
 pub mod util;
 pub mod ztm;
 
