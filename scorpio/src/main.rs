@@ -11,11 +11,16 @@
 // use scorpio::deamon::deamon_main;
 // use tokio::runtime::Handle;
 
+
 use std::{ffi::OsStr, sync::Arc};
 
-use scorpio::{daemon::daemon_main, fuse::MegaFuse, manager::{fetch::CheckHash, ScorpioManager}, server::mount_filesystem};
+use scorpio::daemon::daemon_main;
+use scorpio::fuse::MegaFuse;
+use scorpio::manager::{fetch::CheckHash, ScorpioManager};
+use scorpio::server::mount_filesystem;
 use tokio::signal;
-use scorpio::passthrough::logfs::LoggingFileSystem;
+use scorpio::passthrough::newlogfs::LoggingFileSystem;
+
 #[tokio::main]
 async fn main() {
    
