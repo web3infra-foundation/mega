@@ -130,7 +130,7 @@ impl InodeStore {
                 |(inode, ovi)| {
                     let path = ovi.path.clone();
                     async move {
-                        (inode, path, ovi.lookups.load().await) // 等待 Future 完成
+                        (inode, path, ovi.lookups.load().await) // Read the Inode State.
                     }
                 }
         ).collect::<Vec<_>>();
