@@ -10,22 +10,22 @@ use std::collections::HashMap;
 pub fn create_app() -> Router {
     Router::new()
         .nest("/lfs", Router::new()
-            // 追踪LFS路径 (等价于track命令)
+            // Track LFS paths (equivalent to the track command)
             .route("/attributes/track", post(track_lfs_path))
-            // 取消追踪路径 (等价于untrack命令)
+            // Untrack paths (equivalent to the untrack command)
             .route("/attributes/untrack", post(untrack_lfs_path))
-            // 列出当前分支锁定的文件 (等价于lfs locks)
+            // List locked files in the current branch (equivalent to lfs locks)
             .route("/locks", get(list_locks))
-            // 锁定文件 (等价于lfs lock) 
+            // Lock a file (equivalent to lfs lock) 
             .route("/locks/:path", post(create_lock))
-            // 解锁文件 (等价于lfs unlock)
+            // Unlock a file (equivalent to lfs unlock)
             .route("/locks/:path", delete(remove_lock))
-            // 展示LFS文件信息 (等价于lfs ls-files)  
+            // Display LFS file information (equivalent to lfs ls - files)  
             .route("/objects/metadata", get(list_lfs_files))
         )
 }
 
-// 区域1: 属性管理端点 ===============================================
+// Region 1: Attribute management endpoints ===============================================
 
 #[derive(Debug, Deserialize)]
 struct TrackPathsRequest {
@@ -35,9 +35,9 @@ struct TrackPathsRequest {
 async fn track_lfs_path(
     Json(payload): Json<TrackPathsRequest>
 ) -> Result<Json<HashMap<String, String>>, AppError> {
-    // 业务逻辑：
-    // 1. 更新.gitattributes文件
-    // 2. 返回类似 {"status": "tracked", "added_paths": [...]}
+    // Business logic:
+    // 1. Update the.gitattributes file
+    // 2. Return something like {"status": "tracked", "added_paths": [...]}
     Ok(Json(HashMap::from([
         ("status".to_string(), "success".to_string()),
         ("added_paths".to_string(), payload.patterns.join(","))
@@ -52,17 +52,17 @@ struct UntrackPathsRequest {
 async fn untrack_lfs_path(
     Json(payload): Json<UntrackPathsRequest>
 ) -> Result<Json<HashMap<String, String>>, AppError> {
-    // 业务逻辑：从.gitattributes移除路径
+    // Business logic: Remove paths from.gitattributes
     Ok(Json(HashMap::from([
         ("status".to_string(), "success".to_string()),
         ("removed_paths".to_string(), payload.paths.join(","))
     ])))
 }
 
-// 区域2: 文件锁管理端点 ============================================
+// Region 2: File lock management endpoints ============================================
 
 #[derive(Debug, Deserialize)]
-struct ListLocksQuery { // 对应CLI的三个选项参数
+struct ListLocksQuery { // Corresponds to the three option parameters of the CLI
     id: Option<String>,
     path: Option<String>,
     limit: Option<u64>, 
@@ -73,13 +73,13 @@ struct LockInfo {
     id: String,
     path: String,
     owner: String,
-    locked_at: i64, // 时间戳
+    locked_at: i64, // Timestamp
 }
 
 async fn list_locks(
     Query(params): Query<ListLocksQuery>
 ) -> Result<Json<Vec<LockInfo>>, AppError> {
-    // 业务逻辑：查询当前分支锁列表
+    // Business logic: Query the list of locks in the current branch
     let mock_data = vec![LockInfo {
         id: "123".to_string(),
         path: params.path.unwrap_or_default(),
@@ -90,9 +90,9 @@ async fn list_locks(
 }
 
 async fn create_lock(
-    Path(path): Path<String> // 从URL路径获取文件路径
+    Path(path): Path<String> // Get the file path from the URL path
 ) -> Result<Json<LockInfo>, AppError> {
-    // 业务逻辑：创建新锁
+    // Business logic: Create a new lock
     Ok(Json(LockInfo {
         id: "456".to_string(),
         path,
@@ -102,7 +102,7 @@ async fn create_lock(
 }
 
 #[derive(Debug, Deserialize)]
-struct UnlockParams { // CLI解锁参数
+struct UnlockParams { // CLI unlock parameters
     force: bool,
     id: Option<String>,
 }
@@ -111,7 +111,7 @@ async fn remove_lock(
     Path(path): Path<String>,
     Query(params): Query<UnlockParams>
 ) -> Result<Json<HashMap<String, String>>, AppError> {
-    // 业务逻辑：强制或普通解锁
+    // Business logic: Force or normal unlock
     Ok(Json(HashMap::from([
         ("status".to_string(), "unlocked".to_string()),
         ("path".to_string(), path),
@@ -119,10 +119,10 @@ async fn remove_lock(
     ])))
 }
 
-// 区域3: LFS文件信息查看端点 =======================================
+// Region 3: LFS file information viewing endpoints =======================================
 
 #[derive(Debug, Deserialize)]
-struct MetadataQueryParams { // 对应CLI选项参数
+struct MetadataQueryParams { // Corresponds to the CLI option parameters
     long: Option<bool>,
     size: Option<bool>, 
     name_only: Option<bool>
@@ -131,15 +131,15 @@ struct MetadataQueryParams { // 对应CLI选项参数
 #[derive(Debug, Serialize)]
 struct LFSFileMeta {
     oid: String,
-    symbolic_type: String, // "*"或"-"
+    symbolic_type: String, // "*" or "-"
     path: String,
-    size_human: Option<String> // 可空字段
+    size_human: Option<String> // Nullable field
 }
 
 async fn list_lfs_files(
     Query(params): Query<MetadataQueryParams>
 ) -> Result<Json<Vec<LFSFileMeta>>, AppError> {
-    // 业务逻辑：获取当前分支LFS文件列表
+    // Business logic: Get the list of LFS files in the current branch
     let mock_file = LFSFileMeta {
         oid: "01ba4719...".to_string(),
         symbolic_type: "*".to_string(),
@@ -149,7 +149,7 @@ async fn list_lfs_files(
     Ok(Json(vec![mock_file]))
 }
 
-// 错误处理基础结构
+// Error handling infrastructure
 #[derive(Debug)]
 struct AppError(anyhow::Error);
 
