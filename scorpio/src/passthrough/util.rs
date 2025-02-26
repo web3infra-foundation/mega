@@ -82,7 +82,7 @@ impl UniqueInodeGenerator {
             self.next_virtual_inode.fetch_add(1, Ordering::Relaxed) | VIRTUAL_INODE_FLAG
         };
 
-        Ok((unique_id as u64) << 47 | inode)
+        Ok(((unique_id as u64) << 47) | inode)
     }
 
     #[cfg(test)]
