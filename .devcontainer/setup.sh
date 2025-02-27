@@ -11,8 +11,6 @@ apt-get install -y \
   gnupg2 \
   jq \
   sudo \
-  zsh \
-  vim \
   build-essential \
   openssl \
   libssl-dev \
@@ -21,7 +19,6 @@ apt-get install -y \
   pkg-config \
   postgresql \
   cmake \
-  clang \
   nodejs \
   npm \
   wget \
@@ -31,8 +28,6 @@ apt-get install -y \
   librsvg2-dev \
   ca-certificates \
   zstd \
-  cargo \
-  rust-clippy \
   clang-18 \
   lldb-18 \
   lld-18 \
@@ -42,9 +37,17 @@ apt-get install -y \
   llvm-18-dev \
   llvm-18-doc \
   llvm-18-examples \
-  llvm-18-runtime
+  llvm-18-runtime \
+  libgtk4-dev \
+  libadwaita-1-0 \
+  libadwaita-1-dev
 
 ## Install rustup and common components
+curl https://sh.rustup.rs -sSf | sh -s -- -y
+rustup install default
+rustup component add rustfmt
+rustup component add clippy
+source $HOME/.cargo/env
 cargo install cargo-expand
 cargo install cargo-edit
 
