@@ -15,4 +15,7 @@ rust_library (
         "//third-party:tokio",
         "//third-party:async-std",
     ],
+    visibility = [
+        'PUBLIC',
+    ],
 )

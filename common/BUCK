@@ -24,4 +24,7 @@ rust_library (
         "//third-party:serde_json",
         "//third-party:regex",
     ],
+    visibility = [
+        'PUBLIC',
+    ],
 )

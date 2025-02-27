@@ -8,4 +8,7 @@ rust_library (
         "//third-party:thiserror",
         "//third-party:flate2",
     ],
+    visibility = [
+        'PUBLIC',
+    ],
 )
