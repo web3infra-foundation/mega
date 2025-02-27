@@ -1,10 +1,10 @@
 # cargo_env = true
 # cargo.toml links = "ring_core_0_17_11"
 env = {"CARGO_MANIFEST_LINKS" = "ring_core_0_17_11", "RING_CORE_PREFIX" = "ring_core_0_17_11_"}
-extra_srcs = [
+    "crypto/",
+    "include/ring-core/",
+    "pregenerated/",
     "src/data/alg-rsa-encryption.der",
-    "src/ec/**/*.der"
-]
 
 [[buildscript]]
 [buildscript.rustc_flags]
