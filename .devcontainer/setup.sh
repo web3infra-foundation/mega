@@ -25,14 +25,11 @@ apt-get install -y \
   libayatana-appindicator3-dev \
   librsvg2-dev \
   ca-certificates \
-  zstd
+  zstd \
+  cargo \
+  rust-clippy
 
 ## Install rustup and common components
-curl https://sh.rustup.rs -sSf | sh -s -- -y
-rustup install default
-rustup component add rustfmt
-rustup component add clippy
-
 cargo install cargo-expand
 cargo install cargo-edit
 
