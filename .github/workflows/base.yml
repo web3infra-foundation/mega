@@ -3,7 +3,7 @@
 # History:
 #   1. 2023-02-14: Created at 2023-02-14T16:00:00Z by Quanyi Ma <eli@patch.sh>
 #   2. 2024-05-07: Update the `fuse` job to install `fuse3` and `libfuse3-dev` at 2024-05-07T16:00:00Z by Xiaoyang Han <lux1an216@gmail.com>
-#
+#   3. 2025-02-27: Reconstruct the workflow and add `install-dep` action to support test on multiple platforms by Neon <yyk1249501542@gmail.com>
 #
 
 on: [push, pull_request]
@@ -11,125 +11,154 @@ on: [push, pull_request]
 name: Base GitHub Action for Check, Test and Lints
 
 jobs:
+  # cache files before all jobs
   setup:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    name: Setup and cache ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    env:
+      CARGO_TERM_COLOR: always
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - uses: actions-rs/toolchain@v1
+      - name: Setup Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: Swatinem/rust-cache@v2
+          components: clippy rustfmt
+          cache-workspaces: |
+            ./
+            ./scorpio
+            ./monobean
+          cache-directories: |
+            ./target
+            ./scorpio/target
+            ./monobean/target
+
   #
-  check:
-    name: Check
+  format:
+    name: Rustfmt Check
     runs-on: ubuntu-latest
-    needs: setup
     steps:
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-0 libadwaita-1-dev librust-gtk4-sys-dev 
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - run: cargo fmt --all -- --check
 
   #
   clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
+    name: Clippy for ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
     needs: setup
+    env:
+      CARGO_TERM_COLOR: always
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: |
-          echo "deb http://gb.archive.ubuntu.com/ubuntu jammy main" | sudo tee -a /etc/apt/sources.list
-          sudo apt update
-          sudo apt install -y libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libgtk-4-dev \
-            libadwaita-1-0 \
-            libadwaita-1-dev \
-            librust-gtk4-sys-dev
-      - uses: actions-rs/cargo@v1
+
+      - name: Install system dependencies
+        uses: ./.github/install-dep
         with:
-          command: build
-          args: --bin mega --bin libra
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-targets --all-features -- -D warnings
+          cache-key: sysdeps
+          platform: ${{ matrix.os }}
+
+      - name: Run cargo clippy
+        run: |
+          cargo build --bin mega --bin libra
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   #
   test:
-    name: Tests
-    runs-on: ubuntu-latest
+    name: Test for ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
     needs: setup
+    env:
+      CARGO_TERM_COLOR: always
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: |
-          sudo apt update
-          sudo apt-get install -y git-lfs
-          sudo apt install libgtk-4-dev libadwaita-1-0 libadwaita-1-dev librust-gtk4-sys-dev
+
+      - name: Install system dependencies
+        uses: ./.github/install-dep
+        with:
+          cache-key: sysdeps
+          platform: ${{ matrix.os }}
+
+      - name: Set up git lfs
+        run: |
           git lfs install
           git config --global user.email "mega@github.com"
           git config --global user.name "Mega"
           git config --global lfs.url http://localhost:8000
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --bin mega --bin libra
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --test '*' -- --nocapture
+
+      - name: Run cargo test
+        run: |
+          cargo build --bin mega --bin libra
+          cargo test --workspace --all-features --all --no-fail-fast
 
   #
-  doc:
-    name: Doc
-    runs-on: ubuntu-latest
+  monobean:
+    name: Test Monobean for ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
     needs: setup
+    env:
+      CARGO_TERM_COLOR: always
+
     steps:
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-0 libadwaita-1-dev librust-gtk4-sys-dev
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions-rs/cargo@v1
+
+      - name: Install system dependencies
+        uses: ./.github/install-dep
         with:
-          command: doc
+          cache-key: sysdeps
+          platform: ${{ matrix.os }}
+
+      - name: Run Lints
+        run: |
+          cargo clippy --manifest-path monobean/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo test --manifest-path monobean/Cargo.toml  --all-features --all --no-fail-fast -- --nocapture
 
   #
   fuse:
     name: Fuse Lints
     runs-on: ubuntu-latest
-    needs: setup
     steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git submodule update --init --recursive
-          sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev
-          cd ./scorpio && cargo clippy --all-targets --all-features -- -D warnings
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo clippy --manifest-path scorpio/Cargo.toml --all-targets --all --all-features -- -D warnings
 
   moon-lint-and-build:
     name: MOON Lint & Build

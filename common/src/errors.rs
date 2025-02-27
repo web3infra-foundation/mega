@@ -103,9 +103,7 @@ impl IntoResponse for ProtocolError {
                 // This error is caused by bad user input so don't log it
                 (StatusCode::UNAUTHORIZED, err)
             }
-            ProtocolError::TooLarge(err) => {
-                (StatusCode::PAYLOAD_TOO_LARGE, err)
-            }
+            ProtocolError::TooLarge(err) => (StatusCode::PAYLOAD_TOO_LARGE, err),
             ProtocolError::NotFound(err) => {
                 // Because `TraceLayer` wraps each request in a span that contains the request
                 // method, uri, etc we don't need to include those details here

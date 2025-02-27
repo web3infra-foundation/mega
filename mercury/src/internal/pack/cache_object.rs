@@ -103,9 +103,9 @@ impl HeapSize for CacheObject {
     /// If a [`CacheObject`] is [`ObjectType::HashDelta`] or [`ObjectType::OffsetDelta`],
     /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
     /// we record the size of the expanded object as well as that of the object itself.
-    /// 
-    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`], 
-    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same 
+    ///
+    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`],
+    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same
     /// as the size of the data.
     ///
     /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
@@ -189,7 +189,7 @@ impl CacheObject {
     }
 
     /// Get the [`SHA1`] hash of the object.
-    /// 
+    ///
     /// If the object is a delta object, return [`None`].
     pub fn base_object_hash(&self) -> Option<SHA1> {
         match &self.info {
@@ -199,7 +199,7 @@ impl CacheObject {
     }
 
     /// Get the offset delta of the object.
-    /// 
+    ///
     /// If the object is not an offset delta, return [`None`].
     pub fn offset_delta(&self) -> Option<usize> {
         match &self.info {
@@ -209,7 +209,7 @@ impl CacheObject {
     }
 
     /// Get the hash delta of the object.
-    /// 
+    ///
     /// If the object is not a hash delta, return [`None`].
     pub fn hash_delta(&self) -> Option<SHA1> {
         match &self.info {
@@ -372,7 +372,7 @@ mod test {
     #[test]
     fn test_cache_object_with_lru() {
         let mut cache = LruCache::new(2048);
-        
+
         let hash_a = SHA1::default();
         let hash_b = SHA1::new(b"b"); // whatever different hash
         let a = CacheObject {

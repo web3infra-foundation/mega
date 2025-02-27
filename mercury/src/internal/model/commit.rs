@@ -5,7 +5,10 @@ use common::utils::generate_id;
 
 use crate::{
     hash::SHA1,
-    internal::{object::{commit::Commit, signature::Signature, ObjectTrait}, pack::entry::Entry},
+    internal::{
+        object::{commit::Commit, signature::Signature, ObjectTrait},
+        pack::entry::Entry,
+    },
 };
 
 impl From<mega_commit::Model> for Commit {

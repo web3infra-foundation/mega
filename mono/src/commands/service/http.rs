@@ -1,10 +1,8 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
+use crate::server::https_server::{self, HttpOptions};
 use common::{config::Config, errors::MegaResult};
 use jupiter::context::Context;
-use crate::server::https_server::{self, HttpOptions};
-
-
 
 pub fn cli() -> Command {
     HttpOptions::augment_args_for_update(Command::new("http").about("Start Mega HTTP server"))

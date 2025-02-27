@@ -3,12 +3,12 @@ use std::sync::atomic::AtomicI64;
 use std::sync::{Arc, OnceLock};
 
 use chrono::Utc;
-use crossbeam_channel::{unbounded, Sender};
 use crossbeam_channel::Receiver;
+use crossbeam_channel::{unbounded, Sender};
 use jupiter::context::Context;
 
 use crate::cache::get_mcache;
-use crate::event::{Message, EventType};
+use crate::event::{EventType, Message};
 
 // Lazy initialized static MessageQueue instance.
 pub(crate) static MQ: OnceLock<MessageQueue> = OnceLock::new();
@@ -24,13 +24,16 @@ pub struct MessageQueue {
     pub(crate) context: Context,
 }
 
-unsafe impl Send for MessageQueue{}
-unsafe impl Sync for MessageQueue{}
+unsafe impl Send for MessageQueue {}
+unsafe impl Sync for MessageQueue {}
 
 impl Debug for MessageQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Just ignore context field.
-        f.debug_struct("MessageQueue").field("sender", &self.sender).field("receiver", &self.receiver).finish()
+        f.debug_struct("MessageQueue")
+            .field("sender", &self.sender)
+            .field("receiver", &self.receiver)
+            .finish()
     }
 }
 
@@ -62,7 +65,7 @@ impl MessageQueue {
                         tokio::spawn(async move {
                             msg.evt.process().await;
                         });
-                    },
+                    }
                     Err(e) => {
                         // Should not error here.
                         panic!("Event Loop Panic: {e}");
@@ -74,9 +77,11 @@ impl MessageQueue {
 
     pub(crate) fn send(&self, evt: EventType) {
         let _ = self.sender.send(Message {
-            id: self.cur_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            id: self
+                .cur_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             create_time: Utc::now(),
-            evt
+            evt,
         });
     }
 }

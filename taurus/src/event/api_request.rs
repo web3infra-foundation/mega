@@ -1,6 +1,6 @@
+use async_trait::async_trait;
 use common::config::Config;
 use serde::{Deserialize, Serialize};
-use async_trait::async_trait;
 
 use crate::{event::EventBase, event::EventType, queue::get_mq};
 
@@ -73,7 +73,6 @@ impl TryFrom<serde_json::Value> for ApiRequestEvent {
         let res: ApiRequestEvent = serde_json::from_value(value)?;
         Ok(res)
     }
-
 }
 
 #[cfg(test)]
@@ -82,12 +81,14 @@ mod tests {
     use common::config::Config;
     use serde_json::Value;
 
-    const SER: &str =
-    r#"{"api":"Blob","config":{"base_dir":"","database":{"db_path":"/tmp/.mega/mega.db","db_type":"sqlite","db_url":"postgres://mega:mega@localhost:5432/mega","max_connection":32,"min_connection":16,"sqlx_logging":false},"lfs":{"enable_split":true,"split_size":1073741824},"log":{"level":"info","log_path":"/tmp/.mega/logs","print_std":true},"monorepo":{"import_dir":"/third-part"},"oauth":{"github_client_id":"","github_client_secret":""},"pack":{"channel_message_size":1000000,"clean_cache_after_decode":true,"pack_decode_cache_path":"/tmp/.mega/cache","pack_decode_mem_size":4,pack_decode_disk_size:"20%"},"ssh":{"ssh_key_path":"/tmp/.mega/ssh"},"storage":{"big_obj_threshold":1024,"lfs_obj_local_path":"/tmp/.mega/lfs","obs_access_key":"","obs_endpoint":"https://obs.cn-east-3.myhuaweicloud.com","obs_region":"cn-east-3","obs_secret_key":"","raw_obj_local_path":"/tmp/.mega/objects","raw_obj_storage_type":"LOCAL"},"ztm":{"agent":"127.0.0.1:7777","ca":"127.0.0.1:9999","hub":"127.0.0.1:8888"}}}"#;
+    const SER: &str = r#"{"api":"Blob","config":{"base_dir":"","database":{"db_path":"/tmp/.mega/mega.db","db_type":"sqlite","db_url":"postgres://mega:mega@localhost:5432/mega","max_connection":32,"min_connection":16,"sqlx_logging":false},"lfs":{"enable_split":true,"split_size":1073741824},"log":{"level":"info","log_path":"/tmp/.mega/logs","print_std":true},"monorepo":{"import_dir":"/third-part"},"oauth":{"github_client_id":"","github_client_secret":""},"pack":{"channel_message_size":1000000,"clean_cache_after_decode":true,"pack_decode_cache_path":"/tmp/.mega/cache","pack_decode_mem_size":4,pack_decode_disk_size:"20%"},"ssh":{"ssh_key_path":"/tmp/.mega/ssh"},"storage":{"big_obj_threshold":1024,"lfs_obj_local_path":"/tmp/.mega/lfs","obs_access_key":"","obs_endpoint":"https://obs.cn-east-3.myhuaweicloud.com","obs_region":"cn-east-3","obs_secret_key":"","raw_obj_local_path":"/tmp/.mega/objects","raw_obj_storage_type":"LOCAL"},"ztm":{"agent":"127.0.0.1:7777","ca":"127.0.0.1:9999","hub":"127.0.0.1:8888"}}}"#;
 
     #[test]
     fn test_conversion() {
-        let evt = ApiRequestEvent {api: ApiType::Blob, config: Config::default()};
+        let evt = ApiRequestEvent {
+            api: ApiType::Blob,
+            config: Config::default(),
+        };
 
         // Convert into value
         let serialized: Value = Value::from(evt);

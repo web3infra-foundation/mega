@@ -83,9 +83,11 @@ pub async fn load_key() -> PrivateKey {
         .as_object()
         .unwrap()
         .clone();
-        write_secret("ssh_server_key", Some(secret)).await.unwrap_or_else(|e| {
-            panic!("Failed to write ssh_server_key: {:?}", e);
-        });
+        write_secret("ssh_server_key", Some(secret))
+            .await
+            .unwrap_or_else(|e| {
+                panic!("Failed to write ssh_server_key: {:?}", e);
+            });
         keys
     }
 }

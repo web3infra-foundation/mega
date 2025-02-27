@@ -2,7 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use futures::{stream, StreamExt};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter, QueryOrder, QuerySelect
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 
 use callisto::{mega_blob, mega_commit, mega_refs, mega_tag, mega_tree, raw_blob};
@@ -92,10 +93,7 @@ impl MonoStorage {
         Ok(result)
     }
 
-    pub async fn get_ref(
-        &self,
-        path: &str,
-    ) -> Result<Option<mega_refs::Model>, MegaError> {
+    pub async fn get_ref(&self, path: &str) -> Result<Option<mega_refs::Model>, MegaError> {
         let result = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
             .filter(mega_refs::Column::RefName.eq(MEGA_BRANCH_NAME.to_owned()))

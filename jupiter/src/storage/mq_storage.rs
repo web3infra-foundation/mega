@@ -5,7 +5,6 @@ use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder, QuerySelect};
 
 use super::batch_save_model;
 
-
 #[derive(Clone)]
 pub struct MQStorage {
     pub connection: Arc<DatabaseConnection>,

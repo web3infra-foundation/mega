@@ -34,7 +34,6 @@ impl ApiHandler for ImportApiService {
         ));
     }
 
-
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, GitError> {
         if let Ok(relative_path) = path.strip_prefix(self.repo.repo_path.clone()) {
             Ok(relative_path.to_path_buf())
