@@ -87,7 +87,6 @@ impl From<Tag> for Vec<String> {
 
 impl fmt::Display for TagKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        
         match self {
             Self::P => write!(f, "p"),
             Self::Peer => write!(f, "peer"),

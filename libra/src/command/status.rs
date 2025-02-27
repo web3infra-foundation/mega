@@ -6,11 +6,11 @@ use colored::Colorize;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 
-use crate::internal::head::Head;
-use mercury::internal::index::Index;
 use crate::command::calc_file_blob_hash;
+use crate::internal::head::Head;
 use crate::utils::object_ext::{CommitExt, TreeExt};
 use crate::utils::{path, util};
+use mercury::internal::index::Index;
 
 /// path: to workdir
 #[derive(Debug, Default, Clone)]
@@ -48,7 +48,10 @@ pub async fn execute() {
     // TODO .gitignore
     match Head::current().await {
         Head::Detached(commit) => {
-            println!("HEAD detached at {}", String::from_utf8_lossy(&commit.0[0..7]));
+            println!(
+                "HEAD detached at {}",
+                String::from_utf8_lossy(&commit.0[0..7])
+            );
         }
         Head::Branch(branch) => {
             println!("On branch {}", branch);
@@ -123,7 +126,8 @@ pub async fn changes_to_be_committed() -> Changes {
     let head_commit = Head::current_commit().await;
     let tracked_files = index.tracked_files();
 
-    if head_commit.is_none() { // no commit yet
+    if head_commit.is_none() {
+        // no commit yet
         changes.new = tracked_files;
         return changes;
     }
@@ -146,7 +150,8 @@ pub async fn changes_to_be_committed() -> Changes {
     }
     let tree_files_set: HashSet<PathBuf> = tree_files.into_iter().map(|(path, _)| path).collect();
     // `new` means the files in index but not in the last commit
-    changes.new = tracked_files.into_iter()
+    changes.new = tracked_files
+        .into_iter()
         .filter(|path| !tree_files_set.contains(path))
         .collect();
 

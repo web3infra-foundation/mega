@@ -72,4 +72,3 @@ impl From<mega_mr::Model> for MergeRequest {
         }
     }
 }
-

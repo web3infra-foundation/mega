@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
 use lazy_static::lazy_static;
 use rusty_vault::core::{Core, SealConfig};
 use rusty_vault::errors::RvError;
@@ -10,6 +6,10 @@ use rusty_vault::storage;
 use rusty_vault::storage::barrier_aes_gcm;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct CoreKey {
@@ -41,19 +41,29 @@ fn init() -> CoreInfo {
     }
 
     let mut conf: HashMap<String, Value> = HashMap::new();
-    conf.insert("path".to_string(), Value::String(dir.to_string_lossy().into_owned()));
+    conf.insert(
+        "path".to_string(),
+        Value::String(dir.to_string_lossy().into_owned()),
+    );
 
     let backend = storage::new_backend("file", &conf).unwrap(); // file or database
     let barrier = barrier_aes_gcm::AESGCMBarrier::new(Arc::clone(&backend));
 
-    let c = Arc::new(RwLock::new(Core { physical: backend, barrier: Arc::new(barrier), ..Default::default() }));
+    let c = Arc::new(RwLock::new(Core {
+        physical: backend,
+        barrier: Arc::new(barrier),
+        ..Default::default()
+    }));
 
     let root_token;
     {
         let mut core = c.write().unwrap();
         assert!(core.config(Arc::clone(&c), None).is_ok());
 
-        let seal_config = SealConfig { secret_shares: 10, secret_threshold: 5 };
+        let seal_config = SealConfig {
+            secret_shares: 10,
+            secret_threshold: 5,
+        };
 
         let mut unsealed = false;
         if !inited {
@@ -94,7 +104,10 @@ fn init() -> CoreInfo {
         println!("root_token: {:?}", root_token);
     }
 
-    CoreInfo { core: c, token: root_token }
+    CoreInfo {
+        core: c,
+        token: root_token,
+    }
 }
 
 pub async fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
@@ -121,21 +134,33 @@ pub async fn write_api(
 }
 
 /// Write a secret to the vault (k-v)
-pub async fn write_secret(name: &str, data: Option<Map<String, Value>>) -> Result<Option<Response>, RvError> {
+pub async fn write_secret(
+    name: &str,
+    data: Option<Map<String, Value>>,
+) -> Result<Option<Response>, RvError> {
     // async_std: stop spread of `!Send` (RwLockReadGuard cross .await), for `tokio::spawn`
-    async_std::task::block_on(write_api(&CORE.core.read().unwrap(), &CORE.token, &format!("secret/{}", name), data))
+    async_std::task::block_on(write_api(
+        &CORE.core.read().unwrap(),
+        &CORE.token,
+        &format!("secret/{}", name),
+        data,
+    ))
 }
 
 /// Read a secret from the vault (k-v)
 pub async fn read_secret(name: &str) -> Result<Option<Response>, RvError> {
     // async_std: stop spread of `!Send` (RwLockReadGuard cross .await), for `tokio::spawn`
-    async_std::task::block_on(read_api(&CORE.core.read().unwrap(), &CORE.token, &format!("secret/{}", name)))
+    async_std::task::block_on(read_api(
+        &CORE.core.read().unwrap(),
+        &CORE.token,
+        &format!("secret/{}", name),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use super::*;
+    use serde_json::json;
 
     #[allow(clippy::await_holding_lock)]
     #[tokio::test]
@@ -148,13 +173,19 @@ mod tests {
         .as_object()
         .unwrap()
         .clone();
-        write_secret("keyInfo", Some(kv_data.clone())).await.unwrap();
+        write_secret("keyInfo", Some(kv_data.clone()))
+            .await
+            .unwrap();
 
         let secret = read_secret("keyInfo").await.unwrap().unwrap().data;
         assert_eq!(secret, Some(kv_data));
         println!("secret: {:?}", secret.unwrap());
 
         assert!(read_secret("foo").await.unwrap().is_none());
-        assert!(read_api(&CORE.core.read().unwrap(), &CORE.token, "secret1/foo").await.is_err());
+        assert!(
+            read_api(&CORE.core.read().unwrap(), &CORE.token, "secret1/foo")
+                .await
+                .is_err()
+        );
     }
 }

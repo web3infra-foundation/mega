@@ -53,7 +53,8 @@ pub async fn issue_certificate(name: String) -> Result<Response, (StatusCode, St
     let (cert_pem, private_key) = vault::pki::issue_cert(json!({
         "ttl": "10d",
         "common_name": name,
-    })).await;
+    }))
+    .await;
     //save cert to vault
     save_to_vault(name, cert_pem).await;
     Ok(Response::builder().body(Body::from(private_key)).unwrap())
@@ -80,7 +81,8 @@ pub async fn sign_certificate(
     let (cert_pem, private_key) = vault::pki::issue_cert(json!({
         "ttl": "10d",
         "common_name": name,
-    })).await;
+    }))
+    .await;
     //save cert to vault
     save_to_vault(name, cert_pem).await;
     Ok(Response::builder().body(Body::from(private_key)).unwrap())
@@ -137,7 +139,9 @@ async fn save_to_vault(key: String, value: String) {
     .as_object()
     .unwrap()
     .clone();
-    vault::vault::write_secret(key_f.as_str(), Some(kv_data.clone())).await.unwrap();
+    vault::vault::write_secret(key_f.as_str(), Some(kv_data.clone()))
+        .await
+        .unwrap();
 }
 
 async fn get_from_vault(key: String) -> Option<String> {

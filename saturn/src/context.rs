@@ -43,9 +43,7 @@ pub enum Error {
 }
 
 impl CedarContext {
-    pub fn new(
-        entities: EntityStore,
-    ) -> Result<Self, ContextError> {
+    pub fn new(entities: EntityStore) -> Result<Self, ContextError> {
         let schema_content = include_str!("../mega.cedarschema");
         let policy_content = include_str!("../mega_policies.cedar");
         let (schema, _) = Schema::from_cedarschema_str(schema_content).unwrap();

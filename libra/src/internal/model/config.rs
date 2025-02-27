@@ -7,7 +7,7 @@ pub struct Model {
     pub id: i64,
     // [configuration "name"]=>[remote "origin"]
     pub configuration: String, // configuration option
-    pub name: Option<String>,          // name of the configuration (optionally)
+    pub name: Option<String>,  // name of the configuration (optionally)
     pub key: String,
     pub value: String,
 }

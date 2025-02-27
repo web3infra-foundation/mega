@@ -10,10 +10,10 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::utils;
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::pack::wrapper::Wrapper;
+use crate::utils;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Time {
@@ -83,7 +83,7 @@ impl TryInto<u16> for &Flags {
             flags |= 0x4000; // 15
         }
         flags |= (self.stage as u16) << 12; // 13-14
-        if self.name_length > 0xFFF { 
+        if self.name_length > 0xFFF {
             return Err("Name length is too long");
         }
         flags |= self.name_length; // 0-11
@@ -177,8 +177,14 @@ impl IndexEntry {
 
     pub fn new_from_blob(name: String, hash: SHA1, size: u32) -> Self {
         IndexEntry {
-            ctime: Time { seconds: 0, nanos: 0 },
-            mtime: Time { seconds: 0, nanos: 0 },
+            ctime: Time {
+                seconds: 0,
+                nanos: 0,
+            },
+            mtime: Time {
+                seconds: 0,
+                nanos: 0,
+            },
             dev: 0,
             ino: 0,
             mode: 0o100644,
@@ -255,7 +261,9 @@ impl Index {
             file.read_exact(&mut name)?;
             // The exact encoding is undefined, but the '.' and '/' characters are encoded in 7-bit ASCII
             entry.name = String::from_utf8(name)?; // TODO check the encoding
-            index.entries.insert((entry.name.clone(), entry.flags.stage), entry);
+            index
+                .entries
+                .insert((entry.name.clone(), entry.flags.stage), entry);
 
             // 1-8 nul bytes as necessary to pad the entry to a multiple of eight bytes
             // while keeping the name NUL-terminated. // so at least 1 byte nul
@@ -348,7 +356,8 @@ impl Index {
     }
 
     pub fn add(&mut self, entry: IndexEntry) {
-        self.entries.insert((entry.name.clone(), entry.flags.stage), entry);
+        self.entries
+            .insert((entry.name.clone(), entry.flags.stage), entry);
     }
 
     pub fn remove(&mut self, name: &str, stage: u8) -> Option<IndexEntry> {
@@ -382,9 +391,11 @@ impl Index {
             let path_abs = workdir.join(file);
             let meta = path_abs.symlink_metadata().unwrap();
             // TODO more fields
-            let same = entry.ctime == Time::from_system_time(meta.created().unwrap_or(SystemTime::now()))
-            && entry.mtime == Time::from_system_time(meta.modified().unwrap_or(SystemTime::now()))
-            && entry.size == meta.len() as u32;
+            let same = entry.ctime
+                == Time::from_system_time(meta.created().unwrap_or(SystemTime::now()))
+                && entry.mtime
+                    == Time::from_system_time(meta.modified().unwrap_or(SystemTime::now()))
+                && entry.size == meta.len() as u32;
 
             !same
         } else {
@@ -404,7 +415,10 @@ impl Index {
 
     /// Get all tracked files(stage = 0)
     pub fn tracked_files(&self) -> Vec<PathBuf> {
-        self.tracked_entries(0).iter().map(|entry| PathBuf::from(&entry.name)).collect()
+        self.tracked_entries(0)
+            .iter()
+            .map(|entry| PathBuf::from(&entry.name))
+            .collect()
     }
 
     /// Judge if the file(s) of `dir` is in the index

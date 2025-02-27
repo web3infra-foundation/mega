@@ -40,7 +40,6 @@ impl From<GitHubUserJson> for user::Model {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LoginUser {
     pub user_id: i64,

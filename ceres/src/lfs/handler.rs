@@ -295,8 +295,7 @@ pub async fn lfs_upload_object(
     let storage = context.services.lfs_db_storage.clone();
     let lfs_storage = context.services.lfs_storage.clone();
 
-    let meta = lfs_get_meta(storage.clone(), &request_vars.oid)
-        .await?;
+    let meta = lfs_get_meta(storage.clone(), &request_vars.oid).await?;
     tracing::debug!("upload lfs object {} size: {}", meta.oid, meta.size);
     let split_size = match PackConfig::get_size_from_str(&config.split_size, || Ok(0)) {
         Ok(split_size) => split_size,

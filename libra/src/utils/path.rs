@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use crate::utils::util;
+use std::path::PathBuf;
 
 pub fn index() -> PathBuf {
     util::storage_path().join("index")
