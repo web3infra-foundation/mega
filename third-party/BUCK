@@ -1030,6 +1030,27 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "arrayvec-0.5.2",
+    srcs = [
+        "vendor/arrayvec-0.5.2/src/array.rs",
+        "vendor/arrayvec-0.5.2/src/array_string.rs",
+        "vendor/arrayvec-0.5.2/src/char.rs",
+        "vendor/arrayvec-0.5.2/src/errors.rs",
+        "vendor/arrayvec-0.5.2/src/lib.rs",
+        "vendor/arrayvec-0.5.2/src/maybe_uninit.rs",
+    ],
+    crate = "arrayvec",
+    crate_root = "vendor/arrayvec-0.5.2/src/lib.rs",
+    edition = "2018",
+    features = [
+        "array-sizes-33-128",
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "arrayvec-0.7.6",
     srcs = [
         "vendor/arrayvec-0.7.6/src/array_string.rs",
@@ -1054,6 +1075,22 @@ cargo.rust_library(
     crate_root = "vendor/as-any-0.3.1/src/lib.rs",
     edition = "2018",
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "ascii-canvas-4.0.0",
+    srcs = [
+        "vendor/ascii-canvas-4.0.0/src/lib.rs",
+        "vendor/ascii-canvas-4.0.0/src/row.rs",
+        "vendor/ascii-canvas-4.0.0/src/style.rs",
+        "vendor/ascii-canvas-4.0.0/src/test.rs",
+        "vendor/ascii-canvas-4.0.0/src/test_util.rs",
+    ],
+    crate = "ascii_canvas",
+    crate_root = "vendor/ascii-canvas-4.0.0/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":term-1.0.0"],
 )
 
 alias(
@@ -2475,6 +2512,23 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "beef-0.5.2",
+    srcs = [
+        "vendor/beef-0.5.2/src/generic.rs",
+        "vendor/beef-0.5.2/src/lean.rs",
+        "vendor/beef-0.5.2/src/lib.rs",
+        "vendor/beef-0.5.2/src/serde.rs",
+        "vendor/beef-0.5.2/src/traits.rs",
+        "vendor/beef-0.5.2/src/wide.rs",
+    ],
+    crate = "beef",
+    crate_root = "vendor/beef-0.5.2/src/lib.rs",
+    edition = "2018",
+    features = ["default"],
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "better_default-1.0.5",
     srcs = [
         "vendor/better_default-1.0.5/src/attrs.rs",
@@ -2706,6 +2760,25 @@ cargo.rust_library(
         ":syn-2.0.87",
         ":which-4.4.2",
     ],
+)
+
+cargo.rust_library(
+    name = "bit-set-0.8.0",
+    srcs = ["vendor/bit-set-0.8.0/src/lib.rs"],
+    crate = "bit_set",
+    crate_root = "vendor/bit-set-0.8.0/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+    deps = [":bit-vec-0.8.0"],
+)
+
+cargo.rust_library(
+    name = "bit-vec-0.8.0",
+    srcs = ["vendor/bit-vec-0.8.0/src/lib.rs"],
+    crate = "bit_vec",
+    crate_root = "vendor/bit-vec-0.8.0/src/lib.rs",
+    edition = "2015",
+    visibility = [],
 )
 
 cargo.rust_library(
@@ -3622,6 +3695,469 @@ cargo.rust_library(
         ":jobserver-0.1.32",
         ":shlex-1.3.0",
     ],
+)
+
+alias(
+    name = "cedar-policy",
+    actual = ":cedar-policy-4.3.1",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "cedar-policy-4.3.1",
+    srcs = [
+        "vendor/cedar-policy-4.3.1/README.md",
+        "vendor/cedar-policy-4.3.1/experimental_warning.md",
+        "vendor/cedar-policy-4.3.1/src/api.rs",
+        "vendor/cedar-policy-4.3.1/src/api/err.rs",
+        "vendor/cedar-policy-4.3.1/src/api/err/validation_errors.rs",
+        "vendor/cedar-policy-4.3.1/src/api/err/validation_warnings.rs",
+        "vendor/cedar-policy-4.3.1/src/api/id.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/check_parse.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/convert.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/format.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/is_authorized.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/mod.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/tests.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/utils.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/validate.rs",
+        "vendor/cedar-policy-4.3.1/src/ffi/version.rs",
+        "vendor/cedar-policy-4.3.1/src/lib.rs",
+        "vendor/cedar-policy-4.3.1/src/prop_test_policy_set.rs",
+        "vendor/cedar-policy-4.3.1/src/tests.rs",
+    ],
+    crate = "cedar_policy",
+    crate_root = "vendor/cedar-policy-4.3.1/src/lib.rs",
+    dlopen_enable = True,
+    edition = "2021",
+    env = {
+        "CARGO_MANIFEST_DIR": "vendor/cedar-policy-4.3.1",
+        "CARGO_PKG_AUTHORS": "",
+        "CARGO_PKG_DESCRIPTION": "Cedar is a language for defining permissions as policies, which describe who should have access to what.",
+        "CARGO_PKG_NAME": "cedar-policy",
+        "CARGO_PKG_REPOSITORY": "https://github.com/cedar-policy/cedar",
+        "CARGO_PKG_VERSION": "4.3.1",
+        "CARGO_PKG_VERSION_MAJOR": "4",
+        "CARGO_PKG_VERSION_MINOR": "3",
+        "CARGO_PKG_VERSION_PATCH": "1",
+    },
+    features = [
+        "decimal",
+        "default",
+        "ipaddr",
+    ],
+    linkable_alias = "cedar-policy",
+    visibility = [],
+    deps = [
+        ":cedar-policy-core-4.3.1",
+        ":cedar-policy-formatter-4.3.1",
+        ":cedar-policy-validator-4.3.1",
+        ":itertools-0.14.0",
+        ":lalrpop-util-0.22.0",
+        ":lazy_static-1.5.0",
+        ":miette-7.5.0",
+        ":nonempty-0.10.0",
+        ":ref-cast-1.0.23",
+        ":semver-1.0.25",
+        ":serde-1.0.217",
+        ":serde_json-1.0.138",
+        ":serde_with-3.12.0",
+        ":smol_str-0.3.1",
+        ":thiserror-2.0.11",
+    ],
+)
+
+cargo.rust_library(
+    name = "cedar-policy-core-4.3.1",
+    srcs = [
+        "vendor/cedar-policy-core-4.3.1/src/ast.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/annotation.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/entity.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/expr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/expr_iterator.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/extension.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/id.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/integer.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/literal.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/name.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/ops.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/partial_value.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/pattern.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/policy.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/policy_set.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/request.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/restricted_expr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/types.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/value.rs",
+        "vendor/cedar-policy-core-4.3.1/src/authorizer.rs",
+        "vendor/cedar-policy-core-4.3.1/src/authorizer/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/authorizer/partial_response.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/conformance.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/conformance/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/context.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/entities.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/schema.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/schema_types.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/value.rs",
+        "vendor/cedar-policy-core-4.3.1/src/error_macros.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/annotation.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/expr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/policy_set.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/scope_constraints.rs",
+        "vendor/cedar-policy-core-4.3.1/src/evaluator.rs",
+        "vendor/cedar-policy-core-4.3.1/src/evaluator/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/expr_builder.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/datetime.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/decimal.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/ipaddr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/partial_evaluation.rs",
+        "vendor/cedar-policy-core-4.3.1/src/from_normalized_str.rs",
+        "vendor/cedar-policy-core-4.3.1/src/fuzzy_match.rs",
+        "vendor/cedar-policy-core-4.3.1/src/jsonvalue.rs",
+        "vendor/cedar-policy-core-4.3.1/src/lib.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/cst.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/cst_to_ast.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/cst_to_ast/to_ref_or_refs.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/fmt.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/loc.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/node.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/text_to_cst.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/unescape.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/util.rs",
+        "vendor/cedar-policy-core-4.3.1/src/test_utils.rs",
+        "vendor/cedar-policy-core-4.3.1/src/transitive_closure.rs",
+        "vendor/cedar-policy-core-4.3.1/src/transitive_closure/err.rs",
+    ],
+    crate = "cedar_policy_core",
+    crate_root = "vendor/cedar-policy-core-4.3.1/src/lib.rs",
+    edition = "2021",
+    env = {
+        "OUT_DIR": "$(location :cedar-policy-core-4.3.1-build-script-run[out_dir])",
+    },
+    features = [
+        "decimal",
+        "default",
+        "ipaddr",
+    ],
+    visibility = [],
+    deps = [
+        ":educe-0.6.0",
+        ":either-1.13.0",
+        ":itertools-0.14.0",
+        ":lalrpop-util-0.22.0",
+        ":lazy_static-1.5.0",
+        ":miette-7.5.0",
+        ":nonempty-0.10.0",
+        ":ref-cast-1.0.23",
+        ":regex-1.11.1",
+        ":rustc_lexer-0.1.0",
+        ":serde-1.0.217",
+        ":serde_json-1.0.138",
+        ":serde_with-3.12.0",
+        ":smol_str-0.3.1",
+        ":stacker-0.1.15",
+        ":thiserror-2.0.11",
+    ],
+)
+
+cargo.rust_binary(
+    name = "cedar-policy-core-4.3.1-build-script-build",
+    srcs = [
+        "vendor/cedar-policy-core-4.3.1/build.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/annotation.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/entity.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/expr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/expr_iterator.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/extension.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/id.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/integer.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/literal.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/name.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/ops.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/partial_value.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/pattern.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/policy.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/policy_set.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/request.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/restricted_expr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/types.rs",
+        "vendor/cedar-policy-core-4.3.1/src/ast/value.rs",
+        "vendor/cedar-policy-core-4.3.1/src/authorizer.rs",
+        "vendor/cedar-policy-core-4.3.1/src/authorizer/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/authorizer/partial_response.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/conformance.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/conformance/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/context.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/entities.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/schema.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/schema_types.rs",
+        "vendor/cedar-policy-core-4.3.1/src/entities/json/value.rs",
+        "vendor/cedar-policy-core-4.3.1/src/error_macros.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/annotation.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/expr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/policy_set.rs",
+        "vendor/cedar-policy-core-4.3.1/src/est/scope_constraints.rs",
+        "vendor/cedar-policy-core-4.3.1/src/evaluator.rs",
+        "vendor/cedar-policy-core-4.3.1/src/evaluator/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/expr_builder.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/datetime.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/decimal.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/ipaddr.rs",
+        "vendor/cedar-policy-core-4.3.1/src/extensions/partial_evaluation.rs",
+        "vendor/cedar-policy-core-4.3.1/src/from_normalized_str.rs",
+        "vendor/cedar-policy-core-4.3.1/src/fuzzy_match.rs",
+        "vendor/cedar-policy-core-4.3.1/src/jsonvalue.rs",
+        "vendor/cedar-policy-core-4.3.1/src/lib.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/cst.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/cst_to_ast.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/cst_to_ast/to_ref_or_refs.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/err.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/fmt.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/loc.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/node.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/text_to_cst.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/unescape.rs",
+        "vendor/cedar-policy-core-4.3.1/src/parser/util.rs",
+        "vendor/cedar-policy-core-4.3.1/src/test_utils.rs",
+        "vendor/cedar-policy-core-4.3.1/src/transitive_closure.rs",
+        "vendor/cedar-policy-core-4.3.1/src/transitive_closure/err.rs",
+    ],
+    crate = "build_script_build",
+    crate_root = "vendor/cedar-policy-core-4.3.1/build.rs",
+    edition = "2021",
+    features = [
+        "decimal",
+        "default",
+        "ipaddr",
+    ],
+    visibility = [],
+    deps = [":lalrpop-0.22.0"],
+)
+
+buildscript_run(
+    name = "cedar-policy-core-4.3.1-build-script-run",
+    package_name = "cedar-policy-core",
+    buildscript_rule = ":cedar-policy-core-4.3.1-build-script-build",
+    features = [
+        "decimal",
+        "default",
+        "ipaddr",
+    ],
+    version = "4.3.1",
+)
+
+cargo.rust_library(
+    name = "cedar-policy-formatter-4.3.1",
+    srcs = [
+        "vendor/cedar-policy-formatter-4.3.1/src/lib.rs",
+        "vendor/cedar-policy-formatter-4.3.1/src/pprint/config.rs",
+        "vendor/cedar-policy-formatter-4.3.1/src/pprint/doc.rs",
+        "vendor/cedar-policy-formatter-4.3.1/src/pprint/fmt.rs",
+        "vendor/cedar-policy-formatter-4.3.1/src/pprint/lexer.rs",
+        "vendor/cedar-policy-formatter-4.3.1/src/pprint/mod.rs",
+        "vendor/cedar-policy-formatter-4.3.1/src/pprint/token.rs",
+        "vendor/cedar-policy-formatter-4.3.1/src/pprint/utils.rs",
+    ],
+    crate = "cedar_policy_formatter",
+    crate_root = "vendor/cedar-policy-formatter-4.3.1/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [
+        ":cedar-policy-core-4.3.1",
+        ":itertools-0.14.0",
+        ":lazy_static-1.5.0",
+        ":logos-0.15.0",
+        ":miette-7.5.0",
+        ":pretty-0.12.3",
+        ":regex-1.11.1",
+        ":smol_str-0.3.1",
+    ],
+)
+
+cargo.rust_library(
+    name = "cedar-policy-validator-4.3.1",
+    srcs = [
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/ast.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/err.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/fmt.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/parser.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/test.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/to_json_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/coreschema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/diagnostics.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/diagnostics/validation_errors.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/diagnostics/validation_warnings.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/analysis.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/loader.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/slicing.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/type_annotations.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/expr_iterator.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extension_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/datetime.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/decimal.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/ipaddr.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/partial_evaluation.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/json_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/level_validate.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/lib.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/rbac.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/action.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/entity_type.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/err.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/namespace_def.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/raw_name.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/test_579.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/str_checks.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/expr.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/extensions.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/namespace.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/optional_attributes.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/partial.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/policy.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/strict.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/tags.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/test_utils.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/type_annotation.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/unspecified_entity.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/typecheck_answer.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/types.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/types/capability.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/types/request_env.rs",
+    ],
+    crate = "cedar_policy_validator",
+    crate_root = "vendor/cedar-policy-validator-4.3.1/src/lib.rs",
+    edition = "2021",
+    env = {
+        "OUT_DIR": "$(location :cedar-policy-validator-4.3.1-build-script-run[out_dir])",
+    },
+    features = [
+        "decimal",
+        "default",
+        "ipaddr",
+    ],
+    visibility = [],
+    deps = [
+        ":cedar-policy-core-4.3.1",
+        ":educe-0.6.0",
+        ":itertools-0.14.0",
+        ":lalrpop-util-0.22.0",
+        ":lazy_static-1.5.0",
+        ":miette-7.5.0",
+        ":nonempty-0.10.0",
+        ":ref-cast-1.0.23",
+        ":serde-1.0.217",
+        ":serde_json-1.0.138",
+        ":serde_with-3.12.0",
+        ":smol_str-0.3.1",
+        ":stacker-0.1.15",
+        ":thiserror-2.0.11",
+        ":unicode-security-0.1.1",
+    ],
+)
+
+cargo.rust_binary(
+    name = "cedar-policy-validator-4.3.1-build-script-build",
+    srcs = [
+        "vendor/cedar-policy-validator-4.3.1/build.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/ast.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/err.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/fmt.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/parser.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/test.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/cedar_schema/to_json_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/coreschema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/diagnostics.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/diagnostics/validation_errors.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/diagnostics/validation_warnings.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/analysis.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/loader.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/slicing.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/entity_manifest/type_annotations.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/expr_iterator.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extension_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/datetime.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/decimal.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/ipaddr.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/extensions/partial_evaluation.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/json_schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/level_validate.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/lib.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/rbac.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/action.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/entity_type.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/err.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/namespace_def.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/raw_name.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/schema/test_579.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/str_checks.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/expr.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/extensions.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/namespace.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/optional_attributes.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/partial.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/policy.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/strict.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/tags.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/test_utils.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/type_annotation.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/test/unspecified_entity.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/typecheck/typecheck_answer.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/types.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/types/capability.rs",
+        "vendor/cedar-policy-validator-4.3.1/src/types/request_env.rs",
+    ],
+    crate = "build_script_build",
+    crate_root = "vendor/cedar-policy-validator-4.3.1/build.rs",
+    edition = "2021",
+    features = [
+        "decimal",
+        "default",
+        "ipaddr",
+    ],
+    visibility = [],
+    deps = [":lalrpop-0.22.0"],
+)
+
+buildscript_run(
+    name = "cedar-policy-validator-4.3.1-build-script-run",
+    package_name = "cedar-policy-validator",
+    buildscript_rule = ":cedar-policy-validator-4.3.1-build-script-build",
+    features = [
+        "decimal",
+        "default",
+        "ipaddr",
+    ],
+    version = "4.3.1",
 )
 
 cargo.rust_library(
@@ -4661,6 +5197,129 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "darling-0.20.10",
+    srcs = [
+        "vendor/darling-0.20.10/src/lib.rs",
+        "vendor/darling-0.20.10/src/macros_public.rs",
+    ],
+    crate = "darling",
+    crate_root = "vendor/darling-0.20.10/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "suggestions",
+    ],
+    visibility = [],
+    deps = [
+        ":darling_core-0.20.10",
+        ":darling_macro-0.20.10",
+    ],
+)
+
+cargo.rust_library(
+    name = "darling_core-0.20.10",
+    srcs = [
+        "vendor/darling_core-0.20.10/src/ast/data.rs",
+        "vendor/darling_core-0.20.10/src/ast/generics.rs",
+        "vendor/darling_core-0.20.10/src/ast/mod.rs",
+        "vendor/darling_core-0.20.10/src/codegen/attr_extractor.rs",
+        "vendor/darling_core-0.20.10/src/codegen/attrs_field.rs",
+        "vendor/darling_core-0.20.10/src/codegen/default_expr.rs",
+        "vendor/darling_core-0.20.10/src/codegen/error.rs",
+        "vendor/darling_core-0.20.10/src/codegen/field.rs",
+        "vendor/darling_core-0.20.10/src/codegen/from_attributes_impl.rs",
+        "vendor/darling_core-0.20.10/src/codegen/from_derive_impl.rs",
+        "vendor/darling_core-0.20.10/src/codegen/from_field.rs",
+        "vendor/darling_core-0.20.10/src/codegen/from_meta_impl.rs",
+        "vendor/darling_core-0.20.10/src/codegen/from_type_param.rs",
+        "vendor/darling_core-0.20.10/src/codegen/from_variant_impl.rs",
+        "vendor/darling_core-0.20.10/src/codegen/mod.rs",
+        "vendor/darling_core-0.20.10/src/codegen/outer_from_impl.rs",
+        "vendor/darling_core-0.20.10/src/codegen/postfix_transform.rs",
+        "vendor/darling_core-0.20.10/src/codegen/trait_impl.rs",
+        "vendor/darling_core-0.20.10/src/codegen/variant.rs",
+        "vendor/darling_core-0.20.10/src/codegen/variant_data.rs",
+        "vendor/darling_core-0.20.10/src/derive.rs",
+        "vendor/darling_core-0.20.10/src/error/child.rs",
+        "vendor/darling_core-0.20.10/src/error/kind.rs",
+        "vendor/darling_core-0.20.10/src/error/mod.rs",
+        "vendor/darling_core-0.20.10/src/from_attributes.rs",
+        "vendor/darling_core-0.20.10/src/from_derive_input.rs",
+        "vendor/darling_core-0.20.10/src/from_field.rs",
+        "vendor/darling_core-0.20.10/src/from_generic_param.rs",
+        "vendor/darling_core-0.20.10/src/from_generics.rs",
+        "vendor/darling_core-0.20.10/src/from_meta.rs",
+        "vendor/darling_core-0.20.10/src/from_type_param.rs",
+        "vendor/darling_core-0.20.10/src/from_variant.rs",
+        "vendor/darling_core-0.20.10/src/lib.rs",
+        "vendor/darling_core-0.20.10/src/macros_private.rs",
+        "vendor/darling_core-0.20.10/src/macros_public.rs",
+        "vendor/darling_core-0.20.10/src/options/core.rs",
+        "vendor/darling_core-0.20.10/src/options/forward_attrs.rs",
+        "vendor/darling_core-0.20.10/src/options/from_attributes.rs",
+        "vendor/darling_core-0.20.10/src/options/from_derive.rs",
+        "vendor/darling_core-0.20.10/src/options/from_field.rs",
+        "vendor/darling_core-0.20.10/src/options/from_meta.rs",
+        "vendor/darling_core-0.20.10/src/options/from_type_param.rs",
+        "vendor/darling_core-0.20.10/src/options/from_variant.rs",
+        "vendor/darling_core-0.20.10/src/options/input_field.rs",
+        "vendor/darling_core-0.20.10/src/options/input_variant.rs",
+        "vendor/darling_core-0.20.10/src/options/mod.rs",
+        "vendor/darling_core-0.20.10/src/options/outer_from.rs",
+        "vendor/darling_core-0.20.10/src/options/shape.rs",
+        "vendor/darling_core-0.20.10/src/usage/generics_ext.rs",
+        "vendor/darling_core-0.20.10/src/usage/ident_set.rs",
+        "vendor/darling_core-0.20.10/src/usage/lifetimes.rs",
+        "vendor/darling_core-0.20.10/src/usage/mod.rs",
+        "vendor/darling_core-0.20.10/src/usage/options.rs",
+        "vendor/darling_core-0.20.10/src/usage/type_params.rs",
+        "vendor/darling_core-0.20.10/src/util/flag.rs",
+        "vendor/darling_core-0.20.10/src/util/ident_string.rs",
+        "vendor/darling_core-0.20.10/src/util/ignored.rs",
+        "vendor/darling_core-0.20.10/src/util/mod.rs",
+        "vendor/darling_core-0.20.10/src/util/over_ride.rs",
+        "vendor/darling_core-0.20.10/src/util/parse_attribute.rs",
+        "vendor/darling_core-0.20.10/src/util/parse_expr.rs",
+        "vendor/darling_core-0.20.10/src/util/path_list.rs",
+        "vendor/darling_core-0.20.10/src/util/path_to_string.rs",
+        "vendor/darling_core-0.20.10/src/util/shape.rs",
+        "vendor/darling_core-0.20.10/src/util/spanned_value.rs",
+        "vendor/darling_core-0.20.10/src/util/with_original.rs",
+    ],
+    crate = "darling_core",
+    crate_root = "vendor/darling_core-0.20.10/src/lib.rs",
+    edition = "2021",
+    features = [
+        "strsim",
+        "suggestions",
+    ],
+    visibility = [],
+    deps = [
+        ":fnv-1.0.7",
+        ":ident_case-1.0.1",
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":strsim-0.11.1",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
+    name = "darling_macro-0.20.10",
+    srcs = ["vendor/darling_macro-0.20.10/src/lib.rs"],
+    crate = "darling_macro",
+    crate_root = "vendor/darling_macro-0.20.10/src/lib.rs",
+    edition = "2021",
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":darling_core-0.20.10",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
     name = "dashmap-5.5.3",
     srcs = [
         "vendor/dashmap-5.5.3/src/arbitrary.rs",
@@ -5141,6 +5800,139 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "educe-0.6.0",
+    srcs = [
+        "vendor/educe-0.6.0/src/common/bound.rs",
+        "vendor/educe-0.6.0/src/common/expr.rs",
+        "vendor/educe-0.6.0/src/common/ident_bool.rs",
+        "vendor/educe-0.6.0/src/common/ident_index.rs",
+        "vendor/educe-0.6.0/src/common/int.rs",
+        "vendor/educe-0.6.0/src/common/mod.rs",
+        "vendor/educe-0.6.0/src/common/path.rs",
+        "vendor/educe-0.6.0/src/common/tools/discriminant_type.rs",
+        "vendor/educe-0.6.0/src/common/tools/hash_type.rs",
+        "vendor/educe-0.6.0/src/common/tools/mod.rs",
+        "vendor/educe-0.6.0/src/common/type.rs",
+        "vendor/educe-0.6.0/src/common/unsafe_punctuated_meta.rs",
+        "vendor/educe-0.6.0/src/common/where_predicates_bool.rs",
+        "vendor/educe-0.6.0/src/lib.rs",
+        "vendor/educe-0.6.0/src/panic.rs",
+        "vendor/educe-0.6.0/src/supported_traits.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/clone/clone_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/clone/clone_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/clone/clone_union.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/clone/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/clone/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/clone/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/clone/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/copy/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/copy/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/copy/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/copy/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/common.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/debug_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/debug_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/debug_union.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/debug/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/default_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/default_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/default_union.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/default/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref/deref_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref/deref_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref_mut/deref_mut_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref_mut/deref_mut_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref_mut/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref_mut/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref_mut/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref_mut/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/deref_mut/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/eq/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/eq/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/eq/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/eq/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/hash_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/hash_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/hash_union.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/hash/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/common.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/into_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/into_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/into/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/ord/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/ord/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/ord/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/ord/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/ord/ord_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/ord/ord_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/ord/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/partial_eq_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/partial_eq_struct.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_eq/partial_eq_union.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_ord/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_ord/models/field_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_ord/models/mod.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_ord/models/type_attribute.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_ord/panic.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_ord/partial_ord_enum.rs",
+        "vendor/educe-0.6.0/src/trait_handlers/partial_ord/partial_ord_struct.rs",
+    ],
+    crate = "educe",
+    crate_root = "vendor/educe-0.6.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "Clone",
+        "Copy",
+        "Debug",
+        "Default",
+        "Deref",
+        "DerefMut",
+        "Eq",
+        "Hash",
+        "Into",
+        "Ord",
+        "PartialEq",
+        "PartialOrd",
+        "default",
+    ],
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":enum-ordinalize-4.3.0",
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
     name = "either-1.13.0",
     srcs = [
         "vendor/either-1.13.0/src/into_either.rs",
@@ -5159,6 +5951,24 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [":serde-1.0.217"],
+)
+
+cargo.rust_library(
+    name = "ena-0.14.3",
+    srcs = [
+        "vendor/ena-0.14.3/src/bitvec.rs",
+        "vendor/ena-0.14.3/src/lib.rs",
+        "vendor/ena-0.14.3/src/snapshot_vec.rs",
+        "vendor/ena-0.14.3/src/undo_log.rs",
+        "vendor/ena-0.14.3/src/unify/backing_vec.rs",
+        "vendor/ena-0.14.3/src/unify/mod.rs",
+        "vendor/ena-0.14.3/src/unify/tests.rs",
+    ],
+    crate = "ena",
+    crate_root = "vendor/ena-0.14.3/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+    deps = [":log-0.4.22"],
 )
 
 cargo.rust_library(
@@ -5254,6 +6064,41 @@ cargo.rust_library(
     ],
     crate = "enum_map_derive",
     crate_root = "vendor/enum-map-derive-0.17.0/src/lib.rs",
+    edition = "2021",
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
+    name = "enum-ordinalize-4.3.0",
+    srcs = [
+        "vendor/enum-ordinalize-4.3.0/src/lib.rs",
+        "vendor/enum-ordinalize-4.3.0/src/traits.rs",
+    ],
+    crate = "enum_ordinalize",
+    crate_root = "vendor/enum-ordinalize-4.3.0/src/lib.rs",
+    edition = "2021",
+    features = ["derive"],
+    visibility = [],
+    deps = [":enum-ordinalize-derive-4.3.1"],
+)
+
+cargo.rust_library(
+    name = "enum-ordinalize-derive-4.3.1",
+    srcs = [
+        "vendor/enum-ordinalize-derive-4.3.1/src/int128.rs",
+        "vendor/enum-ordinalize-derive-4.3.1/src/int_wrapper.rs",
+        "vendor/enum-ordinalize-derive-4.3.1/src/lib.rs",
+        "vendor/enum-ordinalize-derive-4.3.1/src/panic.rs",
+        "vendor/enum-ordinalize-derive-4.3.1/src/variant_type.rs",
+    ],
+    crate = "enum_ordinalize_derive",
+    crate_root = "vendor/enum-ordinalize-derive-4.3.1/src/lib.rs",
     edition = "2021",
     proc_macro = True,
     visibility = [],
@@ -5528,6 +6373,18 @@ cargo.rust_library(
         "default",
         "std",
     ],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "fixedbitset-0.4.2",
+    srcs = [
+        "vendor/fixedbitset-0.4.2/src/lib.rs",
+        "vendor/fixedbitset-0.4.2/src/range.rs",
+    ],
+    crate = "fixedbitset",
+    crate_root = "vendor/fixedbitset-0.4.2/src/lib.rs",
+    edition = "2015",
     visibility = [],
 )
 
@@ -7752,6 +8609,15 @@ cargo.rust_library(
     ],
 )
 
+cargo.rust_library(
+    name = "ident_case-1.0.1",
+    srcs = ["vendor/ident_case-1.0.1/src/lib.rs"],
+    crate = "ident_case",
+    crate_root = "vendor/ident_case-1.0.1/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+)
+
 alias(
     name = "idgenerator",
     actual = ":idgenerator-2.0.0",
@@ -7831,6 +8697,41 @@ cargo.rust_library(
     crate_root = "vendor/impl-more-0.1.6/src/lib.rs",
     edition = "2018",
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "indexmap-1.9.3",
+    srcs = [
+        "vendor/indexmap-1.9.3/src/arbitrary.rs",
+        "vendor/indexmap-1.9.3/src/equivalent.rs",
+        "vendor/indexmap-1.9.3/src/lib.rs",
+        "vendor/indexmap-1.9.3/src/macros.rs",
+        "vendor/indexmap-1.9.3/src/map.rs",
+        "vendor/indexmap-1.9.3/src/map/core.rs",
+        "vendor/indexmap-1.9.3/src/map/core/raw.rs",
+        "vendor/indexmap-1.9.3/src/mutable_keys.rs",
+        "vendor/indexmap-1.9.3/src/rayon/map.rs",
+        "vendor/indexmap-1.9.3/src/rayon/mod.rs",
+        "vendor/indexmap-1.9.3/src/rayon/set.rs",
+        "vendor/indexmap-1.9.3/src/rustc.rs",
+        "vendor/indexmap-1.9.3/src/serde.rs",
+        "vendor/indexmap-1.9.3/src/serde_seq.rs",
+        "vendor/indexmap-1.9.3/src/set.rs",
+        "vendor/indexmap-1.9.3/src/util.rs",
+    ],
+    crate = "indexmap",
+    crate_root = "vendor/indexmap-1.9.3/src/lib.rs",
+    edition = "2021",
+    features = [
+        "serde",
+        "serde-1",
+        "std",
+    ],
+    visibility = [],
+    deps = [
+        ":hashbrown-0.12.3",
+        ":serde-1.0.217",
+    ],
 )
 
 cargo.rust_library(
@@ -8115,6 +9016,142 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "itertools-0.13.0",
+    srcs = [
+        "vendor/itertools-0.13.0/src/adaptors/coalesce.rs",
+        "vendor/itertools-0.13.0/src/adaptors/map.rs",
+        "vendor/itertools-0.13.0/src/adaptors/mod.rs",
+        "vendor/itertools-0.13.0/src/adaptors/multi_product.rs",
+        "vendor/itertools-0.13.0/src/combinations.rs",
+        "vendor/itertools-0.13.0/src/combinations_with_replacement.rs",
+        "vendor/itertools-0.13.0/src/concat_impl.rs",
+        "vendor/itertools-0.13.0/src/cons_tuples_impl.rs",
+        "vendor/itertools-0.13.0/src/diff.rs",
+        "vendor/itertools-0.13.0/src/duplicates_impl.rs",
+        "vendor/itertools-0.13.0/src/either_or_both.rs",
+        "vendor/itertools-0.13.0/src/exactly_one_err.rs",
+        "vendor/itertools-0.13.0/src/extrema_set.rs",
+        "vendor/itertools-0.13.0/src/flatten_ok.rs",
+        "vendor/itertools-0.13.0/src/format.rs",
+        "vendor/itertools-0.13.0/src/free.rs",
+        "vendor/itertools-0.13.0/src/group_map.rs",
+        "vendor/itertools-0.13.0/src/groupbylazy.rs",
+        "vendor/itertools-0.13.0/src/grouping_map.rs",
+        "vendor/itertools-0.13.0/src/impl_macros.rs",
+        "vendor/itertools-0.13.0/src/intersperse.rs",
+        "vendor/itertools-0.13.0/src/iter_index.rs",
+        "vendor/itertools-0.13.0/src/k_smallest.rs",
+        "vendor/itertools-0.13.0/src/kmerge_impl.rs",
+        "vendor/itertools-0.13.0/src/lazy_buffer.rs",
+        "vendor/itertools-0.13.0/src/lib.rs",
+        "vendor/itertools-0.13.0/src/merge_join.rs",
+        "vendor/itertools-0.13.0/src/minmax.rs",
+        "vendor/itertools-0.13.0/src/multipeek_impl.rs",
+        "vendor/itertools-0.13.0/src/pad_tail.rs",
+        "vendor/itertools-0.13.0/src/peek_nth.rs",
+        "vendor/itertools-0.13.0/src/peeking_take_while.rs",
+        "vendor/itertools-0.13.0/src/permutations.rs",
+        "vendor/itertools-0.13.0/src/powerset.rs",
+        "vendor/itertools-0.13.0/src/process_results_impl.rs",
+        "vendor/itertools-0.13.0/src/put_back_n_impl.rs",
+        "vendor/itertools-0.13.0/src/rciter_impl.rs",
+        "vendor/itertools-0.13.0/src/repeatn.rs",
+        "vendor/itertools-0.13.0/src/size_hint.rs",
+        "vendor/itertools-0.13.0/src/sources.rs",
+        "vendor/itertools-0.13.0/src/take_while_inclusive.rs",
+        "vendor/itertools-0.13.0/src/tee.rs",
+        "vendor/itertools-0.13.0/src/tuple_impl.rs",
+        "vendor/itertools-0.13.0/src/unique_impl.rs",
+        "vendor/itertools-0.13.0/src/unziptuple.rs",
+        "vendor/itertools-0.13.0/src/with_position.rs",
+        "vendor/itertools-0.13.0/src/zip_eq_impl.rs",
+        "vendor/itertools-0.13.0/src/zip_longest.rs",
+        "vendor/itertools-0.13.0/src/ziptuple.rs",
+    ],
+    crate = "itertools",
+    crate_root = "vendor/itertools-0.13.0/src/lib.rs",
+    edition = "2018",
+    features = [
+        "use_alloc",
+        "use_std",
+    ],
+    visibility = [],
+    deps = [":either-1.13.0"],
+)
+
+alias(
+    name = "itertools",
+    actual = ":itertools-0.14.0",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "itertools-0.14.0",
+    srcs = [
+        "vendor/itertools-0.14.0/src/adaptors/coalesce.rs",
+        "vendor/itertools-0.14.0/src/adaptors/map.rs",
+        "vendor/itertools-0.14.0/src/adaptors/mod.rs",
+        "vendor/itertools-0.14.0/src/adaptors/multi_product.rs",
+        "vendor/itertools-0.14.0/src/combinations.rs",
+        "vendor/itertools-0.14.0/src/combinations_with_replacement.rs",
+        "vendor/itertools-0.14.0/src/concat_impl.rs",
+        "vendor/itertools-0.14.0/src/cons_tuples_impl.rs",
+        "vendor/itertools-0.14.0/src/diff.rs",
+        "vendor/itertools-0.14.0/src/duplicates_impl.rs",
+        "vendor/itertools-0.14.0/src/either_or_both.rs",
+        "vendor/itertools-0.14.0/src/exactly_one_err.rs",
+        "vendor/itertools-0.14.0/src/extrema_set.rs",
+        "vendor/itertools-0.14.0/src/flatten_ok.rs",
+        "vendor/itertools-0.14.0/src/format.rs",
+        "vendor/itertools-0.14.0/src/free.rs",
+        "vendor/itertools-0.14.0/src/group_map.rs",
+        "vendor/itertools-0.14.0/src/groupbylazy.rs",
+        "vendor/itertools-0.14.0/src/grouping_map.rs",
+        "vendor/itertools-0.14.0/src/impl_macros.rs",
+        "vendor/itertools-0.14.0/src/intersperse.rs",
+        "vendor/itertools-0.14.0/src/iter_index.rs",
+        "vendor/itertools-0.14.0/src/k_smallest.rs",
+        "vendor/itertools-0.14.0/src/kmerge_impl.rs",
+        "vendor/itertools-0.14.0/src/lazy_buffer.rs",
+        "vendor/itertools-0.14.0/src/lib.rs",
+        "vendor/itertools-0.14.0/src/merge_join.rs",
+        "vendor/itertools-0.14.0/src/minmax.rs",
+        "vendor/itertools-0.14.0/src/multipeek_impl.rs",
+        "vendor/itertools-0.14.0/src/next_array.rs",
+        "vendor/itertools-0.14.0/src/pad_tail.rs",
+        "vendor/itertools-0.14.0/src/peek_nth.rs",
+        "vendor/itertools-0.14.0/src/peeking_take_while.rs",
+        "vendor/itertools-0.14.0/src/permutations.rs",
+        "vendor/itertools-0.14.0/src/powerset.rs",
+        "vendor/itertools-0.14.0/src/process_results_impl.rs",
+        "vendor/itertools-0.14.0/src/put_back_n_impl.rs",
+        "vendor/itertools-0.14.0/src/rciter_impl.rs",
+        "vendor/itertools-0.14.0/src/repeatn.rs",
+        "vendor/itertools-0.14.0/src/size_hint.rs",
+        "vendor/itertools-0.14.0/src/sources.rs",
+        "vendor/itertools-0.14.0/src/take_while_inclusive.rs",
+        "vendor/itertools-0.14.0/src/tee.rs",
+        "vendor/itertools-0.14.0/src/tuple_impl.rs",
+        "vendor/itertools-0.14.0/src/unique_impl.rs",
+        "vendor/itertools-0.14.0/src/unziptuple.rs",
+        "vendor/itertools-0.14.0/src/with_position.rs",
+        "vendor/itertools-0.14.0/src/zip_eq_impl.rs",
+        "vendor/itertools-0.14.0/src/zip_longest.rs",
+        "vendor/itertools-0.14.0/src/ziptuple.rs",
+    ],
+    crate = "itertools",
+    crate_root = "vendor/itertools-0.14.0/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "use_alloc",
+        "use_std",
+    ],
+    visibility = [],
+    deps = [":either-1.13.0"],
+)
+
+cargo.rust_library(
     name = "itoa-1.0.11",
     srcs = [
         "vendor/itoa-1.0.11/src/lib.rs",
@@ -8187,6 +9224,27 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "keccak-0.1.5",
+    srcs = [
+        "vendor/keccak-0.1.5/src/armv8.rs",
+        "vendor/keccak-0.1.5/src/lib.rs",
+        "vendor/keccak-0.1.5/src/unroll.rs",
+    ],
+    crate = "keccak",
+    crate_root = "vendor/keccak-0.1.5/src/lib.rs",
+    edition = "2018",
+    platform = {
+        "linux-arm64": dict(
+            deps = [":cpufeatures-0.2.13"],
+        ),
+        "macos-arm64": dict(
+            deps = [":cpufeatures-0.2.13"],
+        ),
+    },
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "kstring-2.0.2",
     srcs = [
         "vendor/kstring-2.0.2/src/backend.rs",
@@ -8221,6 +9279,186 @@ cargo.rust_library(
     edition = "2018",
     visibility = [],
     deps = [":log-0.4.22"],
+)
+
+cargo.rust_library(
+    name = "lalrpop-0.22.0",
+    srcs = [
+        "vendor/lalrpop-0.22.0/src/api/mod.rs",
+        "vendor/lalrpop-0.22.0/src/build/action.rs",
+        "vendor/lalrpop-0.22.0/src/build/fake_term.rs",
+        "vendor/lalrpop-0.22.0/src/build/mod.rs",
+        "vendor/lalrpop-0.22.0/src/collections/map.rs",
+        "vendor/lalrpop-0.22.0/src/collections/mod.rs",
+        "vendor/lalrpop-0.22.0/src/collections/multimap.rs",
+        "vendor/lalrpop-0.22.0/src/collections/set.rs",
+        "vendor/lalrpop-0.22.0/src/file_text.rs",
+        "vendor/lalrpop-0.22.0/src/generate.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/consts.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/free_variables/mod.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/free_variables/test.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/mod.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/parse_tree.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/pattern.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/repr.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/token/mod.rs",
+        "vendor/lalrpop-0.22.0/src/grammar/token/test.rs",
+        "vendor/lalrpop-0.22.0/src/kernel_set.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/dfa/interpret.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/dfa/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/dfa/overlap.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/dfa/test.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/intern_token/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/nfa/interpret.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/nfa/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/nfa/test.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/re/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lexer/re/test.rs",
+        "vendor/lalrpop-0.22.0/src/lib.rs",
+        "vendor/lalrpop-0.22.0/src/log.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/build/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/build/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/build_lalr/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/build_lalr/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/codegen/ascent.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/codegen/base.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/codegen/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/codegen/parse_table.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/codegen/test_all.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/core/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/error/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/error/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/example/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/example/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/first/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/first/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/interpret.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/construct/merge.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/construct/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/construct/state_set.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/lane/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/table/context_set/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/table/context_set/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/table/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lane_table/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/lookahead.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/report/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/state_graph.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/tls.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/trace/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/trace/reduce/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/trace/reduce/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/trace/shift/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/trace/shift/test.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/trace/trace_graph/mod.rs",
+        "vendor/lalrpop-0.22.0/src/lr1/trace/trace_graph/test.rs",
+        "vendor/lalrpop-0.22.0/src/main.rs",
+        "vendor/lalrpop-0.22.0/src/message/builder.rs",
+        "vendor/lalrpop-0.22.0/src/message/horiz.rs",
+        "vendor/lalrpop-0.22.0/src/message/indent.rs",
+        "vendor/lalrpop-0.22.0/src/message/message.rs",
+        "vendor/lalrpop-0.22.0/src/message/mod.rs",
+        "vendor/lalrpop-0.22.0/src/message/styled.rs",
+        "vendor/lalrpop-0.22.0/src/message/test.rs",
+        "vendor/lalrpop-0.22.0/src/message/text.rs",
+        "vendor/lalrpop-0.22.0/src/message/vert.rs",
+        "vendor/lalrpop-0.22.0/src/message/wrap.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/cond_comp/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/cond_comp/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/inline/graph/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/inline/graph/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/inline/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/inline/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/lower/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/macro_expand/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/macro_expand/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/norm_util.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/precedence/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/precedence/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/prevalidate/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/prevalidate/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/resolve/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/resolve/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/token_check/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/token_check/test.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/tyinfer/mod.rs",
+        "vendor/lalrpop-0.22.0/src/normalize/tyinfer/test.rs",
+        "vendor/lalrpop-0.22.0/src/parser/lrgrammar.rs",
+        "vendor/lalrpop-0.22.0/src/parser/mod.rs",
+        "vendor/lalrpop-0.22.0/src/parser/test.rs",
+        "vendor/lalrpop-0.22.0/src/rust/mod.rs",
+        "vendor/lalrpop-0.22.0/src/session.rs",
+        "vendor/lalrpop-0.22.0/src/test_util.rs",
+        "vendor/lalrpop-0.22.0/src/tls/mod.rs",
+        "vendor/lalrpop-0.22.0/src/tok/mod.rs",
+        "vendor/lalrpop-0.22.0/src/tok/test.rs",
+        "vendor/lalrpop-0.22.0/src/util.rs",
+    ],
+    crate = "lalrpop",
+    crate_root = "vendor/lalrpop-0.22.0/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_MANIFEST_DIR": "vendor/lalrpop-0.22.0",
+        "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+        "CARGO_PKG_DESCRIPTION": "convenient LR(1) parser generator",
+        "CARGO_PKG_NAME": "lalrpop",
+        "CARGO_PKG_REPOSITORY": "https://github.com/lalrpop/lalrpop",
+        "CARGO_PKG_VERSION": "0.22.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "22",
+        "CARGO_PKG_VERSION_PATCH": "0",
+    },
+    features = [
+        "default",
+        "lexer",
+        "pico-args",
+        "unicode",
+    ],
+    visibility = [],
+    deps = [
+        ":ascii-canvas-4.0.0",
+        ":bit-set-0.8.0",
+        ":ena-0.14.3",
+        ":itertools-0.13.0",
+        ":lalrpop-util-0.22.0",
+        ":petgraph-0.6.5",
+        ":pico-args-0.5.0",
+        ":regex-1.11.1",
+        ":regex-syntax-0.8.5",
+        ":sha3-0.10.8",
+        ":string_cache-0.8.7",
+        ":term-1.0.0",
+        ":unicode-xid-0.2.4",
+        ":walkdir-2.5.0",
+    ],
+)
+
+cargo.rust_library(
+    name = "lalrpop-util-0.22.0",
+    srcs = [
+        "vendor/lalrpop-util-0.22.0/src/lexer.rs",
+        "vendor/lalrpop-util-0.22.0/src/lib.rs",
+        "vendor/lalrpop-util-0.22.0/src/state_machine.rs",
+    ],
+    crate = "lalrpop_util",
+    crate_root = "vendor/lalrpop-util-0.22.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "lexer",
+        "regex-automata",
+        "std",
+        "unicode",
+    ],
+    visibility = [],
+    deps = [
+        ":regex-automata-0.4.8",
+        ":rustversion-1.0.17",
+    ],
 )
 
 cargo.rust_library(
@@ -9203,6 +10441,82 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "logos-0.15.0",
+    srcs = [
+        "vendor/logos-0.15.0/src/internal.rs",
+        "vendor/logos-0.15.0/src/lexer.rs",
+        "vendor/logos-0.15.0/src/lib.rs",
+        "vendor/logos-0.15.0/src/source.rs",
+    ],
+    crate = "logos",
+    crate_root = "vendor/logos-0.15.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "export_derive",
+        "logos-derive",
+        "std",
+    ],
+    visibility = [],
+    deps = [":logos-derive-0.15.0"],
+)
+
+cargo.rust_library(
+    name = "logos-codegen-0.15.0",
+    srcs = [
+        "vendor/logos-codegen-0.15.0/src/error.rs",
+        "vendor/logos-codegen-0.15.0/src/generator/context.rs",
+        "vendor/logos-codegen-0.15.0/src/generator/fork.rs",
+        "vendor/logos-codegen-0.15.0/src/generator/leaf.rs",
+        "vendor/logos-codegen-0.15.0/src/generator/mod.rs",
+        "vendor/logos-codegen-0.15.0/src/generator/rope.rs",
+        "vendor/logos-codegen-0.15.0/src/generator/tables.rs",
+        "vendor/logos-codegen-0.15.0/src/graph/fork.rs",
+        "vendor/logos-codegen-0.15.0/src/graph/impls.rs",
+        "vendor/logos-codegen-0.15.0/src/graph/meta.rs",
+        "vendor/logos-codegen-0.15.0/src/graph/mod.rs",
+        "vendor/logos-codegen-0.15.0/src/graph/range.rs",
+        "vendor/logos-codegen-0.15.0/src/graph/regex.rs",
+        "vendor/logos-codegen-0.15.0/src/graph/rope.rs",
+        "vendor/logos-codegen-0.15.0/src/leaf.rs",
+        "vendor/logos-codegen-0.15.0/src/lib.rs",
+        "vendor/logos-codegen-0.15.0/src/macros.rs",
+        "vendor/logos-codegen-0.15.0/src/mir.rs",
+        "vendor/logos-codegen-0.15.0/src/parser/definition.rs",
+        "vendor/logos-codegen-0.15.0/src/parser/ignore_flags.rs",
+        "vendor/logos-codegen-0.15.0/src/parser/mod.rs",
+        "vendor/logos-codegen-0.15.0/src/parser/nested.rs",
+        "vendor/logos-codegen-0.15.0/src/parser/subpattern.rs",
+        "vendor/logos-codegen-0.15.0/src/parser/type_params.rs",
+        "vendor/logos-codegen-0.15.0/src/util.rs",
+    ],
+    crate = "logos_codegen",
+    crate_root = "vendor/logos-codegen-0.15.0/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [
+        ":beef-0.5.2",
+        ":fnv-1.0.7",
+        ":lazy_static-1.5.0",
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":regex-syntax-0.8.5",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
+    name = "logos-derive-0.15.0",
+    srcs = ["vendor/logos-derive-0.15.0/src/lib.rs"],
+    crate = "logos_derive",
+    crate_root = "vendor/logos-derive-0.15.0/src/lib.rs",
+    edition = "2021",
+    proc_macro = True,
+    visibility = [],
+    deps = [":logos-codegen-0.15.0"],
+)
+
+cargo.rust_library(
     name = "lru-0.12.4",
     srcs = ["vendor/lru-0.12.4/src/lib.rs"],
     crate = "lru",
@@ -9214,6 +10528,16 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [":hashbrown-0.14.5"],
+)
+
+cargo.rust_library(
+    name = "matchers-0.1.0",
+    srcs = ["vendor/matchers-0.1.0/src/lib.rs"],
+    crate = "matchers",
+    crate_root = "vendor/matchers-0.1.0/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [":regex-automata-0.1.10"],
 )
 
 cargo.rust_library(
@@ -9310,6 +10634,99 @@ cargo.rust_library(
         "std",
     ],
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "miette-7.5.0",
+    srcs = [
+        "vendor/miette-7.5.0/src/chain.rs",
+        "vendor/miette-7.5.0/src/diagnostic_chain.rs",
+        "vendor/miette-7.5.0/src/diagnostic_impls.rs",
+        "vendor/miette-7.5.0/src/error.rs",
+        "vendor/miette-7.5.0/src/eyreish/context.rs",
+        "vendor/miette-7.5.0/src/eyreish/error.rs",
+        "vendor/miette-7.5.0/src/eyreish/fmt.rs",
+        "vendor/miette-7.5.0/src/eyreish/into_diagnostic.rs",
+        "vendor/miette-7.5.0/src/eyreish/kind.rs",
+        "vendor/miette-7.5.0/src/eyreish/macros.rs",
+        "vendor/miette-7.5.0/src/eyreish/mod.rs",
+        "vendor/miette-7.5.0/src/eyreish/ptr.rs",
+        "vendor/miette-7.5.0/src/eyreish/wrapper.rs",
+        "vendor/miette-7.5.0/src/handler.rs",
+        "vendor/miette-7.5.0/src/handlers/debug.rs",
+        "vendor/miette-7.5.0/src/handlers/graphical.rs",
+        "vendor/miette-7.5.0/src/handlers/json.rs",
+        "vendor/miette-7.5.0/src/handlers/mod.rs",
+        "vendor/miette-7.5.0/src/handlers/narratable.rs",
+        "vendor/miette-7.5.0/src/handlers/theme.rs",
+        "vendor/miette-7.5.0/src/highlighters/blank.rs",
+        "vendor/miette-7.5.0/src/highlighters/mod.rs",
+        "vendor/miette-7.5.0/src/highlighters/syntect.rs",
+        "vendor/miette-7.5.0/src/lib.rs",
+        "vendor/miette-7.5.0/src/macro_helpers.rs",
+        "vendor/miette-7.5.0/src/miette_diagnostic.rs",
+        "vendor/miette-7.5.0/src/named_source.rs",
+        "vendor/miette-7.5.0/src/panic.rs",
+        "vendor/miette-7.5.0/src/protocol.rs",
+        "vendor/miette-7.5.0/src/source_impls.rs",
+    ],
+    crate = "miette",
+    crate_root = "vendor/miette-7.5.0/src/lib.rs",
+    edition = "2018",
+    env = {
+        "CARGO_MANIFEST_DIR": "vendor/miette-7.5.0",
+        "CARGO_PKG_AUTHORS": "Kat Marchán <kzm@zkat.tech>",
+        "CARGO_PKG_DESCRIPTION": "Fancy diagnostic reporting library and protocol for us mere mortals who aren't compiler hackers.",
+        "CARGO_PKG_NAME": "miette",
+        "CARGO_PKG_REPOSITORY": "https://github.com/zkat/miette",
+        "CARGO_PKG_VERSION": "7.5.0",
+        "CARGO_PKG_VERSION_MAJOR": "7",
+        "CARGO_PKG_VERSION_MINOR": "5",
+        "CARGO_PKG_VERSION_PATCH": "0",
+    },
+    features = [
+        "default",
+        "derive",
+        "serde",
+    ],
+    visibility = [],
+    deps = [
+        ":cfg-if-1.0.0",
+        ":miette-derive-7.5.0",
+        ":serde-1.0.217",
+        ":thiserror-1.0.65",
+        ":unicode-width-0.1.13",
+    ],
+)
+
+cargo.rust_library(
+    name = "miette-derive-7.5.0",
+    srcs = [
+        "vendor/miette-derive-7.5.0/src/code.rs",
+        "vendor/miette-derive-7.5.0/src/diagnostic.rs",
+        "vendor/miette-derive-7.5.0/src/diagnostic_arg.rs",
+        "vendor/miette-derive-7.5.0/src/diagnostic_source.rs",
+        "vendor/miette-derive-7.5.0/src/fmt.rs",
+        "vendor/miette-derive-7.5.0/src/forward.rs",
+        "vendor/miette-derive-7.5.0/src/help.rs",
+        "vendor/miette-derive-7.5.0/src/label.rs",
+        "vendor/miette-derive-7.5.0/src/lib.rs",
+        "vendor/miette-derive-7.5.0/src/related.rs",
+        "vendor/miette-derive-7.5.0/src/severity.rs",
+        "vendor/miette-derive-7.5.0/src/source_code.rs",
+        "vendor/miette-derive-7.5.0/src/url.rs",
+        "vendor/miette-derive-7.5.0/src/utils.rs",
+    ],
+    crate = "miette_derive",
+    crate_root = "vendor/miette-derive-7.5.0/src/lib.rs",
+    edition = "2018",
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
 )
 
 cargo.rust_library(
@@ -9546,6 +10963,15 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "new_debug_unreachable-1.0.6",
+    srcs = ["vendor/new_debug_unreachable-1.0.6/src/lib.rs"],
+    crate = "debug_unreachable",
+    crate_root = "vendor/new_debug_unreachable-1.0.6/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "nibble_vec-0.1.0",
     srcs = [
         "vendor/nibble_vec-0.1.0/src/lib.rs",
@@ -9606,6 +11032,18 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "nonempty-0.10.0",
+    srcs = [
+        "vendor/nonempty-0.10.0/src/lib.rs",
+        "vendor/nonempty-0.10.0/src/nonzero.rs",
+    ],
+    crate = "nonempty",
+    crate_root = "vendor/nonempty-0.10.0/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "ntapi-0.4.1",
     srcs = [
         "vendor/ntapi-0.4.1/src/lib.rs",
@@ -9654,6 +11092,36 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [":winapi-0.3.9"],
+)
+
+cargo.rust_library(
+    name = "nu-ansi-term-0.46.0",
+    srcs = [
+        "vendor/nu-ansi-term-0.46.0/src/ansi.rs",
+        "vendor/nu-ansi-term-0.46.0/src/debug.rs",
+        "vendor/nu-ansi-term-0.46.0/src/difference.rs",
+        "vendor/nu-ansi-term-0.46.0/src/display.rs",
+        "vendor/nu-ansi-term-0.46.0/src/gradient.rs",
+        "vendor/nu-ansi-term-0.46.0/src/lib.rs",
+        "vendor/nu-ansi-term-0.46.0/src/rgb.rs",
+        "vendor/nu-ansi-term-0.46.0/src/style.rs",
+        "vendor/nu-ansi-term-0.46.0/src/util.rs",
+        "vendor/nu-ansi-term-0.46.0/src/windows.rs",
+        "vendor/nu-ansi-term-0.46.0/src/write.rs",
+    ],
+    crate = "nu_ansi_term",
+    crate_root = "vendor/nu-ansi-term-0.46.0/src/lib.rs",
+    edition = "2018",
+    platform = {
+        "windows-gnu": dict(
+            deps = [":winapi-0.3.9"],
+        ),
+        "windows-msvc": dict(
+            deps = [":winapi-0.3.9"],
+        ),
+    },
+    visibility = [],
+    deps = [":overload-0.1.1"],
 )
 
 cargo.rust_library(
@@ -10275,6 +11743,20 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "overload-0.1.1",
+    srcs = [
+        "vendor/overload-0.1.1/src/assignment.rs",
+        "vendor/overload-0.1.1/src/binary.rs",
+        "vendor/overload-0.1.1/src/lib.rs",
+        "vendor/overload-0.1.1/src/unary.rs",
+    ],
+    crate = "overload",
+    crate_root = "vendor/overload-0.1.1/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "parking-2.2.0",
     srcs = ["vendor/parking-2.2.0/src/lib.rs"],
     crate = "parking",
@@ -10574,6 +12056,88 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "petgraph-0.6.5",
+    srcs = [
+        "vendor/petgraph-0.6.5/src/adj.rs",
+        "vendor/petgraph-0.6.5/src/algo/astar.rs",
+        "vendor/petgraph-0.6.5/src/algo/bellman_ford.rs",
+        "vendor/petgraph-0.6.5/src/algo/dijkstra.rs",
+        "vendor/petgraph-0.6.5/src/algo/dominators.rs",
+        "vendor/petgraph-0.6.5/src/algo/feedback_arc_set.rs",
+        "vendor/petgraph-0.6.5/src/algo/floyd_warshall.rs",
+        "vendor/petgraph-0.6.5/src/algo/ford_fulkerson.rs",
+        "vendor/petgraph-0.6.5/src/algo/isomorphism.rs",
+        "vendor/petgraph-0.6.5/src/algo/k_shortest_path.rs",
+        "vendor/petgraph-0.6.5/src/algo/matching.rs",
+        "vendor/petgraph-0.6.5/src/algo/min_spanning_tree.rs",
+        "vendor/petgraph-0.6.5/src/algo/mod.rs",
+        "vendor/petgraph-0.6.5/src/algo/page_rank.rs",
+        "vendor/petgraph-0.6.5/src/algo/simple_paths.rs",
+        "vendor/petgraph-0.6.5/src/algo/tred.rs",
+        "vendor/petgraph-0.6.5/src/csr.rs",
+        "vendor/petgraph-0.6.5/src/data.rs",
+        "vendor/petgraph-0.6.5/src/dot.rs",
+        "vendor/petgraph-0.6.5/src/generate.rs",
+        "vendor/petgraph-0.6.5/src/graph_impl/frozen.rs",
+        "vendor/petgraph-0.6.5/src/graph_impl/mod.rs",
+        "vendor/petgraph-0.6.5/src/graph_impl/serialization.rs",
+        "vendor/petgraph-0.6.5/src/graph_impl/stable_graph/mod.rs",
+        "vendor/petgraph-0.6.5/src/graph_impl/stable_graph/serialization.rs",
+        "vendor/petgraph-0.6.5/src/graphmap.rs",
+        "vendor/petgraph-0.6.5/src/iter_format.rs",
+        "vendor/petgraph-0.6.5/src/iter_utils.rs",
+        "vendor/petgraph-0.6.5/src/lib.rs",
+        "vendor/petgraph-0.6.5/src/macros.rs",
+        "vendor/petgraph-0.6.5/src/matrix_graph.rs",
+        "vendor/petgraph-0.6.5/src/operator.rs",
+        "vendor/petgraph-0.6.5/src/prelude.rs",
+        "vendor/petgraph-0.6.5/src/quickcheck.rs",
+        "vendor/petgraph-0.6.5/src/scored.rs",
+        "vendor/petgraph-0.6.5/src/serde_utils.rs",
+        "vendor/petgraph-0.6.5/src/traits_graph.rs",
+        "vendor/petgraph-0.6.5/src/unionfind.rs",
+        "vendor/petgraph-0.6.5/src/util.rs",
+        "vendor/petgraph-0.6.5/src/visit/dfsvisit.rs",
+        "vendor/petgraph-0.6.5/src/visit/filter.rs",
+        "vendor/petgraph-0.6.5/src/visit/macros.rs",
+        "vendor/petgraph-0.6.5/src/visit/mod.rs",
+        "vendor/petgraph-0.6.5/src/visit/reversed.rs",
+        "vendor/petgraph-0.6.5/src/visit/traversal.rs",
+    ],
+    crate = "petgraph",
+    crate_root = "vendor/petgraph-0.6.5/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [
+        ":fixedbitset-0.4.2",
+        ":indexmap-2.4.0",
+    ],
+)
+
+cargo.rust_library(
+    name = "phf_shared-0.10.0",
+    srcs = ["vendor/phf_shared-0.10.0/src/lib.rs"],
+    crate = "phf_shared",
+    crate_root = "vendor/phf_shared-0.10.0/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = [":siphasher-0.3.11"],
+)
+
+cargo.rust_library(
+    name = "pico-args-0.5.0",
+    srcs = ["vendor/pico-args-0.5.0/src/lib.rs"],
+    crate = "pico_args",
+    crate_root = "vendor/pico-args-0.5.0/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "pin-project-lite-0.2.14",
     srcs = ["vendor/pin-project-lite-0.2.14/src/lib.rs"],
     crate = "pin_project_lite",
@@ -10864,6 +12428,15 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "precomputed-hash-0.1.1",
+    srcs = ["vendor/precomputed-hash-0.1.1/src/lib.rs"],
+    crate = "precomputed_hash",
+    crate_root = "vendor/precomputed-hash-0.1.1/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "predicates-3.1.2",
     srcs = [
         "vendor/predicates-3.1.2/src/boolean.rs",
@@ -10926,6 +12499,24 @@ cargo.rust_library(
     deps = [
         ":predicates-core-1.0.8",
         ":termtree-0.4.1",
+    ],
+)
+
+cargo.rust_library(
+    name = "pretty-0.12.3",
+    srcs = [
+        "vendor/pretty-0.12.3/src/block.rs",
+        "vendor/pretty-0.12.3/src/lib.rs",
+        "vendor/pretty-0.12.3/src/render.rs",
+    ],
+    crate = "pretty",
+    crate_root = "vendor/pretty-0.12.3/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [
+        ":arrayvec-0.5.2",
+        ":typed-arena-2.0.2",
+        ":unicode-width-0.1.13",
     ],
 )
 
@@ -11240,6 +12831,15 @@ cargo.rust_library(
         ":quote-1.0.36",
         ":syn-2.0.87",
     ],
+)
+
+cargo.rust_library(
+    name = "psm-0.1.21",
+    srcs = ["vendor/psm-0.1.21/src/lib.rs"],
+    crate = "psm",
+    crate_root = "vendor/psm-0.1.21/src/lib.rs",
+    edition = "2015",
+    visibility = [],
 )
 
 cargo.rust_library(
@@ -11841,6 +13441,36 @@ cargo.rust_library(
     ],
 )
 
+cargo.rust_library(
+    name = "ref-cast-1.0.23",
+    srcs = [
+        "vendor/ref-cast-1.0.23/src/custom.rs",
+        "vendor/ref-cast-1.0.23/src/layout.rs",
+        "vendor/ref-cast-1.0.23/src/lib.rs",
+        "vendor/ref-cast-1.0.23/src/trivial.rs",
+    ],
+    crate = "ref_cast",
+    crate_root = "vendor/ref-cast-1.0.23/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":ref-cast-impl-1.0.23"],
+)
+
+cargo.rust_library(
+    name = "ref-cast-impl-1.0.23",
+    srcs = ["vendor/ref-cast-impl-1.0.23/src/lib.rs"],
+    crate = "ref_cast_impl",
+    crate_root = "vendor/ref-cast-impl-1.0.23/src/lib.rs",
+    edition = "2021",
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
+)
+
 alias(
     name = "regex",
     actual = ":regex-1.11.1",
@@ -11892,6 +13522,40 @@ cargo.rust_library(
         ":regex-automata-0.4.8",
         ":regex-syntax-0.8.5",
     ],
+)
+
+cargo.rust_library(
+    name = "regex-automata-0.1.10",
+    srcs = [
+        "vendor/regex-automata-0.1.10/src/byteorder.rs",
+        "vendor/regex-automata-0.1.10/src/classes.rs",
+        "vendor/regex-automata-0.1.10/src/codegen.rs",
+        "vendor/regex-automata-0.1.10/src/dense.rs",
+        "vendor/regex-automata-0.1.10/src/determinize.rs",
+        "vendor/regex-automata-0.1.10/src/dfa.rs",
+        "vendor/regex-automata-0.1.10/src/error.rs",
+        "vendor/regex-automata-0.1.10/src/lib.rs",
+        "vendor/regex-automata-0.1.10/src/minimize.rs",
+        "vendor/regex-automata-0.1.10/src/nfa/compiler.rs",
+        "vendor/regex-automata-0.1.10/src/nfa/map.rs",
+        "vendor/regex-automata-0.1.10/src/nfa/mod.rs",
+        "vendor/regex-automata-0.1.10/src/nfa/range_trie.rs",
+        "vendor/regex-automata-0.1.10/src/regex.rs",
+        "vendor/regex-automata-0.1.10/src/sparse.rs",
+        "vendor/regex-automata-0.1.10/src/sparse_set.rs",
+        "vendor/regex-automata-0.1.10/src/state_id.rs",
+        "vendor/regex-automata-0.1.10/src/transducer.rs",
+    ],
+    crate = "regex_automata",
+    crate_root = "vendor/regex-automata-0.1.10/src/lib.rs",
+    edition = "2015",
+    features = [
+        "default",
+        "regex-syntax",
+        "std",
+    ],
+    visibility = [],
+    deps = [":regex-syntax-0.6.29"],
 )
 
 cargo.rust_library(
@@ -12027,6 +13691,58 @@ cargo.rust_library(
         "default",
         "std",
         "string",
+    ],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "regex-syntax-0.6.29",
+    srcs = [
+        "vendor/regex-syntax-0.6.29/src/ast/mod.rs",
+        "vendor/regex-syntax-0.6.29/src/ast/parse.rs",
+        "vendor/regex-syntax-0.6.29/src/ast/print.rs",
+        "vendor/regex-syntax-0.6.29/src/ast/visitor.rs",
+        "vendor/regex-syntax-0.6.29/src/either.rs",
+        "vendor/regex-syntax-0.6.29/src/error.rs",
+        "vendor/regex-syntax-0.6.29/src/hir/interval.rs",
+        "vendor/regex-syntax-0.6.29/src/hir/literal/mod.rs",
+        "vendor/regex-syntax-0.6.29/src/hir/mod.rs",
+        "vendor/regex-syntax-0.6.29/src/hir/print.rs",
+        "vendor/regex-syntax-0.6.29/src/hir/translate.rs",
+        "vendor/regex-syntax-0.6.29/src/hir/visitor.rs",
+        "vendor/regex-syntax-0.6.29/src/lib.rs",
+        "vendor/regex-syntax-0.6.29/src/parser.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/age.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/case_folding_simple.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/general_category.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/grapheme_cluster_break.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/mod.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/perl_decimal.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/perl_space.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/perl_word.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/property_bool.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/property_names.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/property_values.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/script.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/script_extension.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/sentence_break.rs",
+        "vendor/regex-syntax-0.6.29/src/unicode_tables/word_break.rs",
+        "vendor/regex-syntax-0.6.29/src/utf8.rs",
+    ],
+    crate = "regex_syntax",
+    crate_root = "vendor/regex-syntax-0.6.29/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "unicode",
+        "unicode-age",
+        "unicode-bool",
+        "unicode-case",
+        "unicode-gencat",
+        "unicode-perl",
+        "unicode-script",
+        "unicode-segment",
     ],
     visibility = [],
 )
@@ -13174,6 +14890,21 @@ cargo.rust_library(
         "std",
     ],
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "rustc_lexer-0.1.0",
+    srcs = [
+        "vendor/rustc_lexer-0.1.0/src/cursor.rs",
+        "vendor/rustc_lexer-0.1.0/src/lib.rs",
+        "vendor/rustc_lexer-0.1.0/src/unescape.rs",
+        "vendor/rustc_lexer-0.1.0/src/unescape/tests.rs",
+    ],
+    crate = "rustc_lexer",
+    crate_root = "vendor/rustc_lexer-0.1.0/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [":unicode-xid-0.2.4"],
 )
 
 cargo.rust_library(
@@ -15135,6 +16866,28 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "same-file-1.0.6",
+    srcs = [
+        "vendor/same-file-1.0.6/src/lib.rs",
+        "vendor/same-file-1.0.6/src/unix.rs",
+        "vendor/same-file-1.0.6/src/unknown.rs",
+        "vendor/same-file-1.0.6/src/win.rs",
+    ],
+    crate = "same_file",
+    crate_root = "vendor/same-file-1.0.6/src/lib.rs",
+    edition = "2018",
+    platform = {
+        "windows-gnu": dict(
+            deps = [":winapi-util-0.1.9"],
+        ),
+        "windows-msvc": dict(
+            deps = [":winapi-util-0.1.9"],
+        ),
+    },
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "schannel-0.1.23",
     srcs = [
         "vendor/schannel-0.1.23/src/alpn_list.rs",
@@ -15750,6 +17503,29 @@ cargo.rust_library(
     ],
 )
 
+cargo.rust_library(
+    name = "semver-1.0.25",
+    srcs = [
+        "vendor/semver-1.0.25/src/backport.rs",
+        "vendor/semver-1.0.25/src/display.rs",
+        "vendor/semver-1.0.25/src/error.rs",
+        "vendor/semver-1.0.25/src/eval.rs",
+        "vendor/semver-1.0.25/src/identifier.rs",
+        "vendor/semver-1.0.25/src/impls.rs",
+        "vendor/semver-1.0.25/src/lib.rs",
+        "vendor/semver-1.0.25/src/parse.rs",
+        "vendor/semver-1.0.25/src/serde.rs",
+    ],
+    crate = "semver",
+    crate_root = "vendor/semver-1.0.25/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
 alias(
     name = "serde",
     actual = ":serde-1.0.217",
@@ -16077,6 +17853,91 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "serde_with-3.12.0",
+    srcs = [
+        "vendor/serde_with-3.12.0/src/base64.rs",
+        "vendor/serde_with-3.12.0/src/chrono_0_4.rs",
+        "vendor/serde_with-3.12.0/src/content/de.rs",
+        "vendor/serde_with-3.12.0/src/content/mod.rs",
+        "vendor/serde_with-3.12.0/src/content/ser.rs",
+        "vendor/serde_with-3.12.0/src/de/duplicates.rs",
+        "vendor/serde_with-3.12.0/src/de/impls.rs",
+        "vendor/serde_with-3.12.0/src/de/mod.rs",
+        "vendor/serde_with-3.12.0/src/de/skip_error.rs",
+        "vendor/serde_with-3.12.0/src/duplicate_key_impls/error_on_duplicate.rs",
+        "vendor/serde_with-3.12.0/src/duplicate_key_impls/first_value_wins.rs",
+        "vendor/serde_with-3.12.0/src/duplicate_key_impls/last_value_wins.rs",
+        "vendor/serde_with-3.12.0/src/duplicate_key_impls/mod.rs",
+        "vendor/serde_with-3.12.0/src/enum_map.rs",
+        "vendor/serde_with-3.12.0/src/flatten_maybe.rs",
+        "vendor/serde_with-3.12.0/src/formats.rs",
+        "vendor/serde_with-3.12.0/src/guide/feature_flags.rs",
+        "vendor/serde_with-3.12.0/src/hex.rs",
+        "vendor/serde_with-3.12.0/src/json.rs",
+        "vendor/serde_with-3.12.0/src/key_value_map.rs",
+        "vendor/serde_with-3.12.0/src/lib.rs",
+        "vendor/serde_with-3.12.0/src/rust.rs",
+        "vendor/serde_with-3.12.0/src/schemars_0_8.rs",
+        "vendor/serde_with-3.12.0/src/ser/duplicates.rs",
+        "vendor/serde_with-3.12.0/src/ser/impls.rs",
+        "vendor/serde_with-3.12.0/src/ser/mod.rs",
+        "vendor/serde_with-3.12.0/src/ser/skip_error.rs",
+        "vendor/serde_with-3.12.0/src/serde_conv.rs",
+        "vendor/serde_with-3.12.0/src/time_0_3.rs",
+        "vendor/serde_with-3.12.0/src/utils.rs",
+        "vendor/serde_with-3.12.0/src/utils/duration.rs",
+        "vendor/serde_with-3.12.0/src/with_prefix.rs",
+        "vendor/serde_with-3.12.0/src/with_suffix.rs",
+    ],
+    crate = "serde_with",
+    crate_root = "vendor/serde_with-3.12.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "default",
+        "json",
+        "macros",
+        "std",
+    ],
+    named_deps = {
+        "chrono_0_4": ":chrono-0.4.39",
+        "indexmap_1": ":indexmap-1.9.3",
+        "indexmap_2": ":indexmap-2.4.0",
+        "time_0_3": ":time-0.3.36",
+    },
+    visibility = [],
+    deps = [
+        ":base64-0.22.1",
+        ":hex-0.4.3",
+        ":serde-1.0.217",
+        ":serde_derive-1.0.217",
+        ":serde_json-1.0.138",
+        ":serde_with_macros-3.12.0",
+    ],
+)
+
+cargo.rust_library(
+    name = "serde_with_macros-3.12.0",
+    srcs = [
+        "vendor/serde_with_macros-3.12.0/src/apply.rs",
+        "vendor/serde_with_macros-3.12.0/src/lazy_bool.rs",
+        "vendor/serde_with_macros-3.12.0/src/lib.rs",
+        "vendor/serde_with_macros-3.12.0/src/utils.rs",
+    ],
+    crate = "serde_with_macros",
+    crate_root = "vendor/serde_with_macros-3.12.0/src/lib.rs",
+    edition = "2021",
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":darling-0.20.10",
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
     name = "serde_yaml-0.9.34+deprecated",
     srcs = [
         "vendor/serde_yaml-0.9.34+deprecated/src/de.rs",
@@ -16215,6 +18076,52 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "sha3-0.10.8",
+    srcs = [
+        "vendor/sha3-0.10.8/src/lib.rs",
+        "vendor/sha3-0.10.8/src/macros.rs",
+        "vendor/sha3-0.10.8/src/state.rs",
+    ],
+    crate = "sha3",
+    crate_root = "vendor/sha3-0.10.8/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [
+        ":digest-0.10.7",
+        ":keccak-0.1.5",
+    ],
+)
+
+cargo.rust_library(
+    name = "sharded-slab-0.1.7",
+    srcs = [
+        "vendor/sharded-slab-0.1.7/src/cfg.rs",
+        "vendor/sharded-slab-0.1.7/src/clear.rs",
+        "vendor/sharded-slab-0.1.7/src/implementation.rs",
+        "vendor/sharded-slab-0.1.7/src/iter.rs",
+        "vendor/sharded-slab-0.1.7/src/lib.rs",
+        "vendor/sharded-slab-0.1.7/src/macros.rs",
+        "vendor/sharded-slab-0.1.7/src/page/mod.rs",
+        "vendor/sharded-slab-0.1.7/src/page/slot.rs",
+        "vendor/sharded-slab-0.1.7/src/page/stack.rs",
+        "vendor/sharded-slab-0.1.7/src/pool.rs",
+        "vendor/sharded-slab-0.1.7/src/shard.rs",
+        "vendor/sharded-slab-0.1.7/src/sync.rs",
+        "vendor/sharded-slab-0.1.7/src/tests/custom_config.rs",
+        "vendor/sharded-slab-0.1.7/src/tests/loom_pool.rs",
+        "vendor/sharded-slab-0.1.7/src/tests/loom_slab.rs",
+        "vendor/sharded-slab-0.1.7/src/tests/mod.rs",
+        "vendor/sharded-slab-0.1.7/src/tests/properties.rs",
+        "vendor/sharded-slab-0.1.7/src/tid.rs",
+    ],
+    crate = "sharded_slab",
+    crate_root = "vendor/sharded-slab-0.1.7/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [":lazy_static-1.5.0"],
+)
+
+cargo.rust_library(
     name = "shlex-1.3.0",
     srcs = [
         "vendor/shlex-1.3.0/src/bytes.rs",
@@ -16297,6 +18204,25 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "siphasher-0.3.11",
+    srcs = [
+        "vendor/siphasher-0.3.11/src/lib.rs",
+        "vendor/siphasher-0.3.11/src/sip.rs",
+        "vendor/siphasher-0.3.11/src/sip128.rs",
+        "vendor/siphasher-0.3.11/src/tests.rs",
+        "vendor/siphasher-0.3.11/src/tests128.rs",
+    ],
+    crate = "siphasher",
+    crate_root = "vendor/siphasher-0.3.11/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "slab-0.4.9",
     srcs = [
         "vendor/slab-0.4.9/src/builder.rs",
@@ -16353,6 +18279,28 @@ cargo.rust_library(
         ":async-process-1.8.1",
         ":blocking-1.6.1",
         ":futures-lite-1.13.0",
+    ],
+)
+
+cargo.rust_library(
+    name = "smol_str-0.3.1",
+    srcs = [
+        "vendor/smol_str-0.3.1/src/borsh.rs",
+        "vendor/smol_str-0.3.1/src/lib.rs",
+        "vendor/smol_str-0.3.1/src/serde.rs",
+    ],
+    crate = "smol_str",
+    crate_root = "vendor/smol_str-0.3.1/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "serde",
+        "std",
+    ],
+    visibility = [],
+    deps = [
+        ":borsh-1.5.1",
+        ":serde-1.0.217",
     ],
 )
 
@@ -17213,6 +19161,28 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "stacker-0.1.15",
+    srcs = ["vendor/stacker-0.1.15/src/lib.rs"],
+    crate = "stacker",
+    crate_root = "vendor/stacker-0.1.15/src/lib.rs",
+    edition = "2015",
+    platform = {
+        "windows-gnu": dict(
+            deps = [":winapi-0.3.9"],
+        ),
+        "windows-msvc": dict(
+            deps = [":winapi-0.3.9"],
+        ),
+    },
+    visibility = [],
+    deps = [
+        ":cfg-if-1.0.0",
+        ":libc-0.2.169",
+        ":psm-0.1.21",
+    ],
+)
+
+cargo.rust_library(
     name = "static_assertions-1.1.0",
     srcs = [
         "vendor/static_assertions-1.1.0/src/assert_cfg.rs",
@@ -17230,6 +19200,28 @@ cargo.rust_library(
     crate_root = "vendor/static_assertions-1.1.0/src/lib.rs",
     edition = "2015",
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "string_cache-0.8.7",
+    srcs = [
+        "vendor/string_cache-0.8.7/src/atom.rs",
+        "vendor/string_cache-0.8.7/src/dynamic_set.rs",
+        "vendor/string_cache-0.8.7/src/lib.rs",
+        "vendor/string_cache-0.8.7/src/static_sets.rs",
+        "vendor/string_cache-0.8.7/src/trivial_impls.rs",
+    ],
+    crate = "string_cache",
+    crate_root = "vendor/string_cache-0.8.7/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [
+        ":new_debug_unreachable-1.0.6",
+        ":once_cell-1.20.3",
+        ":parking_lot-0.12.3",
+        ":phf_shared-0.10.0",
+        ":precomputed-hash-0.1.1",
+    ],
 )
 
 cargo.rust_library(
@@ -17882,6 +19874,33 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "term-1.0.0",
+    srcs = [
+        "vendor/term-1.0.0/src/lib.rs",
+        "vendor/term-1.0.0/src/terminfo/mod.rs",
+        "vendor/term-1.0.0/src/terminfo/parm.rs",
+        "vendor/term-1.0.0/src/terminfo/parser/compiled.rs",
+        "vendor/term-1.0.0/src/terminfo/parser/names.rs",
+        "vendor/term-1.0.0/src/terminfo/searcher.rs",
+        "vendor/term-1.0.0/src/win.rs",
+    ],
+    crate = "term",
+    crate_root = "vendor/term-1.0.0/src/lib.rs",
+    edition = "2021",
+    features = ["default"],
+    platform = {
+        "windows-gnu": dict(
+            deps = [":windows-sys-0.52.0"],
+        ),
+        "windows-msvc": dict(
+            deps = [":windows-sys-0.52.0"],
+        ),
+    },
+    visibility = [],
+    deps = [":home-0.5.9"],
+)
+
+cargo.rust_library(
     name = "termcolor-1.4.1",
     srcs = ["vendor/termcolor-1.4.1/src/lib.rs"],
     crate = "termcolor",
@@ -18033,6 +20052,24 @@ cargo.rust_library(
         ":proc-macro2-1.0.86",
         ":quote-1.0.36",
         ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
+    name = "thread_local-1.1.8",
+    srcs = [
+        "vendor/thread_local-1.1.8/src/cached.rs",
+        "vendor/thread_local-1.1.8/src/lib.rs",
+        "vendor/thread_local-1.1.8/src/thread_id.rs",
+        "vendor/thread_local-1.1.8/src/unreachable.rs",
+    ],
+    crate = "thread_local",
+    crate_root = "vendor/thread_local-1.1.8/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [
+        ":cfg-if-1.0.0",
+        ":once_cell-1.20.3",
     ],
 )
 
@@ -19336,6 +21373,113 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "tracing-log-0.2.0",
+    srcs = [
+        "vendor/tracing-log-0.2.0/src/interest_cache.rs",
+        "vendor/tracing-log-0.2.0/src/lib.rs",
+        "vendor/tracing-log-0.2.0/src/log_tracer.rs",
+    ],
+    crate = "tracing_log",
+    crate_root = "vendor/tracing-log-0.2.0/src/lib.rs",
+    edition = "2018",
+    features = [
+        "log-tracer",
+        "std",
+    ],
+    visibility = [],
+    deps = [
+        ":log-0.4.22",
+        ":once_cell-1.20.3",
+        ":tracing-core-0.1.33",
+    ],
+)
+
+alias(
+    name = "tracing-subscriber",
+    actual = ":tracing-subscriber-0.3.19",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "tracing-subscriber-0.3.19",
+    srcs = [
+        "vendor/tracing-subscriber-0.3.19/src/field/debug.rs",
+        "vendor/tracing-subscriber-0.3.19/src/field/delimited.rs",
+        "vendor/tracing-subscriber-0.3.19/src/field/display.rs",
+        "vendor/tracing-subscriber-0.3.19/src/field/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/directive.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/env/builder.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/env/directive.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/env/field.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/env/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/filter_fn.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/layer_filters/combinator.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/layer_filters/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/level.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/filter/targets.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/fmt_layer.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/format/json.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/format/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/format/pretty.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/time/chrono_crate.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/time/datetime.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/time/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/time/time_crate.rs",
+        "vendor/tracing-subscriber-0.3.19/src/fmt/writer.rs",
+        "vendor/tracing-subscriber-0.3.19/src/layer/context.rs",
+        "vendor/tracing-subscriber-0.3.19/src/layer/layered.rs",
+        "vendor/tracing-subscriber-0.3.19/src/layer/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/layer/tests.rs",
+        "vendor/tracing-subscriber-0.3.19/src/lib.rs",
+        "vendor/tracing-subscriber-0.3.19/src/macros.rs",
+        "vendor/tracing-subscriber-0.3.19/src/prelude.rs",
+        "vendor/tracing-subscriber-0.3.19/src/registry/extensions.rs",
+        "vendor/tracing-subscriber-0.3.19/src/registry/mod.rs",
+        "vendor/tracing-subscriber-0.3.19/src/registry/sharded.rs",
+        "vendor/tracing-subscriber-0.3.19/src/registry/stack.rs",
+        "vendor/tracing-subscriber-0.3.19/src/reload.rs",
+        "vendor/tracing-subscriber-0.3.19/src/sync.rs",
+        "vendor/tracing-subscriber-0.3.19/src/util.rs",
+    ],
+    crate = "tracing_subscriber",
+    crate_root = "vendor/tracing-subscriber-0.3.19/src/lib.rs",
+    edition = "2018",
+    features = [
+        "alloc",
+        "ansi",
+        "default",
+        "env-filter",
+        "fmt",
+        "matchers",
+        "nu-ansi-term",
+        "once_cell",
+        "regex",
+        "registry",
+        "sharded-slab",
+        "smallvec",
+        "std",
+        "thread_local",
+        "tracing",
+        "tracing-log",
+    ],
+    visibility = [],
+    deps = [
+        ":matchers-0.1.0",
+        ":nu-ansi-term-0.46.0",
+        ":once_cell-1.20.3",
+        ":regex-1.11.1",
+        ":sharded-slab-0.1.7",
+        ":smallvec-1.13.2",
+        ":thread_local-1.1.8",
+        ":tracing-0.1.41",
+        ":tracing-core-0.1.33",
+        ":tracing-log-0.2.0",
+    ],
+)
+
+cargo.rust_library(
     name = "trim-in-place-0.1.7",
     srcs = ["vendor/trim-in-place-0.1.7/src/lib.rs"],
     crate = "trim_in_place",
@@ -19350,6 +21494,22 @@ cargo.rust_library(
     crate = "try_lock",
     crate_root = "vendor/try-lock-0.2.5/src/lib.rs",
     edition = "2015",
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "typed-arena-2.0.2",
+    srcs = [
+        "vendor/typed-arena-2.0.2/src/lib.rs",
+        "vendor/typed-arena-2.0.2/src/test.rs",
+    ],
+    crate = "typed_arena",
+    crate_root = "vendor/typed-arena-2.0.2/src/lib.rs",
+    edition = "2015",
+    features = [
+        "default",
+        "std",
+    ],
     visibility = [],
 )
 
@@ -19511,6 +21671,40 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "unicode-script-0.5.6",
+    srcs = [
+        "vendor/unicode-script-0.5.6/src/lib.rs",
+        "vendor/unicode-script-0.5.6/src/tables.rs",
+    ],
+    crate = "unicode_script",
+    crate_root = "vendor/unicode-script-0.5.6/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "unicode-security-0.1.1",
+    srcs = [
+        "vendor/unicode-security-0.1.1/src/confusable_detection.rs",
+        "vendor/unicode-security-0.1.1/src/general_security_profile.rs",
+        "vendor/unicode-security-0.1.1/src/lib.rs",
+        "vendor/unicode-security-0.1.1/src/mixed_script.rs",
+        "vendor/unicode-security-0.1.1/src/restriction_level.rs",
+        "vendor/unicode-security-0.1.1/src/tables.rs",
+        "vendor/unicode-security-0.1.1/src/tests.rs",
+    ],
+    crate = "unicode_security",
+    crate_root = "vendor/unicode-security-0.1.1/src/lib.rs",
+    edition = "2018",
+    features = ["default"],
+    visibility = [],
+    deps = [
+        ":unicode-normalization-0.1.23",
+        ":unicode-script-0.5.6",
+    ],
+)
+
+cargo.rust_library(
     name = "unicode-segmentation-1.11.0",
     srcs = [
         "vendor/unicode-segmentation-1.11.0/src/grapheme.rs",
@@ -19536,6 +21730,20 @@ cargo.rust_library(
     crate = "unicode_width",
     crate_root = "vendor/unicode-width-0.1.13/src/lib.rs",
     edition = "2021",
+    features = ["default"],
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "unicode-xid-0.2.4",
+    srcs = [
+        "vendor/unicode-xid-0.2.4/src/lib.rs",
+        "vendor/unicode-xid-0.2.4/src/tables.rs",
+        "vendor/unicode-xid-0.2.4/src/tests.rs",
+    ],
+    crate = "unicode_xid",
+    crate_root = "vendor/unicode-xid-0.2.4/src/lib.rs",
+    edition = "2015",
     features = ["default"],
     visibility = [],
 )
@@ -19907,6 +22115,32 @@ cargo.rust_library(
     crate_root = "vendor/waker-fn-1.2.0/src/lib.rs",
     edition = "2018",
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "walkdir-2.5.0",
+    srcs = [
+        "vendor/walkdir-2.5.0/src/dent.rs",
+        "vendor/walkdir-2.5.0/src/error.rs",
+        "vendor/walkdir-2.5.0/src/lib.rs",
+        "vendor/walkdir-2.5.0/src/tests/mod.rs",
+        "vendor/walkdir-2.5.0/src/tests/recursive.rs",
+        "vendor/walkdir-2.5.0/src/tests/util.rs",
+        "vendor/walkdir-2.5.0/src/util.rs",
+    ],
+    crate = "walkdir",
+    crate_root = "vendor/walkdir-2.5.0/src/lib.rs",
+    edition = "2018",
+    platform = {
+        "windows-gnu": dict(
+            deps = [":winapi-util-0.1.9"],
+        ),
+        "windows-msvc": dict(
+            deps = [":winapi-util-0.1.9"],
+        ),
+    },
+    visibility = [],
+    deps = [":same-file-1.0.6"],
 )
 
 cargo.rust_library(
