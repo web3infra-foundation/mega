@@ -1,5 +1,10 @@
+
+## Install LLVM
+wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+
 ## update and install some things we should probably have
 apt-get update
+apt-get -y upgrade
 apt-get install -y \
   curl \
   git \
@@ -27,7 +32,17 @@ apt-get install -y \
   ca-certificates \
   zstd \
   cargo \
-  rust-clippy
+  rust-clippy \
+  clang-18 \
+  lldb-18 \
+  lld-18 \
+  libllvm-18-ocaml-dev \
+  libllvm18 \
+  llvm-18 \
+  llvm-18-dev \
+  llvm-18-doc \
+  llvm-18-examples \
+  llvm-18-runtime
 
 ## Install rustup and common components
 cargo install cargo-expand
