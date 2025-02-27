@@ -1,0 +1,14 @@
+rust_library (
+    name = "saturn",
+    srcs = glob(["src/**/*.rs", "mega_policies.cedar", "mega.cedarschema"]),
+    crate_root = "src/lib.rs",
+    deps = [
+        "//third-party:serde",
+        "//third-party:serde_json",
+        "//third-party:tracing",
+        "//third-party:tracing-subscriber",
+        "//third-party:thiserror",
+        "//third-party:cedar-policy",
+        "//third-party:itertools",
+    ],
+)
