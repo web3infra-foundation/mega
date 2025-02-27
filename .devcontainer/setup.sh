@@ -13,15 +13,12 @@ apt-get install -y \
   fuse3 \
   libfuse3-dev \
   pkg-config \
-  postgresql \
   cmake \
   wget \
   file \
-  libgtk-3-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev \
   ca-certificates \
   zstd \
+  clang \
   clang-18 \
   lldb-18 \
   lld-18 \
