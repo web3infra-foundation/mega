@@ -41,7 +41,7 @@ impl Dicfuse{
             let name_os = OsString::from(&i.name);
             if name_os!=name{
                 continue;
-            }else if i.mode!=TreeItemMode::Blob{
+            }else if i.mode!=TreeItemMode::Blob && i.mode!=TreeItemMode::BlobExecutable{
                 return Ok(());
             }
 
@@ -78,7 +78,7 @@ impl Dicfuse{
         let client = Client::new();
         for i in tree.tree_items{
             //TODO & POS_BUG: how to deal with the link?
-            if i.mode==TreeItemMode::Commit || i.mode==TreeItemMode::Tree{
+            if i.mode!=TreeItemMode::Blob && i.mode!=TreeItemMode::BlobExecutable{
                 continue;
             }
             let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.

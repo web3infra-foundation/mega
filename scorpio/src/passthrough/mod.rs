@@ -21,6 +21,7 @@ mod os_compat;
 mod util;
 mod config;
 mod async_io;
+pub mod newlogfs;
 pub mod logfs;
 use crate::util::atomic::*;
 
@@ -654,9 +655,9 @@ impl<S: BitmapSlice + Send + Sync> PassthroughFs<S> {
                 Some(data) => {
                     let curr = data.refcount.load().await;
                     // forgot_one() has just destroyed the entry, retry...
-                    if curr == 0 {
-                        continue 'search;
-                    }
+                    // if curr == 0 {
+                    //     continue 'search;
+                    // }
 
                     // Saturating add to avoid integer overflow, it's not realistic to saturate u64.
                     let new = curr.saturating_add(1);

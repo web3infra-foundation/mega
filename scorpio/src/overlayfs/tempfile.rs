@@ -153,7 +153,7 @@ impl TempFile {
     /// remove the file.  Calling remove explicitly allows for better error
     /// handling.
     pub fn remove(&mut self) -> Result<()> {
-        fs::remove_file(&self.path).map_err(Error::from)
+        fs::remove_file(&self.path)
     }
 
     /// Returns the path to the file if the `TempFile` object that is wrapping the file

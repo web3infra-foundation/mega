@@ -18,6 +18,7 @@ pub struct InodeAlloc {
     alloc: Arc<Mutex<HashMap<u64,u64>> >,
 }
 
+#[allow(unused)]
 impl InodeAlloc{
     pub fn new()-> Self{
         InodeAlloc{

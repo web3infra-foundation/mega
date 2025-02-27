@@ -849,6 +849,10 @@ impl Filesystem for OverlayFs{
         let (layer, real_inode, real_handle) = self.find_real_info_from_handle(fh).await?;
         layer.lseek(req, real_inode, real_handle, offset, whence).await
  }   
+
+    async  fn interrupt(&self,_req:Request,_unique:u64) -> Result<()> {
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod tests{
@@ -866,8 +870,8 @@ mod tests{
 
         // Set up test environment
         let  mountpoint= "/home/luxian/megatest/true_temp".to_string();
-        let  lowerdir= vec!["/home/luxian/megatest/lower".to_string()];
-        let  upperdir= "/home/luxian/megatest/uppder".to_string();
+        let  lowerdir= vec!["/home/luxian/megadir/store/5f70f0f460d92d73eac0ea09ef2edb3840bfc68f/lower".to_string()];
+        let  upperdir= "/home/luxian/megadir/store/5f70f0f460d92d73eac0ea09ef2edb3840bfc68f/upper".to_string();
         let  workdir= "/home/luxian/megatest/workerdir".to_string();
 
         // Create lower layers

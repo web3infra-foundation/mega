@@ -1,27 +1,24 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{thread, time};
 
 use axum::routing::get;
 use axum::{http, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 
-use gemini::cache::cache_public_repo_and_lfs;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
-use common::model::{CommonOptions, ZtmOptions};
-use gemini::ztm::agent::{run_ztm_client, LocalZTMAgent};
+use common::model::{CommonOptions, P2pOptions};
 use jupiter::context::Context;
 use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
 use mono::server::https_server::{get_method_router, post_method_router, AppState};
 
-use crate::api::{github_router, nostr_router, ztm_router, MegaApiServiceState};
+use crate::api::{github_router, nostr_router, MegaApiServiceState};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -29,7 +26,7 @@ pub struct HttpOptions {
     pub common: CommonOptions,
 
     #[clap(flatten)]
-    pub ztm: ZtmOptions,
+    pub p2p: P2pOptions,
 
     #[arg(long, default_value_t = 8000)]
     pub http_port: u16,
@@ -41,7 +38,7 @@ pub struct HttpsOptions {
     pub common: CommonOptions,
 
     #[clap(flatten)]
-    pub ztm: ZtmOptions,
+    pub p2p: P2pOptions,
 
     #[arg(long, default_value_t = 443)]
     pub https_port: u16,
@@ -59,12 +56,12 @@ pub async fn https_server(context: Context, options: HttpsOptions) {
         https_key_path,
         https_cert_path,
         https_port,
-        ztm,
+        p2p,
     } = options.clone();
 
-    check_run_with_ztm(context.clone(), options.ztm.clone(), https_port).await;
+    check_run_with_p2p(context.clone(), options.p2p.clone());
 
-    let app = app(context, host.clone(), https_port, ztm.clone()).await;
+    let app = app(context, host.clone(), https_port, p2p.clone()).await;
 
     let server_url = format!("{}:{}", host, https_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
@@ -81,12 +78,12 @@ pub async fn http_server(context: Context, options: HttpOptions) {
     let HttpOptions {
         common: CommonOptions { host, .. },
         http_port,
-        ztm,
+        p2p,
     } = options.clone();
 
-    check_run_with_ztm(context.clone(), options.ztm.clone(), http_port).await;
+    check_run_with_p2p(context.clone(), options.p2p.clone());
 
-    let app = app(context, host.clone(), http_port, ztm.clone()).await;
+    let app = app(context, host.clone(), http_port, p2p.clone()).await;
 
     let server_url = format!("{}:{}", host, http_port);
 
@@ -97,7 +94,7 @@ pub async fn http_server(context: Context, options: HttpOptions) {
         .unwrap();
 }
 
-pub async fn app(context: Context, host: String, port: u16, ztm: ZtmOptions) -> Router {
+pub async fn app(context: Context, host: String, port: u16, p2p: P2pOptions) -> Router {
     let state = AppState {
         host,
         port,
@@ -110,7 +107,7 @@ pub async fn app(context: Context, host: String, port: u16, ztm: ZtmOptions) -> 
             oauth_client: None,
             store: None,
         },
-        ztm,
+        p2p,
         port,
     };
 
@@ -122,7 +119,7 @@ pub async fn app(context: Context, host: String, port: u16, ztm: ZtmOptions) -> 
 
     pub fn mega_routers() -> Router<MegaApiServiceState> {
         Router::new()
-            .merge(ztm_router::routers())
+            // .merge(ztm_router::routers())
             .merge(nostr_router::routers())
             .merge(github_router::routers())
     }
@@ -156,41 +153,16 @@ pub async fn app(context: Context, host: String, port: u16, ztm: ZtmOptions) -> 
         .with_state(state)
 }
 
-pub async fn check_run_with_ztm(context: Context, ztm: ZtmOptions, http_port: u16) {
+pub fn check_run_with_p2p(_context: Context, p2p: P2pOptions) {
     //Mega server join a ztm mesh
-    match ztm.bootstrap_node {
+    match p2p.bootstrap_node {
         Some(bootstrap_node) => {
             tracing::info!(
-                "The bootstrap node is {}, prepare to join ztm network",
+                "The bootstrap node is {}, prepare to join p2p network",
                 bootstrap_node.clone()
             );
-            let (peer_id, _) = vault::init().await;
-            let ztm_agent: LocalZTMAgent = LocalZTMAgent {
-                agent_port: ztm.ztm_agent_port,
-            };
-            ztm_agent.clone().start_ztm_agent();
-            thread::sleep(time::Duration::from_secs(3));
 
-            let bootstrap_node_clone = bootstrap_node.clone();
-            let config_clone = context.config.clone();
-            let ztm_agent_clone = ztm_agent.clone();
-            tokio::spawn(async move {
-                run_ztm_client(
-                    bootstrap_node_clone,
-                    config_clone,
-                    peer_id,
-                    ztm_agent_clone,
-                    http_port,
-                )
-                .await
-            });
-
-            if ztm.cache {
-                thread::sleep(time::Duration::from_secs(3));
-                tokio::spawn(async move {
-                    cache_public_repo_and_lfs(bootstrap_node, context, ztm_agent, http_port).await
-                });
-            }
+            tokio::spawn(async move { gemini::p2p::client::run(bootstrap_node).await });
         }
         None => {
             tracing::info!("The bootstrap node is not set, prepare to start mega server locally");
