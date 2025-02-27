@@ -36,9 +36,10 @@ rustup component add clippy
 cargo install cargo-expand
 cargo install cargo-edit
 
-## Install Buck2
+## Install Buck2 and Reindeer
 wget https://github.com/facebook/buck2/releases/download/2025-02-01/buck2-x86_64-unknown-linux-musl.zst
 zstd -d /home/buck2-x86_64-unknown-linux-musl.zst
 mv /home/buck2-x86_64-unknown-linux-musl /home/buck2
 chmod +x /home/buck2
 mv /home/buck2 /usr/local/bin/buck2
+cargo install --locked --git https://github.com/facebookincubator/reindeer reindeer
