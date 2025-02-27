@@ -1,12 +1,12 @@
-use axum::{Json, Router};
+use crate::api::MegaApiServiceState;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::post;
+use axum::{Json, Router};
 use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::Value;
 use taurus::event::github_webhook::{GithubWebhookEvent, WebhookType};
-use crate::api::MegaApiServiceState;
 
 lazy_static! {
     static ref CLIENT: Client = Client::builder()
@@ -16,15 +16,14 @@ lazy_static! {
 }
 
 pub fn routers() -> Router<MegaApiServiceState> {
-    Router::new()
-        .route("/github/webhook", post(webhook))
+    Router::new().route("/github/webhook", post(webhook))
 }
 
 /// Handle the GitHub webhook event. <br>
 /// For more details, see https://docs.github.com/zh/webhooks/webhook-events-and-payloads.
 async fn webhook(
     headers: HeaderMap,
-    Json(mut payload): Json<Value>
+    Json(mut payload): Json<Value>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let event_type = headers
         .get("X-GitHub-Event")
@@ -38,14 +37,16 @@ async fn webhook(
             let action = payload["action"].as_str().unwrap();
             tracing::debug!("PR action: {}", action);
 
-            if ["opened", "reopened", "synchronize"].contains(&action) { // contents changed
+            if ["opened", "reopened", "synchronize"].contains(&action) {
+                // contents changed
                 let url = payload["pull_request"]["url"].as_str().unwrap();
                 let files = get_pr_files(url).await;
                 let commits = get_pr_commits(url).await;
                 // Add details to the payload
                 payload["files"] = files;
                 payload["commits"] = commits;
-            } else if action == "edited" { // PR title or body edited
+            } else if action == "edited" {
+                // PR title or body edited
                 let _ = payload["pull_request"]["title"].as_str().unwrap();
                 let _ = payload["pull_request"]["body"].as_str().unwrap();
             }

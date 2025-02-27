@@ -23,22 +23,20 @@ impl LocalStorage {
 
 #[async_trait]
 impl LfsStorage for LocalStorage {
-
     async fn get_ref(&self, repo_id: i64, ref_name: &str) -> Result<String, MegaError> {
-        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
+        let path = Path::new(&self.base_path)
+            .join(repo_id.to_string())
+            .join(ref_name);
         let mut file = fs::File::open(path)?;
         let mut buf = String::new();
         file.read_to_string(&mut buf)?;
         Ok(buf)
     }
 
-    async fn put_ref(
-        &self,
-        repo_id: i64,
-        ref_name: &str,
-        ref_hash: &str,
-    ) -> Result<(), MegaError> {
-        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
+    async fn put_ref(&self, repo_id: i64, ref_name: &str, ref_hash: &str) -> Result<(), MegaError> {
+        let path = Path::new(&self.base_path)
+            .join(repo_id.to_string())
+            .join(ref_name);
         let parent = path.parent().unwrap();
         fs::create_dir_all(parent)?;
         let mut file = fs::File::create(path)?;
@@ -47,7 +45,9 @@ impl LfsStorage for LocalStorage {
     }
 
     async fn delete_ref(&self, repo_id: i64, ref_name: &str) -> Result<(), MegaError> {
-        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
+        let path = Path::new(&self.base_path)
+            .join(repo_id.to_string())
+            .join(ref_name);
         Ok(fs::remove_file(path)?)
     }
 
@@ -57,7 +57,9 @@ impl LfsStorage for LocalStorage {
         ref_name: &str,
         ref_hash: &str,
     ) -> Result<(), MegaError> {
-        let path = Path::new(&self.base_path).join(repo_id.to_string()).join(ref_name);
+        let path = Path::new(&self.base_path)
+            .join(repo_id.to_string())
+            .join(ref_name);
         let mut file = OpenOptions::new().write(true).open(path).unwrap();
         file.write_all(ref_hash.as_bytes()).unwrap();
         Ok(())
@@ -74,11 +76,7 @@ impl LfsStorage for LocalStorage {
         Ok(Bytes::from(buffer))
     }
 
-    async fn put_object(
-        &self,
-        object_id: &str,
-        body_content: &[u8],
-    ) -> Result<String, MegaError> {
+    async fn put_object(&self, object_id: &str, body_content: &[u8]) -> Result<String, MegaError> {
         let path = Path::new(&self.base_path)
             .join("objects")
             .join(self.transform_path(object_id));

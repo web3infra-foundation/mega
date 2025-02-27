@@ -4,10 +4,10 @@ use api_request::ApiRequestEvent;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use github_webhook::GithubWebhookEvent;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
-use github_webhook::GithubWebhookEvent;
 
 pub mod api_request;
 pub mod github_webhook;
@@ -56,7 +56,6 @@ impl EventType {
             // so you have to manually add a process logic for your event here.
             EventType::ApiRequest(evt) => evt.process().await,
             // EventType::SomeOtherEvent(xxx) => xxx.process().await,
-
             EventType::GithubWebhook(evt) => evt.process().await,
 
             // This won't happen unless failed to load events from database.
@@ -69,11 +68,7 @@ impl EventType {
 
 impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ID: {}, Created at: {}",
-            self.id, self.create_time
-        )
+        write!(f, "ID: {}, Created at: {}", self.id, self.create_time)
     }
 }
 
@@ -116,11 +111,15 @@ impl From<callisto::mq_storage::Model> for Message {
                 } else {
                     EventType::ErrorEvent
                 }
-            },
+            }
 
-            _ => EventType::ErrorEvent
+            _ => EventType::ErrorEvent,
         };
 
-        Self { id, create_time, evt }
+        Self {
+            id,
+            create_time,
+            evt,
+        }
     }
 }

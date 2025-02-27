@@ -1,4 +1,3 @@
-
 use std::io::{self, Read, Write};
 
 use flate2::{write::ZlibEncoder, Compression};

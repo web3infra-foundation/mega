@@ -178,32 +178,32 @@ impl Signature {
         Ok(sign)
     }
 
-/// Represents a signature with author, email, timestamp, and timezone information.
-pub fn new(sign_type: SignatureType, author: String, email: String) -> Signature {
-    // Get the current local time (with timezone)
-    let local_time = chrono::Local::now();
-    
-    // Get the offset from UTC in minutes (local time - UTC time)
-    let offset = local_time.offset().fix().local_minus_utc();
-    
-    // Calculate the hours part of the offset (divide by 3600 to convert from seconds to hours)
-    let hours = offset / 60 / 60;
-    
-    // Calculate the minutes part of the offset (remaining minutes after dividing by 60)
-    let minutes = offset / 60 % 60;
+    /// Represents a signature with author, email, timestamp, and timezone information.
+    pub fn new(sign_type: SignatureType, author: String, email: String) -> Signature {
+        // Get the current local time (with timezone)
+        let local_time = chrono::Local::now();
 
-    // Format the offset as a string (e.g., "+0800", "-0300", etc.)
-    let offset_str = format!("{:+03}{:02}", hours, minutes);
-    
-    // Return the Signature struct with the provided information
-    Signature {
-        signature_type: sign_type,    // The type of signature (e.g., commit, merge)
-        name: author,                 // The author's name
-        email,                        // The author's email
-        timestamp: chrono::Utc::now().timestamp() as usize, // The timestamp of the signature (seconds since Unix epoch)
-        timezone: offset_str,         // The timezone offset (e.g., "+0800")
+        // Get the offset from UTC in minutes (local time - UTC time)
+        let offset = local_time.offset().fix().local_minus_utc();
+
+        // Calculate the hours part of the offset (divide by 3600 to convert from seconds to hours)
+        let hours = offset / 60 / 60;
+
+        // Calculate the minutes part of the offset (remaining minutes after dividing by 60)
+        let minutes = offset / 60 % 60;
+
+        // Format the offset as a string (e.g., "+0800", "-0300", etc.)
+        let offset_str = format!("{:+03}{:02}", hours, minutes);
+
+        // Return the Signature struct with the provided information
+        Signature {
+            signature_type: sign_type, // The type of signature (e.g., commit, merge)
+            name: author,              // The author's name
+            email,                     // The author's email
+            timestamp: chrono::Utc::now().timestamp() as usize, // The timestamp of the signature (seconds since Unix epoch)
+            timezone: offset_str, // The timezone offset (e.g., "+0800")
+        }
     }
-}
 }
 
 #[cfg(test)]
@@ -289,13 +289,17 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_with_time(){
-        let sign = Signature::new(SignatureType::Author, "MEGA".to_owned(), "admin@mega.com".to_owned());
+    fn test_signature_with_time() {
+        let sign = Signature::new(
+            SignatureType::Author,
+            "MEGA".to_owned(),
+            "admin@mega.com".to_owned(),
+        );
         assert_eq!(sign.signature_type, SignatureType::Author);
         assert_eq!(sign.name, "MEGA");
         assert_eq!(sign.email, "admin@mega.com");
         assert_eq!(sign.timezone, "+0800");
-        
+
         let naive_datetime = DateTime::from_timestamp(sign.timestamp as i64, 0).unwrap();
         println!("Formatted DateTime: {}", naive_datetime.naive_local());
     }

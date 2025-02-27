@@ -3,7 +3,12 @@ use crate::internal::config::Config;
 use crate::internal::protocol::https_client::BasicAuth;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::{lfs, util};
-use ceres::lfs::lfs_structs::{BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest, ObjectError, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList, VerifiableLockRequest};
+use anyhow::anyhow;
+use ceres::lfs::lfs_structs::{
+    BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest,
+    ObjectError, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList,
+    VerifiableLockRequest,
+};
 use futures_util::StreamExt;
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::entry::Entry;
@@ -12,7 +17,6 @@ use ring::digest::{Context, SHA256};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
-use anyhow::anyhow;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::OnceCell;
 use url::Url;
@@ -22,16 +26,16 @@ pub struct LFSClient {
     pub batch_url: Url,
     pub lfs_url: Url,
     pub client: Client,
-    pub bootstrap: Option<(String, u16)> // for p2p: (bootstrap_node, ztm_agent_port)
+    pub bootstrap: Option<(String, u16)>, // for p2p: (bootstrap_node, ztm_agent_port)
 }
 static LFS_CLIENT: OnceCell<LFSClient> = OnceCell::const_new();
 impl LFSClient {
     /// Get LFSClient instance
     /// - DO NOT use `async_static!`: No IDE Code Completion & lagging
     pub async fn get() -> &'static LFSClient {
-        LFS_CLIENT.get_or_init(|| async {
-            LFSClient::new().await
-        }).await
+        LFS_CLIENT
+            .get_or_init(|| async { LFSClient::new().await })
+            .await
     }
 }
 
@@ -92,7 +96,7 @@ impl LFSClient {
     /// push LFS objects to remote server
     pub async fn push_objects<'a, I>(&self, objs: I) -> Result<(), ()>
     where
-        I: IntoIterator<Item = &'a Entry>
+        I: IntoIterator<Item = &'a Entry>,
     {
         // filter pointer file within blobs
         let mut lfs_oids = Vec::new();
@@ -123,11 +127,16 @@ impl LFSClient {
             return Ok(());
         }
 
-        { // verify locks
-            let (code, locks) = self.verify_locks(VerifiableLockRequest {
-                refs: Ref { name: command::lfs::current_refspec().await.unwrap() },
-                ..Default::default()
-            }).await;
+        {
+            // verify locks
+            let (code, locks) = self
+                .verify_locks(VerifiableLockRequest {
+                    refs: Ref {
+                        name: command::lfs::current_refspec().await.unwrap(),
+                    },
+                    ..Default::default()
+                })
+                .await;
 
             if code == StatusCode::FORBIDDEN {
                 eprintln!("fatal: Forbidden: You must have push access to verify locks");
@@ -142,20 +151,28 @@ impl LFSClient {
                 // success
                 tracing::debug!("LFS verify locks response:\n {:?}", locks);
                 let oids: HashSet<String> = lfs_oids.iter().map(|(oid, _)| oid.clone()).collect();
-                let ours = locks.ours.iter().filter(|l| {
-                    let oid = lfs::get_oid_by_path(&l.path);
-                    oids.contains(&oid)
-                }).collect::<Vec<_>>();
+                let ours = locks
+                    .ours
+                    .iter()
+                    .filter(|l| {
+                        let oid = lfs::get_oid_by_path(&l.path);
+                        oids.contains(&oid)
+                    })
+                    .collect::<Vec<_>>();
                 if !ours.is_empty() {
                     println!("The following files are locked by you, consider unlocking them:");
                     for lock in ours {
                         println!("  - {}", lock.path);
                     }
                 }
-                let theirs = locks.theirs.iter().filter(|l| {
-                    let oid = lfs::get_oid_by_path(&l.path);
-                    oids.contains(&oid)
-                }).collect::<Vec<_>>();
+                let theirs = locks
+                    .theirs
+                    .iter()
+                    .filter(|l| {
+                        let oid = lfs::get_oid_by_path(&l.path);
+                        oids.contains(&oid)
+                    })
+                    .collect::<Vec<_>>();
                 if !theirs.is_empty() {
                     eprintln!("Locking failed: The following files are locked by another user:");
                     for lock in theirs {
@@ -178,10 +195,15 @@ impl LFSClient {
                 .post(self.batch_url.clone())
                 .json(&batch_request)
                 .headers(lfs::LFS_HEADERS.clone())
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
 
         let resp = response.json::<LfsBatchResponse>().await.unwrap();
-        tracing::debug!("LFS push response:\n {:#?}", serde_json::to_value(&resp).unwrap());
+        tracing::debug!(
+            "LFS push response:\n {:#?}",
+            serde_json::to_value(&resp).unwrap()
+        );
 
         // TODO: parallel upload
         for obj in resp.objects {
@@ -210,14 +232,20 @@ impl LFSClient {
                 .post(self.batch_url.clone())
                 .json(&batch_request)
                 .headers(lfs::LFS_HEADERS.clone())
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
 
         let resp = response.json::<LfsBatchResponse>().await.unwrap();
         tracing::debug!(
             "LFS push response:\n {:#?}",
             serde_json::to_value(&resp).unwrap()
         );
-        assert_eq!(resp.objects.len(), 1, "fatal: LFS push failed. No object found.");
+        assert_eq!(
+            resp.objects.len(),
+            1,
+            "fatal: LFS push failed. No object found."
+        );
 
         // self.upload_object(resp.objects).await?;
         let obj = resp.objects.into_iter().next().unwrap();
@@ -229,7 +257,10 @@ impl LFSClient {
     /// upload (PUT) one LFS file to remote server
     async fn upload_object(&self, object: Representation, file: &Path) -> Result<(), ()> {
         if let Some(err) = object.error {
-            eprintln!("fatal: LFS upload failed. Code: {}, Message: {}", err.code, err.message);
+            eprintln!(
+                "fatal: LFS upload failed. Code: {}, Message: {}",
+                err.code, err.message
+            );
             return Err(());
         }
 
@@ -250,7 +281,8 @@ impl LFSClient {
                 }
 
                 let content = tokio::fs::File::open(file).await.unwrap();
-                let progress_bar = util::default_progress_bar(content.metadata().await.unwrap().len());
+                let progress_bar =
+                    util::default_progress_bar(content.metadata().await.unwrap().len());
 
                 let stream = tokio_util::io::ReaderStream::new(content);
                 let progress_stream = stream.map(move |chunk| {
@@ -260,10 +292,16 @@ impl LFSClient {
                     chunk
                 });
                 request.body(reqwest::Body::wrap_stream(progress_stream))
-            }).await.unwrap();
+            })
+            .await
+            .unwrap();
 
             if !resp.status().is_success() {
-                eprintln!("fatal: LFS upload failed. Status: {}, Message: {}", resp.status(), resp.text().await.unwrap());
+                eprintln!(
+                    "fatal: LFS upload failed. Status: {}, Message: {}",
+                    resp.status(),
+                    resp.text().await.unwrap()
+                );
                 return Err(());
             }
             println!("Uploaded.");
@@ -295,9 +333,9 @@ impl LFSClient {
         path: impl AsRef<Path>,
         mut reporter: Option<(
             &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
-            f64 // step
-        )>) -> anyhow::Result<()>
-    {
+            f64,                                                // step
+        )>,
+    ) -> anyhow::Result<()> {
         let batch_request = BatchRequest {
             operation: "download".to_string(),
             transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
@@ -314,10 +352,14 @@ impl LFSClient {
                 .post(self.batch_url.clone())
                 .json(&batch_request)
                 .headers(lfs::LFS_HEADERS.clone())
-        }).await?;
+        })
+        .await?;
 
         let text = response.text().await?;
-        tracing::debug!("LFS download response:\n {:#?}", serde_json::from_str::<serde_json::Value>(&text)?);
+        tracing::debug!(
+            "LFS download response:\n {:#?}",
+            serde_json::from_str::<serde_json::Value>(&text)?
+        );
         let resp = serde_json::from_str::<LfsBatchResponse>(&text)?;
         let obj = resp.objects.first().expect("No object"); // Only get first
         if obj.error.is_some() || obj.actions.is_none() {
@@ -326,7 +368,10 @@ impl LFSClient {
                 message: "Unknown error".to_string(),
             };
             let err = obj.error.as_ref().unwrap_or(&unknown_err);
-            eprintln!("fatal: LFS download failed (BatchRequest). Code: {}, Message: {}", err.code, err.message);
+            eprintln!(
+                "fatal: LFS download failed (BatchRequest). Code: {}, Message: {}",
+                err.code, err.message
+            );
             return Err(anyhow!("LFS download failed."));
         }
 
@@ -341,7 +386,7 @@ impl LFSClient {
                 chunk_size = chunks.first().map(|c| c.size);
                 tracing::info!("LFS Chunk API supported.");
                 chunks.into_iter().map(|c| c.link).collect()
-            },
+            }
             Err(_) => {
                 chunk_size = Some(size as i64);
                 vec![link.clone()]
@@ -350,7 +395,7 @@ impl LFSClient {
 
         let mut checksum = Context::new(&SHA256);
         let mut got_parts = 0;
-        let mut file =  if links.len() <= 1 || lfs::parse_pointer_file(&path).is_ok() {
+        let mut file = if links.len() <= 1 || lfs::parse_pointer_file(&path).is_ok() {
             // pointer file or Not Chunks, truncate
             tokio::fs::File::create(path).await?
         } else {
@@ -360,7 +405,8 @@ impl LFSClient {
                 .read(true)
                 .create(true)
                 .truncate(false)
-                .open(&path).await?;
+                .open(&path)
+                .await?;
             let file_len = file.metadata().await?.len();
             if file_len > size {
                 println!("Local file size is larger than remote, truncate to 0.");
@@ -370,7 +416,11 @@ impl LFSClient {
                 let chunk_size = chunk_size.unwrap() as u64;
                 got_parts = file_len / chunk_size;
                 let file_offset = got_parts * chunk_size;
-                println!("Resume download from offset: {}, part: {}", file_offset, got_parts + 1);
+                println!(
+                    "Resume download from offset: {}, part: {}",
+                    file_offset,
+                    got_parts + 1
+                );
                 file.set_len(file_offset).await?; // truncate
                 Self::update_file_checksum(&mut file, &mut checksum).await; // resume checksum
                 file.seek(tokio::io::SeekFrom::End(0)).await?;
@@ -395,20 +445,27 @@ impl LFSClient {
                     request = request.header(k, v);
                 }
                 request
-            }).await?;
+            })
+            .await?;
             if !response.status().is_success() {
-                eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
+                eprintln!(
+                    "fatal: LFS download failed. Status: {}, Message: {}",
+                    response.status(),
+                    response.text().await?
+                );
                 return Err(anyhow!("LFS download failed."));
             }
 
             let cur_chunk_size = if (got_parts as usize) < parts {
                 chunk_size.unwrap() as u64
-            } else { // last part
+            } else {
+                // last part
                 size - (parts as u64 - 1) * chunk_size.unwrap() as u64
             };
             let pb = util::default_progress_bar(cur_chunk_size);
             let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await { // TODO: progress bar TODO: multi-thread or async
+            while let Some(chunk) = stream.next().await {
+                // TODO: progress bar TODO: multi-thread or async
                 let chunk = chunk?;
                 file.write_all(&chunk).await?;
                 checksum.update(&chunk);
@@ -421,7 +478,8 @@ impl LFSClient {
                         last_progress = progress;
                         report_fn(progress)?;
                     }
-                } else { // mutually exclusive with reporter
+                } else {
+                    // mutually exclusive with reporter
                     pb.inc(chunk.len() as u64);
                 }
             }
@@ -447,13 +505,20 @@ impl LFSClient {
         let path = url.path().trim_end_matches('/');
         url.set_path(&(path.to_owned() + "/chunks")); // reserve query params (for GitHub link)
 
-        let resp = BasicAuth::send(|| async { self.client.get(url.clone()) }).await.unwrap();
+        let resp = BasicAuth::send(|| async { self.client.get(url.clone()) })
+            .await
+            .unwrap();
         let code = resp.status();
-        if code == StatusCode::NOT_FOUND || code == StatusCode::FORBIDDEN { // GitHub maybe return 403
+        if code == StatusCode::NOT_FOUND || code == StatusCode::FORBIDDEN {
+            // GitHub maybe return 403
             tracing::info!("Remote LFS Server not support Chunks API, or forbidden.");
             return Err(());
         } else if !code.is_success() {
-            tracing::debug!("fatal: LFS get chunk hrefs failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            tracing::debug!(
+                "fatal: LFS get chunk hrefs failed. Status: {}, Message: {}",
+                code,
+                resp.text().await.unwrap()
+            );
             return Err(());
         }
         let mut res = resp.json::<FetchchunkResponse>().await.unwrap();
@@ -463,8 +528,8 @@ impl LFSClient {
     }
 }
 
-#[cfg(feature="p2p")]
-impl LFSClient{
+#[cfg(feature = "p2p")]
+impl LFSClient {
     /// download (GET) one LFS file peer-to-peer
     #[allow(clippy::type_complexity)]
     pub async fn download_object_p2p(
@@ -473,9 +538,9 @@ impl LFSClient{
         path: impl AsRef<Path>,
         mut reporter: Option<(
             &mut (dyn FnMut(f64) -> anyhow::Result<()> + Send), // progress callback
-            f64 // step
-        )>) -> anyhow::Result<()>
-    {
+            f64,                                                // step
+        )>,
+    ) -> anyhow::Result<()> {
         let (bootstrap_node, ztm_agent_port) = match &self.bootstrap {
             Some(value) => value,
             None => return Err(anyhow!("fatal: No bootstrap node set for P2P download.")),
@@ -486,18 +551,22 @@ impl LFSClient{
         let peer_ports = gemini::lfs::create_lfs_download_tunnel(
             bootstrap_node.clone(),
             *ztm_agent_port,
-            file_uri.to_owned()
-        ).await.unwrap();
+            file_uri.to_owned(),
+        )
+        .await
+        .unwrap();
         if peer_ports.is_empty() {
             eprintln!("fatal: No peer online, download failed");
             return Err(anyhow!("fatal: No peer online."));
         }
         tracing::debug!("P2P download tunnel ports: {:?}", peer_ports);
 
-        let lfs_info = match gemini::lfs::get_lfs_chunks_info(bootstrap_node.clone(), hash.clone()).await { // auth?
-            Some(chunks) => chunks,
-            None => return Err(anyhow!("fatal: LFS Chunk API failed."))
-        };
+        let lfs_info =
+            match gemini::lfs::get_lfs_chunks_info(bootstrap_node.clone(), hash.clone()).await {
+                // auth?
+                Some(chunks) => chunks,
+                None => return Err(anyhow!("fatal: LFS Chunk API failed.")),
+            };
         let mut chunks = lfs_info.chunks;
         if chunks.is_empty() {
             eprintln!("fatal: LFS Chunk API failed. No chunks found.");
@@ -513,26 +582,41 @@ impl LFSClient{
             tokio::fs::create_dir_all(parent).await?;
         }
         let mut file = tokio::fs::File::create(path).await?;
-        for (i, chunk) in chunks.iter().enumerate() { // TODO parallel download
+        for (i, chunk) in chunks.iter().enumerate() {
+            // TODO parallel download
             println!("- part: {}/{}", i + 1, chunks.len());
             let mut retry = 0;
-            let data = loop { // retry
+            let data = loop {
+                // retry
                 let mut downloaded = i * chunk_size; // TODO support resume
                 let mut last_progress = downloaded as f64 / lfs_info.size as f64 * 100.0;
                 let pb = util::default_progress_bar(chunk.size as u64);
-                let url = format!("http://localhost:{}/objects/{}/{}", peer_ports[(i + retry) % peer_ports.len()], hash, chunk.sub_oid);
-                let data = self.download_chunk(&url, &chunk.sub_oid, chunk.size as usize, chunk.offset as usize, |size| {
-                    if let Some((ref mut report_fn, step)) = reporter {
-                        downloaded += size;
-                        let progress = (downloaded as f64 / lfs_info.size as f64) * 100.0;
-                        if progress >= last_progress + step {
-                            last_progress = progress;
-                            report_fn(progress).unwrap();
-                        }
-                    } else {
-                        pb.inc(size as u64);
-                    }
-                }).await;
+                let url = format!(
+                    "http://localhost:{}/objects/{}/{}",
+                    peer_ports[(i + retry) % peer_ports.len()],
+                    hash,
+                    chunk.sub_oid
+                );
+                let data = self
+                    .download_chunk(
+                        &url,
+                        &chunk.sub_oid,
+                        chunk.size as usize,
+                        chunk.offset as usize,
+                        |size| {
+                            if let Some((ref mut report_fn, step)) = reporter {
+                                downloaded += size;
+                                let progress = (downloaded as f64 / lfs_info.size as f64) * 100.0;
+                                if progress >= last_progress + step {
+                                    last_progress = progress;
+                                    report_fn(progress).unwrap();
+                                }
+                            } else {
+                                pb.inc(size as u64);
+                            }
+                        },
+                    )
+                    .await;
                 pb.finish_and_clear();
                 match data {
                     Ok(data) => break data,
@@ -563,14 +647,26 @@ impl LFSClient{
         }
     }
 
-    async fn download_chunk(&self, url: &str, hash: &str, size: usize, offset: usize, mut callback: impl FnMut(usize)) -> anyhow::Result<Vec<u8>> {
+    async fn download_chunk(
+        &self,
+        url: &str,
+        hash: &str,
+        size: usize,
+        offset: usize,
+        mut callback: impl FnMut(usize),
+    ) -> anyhow::Result<Vec<u8>> {
         let response = BasicAuth::send(|| async {
             self.client
                 .get(url)
                 .query(&[("offset", offset), ("size", size)])
-        }).await?;
+        })
+        .await?;
         if !response.status().is_success() {
-            eprintln!("fatal: LFS download failed. Status: {}, Message: {}", response.status(), response.text().await?);
+            eprintln!(
+                "fatal: LFS download failed. Status: {}, Message: {}",
+                response.status(),
+                response.text().await?
+            );
             return Err(anyhow!("LFS download failed."));
         }
         let mut buffer = Vec::with_capacity(size);
@@ -586,7 +682,10 @@ impl LFSClient{
         }
         let checksum = hex::encode(checksum.finish().as_ref());
         if checksum != hash {
-            eprintln!("fatal: chunk download failed. Chunk checksum mismatch: {} != {}", checksum, hash);
+            eprintln!(
+                "fatal: chunk download failed. Chunk checksum mismatch: {} != {}",
+                checksum, hash
+            );
             return Err(anyhow!("Chunk checksum mismatch."));
         }
         Ok(buffer)
@@ -602,11 +701,17 @@ impl LFSClient {
             ("path", query.path),
             ("limit", query.limit),
             ("cursor", query.cursor),
-            ("refspec", query.refspec)
+            ("refspec", query.refspec),
         ];
-        let response = BasicAuth::send(|| async { self.client.get(url.clone()).query(&query) }).await.unwrap();
+        let response = BasicAuth::send(|| async { self.client.get(url.clone()).query(&query) })
+            .await
+            .unwrap();
         if !response.status().is_success() {
-            eprintln!("fatal: LFS get locks failed. Status: {}, Message: {}", response.status(), response.text().await.unwrap());
+            eprintln!(
+                "fatal: LFS get locks failed. Status: {}, Message: {}",
+                response.status(),
+                response.text().await.unwrap()
+            );
             return LockList {
                 locks: Vec::new(),
                 next_cursor: String::default(),
@@ -623,12 +728,20 @@ impl LFSClient {
         let resp = BasicAuth::send(|| async {
             self.client.post(url.clone()).json(&LockRequest {
                 path: path.clone(),
-                refs: Ref { name: refspec.clone() },
+                refs: Ref {
+                    name: refspec.clone(),
+                },
             })
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         let code = resp.status();
         if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
-            eprintln!("fatal: LFS lock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            eprintln!(
+                "fatal: LFS lock failed. Status: {}, Message: {}",
+                code,
+                resp.text().await.unwrap()
+            );
         }
         code
     }
@@ -638,32 +751,50 @@ impl LFSClient {
         let resp = BasicAuth::send(|| async {
             self.client.post(url.clone()).json(&UnlockRequest {
                 force: Some(force),
-                refs: Ref { name: refspec.clone() },
+                refs: Ref {
+                    name: refspec.clone(),
+                },
             })
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         let code = resp.status();
         if !resp.status().is_success() && code != StatusCode::FORBIDDEN {
-            eprintln!("fatal: LFS unlock failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
+            eprintln!(
+                "fatal: LFS unlock failed. Status: {}, Message: {}",
+                code,
+                resp.text().await.unwrap()
+            );
         }
         code
     }
 
     /// List Locks for Verification
-    pub async fn verify_locks(&self, query: VerifiableLockRequest)
-        -> (StatusCode, VerifiableLockList)
-    {
+    pub async fn verify_locks(
+        &self,
+        query: VerifiableLockRequest,
+    ) -> (StatusCode, VerifiableLockList) {
         let url = self.lfs_url.join("locks/verify").unwrap();
-        let resp = BasicAuth::send(|| async {self.client.post(url.clone()).json(&query)}).await.unwrap();
+        let resp = BasicAuth::send(|| async { self.client.post(url.clone()).json(&query) })
+            .await
+            .unwrap();
         let code = resp.status();
         // By default, an LFS server that doesn't implement any locking endpoints should return 404.
         // This response will not halt any Git pushes.
         if !code.is_success() && code != StatusCode::NOT_FOUND && code != StatusCode::FORBIDDEN {
-            eprintln!("fatal: LFS verify locks failed. Status: {}, Message: {}", code, resp.text().await.unwrap());
-            return (code, VerifiableLockList {
-                ours: Vec::new(),
-                theirs: Vec::new(),
-                next_cursor: String::default(),
-            });
+            eprintln!(
+                "fatal: LFS verify locks failed. Status: {}, Message: {}",
+                code,
+                resp.text().await.unwrap()
+            );
+            return (
+                code,
+                VerifiableLockList {
+                    ours: Vec::new(),
+                    theirs: Vec::new(),
+                    next_cursor: String::default(),
+                },
+            );
         }
         (code, resp.json::<VerifiableLockList>().await.unwrap())
     }
@@ -698,8 +829,11 @@ mod tests {
             }],
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
         };
-        let lfs_client = LFSClient::from_url(&Url::parse("https://github.com/web3infra-foundation/mega.git").unwrap());
-        let request = lfs_client.client
+        let lfs_client = LFSClient::from_url(
+            &Url::parse("https://github.com/web3infra-foundation/mega.git").unwrap(),
+        );
+        let request = lfs_client
+            .client
             .post(lfs_client.batch_url.clone())
             .json(&batch_request)
             .headers(lfs::LFS_HEADERS.clone());
@@ -725,7 +859,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature="p2p")]
+    #[cfg(feature = "p2p")]
     #[ignore] // need to start local mega server
     async fn test_download_chunk() {
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());

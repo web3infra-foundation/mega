@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use crate::utils::util;
+use std::path::{Path, PathBuf};
 
 pub trait PathExt {
     fn to_workdir(&self) -> PathBuf;
@@ -10,9 +10,9 @@ pub trait PathExt {
     #[allow(dead_code)]
     fn sub_of(&self, parent: &Path) -> bool;
     fn sub_of_paths<P, U>(&self, paths: U) -> bool
-        where
-            P: AsRef<Path>,
-            U: IntoIterator<Item = P>;
+    where
+        P: AsRef<Path>,
+        U: IntoIterator<Item = P>;
 }
 
 impl PathExt for PathBuf {
@@ -42,10 +42,11 @@ impl PathExt for PathBuf {
     }
 
     fn sub_of_paths<P, U>(&self, paths: U) -> bool
-        where
-            P: AsRef<Path>,
-            U: IntoIterator<Item=P>
-    {  // TODO 接口都改成 to workdir好了
+    where
+        P: AsRef<Path>,
+        U: IntoIterator<Item = P>,
+    {
+        // TODO 接口都改成 to workdir好了
         util::is_sub_of_paths(self, paths)
     }
 }

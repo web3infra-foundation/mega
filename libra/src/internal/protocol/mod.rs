@@ -10,5 +10,4 @@ pub trait ProtocolClient {
 }
 
 #[cfg(test)]
-mod test {
-}
+mod test {}

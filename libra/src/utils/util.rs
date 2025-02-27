@@ -1,11 +1,11 @@
-use std::collections::HashSet;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use path_absolutize::*;
-use std::{env, fs, io};
 use indicatif::{ProgressBar, ProgressStyle};
 use mercury::hash::SHA1;
 use mercury::internal::object::types::ObjectType;
+use path_absolutize::*;
+use std::collections::HashSet;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::{env, fs, io};
 
 use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
@@ -374,7 +374,10 @@ mod test {
     #[tokio::test]
     async fn test_to_workdir_path() {
         test::setup_with_new_libra().await;
-        assert_eq!(to_workdir_path("./src/abc/../main.rs"), PathBuf::from("src/main.rs"));
+        assert_eq!(
+            to_workdir_path("./src/abc/../main.rs"),
+            PathBuf::from("src/main.rs")
+        );
         assert_eq!(to_workdir_path("."), PathBuf::from("."));
         assert_eq!(to_workdir_path("./"), PathBuf::from("."));
         assert_eq!(to_workdir_path(""), PathBuf::from("."));
