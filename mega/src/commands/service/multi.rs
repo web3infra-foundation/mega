@@ -60,7 +60,11 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     let service_type = server_matchers.service;
 
     let context = Context::new(config.clone()).await;
-    context.services.mono_storage.init_monorepo(&config.monorepo).await;
+    context
+        .services
+        .mono_storage
+        .init_monorepo(&config.monorepo)
+        .await;
 
     let context_clone = context.clone();
     let http_server = if service_type.contains(&StartCommand::Http) {

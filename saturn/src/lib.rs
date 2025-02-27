@@ -5,7 +5,6 @@ pub mod entitystore;
 mod objects;
 pub mod util;
 
-
 pub enum ActionEnum {
     // ** Anyone
     // ViewRepo,
@@ -168,14 +167,14 @@ mod test {
             )
             .is_err_and(|e| matches!(e, Error::AuthDenied(_))));
 
-            assert!(app_context
-                .is_authorized(
-                    &maintainer,
-                    r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
-                    &resource,
-                    Context::empty()
-                )
-                .is_ok());
+        assert!(app_context
+            .is_authorized(
+                &maintainer,
+                r#"Action::"approveMergeRequest""#.parse::<EntityUid>().unwrap(),
+                &resource,
+                Context::empty()
+            )
+            .is_ok());
     }
 
     #[test]

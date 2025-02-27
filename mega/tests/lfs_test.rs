@@ -1,16 +1,16 @@
 mod common;
 
-/// integration tests for the mega module
-use std::process::{Child, Command};
-use std::{env, fs, io, thread};
+use lazy_static::lazy_static;
+use rand::Rng;
+use serial_test::serial;
 use std::io::Write;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
+/// integration tests for the mega module
+use std::process::{Child, Command};
 use std::time::Duration;
-use rand::Rng;
-use serial_test::serial;
+use std::{env, fs, io, thread};
 use tempfile::TempDir;
-use lazy_static::lazy_static;
 
 const PORT: u16 = 8000; // mega server port
 const LARGE_FILE_SIZE_MB: usize = 60;
@@ -58,7 +58,8 @@ fn run_cmd(program: &str, args: &[&str], stdin: Option<&str>, envs: Option<Vec<(
     let assert = cmd.assert().success();
     let output = assert.get_output();
 
-    println!("Command success: {} {}\nStatus: {}\nStdout: {}",
+    println!(
+        "Command success: {} {}\nStatus: {}\nStdout: {}",
         program,
         args.join(" "),
         output.status,
@@ -79,8 +80,11 @@ fn run_libra_cmd_with_stdin(args: &[&str], stdin: Option<&str>, envs: Option<Vec
 }
 
 fn is_port_in_use(port: u16) -> bool {
-    TcpStream::connect_timeout(&format!("127.0.0.1:{}", port).parse().unwrap(), Duration::from_millis(1000))
-        .is_ok()
+    TcpStream::connect_timeout(
+        &format!("127.0.0.1:{}", port).parse().unwrap(),
+        Duration::from_millis(1000),
+    )
+    .is_ok()
 }
 
 /// Run mega server in a new process
@@ -180,9 +184,11 @@ fn libra_lfs_push(url: &str) -> io::Result<()> {
     // try lock API
     run_libra_cmd(&["lfs", "lock", "large_file.bin"]);
     // push to mega server
-    run_libra_cmd_with_stdin(&["push", "mega", "master"],
-                             Some("mega\nmega"), // basic auth, can be overridden by env var
-                             Some(vec![("LIBRA_NO_HIDE_PASSWORD", "1")]));
+    run_libra_cmd_with_stdin(
+        &["push", "mega", "master"],
+        Some("mega\nmega"), // basic auth, can be overridden by env var
+        Some(vec![("LIBRA_NO_HIDE_PASSWORD", "1")]),
+    );
 
     Ok(())
 }
@@ -193,11 +199,19 @@ fn git_lfs_clone(url: &str) -> io::Result<()> {
     env::set_current_dir(temp_dir.path())?;
     // git clone url
     // `--config`: temporary set lfs.url
-    run_git_cmd(&["clone", url, "--config", &("lfs.url=".to_owned() + &LFS_URL)]);
+    run_git_cmd(&[
+        "clone",
+        url,
+        "--config",
+        &("lfs.url=".to_owned() + &LFS_URL),
+    ]);
 
     let file = Path::new("lfs/large_file.bin");
     assert!(file.exists(), "Failed to clone large file");
-    assert_eq!(file.metadata()?.len(), LARGE_FILE_SIZE_MB as u64 * 1024 * 1024);
+    assert_eq!(
+        file.metadata()?.len(),
+        LARGE_FILE_SIZE_MB as u64 * 1024 * 1024
+    );
     Ok(())
 }
 
@@ -210,7 +224,10 @@ fn libra_lfs_clone(url: &str) -> io::Result<()> {
 
     let file = Path::new("lfs-libra/large_file.bin");
     assert!(file.exists(), "Failed to clone large file");
-    assert_eq!(file.metadata()?.len(), LARGE_FILE_SIZE_MB as u64 * 1024 * 1024);
+    assert_eq!(
+        file.metadata()?.len(),
+        LARGE_FILE_SIZE_MB as u64 * 1024 * 1024
+    );
     Ok(())
 }
 
@@ -221,7 +238,7 @@ fn lfs_split_with_git() {
 
     let mega_dir = TempDir::new().unwrap();
     env::set_var("MEGA_authentication__enable_http_auth", "false"); // no need for git
-    // start mega server at background (new process)
+                                                                    // start mega server at background (new process)
     let mut mega = run_mega_server(mega_dir.path());
 
     let url = &format!("http://localhost:{}/third-part/lfs.git", PORT);

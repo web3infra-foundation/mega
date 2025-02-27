@@ -1,12 +1,12 @@
-use axum::Router;
-use axum::routing::get;
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, TransactionTrait};
 use crate::api;
 use crate::model::builds;
+use axum::routing::get;
+use axum::Router;
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, TransactionTrait};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub(crate) conn: DatabaseConnection
+    pub(crate) conn: DatabaseConnection,
 }
 
 pub async fn start_server(port: u16) {
@@ -24,7 +24,9 @@ pub async fn start_server(port: u16) {
 
     tracing::info!("Listening on port {}", port);
 
-    let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port)).await.unwrap();
+    let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port))
+        .await
+        .unwrap();
     axum::serve(addr, app.into_make_service()).await.unwrap();
 }
 

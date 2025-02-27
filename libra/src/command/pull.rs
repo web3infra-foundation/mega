@@ -17,7 +17,8 @@ pub async fn execute(args: PullArgs) {
         repository: args.repository,
         refspec: args.refspec,
         all: false,
-    }).await;
+    })
+    .await;
 
     let head = Head::current().await;
     match head {

@@ -156,10 +156,8 @@ pub trait ApiHandler: Send + Sync {
                     .get_commits_by_hashes(commit_ids.into_iter().collect())
                     .await
                     .unwrap();
-                let commit_map: HashMap<String, Commit> = commits
-                    .into_iter()
-                    .map(|x| (x.id.to_string(), x))
-                    .collect();
+                let commit_map: HashMap<String, Commit> =
+                    commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
 
                 let root_commit: Option<Commit> = None;
                 for item in tree.tree_items {

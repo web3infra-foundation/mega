@@ -38,7 +38,7 @@ pub struct ListToken {
 
 impl From<access_token::Model> for ListToken {
     fn from(value: access_token::Model) -> Self {
-        let mut mask_token =  value.token;
+        let mut mask_token = value.token;
         mask_token.replace_range(7..32, "-******-");
         Self {
             id: value.id,

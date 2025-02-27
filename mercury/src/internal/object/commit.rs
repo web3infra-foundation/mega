@@ -14,14 +14,14 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
-use bstr::ByteSlice;
-use serde::Deserialize;
-use serde::Serialize;
 use crate::errors::GitError;
 use crate::hash::SHA1;
 use crate::internal::object::signature::Signature;
 use crate::internal::object::ObjectTrait;
 use crate::internal::object::ObjectType;
+use bstr::ByteSlice;
+use serde::Deserialize;
+use serde::Serialize;
 
 /// The `Commit` struct is used to represent a commit object.
 ///

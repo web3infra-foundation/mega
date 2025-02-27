@@ -64,13 +64,7 @@ pub async fn https_server(context: Context, options: HttpsOptions) {
 
     check_run_with_ztm(context.clone(), options.ztm.clone(), https_port).await;
 
-    let app = app(
-        context,
-        host.clone(),
-        https_port,
-        ztm.clone(),
-    )
-    .await;
+    let app = app(context, host.clone(), https_port, ztm.clone()).await;
 
     let server_url = format!("{}:{}", host, https_port);
     let addr = SocketAddr::from_str(&server_url).unwrap();
@@ -92,13 +86,7 @@ pub async fn http_server(context: Context, options: HttpOptions) {
 
     check_run_with_ztm(context.clone(), options.ztm.clone(), http_port).await;
 
-    let app = app(
-        context,
-        host.clone(),
-        http_port,
-        ztm.clone(),
-    )
-    .await;
+    let app = app(context, host.clone(), http_port, ztm.clone()).await;
 
     let server_url = format!("{}:{}", host, http_port);
 
@@ -109,12 +97,7 @@ pub async fn http_server(context: Context, options: HttpOptions) {
         .unwrap();
 }
 
-pub async fn app(
-    context: Context,
-    host: String,
-    port: u16,
-    ztm: ZtmOptions,
-) -> Router {
+pub async fn app(context: Context, host: String, port: u16, ztm: ZtmOptions) -> Router {
     let state = AppState {
         host,
         port,

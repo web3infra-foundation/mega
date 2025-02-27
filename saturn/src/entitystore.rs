@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use cedar_policy::{Entities, Schema};
 use serde::{Deserialize, Serialize};
-use serde_json::{ json, to_string_pretty};
+use serde_json::{json, to_string_pretty};
 
 use crate::{
     objects::{Issue, MergeRequest, Repo, User, UserGroup},

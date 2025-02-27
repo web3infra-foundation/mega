@@ -1,6 +1,9 @@
-use std::{path::Path, time::Duration};
 use common::errors::MegaError;
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement, TransactionError, TransactionTrait};
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement,
+    TransactionError, TransactionTrait,
+};
+use std::{path::Path, time::Duration};
 use tracing::log;
 
 use common::config::DbConfig;
@@ -18,7 +21,9 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
             Err(e) => {
                 log::error!("Failed to connect to postgres: {}", e);
                 log::info!("Falling back to sqlite");
-                sqlite_connection(db_config).await.expect("Cannot connect to any database")
+                sqlite_connection(db_config)
+                    .await
+                    .expect("Cannot connect to any database")
             }
         }
     } else {
@@ -49,7 +54,9 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, M
     // setup sqlite database (execute .sql)
     if is_file_empty(&db_config.db_path) {
         log::info!("Setting up sqlite database");
-        setup_sql(&conn).await.map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
+        setup_sql(&conn)
+            .await
+            .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
     }
     Ok(conn)
 }
@@ -62,7 +69,8 @@ async fn setup_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbE
 
             // `include_str!` will expand the file while compiling, so `.sql` is not needed after that
             const SETUP_SQL: &str = include_str!("../../../sql/sqlite/sqlite_20241204_init.sql");
-            txn.execute(Statement::from_string(backend, SETUP_SQL)).await?;
+            txn.execute(Statement::from_string(backend, SETUP_SQL))
+                .await?;
             Ok(())
         })
     })

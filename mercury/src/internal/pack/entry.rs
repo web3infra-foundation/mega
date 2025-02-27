@@ -21,7 +21,8 @@ pub struct Entry {
 }
 
 impl PartialEq for Entry {
-    fn eq(&self, other: &Self) -> bool { // hash is enough to compare, right?
+    fn eq(&self, other: &Self) -> bool {
+        // hash is enough to compare, right?
         self.obj_type == other.obj_type && self.hash == other.hash
     }
 }
@@ -39,15 +40,9 @@ impl Entry {
             ObjectType::Commit => {
                 GitObject::Commit(Commit::from_bytes(&self.data, self.hash).unwrap())
             }
-            ObjectType::Tree => {
-                GitObject::Tree(Tree::from_bytes(&self.data, self.hash).unwrap())
-            }
-            ObjectType::Blob => {
-                GitObject::Blob(Blob::from_bytes(&self.data, self.hash).unwrap())
-            }
-            ObjectType::Tag => {
-                GitObject::Tag(Tag::from_bytes(&self.data, self.hash).unwrap())
-            }
+            ObjectType::Tree => GitObject::Tree(Tree::from_bytes(&self.data, self.hash).unwrap()),
+            ObjectType::Blob => GitObject::Blob(Blob::from_bytes(&self.data, self.hash).unwrap()),
+            ObjectType::Tag => GitObject::Tag(Tag::from_bytes(&self.data, self.hash).unwrap()),
             _ => unreachable!("can not parse delta!"),
         }
     }

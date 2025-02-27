@@ -1,11 +1,12 @@
-use dashmap::DashMap;
 use crate::hash::SHA1;
 use crate::internal::pack::cache_object::CacheObject;
+use dashmap::DashMap;
 
 /// Waitlist for Delta objects while the Base object is not ready.
 /// Easier and faster than Channels.
 #[derive(Default, Debug)]
-pub struct Waitlist { //TODO Memory Control!
+pub struct Waitlist {
+    //TODO Memory Control!
     pub map_offset: DashMap<usize, Vec<CacheObject>>,
     pub map_ref: DashMap<SHA1, Vec<CacheObject>>,
 }

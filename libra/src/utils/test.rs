@@ -8,8 +8,8 @@ use std::io::Write;
 use std::path::Path;
 use std::{env, fs, path::PathBuf};
 
-use crate::utils::util;
 use crate::command;
+use crate::utils::util;
 
 pub const TEST_DIR: &str = "libra_test_repo";
 
@@ -39,7 +39,6 @@ fn find_cargo_dir() -> PathBuf {
         }
     }
 }
-
 
 /// Sets up the environment for testing.
 ///
@@ -81,7 +80,7 @@ pub fn setup_clean_testing_env() {
     let cur_path = util::cur_dir();
 
     // Append the Libra root directory to the current directory
-    let root_path=cur_path.join(util::ROOT_DIR);
+    let root_path = cur_path.join(util::ROOT_DIR);
 
     // If the Libra root directory exists, remove it
     if root_path.exists() {
@@ -106,7 +105,12 @@ pub fn setup_clean_testing_env() {
 /// switch to test dir and create a new .libra
 pub async fn setup_with_new_libra() {
     setup_clean_testing_env();
-    let args = command::init::InitArgs { bare: false, initial_branch: None, repo_directory: util::cur_dir().to_str().unwrap().to_string(),quiet:false };
+    let args = command::init::InitArgs {
+        bare: false,
+        initial_branch: None,
+        repo_directory: util::cur_dir().to_str().unwrap().to_string(),
+        quiet: false,
+    };
     command::init::init(args).await.unwrap();
 }
 

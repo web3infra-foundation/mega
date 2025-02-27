@@ -7,8 +7,8 @@ use byteorder::{BigEndian, WriteBytesExt};
 use clap::Parser;
 use sha1::{Digest, Sha1};
 
-use mercury::internal::pack::Pack;
 use mercury::errors::GitError;
+use mercury::internal::pack::Pack;
 
 #[derive(Parser, Debug)]
 pub struct IndexPackArgs {
@@ -64,7 +64,12 @@ pub fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError>
     let mut pack_reader = std::io::BufReader::new(pack_file);
     let obj_map = Arc::new(Mutex::new(BTreeMap::new())); // sorted by hash
     let obj_map_c = obj_map.clone();
-    let mut pack = Pack::new(Some(8), Some(1024 * 1024 * 1024), Some(tmp_path.to_path_buf()), true);
+    let mut pack = Pack::new(
+        Some(8),
+        Some(1024 * 1024 * 1024),
+        Some(tmp_path.to_path_buf()),
+        true,
+    );
     pack.decode(&mut pack_reader, move |entry, offset| {
         obj_map_c.lock().unwrap().insert(entry.hash, offset);
     })?;
@@ -80,9 +85,11 @@ pub fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError>
     let mut cnt: u32 = 0;
     let mut fan_out = Vec::with_capacity(256 * 4);
     let obj_map = Arc::try_unwrap(obj_map).unwrap().into_inner().unwrap();
-    for (hash, _) in obj_map.iter() { // sorted
+    for (hash, _) in obj_map.iter() {
+        // sorted
         let first_byte = hash.0[0];
-        while first_byte > i { // `while` rather than `if` to fill the gap, e.g. 0, 1, 2, 2, 2, 6
+        while first_byte > i {
+            // `while` rather than `if` to fill the gap, e.g. 0, 1, 2, 2, 2, 6
             fan_out.write_u32::<BigEndian>(cnt)?;
             i += 1;
         }
@@ -114,7 +121,7 @@ pub fn build_index_v1(pack_file: &str, index_file: &str) -> Result<(), GitError>
     index_hash.update(pack.signature.0);
     // A copy of the pack checksum at the end of the corresponding pack-file.
     index_file.write_all(&pack.signature.0)?;
-    let index_hash:[u8; 20] = index_hash.finalize().into();
+    let index_hash: [u8; 20] = index_hash.finalize().into();
     // Index checksum of all of the above.
     index_file.write_all(&index_hash)?;
 
