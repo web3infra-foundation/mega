@@ -2,3 +2,45 @@
 title: The [tag] Command
 description:
 ---
+
+# tag
+
+**Create, list, delete or verify a tag object**
+
+### Usage
+
+libra tag [OPTIONS] [TAG_NAME] [COMMIT_HASH]
+
+### Arguments
+
+-   `[TAG_NAME]` - Name of the tag
+-   `[COMMIT_HASH]` - Base commit hash
+
+### Description
+
+If --list is given, or if there are no non-option arguments, existing tags are listed;
+If a new tag name is given, a new tag is created that points to the given commit hash. 
+If no commit hash is given, the new tag will point to the current commit.
+
+### OPTIONS
+
+-t, --list
+List all tags. This is the default behavior if no other options are specified.
+
+-n, --new-tag <TAG_NAME>
+Name of the tag to create. Use this option to create a new tag.
+
+-a, --annotate <TAG_NAME>
+Create a new annotated tag with the specified name.
+
+-m, --message <MESSAGE>
+The message for an annotated tag. This option requires the `--annotate` option.
+
+-d, --delete <TAG_NAME>
+Delete the specified tag.
+
+-f, --force bool
+overwirte current tag
+
+<COMMIT_HASH>
+Commit hash or tag name to tag. The default is HEAD. This option is required if `--new-tag` or `--annotate` is specified.
