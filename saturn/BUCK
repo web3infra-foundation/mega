@@ -11,4 +11,7 @@ rust_library (
         "//third-party:cedar-policy",
         "//third-party:itertools",
     ],
+    visibility = [
+        'PUBLIC',
+    ],
 )

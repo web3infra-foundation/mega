@@ -6,4 +6,7 @@ rust_library (
         "//third-party:serde",
         "//third-party:sea-orm",
     ],
+    visibility = [
+        'PUBLIC',
+    ],
 )
