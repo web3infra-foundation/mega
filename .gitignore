@@ -30,3 +30,5 @@ buck-out
 **/*.gresource
 monobean/resources/lib
 
+# Temporary test cache dir
+/tests/.cache_tmp
