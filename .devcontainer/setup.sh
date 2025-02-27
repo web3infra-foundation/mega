@@ -1,5 +1,6 @@
 ## update and install some things we should probably have
 apt-get update
+apt-get upgrade -y
 apt-get install -y \
   apt-utils \
   curl \
@@ -31,9 +32,6 @@ apt-get install -y \
   llvm-18-doc \
   llvm-18-examples \
   llvm-18-runtime \
-  libgtk4-dev \
-  libadwaita-1-0 \
-  libadwaita-1-dev
 
 ## Install rustup and common components
 curl https://sh.rustup.rs -sSf | sh -s -- -y
