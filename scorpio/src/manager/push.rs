@@ -33,6 +33,7 @@ pub async fn pack(commit:Commit,trees:Vec<Tree>, blob:Vec<Blob>) -> Vec<u8>{
     pack_data
     
 }
+#[allow(unused)]
 pub async fn push(path:PathBuf,monopath:PathBuf){
     let mut lower  = path.clone();
     lower.push("lower");

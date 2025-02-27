@@ -22,6 +22,7 @@ pub struct StorageItem{
     is_dir: bool , // True for Directory . 
     children:Vec<u64>
 }
+#[allow(unused)]
 impl StorageItem {
     pub fn get_inode(&self) -> u64{
         self.inode

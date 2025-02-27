@@ -1,0 +1,1273 @@
+warning: /home/luxian/github/mega/scorpio/src/passthrough/logging_macros/Cargo.toml: library `logging_macros` should only specify `proc-macro = true` instead of setting `crate-type`
+warning: unused variable: `guard`
+   --> src/passthrough/async_io.rs:174:14
+    |
+174 |         let (guard, dir) = data.get_file_mut().await;
+    |              ^^^^^ help: if this is intentional, prefix it with an underscore: `_guard`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: method `get_children` is never used
+  --> src/dicfuse/tree_store.rs:32:12
+   |
+25 | impl StorageItem {
+   | ---------------- method in this implementation
+...
+32 |     pub fn get_children(&self)->Vec<u64>{
+   |            ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: function `push` is never used
+  --> src/manager/push.rs:36:14
+   |
+36 | pub async fn push(path:PathBuf,monopath:PathBuf){
+   |              ^^^^
+
+warning: method `fetch` is never used
+  --> src/manager/fetch.rs:20:14
+   |
+18 | pub trait CheckHash{
+   |           --------- method in this trait
+19 |     async fn check(&mut self);
+20 |     async fn fetch<P: AsRef<Path>+ std::marker::Send  >(&mut self,inode:u64,monopath :P)-> Wor...
+   |              ^^^^^
+
+warning: methods `store_commit` and `get_commit` are never used
+  --> src/manager/store.rs:30:8
+   |
+29 | pub trait CommitStore{
+   |           ----------- methods in this trait
+30 |     fn store_commit(&self,commit:Commit) -> Result<()>;
+   |        ^^^^^^^^^^^^
+31 |     fn get_commit(&self) -> Result<Commit>;
+   |        ^^^^^^^^^^
+
+warning: `scorpio` (bin "scorpio") generated 5 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running `target/debug/scorpio`
+Hello, world!
+readdir:..
+readdir:.
+readdir:toolchains
+readdir:main.cpp
+readdir:.buckconfig
+readdir:..
+readdir:.buckroot
+readdir:.
+readdir:.gitignore
+readdir:BUCK
+readdir:ping_task.sh
+server running...ID:0355f129-61b2-4058-8541-73b1bf33e15c|[init] - Call: 
+fetch path :third-part
+import item :Item { name: ".mega_cedar.json", path: "/third-part/.mega_cedar.json", content_type: "file" }
+import item :Item { name: "buck-hello", path: "/third-part/buck-hello", content_type: "directory" }
+fetch path :project
+import item :Item { name: ".mega_cedar.json", path: "/project/.mega_cedar.json", content_type: "file" }
+fetch path :doc
+import item :Item { name: ".mega_cedar.json", path: "/doc/.mega_cedar.json", content_type: "file" }
+fetch path :release
+import item :Item { name: ".mega_cedar.json", path: "/release/.mega_cedar.json", content_type: "file" }
+fetch path :third-part/buck-hello
+import item :Item { name: ".buckconfig", path: "/third-part/buck-hello/.buckconfig", content_type: "file" }
+import item :Item { name: ".buckroot", path: "/third-part/buck-hello/.buckroot", content_type: "file" }
+import item :Item { name: ".gitignore", path: "/third-part/buck-hello/.gitignore", content_type: "file" }
+import item :Item { name: "BUCK", path: "/third-part/buck-hello/BUCK", content_type: "file" }
+import item :Item { name: "main.cpp", path: "/third-part/buck-hello/main.cpp", content_type: "file" }
+import item :Item { name: "ping_task.sh", path: "/third-part/buck-hello/ping_task.sh", content_type: "file" }
+import item :Item { name: "toolchains", path: "/third-part/buck-hello/toolchains", content_type: "directory" }
+fetch path :third-part/buck-hello/toolchains
+import item :Item { name: "BUCK", path: "/third-part/buck-hello/toolchains/BUCK", content_type: "file" }
+readdir:..
+readdir:.
+readdir:toolchains
+readdir:main.cpp
+readdir:.buckconfig
+readdir:..
+readdir:.buckroot
+readdir:.
+readdir:.gitignore
+readdir:BUCK
+readdir:ping_task.sh
+ID:0355f129-61b2-4058-8541-73b1bf33e15c [init] - Success: ReplyInit { max_write: 131072 }
+ID:b0a8dd9d-7feb-4016-a9c6-173975b404d8|[getattr] - Call: inode=1, fh=, flags=0
+ readonly inode root
+ID:b0a8dd9d-7feb-4016-a9c6-173975b404d8 [getattr] - Success: ReplyAttr { ttl: 500s, attr: FileAttr { ino: 1, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 } }
+ID:4b3d3daa-12ab-4e7f-bbcc-031b9873f132|[lookup] - Call: parent=1, name=third-part
+ readonly inode root
+ID:4b3d3daa-12ab-4e7f-bbcc-031b9873f132 [lookup] - Success: ReplyEntry { ttl: 500s, attr: FileAttr { ino: 3, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, generation: 0 }
+ID:4b141cd9-297a-49bc-9f5a-b7eb1f7a39d4|[access] - Call: inode=3, mask=1
+ readonly inode root
+ID:4b141cd9-297a-49bc-9f5a-b7eb1f7a39d4 [access] - Success: ()
+ID:d1e46d3a-5021-4ddd-9aaa-724b74564b52|[opendir] - Call: inode=3, flags=100352
+ readonly inode root
+ID:d1e46d3a-5021-4ddd-9aaa-724b74564b52 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 0
+ID:d1e46d3a-5021-4ddd-9aaa-724b74564b52 [opendir] - Success: ReplyOpen { fh: 0, flags: 0 }
+ID:c2ae8dbc-5048-443b-b1f6-660653173c8b|[readdirplus] - Call: parent=3, fh=0, offset=0, lock_owner=0
+ readonly inode root
+readdri len :4[Ok(DirectoryEntryPlus { inode: 3, generation: 0, kind: Directory, name: ".", offset: 1, attr: FileAttr { ino: 3, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 1, generation: 0, kind: Directory, name: "..", offset: 2, attr: FileAttr { ino: 1, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 7, generation: 0, kind: RegularFile, name: ".mega_cedar.json", offset: 3, attr: FileAttr { ino: 7, size: 860, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: RegularFile, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 8, generation: 0, kind: Directory, name: "buck-hello", offset: 4, attr: FileAttr { ino: 8, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s })]
+ID:c2ae8dbc-5048-443b-b1f6-660653173c8b [readdirplus] - Success: ""
+ID:70236377-33e5-4e13-b45a-7f0ed314fe59|[readdirplus] - Call: parent=3, fh=0, offset=4, lock_owner=0
+ readonly inode root
+readdri len :4[]
+ID:70236377-33e5-4e13-b45a-7f0ed314fe59 [readdirplus] - Success: ""
+ID:f5dc5390-3e0e-42aa-9977-c3dd6fbb3093|[releasedir] - Call: inode=3, fh=0, flags=100352
+ readonly inode root
+ID:f5dc5390-3e0e-42aa-9977-c3dd6fbb3093 [releasedir] - Success: ()
+ID:6ba6ad77-b113-4074-a63b-28eb7d1b0e5b|[lookup] - Call: parent=1, name=third-part$
+ readonly inode root
+ID:6ba6ad77-b113-4074-a63b-28eb7d1b0e5b [lookup] - Error: Errno(5)
+ID:624775c4-6435-4065-835d-e86d9120ad68|[lookup] - Call: parent=1, name=third-part$
+ readonly inode root
+ID:624775c4-6435-4065-835d-e86d9120ad68 [lookup] - Error: Errno(5)
+ID:3225133b-b846-49d7-9608-ec0bb3e5fdcc|[getattr] - Call: inode=3, fh=, flags=0
+ readonly inode root
+ID:3225133b-b846-49d7-9608-ec0bb3e5fdcc [getattr] - Success: ReplyAttr { ttl: 500s, attr: FileAttr { ino: 3, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 } }
+ID:6e82ea00-e0ae-4db0-954d-269cea11181d|[opendir] - Call: inode=3, flags=100352
+ readonly inode root
+ID:6e82ea00-e0ae-4db0-954d-269cea11181d [scorpio::fuse::MegaFuse] opendir - Obtained fh: 0
+ID:6e82ea00-e0ae-4db0-954d-269cea11181d [opendir] - Success: ReplyOpen { fh: 0, flags: 0 }
+ID:361530f1-e187-4789-b203-5a7f49510822|[readdirplus] - Call: parent=3, fh=0, offset=0, lock_owner=0
+ readonly inode root
+readdri len :4[Ok(DirectoryEntryPlus { inode: 3, generation: 0, kind: Directory, name: ".", offset: 1, attr: FileAttr { ino: 3, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 1, generation: 0, kind: Directory, name: "..", offset: 2, attr: FileAttr { ino: 1, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 7, generation: 0, kind: RegularFile, name: ".mega_cedar.json", offset: 3, attr: FileAttr { ino: 7, size: 860, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: RegularFile, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 8, generation: 0, kind: Directory, name: "buck-hello", offset: 4, attr: FileAttr { ino: 8, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s })]
+ID:361530f1-e187-4789-b203-5a7f49510822 [readdirplus] - Success: ""
+ID:c9923d8a-8d32-45f3-8100-b020cff1c9fa|[readdirplus] - Call: parent=3, fh=0, offset=4, lock_owner=0
+ readonly inode root
+readdri len :4[]
+ID:c9923d8a-8d32-45f3-8100-b020cff1c9fa [readdirplus] - Success: ""
+ID:91bf7b89-6f8c-4b3e-ae24-8f5be5c1515f|[releasedir] - Call: inode=3, fh=0, flags=100352
+ readonly inode root
+ID:91bf7b89-6f8c-4b3e-ae24-8f5be5c1515f [releasedir] - Success: ()
+ID:18a5bb2b-6630-4515-837b-5ecd5d6cd181|[opendir] - Call: inode=3, flags=100352
+ readonly inode root
+ID:18a5bb2b-6630-4515-837b-5ecd5d6cd181 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 0
+ID:18a5bb2b-6630-4515-837b-5ecd5d6cd181 [opendir] - Success: ReplyOpen { fh: 0, flags: 0 }
+ID:bd1b8c15-eefe-479f-b5e4-7cc13add8590|[getattr] - Call: inode=3, fh=, flags=0
+ readonly inode root
+ID:bd1b8c15-eefe-479f-b5e4-7cc13add8590 [getattr] - Success: ReplyAttr { ttl: 500s, attr: FileAttr { ino: 3, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 } }
+ID:cc55293e-b807-4d91-b15b-598af1f79ed6|[readdirplus] - Call: parent=3, fh=0, offset=0, lock_owner=0
+ readonly inode root
+readdri len :4[Ok(DirectoryEntryPlus { inode: 3, generation: 0, kind: Directory, name: ".", offset: 1, attr: FileAttr { ino: 3, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 1, generation: 0, kind: Directory, name: "..", offset: 2, attr: FileAttr { ino: 1, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 7, generation: 0, kind: RegularFile, name: ".mega_cedar.json", offset: 3, attr: FileAttr { ino: 7, size: 860, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: RegularFile, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s }), Ok(DirectoryEntryPlus { inode: 8, generation: 0, kind: Directory, name: "buck-hello", offset: 4, attr: FileAttr { ino: 8, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 }, entry_ttl: 500s, attr_ttl: 500s })]
+ID:cc55293e-b807-4d91-b15b-598af1f79ed6 [readdirplus] - Success: ""
+ID:740d6c3b-52a4-4549-b754-5a15ead9d1b6|[readdirplus] - Call: parent=3, fh=0, offset=4, lock_owner=0
+ readonly inode root
+readdri len :4[]
+ID:740d6c3b-52a4-4549-b754-5a15ead9d1b6 [readdirplus] - Success: ""
+ID:8234b48c-06f1-4d24-a4ae-abebe17cd72b|[getattr] - Call: inode=3, fh=, flags=0
+ID:34580589-c77a-4113-98ec-e57d29ca2647|[releasedir] - Call: inode=3, fh=0, flags=100352
+ readonly inode root
+ID:8234b48c-06f1-4d24-a4ae-abebe17cd72b [getattr] - Success: ReplyAttr { ttl: 500s, attr: FileAttr { ino: 3, size: 0, blocks: 0, atime: Timestamp { sec: 0, nsec: 0 }, mtime: Timestamp { sec: 0, nsec: 0 }, ctime: Timestamp { sec: 0, nsec: 0 }, kind: Directory, perm: 493, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0 } }
+ readonly inode root
+ID:34580589-c77a-4113-98ec-e57d29ca2647 [releasedir] - Success: ()
+ID:3bd485f0-67e3-44fa-ae85-84e86fe7cde7|[access] - Call: inode=8, mask=1
+ overlay inode root
+ID:3bd485f0-67e3-44fa-ae85-84e86fe7cde7 [access] - Success: ()
+ID:2f8f6ea3-62e7-4cc4-90fc-2136cbd638fa|[opendir] - Call: inode=8, flags=100352
+ overlay inode root
+ID:2f8f6ea3-62e7-4cc4-90fc-2136cbd638fa [scorpio::fuse::MegaFuse] opendir - Obtained fh: 2
+ID:2f8f6ea3-62e7-4cc4-90fc-2136cbd638fa [opendir] - Success: ReplyOpen { fh: 2, flags: 100352 }
+ID:1df1766a-c6dc-427a-ab31-dadf0b0487ab|[readdirplus] - Call: parent=8, fh=2, offset=0, lock_owner=0
+ overlay inode root
+--entry name:.
+--entry name:..
+--entry name:BUCK
+--entry name:.buckroot
+--entry name:..
+--entry name:main.cpp
+--entry name:ping_task.sh
+--entry name:toolchains
+--entry name:.gitignore
+--entry name:.
+--entry name:.buckconfig
+ID:1df1766a-c6dc-427a-ab31-dadf0b0487ab [readdirplus] - Success: ""
+ID:f4de6ed9-0c86-4583-b258-6f55c9cbfb7b|[readdirplus] - Call: parent=8, fh=2, offset=11, lock_owner=0
+ overlay inode root
+ID:f4de6ed9-0c86-4583-b258-6f55c9cbfb7b [readdirplus] - Success: ""
+ID:bf4d4385-f9f3-486c-a0ca-0c8d7de34d7a|[releasedir] - Call: inode=8, fh=2, flags=100352
+ overlay inode root
+ID:bf4d4385-f9f3-486c-a0ca-0c8d7de34d7a [releasedir] - Success: ()
+ID:ad70a022-d6a6-4731-b9ef-d34a7f96eb3c|[opendir] - Call: inode=8, flags=100352
+ overlay inode root
+ID:ad70a022-d6a6-4731-b9ef-d34a7f96eb3c [scorpio::fuse::MegaFuse] opendir - Obtained fh: 3
+ID:ad70a022-d6a6-4731-b9ef-d34a7f96eb3c [opendir] - Success: ReplyOpen { fh: 3, flags: 100352 }
+ID:a123d06a-67b6-4e1e-8edd-33d3c3129af4|[getattr] - Call: inode=8, fh=, flags=0
+ overlay inode root
+ID:a123d06a-67b6-4e1e-8edd-33d3c3129af4 [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 17918, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289277, nsec: 768950578 }, mtime: Timestamp { sec: 1740289247, nsec: 218959710 }, ctime: Timestamp { sec: 1740289247, nsec: 218959710 }, kind: Directory, perm: 511, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:7718edb0-1fc5-47f5-b483-5811eb619a81|[readdirplus] - Call: parent=8, fh=3, offset=0, lock_owner=0
+ overlay inode root
+--entry name:.
+--entry name:..
+--entry name:BUCK
+--entry name:.buckroot
+--entry name:..
+--entry name:main.cpp
+--entry name:ping_task.sh
+--entry name:toolchains
+--entry name:.gitignore
+--entry name:.
+--entry name:.buckconfig
+ID:7718edb0-1fc5-47f5-b483-5811eb619a81 [readdirplus] - Success: ""
+ID:e6c61c98-4eb3-4db5-a163-93cff8f97865|[getxattr] - Call: inode=8, name=security.selinux, size=255
+ overlay inode root
+ID:e6c61c98-4eb3-4db5-a163-93cff8f97865 [getxattr] - Error: Errno(61)
+ID:18810c0d-b7dc-44a8-8c07-dcbcee777d33|[getxattr] - Call: inode=8, name=system.posix_acl_access, size=0
+ overlay inode root
+ID:18810c0d-b7dc-44a8-8c07-dcbcee777d33 [getxattr] - Error: Errno(61)
+ID:bf219e0e-6e79-4365-90ae-a5fba8ede0ae|[getxattr] - Call: inode=8, name=system.posix_acl_default, size=0
+ overlay inode root
+ID:bf219e0e-6e79-4365-90ae-a5fba8ede0ae [getxattr] - Error: Errno(61)
+ID:f8b471ac-eaf7-4543-8301-e015f5b11d99|[getxattr] - Call: inode=3, name=security.selinux, size=255
+ readonly inode root
+ID:f8b471ac-eaf7-4543-8301-e015f5b11d99 [getxattr] - Error: Errno(38)
+ID:bcffe419-c5ca-4ba9-a95a-7eaab7feb716|[readdirplus] - Call: parent=8, fh=3, offset=11, lock_owner=0
+ overlay inode root
+ID:bcffe419-c5ca-4ba9-a95a-7eaab7feb716 [readdirplus] - Success: ""
+ID:6dfb464f-fe7f-443a-9d29-e2b5d86231d1|[releasedir] - Call: inode=8, fh=3, flags=100352
+ overlay inode root
+ID:6dfb464f-fe7f-443a-9d29-e2b5d86231d1 [releasedir] - Success: ()
+ID:574c32b1-5383-4155-ad60-a7a2fcc9823e|[lookup] - Call: parent=8, name=drwxrwxrwx
+ overlay inode root
+LOOKUP: parent: 8, name: drwxrwxrwx
+
+ID:574c32b1-5383-4155-ad60-a7a2fcc9823e [lookup] - Error: Errno(2)
+ID:a8160eed-299f-4d05-84e7-bd2a92c8c092|[lookup] - Call: parent=8, name=drwxrwxrwx
+ overlay inode root
+LOOKUP: parent: 8, name: drwxrwxrwx
+
+ID:a8160eed-299f-4d05-84e7-bd2a92c8c092 [lookup] - Error: Errno(2)
+ID:62d66db8-34e3-4527-b7a1-8f0906f54dbe|[lookup] - Call: parent=8, name=luxian
+ overlay inode root
+LOOKUP: parent: 8, name: luxian
+
+ID:62d66db8-34e3-4527-b7a1-8f0906f54dbe [lookup] - Error: Errno(2)
+ID:a465cb69-29d8-432f-945e-42771b453112|[lookup] - Call: parent=8, name=luxian
+ overlay inode root
+LOOKUP: parent: 8, name: luxian
+
+ID:a465cb69-29d8-432f-945e-42771b453112 [lookup] - Error: Errno(2)
+ID:6dbe117c-0002-485b-ad7d-2e376d5004ba|[lookup] - Call: parent=8, name=Feb
+ overlay inode root
+LOOKUP: parent: 8, name: Feb
+
+ID:6dbe117c-0002-485b-ad7d-2e376d5004ba [lookup] - Error: Errno(2)
+ID:e5b0ef2d-2f29-4732-b80a-cca9d5427b00|[lookup] - Call: parent=8, name=Feb
+ overlay inode root
+LOOKUP: parent: 8, name: Feb
+
+ID:e5b0ef2d-2f29-4732-b80a-cca9d5427b00 [lookup] - Error: Errno(2)
+ID:d598794a-f092-4057-9aa6-866a730c112d|[lookup] - Call: parent=8, name=23
+ overlay inode root
+LOOKUP: parent: 8, name: 23
+
+ID:d598794a-f092-4057-9aa6-866a730c112d [lookup] - Error: Errno(2)
+ID:faf70118-92b3-41f6-b5be-7d3735b0f6c8|[lookup] - Call: parent=8, name=23
+ overlay inode root
+LOOKUP: parent: 8, name: 23
+
+ID:faf70118-92b3-41f6-b5be-7d3735b0f6c8 [lookup] - Error: Errno(2)
+ID:a24f1bc1-1d89-4da8-adf0-89e15b88b67d|[lookup] - Call: parent=8, name=drwxr-xr-x
+ overlay inode root
+LOOKUP: parent: 8, name: drwxr-xr-x
+
+ID:a24f1bc1-1d89-4da8-adf0-89e15b88b67d [lookup] - Error: Errno(2)
+ID:ab737d25-052f-40e3-b47a-11b0c7a556ba|[lookup] - Call: parent=8, name=drwxr-xr-x
+ overlay inode root
+LOOKUP: parent: 8, name: drwxr-xr-x
+
+ID:ab737d25-052f-40e3-b47a-11b0c7a556ba [lookup] - Error: Errno(2)
+ID:da5f4e2f-c2a6-43a9-8e6f-f78270d1be28|[lookup] - Call: parent=8, name=-rw-r--r--
+ overlay inode root
+LOOKUP: parent: 8, name: -rw-r--r--
+
+ID:da5f4e2f-c2a6-43a9-8e6f-f78270d1be28 [lookup] - Error: Errno(2)
+ID:bfaa22f7-8def-4668-9b4b-91d54bb7a656|[lookup] - Call: parent=8, name=-rw-r--r--
+ overlay inode root
+LOOKUP: parent: 8, name: -rw-r--r--
+
+ID:bfaa22f7-8def-4668-9b4b-91d54bb7a656 [lookup] - Error: Errno(2)
+ID:24b69370-bdf6-4b49-b3ad-f3d8dbf47745|[getattr] - Call: inode=8, fh=, flags=0
+ overlay inode root
+ID:24b69370-bdf6-4b49-b3ad-f3d8dbf47745 [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 17918, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289277, nsec: 768950578 }, mtime: Timestamp { sec: 1740289247, nsec: 218959710 }, ctime: Timestamp { sec: 1740289247, nsec: 218959710 }, kind: Directory, perm: 511, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:db918d08-2235-4cfe-b241-7aa30f64dffd|[lookup] - Call: parent=8, name=.buckconfig
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig
+
+ID:db918d08-2235-4cfe-b241-7aa30f64dffd [lookup] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 8589934592, size: 603, blocks: 8, atime: Timestamp { sec: 1740289246, nsec: 938959781 }, mtime: Timestamp { sec: 1740289246, nsec: 938959781 }, ctime: Timestamp { sec: 1740289246, nsec: 938959781 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:70600904-9479-4c4e-ab4a-f681c0aed58b|[lookup] - Call: parent=8, name=.buckroot
+ overlay inode root
+LOOKUP: parent: 8, name: .buckroot
+
+ID:70600904-9479-4c4e-ab4a-f681c0aed58b [lookup] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 8589934594, size: 0, blocks: 0, atime: Timestamp { sec: 1740289246, nsec: 968959772 }, mtime: Timestamp { sec: 1740289246, nsec: 968959772 }, ctime: Timestamp { sec: 1740289246, nsec: 968959772 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:82245a2b-907f-446a-b155-189f460e8dc8|[lookup] - Call: parent=8, name=.buckconfig.d
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.d
+
+ID:82245a2b-907f-446a-b155-189f460e8dc8 [lookup] - Error: Errno(2)
+ID:43103d8b-6fac-4ace-85a2-8db925d109cf|[open] - Call: inode=8589934592, flags=32768
+ overlay child inode root
+open handle:4
+ID:43103d8b-6fac-4ace-85a2-8db925d109cf [scorpio::fuse::MegaFuse] open - Obtained fh: 4
+ID:43103d8b-6fac-4ace-85a2-8db925d109cf [open] - Success: ReplyOpen { fh: 4, flags: 163840 }
+ID:c815ccb1-e379-4b03-89ce-9978d75bb132|[read] - Call: inode=8589934592, fh=4, offset=0, size=4096
+ overlay child inode root
+ID:c815ccb1-e379-4b03-89ce-9978d75bb132 [scorpio::fuse::MegaFuse] read - Read 603 bytes
+ID:c815ccb1-e379-4b03-89ce-9978d75bb132 [read] - Success: ReplyData { data: b"[cells]\n  root = .\n  prelude = prelude\n  toolchains = toolchains\n  none = none\n\n[cell_aliases]\n  config = prelude\n  ovr_config = prelude\n  fbcode = none\n  fbsource = none\n  fbcode_macros = none\n  buck = none\n\n# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this\n# section and vendor a copy of the prelude to the `prelude` directory of your project.\n[external_cells]\n  prelude = bundled\n\n[parser]\n  target_platform_detector_spec = target:root//...->prelude//platforms:default\n\n[build]\n  execution_platforms = prelude//platforms:default\n\n[project]\n  ignore = .git\n" }
+ID:0aa0516d-2978-4907-9951-b454f0ece6cf|[flush] - Call: inode=8589934592, fh=4, lock_owner=3710658822195295651
+ overlay child inode root
+ID:0aa0516d-2978-4907-9951-b454f0ece6cf [flush] - Success: ()
+ID:173ca1fc-6930-4546-9e77-7dbca0fc80c7|[lookup] - Call: parent=8, name=.buckconfig.local
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.local
+
+ID:173ca1fc-6930-4546-9e77-7dbca0fc80c7 [lookup] - Error: Errno(2)
+ID:ed130e7c-c1fb-459d-b194-0736e3022ceb|[release] - Call: inode=8589934592, fh=4, flags=32768, lock_owner=0, flush=false
+ overlay child inode root
+ID:ed130e7c-c1fb-459d-b194-0736e3022ceb [release] - Success: ()
+ID:16a92d5d-f815-4625-8e6d-291ed8dc1a4a|[lookup] - Call: parent=8, name=.buckconfig.d
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.d
+
+ID:16a92d5d-f815-4625-8e6d-291ed8dc1a4a [lookup] - Error: Errno(2)
+ID:ae989859-2a8c-4e48-a4fd-2a65efa46e21|[open] - Call: inode=8589934592, flags=32768
+ overlay child inode root
+open handle:5
+ID:ae989859-2a8c-4e48-a4fd-2a65efa46e21 [scorpio::fuse::MegaFuse] open - Obtained fh: 5
+ID:ae989859-2a8c-4e48-a4fd-2a65efa46e21 [open] - Success: ReplyOpen { fh: 5, flags: 163840 }
+ID:efdfe7d7-6585-4ac1-b58a-9bf689d1e4e5|[read] - Call: inode=8589934592, fh=5, offset=0, size=4096
+ overlay child inode root
+ID:efdfe7d7-6585-4ac1-b58a-9bf689d1e4e5 [scorpio::fuse::MegaFuse] read - Read 603 bytes
+ID:efdfe7d7-6585-4ac1-b58a-9bf689d1e4e5 [read] - Success: ReplyData { data: b"[cells]\n  root = .\n  prelude = prelude\n  toolchains = toolchains\n  none = none\n\n[cell_aliases]\n  config = prelude\n  ovr_config = prelude\n  fbcode = none\n  fbsource = none\n  fbcode_macros = none\n  buck = none\n\n# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this\n# section and vendor a copy of the prelude to the `prelude` directory of your project.\n[external_cells]\n  prelude = bundled\n\n[parser]\n  target_platform_detector_spec = target:root//...->prelude//platforms:default\n\n[build]\n  execution_platforms = prelude//platforms:default\n\n[project]\n  ignore = .git\n" }
+ID:528edfd9-9be0-4107-b9cb-849915aae9eb|[flush] - Call: inode=8589934592, fh=5, lock_owner=3710658822195295651
+ overlay child inode root
+ID:528edfd9-9be0-4107-b9cb-849915aae9eb [flush] - Success: ()
+ID:cc91470a-458a-4c8b-8ec7-babd9b310cab|[lookup] - Call: parent=8, name=.buckconfig.local
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.local
+
+ID:cc91470a-458a-4c8b-8ec7-babd9b310cab [lookup] - Error: Errno(2)
+ID:79efa1df-2940-40f5-9f0c-e8b49cf40288|[release] - Call: inode=8589934592, fh=5, flags=32768, lock_owner=0, flush=false
+ overlay child inode root
+ID:79efa1df-2940-40f5-9f0c-e8b49cf40288 [release] - Success: ()
+ID:49edb771-b83d-42c2-8b1c-00f31bedc2e9|[access] - Call: inode=8, mask=1
+ overlay inode root
+ID:49edb771-b83d-42c2-8b1c-00f31bedc2e9 [access] - Success: ()
+ID:eff098e9-e7b9-4015-81da-d7e5394f5c73|[getattr] - Call: inode=8589934592, fh=, flags=0
+ overlay child inode root
+ID:eff098e9-e7b9-4015-81da-d7e5394f5c73 [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 13056, size: 603, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 778944217 }, mtime: Timestamp { sec: 1740289246, nsec: 938959781 }, ctime: Timestamp { sec: 1740289246, nsec: 938959781 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:22d4dd05-1443-4093-ab3b-49ac79757d29|[access] - Call: inode=8, mask=1
+ overlay inode root
+ID:22d4dd05-1443-4093-ab3b-49ac79757d29 [access] - Success: ()
+ID:fc789f9e-4cc0-459d-a9fb-44529e20fc5e|[lookup] - Call: parent=8, name=buck-out
+ overlay inode root
+LOOKUP: parent: 8, name: buck-out
+
+ID:fc789f9e-4cc0-459d-a9fb-44529e20fc5e [lookup] - Error: Errno(2)
+ID:c714b706-a3c2-4222-b9c3-d3bd5fed136c|[lookup] - Call: parent=8, name=buck-out
+ overlay inode root
+LOOKUP: parent: 8, name: buck-out
+
+ID:c714b706-a3c2-4222-b9c3-d3bd5fed136c [lookup] - Error: Errno(2)
+ID:4ce096e7-737a-4995-beb9-90be79d620f3|[mkdir] - Call: parent=8, name=buck-out, mode=493, umask=18
+ overlay inode root
+readdir:..
+readdir:.
+ID:4ce096e7-737a-4995-beb9-90be79d620f3 [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901888, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 878944194 }, mtime: Timestamp { sec: 1740289305, nsec: 878944194 }, ctime: Timestamp { sec: 1740289305, nsec: 878944194 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:6142a525-d85f-4aeb-9438-bb4e64577530|[lookup] - Call: parent=12884901888, name=v2
+ overlay child inode root
+LOOKUP: parent: 12884901888, name: v2
+
+ID:6142a525-d85f-4aeb-9438-bb4e64577530 [lookup] - Error: Errno(2)
+ID:c24bbb5e-daad-4c9e-8624-b38f915e090b|[mkdir] - Call: parent=12884901888, name=v2, mode=493, umask=18
+ overlay child inode root
+readdir:..
+readdir:.
+ID:c24bbb5e-daad-4c9e-8624-b38f915e090b [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901891, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 878944194 }, mtime: Timestamp { sec: 1740289305, nsec: 878944194 }, ctime: Timestamp { sec: 1740289305, nsec: 878944194 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:61d9abae-d9e8-4be8-8840-809eb7c2bf49|[lookup] - Call: parent=12884901891, name=CACHEDIR.TAG
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: CACHEDIR.TAG
+
+ID:61d9abae-d9e8-4be8-8840-809eb7c2bf49 [lookup] - Error: Errno(2)
+ID:56aceb43-bea6-4041-b9eb-991fc8071e3d|[create] - Call: parent=12884901891, name=CACHEDIR.TAG, mode=33188, flags=32962
+ overlay child inode root
+ID:56aceb43-bea6-4041-b9eb-991fc8071e3d [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901894, size: 0, blocks: 0, atime: Timestamp { sec: 1740289305, nsec: 878944194 }, mtime: Timestamp { sec: 1740289305, nsec: 878944194 }, ctime: Timestamp { sec: 1740289305, nsec: 878944194 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 6, flags: 164034 }
+ID:0670824b-342a-4905-943c-2a925f312ef9|[write] - Call: inode=12884901894, fh=6, offset=0, data_len=192, write_flags=0, flags=32770
+ overlay child inode root
+ID:0670824b-342a-4905-943c-2a925f312ef9 [scorpio::fuse::MegaFuse] write - Wrote 192 bytes
+ID:0670824b-342a-4905-943c-2a925f312ef9 [write] - Success: ReplyWrite { written: 192 }
+ID:e43f7c9d-b102-4324-bc55-0dfef40ae9dd|[flush] - Call: inode=12884901894, fh=6, lock_owner=7625110741495926769
+ overlay child inode root
+ID:e43f7c9d-b102-4324-bc55-0dfef40ae9dd [flush] - Success: ()
+ID:d6ef452e-da85-498e-b216-405cea0a0a3c|[release] - Call: inode=12884901894, fh=6, flags=32770, lock_owner=0, flush=false
+ overlay child inode root
+ID:d6ef452e-da85-498e-b216-405cea0a0a3c [release] - Success: ()
+ID:b7f094b6-96a6-41f1-9dba-e8cc4c6e026d|[lookup] - Call: parent=12884901888, name=v2
+ overlay child inode root
+LOOKUP: parent: 12884901888, name: v2
+
+ID:b7f094b6-96a6-41f1-9dba-e8cc4c6e026d [lookup] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901891, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 878944194 }, mtime: Timestamp { sec: 1740289305, nsec: 878944194 }, ctime: Timestamp { sec: 1740289305, nsec: 878944194 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:54e1de77-260a-4175-8c8c-cf3e4b8366d8|[opendir] - Call: inode=12884901891, flags=98304
+ overlay child inode root
+ID:54e1de77-260a-4175-8c8c-cf3e4b8366d8 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 7
+ID:54e1de77-260a-4175-8c8c-cf3e4b8366d8 [opendir] - Success: ReplyOpen { fh: 7, flags: 98304 }
+ID:b1e5b7cf-aebb-49af-ad96-fc97e87f5b5b|[access] - Call: inode=12884901891, mask=1
+ overlay child inode root
+ID:b1e5b7cf-aebb-49af-ad96-fc97e87f5b5b [access] - Success: ()
+ID:ddd73671-6ff9-446f-af00-e467d1ada1b0|[lookup] - Call: parent=8, name=.buckconfig.d
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.d
+
+ID:ddd73671-6ff9-446f-af00-e467d1ada1b0 [lookup] - Error: Errno(2)
+ID:8a0e2611-fe0a-45c4-8a4a-4c607f07e967|[open] - Call: inode=8589934592, flags=32768
+ overlay child inode root
+open handle:6
+ID:8a0e2611-fe0a-45c4-8a4a-4c607f07e967 [scorpio::fuse::MegaFuse] open - Obtained fh: 8
+ID:8a0e2611-fe0a-45c4-8a4a-4c607f07e967 [open] - Success: ReplyOpen { fh: 8, flags: 163840 }
+ID:e61d9559-eaea-44e3-86ba-e1c7d41d26e5|[read] - Call: inode=8589934592, fh=8, offset=0, size=4096
+ overlay child inode root
+ID:e61d9559-eaea-44e3-86ba-e1c7d41d26e5 [scorpio::fuse::MegaFuse] read - Read 603 bytes
+ID:e61d9559-eaea-44e3-86ba-e1c7d41d26e5 [read] - Success: ReplyData { data: b"[cells]\n  root = .\n  prelude = prelude\n  toolchains = toolchains\n  none = none\n\n[cell_aliases]\n  config = prelude\n  ovr_config = prelude\n  fbcode = none\n  fbsource = none\n  fbcode_macros = none\n  buck = none\n\n# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this\n# section and vendor a copy of the prelude to the `prelude` directory of your project.\n[external_cells]\n  prelude = bundled\n\n[parser]\n  target_platform_detector_spec = target:root//...->prelude//platforms:default\n\n[build]\n  execution_platforms = prelude//platforms:default\n\n[project]\n  ignore = .git\n" }
+ID:6bfcc8d8-1288-4068-ae4a-fc88ab418656|[flush] - Call: inode=8589934592, fh=8, lock_owner=7625110741495926769
+ overlay child inode root
+ID:6bfcc8d8-1288-4068-ae4a-fc88ab418656 [flush] - Success: ()
+ID:f21952a8-5c9e-494d-be1f-180b9c809ca0|[lookup] - Call: parent=8, name=.buckconfig.local
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.local
+
+ID:ce6b02f4-42a1-4bed-87ff-4b87ab2ff982|[release] - Call: inode=8589934592, fh=8, flags=32768, lock_owner=0, flush=false
+ID:f21952a8-5c9e-494d-be1f-180b9c809ca0 [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:ce6b02f4-42a1-4bed-87ff-4b87ab2ff982 [release] - Success: ()
+ID:27e46175-64b2-4bbc-8e10-ca4162aaceda|[lookup] - Call: parent=8, name=.buckconfig.d
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.d
+
+ID:27e46175-64b2-4bbc-8e10-ca4162aaceda [lookup] - Error: Errno(2)
+ID:43d48ff0-9eed-40ff-a2a2-729ad8eaa30d|[open] - Call: inode=8589934592, flags=32768
+ overlay child inode root
+open handle:7
+ID:43d48ff0-9eed-40ff-a2a2-729ad8eaa30d [scorpio::fuse::MegaFuse] open - Obtained fh: 9
+ID:43d48ff0-9eed-40ff-a2a2-729ad8eaa30d [open] - Success: ReplyOpen { fh: 9, flags: 163840 }
+ID:5c805f51-2b36-4f89-8a76-2de931fff098|[read] - Call: inode=8589934592, fh=9, offset=0, size=4096
+ overlay child inode root
+ID:5c805f51-2b36-4f89-8a76-2de931fff098 [scorpio::fuse::MegaFuse] read - Read 603 bytes
+ID:5c805f51-2b36-4f89-8a76-2de931fff098 [read] - Success: ReplyData { data: b"[cells]\n  root = .\n  prelude = prelude\n  toolchains = toolchains\n  none = none\n\n[cell_aliases]\n  config = prelude\n  ovr_config = prelude\n  fbcode = none\n  fbsource = none\n  fbcode_macros = none\n  buck = none\n\n# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this\n# section and vendor a copy of the prelude to the `prelude` directory of your project.\n[external_cells]\n  prelude = bundled\n\n[parser]\n  target_platform_detector_spec = target:root//...->prelude//platforms:default\n\n[build]\n  execution_platforms = prelude//platforms:default\n\n[project]\n  ignore = .git\n" }
+ID:37334b45-1987-4044-b93f-2b5b857193cd|[flush] - Call: inode=8589934592, fh=9, lock_owner=7625110741495926769
+ overlay child inode root
+ID:37334b45-1987-4044-b93f-2b5b857193cd [flush] - Success: ()
+ID:b7f2cd6b-0424-495a-acbb-4a548bebc8f7|[lookup] - Call: parent=8, name=.buckconfig.local
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.local
+
+ID:b7f2cd6b-0424-495a-acbb-4a548bebc8f7 [lookup] - Error: Errno(2)
+ID:7f31b5eb-0412-4874-97b1-e3e8e61b9126|[release] - Call: inode=8589934592, fh=9, flags=32768, lock_owner=0, flush=false
+ overlay child inode root
+ID:7f31b5eb-0412-4874-97b1-e3e8e61b9126 [release] - Success: ()
+ID:1c1e4347-f60e-4fbd-9c0f-1a04c6509379|[lookup] - Call: parent=8, name=.buckconfig.d
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.d
+
+ID:1c1e4347-f60e-4fbd-9c0f-1a04c6509379 [lookup] - Error: Errno(2)
+ID:eedcbacf-3dc5-472f-aaa4-827ac0383c16|[open] - Call: inode=8589934592, flags=32768
+ overlay child inode root
+open handle:8
+ID:eedcbacf-3dc5-472f-aaa4-827ac0383c16 [scorpio::fuse::MegaFuse] open - Obtained fh: 10
+ID:eedcbacf-3dc5-472f-aaa4-827ac0383c16 [open] - Success: ReplyOpen { fh: 10, flags: 163840 }
+ID:0f2734bf-09ad-4581-a55e-db2a631733bd|[read] - Call: inode=8589934592, fh=10, offset=0, size=4096
+ overlay child inode root
+ID:0f2734bf-09ad-4581-a55e-db2a631733bd [scorpio::fuse::MegaFuse] read - Read 603 bytes
+ID:0f2734bf-09ad-4581-a55e-db2a631733bd [read] - Success: ReplyData { data: b"[cells]\n  root = .\n  prelude = prelude\n  toolchains = toolchains\n  none = none\n\n[cell_aliases]\n  config = prelude\n  ovr_config = prelude\n  fbcode = none\n  fbsource = none\n  fbcode_macros = none\n  buck = none\n\n# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this\n# section and vendor a copy of the prelude to the `prelude` directory of your project.\n[external_cells]\n  prelude = bundled\n\n[parser]\n  target_platform_detector_spec = target:root//...->prelude//platforms:default\n\n[build]\n  execution_platforms = prelude//platforms:default\n\n[project]\n  ignore = .git\n" }
+ID:71936435-f66e-4799-b0c5-f6c182183567|[flush] - Call: inode=8589934592, fh=10, lock_owner=7625110741495926769
+ overlay child inode root
+ID:71936435-f66e-4799-b0c5-f6c182183567 [flush] - Success: ()
+ID:31b4ad34-3b25-4e05-8dec-2c255ae5b879|[lookup] - Call: parent=8, name=.buckconfig.local
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.local
+
+ID:2e82e7df-2994-4de0-a9e7-bafc0a78d265|[release] - Call: inode=8589934592, fh=10, flags=32768, lock_owner=0, flush=false
+ID:31b4ad34-3b25-4e05-8dec-2c255ae5b879 [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:2e82e7df-2994-4de0-a9e7-bafc0a78d265 [release] - Success: ()
+ID:9ffca937-366d-4f50-80be-46ecda48e4fa|[lookup] - Call: parent=8, name=toolchains
+ overlay inode root
+LOOKUP: parent: 8, name: toolchains
+
+readdir:..
+readdir:.
+readdir:BUCK
+ID:9ffca937-366d-4f50-80be-46ecda48e4fa [lookup] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 8589934600, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289247, nsec: 128959730 }, mtime: Timestamp { sec: 1740289247, nsec: 208959710 }, ctime: Timestamp { sec: 1740289247, nsec: 208959710 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:a851869f-b224-4c7b-85da-9ed020a7fe28|[lookup] - Call: parent=8589934600, name=.buckconfig.d
+ overlay child inode root
+LOOKUP: parent: 8589934600, name: .buckconfig.d
+
+ID:a851869f-b224-4c7b-85da-9ed020a7fe28 [lookup] - Error: Errno(2)
+ID:ae08fdc5-bd56-411f-bf41-e4b0bae2df0e|[lookup] - Call: parent=8589934600, name=.buckconfig
+ overlay child inode root
+LOOKUP: parent: 8589934600, name: .buckconfig
+
+ID:ae08fdc5-bd56-411f-bf41-e4b0bae2df0e [lookup] - Error: Errno(2)
+ID:36d34fdc-9e70-4993-9f74-e86eb2019c56|[lookup] - Call: parent=8589934600, name=.buckconfig.local
+ overlay child inode root
+LOOKUP: parent: 8589934600, name: .buckconfig.local
+
+ID:36d34fdc-9e70-4993-9f74-e86eb2019c56 [lookup] - Error: Errno(2)
+ID:9bd6865d-0c42-4c96-9d45-9f2be5278d18|[lookup] - Call: parent=8, name=prelude
+ overlay inode root
+LOOKUP: parent: 8, name: prelude
+
+ID:9bd6865d-0c42-4c96-9d45-9f2be5278d18 [lookup] - Error: Errno(2)
+ID:b387bc37-dd07-494d-9004-a96bbea639ed|[lookup] - Call: parent=8, name=prelude
+ overlay inode root
+LOOKUP: parent: 8, name: prelude
+
+ID:b387bc37-dd07-494d-9004-a96bbea639ed [lookup] - Error: Errno(2)
+ID:5ef0679a-9cd9-4bab-877f-a1df3ef5e105|[lookup] - Call: parent=8, name=prelude
+ overlay inode root
+LOOKUP: parent: 8, name: prelude
+
+ID:5ef0679a-9cd9-4bab-877f-a1df3ef5e105 [lookup] - Error: Errno(2)
+ID:9b219fd7-24d3-4056-9a08-54dc39291646|[lookup] - Call: parent=8, name=none
+ overlay inode root
+LOOKUP: parent: 8, name: none
+
+ID:9b219fd7-24d3-4056-9a08-54dc39291646 [lookup] - Error: Errno(2)
+ID:94afd0d6-d5d1-49f7-b761-12cf4bc2ca8f|[lookup] - Call: parent=8, name=none
+ overlay inode root
+LOOKUP: parent: 8, name: none
+
+ID:94afd0d6-d5d1-49f7-b761-12cf4bc2ca8f [lookup] - Error: Errno(2)
+ID:e3724b16-1456-49b8-8a7f-aed6e23950f8|[lookup] - Call: parent=8, name=none
+ overlay inode root
+LOOKUP: parent: 8, name: none
+
+ID:e3724b16-1456-49b8-8a7f-aed6e23950f8 [lookup] - Error: Errno(2)
+ID:750b415e-ccc9-4332-8d2f-88fd3e40208d|[lookup] - Call: parent=12884901891, name=cache
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: cache
+
+ID:750b415e-ccc9-4332-8d2f-88fd3e40208d [lookup] - Error: Errno(2)
+ID:b031bba2-64a1-4f6a-b0bb-d5d824269fe1|[lookup] - Call: parent=12884901891, name=cache
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: cache
+
+ID:b031bba2-64a1-4f6a-b0bb-d5d824269fe1 [lookup] - Error: Errno(2)
+ID:51ed4e24-508c-49d0-a9a1-fad2e3430b8d|[lookup] - Call: parent=12884901891, name=.buckconfig
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: .buckconfig
+
+ID:51ed4e24-508c-49d0-a9a1-fad2e3430b8d [lookup] - Error: Errno(2)
+ID:c99eb99f-9a63-47ba-b377-70f8f77b89ad|[lookup] - Call: parent=12884901891, name=.buckroot
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: .buckroot
+
+ID:c99eb99f-9a63-47ba-b377-70f8f77b89ad [lookup] - Error: Errno(2)
+ID:043c3ee3-d127-4e3e-9cc6-e250c5a7e7ad|[lookup] - Call: parent=12884901888, name=.buckconfig
+ overlay child inode root
+LOOKUP: parent: 12884901888, name: .buckconfig
+
+ID:043c3ee3-d127-4e3e-9cc6-e250c5a7e7ad [lookup] - Error: Errno(2)
+ID:d1af895e-2606-487d-a255-63ac24c0a2c3|[lookup] - Call: parent=12884901888, name=.buckroot
+ overlay child inode root
+LOOKUP: parent: 12884901888, name: .buckroot
+
+ID:d1af895e-2606-487d-a255-63ac24c0a2c3 [lookup] - Error: Errno(2)
+ID:9973c595-977e-4c6b-bb19-bd67e1d121c9|[getattr] - Call: inode=8589934592, fh=, flags=0
+ overlay child inode root
+ID:9973c595-977e-4c6b-bb19-bd67e1d121c9 [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 13056, size: 603, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 778944217 }, mtime: Timestamp { sec: 1740289246, nsec: 938959781 }, ctime: Timestamp { sec: 1740289246, nsec: 938959781 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:b4c23480-0429-4351-ae32-fae359f3b6cc|[getattr] - Call: inode=8, fh=, flags=0
+ overlay inode root
+ID:b4c23480-0429-4351-ae32-fae359f3b6cc [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 17918, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289277, nsec: 768950578 }, mtime: Timestamp { sec: 1740289305, nsec: 878944194 }, ctime: Timestamp { sec: 1740289305, nsec: 878944194 }, kind: Directory, perm: 511, nlink: 3, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:044c7647-defa-4369-878d-1d42890f2b5a|[lookup] - Call: parent=12884901891, name=forkserver
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: forkserver
+
+ID:8fbb67b0-32e5-4be6-bb5b-d7a1059bed56|[opendir] - Call: inode=8, flags=100352
+ID:044c7647-defa-4369-878d-1d42890f2b5a [lookup] - Error: Errno(2)
+ overlay inode root
+ID:8fbb67b0-32e5-4be6-bb5b-d7a1059bed56 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 11
+ID:8fbb67b0-32e5-4be6-bb5b-d7a1059bed56 [opendir] - Success: ReplyOpen { fh: 11, flags: 100352 }
+ID:b5e0c8b3-fe1f-45da-9b30-bad0d29ca7a5|[mkdir] - Call: parent=12884901891, name=forkserver, mode=493, umask=18
+ overlay child inode root
+ID:48283082-0308-497f-8f5e-2622f187a314|[readdirplus] - Call: parent=8, fh=11, offset=0, lock_owner=0
+readdir:..
+readdir:.
+ID:b5e0c8b3-fe1f-45da-9b30-bad0d29ca7a5 [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901898, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 928944182 }, mtime: Timestamp { sec: 1740289305, nsec: 928944182 }, ctime: Timestamp { sec: 1740289305, nsec: 928944182 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ overlay inode root
+--entry name:.
+--entry name:..
+--entry name:BUCK
+--entry name:.buckroot
+--entry name:..
+--entry name:main.cpp
+--entry name:ping_task.sh
+--entry name:buck-out
+--entry name:toolchains
+--entry name:.gitignore
+--entry name:.
+--entry name:.buckconfig
+ID:48283082-0308-497f-8f5e-2622f187a314 [readdirplus] - Success: ""
+ID:ee4b5c7a-2793-42a6-88f6-943d9bd7c2ba|[opendir] - Call: inode=12884901888, flags=100352
+ overlay child inode root
+ID:ee4b5c7a-2793-42a6-88f6-943d9bd7c2ba [scorpio::fuse::MegaFuse] opendir - Obtained fh: 12
+ID:ee4b5c7a-2793-42a6-88f6-943d9bd7c2ba [opendir] - Success: ReplyOpen { fh: 12, flags: 100352 }
+ID:26864189-088e-4e64-95e0-901a6ad0eef3|[readdirplus] - Call: parent=12884901888, fh=12, offset=0, lock_owner=0
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:..
+--entry name:.
+--entry name:v2
+ID:26864189-088e-4e64-95e0-901a6ad0eef3 [readdirplus] - Success: ""
+ID:dde3f0f6-2b5c-4121-9215-963eebf532f4|[opendir] - Call: inode=12884901891, flags=100352
+ overlay child inode root
+ID:dde3f0f6-2b5c-4121-9215-963eebf532f4 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 13
+ID:dde3f0f6-2b5c-4121-9215-963eebf532f4 [opendir] - Success: ReplyOpen { fh: 13, flags: 100352 }
+ID:a7feaf5f-b3e1-4a03-be9a-5d6c394c1a30|[readdirplus] - Call: parent=12884901891, fh=13, offset=0, lock_owner=0
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:..
+--entry name:forkserver
+--entry name:CACHEDIR.TAG
+--entry name:.
+ID:a7feaf5f-b3e1-4a03-be9a-5d6c394c1a30 [readdirplus] - Success: ""
+ID:8c8a81c2-308e-462f-bb7e-57396f6073db|[opendir] - Call: inode=12884901898, flags=100352
+ overlay child inode root
+ID:8c8a81c2-308e-462f-bb7e-57396f6073db [scorpio::fuse::MegaFuse] opendir - Obtained fh: 14
+ID:8c8a81c2-308e-462f-bb7e-57396f6073db [opendir] - Success: ReplyOpen { fh: 14, flags: 100352 }
+ID:0714b566-590e-4b42-8207-764d155290ae|[readdirplus] - Call: parent=12884901898, fh=14, offset=0, lock_owner=0
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:..
+--entry name:.
+ID:0714b566-590e-4b42-8207-764d155290ae [readdirplus] - Success: ""
+ID:1d8694ad-d48a-4fa2-a9c3-379e5cb72488|[readdirplus] - Call: parent=12884901898, fh=14, offset=4, lock_owner=0
+ overlay child inode root
+ID:1d8694ad-d48a-4fa2-a9c3-379e5cb72488 [readdirplus] - Success: ""
+ID:ac8da7ce-629e-4167-b351-90983f850927|[readdirplus] - Call: parent=12884901891, fh=13, offset=6, lock_owner=0
+ overlay child inode root
+ID:503eba76-bd68-451d-8bc7-2436846dcb5d|[releasedir] - Call: inode=12884901898, fh=14, flags=100352
+ID:ac8da7ce-629e-4167-b351-90983f850927 [readdirplus] - Success: ""
+ overlay child inode root
+ID:503eba76-bd68-451d-8bc7-2436846dcb5d [releasedir] - Success: ()
+ID:37cc87b7-e0b1-42ce-a798-3d45a5fc4d47|[releasedir] - Call: inode=12884901891, fh=13, flags=100352
+ID:696d0fb9-dd93-4edc-8da8-2b273148520d|[readdirplus] - Call: parent=12884901888, fh=12, offset=5, lock_owner=0
+ overlay child inode root
+ID:37cc87b7-e0b1-42ce-a798-3d45a5fc4d47 [releasedir] - Success: ()
+ overlay child inode root
+ID:696d0fb9-dd93-4edc-8da8-2b273148520d [readdirplus] - Success: ""
+ID:d699c8d4-e03d-4fe1-8521-e1f86e0f3b75|[opendir] - Call: inode=8589934600, flags=100352
+ID:567daa00-70f1-4a38-afb4-d1eb299dc53d|[releasedir] - Call: inode=12884901888, fh=12, flags=100352
+ overlay child inode root
+ID:d699c8d4-e03d-4fe1-8521-e1f86e0f3b75 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 15
+ID:d699c8d4-e03d-4fe1-8521-e1f86e0f3b75 [opendir] - Success: ReplyOpen { fh: 15, flags: 100352 }
+ overlay child inode root
+ID:567daa00-70f1-4a38-afb4-d1eb299dc53d [releasedir] - Success: ()
+ID:cf06c133-8682-4c43-b03f-b08871b7e9e7|[readdirplus] - Call: parent=8589934600, fh=15, offset=0, lock_owner=0
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:..
+--entry name:.
+--entry name:BUCK
+ID:cf06c133-8682-4c43-b03f-b08871b7e9e7 [readdirplus] - Success: ""
+ID:a8ed51bd-f53f-4d52-a13a-d48e16afa15e|[readdirplus] - Call: parent=8589934600, fh=15, offset=5, lock_owner=0
+ overlay child inode root
+ID:a8ed51bd-f53f-4d52-a13a-d48e16afa15e [readdirplus] - Success: ""
+ID:3167dba6-18a0-4a8e-9111-911a2daf8f2d|[readdirplus] - Call: parent=8, fh=11, offset=12, lock_owner=0
+ overlay inode root
+ID:23c7ead4-0d7e-4ed5-b499-2cbe9d694f80|[releasedir] - Call: inode=8589934600, fh=15, flags=100352
+ID:3167dba6-18a0-4a8e-9111-911a2daf8f2d [readdirplus] - Success: ""
+ overlay child inode root
+ID:23c7ead4-0d7e-4ed5-b499-2cbe9d694f80 [releasedir] - Success: ()
+ID:240c105b-3413-45f7-a388-8ec4bdf3a9e0|[releasedir] - Call: inode=8, fh=11, flags=100352
+ overlay inode root
+ID:240c105b-3413-45f7-a388-8ec4bdf3a9e0 [releasedir] - Success: ()
+ID:499ad0e5-d90f-44f9-91ee-7c26b9207089|[getattr] - Call: inode=12884901891, fh=, flags=0
+ overlay child inode root
+ID:499ad0e5-d90f-44f9-91ee-7c26b9207089 [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 27122, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 878944194 }, mtime: Timestamp { sec: 1740289305, nsec: 928944182 }, ctime: Timestamp { sec: 1740289305, nsec: 928944182 }, kind: Directory, perm: 493, nlink: 3, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:20ad3e47-72f3-480e-9977-feea1b4a96d3|[statfs] - Call: inode=12884901891
+ overlay child inode root
+ID:20ad3e47-72f3-480e-9977-feea1b4a96d3 [statfs] - Success: ReplyStatFs { blocks: 263940717, bfree: 230156488, bavail: 216730620, files: 67108864, ffree: 65965033, bsize: 4096, namelen: 255, frsize: 4096 }
+ID:bce3a76a-73df-463b-8ed4-951d30cbab41|[statfs] - Call: inode=12884901891
+ overlay child inode root
+ID:bce3a76a-73df-463b-8ed4-951d30cbab41 [statfs] - Success: ReplyStatFs { blocks: 263940717, bfree: 230156488, bavail: 216730620, files: 67108864, ffree: 65965033, bsize: 4096, namelen: 255, frsize: 4096 }
+ID:4018b38b-a401-4ff8-b636-51a99cf240a2|[lookup] - Call: parent=12884901891, name=hgQ1Yjgh5HsNllCO
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: hgQ1Yjgh5HsNllCO
+
+ID:4018b38b-a401-4ff8-b636-51a99cf240a2 [lookup] - Error: Errno(2)
+ID:07bb40aa-6581-4b48-8157-b3d188cedbc1|[lookup] - Call: parent=12884901891, name=log
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: log
+
+ID:07bb40aa-6581-4b48-8157-b3d188cedbc1 [lookup] - Error: Errno(2)
+ID:c18f493b-f4c2-4d07-933e-9ad86e71e4d1|[lookup] - Call: parent=8, name=.buckconfig.d
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.d
+
+ID:bae45f45-0453-4800-a9e8-7ac935894154|[statfs] - Call: inode=12884901891
+ID:c18f493b-f4c2-4d07-933e-9ad86e71e4d1 [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:8c6a9491-5263-4266-945d-6bfc495e6a20|[mkdir] - Call: parent=12884901891, name=log, mode=493, umask=18
+ overlay child inode root
+ID:ad43463b-bfee-458f-8319-1a9de9be0c0c|[open] - Call: inode=8589934592, flags=32768
+ID:bae45f45-0453-4800-a9e8-7ac935894154 [statfs] - Success: ReplyStatFs { blocks: 263940717, bfree: 230156488, bavail: 216730620, files: 67108864, ffree: 65965033, bsize: 4096, namelen: 255, frsize: 4096 }
+readdir:..
+readdir:.
+ID:8c6a9491-5263-4266-945d-6bfc495e6a20 [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901901, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 998944165 }, mtime: Timestamp { sec: 1740289305, nsec: 998944165 }, ctime: Timestamp { sec: 1740289305, nsec: 998944165 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ overlay child inode root
+open handle:10
+ID:ad43463b-bfee-458f-8319-1a9de9be0c0c [scorpio::fuse::MegaFuse] open - Obtained fh: 16
+ID:ad43463b-bfee-458f-8319-1a9de9be0c0c [open] - Success: ReplyOpen { fh: 16, flags: 163840 }
+ID:d3473803-d123-48e5-8f1e-7ed0c328bc31|[read] - Call: inode=8589934592, fh=16, offset=0, size=4096
+ overlay child inode root
+ID:d3473803-d123-48e5-8f1e-7ed0c328bc31 [scorpio::fuse::MegaFuse] read - Read 603 bytes
+ID:d3473803-d123-48e5-8f1e-7ed0c328bc31 [read] - Success: ReplyData { data: b"[cells]\n  root = .\n  prelude = prelude\n  toolchains = toolchains\n  none = none\n\n[cell_aliases]\n  config = prelude\n  ovr_config = prelude\n  fbcode = none\n  fbsource = none\n  fbcode_macros = none\n  buck = none\n\n# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this\n# section and vendor a copy of the prelude to the `prelude` directory of your project.\n[external_cells]\n  prelude = bundled\n\n[parser]\n  target_platform_detector_spec = target:root//...->prelude//platforms:default\n\n[build]\n  execution_platforms = prelude//platforms:default\n\n[project]\n  ignore = .git\n" }
+ID:898a2ecd-0a40-43f4-a3be-4810737824c4|[flush] - Call: inode=8589934592, fh=16, lock_owner=7625110741495926769
+ overlay child inode root
+ID:d4a7d0f4-5802-46f4-bb3c-ed8355e1711b|[opendir] - Call: inode=12884901901, flags=100352
+ID:898a2ecd-0a40-43f4-a3be-4810737824c4 [flush] - Success: ()
+ overlay child inode root
+ID:d4a7d0f4-5802-46f4-bb3c-ed8355e1711b [scorpio::fuse::MegaFuse] opendir - Obtained fh: 17
+ID:d4a7d0f4-5802-46f4-bb3c-ed8355e1711b [opendir] - Success: ReplyOpen { fh: 17, flags: 100352 }
+ID:7b62eb9e-b80e-4040-a38b-733036a6381a|[opendir] - Call: inode=12884901901, flags=100352
+ overlay child inode root
+ID:7b62eb9e-b80e-4040-a38b-733036a6381a [scorpio::fuse::MegaFuse] opendir - Obtained fh: 18
+ID:7b62eb9e-b80e-4040-a38b-733036a6381a [opendir] - Success: ReplyOpen { fh: 18, flags: 100352 }
+ID:a83091fd-dbcc-4860-9837-9354c2f9f54d|[lookup] - Call: parent=8, name=.buckconfig.local
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.local
+
+ID:a83091fd-dbcc-4860-9837-9354c2f9f54d [lookup] - Error: Errno(2)
+ID:bca74b95-9358-46d2-8e41-b6e1bcce65ec|[release] - Call: inode=8589934592, fh=16, flags=32768, lock_owner=0, flush=false
+ overlay child inode root
+ID:9549d961-4e96-4acc-92b9-307d8c2edad5|[readdirplus] - Call: parent=12884901901, fh=18, offset=0, lock_owner=0
+ID:bca74b95-9358-46d2-8e41-b6e1bcce65ec [release] - Success: ()
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:.
+ID:43aeb1fd-9716-48c9-ace4-2cec6fb165c0|[readdirplus] - Call: parent=12884901901, fh=17, offset=0, lock_owner=0
+--entry name:..
+ID:9549d961-4e96-4acc-92b9-307d8c2edad5 [readdirplus] - Success: ""
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:.
+--entry name:..
+ID:43aeb1fd-9716-48c9-ace4-2cec6fb165c0 [readdirplus] - Success: ""
+ID:51f5c7e4-ed8d-41fc-9e63-c6a8b2a39c4e|[readdirplus] - Call: parent=12884901901, fh=17, offset=4, lock_owner=0
+ID:c0fc1216-dac2-464d-bd33-538a8378e9ea|[readdirplus] - Call: parent=12884901901, fh=18, offset=4, lock_owner=0
+ overlay child inode root
+ID:51f5c7e4-ed8d-41fc-9e63-c6a8b2a39c4e [readdirplus] - Success: ""
+ID:4b32b023-4f22-4880-a11f-b9549d5ab0de|[statfs] - Call: inode=12884901891
+ overlay child inode root
+ID:c0fc1216-dac2-464d-bd33-538a8378e9ea [readdirplus] - Success: ""
+ overlay child inode root
+ID:4b32b023-4f22-4880-a11f-b9549d5ab0de [statfs] - Success: ReplyStatFs { blocks: 263940717, bfree: 230156485, bavail: 216730617, files: 67108864, ffree: 65965032, bsize: 4096, namelen: 255, frsize: 4096 }
+ID:86969a1f-e7b8-4dfd-832d-d30b7af2625d|[releasedir] - Call: inode=12884901901, fh=17, flags=100352
+ID:b0c48ac8-92ad-4349-b76e-f15d416abcbf|[releasedir] - Call: inode=12884901901, fh=18, flags=100352
+ overlay child inode root
+ID:86969a1f-e7b8-4dfd-832d-d30b7af2625d [releasedir] - Success: ()
+ overlay child inode root
+ID:b0c48ac8-92ad-4349-b76e-f15d416abcbf [releasedir] - Success: ()
+ID:ae26afdc-0308-4ae5-835f-0f6632bec11b|[getattr] - Call: inode=8589934592, fh=, flags=0
+ overlay child inode root
+ID:ae26afdc-0308-4ae5-835f-0f6632bec11b [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 13056, size: 603, blocks: 8, atime: Timestamp { sec: 1740289305, nsec: 778944217 }, mtime: Timestamp { sec: 1740289246, nsec: 938959781 }, ctime: Timestamp { sec: 1740289246, nsec: 938959781 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:95141cf7-a98a-4d53-8722-d36127b33e9c|[lookup] - Call: parent=8, name=.buckconfig.d
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.d
+
+ID:95141cf7-a98a-4d53-8722-d36127b33e9c [lookup] - Error: Errno(2)
+ID:36adfc4c-a5ce-4219-b1d9-fe4cc7d2bc1d|[open] - Call: inode=8589934592, flags=32768
+ overlay child inode root
+open handle:11
+ID:36adfc4c-a5ce-4219-b1d9-fe4cc7d2bc1d [scorpio::fuse::MegaFuse] open - Obtained fh: 19
+ID:36adfc4c-a5ce-4219-b1d9-fe4cc7d2bc1d [open] - Success: ReplyOpen { fh: 19, flags: 163840 }
+ID:d1ae6739-b4d0-4ac6-b38c-ae1d0ca6a29e|[read] - Call: inode=8589934592, fh=19, offset=0, size=4096
+ overlay child inode root
+ID:d1ae6739-b4d0-4ac6-b38c-ae1d0ca6a29e [scorpio::fuse::MegaFuse] read - Read 603 bytes
+ID:d1ae6739-b4d0-4ac6-b38c-ae1d0ca6a29e [read] - Success: ReplyData { data: b"[cells]\n  root = .\n  prelude = prelude\n  toolchains = toolchains\n  none = none\n\n[cell_aliases]\n  config = prelude\n  ovr_config = prelude\n  fbcode = none\n  fbsource = none\n  fbcode_macros = none\n  buck = none\n\n# Uses a copy of the prelude bundled with the buck2 binary. You can alternatively delete this\n# section and vendor a copy of the prelude to the `prelude` directory of your project.\n[external_cells]\n  prelude = bundled\n\n[parser]\n  target_platform_detector_spec = target:root//...->prelude//platforms:default\n\n[build]\n  execution_platforms = prelude//platforms:default\n\n[project]\n  ignore = .git\n" }
+ID:d7144206-c7c2-44c1-b401-aaf9bb4e5efc|[flush] - Call: inode=8589934592, fh=19, lock_owner=7625110741495926769
+ overlay child inode root
+ID:d7144206-c7c2-44c1-b401-aaf9bb4e5efc [flush] - Success: ()
+ID:4c7c451e-206f-4d6d-bcfe-60f6c8bdc553|[release] - Call: inode=8589934592, fh=19, flags=32768, lock_owner=0, flush=false
+ overlay child inode root
+ID:4c7c451e-206f-4d6d-bcfe-60f6c8bdc553 [release] - Success: ()
+ID:3f652693-1e95-46fb-8e6d-00b313535cf1|[lookup] - Call: parent=12884901901, name=20250223-054146_build_925d8b33-a145-4ae8-9e02-218bb2e1da02_events.pb.zst
+ overlay child inode root
+LOOKUP: parent: 12884901901, name: 20250223-054146_build_925d8b33-a145-4ae8-9e02-218bb2e1da02_events.pb.zst
+
+ID:3f652693-1e95-46fb-8e6d-00b313535cf1 [lookup] - Error: Errno(2)
+ID:f93aa5d4-a01d-4134-8dbd-4d57be0e0ee6|[create] - Call: parent=12884901901, name=20250223-054146_build_925d8b33-a145-4ae8-9e02-218bb2e1da02_events.pb.zst, mode=33188, flags=33858
+ overlay child inode root
+ID:8590adbd-8541-406a-a48b-b2e393f048a6|[lookup] - Call: parent=8, name=.buckconfig.local
+ID:f93aa5d4-a01d-4134-8dbd-4d57be0e0ee6 [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901904, size: 0, blocks: 0, atime: Timestamp { sec: 1740289306, nsec: 18944160 }, mtime: Timestamp { sec: 1740289306, nsec: 18944160 }, ctime: Timestamp { sec: 1740289306, nsec: 18944160 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 20, flags: 164930 }
+ overlay inode root
+LOOKUP: parent: 8, name: .buckconfig.local
+
+ID:8590adbd-8541-406a-a48b-b2e393f048a6 [lookup] - Error: Errno(2)
+ID:3381791d-ab14-4f7a-929e-6321015420db|[opendir] - Call: inode=8, flags=100352
+ overlay inode root
+ID:3381791d-ab14-4f7a-929e-6321015420db [scorpio::fuse::MegaFuse] opendir - Obtained fh: 21
+ID:3381791d-ab14-4f7a-929e-6321015420db [opendir] - Success: ReplyOpen { fh: 21, flags: 100352 }
+ID:d4e34117-5cf3-48ca-8729-06dc5402233d|[getattr] - Call: inode=8, fh=, flags=0
+ overlay inode root
+ID:d4e34117-5cf3-48ca-8729-06dc5402233d [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 17918, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289277, nsec: 768950578 }, mtime: Timestamp { sec: 1740289305, nsec: 878944194 }, ctime: Timestamp { sec: 1740289305, nsec: 878944194 }, kind: Directory, perm: 511, nlink: 3, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:0f76c8fb-09d4-4062-82b8-7a3f542e24ff|[readdirplus] - Call: parent=8, fh=21, offset=0, lock_owner=0
+ overlay inode root
+--entry name:.
+--entry name:..
+--entry name:BUCK
+--entry name:.buckroot
+--entry name:..
+--entry name:main.cpp
+--entry name:ping_task.sh
+--entry name:buck-out
+--entry name:toolchains
+--entry name:.gitignore
+--entry name:.
+--entry name:.buckconfig
+ID:0f76c8fb-09d4-4062-82b8-7a3f542e24ff [readdirplus] - Success: ""
+ID:e0b96fad-7f39-4633-ba2e-7f862a39d348|[readdirplus] - Call: parent=8, fh=21, offset=12, lock_owner=0
+ overlay inode root
+ID:e0b96fad-7f39-4633-ba2e-7f862a39d348 [readdirplus] - Success: ""
+ID:7f2a2d71-1815-4dd0-b7c1-fde0ddc58a2e|[releasedir] - Call: inode=8, fh=21, flags=100352
+ overlay inode root
+ID:7f2a2d71-1815-4dd0-b7c1-fde0ddc58a2e [releasedir] - Success: ()
+ID:18014f96-219d-4ece-a3d9-924e723b882b|[open] - Call: inode=8589934597, flags=32768
+ overlay child inode root
+open handle:12
+ID:18014f96-219d-4ece-a3d9-924e723b882b [scorpio::fuse::MegaFuse] open - Obtained fh: 22
+ID:18014f96-219d-4ece-a3d9-924e723b882b [open] - Success: ReplyOpen { fh: 22, flags: 163840 }
+ID:a8190d46-d551-4256-bdb4-c83798b395a7|[read] - Call: inode=8589934597, fh=22, offset=0, size=4096
+ overlay child inode root
+ID:a8190d46-d551-4256-bdb4-c83798b395a7 [scorpio::fuse::MegaFuse] read - Read 157 bytes
+ID:a8190d46-d551-4256-bdb4-c83798b395a7 [read] - Success: ReplyData { data: b"# BUCK\ncxx_binary(\n    name = \"main\",\n    srcs = [\"main.cpp\"],\n    link_style = \"static\",\n)\n\nsh_binary(\n    name = \"ping_task\",\n    main = \"ping_task.sh\",\n)\n" }
+ID:16dc64e1-6664-48e7-b7ba-e30799230f96|[flush] - Call: inode=8589934597, fh=22, lock_owner=7625110741495926769
+ overlay child inode root
+ID:16dc64e1-6664-48e7-b7ba-e30799230f96 [flush] - Success: ()
+ID:c861dd77-d046-4d6a-95dc-182737a0377a|[release] - Call: inode=8589934597, fh=22, flags=32768, lock_owner=0, flush=false
+ overlay child inode root
+ID:6ad4f5e7-d2d1-481c-a143-8fe1f38f62bc|[lookup] - Call: parent=12884901891, name=\Users\HXY\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\debugCommand
+ID:c861dd77-d046-4d6a-95dc-182737a0377a [release] - Success: ()
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: \Users\HXY\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\debugCommand
+
+ID:6ad4f5e7-d2d1-481c-a143-8fe1f38f62bc [lookup] - Error: Errno(2)
+ID:3148d35f-9914-406b-a39f-605ae1702f64|[lookup] - Call: parent=12884901891, name=external_cells
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: external_cells
+
+ID:3148d35f-9914-406b-a39f-605ae1702f64 [lookup] - Error: Errno(2)
+ID:cbcb66b4-2cc0-43e9-88d1-27bbe36cc88b|[lookup] - Call: parent=12884901891, name=external_cells
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: external_cells
+
+ID:cbcb66b4-2cc0-43e9-88d1-27bbe36cc88b [lookup] - Error: Errno(2)
+ID:e5ff623c-5f28-45a8-b82b-ffd5f8702b24|[lookup] - Call: parent=12884901891, name=external_cells
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: external_cells
+
+ID:e5ff623c-5f28-45a8-b82b-ffd5f8702b24 [lookup] - Error: Errno(2)
+ID:176db485-a78c-456a-baa4-e7183839ef71|[lookup] - Call: parent=12884901891, name=external_cells
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: external_cells
+
+ID:176db485-a78c-456a-baa4-e7183839ef71 [lookup] - Error: Errno(2)
+ID:d203f207-2d5f-4466-88ca-862e101126d8|[lookup] - Call: parent=12884901891, name=external_cells
+ overlay child inode root
+LOOKUP: parent: 12884901891, name: external_cells
+
+ID:d203f207-2d5f-4466-88ca-862e101126d8 [lookup] - Error: Errno(2)
+ID:5a34c7b7-ea0e-4061-95be-2922e1200468|[mkdir] - Call: parent=12884901891, name=external_cells, mode=493, umask=18
+ overlay child inode root
+readdir:..
+readdir:.
+ID:5a34c7b7-ea0e-4061-95be-2922e1200468 [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901905, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 58944149 }, ctime: Timestamp { sec: 1740289306, nsec: 58944149 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:02de8b7d-c487-4efc-be46-70d5654aebbe|[opendir] - Call: inode=12884901905, flags=100352
+ID:1cd6a326-f74b-4916-9977-44c73792754d|[lookup] - Call: parent=12884901905, name=bundled
+ overlay child inode root
+ID:02de8b7d-c487-4efc-be46-70d5654aebbe [scorpio::fuse::MegaFuse] opendir - Obtained fh: 23
+ID:02de8b7d-c487-4efc-be46-70d5654aebbe [opendir] - Success: ReplyOpen { fh: 23, flags: 100352 }
+ overlay child inode root
+LOOKUP: parent: 12884901905, name: bundled
+
+ID:1cd6a326-f74b-4916-9977-44c73792754d [lookup] - Error: Errno(2)
+ID:90585556-06c8-4ed3-859f-62d17b6d1248|[mkdir] - Call: parent=12884901905, name=bundled, mode=493, umask=18
+ overlay child inode root
+readdir:..
+readdir:.
+ID:90585556-06c8-4ed3-859f-62d17b6d1248 [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901908, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 58944149 }, ctime: Timestamp { sec: 1740289306, nsec: 58944149 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:e4b5eef0-8a77-46e1-a486-11ba957d4f0d|[readdirplus] - Call: parent=12884901905, fh=23, offset=0, lock_owner=0
+ID:6a504daa-ec89-4d56-94ff-d948ab9705d3|[lookup] - Call: parent=12884901908, name=prelude
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:.
+--entry name:bundled
+--entry name:..
+ID:e4b5eef0-8a77-46e1-a486-11ba957d4f0d [readdirplus] - Success: ""
+ overlay child inode root
+LOOKUP: parent: 12884901908, name: prelude
+
+ID:6a504daa-ec89-4d56-94ff-d948ab9705d3 [lookup] - Error: Errno(2)
+ID:a0933e2e-869b-4e77-8cf1-8716fe04ed5c|[mkdir] - Call: parent=12884901908, name=prelude, mode=493, umask=18
+ID:483d7ad0-54ee-4b0d-9df2-4972d4dfdeed|[opendir] - Call: inode=12884901908, flags=100352
+ overlay child inode root
+readdir:..
+readdir:.
+ID:a0933e2e-869b-4e77-8cf1-8716fe04ed5c [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901911, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 58944149 }, ctime: Timestamp { sec: 1740289306, nsec: 58944149 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ overlay child inode root
+ID:483d7ad0-54ee-4b0d-9df2-4972d4dfdeed [scorpio::fuse::MegaFuse] opendir - Obtained fh: 24
+ID:483d7ad0-54ee-4b0d-9df2-4972d4dfdeed [opendir] - Success: ReplyOpen { fh: 24, flags: 100352 }
+ID:019774bb-8dff-46db-bc0c-04286a40cd4e|[readdirplus] - Call: parent=12884901908, fh=24, offset=0, lock_owner=0
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:..
+--entry name:prelude
+--entry name:.
+ID:019774bb-8dff-46db-bc0c-04286a40cd4e [readdirplus] - Success: ""
+ID:2e81baa7-2cdb-4cee-bc35-e6aeb95a3c44|[opendir] - Call: inode=12884901911, flags=100352
+ overlay child inode root
+ID:2e81baa7-2cdb-4cee-bc35-e6aeb95a3c44 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 25
+ID:2e81baa7-2cdb-4cee-bc35-e6aeb95a3c44 [opendir] - Success: ReplyOpen { fh: 25, flags: 100352 }
+ID:019a7647-2cc4-4bb1-8e9a-45fa901b14f3|[readdirplus] - Call: parent=12884901911, fh=25, offset=0, lock_owner=0
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:.
+--entry name:..
+ID:019a7647-2cc4-4bb1-8e9a-45fa901b14f3 [readdirplus] - Success: ""
+ID:605b750f-a4c3-4d96-b940-35d5bd58f0b9|[readdirplus] - Call: parent=12884901911, fh=25, offset=4, lock_owner=0
+ overlay child inode root
+ID:605b750f-a4c3-4d96-b940-35d5bd58f0b9 [readdirplus] - Success: ""
+ID:f1ebba31-bd1e-4638-b360-e4004ecde855|[readdirplus] - Call: parent=12884901908, fh=24, offset=5, lock_owner=0
+ overlay child inode root
+ID:f1ebba31-bd1e-4638-b360-e4004ecde855 [readdirplus] - Success: ""
+ID:77cf9f40-c69a-450f-aa77-36742deace93|[releasedir] - Call: inode=12884901911, fh=25, flags=100352
+ID:efe292df-1e17-4ea0-9858-0832c6b4e994|[lookup] - Call: parent=12884901911, name=.buckconfig
+ overlay child inode root
+ID:77cf9f40-c69a-450f-aa77-36742deace93 [releasedir] - Success: ()
+ID:1386538d-d229-40a3-9c34-e2cecb204377|[readdirplus] - Call: parent=12884901905, fh=23, offset=5, lock_owner=0
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: .buckconfig
+
+ID:e02721ba-b7ec-4caa-9d6c-b16da33a826c|[releasedir] - Call: inode=12884901908, fh=24, flags=100352
+ID:efe292df-1e17-4ea0-9858-0832c6b4e994 [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:1386538d-d229-40a3-9c34-e2cecb204377 [readdirplus] - Success: ""
+ID:e3f3eef7-342c-4f85-91da-bd2145912a12|[create] - Call: parent=12884901911, name=.buckconfig, mode=33188, flags=33345
+ overlay child inode root
+ID:e02721ba-b7ec-4caa-9d6c-b16da33a826c [releasedir] - Success: ()
+ overlay child inode root
+ID:e3f3eef7-342c-4f85-91da-bd2145912a12 [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901914, size: 0, blocks: 0, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 26, flags: 164417 }
+ID:b7a12442-5894-4fc1-8001-e17007e0928f|[getattr] - Call: inode=12884901908, fh=, flags=0
+ overlay child inode root
+ID:c98abfeb-20c4-4874-8eb7-cb215a082c35|[releasedir] - Call: inode=12884901905, fh=23, flags=100352
+ID:b7a12442-5894-4fc1-8001-e17007e0928f [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 27128, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 58944149 }, ctime: Timestamp { sec: 1740289306, nsec: 58944149 }, kind: Directory, perm: 493, nlink: 3, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:f3b37ea1-e75f-4069-a91b-efb8f2beab1f|[write] - Call: inode=12884901914, fh=26, offset=0, data_len=402, write_flags=6, flags=32769
+ overlay child inode root
+ID:c98abfeb-20c4-4874-8eb7-cb215a082c35 [releasedir] - Success: ()
+ overlay child inode root
+ID:f3b37ea1-e75f-4069-a91b-efb8f2beab1f [scorpio::fuse::MegaFuse] write - Wrote 402 bytes
+ID:f3b37ea1-e75f-4069-a91b-efb8f2beab1f [write] - Success: ReplyWrite { written: 402 }
+ID:aab0413e-c841-4a0a-b199-2289b4e0040d|[flush] - Call: inode=12884901914, fh=26, lock_owner=7625110741495926769
+ID:07c014e7-5fca-46a5-829a-6c45b2487c01|[opendir] - Call: inode=12884901908, flags=100352
+ overlay child inode root
+ID:aab0413e-c841-4a0a-b199-2289b4e0040d [flush] - Success: ()
+ overlay child inode root
+ID:07c014e7-5fca-46a5-829a-6c45b2487c01 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 27
+ID:07c014e7-5fca-46a5-829a-6c45b2487c01 [opendir] - Success: ReplyOpen { fh: 27, flags: 100352 }
+ID:a8d28ec5-1180-4579-a269-91fddacb3d87|[release] - Call: inode=12884901914, fh=26, flags=32769, lock_owner=0, flush=false
+ID:ee1f1cb7-a935-4890-b84c-2bbdd4343fcf|[readdirplus] - Call: parent=12884901908, fh=27, offset=0, lock_owner=0
+ overlay child inode root
+ID:a8d28ec5-1180-4579-a269-91fddacb3d87 [release] - Success: ()
+ID:060c60c0-1d88-43ed-bbd5-c2f616b68716|[lookup] - Call: parent=12884901911, name=.gitignore
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:..
+--entry name:prelude
+--entry name:.
+ID:ee1f1cb7-a935-4890-b84c-2bbdd4343fcf [readdirplus] - Success: ""
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: .gitignore
+
+ID:060c60c0-1d88-43ed-bbd5-c2f616b68716 [lookup] - Error: Errno(2)
+ID:ed2c4986-3e27-4acc-9370-01d2f44b27b9|[lookup] - Call: parent=12884901908, name=prelude
+ID:c40c5f79-8098-4cea-8e4b-b76aa5e67efa|[opendir] - Call: inode=12884901911, flags=100352
+ overlay child inode root
+LOOKUP: parent: 12884901908, name: prelude
+
+ID:ed2c4986-3e27-4acc-9370-01d2f44b27b9 [lookup] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901911, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ overlay child inode root
+ID:c40c5f79-8098-4cea-8e4b-b76aa5e67efa [scorpio::fuse::MegaFuse] opendir - Obtained fh: 28
+ID:c40c5f79-8098-4cea-8e4b-b76aa5e67efa [opendir] - Success: ReplyOpen { fh: 28, flags: 100352 }
+ID:626cda42-cb44-4881-81d7-c7dbdc770997|[lookup] - Call: parent=12884901911, name=.gitignore
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: .gitignore
+
+ID:626cda42-cb44-4881-81d7-c7dbdc770997 [lookup] - Error: Errno(2)
+ID:0c8b37da-579a-4cd8-a49f-5d3707d605d9|[create] - Call: parent=12884901911, name=.gitignore, mode=33188, flags=33345
+ overlay child inode root
+ID:0c8b37da-579a-4cd8-a49f-5d3707d605d9 [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901915, size: 0, blocks: 0, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 29, flags: 164417 }
+ID:22343e85-0305-4002-8c57-465adfc9b645|[write] - Call: inode=12884901915, fh=29, offset=0, data_len=73, write_flags=6, flags=32769
+ overlay child inode root
+ID:94f2f33d-49b6-4ee5-9673-d1becb920891|[readdirplus] - Call: parent=12884901911, fh=28, offset=0, lock_owner=0
+ID:22343e85-0305-4002-8c57-465adfc9b645 [scorpio::fuse::MegaFuse] write - Wrote 73 bytes
+ID:22343e85-0305-4002-8c57-465adfc9b645 [write] - Success: ReplyWrite { written: 73 }
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:.gitignore
+--entry name:.buckconfig
+--entry name:.
+--entry name:..
+ID:94f2f33d-49b6-4ee5-9673-d1becb920891 [readdirplus] - Success: ""
+ID:0cd82d0d-a2b1-4b4f-beb6-bfcc62d11f4e|[flush] - Call: inode=12884901915, fh=29, lock_owner=7625110741495926769
+ID:a8e79aac-0f96-4800-9934-13d04c356481|[getattr] - Call: inode=12884901915, fh=, flags=0
+ overlay child inode root
+ID:0cd82d0d-a2b1-4b4f-beb6-bfcc62d11f4e [flush] - Success: ()
+ overlay child inode root
+ID:a8e79aac-0f96-4800-9934-13d04c356481 [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 27185, size: 73, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:4e61e6ac-452a-42de-ad74-77c304886c23|[release] - Call: inode=12884901915, fh=29, flags=32769, lock_owner=0, flush=false
+ overlay child inode root
+ID:48ec1f03-7d7e-4bd9-a5be-e31284711cd3|[readdirplus] - Call: parent=12884901911, fh=28, offset=6, lock_owner=0
+ID:4e61e6ac-452a-42de-ad74-77c304886c23 [release] - Success: ()
+ overlay child inode root
+ID:dc9cf26d-7582-4300-8866-0c2320a8c4b3|[lookup] - Call: parent=12884901911, name=BUCK
+ID:48ec1f03-7d7e-4bd9-a5be-e31284711cd3 [readdirplus] - Success: ""
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: BUCK
+
+ID:dc9cf26d-7582-4300-8866-0c2320a8c4b3 [lookup] - Error: Errno(2)
+ID:053e3276-db14-49f9-a161-569f29e9d713|[getattr] - Call: inode=12884901911, fh=, flags=0
+ID:09a95f5f-fe99-4bd9-970f-3a253a25c099|[releasedir] - Call: inode=12884901911, fh=28, flags=100352
+ overlay child inode root
+ID:17549bbb-9c8e-458e-b095-6a3282d4a72a|[readdirplus] - Call: parent=12884901908, fh=27, offset=5, lock_owner=0
+ID:053e3276-db14-49f9-a161-569f29e9d713 [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 27131, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ overlay child inode root
+ID:09a95f5f-fe99-4bd9-970f-3a253a25c099 [releasedir] - Success: ()
+ overlay child inode root
+ID:17549bbb-9c8e-458e-b095-6a3282d4a72a [readdirplus] - Success: ""
+ID:a299db17-dcda-4459-9319-204a87049ba4|[opendir] - Call: inode=12884901911, flags=100352
+ID:c058ba1c-ddf2-414b-a81a-c31c708fc1c8|[lookup] - Call: parent=12884901908, name=prelude
+ overlay child inode root
+LOOKUP: parent: 12884901908, name: prelude
+
+ID:758787a7-0da8-42b2-9c61-3380754597eb|[releasedir] - Call: inode=12884901908, fh=27, flags=100352
+ID:c058ba1c-ddf2-414b-a81a-c31c708fc1c8 [lookup] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901911, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ overlay child inode root
+ID:a299db17-dcda-4459-9319-204a87049ba4 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 30
+ID:a299db17-dcda-4459-9319-204a87049ba4 [opendir] - Success: ReplyOpen { fh: 30, flags: 100352 }
+ID:7a42bf83-a90f-43df-8b9c-b86c31af283e|[lookup] - Call: parent=12884901911, name=BUCK
+ overlay child inode root
+ID:758787a7-0da8-42b2-9c61-3380754597eb [releasedir] - Success: ()
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: BUCK
+
+ID:7a42bf83-a90f-43df-8b9c-b86c31af283e [lookup] - Error: Errno(2)
+ID:74494c3c-2114-44e0-9749-71d004c3a111|[create] - Call: parent=12884901911, name=BUCK, mode=33188, flags=33345
+ overlay child inode root
+ID:74494c3c-2114-44e0-9749-71d004c3a111 [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901916, size: 0, blocks: 0, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 31, flags: 164417 }
+ID:b35320b9-6f87-4636-8839-db0076b9cd29|[readdirplus] - Call: parent=12884901911, fh=30, offset=0, lock_owner=0
+ overlay child inode root
+--entry name:.
+--entry name:..
+ID:497c664c-4197-4e5c-8dcb-0a04af47afab|[write] - Call: inode=12884901916, fh=31, offset=0, data_len=1516, write_flags=6, flags=32769
+--entry name:.gitignore
+--entry name:BUCK
+--entry name:.buckconfig
+--entry name:.
+--entry name:..
+ID:b35320b9-6f87-4636-8839-db0076b9cd29 [readdirplus] - Success: ""
+ overlay child inode root
+ID:497c664c-4197-4e5c-8dcb-0a04af47afab [scorpio::fuse::MegaFuse] write - Wrote 1516 bytes
+ID:497c664c-4197-4e5c-8dcb-0a04af47afab [write] - Success: ReplyWrite { written: 1516 }
+ID:5d0ea533-ba55-434f-b8bc-a2c05a3d9dd4|[readdirplus] - Call: parent=12884901911, fh=30, offset=7, lock_owner=0
+ overlay child inode root
+ID:5d0ea533-ba55-434f-b8bc-a2c05a3d9dd4 [readdirplus] - Success: ""
+ID:d4c597b8-3630-4751-b758-0c8940c43d23|[flush] - Call: inode=12884901916, fh=31, lock_owner=7625110741495926769
+ overlay child inode root
+ID:d4c597b8-3630-4751-b758-0c8940c43d23 [flush] - Success: ()
+ID:bc2abd5c-8b8c-492c-a70a-1a472ddbeea2|[releasedir] - Call: inode=12884901911, fh=30, flags=100352
+ overlay child inode root
+ID:bc2abd5c-8b8c-492c-a70a-1a472ddbeea2 [releasedir] - Success: ()
+ID:fecc5913-a931-4c13-aa85-a4b073d97fce|[lookup] - Call: parent=12884901911, name=abi
+ID:128a2c74-bbfc-4fe6-b4af-9c871e7a9abf|[release] - Call: inode=12884901916, fh=31, flags=32769, lock_owner=0, flush=false
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: abi
+
+ID:fecc5913-a931-4c13-aa85-a4b073d97fce [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:128a2c74-bbfc-4fe6-b4af-9c871e7a9abf [release] - Success: ()
+ID:3c53f2fb-77da-41c7-9753-a5f39569b504|[lookup] - Call: parent=12884901911, name=abi
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: abi
+
+ID:3c53f2fb-77da-41c7-9753-a5f39569b504 [lookup] - Error: Errno(2)
+ID:279ec560-5410-4369-ba53-42c2287460dc|[lookup] - Call: parent=12884901911, name=abi
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: abi
+
+ID:279ec560-5410-4369-ba53-42c2287460dc [lookup] - Error: Errno(2)
+ID:d5f0e0b3-4659-418d-8cff-b8a84b1b5de5|[mkdir] - Call: parent=12884901911, name=abi, mode=493, umask=18
+ overlay child inode root
+readdir:..
+readdir:.
+ID:d5f0e0b3-4659-418d-8cff-b8a84b1b5de5 [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901917, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:3bf2635b-e6f7-4dfd-9d5d-cf0991ad8e3c|[opendir] - Call: inode=12884901917, flags=100352
+ID:55be4e6a-0be8-447e-b3df-06d68235cdd0|[lookup] - Call: parent=12884901917, name=BUCK.v2
+ overlay child inode root
+ID:3bf2635b-e6f7-4dfd-9d5d-cf0991ad8e3c [scorpio::fuse::MegaFuse] opendir - Obtained fh: 32
+ID:3bf2635b-e6f7-4dfd-9d5d-cf0991ad8e3c [opendir] - Success: ReplyOpen { fh: 32, flags: 100352 }
+ overlay child inode root
+LOOKUP: parent: 12884901917, name: BUCK.v2
+
+ID:55be4e6a-0be8-447e-b3df-06d68235cdd0 [lookup] - Error: Errno(2)
+ID:1ebbba75-de97-4915-a5ed-0ab088955122|[create] - Call: parent=12884901917, name=BUCK.v2, mode=33188, flags=33345
+ overlay child inode root
+ID:1ebbba75-de97-4915-a5ed-0ab088955122 [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901920, size: 0, blocks: 0, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 33, flags: 164417 }
+ID:5a7c6bbe-0ce2-43e6-8454-561a567eabea|[readdirplus] - Call: parent=12884901917, fh=32, offset=0, lock_owner=0
+ID:be22f904-b9cd-459e-b95c-b17544d7c6ab|[write] - Call: inode=12884901920, fh=33, offset=0, data_len=523, write_flags=6, flags=32769
+ overlay child inode root
+--entry name:.
+--entry name:..
+--entry name:.
+--entry name:..
+--entry name:BUCK.v2
+ID:5a7c6bbe-0ce2-43e6-8454-561a567eabea [readdirplus] - Success: ""
+ overlay child inode root
+ID:be22f904-b9cd-459e-b95c-b17544d7c6ab [scorpio::fuse::MegaFuse] write - Wrote 523 bytes
+ID:be22f904-b9cd-459e-b95c-b17544d7c6ab [write] - Success: ReplyWrite { written: 523 }
+ID:04a40a32-ce45-4d80-8cf1-e8d38bf78d4c|[readdirplus] - Call: parent=12884901917, fh=32, offset=5, lock_owner=0
+ overlay child inode root
+ID:04a40a32-ce45-4d80-8cf1-e8d38bf78d4c [readdirplus] - Success: ""
+ID:32adb4b2-9d2d-46a9-b4e4-75bbf53e39fe|[flush] - Call: inode=12884901920, fh=33, lock_owner=7625110741495926769
+ overlay child inode root
+ID:32adb4b2-9d2d-46a9-b4e4-75bbf53e39fe [flush] - Success: ()
+ID:859ab2b5-cfcd-452d-87ca-15da63de1935|[lookup] - Call: parent=12884901917, name=constraints
+ID:a47897c1-433a-4529-b6bc-ce4aa3c6b473|[release] - Call: inode=12884901920, fh=33, flags=32769, lock_owner=0, flush=false
+ overlay child inode root
+LOOKUP: parent: 12884901917, name: constraints
+
+ID:b2e5a8d3-0f42-4be5-ac5f-1422884d6e05|[releasedir] - Call: inode=12884901917, fh=32, flags=100352
+ID:859ab2b5-cfcd-452d-87ca-15da63de1935 [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:a47897c1-433a-4529-b6bc-ce4aa3c6b473 [release] - Success: ()
+ overlay child inode root
+ID:b2e5a8d3-0f42-4be5-ac5f-1422884d6e05 [releasedir] - Success: ()
+ID:d2e41b35-535a-410d-9252-bddd4ea050de|[lookup] - Call: parent=12884901917, name=constraints
+ overlay child inode root
+LOOKUP: parent: 12884901917, name: constraints
+
+ID:d2e41b35-535a-410d-9252-bddd4ea050de [lookup] - Error: Errno(2)
+ID:a1f2b684-8a6c-479f-a156-5a8c685f1a0d|[lookup] - Call: parent=12884901917, name=constraints
+ overlay child inode root
+LOOKUP: parent: 12884901917, name: constraints
+
+ID:a1f2b684-8a6c-479f-a156-5a8c685f1a0d [lookup] - Error: Errno(2)
+ID:8131ffed-e83e-491f-8703-c81dc1d632c4|[mkdir] - Call: parent=12884901917, name=constraints, mode=493, umask=18
+ overlay child inode root
+readdir:..
+readdir:.
+ID:8131ffed-e83e-491f-8703-c81dc1d632c4 [mkdir] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901921, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: Directory, perm: 493, nlink: 2, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:3b52ae06-a90e-40d2-9e5a-4dc5cb1359c8|[opendir] - Call: inode=12884901921, flags=100352
+ID:30b69c68-a169-48f1-a01a-ab4a70a42460|[lookup] - Call: parent=12884901921, name=BUCK.v2
+ overlay child inode root
+ID:3b52ae06-a90e-40d2-9e5a-4dc5cb1359c8 [scorpio::fuse::MegaFuse] opendir - Obtained fh: 34
+ID:3b52ae06-a90e-40d2-9e5a-4dc5cb1359c8 [opendir] - Success: ReplyOpen { fh: 34, flags: 100352 }
+ overlay child inode root
+LOOKUP: parent: 12884901921, name: BUCK.v2
+
+ID:30b69c68-a169-48f1-a01a-ab4a70a42460 [lookup] - Error: Errno(2)
+ID:a1ed85c0-d493-4756-a997-35b97f036f8c|[create] - Call: parent=12884901921, name=BUCK.v2, mode=33188, flags=33345
+ overlay child inode root
+ID:a1ed85c0-d493-4756-a997-35b97f036f8c [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901924, size: 0, blocks: 0, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 35, flags: 164417 }
+ID:b4a7fe83-1b9b-4e77-ab41-d5a7998a8f5f|[readdirplus] - Call: parent=12884901921, fh=34, offset=0, lock_owner=0
+ overlay child inode root
+ID:c5a4ddb0-39a9-404b-ae7e-f4ea667d7e6f|[write] - Call: inode=12884901924, fh=35, offset=0, data_len=532, write_flags=6, flags=32769
+--entry name:.
+--entry name:..
+--entry name:..
+--entry name:.
+--entry name:BUCK.v2
+ID:b4a7fe83-1b9b-4e77-ab41-d5a7998a8f5f [readdirplus] - Success: ""
+ overlay child inode root
+ID:c5a4ddb0-39a9-404b-ae7e-f4ea667d7e6f [scorpio::fuse::MegaFuse] write - Wrote 532 bytes
+ID:c5a4ddb0-39a9-404b-ae7e-f4ea667d7e6f [write] - Success: ReplyWrite { written: 532 }
+ID:18ead7c4-2718-49c7-b4b9-804496a33bc7|[flush] - Call: inode=12884901924, fh=35, lock_owner=7625110741495926769
+ID:c0513314-1327-4a5c-a9c5-90fc488154c8|[readdirplus] - Call: parent=12884901921, fh=34, offset=5, lock_owner=0
+ overlay child inode root
+ID:18ead7c4-2718-49c7-b4b9-804496a33bc7 [flush] - Success: ()
+ overlay child inode root
+ID:c0513314-1327-4a5c-a9c5-90fc488154c8 [readdirplus] - Success: ""
+ID:2222b061-e051-4bbf-b785-08a2f836f9f4|[releasedir] - Call: inode=12884901921, fh=34, flags=100352
+ID:5b5c8b3c-d6aa-4c1b-b55c-69901f24d102|[lookup] - Call: parent=12884901911, name=alias.bzl
+ID:c454b662-3f2c-488b-b134-08a6bcf86b3b|[release] - Call: inode=12884901924, fh=35, flags=32769, lock_owner=0, flush=false
+ overlay child inode root
+ID:2222b061-e051-4bbf-b785-08a2f836f9f4 [releasedir] - Success: ()
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: alias.bzl
+
+ID:5b5c8b3c-d6aa-4c1b-b55c-69901f24d102 [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:c454b662-3f2c-488b-b134-08a6bcf86b3b [release] - Success: ()
+ID:5474a225-ecbd-4d9d-a1b2-01406b08255c|[getattr] - Call: inode=12884901911, fh=, flags=0
+ overlay child inode root
+ID:5474a225-ecbd-4d9d-a1b2-01406b08255c [getattr] - Success: ReplyAttr { ttl: 5s, attr: FileAttr { ino: 27131, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: Directory, perm: 493, nlink: 3, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 } }
+ID:5ccd06cd-5650-4582-b3cc-81e93f974c99|[lookup] - Call: parent=12884901908, name=prelude
+ overlay child inode root
+LOOKUP: parent: 12884901908, name: prelude
+
+ID:5ccd06cd-5650-4582-b3cc-81e93f974c99 [lookup] - Success: ReplyEntry { ttl: 5s, attr: FileAttr { ino: 12884901911, size: 4096, blocks: 8, atime: Timestamp { sec: 1740289306, nsec: 58944149 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: Directory, perm: 493, nlink: 3, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0 }
+ID:658c681d-46d2-4db3-8b9b-c10e8a1583ae|[lookup] - Call: parent=12884901911, name=alias.bzl
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: alias.bzl
+
+ID:658c681d-46d2-4db3-8b9b-c10e8a1583ae [lookup] - Error: Errno(2)
+ID:29411427-4cfc-4767-bae6-a9fe46778122|[create] - Call: parent=12884901911, name=alias.bzl, mode=33188, flags=33345
+ overlay child inode root
+ID:29411427-4cfc-4767-bae6-a9fe46778122 [create] - Success: ReplyCreated { ttl: 5s, attr: FileAttr { ino: 12884901925, size: 0, blocks: 0, atime: Timestamp { sec: 1740289306, nsec: 68944148 }, mtime: Timestamp { sec: 1740289306, nsec: 68944148 }, ctime: Timestamp { sec: 1740289306, nsec: 68944148 }, kind: RegularFile, perm: 420, nlink: 1, uid: 1000, gid: 1000, rdev: 0, blksize: 4096 }, generation: 0, fh: 36, flags: 164417 }
+ID:ef8e8c88-3406-4b8f-aeef-0a26c797a5cf|[write] - Call: inode=12884901925, fh=36, offset=0, data_len=1191, write_flags=6, flags=32769
+ overlay child inode root
+ID:ef8e8c88-3406-4b8f-aeef-0a26c797a5cf [scorpio::fuse::MegaFuse] write - Wrote 1191 bytes
+ID:ef8e8c88-3406-4b8f-aeef-0a26c797a5cf [write] - Success: ReplyWrite { written: 1191 }
+ID:1f0d174d-f331-4fb0-aa83-994a719edd19|[flush] - Call: inode=12884901925, fh=36, lock_owner=7625110741495926769
+ overlay child inode root
+ID:1f0d174d-f331-4fb0-aa83-994a719edd19 [flush] - Success: ()
+ID:bd30e442-734e-4a37-b782-e4e44f36ac10|[lookup] - Call: parent=12884901911, name=android
+ overlay child inode root
+ID:02f668b0-8936-4af0-82f5-a693d0a60d7c|[release] - Call: inode=12884901925, fh=36, flags=32769, lock_owner=0, flush=false
+LOOKUP: parent: 12884901911, name: android
+
+ID:bd30e442-734e-4a37-b782-e4e44f36ac10 [lookup] - Error: Errno(2)
+ overlay child inode root
+ID:02f668b0-8936-4af0-82f5-a693d0a60d7c [release] - Success: ()
+ID:65f6dbd4-a57e-4d57-8091-5974a62f0b9f|[lookup] - Call: parent=12884901911, name=android
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: android
+
+ID:65f6dbd4-a57e-4d57-8091-5974a62f0b9f [lookup] - Error: Errno(2)
+ID:46b80c94-1d5d-45bb-a6d9-fcf02c92be51|[lookup] - Call: parent=12884901911, name=android
+ overlay child inode root
+LOOKUP: parent: 12884901911, name: android
+
+ID:46b80c94-1d5d-45bb-a6d9-fcf02c92be51 [lookup] - Error: Errno(2)
+ID:d6a96274-29f2-4c86-a9a3-dbefa4aa2d62|[mkdir] - Call: parent=12884901911, name=android, mode=493, umask=18
+ overlay child inode root
+readdir:..
+ID:ff1f2879-37eb-4930-bce9-07567ac9e5bd|[write] - Call: inode=12884901904, fh=20, offset=0, data_len=1275, write_flags=0, flags=33794
+ID:720c7551-801e-4074-aa5f-c26521590191|[lookup] - Call: parent=8, name=elapsed:
+ID:a6115604-a48c-4e35-981a-230c6455f691|[lookup] - Call: parent=8, name=ID:
+ID:38fbaa6b-e174-4f31-bdca-9398a4a2af37|[lookup] - Call: parent=3, name=buck-hello$
+ID:1fdb34d6-c47e-4935-980d-ecb7aaffe665|[statfs] - Call: inode=12884901891
+ID:08661d02-0bc6-48fc-9562-ce1ffb56ebe0|[interrupt] - Call: unique=544
+ID:30f50367-f5eb-4689-8c16-0e19d75f5f3b|[lookup] - Call: parent=8, name=buck-out
+ID:e7e538e2-ac02-4e22-9e22-af0b943415fd|[lookup] - Call: parent=8, name=buck-out
+ID:3612848e-eefa-437c-909a-2ea6223cecb5|[interrupt] - Call: unique=554
+unmount....
+ID:9c85b049-7f4d-4759-9116-b7dc4377a5d1|[destroy] - Call: 

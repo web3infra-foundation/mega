@@ -1,135 +1,7 @@
-use axum::{body::Body, response::Response};
-use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-struct ErrorResult {
-    status: u16,
-    #[serde(rename = "message")]
-    msg: String,
-}
-
-impl ErrorResult {
-    pub fn to_json_string(&self) -> String {
-        serde_json::to_string(self).unwrap()
-    }
-    pub fn to_json_string_new(status: u16, msg: String) -> String {
-        let e = ErrorResult { status, msg };
-        e.to_json_string()
-    }
-}
-
-pub async fn get_certificate(name: String) -> Result<Response, (StatusCode, String)> {
-    if name == "ca" {
-        return Ok(Response::builder()
-            .body(Body::from(vault::pki::get_root_cert().await))
-            .unwrap());
-    }
-    let cert_option = get_from_vault(name).await;
-    match cert_option {
-        Some(cert) => Ok(Response::builder().body(Body::from(cert)).unwrap()),
-        None => response_error(
-            StatusCode::NOT_FOUND.as_u16(),
-            "Username not found".to_string(),
-        ),
-    }
-}
-
-pub async fn issue_certificate(name: String) -> Result<Response, (StatusCode, String)> {
-    if is_reserved_name(name.clone()) {
-        return response_error(
-            StatusCode::FORBIDDEN.as_u16(),
-            "Reserved username".to_string(),
-        );
-    }
-    // let cert_option = get_from_vault(name.clone());
-    // if cert_option.is_some() {
-    //     return response_error(
-    //         StatusCode::CONFLICT.as_u16(),
-    //         "Username already exists".to_string(),
-    //     );
-    // }
-    let (cert_pem, private_key) = vault::pki::issue_cert(json!({
-        "ttl": "10d",
-        "common_name": name,
-    }))
-    .await;
-    //save cert to vault
-    save_to_vault(name, cert_pem).await;
-    Ok(Response::builder().body(Body::from(private_key)).unwrap())
-}
-
-pub async fn sign_certificate(
-    name: String,
-    pubkey: String,
-) -> Result<Response, (StatusCode, String)> {
-    tracing::info!("sign_certificate,name:{name},pubkey:{pubkey}");
-    if is_reserved_name(name.clone()) {
-        return response_error(
-            StatusCode::FORBIDDEN.as_u16(),
-            "Reserved username".to_string(),
-        );
-    }
-    let cert_option = get_from_vault(name.clone()).await;
-    if cert_option.is_some() {
-        return response_error(
-            StatusCode::CONFLICT.as_u16(),
-            "Username already exists".to_string(),
-        );
-    }
-    let (cert_pem, private_key) = vault::pki::issue_cert(json!({
-        "ttl": "10d",
-        "common_name": name,
-    }))
-    .await;
-    //save cert to vault
-    save_to_vault(name, cert_pem).await;
-    Ok(Response::builder().body(Body::from(private_key)).unwrap())
-}
-
-pub async fn delete_certificate(path: &str) -> Result<Response, (StatusCode, String)> {
-    let name = match get_cert_name_from_path(path) {
-        Some(n) => n,
-        None => return response_error(StatusCode::BAD_REQUEST.as_u16(), "Bad request".to_string()),
-    };
-    if is_reserved_name(name.clone()) {
-        return response_error(
-            StatusCode::FORBIDDEN.as_u16(),
-            "Reserved username".to_string(),
-        );
-    }
-    delete_to_vault(name);
-    Ok(Response::builder()
-        .status(204)
-        .body(Body::from(""))
-        .unwrap())
-}
-
-pub fn get_cert_name_from_path(path: &str) -> Option<String> {
-    let v: Vec<&str> = path.split('/').collect();
-    v.get(3).map(|s| s.to_string())
-}
-
-pub fn get_hub_name_from_path(path: &str) -> Option<String> {
-    let v: Vec<&str> = path.split('/').collect();
-    v.get(4).map(|s| s.to_string())
-}
-
-fn is_reserved_name(name: String) -> bool {
-    if name == "ca" {
-        return true;
-    }
-    is_hub_name(name)
-}
-
-fn is_hub_name(_name: String) -> bool {
-    // if name == "hub" || name.starts_with("hub/") {
-    //     return true;
-    // }
-    // false
-    false
-}
+pub mod client;
+pub mod server;
 
 async fn save_to_vault(key: String, value: String) {
     let key_f = format!("ca_{key}");
@@ -161,18 +33,44 @@ async fn get_from_vault(key: String) -> Option<String> {
     }
 }
 
-fn delete_to_vault(_key: String) {
-    // let key_f = format!("ca_{key}");
-    // vault::vault::write_secret(key_f.as_str(), Some(Map).unwrap());
+async fn _delete_to_vault(key: String) {
+    let key_f = format!("ca_{key}");
+    vault::vault::write_secret(key_f.as_str(), None)
+        .await
+        .unwrap();
 }
 
-pub fn response_error(status: u16, message: String) -> Result<Response, (StatusCode, String)> {
-    Ok({
-        let error_result = ErrorResult::to_json_string_new(status, message);
-        Response::builder()
-            .status(status)
-            .header("Content-Type", "application/json")
-            .body(Body::from(error_result))
-            .unwrap()
-    })
+#[cfg(test)]
+mod tests {
+
+    use quinn::rustls::pki_types::{pem::PemObject, CertificateSigningRequestDer};
+    use rcgen::{
+        generate_simple_self_signed, CertificateParams, CertificateSigningRequestParams,
+        CertifiedKey, KeyPair,
+    };
+
+    #[tokio::test]
+    async fn self_signed_cert() {
+        let subject_alt_names = vec!["localhost".to_string()];
+
+        let CertifiedKey { cert, key_pair } =
+            generate_simple_self_signed(subject_alt_names).unwrap();
+        print!("root_cert:{}", cert.pem());
+
+        let name = "localhost";
+        let params = CertificateParams::new(vec![name.into()]).unwrap();
+
+        let user_key_pair = KeyPair::generate().unwrap();
+        let user_csr = params.serialize_request(&user_key_pair).unwrap();
+
+        let csrd = CertificateSigningRequestDer::from_pem_slice(user_csr.pem().unwrap().as_bytes())
+            .unwrap();
+        let csrq = CertificateSigningRequestParams::from_der(&csrd).unwrap();
+        let user_cert = csrq.signed_by(&cert, &key_pair).unwrap();
+
+        // let c = CertificateSigningRequestDer::from_pem_slice(user_csr.pem().unwrap().as_bytes())
+        //     .unwrap();
+        // let user_cert = params.signed_by(&user_key_pair, &cert, &key_pair).unwrap();
+        print!("user_cert:{}", user_cert.pem());
+    }
 }

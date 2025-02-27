@@ -5,7 +5,7 @@ use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 use common::{
     config::Config,
     errors::MegaResult,
-    model::{CommonOptions, ZtmOptions},
+    model::{CommonOptions, P2pOptions},
 };
 use gateway::https_server::{self, HttpOptions, HttpsOptions};
 use jupiter::context::Context;
@@ -26,7 +26,7 @@ pub struct StartOptions {
     pub common: CommonOptions,
 
     #[clap(flatten)]
-    pub ztm: ZtmOptions,
+    pub p2p: P2pOptions,
 
     #[arg(long, default_value_t = 8000)]
     pub http_port: u16,
@@ -71,7 +71,7 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         let http = HttpOptions {
             common: server_matchers.common.clone(),
             http_port: server_matchers.http_port,
-            ztm: server_matchers.ztm,
+            p2p: server_matchers.p2p,
         };
         tokio::spawn(async move { https_server::http_server(context_clone, http).await })
     } else if service_type.contains(&StartCommand::Https) {
@@ -80,7 +80,7 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
             https_port: server_matchers.https_port,
             https_key_path: server_matchers.https_key_path.unwrap(),
             https_cert_path: server_matchers.https_cert_path.unwrap(),
-            ztm: server_matchers.ztm,
+            p2p: server_matchers.p2p,
         };
         tokio::spawn(async move { https_server::https_server(context_clone, https).await })
     } else {
