@@ -1,16 +1,11 @@
-
-## Install LLVM
-wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-
 ## update and install some things we should probably have
 apt-get update
-apt-get -y upgrade
 apt-get install -y \
+  apt-utils \
   curl \
   git \
   gnupg2 \
   jq \
-  sudo \
   build-essential \
   openssl \
   libssl-dev \
@@ -19,8 +14,6 @@ apt-get install -y \
   pkg-config \
   postgresql \
   cmake \
-  nodejs \
-  npm \
   wget \
   file \
   libgtk-3-dev \
