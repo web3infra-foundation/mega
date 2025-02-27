@@ -55,34 +55,6 @@ jobs:
       - run: cargo fmt --all -- --check
 
   #
-  check:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
-    name: Check for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    needs: setup
-    env:
-      CARGO_TERM_COLOR: always
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install system dependencies
-        uses: ./.github/install-dep
-        with:
-          cache-key: sysdeps
-          platform: ${{ matrix.os }}
-
-      - name: Run cargo check
-        run: cargo check --workspace --all-targets --all-features
-
-  #
   clippy:
     name: Clippy for ${{ matrix.os }}
     strategy:
