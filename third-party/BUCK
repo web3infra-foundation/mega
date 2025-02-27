@@ -2673,6 +2673,36 @@ buildscript_run(
     version = "0.4.6",
 )
 
+alias(
+    name = "bincode",
+    actual = ":bincode-1.3.3",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "bincode-1.3.3",
+    srcs = [
+        "vendor/bincode-1.3.3/src/byteorder.rs",
+        "vendor/bincode-1.3.3/src/config/endian.rs",
+        "vendor/bincode-1.3.3/src/config/int.rs",
+        "vendor/bincode-1.3.3/src/config/legacy.rs",
+        "vendor/bincode-1.3.3/src/config/limit.rs",
+        "vendor/bincode-1.3.3/src/config/mod.rs",
+        "vendor/bincode-1.3.3/src/config/trailing.rs",
+        "vendor/bincode-1.3.3/src/de/mod.rs",
+        "vendor/bincode-1.3.3/src/de/read.rs",
+        "vendor/bincode-1.3.3/src/error.rs",
+        "vendor/bincode-1.3.3/src/internal.rs",
+        "vendor/bincode-1.3.3/src/lib.rs",
+        "vendor/bincode-1.3.3/src/ser/mod.rs",
+    ],
+    crate = "bincode",
+    crate_root = "vendor/bincode-1.3.3/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+    deps = [":serde-1.0.217"],
+)
+
 cargo.rust_library(
     name = "bindgen-0.69.5",
     srcs = [
@@ -3468,6 +3498,12 @@ cargo.rust_library(
     deps = [":tinyvec-1.8.0"],
 )
 
+alias(
+    name = "bstr",
+    actual = ":bstr-1.11.3",
+    visibility = ["PUBLIC"],
+)
+
 cargo.rust_library(
     name = "bstr-1.11.3",
     srcs = [
@@ -3483,14 +3519,30 @@ cargo.rust_library(
         "vendor/bstr-1.11.3/src/io.rs",
         "vendor/bstr-1.11.3/src/lib.rs",
         "vendor/bstr-1.11.3/src/tests.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/grapheme_break_fwd.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/grapheme_break_fwd.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/grapheme_break_fwd.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/grapheme_break_rev.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/grapheme_break_rev.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/grapheme_break_rev.rs",
         "vendor/bstr-1.11.3/src/unicode/fsm/mod.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/regional_indicator_rev.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/regional_indicator_rev.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/regional_indicator_rev.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/sentence_break_fwd.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/sentence_break_fwd.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/sentence_break_fwd.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/simple_word_fwd.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/simple_word_fwd.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/simple_word_fwd.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/whitespace_anchored_fwd.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/whitespace_anchored_fwd.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/whitespace_anchored_fwd.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/whitespace_anchored_rev.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/whitespace_anchored_rev.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/whitespace_anchored_rev.rs",
+        "vendor/bstr-1.11.3/src/unicode/fsm/word_break_fwd.bigendian.dfa",
+        "vendor/bstr-1.11.3/src/unicode/fsm/word_break_fwd.littleendian.dfa",
         "vendor/bstr-1.11.3/src/unicode/fsm/word_break_fwd.rs",
         "vendor/bstr-1.11.3/src/unicode/grapheme.rs",
         "vendor/bstr-1.11.3/src/unicode/mod.rs",
@@ -3570,6 +3622,12 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "byteorder",
+    actual = ":byteorder-1.5.0",
+    visibility = ["PUBLIC"],
+)
+
 cargo.rust_library(
     name = "byteorder-1.5.0",
     srcs = [
@@ -3584,6 +3642,12 @@ cargo.rust_library(
         "std",
     ],
     visibility = [],
+)
+
+alias(
+    name = "bytes",
+    actual = ":bytes-1.10.0",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
@@ -4184,6 +4248,12 @@ cargo.rust_library(
     visibility = [],
 )
 
+alias(
+    name = "chrono",
+    actual = ":chrono-0.4.39",
+    visibility = ["PUBLIC"],
+)
+
 cargo.rust_library(
     name = "chrono-0.4.39",
     srcs = [
@@ -4529,6 +4599,37 @@ cargo.rust_library(
     crate = "colorchoice",
     crate_root = "vendor/colorchoice-1.0.2/src/lib.rs",
     edition = "2021",
+    visibility = [],
+)
+
+alias(
+    name = "colored",
+    actual = ":colored-3.0.0",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "colored-3.0.0",
+    srcs = [
+        "vendor/colored-3.0.0/src/color.rs",
+        "vendor/colored-3.0.0/src/control.rs",
+        "vendor/colored-3.0.0/src/customcolors.rs",
+        "vendor/colored-3.0.0/src/error.rs",
+        "vendor/colored-3.0.0/src/formatters.rs",
+        "vendor/colored-3.0.0/src/lib.rs",
+        "vendor/colored-3.0.0/src/style.rs",
+    ],
+    crate = "colored",
+    crate_root = "vendor/colored-3.0.0/src/lib.rs",
+    edition = "2021",
+    platform = {
+        "windows-gnu": dict(
+            deps = [":windows-sys-0.59.0"],
+        ),
+        "windows-msvc": dict(
+            deps = [":windows-sys-0.59.0"],
+        ),
+    },
     visibility = [],
 )
 
@@ -5357,6 +5458,51 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "dashmap",
+    actual = ":dashmap-6.1.0",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "dashmap-6.1.0",
+    srcs = [
+        "vendor/dashmap-6.1.0/src/arbitrary.rs",
+        "vendor/dashmap-6.1.0/src/iter.rs",
+        "vendor/dashmap-6.1.0/src/iter_set.rs",
+        "vendor/dashmap-6.1.0/src/lib.rs",
+        "vendor/dashmap-6.1.0/src/lock.rs",
+        "vendor/dashmap-6.1.0/src/mapref/entry.rs",
+        "vendor/dashmap-6.1.0/src/mapref/mod.rs",
+        "vendor/dashmap-6.1.0/src/mapref/multiple.rs",
+        "vendor/dashmap-6.1.0/src/mapref/one.rs",
+        "vendor/dashmap-6.1.0/src/rayon/map.rs",
+        "vendor/dashmap-6.1.0/src/rayon/read_only.rs",
+        "vendor/dashmap-6.1.0/src/rayon/set.rs",
+        "vendor/dashmap-6.1.0/src/read_only.rs",
+        "vendor/dashmap-6.1.0/src/serde.rs",
+        "vendor/dashmap-6.1.0/src/set.rs",
+        "vendor/dashmap-6.1.0/src/setref/mod.rs",
+        "vendor/dashmap-6.1.0/src/setref/multiple.rs",
+        "vendor/dashmap-6.1.0/src/setref/one.rs",
+        "vendor/dashmap-6.1.0/src/t.rs",
+        "vendor/dashmap-6.1.0/src/try_result.rs",
+        "vendor/dashmap-6.1.0/src/util.rs",
+    ],
+    crate = "dashmap",
+    crate_root = "vendor/dashmap-6.1.0/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+    deps = [
+        ":cfg-if-1.0.0",
+        ":crossbeam-utils-0.8.20",
+        ":hashbrown-0.14.5",
+        ":lock_api-0.4.12",
+        ":once_cell-1.20.3",
+        ":parking_lot_core-0.9.10",
+    ],
+)
+
 cargo.rust_library(
     name = "delay_timer-0.11.6",
     srcs = [
@@ -6013,6 +6159,12 @@ cargo.rust_library(
         "std",
     ],
     visibility = [],
+)
+
+alias(
+    name = "encoding_rs",
+    actual = ":encoding_rs-0.8.34",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
@@ -6830,6 +6982,12 @@ cargo.rust_library(
         "std",
     ],
     visibility = [],
+)
+
+alias(
+    name = "futures-util",
+    actual = ":futures-util-0.3.31",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
@@ -10558,6 +10716,28 @@ cargo.rust_library(
     deps = [":hashbrown-0.14.5"],
 )
 
+alias(
+    name = "lru-mem",
+    actual = ":lru-mem-0.3.0",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "lru-mem-0.3.0",
+    srcs = [
+        "vendor/lru-mem-0.3.0/src/entry.rs",
+        "vendor/lru-mem-0.3.0/src/error.rs",
+        "vendor/lru-mem-0.3.0/src/iter.rs",
+        "vendor/lru-mem-0.3.0/src/lib.rs",
+        "vendor/lru-mem-0.3.0/src/mem_size.rs",
+    ],
+    crate = "lru_mem",
+    crate_root = "vendor/lru-mem-0.3.0/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":hashbrown-0.14.5"],
+)
+
 cargo.rust_library(
     name = "matchers-0.1.0",
     srcs = ["vendor/matchers-0.1.0/src/lib.rs"],
@@ -10602,6 +10782,12 @@ cargo.rust_library(
         ":cfg-if-1.0.0",
         ":digest-0.10.7",
     ],
+)
+
+alias(
+    name = "memchr",
+    actual = ":memchr-2.7.4",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
@@ -11322,6 +11508,38 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [":libm-0.2.8"],
+)
+
+alias(
+    name = "num_cpus",
+    actual = ":num_cpus-1.16.0",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "num_cpus-1.16.0",
+    srcs = [
+        "vendor/num_cpus-1.16.0/src/lib.rs",
+        "vendor/num_cpus-1.16.0/src/linux.rs",
+    ],
+    crate = "num_cpus",
+    crate_root = "vendor/num_cpus-1.16.0/src/lib.rs",
+    edition = "2015",
+    platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2.169"],
+        ),
+        "linux-x86_64": dict(
+            deps = [":libc-0.2.169"],
+        ),
+        "macos-arm64": dict(
+            deps = [":libc-0.2.169"],
+        ),
+        "macos-x86_64": dict(
+            deps = [":libc-0.2.169"],
+        ),
+    },
+    visibility = [],
 )
 
 cargo.rust_library(
@@ -13313,6 +13531,12 @@ cargo.rust_library(
         ":getrandom-0.3.1",
         ":zerocopy-0.8.16",
     ],
+)
+
+alias(
+    name = "rayon",
+    actual = ":rayon-1.10.0",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
@@ -20107,6 +20331,22 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "threadpool",
+    actual = ":threadpool-1.8.1",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "threadpool-1.8.1",
+    srcs = ["vendor/threadpool-1.8.1/src/lib.rs"],
+    crate = "threadpool",
+    crate_root = "vendor/threadpool-1.8.1/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+    deps = [":num_cpus-1.16.0"],
+)
+
 cargo.rust_library(
     name = "time-0.3.36",
     srcs = [
@@ -20973,6 +21213,12 @@ cargo.rust_library(
         ":tokio-1.43.0",
         ":tokio-util-0.7.13",
     ],
+)
+
+alias(
+    name = "tokio-util",
+    actual = ":tokio-util-0.7.13",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
@@ -21968,6 +22214,12 @@ cargo.rust_library(
     edition = "2018",
     features = ["default"],
     visibility = [],
+)
+
+alias(
+    name = "uuid",
+    actual = ":uuid-1.13.1",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
