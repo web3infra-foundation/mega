@@ -149,22 +149,7 @@ impl Display for TreeItem {
 }
 
 impl TreeItem {
-    /// Create a new TreeItem from a mode, id and name
-    ///
-    /// # Example
-    /// ```rust
-    /// use venus::internal::object::tree::{TreeItem, TreeItemMode};
-    /// use venus::hash::SHA1;
-    ///
-    /// // Create an empty TreeItem with the default Hash
-    /// let default_item = TreeItem::new(TreeItemMode::Blob, SHA1::default(), String::new());
-    ///
-    /// // Create a blob TreeItem with a custom Hash, and file name
-    /// let file_item = TreeItem::new(TreeItemMode::Blob, SHA1::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("hello.txt"));
-    ///
-    /// // Create a tree TreeItem with a custom Hash, and directory name
-    /// let dir_item = TreeItem::new(TreeItemMode::Tree, SHA1::new_from_str("1234567890abcdef1234567890abcdef12345678"), String::from("data"));
-    /// ```
+    // Create a new TreeItem from a mode, id and name
     pub fn new(mode: TreeItemMode, id: SHA1, name: String) -> Self {
         TreeItem { mode, id, name }
     }
@@ -206,8 +191,8 @@ impl TreeItem {
     /// Convert a TreeItem to a byte vector
     /// ```rust
     /// use std::str::FromStr;
-    /// use venus::internal::object::tree::{TreeItem, TreeItemMode};
-    /// use venus::hash::SHA1;
+    /// use mercury::internal::object::tree::{TreeItem, TreeItemMode};
+    /// use mercury::hash::SHA1;
     ///
     /// let tree_item = TreeItem::new(
     ///     TreeItemMode::Blob,
