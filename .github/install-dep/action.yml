@@ -59,7 +59,6 @@ runs:
           wget \
           file \
           libssl-dev \
-          libgtk-3-dev \
           libayatana-appindicator3-dev \
           librsvg2-dev \
           libgtk-4-dev \
@@ -82,9 +81,7 @@ runs:
         export HOMEBREW_NO_AUTO_UPDATE=1
         brew install \
           gtk4 \
-          gtk+3 \
           libadwaita \
-          openssl@3 \
           librsvg \
 
     # =============== Platform-specific Initialization (Windows) ===============
