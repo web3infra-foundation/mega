@@ -1,0 +1,47 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+genrule(
+    name = "static_rustc_flags",
+    srcs = [],
+    out = "rustc_flags.txt",
+    cmd = "echo '--cfg=libc_const_extern_fn\n--cfg=freebsd11' > $OUT",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "libc",
+    srcs = glob(["src/**/*.rs"]),
+    edition = "2021",
+    rustc_flags = ["@$(location :static_rustc_flags)"],
+    crate_root = "src/lib.rs",
+    visibility = ["PUBLIC"],
+)
+
+[
+    cargo.rust_binary(
+        name = "libc_" + path[8:-3].replace("/", "_"),
+        srcs = [path],
+        crate_root = path,
+        edition = "2021",
+        deps = [":libc"],
+        rustc_flags = ["@$(location :static_rustc_flags)"],
+        visibility = ["PUBLIC"],
+    )
+    for path in glob(["src/bin/*.rs"])
+]
+
+genrule(
+    name = "ci_rustc_flags",
+    srcs = [],
+    out = "ci_flags.txt",
+    cmd = "echo '--cfg=libc_const_extern_fn\n--cfg=freebsd11\n--cfg=libc_deny_warnings' > $OUT",
+    visibility = ["PUBLIC"],
+)
+
+genrule(
+    name = "std_rustc_flags",
+    srcs = [],
+    out = "std_flags.txt",
+    cmd = "echo '--cfg=libc_const_extern_fn\n--cfg=freebsd12\n--cfg=libc_thread_local' > $OUT",
+    visibility = ["PUBLIC"],
+)
