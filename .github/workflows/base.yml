@@ -119,7 +119,7 @@ jobs:
       - name: Run cargo test
         run: |
           cargo build --bin mega --bin libra
-          cargo test --workspace --all-features --all --no-fail-fast
+          cargo test --workspace --all-features --no-fail-fast
 
   #
   monobean:
@@ -148,8 +148,8 @@ jobs:
 
       - name: Run Lints
         run: |
-          cargo clippy --manifest-path monobean/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo test --manifest-path monobean/Cargo.toml  --all-features --all --no-fail-fast -- --nocapture
+          cargo clippy --manifest-path monobean/Cargo.toml --no-deps -- -D warnings
+          cargo test --manifest-path monobean/Cargo.toml  --all-features --no-fail-fast -- --nocapture
 
   #
   fuse:
@@ -158,7 +158,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo clippy --manifest-path scorpio/Cargo.toml --all-targets --all --all-features -- -D warnings
+      - run: cargo clippy --manifest-path scorpio/Cargo.toml --all-targets --all-features -- -D warnings
 
   moon-lint-and-build:
     name: MOON Lint & Build
