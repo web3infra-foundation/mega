@@ -33,3 +33,42 @@ impl fmt::Display for Action {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RequestData {
+    pub from: String,
+    pub data: Vec<u8>,
+    pub func: String,
+    pub action: Action,
+    pub to: String,
+    pub req_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ResponseData {
+    pub from: String,
+    pub data: Vec<u8>,
+    pub func: String,
+    pub err: String,
+    pub to: String,
+    pub req_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ConnectionType {
+    MSG,
+    FILE,
+}
+
+impl fmt::Display for ConnectionType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ConnectionType::MSG => {
+                write!(f, "MSG")
+            }
+            ConnectionType::FILE => {
+                write!(f, "FILE")
+            }
+        }
+    }
+}

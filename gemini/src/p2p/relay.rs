@@ -7,42 +7,23 @@ use quinn::rustls::server::WebPkiClientVerifier;
 use quinn::{
     crypto::rustls::QuicServerConfig,
     rustls::{self},
-    RecvStream, SendStream,
 };
 use quinn::{IdleTimeout, ServerConfig, TransportConfig, VarInt};
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
-use tracing::{error, info, info_span, Instrument};
+use tracing::{error, info};
 
 use crate::ca;
+use crate::p2p::RequestData;
+use crate::p2p::ResponseData;
 use crate::p2p::ALPN_QUIC_HTTP;
 
 use super::Action;
 
 lazy_static! {
-    static ref Session: DashMap<String, Arc<quinn::Connection>> = DashMap::new();
+    static ref MSG_CONNECTION_MAP: DashMap<String, Arc<quinn::Connection>> = DashMap::new();
+    static ref FILE_CONNECTION_MAP: DashMap<String, Arc<quinn::Connection>> = DashMap::new();
     static ref REQ_ID_MAP: DashMap<String, Arc<quinn::Connection>> = DashMap::new();
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ReceiveData {
-    pub from: String,
-    pub data: Vec<u8>,
-    pub func: String,
-    pub action: Action,
-    pub to: String,
-    pub req_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SenderData {
-    pub from: String,
-    pub data: Vec<u8>,
-    pub func: String,
-    pub err: String,
-    pub to: String,
-    pub req_id: String,
 }
 
 pub async fn run(host: String, port: u16) -> Result<()> {
@@ -102,183 +83,213 @@ pub async fn get_server_config() -> Result<ServerConfig> {
 
 async fn handle_connection(conn: quinn::Incoming) -> Result<()> {
     let connection = conn.await?;
-    let span = info_span!(
-        "connection",
-        remote = %connection.remote_address(),
-        protocol = %connection
-            .handshake_data()
-            .unwrap()
-            .downcast::<quinn::crypto::rustls::HandshakeData>().unwrap()
-            .protocol
-            .map_or_else(|| "<none>".into(), |x| String::from_utf8_lossy(&x).into_owned())
-    );
-    async {
-        let remote_address = connection.remote_address();
-        let local_ip = connection.local_ip().unwrap();
-        let stable_id = connection.stable_id();
-        info!("established connection: {remote_address:#?},{local_ip:#?},{stable_id:#?}");
-        let connection = Arc::new(connection);
 
-        // Each stream initiated by the client constitutes a new request.
-        loop {
-            let connection_clone = connection.clone();
-            let stream = connection_clone.accept_bi().await;
-            let stream = match stream {
-                Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
-                    info!("connection closed");
-                    return Ok(());
-                }
-                Err(e) => {
-                    info!("connection error:{}", e);
-                    return Err(e);
-                }
-                Ok(s) => s,
-            };
+    let remote_address = connection.remote_address();
+    let local_ip = connection.local_ip().unwrap();
+    let stable_id = connection.stable_id();
+    info!("Established connection: {remote_address:#?},{local_ip:#?},{stable_id:#?}");
+    let connection = Arc::new(connection);
 
-            // let fut = handle_request(sender.clone(), stream.1);
-            let connection_clone = connection.clone();
-            let fut = handle_receive(stream.0, stream.1, connection_clone);
+    let (mut _send, mut recv) = connection.accept_bi().await.unwrap();
+    let mut buf = [0u8; 1024];
+    let len = recv.read(&mut buf).await.unwrap().unwrap();
+    let registration = String::from_utf8_lossy(&buf[..len]);
 
-            tokio::spawn(
-                async move {
-                    if let Err(e) = fut.await {
-                        error!("failed: {reason}", reason = e.to_string());
-                    }
-                }
-                .instrument(info_span!("request")),
-            );
+    //register: Peer_id|ConnectionType (MSG/FILE)
+    let parts: Vec<&str> = registration.split('|').collect();
+    let (peer_id, connection_type) = (parts[0], parts[1]);
+    info!("Key:{}, Connection_type:{}", peer_id, connection_type);
+    match connection_type {
+        "MSG" => {
+            MSG_CONNECTION_MAP.insert(peer_id.to_string(), connection.clone());
+            msg_handle_receive(connection.clone()).await?;
         }
+        "REQUEST_FILE" => {
+            FILE_CONNECTION_MAP.insert(peer_id.to_string(), connection.clone());
+            // file_handle_receive(connection.clone()).await?;
+        }
+        "REPONSE_FILE" => {
+            FILE_CONNECTION_MAP.insert(peer_id.to_string(), connection.clone());
+            file_handle_receive(connection.clone()).await?;
+        }
+        _ => {}
     }
-    .instrument(span)
-    .await?;
+
     Ok(())
 }
 
-async fn handle_receive(
-    mut _sender: SendStream,
-    mut recv: RecvStream,
-    connection: Arc<quinn::Connection>,
-) -> anyhow::Result<()> {
-    let buffer_vec = recv.read_to_end(1024 * 10).await?;
-    if buffer_vec.is_empty() {
-        error!("QUIC Received is empty");
-        return Ok(());
-    }
-    let result = String::from_utf8_lossy(&buffer_vec);
+async fn msg_handle_receive(connection: Arc<quinn::Connection>) -> anyhow::Result<()> {
+    loop {
+        let connection_clone = connection.clone();
+        let stream = connection_clone.accept_bi().await;
+        let (_sender, mut recv) = match stream {
+            Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
+                info!("connection closed");
+                return Ok(());
+            }
+            Err(e) => {
+                info!("connection error:{}", e);
+                return Err(e.into());
+            }
+            Ok(s) => s,
+        };
+        let buffer_vec = recv.read_to_end(1024 * 10).await?;
+        if buffer_vec.is_empty() {
+            error!("QUIC Received is empty");
+            return Ok(());
+        }
+        let result = String::from_utf8_lossy(&buffer_vec);
 
-    let data: ReceiveData = match serde_json::from_str(&result) {
-        Ok(data) => data,
-        Err(e) => {
-            error!("QUIC Received Error:\n{:?}", e);
-            return Err(anyhow!("QUIC Received Error:\n{:?}", e));
-        }
-    };
-    info!(
-        "QUIC Received Message from[{}], Action[{}]:\n",
-        data.from, data.action
-    );
-    match data.action {
-        Action::Ping => {
-            Session.insert(data.from.clone(), connection.clone());
-            let sender_data = SenderData {
-                from: "".to_string(),
-                data: "ok".as_bytes().to_vec(),
-                func: data.func.clone(),
-                err: "".to_string(),
-                to: data.from.to_string(),
-                req_id: data.req_id,
-            };
-            let json = serde_json::to_string(&sender_data)?;
-            let (mut quic_send, _) = connection.clone().open_bi().await?;
-            quic_send.write_all(json.as_bytes()).await?;
-            quic_send.finish()?;
-        }
-        Action::Send => {
-            let connection = match Session.get(data.to.as_str()) {
-                None => {
-                    error!("Failed to find connection to {}", data.to);
-                    return Err(anyhow!("Failed to find connection to {}", data.to));
-                }
-                Some(conn) => conn,
-            };
-
-            let sender_data = SenderData {
-                from: data.from.to_string(),
-                data: data.data,
-                func: data.func.clone(),
-                err: "".to_string(),
-                to: data.to.to_string(),
-                req_id: data.req_id,
-            };
-            let json = serde_json::to_string(&sender_data)?;
-            let (mut send, _) = connection.open_bi().await?;
-            send.write_all(json.as_bytes()).await?;
-            send.finish()?;
-        }
-        Action::Call => {
-            {
-                let connection_to = match Session.get(data.to.as_str()) {
+        let data: RequestData = match serde_json::from_str(&result) {
+            Ok(data) => data,
+            Err(e) => {
+                error!("QUIC Received Error:\n{:?}", e);
+                return Err(anyhow!("QUIC Received Error:\n{:?}", e));
+            }
+        };
+        info!(
+            "QUIC Received Message from[{}], Action[{}]:\n",
+            data.from, data.action
+        );
+        match data.action {
+            Action::Ping => {
+                let sender_data = ResponseData {
+                    from: "relay".to_string(),
+                    data: "ok".as_bytes().to_vec(),
+                    func: data.func.clone(),
+                    err: "".to_string(),
+                    to: data.from.to_string(),
+                    req_id: data.req_id,
+                };
+                let json = serde_json::to_string(&sender_data)?;
+                let (mut quic_send, _) = connection_clone.clone().open_bi().await?;
+                quic_send.write_all(json.as_bytes()).await?;
+                quic_send.finish()?;
+            }
+            Action::Send => {
+                let connection = match MSG_CONNECTION_MAP.get(data.to.as_str()) {
                     None => {
                         error!("Failed to find connection to {}", data.to);
                         return Err(anyhow!("Failed to find connection to {}", data.to));
                     }
                     Some(conn) => conn,
                 };
-                let sender_data = SenderData {
+
+                let reponse = ResponseData {
                     from: data.from.to_string(),
                     data: data.data,
                     func: data.func.clone(),
                     err: "".to_string(),
                     to: data.to.to_string(),
-                    req_id: data.req_id.clone(),
+                    req_id: data.req_id,
                 };
-                let json = serde_json::to_string(&sender_data)?;
-                let (mut send, _) = connection_to.open_bi().await?;
-                send.write_all(json.as_bytes()).await?;
-                send.finish()?;
-            }
-            let from_connection = connection;
-            REQ_ID_MAP.insert(data.req_id.to_string(), from_connection.clone());
-            Session.insert(data.from.clone(), from_connection.clone());
-        }
-        Action::Callback => {
-            {
-                let connection = match REQ_ID_MAP.get(data.req_id.as_str()) {
-                    None => {
-                        error!("Failed to find connection req {}", data.req_id);
-                        return Err(anyhow!("Failed to find connection req {}", data.req_id));
-                    }
-                    Some(conn) => conn,
-                };
-                let sender_data = SenderData {
-                    from: data.from.to_string(),
-                    data: data.data,
-                    func: data.func.clone(),
-                    err: "".to_string(),
-                    to: data.to.to_string(),
-                    req_id: data.req_id.clone(),
-                };
-                let json = serde_json::to_string(&sender_data)?;
+                let json = serde_json::to_string(&reponse)?;
                 let (mut send, _) = connection.open_bi().await?;
                 send.write_all(json.as_bytes()).await?;
                 send.finish()?;
             }
-            REQ_ID_MAP.remove(data.req_id.as_str());
+            Action::Call => {
+                {
+                    let connection_to = match MSG_CONNECTION_MAP.get(data.to.as_str()) {
+                        None => {
+                            error!("Failed to find connection to {}", data.to);
+                            return Err(anyhow!("Failed to find connection to {}", data.to));
+                        }
+                        Some(conn) => conn,
+                    };
+                    let response = ResponseData {
+                        from: data.from.to_string(),
+                        data: data.data,
+                        func: data.func.clone(),
+                        err: "".to_string(),
+                        to: data.to.to_string(),
+                        req_id: data.req_id.clone(),
+                    };
+                    let json = serde_json::to_string(&response)?;
+                    let (mut send, _) = connection_to.open_bi().await?;
+                    send.write_all(json.as_bytes()).await?;
+                    send.finish()?;
+                }
+                let from_connection = connection_clone;
+                REQ_ID_MAP.insert(data.req_id.to_string(), from_connection.clone());
+            }
+            Action::Callback => {
+                {
+                    let connection = match REQ_ID_MAP.get(data.req_id.as_str()) {
+                        None => {
+                            error!("Failed to find connection req {}", data.req_id);
+                            return Err(anyhow!("Failed to find connection req {}", data.req_id));
+                        }
+                        Some(conn) => conn,
+                    };
+                    let response = ResponseData {
+                        from: data.from.to_string(),
+                        data: data.data,
+                        func: data.func.clone(),
+                        err: "".to_string(),
+                        to: data.to.to_string(),
+                        req_id: data.req_id.clone(),
+                    };
+                    let json = serde_json::to_string(&response)?;
+                    let (mut send, _) = connection.open_bi().await?;
+                    send.write_all(json.as_bytes()).await?;
+                    send.finish()?;
+                }
+                REQ_ID_MAP.remove(data.req_id.as_str());
+            }
+        }
+
+        {
+            let peers: Vec<String> = MSG_CONNECTION_MAP
+                .iter()
+                .map(|entry| entry.key().clone())
+                .collect();
+            info!("Online peers num: {}", peers.len());
+            for x in peers {
+                info!("Online peer: {}", x.to_string());
+            }
         }
     }
+}
 
-    {
-        let peers: Vec<String> = Session.iter().map(|entry| entry.key().clone()).collect();
-        info!("Online peers num: {}", peers.len());
-        for x in peers {
-            info!("Online peer: {}", x.to_string());
-        }
+async fn file_handle_receive(connection: Arc<quinn::Connection>) -> anyhow::Result<()> {
+    let connection_clone: Arc<quinn::Connection> = connection.clone();
+    let (_file_sender, mut file_reciever) = connection_clone.accept_bi().await?;
+
+    //read header -> {target_peer_id}|{from_peer_id}|{file_path}
+    let mut header_buf = [0u8; 256];
+    let len = file_reciever.read(&mut header_buf).await.unwrap().unwrap();
+    let header = String::from_utf8_lossy(&header_buf[..len]);
+    let parts: Vec<&str> = header.splitn(3, '|').collect();
+    let (target_id, from, file_path) = (parts[0], parts[1], parts[2]);
+    info!(
+        "File handle receive, target_id:{}, from:{}, file_path:{}",
+        target_id, from, file_path
+    );
+    let key = format!("{}-{}", target_id, from);
+    let header = format!("{}|{}|{}", target_id, from, file_path);
+
+    if let Some(target_conn) = FILE_CONNECTION_MAP.get(&key) {
+        info!("find target connection");
+        let (mut target_sender, _) = target_conn.open_bi().await?;
+        target_sender.write_all(header.as_bytes()).await.unwrap();
+        target_sender.finish()?;
+
+        // relay the stream
+        let (mut target_sender, _) = target_conn.open_bi().await?;
+        let (_file_sender, mut file_reciever) = connection_clone.accept_bi().await?;
+
+        tokio::io::copy(&mut file_reciever, &mut target_sender)
+            .await
+            .unwrap();
+        target_sender.finish()?;
+    } else {
+        connection_clone.close(VarInt::from_u32(1), "Cannot find target peer".as_bytes());
     }
-
     Ok(())
 }
 
-///Relay
+//Relay
 pub async fn get_root_certificate_from_vault(
 ) -> anyhow::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
     let cert = ca::server::get_root_cert_der().await;

@@ -18,7 +18,7 @@ use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
 use mono::server::https_server::{get_method_router, post_method_router, AppState};
 
-use crate::api::{github_router, nostr_router, MegaApiServiceState};
+use crate::api::{github_router, nostr_router, p2p_router, MegaApiServiceState};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -119,7 +119,7 @@ pub async fn app(context: Context, host: String, port: u16, p2p: P2pOptions) -> 
 
     pub fn mega_routers() -> Router<MegaApiServiceState> {
         Router::new()
-            // .merge(ztm_router::routers())
+            .merge(p2p_router::routers())
             .merge(nostr_router::routers())
             .merge(github_router::routers())
     }
