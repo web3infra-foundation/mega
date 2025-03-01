@@ -14366,6 +14366,12 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "ring",
+    actual = ":ring-0.17.8",
+    visibility = ["PUBLIC"],
+)
+
 cargo.rust_library(
     name = "ring-0.17.8",
     srcs = [
@@ -19978,6 +19984,157 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "sysinfo",
+    actual = ":sysinfo-0.33.1",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "sysinfo-0.33.1",
+    srcs = [
+        "vendor/sysinfo-0.33.1/README.md",
+        "vendor/sysinfo-0.33.1/md_doc/is_supported.md",
+        "vendor/sysinfo-0.33.1/md_doc/minimum_cpu_update_interval.md",
+        "vendor/sysinfo-0.33.1/md_doc/pid.md",
+        "vendor/sysinfo-0.33.1/md_doc/supported_signals.md",
+        "vendor/sysinfo-0.33.1/src/c_interface.rs",
+        "vendor/sysinfo-0.33.1/src/common/component.rs",
+        "vendor/sysinfo-0.33.1/src/common/disk.rs",
+        "vendor/sysinfo-0.33.1/src/common/impl_get_set.rs",
+        "vendor/sysinfo-0.33.1/src/common/mod.rs",
+        "vendor/sysinfo-0.33.1/src/common/network.rs",
+        "vendor/sysinfo-0.33.1/src/common/system.rs",
+        "vendor/sysinfo-0.33.1/src/common/user.rs",
+        "vendor/sysinfo-0.33.1/src/debug.rs",
+        "vendor/sysinfo-0.33.1/src/lib.rs",
+        "vendor/sysinfo-0.33.1/src/macros.rs",
+        "vendor/sysinfo-0.33.1/src/network.rs",
+        "vendor/sysinfo-0.33.1/src/serde.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/app_store/component.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/app_store/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/app_store/process.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/component.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/cpu.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/disk.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/ffi.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/groups.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/ios.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/component/arm.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/component/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/component/x86.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/cpu.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/disk.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/ffi.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/process.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/system.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/macos/utils.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/network.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/process.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/system.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/users.rs",
+        "vendor/sysinfo-0.33.1/src/unix/apple/utils.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/component.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/cpu.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/disk.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/ffi.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/network.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/process.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/system.rs",
+        "vendor/sysinfo-0.33.1/src/unix/freebsd/utils.rs",
+        "vendor/sysinfo-0.33.1/src/unix/groups.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/component.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/cpu.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/disk.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/network.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/process.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/system.rs",
+        "vendor/sysinfo-0.33.1/src/unix/linux/utils.rs",
+        "vendor/sysinfo-0.33.1/src/unix/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unix/network_helper.rs",
+        "vendor/sysinfo-0.33.1/src/unix/users.rs",
+        "vendor/sysinfo-0.33.1/src/unix/utils.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/component.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/cpu.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/disk.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/groups.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/mod.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/network.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/process.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/system.rs",
+        "vendor/sysinfo-0.33.1/src/unknown/users.rs",
+        "vendor/sysinfo-0.33.1/src/utils.rs",
+        "vendor/sysinfo-0.33.1/src/windows/component.rs",
+        "vendor/sysinfo-0.33.1/src/windows/cpu.rs",
+        "vendor/sysinfo-0.33.1/src/windows/disk.rs",
+        "vendor/sysinfo-0.33.1/src/windows/groups.rs",
+        "vendor/sysinfo-0.33.1/src/windows/mod.rs",
+        "vendor/sysinfo-0.33.1/src/windows/network.rs",
+        "vendor/sysinfo-0.33.1/src/windows/network_helper.rs",
+        "vendor/sysinfo-0.33.1/src/windows/process.rs",
+        "vendor/sysinfo-0.33.1/src/windows/sid.rs",
+        "vendor/sysinfo-0.33.1/src/windows/system.rs",
+        "vendor/sysinfo-0.33.1/src/windows/users.rs",
+        "vendor/sysinfo-0.33.1/src/windows/utils.rs",
+    ],
+    crate = "sysinfo",
+    crate_root = "vendor/sysinfo-0.33.1/src/lib.rs",
+    edition = "2021",
+    features = [
+        "component",
+        "default",
+        "disk",
+        "multithread",
+        "network",
+        "system",
+        "user",
+        "windows",
+    ],
+    platform = {
+        "linux-arm64": dict(
+            deps = [":libc-0.2.169"],
+        ),
+        "linux-x86_64": dict(
+            deps = [":libc-0.2.169"],
+        ),
+        "macos-arm64": dict(
+            deps = [
+                ":core-foundation-sys-0.8.7",
+                ":libc-0.2.169",
+            ],
+        ),
+        "macos-x86_64": dict(
+            deps = [
+                ":core-foundation-sys-0.8.7",
+                ":libc-0.2.169",
+            ],
+        ),
+        "windows-gnu": dict(
+            deps = [
+                ":libc-0.2.169",
+                ":ntapi-0.4.1",
+                ":windows-0.57.0",
+            ],
+        ),
+        "windows-msvc": dict(
+            deps = [
+                ":libc-0.2.169",
+                ":ntapi-0.4.1",
+                ":windows-0.57.0",
+            ],
+        ),
+    },
+    visibility = [],
+    deps = [
+        ":memchr-2.7.4",
+        ":rayon-1.10.0",
+    ],
+)
+
 cargo.rust_library(
     name = "system-configuration-0.6.1",
     srcs = [
@@ -21150,6 +21307,12 @@ cargo.rust_library(
         ":rustls-0.23.22",
         ":tokio-1.43.0",
     ],
+)
+
+alias(
+    name = "tokio-stream",
+    actual = ":tokio-stream-0.1.17",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
