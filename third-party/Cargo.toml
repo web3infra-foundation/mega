@@ -33,8 +33,14 @@ thiserror = "2.0.11"
 async-trait = "0.1.86"
 reqwest = "0.12.12"
 assert_cmd = "2.0.16"
-
-sea-orm = { version = "1.1.4", features = ["sqlx-postgres", "sqlx-mysql", "sqlx-sqlite"] }
+# for one dep of different modules, features can be combined
+sea-orm = { version = "1.1.4", features = [
+    "sqlx-postgres",
+    "sqlx-mysql",
+    "sqlx-sqlite",
+    "runtime-tokio-rustls",
+    "macros",
+] }
 envsubst = "0.2.1"
 regex = "1.11.1"
 rand = "0.9.0"
@@ -60,3 +66,4 @@ bytes = "1.10.0"
 memchr = "2.7.4"
 encoding_rs = "0.8.31"
 rayon = "1.10.0"
+futures = "0.3.30"
