@@ -5069,6 +5069,43 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "crossbeam-channel",
+    actual = ":crossbeam-channel-0.5.13",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "crossbeam-channel-0.5.13",
+    srcs = [
+        "vendor/crossbeam-channel-0.5.13/src/channel.rs",
+        "vendor/crossbeam-channel-0.5.13/src/context.rs",
+        "vendor/crossbeam-channel-0.5.13/src/counter.rs",
+        "vendor/crossbeam-channel-0.5.13/src/err.rs",
+        "vendor/crossbeam-channel-0.5.13/src/flavors/array.rs",
+        "vendor/crossbeam-channel-0.5.13/src/flavors/at.rs",
+        "vendor/crossbeam-channel-0.5.13/src/flavors/list.rs",
+        "vendor/crossbeam-channel-0.5.13/src/flavors/mod.rs",
+        "vendor/crossbeam-channel-0.5.13/src/flavors/never.rs",
+        "vendor/crossbeam-channel-0.5.13/src/flavors/tick.rs",
+        "vendor/crossbeam-channel-0.5.13/src/flavors/zero.rs",
+        "vendor/crossbeam-channel-0.5.13/src/lib.rs",
+        "vendor/crossbeam-channel-0.5.13/src/select.rs",
+        "vendor/crossbeam-channel-0.5.13/src/select_macro.rs",
+        "vendor/crossbeam-channel-0.5.13/src/utils.rs",
+        "vendor/crossbeam-channel-0.5.13/src/waker.rs",
+    ],
+    crate = "crossbeam_channel",
+    crate_root = "vendor/crossbeam-channel-0.5.13/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = [":crossbeam-utils-0.8.20"],
+)
+
 cargo.rust_library(
     name = "crossbeam-deque-0.8.5",
     srcs = [
