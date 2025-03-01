@@ -6708,6 +6708,12 @@ cargo.rust_library(
     visibility = [],
 )
 
+alias(
+    name = "futures",
+    actual = ":futures-0.3.31",
+    visibility = ["PUBLIC"],
+)
+
 cargo.rust_library(
     name = "futures-0.3.31",
     srcs = ["vendor/futures-0.3.31/src/lib.rs"],
