@@ -1,0 +1,63 @@
+# install rust
+# Rust只支持用户安装，不支持root安装
+
+PKG=""
+PKG_VERSION=""
+PKG_FILE=""
+URL=""
+MD5=""
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+export PATH=$PATH:/root/.cargo/bin
+# install rust coreutils
+cargo install coreutils
+
+# replace coreutils
+
+TOOLS=(
+  "b2sum" "b3sum" "base32" "base64" "basename" "basenc" "cat" "cksum" "comm"
+  "cp" "csplit" "cut" "date" "dd" "df" "dir" "dircolors" "dirname" "du" "echo"
+  "env" "expand" "expr" "factor" "false" "fmt" "fold" "hashsum" "head" "join"
+  "link" "ln" "ls" "md5sum" "mkdir" "mktemp" "more" "mv" "nl" "numfmt" "od"
+  "paste" "pr" "printenv" "printf" "ptx" "pwd" "readlink" "realpath" "rm" "rmdir"
+  "seq" "sha1sum" "sha224sum" "sha256sum" "sha3-224sum" "sha3-256sum" "sha3-384sum"
+  "sha3-512sum" "sha384sum" "sha3sum" "sha512sum" "shake128sum" "shake256sum" "shred"
+  "shuf" "sleep" "sort" "split" "sum" "tac" "tail" "tee" "test" "touch" "tr" "true"
+  "truncate" "tsort" "unexpand" "uniq" "unlink" "vdir" "wc" "yes"
+)
+
+# 将原来的的coreutils备份，并创建bash alias来调用rust的coreutils，如`coreutils ls`来替代/usr/bin/ls
+BACKUP_DIR="/usr/bin/coreutils.bak"
+RUST_UTIL="/root/.cargo/bin/coreutils"
+UTIL_MV="$RUST_UTIL mv"
+UTIL_ECHO="$RUST_UTIL echo"
+mkdir -p "$BACKUP_DIR"
+set +H
+for tool in "${TOOLS[@]}"; do
+  if [ -f "/usr/bin/$tool" ]; then
+    $UTIL_MV "/usr/bin/$tool" "$BACKUP_DIR/"
+    $UTIL_ECHO "Backed up /usr/bin/$tool"
+    # 创建新的 Bash 脚本
+    $UTIL_ECHO "#!/bin/bash" > "/usr/bin/$tool"
+    $UTIL_ECHO "$RUST_UTIL $tool \"\$@\"" >> "/usr/bin/$tool"
+
+    # 给予脚本执行权限
+    chmod +x "/usr/bin/$tool"
+    $UTIL_ECHO "Created /usr/bin $tool as a wrapper to call Rust's version."
+  else
+    $UTIL_ECHO "/usr/bin/$tool does not exist."
+  fi
+done
+$UTIL_ECHO "All done."
+
+xEOFx
+) > tmp
