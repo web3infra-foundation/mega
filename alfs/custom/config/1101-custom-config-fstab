@@ -1,0 +1,43 @@
+# install rust
+# Rust只支持用户安装，不支持root安装
+
+PKG=""
+PKG_VERSION=""
+PKG_FILE=""
+URL=""
+MD5=""
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+# use blkid to get the uuid
+uuid1=41686c57-192d-4ed8-87a2-7399482c0261
+uuid2=60F7-8A4C
+
+# fstab
+#cat > /etc/fstab << "EOF"
+echo "# Begin /etc/fstab
+
+# 文件系统     挂载点       类型     选项                转储  检查
+#                                                              顺序
+
+UUID=${uuid1}     /            ext4     defaults            1     1
+UUID=${uuid2}      /boot        vfat     defaults            1     1
+proc           /proc        proc     nosuid,noexec,nodev 0     0
+sysfs          /sys         sysfs    nosuid,noexec,nodev 0     0
+devpts         /dev/pts     devpts   gid=5,mode=620      0     0
+tmpfs          /run         tmpfs    defaults            0     0
+devtmpfs       /dev         devtmpfs mode=0755,nosuid    0     0
+
+# End /etc/fstab">/etc/fstab
+
+
+xEOFx
+) > tmp

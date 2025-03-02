@@ -1,0 +1,48 @@
+# p11-kit 0.25.5 depends on `libtasn1-4.20.0`
+
+PKG="p11-kit"
+PKG_VERSION="0.25.5"
+PKG_FILE="p11-kit-0.25.5.tar.xz"
+URL="https://github.com/p11-glue/p11-kit/releases/download/0.25.5/p11-kit-0.25.5.tar.xz"
+MD5="e9c5675508fcd8be54aa4c8cb8e794fc"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+# Your script here. Be aware that it is passed
+# verbatim, and that none of the above variables
+# will be defined when running the script. For example,
+# If you want to use ${PKG_VERSION}, you have to
+# redefine it here.
+
+sed '20,$ d' -i trust/trust-extract-compat &&
+
+cat >> trust/trust-extract-compat << "EOF"
+# Copy existing anchor modifications to /etc/ssl/local
+/usr/libexec/make-ca/copy-trust-modifications
+
+# Update trust stores
+/usr/sbin/make-ca -r
+EOF
+
+mkdir p11-build &&
+cd    p11-build &&
+
+meson setup ..            \
+      --prefix=/usr       \
+      --buildtype=release \
+      -D trust_paths=/etc/pki/anchors &&
+ninja
+
+ninja install &&
+ln -sfv /usr/libexec/p11-kit/trust-extract-compat \
+        /usr/bin/update-ca-certificates
+
+xEOFx
+) > tmp

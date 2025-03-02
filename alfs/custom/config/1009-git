@@ -1,0 +1,32 @@
+# Any comments you wish to add
+#
+
+PKG="git"
+PKG_VERSION="2.48.1"
+PKG_FILE="git-2.48.1.tar.xz"
+URL="https://www.kernel.org/pub/software/scm/git/git-2.48.1.tar.xz"
+MD5="99656f1481e70701198257ada703a480"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+# Your script here. Be aware that it is passed
+# verbatim, and that none of the above variables
+# will be defined when running the script. For example,
+# If you want to use ${PKG_VERSION}, you have to
+# redefine it here.
+
+./configure --prefix=/usr \
+            --with-gitconfig=/etc/gitconfig \
+            --with-python=python3 && make
+make install
+echo "git installed"
+
+xEOFx
+) > tmp
