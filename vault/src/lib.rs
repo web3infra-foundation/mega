@@ -4,6 +4,7 @@ use crate::vault::{read_secret, write_secret};
 
 pub mod nostr;
 pub mod pki;
+pub mod pgp;
 pub mod vault;
 
 /// Initialize the Nostr ID if it's not found.
