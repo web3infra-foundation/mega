@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <requires lib="gtk" version="4.0" />
+  <requires lib="gtk" version="4.0"/>
   <template class="HelloPage" parent="GtkBox">
     <property name="orientation">vertical</property>
     <property name="hexpand">true</property>
@@ -93,41 +93,41 @@
         <child type="top">
           <!-- Title Bar -->
 
-            <object class="AdwHeaderBar" id="header_bar">
-              <property name="centering-policy">strict</property>
-              <child type="start">
-                <object class="GtkBox">
-                  <property name="orientation">horizontal</property>
+          <object class="AdwHeaderBar" id="header_bar">
+            <property name="centering-policy">strict</property>
+            <child type="start">
+              <object class="GtkBox">
+                <property name="orientation">horizontal</property>
 
-                  <!-- MenuBar -->
-                  <child>
-                    <object class="GtkPopoverMenuBar" id="menubar1">
-                      <property name="menu-model">menubar</property>
-                      <accessibility>
-                        <property name="label">Main Menu</property>
-                      </accessibility>
-                    </object>
-                  </child>
+                <!-- MenuBar -->
+                <child>
+                  <object class="GtkPopoverMenuBar" id="menubar1">
+                    <property name="menu-model">menubar</property>
+                    <accessibility>
+                      <property name="label">Main Menu</property>
+                    </accessibility>
+                  </object>
+                </child>
 
-                  <child>
-                    <object class="GtkButton" id="back_button">
-                      <property name="visible">false</property>
-                      <property name="action-name">win.back-button</property>
-                      <property name="icon-name">go-previous-symbolic</property>
-                    </object>
-                  </child>
-                </object>
-              </child>
-              <child type="end">
-                <object class="GtkMenuButton" id="primary_menu_button">
-                  <property name="menu-model">primary_menu</property>
-                  <property name="icon-name">open-menu-symbolic</property>
-                </object>
-              </child>
-              <child type="title">
-                <object class="GtkLabel">Hello</object>
-              </child>
-            </object>
+                <child>
+                  <object class="GtkButton" id="back_button">
+                    <property name="visible">false</property>
+                    <property name="action-name">win.back-button</property>
+                    <property name="icon-name">go-previous-symbolic</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkMenuButton" id="primary_menu_button">
+                <property name="menu-model">primary_menu</property>
+                <property name="icon-name">open-menu-symbolic</property>
+              </object>
+            </child>
+            <child type="title">
+              <object class="GtkLabel">Hello</object>
+            </child>
+          </object>
 
         </child>
 
@@ -172,8 +172,8 @@
                             <property name="wrap-mode">word-char</property>
                             <property name="justify">center</property>
                             <style>
-                              <class name="title" />
-                              <class name="title-1" />
+                              <class name="title"/>
+                              <class name="title-1"/>
                             </style>
                           </object>
                         </child>
@@ -209,11 +209,11 @@
                           <object class="AdwPreferencesGroup">
 
                             <child>
-                              <object class="AdwActionRow">
-                                <property name="title" translatable="yes">GPG Key</property>
+                              <object class="AdwActionRow" id="pgp_row">
+                                <property name="title" translatable="yes">PGP Key</property>
                                 <child>
-                                  <object class="GtkButton">
-                                    <property name="label" translatable="yes">General</property>
+                                  <object class="GtkButton" id="pgp_button">
+                                    <property name="label" translatable="yes">Generate</property>
                                     <property name="valign">center</property>
                                   </object>
                                 </child>
@@ -239,8 +239,8 @@
                                 <property name="tooltip-text" translatable="yes">Import repositories from local or an URL</property>
                                 <property name="focusable">True</property>
                                 <style>
-                                  <class name="card" />
-                                  <class name="activatable" />
+                                  <class name="card"/>
+                                  <class name="activatable"/>
                                 </style>
                                 <property name="child">
                                   <object class="GtkBox">
@@ -257,7 +257,7 @@
                                         <property name="icon-name">document-open-symbolic</property>
                                         <property name="pixel-size">24</property>
                                         <style>
-                                          <class name="lowres-icon" />
+                                          <class name="lowres-icon"/>
                                         </style>
                                       </object>
                                     </child>
@@ -279,8 +279,8 @@
                                 <property name="tooltip-text" translatable="yes">Network settings</property>
                                 <property name="focusable">True</property>
                                 <style>
-                                  <class name="card" />
-                                  <class name="activatable" />
+                                  <class name="card"/>
+                                  <class name="activatable"/>
                                 </style>
                                 <property name="child">
                                   <object class="GtkBox">
@@ -297,7 +297,7 @@
                                         <property name="icon-name">network-cellular-signal-excellent-symbolic-rtl</property>
                                         <property name="pixel-size">24</property>
                                         <style>
-                                          <class name="lowres-icon" />
+                                          <class name="lowres-icon"/>
                                         </style>
                                       </object>
                                     </child>
@@ -326,15 +326,15 @@
                             <property name="halign">center</property>
                             <property name="child">
 
-                                <object class="GtkButton" id="continue_button">
-                                  <property name="label" translatable="yes">Go Ahead!</property>
-                                  <property name="valign">center</property>
-                                  <property name="sensitive">False</property>
-                                  <style>
-                                    <class name="suggested-action" />
-                                    <class name="pill"/>
-                                  </style>
-                                </object>
+                              <object class="GtkButton" id="continue_button">
+                                <property name="label" translatable="yes">Go Ahead!</property>
+                                <property name="valign">center</property>
+                                <property name="sensitive">False</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                  <class name="pill"/>
+                                </style>
+                              </object>
 
                             </property>
                           </object>
@@ -366,8 +366,8 @@
                 </layout>
 
                 <style>
-                  <class name="card" />
-                  <class name="right-side-box" />
+                  <class name="card"/>
+                  <class name="right-side-box"/>
                 </style>
 
                 <child>
@@ -383,7 +383,7 @@
                         <property name="valign">end</property>
                         <property name="tooltip-text">icon-dropshadow</property>
                         <style>
-                          <class name="icon-dropshadow" />
+                          <class name="icon-dropshadow"/>
                         </style>
                       </object>
                     </property>
@@ -413,7 +413,7 @@
                                 <property name="orientation">vertical</property>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">MonoBean Docs&lt;/a&gt;</property>
+                                    <property name="label" translatable="yes">&lt;a href="https://os.gnome.org/">MonoBean Docs&lt;/a&gt;</property>
                                     <property name="wrap">True</property>
                                     <property name="wrap-mode">word-char</property>
                                     <property name="use-markup">True</property>
@@ -422,7 +422,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes"> &lt;a href="https://os.gnome.org/">Watch Videos&lt;/a&gt;</property>
+                                    <property name="label" translatable="yes">&lt;a href="https://os.gnome.org/">Watch Videos&lt;/a&gt;</property>
                                     <property name="wrap">True</property>
                                     <property name="wrap-mode">word-char</property>
                                     <property name="use-markup">True</property>
@@ -449,8 +449,8 @@
                             <property name="opacity">0.8</property>
 
                             <style>
-                              <class name="title" />
-                              <class name="title-1" />
+                              <class name="title"/>
+                              <class name="title-1"/>
                             </style>
                           </object>
                         </property>

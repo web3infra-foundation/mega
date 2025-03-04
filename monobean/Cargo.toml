@@ -21,6 +21,7 @@ mono = { path = "../mono" }
 common = { path = "../common" }
 jupiter = { path = "../jupiter" }
 taurus = { path = "../taurus" }
+vault = { path = "../vault" }
 tokio = "1.43.0"
 russh = "0.50.2"
 axum = "0.8.1"

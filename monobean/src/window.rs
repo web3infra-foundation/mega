@@ -55,7 +55,7 @@ mod imp {
 
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
-        
+
         toast: RefCell<Option<Toast>>,
     }
 
@@ -164,10 +164,10 @@ impl MonobeanWindow {
         stack.set_visible_child_name("main_page");
     }
 
-    pub fn show_hello_page(&self, name: Option<String>, email: Option<String>) {
+    pub fn show_hello_page(&self, name: Option<String>, email: Option<String>, pgp_generated: bool) {
         let stack = self.imp().base_stack.clone();
         let page = self.imp().hello_page.clone();
-        page.fill_entries(name, email);
+        page.fill_entries(name, email, pgp_generated);
         stack.set_visible_child_name("hello_page");
     }
 

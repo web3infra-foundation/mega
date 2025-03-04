@@ -1,13 +1,16 @@
+use crate::vault::{read_secret, write_secret};
+use pgp::composed::Deserializable;
 /// This module provides functions for generating, loading, saving, and deleting PGP key pairs.
 ///
 /// It uses the `pgp` crate for key generation and management, and stores the keys in a vault
 /// using asynchronous operations.
-use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
+pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 use pgp::types::SecretKeyTrait;
+pub use pgp::KeyType;
 use pgp::SecretKeyParams;
+use pgp::{SecretKeyParamsBuilder, SubkeyParamsBuilder};
 use secp256k1::rand::{CryptoRng, Rng};
-
-use crate::vault::{read_secret, write_secret};
+use smallvec::smallvec;
 
 const VAULT_KEY: &str = "pgp-signed-secret";
 
@@ -15,7 +18,6 @@ const VAULT_KEY: &str = "pgp-signed-secret";
 ///
 /// # Arguments
 ///
-/// *   `rng`: A random number generator. Must implement `Rng` and `CryptoRng` traits.
 /// *   `params`: The parameters for the secret key, such as key type, size, and usage flags.
 /// *   `passwd`: An optional passphrase to encrypt the secret key. If `None`, the key is not encrypted.
 ///
@@ -23,11 +25,11 @@ const VAULT_KEY: &str = "pgp-signed-secret";
 ///
 /// A tuple containing the armored string representations of the public and secret keys.
 /// The first element is the public key, and the second is the secret key.
-pub fn gen_pgp_keys<R: Rng + CryptoRng>(
-    mut rng: R,
+pub fn gen_pgp_keypair(
     params: SecretKeyParams,
     passwd: Option<String>,
-) -> (String, String) {
+) -> (SignedPublicKey, SignedSecretKey) {
+    let mut rng = secp256k1::rand::rngs::OsRng;
     let key = params
         .generate(&mut rng)
         .expect("failed to generate secret key, encrypted");
@@ -42,12 +44,8 @@ pub fn gen_pgp_keys<R: Rng + CryptoRng>(
         })
         .expect("failed to sign key");
 
-    let sec_armored = signed_key
-        .to_armored_string(None.into())
-        .expect("failed to serialize key");
-
     let pub_key = signed_key.public_key();
-    let pub_signed = pub_key
+    let signed_pub = pub_key
         .sign(rng, &signed_key, || {
             if let Some(passwd) = passwd {
                 passwd
@@ -56,11 +54,8 @@ pub fn gen_pgp_keys<R: Rng + CryptoRng>(
             }
         })
         .expect("failed to sign key");
-    let pub_armored = pub_signed
-        .to_armored_string(None.into())
-        .expect("failed to serialize key");
 
-    (pub_armored, sec_armored)
+    (signed_pub, signed_key)
 }
 
 /// Loads the public key from the vault.
@@ -105,7 +100,13 @@ pub async fn load_sec_key() -> Option<SignedSecretKey> {
 ///
 /// *   `pub_key`: The armored string representation of the public key.
 /// *   `sec_key`: The armored string representation of the secret key.
-pub async fn save_keys(pub_key: String, sec_key: String) {
+///
+/// # Panics
+///
+/// When input is invalid.
+pub async fn save_keys(pub_key: SignedPublicKey, sec_key: SignedSecretKey) {
+    let pub_key = pub_key.to_armored_string(None.into()).unwrap();
+    let sec_key = sec_key.to_armored_string(None.into()).unwrap();
     let data = serde_json::json!({
         "pub_key": pub_key,
         "sec_key": sec_key,
@@ -127,76 +128,85 @@ pub async fn delete_keys() {
     });
 }
 
+/// Creates a set of parameters for generating a PGP secret key.
+///
+/// This function simplifies the creation of `SecretKeyParams` by pre-configuring several options
+/// such as key version, key type, capabilities (certify and sign), preferred algorithms, and subkeys.
+///
+/// # Arguments
+///
+/// *   `key_type`: The type of key to generate (e.g., RSA, ECDSA).
+/// *   `passwd`: An optional passphrase to encrypt the secret key. If `None`, the key is not encrypted.
+/// *   `uid`: The user ID associated with the key. This is typically an email address or name.
+///
+/// # Returns
+///
+/// A `SecretKeyParams` object configured with the specified parameters, ready for key generation.
+pub fn params(key_type: pgp::KeyType, passwd: Option<String>, uid: &str) -> SecretKeyParams {
+    let version = pgp::types::KeyVersion::V6;
+
+    let mut key_params = SecretKeyParamsBuilder::default();
+    key_params
+        .version(version)
+        .key_type(key_type.clone())
+        .can_certify(true)
+        .can_sign(true)
+        .primary_user_id(uid.into())
+        .preferred_symmetric_algorithms(smallvec![
+            pgp::crypto::sym::SymmetricKeyAlgorithm::AES256,
+            pgp::crypto::sym::SymmetricKeyAlgorithm::AES192,
+            pgp::crypto::sym::SymmetricKeyAlgorithm::AES128,
+        ])
+        .preferred_hash_algorithms(smallvec![
+            pgp::crypto::hash::HashAlgorithm::SHA2_256,
+            pgp::crypto::hash::HashAlgorithm::SHA2_384,
+            pgp::crypto::hash::HashAlgorithm::SHA2_512,
+            pgp::crypto::hash::HashAlgorithm::SHA2_224,
+            pgp::crypto::hash::HashAlgorithm::SHA1,
+        ])
+        .preferred_compression_algorithms(smallvec![
+            pgp::types::CompressionAlgorithm::ZLIB,
+            pgp::types::CompressionAlgorithm::ZIP,
+        ])
+        .passphrase(passwd.clone())
+        .subkey(
+            SubkeyParamsBuilder::default()
+                .version(version)
+                .key_type(key_type)
+                .passphrase(passwd)
+                .can_encrypt(true)
+                .build()
+                .unwrap(),
+        )
+        .build()
+        .unwrap()
+}
+
 #[cfg(test)]
 mod tests {
-    use pgp::{crypto::{hash::HashAlgorithm, sym::SymmetricKeyAlgorithm}, types::{CompressionAlgorithm, KeyVersion}, KeyType, SecretKeyParamsBuilder, SubkeyParamsBuilder};
-    use smallvec::smallvec;
+    use pgp::KeyType;
 
     use super::*;
-
-    fn get_params(passwd: Option<String>) -> SecretKeyParams {
-        let version = KeyVersion::V6;
-
-        let mut key_params = SecretKeyParamsBuilder::default();
-        key_params
-            .version(version)
-            .key_type(KeyType::Rsa(2048))
-            .can_certify(true)
-            .can_sign(true)
-            .primary_user_id("Me <me@mail.com>".into())
-            .preferred_symmetric_algorithms(smallvec![
-                SymmetricKeyAlgorithm::AES256,
-                SymmetricKeyAlgorithm::AES192,
-                SymmetricKeyAlgorithm::AES128,
-            ])
-            .preferred_hash_algorithms(smallvec![
-                HashAlgorithm::SHA2_256,
-                HashAlgorithm::SHA2_384,
-                HashAlgorithm::SHA2_512,
-                HashAlgorithm::SHA2_224,
-                HashAlgorithm::SHA1,
-            ])
-            .preferred_compression_algorithms(smallvec![
-                CompressionAlgorithm::ZLIB,
-                CompressionAlgorithm::ZIP,
-            ]);
-
-        key_params
-            .clone()
-            .passphrase(passwd)
-            .subkey(
-                SubkeyParamsBuilder::default()
-                    .version(version)
-                    .key_type(KeyType::Rsa(2048))
-                    .passphrase(Some("hello".into()))
-                    .can_encrypt(true)
-                    .build()
-                    .unwrap(),
-            )
-            .build()
-            .unwrap()
-    }
 
     #[test]
     fn test_gen_pgp_keypair() {
         const PASSWD: &str = "hello";
-        let rng = secp256k1::rand::rngs::OsRng;
-        let params = get_params(Some(PASSWD.into()));
-        let (pk, sk) = gen_pgp_keys(rng, params, Some(PASSWD.into()));
+        const KEY_TYPE: KeyType = KeyType::Rsa(2048);
+        const UID: &str = "test";
+        let params = params(KEY_TYPE, Some(PASSWD.into()), UID);
+        let (pk, sk) = gen_pgp_keypair(params, Some(PASSWD.into()));
 
-        let (pk, _) = SignedPublicKey::from_string(&pk).expect("failed to parse key");
         assert!(pk.verify().is_ok());
-
-        let (sk, _) = SignedSecretKey::from_string(&sk).expect("failed to parse key");
         assert!(sk.verify().is_ok());
     }
 
     #[tokio::test]
     async fn test_save_load_delete_keys() {
         const PASSWD: &str = "hello";
-        let rng = secp256k1::rand::rngs::OsRng;
-        let params = get_params(Some(PASSWD.into()));
-        let (pk, sk) = gen_pgp_keys(rng, params, Some(PASSWD.into()));
+        const KEY_TYPE: KeyType = KeyType::Rsa(2048);
+        const UID: &str = "test";
+        let params = params(KEY_TYPE, Some(PASSWD.into()), UID);
+        let (pk, sk) = gen_pgp_keypair(params, Some(PASSWD.into()));
 
         save_keys(pk.clone(), sk.clone()).await;
 
@@ -206,11 +216,7 @@ mod tests {
         assert!(loaded_pub_key.verify().is_ok());
         assert_eq!(
             loaded_pub_key.to_armored_string(None.into()).unwrap(),
-            SignedPublicKey::from_string(&pk)
-                .unwrap()
-                .0
-                .to_armored_string(None.into())
-                .unwrap()
+            pk.to_armored_string(None.into()).unwrap()
         );
 
         let loaded_sec_key = load_sec_key().await;
@@ -219,11 +225,7 @@ mod tests {
         assert!(loaded_sec_key.verify().is_ok());
         assert_eq!(
             loaded_sec_key.to_armored_string(None.into()).unwrap(),
-            SignedSecretKey::from_string(&sk)
-                .unwrap()
-                .0
-                .to_armored_string(None.into())
-                .unwrap()
+            sk.to_armored_string(None.into()).unwrap()
         );
 
         delete_keys().await;

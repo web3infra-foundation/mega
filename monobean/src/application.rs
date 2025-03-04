@@ -16,6 +16,7 @@ use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
+use tokio::sync::oneshot;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -26,7 +27,7 @@ glib::wrapper! {
         @implements gio::ActionGroup, gio::ActionMap;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Action {
     // Mega Core Related Actions
     MegaCore(MegaCommands),
@@ -291,6 +292,14 @@ impl MonobeanApplication {
         ));
     }
 
+    pub fn core_status(&self) -> (bool, bool) {
+        let (tx, rx) = oneshot::channel();
+        let cmd = MegaCommands::CoreStatus(tx);
+        let act = Action::MegaCore(cmd);
+        self.imp().sender.send_blocking(act).unwrap();
+        rx.blocking_recv().unwrap()
+    }
+
     fn process_action(&self, action: Action) {
         if self.active_window().is_none() {
             return;
@@ -329,7 +338,8 @@ impl MonobeanApplication {
                 let name = config.string("user.name").map(|name| name.to_string());
                 let email = config.string("user.email").map(|email| email.to_string());
 
-                window.show_hello_page(name, email);
+                let (_, gpg_generated) = self.core_status();
+                window.show_hello_page(name, email, gpg_generated);
             }
 
             Action::ShowMainPage => {
