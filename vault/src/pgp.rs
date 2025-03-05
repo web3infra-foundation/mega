@@ -1,4 +1,4 @@
-use crate::vault::{read_secret, write_secret};
+use crate::vault::{delete_secret, read_secret, write_secret};
 use pgp::composed::Deserializable;
 /// This module provides functions for generating, loading, saving, and deleting PGP key pairs.
 ///
@@ -123,7 +123,8 @@ pub async fn save_keys(pub_key: SignedPublicKey, sec_key: SignedSecretKey) {
 
 /// Deletes the key pair from the vault.
 pub async fn delete_keys() {
-    write_secret(VAULT_KEY, None).await.unwrap_or_else(|e| {
+    let data = serde_json::json!({}).as_object().unwrap().clone();
+    delete_secret(VAULT_KEY, Some(data)).await.unwrap_or_else(|e| {
         panic!("Failed to delete PGP keys: {:?}", e);
     });
 }
