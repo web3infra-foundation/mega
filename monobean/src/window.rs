@@ -76,14 +76,6 @@ mod imp {
     }
 
     impl ObjectImpl for MonobeanWindow {
-        fn constructed(&self) {
-            self.parent_constructed();
-            let obj = self.obj();
-            self.toast.replace(Some(Toast::new("")));
-
-            obj.bind_settings();
-        }
-
         fn properties() -> &'static [ParamSpec] {
             static PROPERTIES: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
                 vec![
@@ -108,6 +100,14 @@ mod imp {
                 "toast" => self.toast.borrow().to_value(),
                 _ => unimplemented!(),
             }
+        }
+
+        fn constructed(&self) {
+            self.parent_constructed();
+            let obj = self.obj();
+            self.toast.replace(Some(Toast::new("")));
+
+            obj.bind_settings();
         }
     }
     impl WidgetImpl for MonobeanWindow {}
@@ -186,6 +186,7 @@ impl MonobeanWindow {
         let toast = Toast::builder()
             .title(glib::markup_escape_text(&message))
             .priority(adw::ToastPriority::High)
+            .timeout(3)
             .build();
         self.set_property("toast", &toast);
         self.imp().toast_overlay.add_toast(toast);
