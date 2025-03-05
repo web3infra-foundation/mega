@@ -29,13 +29,14 @@ axum-server = "0.7.1"
 bytes = "1.10.0"
 
 async-channel = "2.3.1"
-thiserror = { version = "2.0.11", features = ["default"]}
+thiserror = { version = "2.0.11", features = ["default"] }
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"]}
+tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"] }
 rustls = "0.23.23"
 gix-config = "0.43.0"
 home = "0.5.11"
 regex = "1.11.1" # there's a bug in glib, so use this alternatively
+futures = "0.3.31"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"

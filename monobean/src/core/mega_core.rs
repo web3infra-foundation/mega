@@ -10,7 +10,8 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use tokio::sync::{oneshot, OnceCell};
+use std::sync::Arc;
+use tokio::sync::{oneshot, Mutex, OnceCell};
 use vault::pgp::{SignedPublicKey, SignedSecretKey};
 
 pub struct MegaCore {
@@ -94,8 +95,13 @@ impl MegaCore {
     /// # Warning
     ///
     /// This function must be called in a tokio runtime.
+    ///
+    /// # Deadlock (For Developers)
+    ///
+    /// Should not block sending an `Action` in main thread, or the code should be put in a `tokio::spawn` block.
     pub(crate) async fn process_command(&mut self, cmd: MegaCommands) {
         // FIXME: for command with callback channel, detect if `send` success.
+        tracing::debug!("Processing command: {:?}", cmd);
         match cmd {
             MegaCommands::MegaStart(http_addr, ssh_addr) => {
                 tracing::info!("Starting Mega Core");
@@ -191,17 +197,16 @@ impl MegaCore {
         // Affordable tradeoff for convenience
         let http_clone = self.http_options.clone().unwrap();
         let ssh_clone = self.ssh_options.clone().unwrap();
-        let (http_res, ssh_res) = tokio::join!(
-            http_clone.run_server(self.running_context.clone().unwrap()),
-            ssh_clone.run_server(self.running_context.clone().unwrap())
-        );
+        let http_context = self.running_context.clone().unwrap();
+        let ssh_context = self.running_context.clone().unwrap();
 
-        http_res.map_err(|e| {
-            MonoBeanError::MegaCoreError(format!("Failed to serve http: {}", e))
-        })?;
-        ssh_res.map_err(|e| {
-            MonoBeanError::MegaCoreError(format!("Failed to serve ssh: {}", e))
-        })?;
+        tokio::spawn(async move {
+            http_clone.run_server(http_context).await
+        });
+
+        tokio::spawn(async move {
+            ssh_clone.run_server(ssh_context).await
+        });
         Ok(())
     }
 
