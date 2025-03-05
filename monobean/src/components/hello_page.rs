@@ -1,5 +1,6 @@
 use crate::application::Action;
 use crate::core::mega_core::MegaCommands;
+use crate::CONTEXT;
 use adw::glib::{clone, GString};
 use async_channel::Sender;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
@@ -158,8 +159,9 @@ impl HelloPage {
             name_entry,
             #[strong]
             sender,
-            move |_| {
+            move |btn| {
                 // TODO: Ask user to input a passwd for pgp key.
+                btn.set_sensitive(false);
                 let (tx, rx) = oneshot::channel();
                 let pgp_command = Action::MegaCore(MegaCommands::LoadOrInitPgp(
                     tx,
@@ -167,15 +169,19 @@ impl HelloPage {
                     email_entry.text().parse().unwrap(),
                     None,
                 ));
-                sender.send_blocking(pgp_command).unwrap();
 
-                if let Err(_) = rx.blocking_recv().unwrap() {
-                    let toast = Action::AddToast("Failed to init pgp key".to_string());
-                    sender.send_blocking(toast).unwrap();
-                } else {
-                    pgp_row.set_sensitive(false);
-                    pgp_row.set_css_classes(&["preference-completed"]);
-                }
+                let sender = sender.clone();
+                CONTEXT.spawn(async move {
+                    sender.send(pgp_command).await.unwrap();
+                    if let Err(_) = rx.await.unwrap() {
+                        let toast = Action::AddToast("Failed to init pgp key".to_string());
+                        sender.send(toast).await.unwrap();
+                    } else {
+                        let toast = Action::AddToast("PGP key initialized".to_string());
+                        sender.send(toast).await.unwrap();
+                        // pgp_row.set_css_classes(&["preference-completed"]);
+                    }
+                });
             }
         ));
 
@@ -205,7 +211,7 @@ impl HelloPage {
             self.imp().email_entry.set_text(&email);
         }
         if pgp_generated {
-            self.imp().pgp_row.set_sensitive(false);
+            self.imp().pgp_button.set_sensitive(false);
             self.imp().pgp_row.set_css_classes(&["preference-completed"]);
         }
     }

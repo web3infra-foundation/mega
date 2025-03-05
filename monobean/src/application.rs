@@ -118,9 +118,7 @@ mod imp {
                     async move {
                         app.start_mega().await;
                         while let Ok(action) = receiver.recv().await {
-                            tracing::debug!("Received action: {:?}", action);
                             app.process_action(action);
-                            tracing::debug!("Action processed");
                         }
                     }
                 ),
@@ -356,8 +354,8 @@ impl MonobeanApplication {
                 let email = config.string("user.email").map(|email| email.to_string());
 
                 let rx = self.core_status();
-                CONTEXT.spawn_local_with_priority(Priority::LOW,async move {
-                    let (_, gpg_generated) = rx.blocking_recv().unwrap();
+                CONTEXT.spawn_local(async move {
+                    let (_, gpg_generated) = rx.await.unwrap();
                     window.show_hello_page(name, email, gpg_generated);
                 });
             }
