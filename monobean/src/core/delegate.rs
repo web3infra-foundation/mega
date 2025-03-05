@@ -1,10 +1,8 @@
 use crate::application::Action;
 use crate::core::mega_core::{MegaCommands, MegaCore};
 use crate::core::runtime;
-use async_channel::Sender;
-use futures::StreamExt;
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
+use async_channel::{Receiver, Sender};
+use std::sync::OnceLock;
 
 /// The delegate for the Mega core.
 /// If we directly use mega core in the application,
@@ -21,26 +19,27 @@ impl MegaDelegate {
 
         DELEGATE.get_or_init(move || {
             let (cmd_sender, cmd_receiver) = async_channel::unbounded();
-            let core = Arc::new(Mutex::new(MegaCore::new(action_sender, cmd_receiver)));
             let ret = Self {
                 inner: cmd_sender
             };
 
-            ret.init_core(core);
+            ret.init_core(action_sender, cmd_receiver);
             ret
         })
     }
 
-    fn init_core(&self, core: Arc<Mutex<MegaCore>>) {
+    fn init_core(&self, act_sender: Sender<Action>, cmd_receiver: Receiver<MegaCommands>) {
+        static CORE: OnceLock<MegaCore> = OnceLock::new();
+        let core = CORE.get_or_init(move || {
+            MegaCore::new(act_sender, cmd_receiver)
+        });
+
         std::thread::spawn(move || {
             runtime().block_on(async move {
-                if let Ok(mut lock) = core.clone().try_lock() {
-                    while let Ok(cmd) = lock.receiver.recv().await {
-                        lock.process_command(cmd).await;
-                        tracing::debug!("Processing done: {}", lock.receiver.is_empty());
-                    }
-                } else {
-                    panic!("Failed to lock mega core.");
+                while let Ok(cmd) = core.receiver.recv().await {
+                    tokio::spawn(async move {
+                        core.process_command(cmd).await;
+                    });
                 }
             });
         });
