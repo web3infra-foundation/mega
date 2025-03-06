@@ -1,5 +1,5 @@
 # install rust
-# Rust只支持用户安装，不支持root安装
+
 
 PKG=""
 PKG_VERSION=""
@@ -25,9 +25,7 @@ uuid2=60F7-8A4C
 #cat > /etc/fstab << "EOF"
 echo "# Begin /etc/fstab
 
-# 文件系统     挂载点       类型     选项                转储  检查
-#                                                              顺序
-
+# Filesystem   Mountpoint   Type     Options             Dump  Pass
 UUID=${uuid1}     /            ext4     defaults            1     1
 UUID=${uuid2}      /boot        vfat     defaults            1     1
 proc           /proc        proc     nosuid,noexec,nodev 0     0
