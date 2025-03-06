@@ -227,8 +227,7 @@ impl PackHandler for MonoRepo {
         encoder.encode_async(entry_rx).await.unwrap();
         let mut send_exist = HashSet::new();
         for tree in trees {
-            self.traverse(tree, &mut send_exist, Some(&entry_tx))
-                .await;
+            self.traverse(tree, &mut send_exist, Some(&entry_tx)).await;
         }
         entry_tx.send(commit.into()).await.unwrap();
         drop(entry_tx);
@@ -275,10 +274,7 @@ impl PackHandler for MonoRepo {
             }
         }
 
-        let want_tree_ids = want_commits
-            .iter()
-            .map(|c| c.tree_id.to_string())
-            .collect();
+        let want_tree_ids = want_commits.iter().map(|c| c.tree_id.to_string()).collect();
         let want_trees: HashMap<SHA1, Tree> = storage
             .get_trees_by_hashes(want_tree_ids)
             .await

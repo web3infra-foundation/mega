@@ -1,18 +1,22 @@
-use std::io::{Read, ErrorKind};
-use crate::{utils, errors::GitDeltaError};
+use crate::{errors::GitDeltaError, utils};
+use std::io::{ErrorKind, Read};
 
 const COPY_INSTRUCTION_FLAG: u8 = 1 << 7;
 const COPY_OFFSET_BYTES: u8 = 4;
 const COPY_SIZE_BYTES: u8 = 3;
 const COPY_ZERO_SIZE: usize = 0x10000;
 
-pub fn delta_decode(mut stream : &mut impl Read,base_info: &[u8]) -> Result<Vec<u8>, GitDeltaError>{
+pub fn delta_decode(
+    mut stream: &mut impl Read,
+    base_info: &[u8],
+) -> Result<Vec<u8>, GitDeltaError> {
     // Read the bash object size & Result Size
     let base_size = utils::read_size_encoding(&mut stream).unwrap();
-    if base_info.len() != base_size{
-        return Err(GitDeltaError::DeltaDecoderError("base object len is not equal".to_owned()));
+    if base_info.len() != base_size {
+        return Err(GitDeltaError::DeltaDecoderError(
+            "base object len is not equal".to_owned(),
+        ));
     }
-
 
     let result_size = utils::read_size_encoding(&mut stream).unwrap();
     let mut buffer = Vec::with_capacity(result_size);
@@ -24,7 +28,10 @@ pub fn delta_decode(mut stream : &mut impl Read,base_info: &[u8]) -> Result<Vec<
             Err(err) => {
                 panic!(
                     "{}",
-                    GitDeltaError::DeltaDecoderError(format!("Wrong instruction in delta :{}", err))
+                    GitDeltaError::DeltaDecoderError(format!(
+                        "Wrong instruction in delta :{}",
+                        err
+                    ))
                 );
             }
         };
@@ -57,13 +64,13 @@ pub fn delta_decode(mut stream : &mut impl Read,base_info: &[u8]) -> Result<Vec<
                 size = COPY_ZERO_SIZE;
             }
             // Copy bytes from the base object
-            let base_data = base_info
-                .get(offset..(offset + size))
-                .ok_or_else(||  GitDeltaError::DeltaDecoderError("Invalid copy instruction".to_string()));
+            let base_data = base_info.get(offset..(offset + size)).ok_or_else(|| {
+                GitDeltaError::DeltaDecoderError("Invalid copy instruction".to_string())
+            });
 
             match base_data {
                 Ok(data) => buffer.extend_from_slice(data),
-                Err(e) =>return Err(e),
+                Err(e) => return Err(e),
             }
         }
     }

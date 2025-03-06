@@ -123,7 +123,7 @@ async fn send(
         .unwrap()
         .unwrap();
 
-    let bootstrap_node = match state.ztm.bootstrap_node.clone() {
+    let bootstrap_node = match state.p2p.bootstrap_node.clone() {
         Some(b) => b,
         None => {
             return Err((
@@ -133,7 +133,9 @@ async fn send(
         }
     };
 
-    let git_event = git_event_req.to_git_event(identifier, git_ref.ref_git_id).await;
+    let git_event = git_event_req
+        .to_git_event(identifier, git_ref.ref_git_id)
+        .await;
 
     match git_event.sent_to_relay(bootstrap_node.clone()).await {
         Ok(_) => {

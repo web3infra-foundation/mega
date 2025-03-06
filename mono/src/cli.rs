@@ -1,8 +1,8 @@
 //! Cli module is responsible for parsing command line arguments and executing the appropriate.
 
+use clap::{Arg, ArgMatches, Command};
 use std::env;
 use std::path::PathBuf;
-use clap::{Arg, ArgMatches, Command};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 use common::{
@@ -22,8 +22,11 @@ use crate::commands::{builtin, builtin_exec};
 /// If there is an error during the parsing, it will return an error.
 pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
     let matches = match args {
-        Some(args) => cli().no_binary_name(true).try_get_matches_from(args).unwrap_or_else(|e| e.exit()),
-        None => cli().try_get_matches().unwrap_or_else(|e| e.exit())
+        Some(args) => cli()
+            .no_binary_name(true)
+            .try_get_matches_from(args)
+            .unwrap_or_else(|e| e.exit()),
+        None => cli().try_get_matches().unwrap_or_else(|e| e.exit()),
     };
 
     // Get the current directory
@@ -45,7 +48,8 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
     ctrlc::set_handler(move || {
         tracing::info!("Received Ctrl-C signal, exiting...");
         std::process::exit(0);
-    }).unwrap();
+    })
+    .unwrap();
 
     let (cmd, subcommand_args) = match matches.subcommand() {
         Some((cmd, args)) => (cmd, args),

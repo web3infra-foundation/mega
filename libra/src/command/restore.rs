@@ -1,20 +1,20 @@
+use crate::command::calc_file_blob_hash;
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
-use mercury::internal::index::{Index, IndexEntry};
+use crate::internal::protocol::lfs_client::LFSClient;
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
 use crate::utils::path_ext::PathExt;
 use crate::utils::{lfs, path, util};
 use clap::Parser;
-use std::collections::{HashMap, HashSet};
-use std::{fs, io};
-use std::path::PathBuf;
-use crate::internal::protocol::lfs_client::LFSClient;
 use mercury::hash::SHA1;
+use mercury::internal::index::{Index, IndexEntry};
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::types::ObjectType;
-use crate::command::calc_file_blob_hash;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::{fs, io};
 
 #[derive(Parser, Debug)]
 pub struct RestoreArgs {
@@ -154,7 +154,11 @@ async fn restore_to_file(hash: &SHA1, path: &PathBuf) -> io::Result<()> {
                 fs::copy(&lfs_obj_path, &path_abs)?;
             } else {
                 // not exist, download from server
-                if let Err(e) = LFSClient::get().await.download_object(&oid, size, &path_abs, None).await {
+                if let Err(e) = LFSClient::get()
+                    .await
+                    .download_object(&oid, size, &path_abs, None)
+                    .await
+                {
                     eprintln!("fatal: {}", e);
                 }
             }
@@ -223,7 +227,9 @@ pub async fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, S
             // file not exist, deleted or illegal
             if target_blobs.contains_key(path_wd) {
                 // file in target_blobs (deleted), need to restore
-                restore_to_file(&target_blobs[path_wd], path_wd).await.unwrap();
+                restore_to_file(&target_blobs[path_wd], path_wd)
+                    .await
+                    .unwrap();
             } else {
                 // not in target_commit and workdir (illegal path), user input
                 unreachable!("It should be checked before");
@@ -236,7 +242,9 @@ pub async fn restore_worktree(filter: &Vec<PathBuf>, target_blobs: &[(PathBuf, S
                 // both in target & worktree: 1. modified 2. same
                 if hash != target_blobs[path_wd] {
                     // modified
-                    restore_to_file(&target_blobs[path_wd], path_wd).await.unwrap();
+                    restore_to_file(&target_blobs[path_wd], path_wd)
+                        .await
+                        .unwrap();
                 } // else: same, keep
             } else {
                 // not in target but in worktree: New file

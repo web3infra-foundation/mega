@@ -1,17 +1,18 @@
-use std::io;
-use std::vec;
-use std::{collections::HashSet, fs, io::Write};
-use std::time::Instant;
 use ceres::protocol::ServiceType::UploadPack;
 use clap::Parser;
 use indicatif::ProgressBar;
-use mercury::internal::object::commit::Commit;
 use mercury::hash::SHA1;
+use mercury::internal::object::commit::Commit;
+use std::io;
+use std::time::Instant;
+use std::vec;
+use std::{collections::HashSet, fs, io::Write};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use url::Url;
 
 use crate::command::load_object;
+use crate::utils::util;
 use crate::{
     command::index_pack::{self, IndexPackArgs},
     internal::{
@@ -22,7 +23,6 @@ use crate::{
     },
     utils::{self, path_ext::PathExt},
 };
-use crate::utils::util;
 
 const DEFAULT_REMOTE: &str = "origin";
 
@@ -52,20 +52,26 @@ pub async fn execute(args: FetchArgs) {
     } else {
         let remote = match args.repository {
             Some(remote) => remote,
-            None => Config::get_current_remote().await.unwrap_or_else(|_| {
-                eprintln!("fatal: HEAD is detached");
-                Some(DEFAULT_REMOTE.to_owned())
-            }).unwrap_or_else(|| {
-                eprintln!("fatal: No remote configured for current branch");
-                DEFAULT_REMOTE.to_owned()
-            }),
+            None => Config::get_current_remote()
+                .await
+                .unwrap_or_else(|_| {
+                    eprintln!("fatal: HEAD is detached");
+                    Some(DEFAULT_REMOTE.to_owned())
+                })
+                .unwrap_or_else(|| {
+                    eprintln!("fatal: No remote configured for current branch");
+                    DEFAULT_REMOTE.to_owned()
+                }),
         };
         let remote_config = Config::remote_config(&remote).await;
         match remote_config {
             Some(remote_config) => fetch_repository(&remote_config, args.refspec).await,
             None => {
                 tracing::error!("remote config '{}' not found", remote);
-                eprintln!("fatal: '{}' does not appear to be a libra repository", remote);
+                eprintln!(
+                    "fatal: '{}' does not appear to be a libra repository",
+                    remote
+                );
             }
         }
     }
@@ -74,12 +80,15 @@ pub async fn execute(args: FetchArgs) {
 /// Fetch from remote repository
 /// - `branch` is optional, if `None`, fetch all branches
 pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<String>) {
-    println!("fetching from {}{}", remote_config.name,
-             if let Some(branch) = &branch {
-                format!(" ({})", branch)
-            } else {
-                "".to_owned()
-            });
+    println!(
+        "fetching from {}{}",
+        remote_config.name,
+        if let Some(branch) = &branch {
+            format!(" ({})", branch)
+        } else {
+            "".to_owned()
+        }
+    );
 
     // fetch remote
     let url = match Url::parse(&remote_config.url) {
@@ -128,10 +137,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
         .collect::<Vec<_>>();
     let have = current_have().await; // TODO: return `DiscRef` rather than only hash, to compare `have` & `want` more accurately
 
-    let mut result_stream = http_client
-        .fetch_objects(&have, &want)
-        .await
-        .unwrap();
+    let mut result_stream = http_client.fetch_objects(&have, &want).await.unwrap();
 
     let mut reader = StreamReader::new(&mut result_stream);
     let mut pack_data = Vec::new();
@@ -147,7 +153,8 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
             reach_pack = true;
             tracing::debug!("Receiving PACK data...");
         }
-        if reach_pack { // 2.PACK data
+        if reach_pack {
+            // 2.PACK data
             let bytes_per_sec = pack_data.len() as f64 / time.elapsed().as_secs_f64();
             let total = util::auto_unit_bytes(pack_data.len() as u64);
             let bps = util::auto_unit_bytes(bytes_per_sec as u64);
@@ -157,25 +164,29 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
             let code = data[0];
             let data = &data[1..];
             match code {
-                1 => { // Data
+                1 => {
+                    // Data
                     pack_data.extend(data); // TODO: decode meanwhile & calc progress
                 }
-                2 => { // Progress
+                2 => {
+                    // Progress
                     print!("{}", String::from_utf8_lossy(data));
                     std::io::stdout().flush().unwrap();
                 }
-                3 => { // Error
+                3 => {
+                    // Error
                     eprintln!("{}", String::from_utf8_lossy(data));
                 }
                 _ => {
                     eprintln!("unknown side-band-64k code: {}", code);
                 }
             }
-        } else if &data != b"NAK\n" { // 1.front info (server progress), ignore NAK (first line)
+        } else if &data != b"NAK\n" {
+            // 1.front info (server progress), ignore NAK (first line)
             print!("{}", String::from_utf8_lossy(&data)); // data contains '\r' & '\n' at end
             std::io::stdout().flush().unwrap();
         }
-    };
+    }
     bar.finish();
 
     /* save pack file */
@@ -187,7 +198,8 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
         let checksum = checksum.to_string();
         println!("checksum: {}", checksum);
 
-        if pack_data.len() > 32 { // 12 header + 20 hash
+        if pack_data.len() > 32 {
+            // 12 header + 20 hash
             let pack_file = utils::path::objects()
                 .join("pack")
                 .join(format!("pack-{}.pack", checksum));
@@ -218,14 +230,17 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     }
     match remote_head {
         Some(remote_head) => {
-            let remote_head_ref = ref_heads
-                .iter()
-                .find(|r| r._hash == remote_head._hash);
+            let remote_head_ref = ref_heads.iter().find(|r| r._hash == remote_head._hash);
 
             match remote_head_ref {
                 Some(remote_head_ref) => {
-                    let remote_head_branch = remote_head_ref._ref.strip_prefix("refs/heads/").unwrap();
-                    Head::update(Head::Branch(remote_head_branch.to_owned()), Some(&remote_config.name)).await;
+                    let remote_head_branch =
+                        remote_head_ref._ref.strip_prefix("refs/heads/").unwrap();
+                    Head::update(
+                        Head::Branch(remote_head_branch.to_owned()),
+                        Some(&remote_config.name),
+                    )
+                    .await;
                 }
                 None => {
                     if branch.is_none() {

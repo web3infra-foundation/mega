@@ -1,0 +1,133 @@
+name: 'Install Dependencies'
+description: 'Install dependencies with caching support'
+
+inputs:
+  cache-key:
+    description: 'Cache key for dependencies'
+    required: true
+  platform:
+    description: 'Platform (ubuntu-latest, windows-latest, macos-latest)'
+    required: true
+  use-gtk:
+    description: 'Whether download and setup GTK libs (true, false)'
+    required: false
+    default: 'true'
+
+runs:
+  using: "composite"
+  steps:
+    # ================= Universal Initialization =================
+    # on windows, it suffers from extremely slow zstd compression and decompression speed
+    # https://github.com/actions/toolkit/issues/1578#issuecomment-2253355054
+    # So we have to manuallly restore and save the cache
+    - name: Restore dependencies
+      id: cache-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          /var/cache/apt/
+          ~/Library/Caches/Homebrew
+          C:\ProgramData\chocolatey\lib
+          ./.choco-cache
+        key: ${{ inputs.platform }}-sysdeps-${{ inputs.cache-key }}
+
+    - name: Setup Rust Toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        components: clippy rustfmt
+        cache-workspaces: |
+          ./
+          ./scorpio
+          ./monobean
+        cache-directories: |
+          ./target
+          ./scorpio/target
+          ./monobean/target
+
+    # ================ Platform-specific Initialization (Linux) ================
+    - name: Install dependencies (Ubuntu)
+      if: inputs.platform == 'ubuntu-latest'
+      shell: bash
+      run: |
+        echo "deb http://gb.archive.ubuntu.com/ubuntu jammy main" | sudo tee -a /etc/apt/sources.list
+        sudo apt update
+        sudo apt install -y \
+          git-lfs \
+          libwebkit2gtk-4.1-dev \
+          build-essential \
+          curl \
+          wget \
+          file \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev \
+          libgtk-4-dev \
+          libadwaita-1-0 \
+          libadwaita-1-dev \
+          fuse3 \
+          libfuse3-dev \
+
+    # ================ Platform-specific Initialization (macOS) ================
+    - name: Set up Homebrew
+      if: inputs.platform == 'macos-latest'
+      id: set-up-homebrew
+      uses: Homebrew/actions/setup-homebrew@master
+
+    # fuse not available on macOS
+    - name: Install dependencies (macOS)
+      if: inputs.platform == 'macos-latest'
+      shell: bash
+      run: |
+        export HOMEBREW_NO_AUTO_UPDATE=1
+        brew install \
+          gtk4 \
+          libadwaita \
+          librsvg \
+
+    # =============== Platform-specific Initialization (Windows) ===============
+    # According to https://github.com/actions/runner-images/blob/main/images/windows/toolsets/toolset-2025.json
+    # OpenSSL, cmake and some other build tools have been embedded into the windows-latest image.
+    - name: Install dependencies (Windows)
+      if: inputs.platform == 'windows-latest'
+      shell: pwsh
+      run: |
+        choco config set cacheLocation ./.choco-cache
+        choco install --no-progress git-lfs pkgconfiglite ninja nasm
+        pip install requests tqdm
+
+    # Required by monobean, performing this step would take about 5s.
+    # Won't caching it, for compression and decompression are MUCH slower than downloading it directly.
+    - name: Load GTK and libadwaita
+      if: inputs.platform == 'windows-latest' && inputs.use-gtk == 'true'
+      shell: pwsh
+      run: python ./monobean/setup.py
+
+    - name: Manually set env vars and export
+      if: inputs.platform == 'windows-latest'
+      shell: pwsh
+      run: |
+        $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
+        $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
+        $env:PKG_CONFIG_PATH = "$env:PKG_CONFIG_PATH;${{ github.workspace }}\monobean\resources\lib\lib\pkgconfig;C:\Program Files\PkgConfig\lib\pkgconfig"
+        $env:LIB = "$env:LIB;${{ github.workspace }}\monobean\resources\lib\lib"
+        $env:INCLUDE = "$env:INCLUDE;${{ github.workspace }}\monobean\resources\lib\include;${{ github.workspace }}\monobean\resources\lib\include\cairo;${{ github.workspace }}\monobean\resources\lib\include\glib-2.0;${{ github.workspace }}\monobean\resources\lib\include\gobject-introspection-1.0;${{ github.workspace }}\monobean\resources\lib\lib\glib-2.0\include"
+        $env:AWS_LC_SYS_PREBUILT_NASM = 1
+        $env:AWS_LC_SYS_C_STD = 11
+        $exportVariables = @("Path", "OPENSSL_DIR", "OPENSSL_LIB_DIR", "PKG_CONFIG_PATH", "LIB", "INCLUDE", "AWS_LC_SYS_C_STD", "AWS_LC_SYS_PREBUILT_NASM")
+        foreach ($var in $exportVariables) {
+            if (Test-Path "Env:\$var") {
+                "$var=$((Get-Item "Env:\$var").Value)" | Out-File -FilePath $env:GITHUB_ENV -Append
+            }
+        }
+
+    # =============== Save cache for speeding up ===============
+    - name: Cache dependencies
+      if: inputs.platform != 'windows-latest' || steps.cache-restore.outputs.cache-hit == 'false'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          /var/cache/apt/
+          ~/Library/Caches/Homebrew
+          C:\ProgramData\chocolatey\lib
+          ./.choco-cache
+        key: ${{ inputs.platform }}-sysdeps-${{ inputs.cache-key }}

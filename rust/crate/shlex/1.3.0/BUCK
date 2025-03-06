@@ -1,0 +1,66 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+# shlex library target
+cargo.rust_library(
+    name = "shlex",
+    edition = "2021",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    deps = [],
+    features = ["std"],
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "shlex_no_std",
+    edition = "2021",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    deps = [],
+    features = [],
+    visibility = ["PUBLIC"],
+)
+
+[
+    cargo.rust_test(
+        name = "test_" + path[9:-3].replace("/", "_"),
+        srcs = [path],
+        crate_root = path,
+        edition = "2021",
+        deps = [":shlex"],
+        visibility = ["PUBLIC"],
+    )
+    for path in glob(["src/tests/*.rs"])
+]
+
+[
+    cargo.rust_binary(
+        name = "shlex_" + path[11:-3].replace("/", "_"),
+        srcs = [path],
+        crate_root = path,
+        edition = "2021",
+        deps = [":shlex"],
+        visibility = ["PUBLIC"],
+    )
+    for path in glob(["src/examples/*.rs"])
+] + [
+    cargo.rust_binary(
+        name = "shlex_" + path[9:-3].replace("/", "_"),
+        srcs = [path],
+        crate_root = path,
+        edition = "2021",
+        deps = [":shlex"],
+        visibility = ["PUBLIC"],
+    )
+    for path in glob(["examples/*.rs"])
+] + [
+    cargo.rust_binary(
+        name = "shlex_" + path[8:-3].replace("/", "_"),
+        srcs = [path],
+        crate_root = path,
+        edition = "2021",
+        deps = [":shlex"],
+        visibility = ["PUBLIC"],
+    )
+    for path in glob(["src/bin/*.rs"])
+]

@@ -1,2 +1,2 @@
-pub mod user_router;
 pub mod model;
+pub mod user_router;

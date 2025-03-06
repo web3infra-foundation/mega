@@ -1,6 +1,9 @@
+use common::errors::MegaError;
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement,
+    TransactionError, TransactionTrait,
+};
 use std::{path::Path, time::Duration};
-use std::error::Error;
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement, TransactionError, TransactionTrait};
 use tracing::log;
 
 use common::config::DbConfig;
@@ -18,7 +21,9 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
             Err(e) => {
                 log::error!("Failed to connect to postgres: {}", e);
                 log::info!("Falling back to sqlite");
-                sqlite_connection(db_config).await.expect("Cannot connect to any database")
+                sqlite_connection(db_config)
+                    .await
+                    .expect("Cannot connect to any database")
             }
         }
     } else {
@@ -26,15 +31,15 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
     }
 }
 
-async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection, DbErr> {
+async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection, MegaError> {
     let db_url = db_config.db_url.to_owned();
     log::info!("Connecting to database: {}", db_url);
 
     let opt = setup_option(db_url);
-    Database::connect(opt).await
+    Database::connect(opt).await.map_err(|e| e.into())
 }
 
-async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, Box<dyn Error>> {
+async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, MegaError> {
     if !Path::new(&db_config.db_path).exists() {
         eprintln!("Creating new sqlite database: {}", db_config.db_path);
         std::fs::create_dir_all(Path::new(&db_config.db_path).parent().unwrap())?;
@@ -45,11 +50,13 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, B
 
     let opt = setup_option(db_url);
     let conn = Database::connect(opt).await?;
-    
+
     // setup sqlite database (execute .sql)
     if is_file_empty(&db_config.db_path) {
         log::info!("Setting up sqlite database");
-        setup_sql(&conn).await?;
+        setup_sql(&conn)
+            .await
+            .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
     }
     Ok(conn)
 }

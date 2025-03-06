@@ -2,6 +2,7 @@ pub mod add;
 pub mod branch;
 pub mod clone;
 pub mod commit;
+pub mod config;
 pub mod diff;
 pub mod fetch;
 pub mod index_pack;
@@ -16,7 +17,6 @@ pub mod remove;
 pub mod restore;
 pub mod status;
 pub mod switch;
-pub mod config;
 
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;

@@ -1,6 +1,6 @@
-use std::io::{self, Read, BufRead};
+use std::io::{self, BufRead, Read};
 
-use sha1::{Sha1, Digest};
+use sha1::{Digest, Sha1};
 
 use crate::hash::SHA1;
 
@@ -91,9 +91,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::{self, Read, Cursor, BufReader};
-    
-    use sha1::{Sha1, Digest};
+    use std::io::{self, BufReader, Cursor, Read};
+
+    use sha1::{Digest, Sha1};
 
     use crate::internal::pack::wrapper::Wrapper;
 

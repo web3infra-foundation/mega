@@ -1,5 +1,6 @@
 use crate::{
-    command::get_target_commit, internal::{branch::Branch, config::Config, head::Head}
+    command::get_target_commit,
+    internal::{branch::Branch, config::Config, head::Head},
 };
 use clap::Parser;
 use colored::Colorize;
@@ -72,10 +73,18 @@ pub async fn set_upstream(branch: &str, upstream: &str) {
         };
         Config::insert("branch", Some(branch), "remote", remote).await;
         // set upstream branch (tracking branch)
-        Config::insert("branch", Some(branch), "merge",
-                       &format!("refs/heads/{}", remote_branch)).await;
+        Config::insert(
+            "branch",
+            Some(branch),
+            "merge",
+            &format!("refs/heads/{}", remote_branch),
+        )
+        .await;
     }
-    println!("Branch '{}' set up to track remote branch '{}'", branch, upstream);
+    println!(
+        "Branch '{}' set up to track remote branch '{}'",
+        branch, upstream
+    );
 }
 
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
@@ -184,7 +193,6 @@ async fn list_branches(remotes: bool) {
         };
     }
 }
-
 
 pub fn is_valid_git_branch_name(name: &str) -> bool {
     // Validate branch name

@@ -1,4 +1,5 @@
 use super::ProtocolClient;
+use crate::command::ask_basic_auth;
 use bytes::Bytes;
 use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
 use ceres::protocol::ServiceType;
@@ -13,7 +14,6 @@ use std::ops::Deref;
 use std::sync::Mutex;
 use tokio_util::bytes::BytesMut;
 use url::Url;
-use crate::command::ask_basic_auth;
 
 /// A Git protocol client that communicates with a Git server over HTTPS.
 /// Only support `SmartProtocol` now, see [http-protocol](https://www.git-scm.com/docs/http-protocol) for protocol details.
@@ -53,7 +53,7 @@ impl BasicAuth {
     /// send request with basic auth, retry 3 times
     pub async fn send<Fut>(request_builder: impl Fn() -> Fut) -> Result<Response, reqwest::Error>
     where
-        Fut: std::future::Future<Output=RequestBuilder>,
+        Fut: std::future::Future<Output = RequestBuilder>,
     {
         const MAX_TRY: usize = 3;
         let mut res;
@@ -64,7 +64,8 @@ impl BasicAuth {
                 request = request.basic_auth(auth.username.clone(), Some(auth.password.clone()));
             } // if no auth exists, try without auth (e.g. clone public)
             res = request.send().await?;
-            if res.status() == StatusCode::FORBIDDEN { // 403: no access, no need to retry
+            if res.status() == StatusCode::FORBIDDEN {
+                // 403: no access, no need to retry
                 eprintln!("Authentication failed, forbidden");
                 break;
             } else if res.status() != StatusCode::UNAUTHORIZED {
@@ -109,7 +110,9 @@ impl HttpsClient {
             .url
             .join(&format!("info/refs?service={}", service))
             .unwrap();
-        let res = BasicAuth::send(|| async{self.client.get(url.clone())}).await.unwrap();
+        let res = BasicAuth::send(|| async { self.client.get(url.clone()) })
+            .await
+            .unwrap();
         tracing::debug!("{:?}", res);
 
         if res.status() == 401 {
@@ -209,12 +212,13 @@ impl HttpsClient {
         tracing::debug!("fetch_objects with body: {:?}", body);
 
         let res = BasicAuth::send(|| async {
-            self
-                .client
+            self.client
                 .post(url.clone())
                 .header("Content-Type", "application/x-git-upload-pack-request")
                 .body(body.clone())
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         tracing::debug!("request: {:?}", res);
 
         if res.status() != 200 && res.status() != 304 {
@@ -236,12 +240,12 @@ impl HttpsClient {
         data: T,
     ) -> Result<Response, reqwest::Error> {
         BasicAuth::send(|| async {
-            self
-                .client
+            self.client
                 .post(self.url.join("git-receive-pack").unwrap())
                 .header(CONTENT_TYPE, "application/x-git-receive-pack-request")
                 .body(data.clone())
-        }).await
+        })
+        .await
     }
 }
 /// for fetching
