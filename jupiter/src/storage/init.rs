@@ -69,7 +69,8 @@ async fn setup_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbE
 
             // `include_str!` will expand the file while compiling, so `.sql` is not needed after that
             const SETUP_SQL: &str = include_str!("../../sqlite_20241204_init.sql");
-            txn.execute(Statement::from_string(backend, SETUP_SQL)).await?;
+            txn.execute(Statement::from_string(backend, SETUP_SQL))
+                .await?;
             Ok(())
         })
     })

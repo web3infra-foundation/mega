@@ -3,7 +3,6 @@
 //!
 //! And this is the main entry point for the application.
 
-
 mod cli;
 mod commands;
 
