@@ -11,6 +11,8 @@ This setup allows you to reference dependencies using the format `//third-party:
 You need to pay special attention to these `fixups.toml` to ensure cross device compatibility:
 - borsh
 - openssl-sys
+- ring
+- mime_guess
 
 ## Update dependencies
 ### 1. Update `Cargo.toml`
