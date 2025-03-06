@@ -1,7 +1,7 @@
 use crate::application::Action;
 use crate::core::mega_core::MegaCommands;
 use crate::CONTEXT;
-use adw::glib::{clone, GString};
+use adw::glib::{clone, GString, Regex, RegexCompileFlags, RegexMatchFlags};
 use adw::prelude::*;
 use async_channel::Sender;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
@@ -97,23 +97,20 @@ impl HelloPage {
         let pgp_row = self.imp().pgp_row.clone();
         let pgp_button = self.imp().pgp_button.clone();
 
-        let should_continue = move |name: GString, email: GString| -> bool {
-            // FIXME: There's a bug in glib regex,
-            // we have to find a temporary solution for this.
-
-            // let re = Regex::new(
-            //     r"^\w+(-+.\w+)*@\w+(-.\w+)*.\w+(-.\w+)*$",
-            //     RegexCompileFlags::DEFAULT,
-            //     RegexMatchFlags::DEFAULT,
-            // )
-            // .unwrap()
-            // .unwrap();
-            // 
-            // re.match_full(email.as_ref(),0 , RegexMatchFlags::DEFAULT)
-            //     .is_ok()
-            //     && !name.is_empty()
-
-            !name.is_empty() && !email.is_empty()
+        let should_continue = move |name: GString, email: GString, btn_sensitive| -> bool {
+            let re = Regex::new(
+                r"^\w+(-+.\w+)*@\w+(-.\w+)*.\w+(-.\w+)*$",
+                RegexCompileFlags::DEFAULT,
+                RegexMatchFlags::DEFAULT,
+            )
+                .unwrap()
+                .unwrap();
+            
+            if name.trim().is_empty() || email.trim().is_empty() || btn_sensitive {
+                return false;
+            }
+            re.match_full(email.as_gstr(), 0, RegexMatchFlags::DEFAULT)
+                .is_ok()
         };
 
         email_entry.connect_changed(clone!(
@@ -123,11 +120,13 @@ impl HelloPage {
             email_entry,
             #[weak]
             name_entry,
+            #[weak]
+            pgp_button,
             move |_| {
                 let email = email_entry.text();
                 let name = name_entry.text();
 
-                continue_button.set_sensitive(should_continue(name, email));
+                continue_button.set_sensitive(should_continue(name, email, pgp_button.is_sensitive()));
             }
         ));
 
@@ -138,18 +137,13 @@ impl HelloPage {
             email_entry,
             #[weak]
             name_entry,
+            #[weak]
+            pgp_button,
             move |_| {
                 let email = email_entry.text();
                 let name = name_entry.text();
-
-                // name_entry.set_css_classes(
-                //     if name.is_empty() {
-                //         &["error"]
-                //     } else {
-                //         &[]
-                //     }
-                // );
-                continue_button.set_sensitive(should_continue(name, email));
+                
+                continue_button.set_sensitive(should_continue(name, email, pgp_button.is_sensitive()));
             }
         ));
 
@@ -162,6 +156,8 @@ impl HelloPage {
             email_entry,
             #[weak]
             name_entry,
+            #[weak]
+            continue_button,
             #[strong]
             sender,
             move |btn| {
@@ -175,7 +171,7 @@ impl HelloPage {
                     None,
                 ));
                 btn.set_sensitive(false);
-                
+
                 // Adw::Spinner type does not exist, we have to find a temporary solution for this.
                 let spinner = btn.prev_sibling();
                 #[cfg(debug_assertions)]
@@ -183,7 +179,7 @@ impl HelloPage {
                     assert!(spinner.is_some());
                     assert_eq!(spinner.clone().unwrap().widget_name(), GString::from("AdwSpinner"));
                 }
-                
+
                 let spinner = spinner.unwrap();
                 CONTEXT.spawn_local(async move {
                     spinner.set_visible(true);
@@ -193,7 +189,11 @@ impl HelloPage {
                         sender.send(toast).await.unwrap();
                         pgp_button.set_sensitive(true);
                     } else {
+                        let email = email_entry.text();
+                        let name = name_entry.text();
                         pgp_row.set_title("PGP key already generated");
+                        continue_button.set_sensitive(should_continue(name, email, pgp_button.is_sensitive()));
+                        
                         let toast = Action::AddToast("PGP key initialized".to_string());
                         sender.send(toast).await.unwrap();
                     }
