@@ -26,8 +26,10 @@ qemu-img create -f qcow2 vda.qcow2 30G
 # enable nbd
 sudo modprobe nbd max_part=16
 
-# connect the image to nbd
 NBDX=/dev/nbd1 # or any other free nbd device
+LFS_DIR=/mnt/lfs
+
+# connect the image to nbd
 sudo qemu-nbd -c $NBDX ./vda.qcow2
 
 # create partitions (maybe need wait a few seconds to let the device ready)
@@ -40,7 +42,6 @@ sudo mkfs.vfat ${NBDX}p1
 sudo mkfs.ext4 ${NBDX}p2
 
 # mount partitions
-LFS_DIR=/mnt/lfs
 sudo mkdir -pv $LFS_DIR
 sudo mkdir -pv $LFS_DIR/boot
 sudo mount ${NBDX}p2 $LFS_DIR
@@ -54,7 +55,7 @@ Make sure you have corectly clone the submodules by `git clone --recurse-submodu
 1. copy `jhalfs` custome config to `jhalfs` directory
 
 ```bash
-cp -r custome/config/* jhalfs/customed/config/
+cp -r custom/config/. jhalfs/custom/config/
 ```
 
 2. copy needed packages to `source` directory(optional)
@@ -65,10 +66,16 @@ If the network is not available, you can copy the needed packages to `source` di
 mkdir -pv $LFS_DIR/sources
 ```
 
+Use `download-sources.sh` to download the needed packages to target directory manually.
+
+```bash
+./download-sources.sh ./package_list.txt $LFS_DIR/sources
+```
+
 3. copy system configurations to target directory
 
 ```bash
-cp -r custome/system/* $LFS_DIR
+sudo cp -r custom/system/* $LFS_DIR
 ```
 
 4. **Edit config scripts**
@@ -82,7 +89,7 @@ Run `sudo blkid` to get the UUID of the partitions, The Result should be like th
 /dev/nbd1p2: UUID="41686c57-192d-4ed8-87a2-7399482c0261" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="dfd4b6d0-02"
 ```
 
--   Edit `jhalfs/customed/config/1102-custom-config-fstab`
+-   Edit `jhalfs/custom/config/1102-custom-config-fstab`
 
 replace the UUID , the result should be like this:
 
@@ -112,8 +119,10 @@ The following options must be set:
 -   `BOOK Settings → [*] Add custom tools support (NEW)`
 -   `BOOK Settings → Init system/[*] Systemd (NEW)`
 -   `BOOK Settings → XML Source of Book/(X) Local Copy`
+-   `General Settings → [*] Run the makefile`
 -   set `BOOK Settings  Location of local copy (mandatory)` to absolute path of `mega/alfs/lfs-git` directory.
 -   set `General Settings → Build directory` to your build directory, the value of `LFS_DIR` in the previous step.
+-   `[*] Rebuild the Makefile (see help)`
 
 Then save and exit the TUI, continue the build process. The process will take a long time, maybe 2~3 hours, depending on the performance of the host machine.
 
