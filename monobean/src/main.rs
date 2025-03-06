@@ -10,9 +10,9 @@ use gtk::{gio, glib};
 mod application;
 mod components;
 mod config;
+mod core;
 mod error;
 mod window;
-mod core;
 
 pub static CONTEXT: LazyLock<glib::MainContext> = LazyLock::new(glib::MainContext::default);
 

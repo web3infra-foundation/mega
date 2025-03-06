@@ -1,4 +1,5 @@
 pub mod nostr;
+pub mod pgp;
 pub mod pki;
 pub mod vault;
 

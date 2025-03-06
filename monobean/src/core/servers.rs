@@ -6,20 +6,19 @@ use jupiter::context::Context as MegaContext;
 use mono::git_protocol::ssh::SshServer;
 use mono::server::https_server::app;
 use russh::server::Server;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::{mpsc, Mutex};
 
 #[derive(Debug, Clone)]
-pub struct SshOptions {
+pub(crate) struct SshOptions {
     addr: SocketAddr,
-    abort: RefCell<Option<mpsc::Sender<()>>>,
+    abort: Arc<OnceLock<mpsc::Sender<()>>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct HttpOptions {
+pub(crate) struct HttpOptions {
     addr: SocketAddr,
     handle: axum_server::Handle,
 }
@@ -34,9 +33,11 @@ impl HttpOptions {
         let app = app(mega_ctx, self.addr.ip().to_string(), self.addr.port()).await;
         let cert = crate::core::load_mega_resource(MEGA_HTTPS_CERT);
         let key = crate::core::load_mega_resource(MEGA_HTTPS_KEY);
-        
+
         // I don't know why I must manually install it, or it will panic on the next line...
-        rustls::crypto::ring::default_provider().install_default().unwrap();
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .unwrap();
         let tls_config = RustlsConfig::from_pem(cert, key).await;
 
         tracing::info!("Starting HTTPS server on: {}", self.addr);
@@ -70,14 +71,14 @@ impl Default for HttpOptions {
 
 impl SshOptions {
     pub fn new(addr: SocketAddr) -> Self {
-        let abort = RefCell::new(None);
+        let abort = Default::default();
         Self { addr, abort }
     }
 
     pub async fn run_server(&self, mega_ctx: MegaContext) -> MonoBeanResult<()> {
         // Use rusty vault configurations...
         let (tx, mut rx) = mpsc::channel::<()>(1);
-        *self.abort.borrow_mut() = Some(tx);
+        self.abort.set(tx).unwrap();
         let key = mono::server::ssh_server::load_key().await;
         let ssh_config = russh::server::Config {
             auth_rejection_time: std::time::Duration::from_secs(3),
@@ -109,8 +110,7 @@ impl SshOptions {
     }
 
     pub fn shutdown_server(&self) {
-        if self.abort.borrow().is_some() {
-            let abort = self.abort.borrow_mut().take().unwrap();
+        if let Some(abort) = self.abort.get() {
             if abort.try_send(()).is_ok() {
                 return;
             }
