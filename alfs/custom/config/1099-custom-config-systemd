@@ -1,0 +1,25 @@
+# install rust
+# Rust只支持用户安装，不支持root安装
+
+PKG="blfs-systemd-units"
+PKG_VERSION="20240205"
+PKG_FILE="blfs-systemd-units-20240205.tar.xz"
+URL="https://www.linuxfromscratch.org/blfs/downloads/12.1-systemd/blfs-systemd-units-20240205.tar.xz"
+MD5="99efb2400c4cf4a66fdbb9db6e7aca90"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+make install-sshd
+
+
+
+xEOFx
+) > tmp
