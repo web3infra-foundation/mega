@@ -6,14 +6,13 @@ use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
 use common::config::Config;
 use jupiter::context::Context as MegaContext;
-use std::borrow::Cow;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Weak};
-use tokio::sync::{oneshot, Mutex, OnceCell, RwLock};
+use std::sync::Arc;
+use tokio::sync::{oneshot, OnceCell, RwLock};
 use vault::pgp::{SignedPublicKey, SignedSecretKey};
 
 pub struct MegaCore {
@@ -38,10 +37,12 @@ pub enum MegaCommands {
     MegaStart(Option<SocketAddr>, Option<SocketAddr>),
     MegaShutdown,
     MegaRestart(Option<SocketAddr>, Option<SocketAddr>),
-    CoreStatus(oneshot::Sender<(
-        /* core_running: */ bool,
-        /* pgp_initialized: */ bool,
-    )>),
+    CoreStatus(
+        oneshot::Sender<(
+            /* core_running: */ bool,
+            /* pgp_initialized: */ bool,
+        )>,
+    ),
     FuseMount(PathBuf),
     FuseUnmount,
     SaveFileChange(PathBuf),
@@ -77,7 +78,7 @@ impl MegaCore {
             ssh_options: Default::default(),
             http_options: Default::default(),
             pgp: Default::default(),
-            
+
             initialized: Default::default(),
             mounted: Default::default(),
             sender,
@@ -169,9 +170,9 @@ impl MegaCore {
     }
 
     /// Initialize MegaCore at startup phrase.
-    /// 
+    ///
     /// # Warning
-    /// 
+    ///
     /// DO NOT add any blocking code here.
     pub(crate) async fn init(&self) {
         if self.initialized.load(Ordering::Acquire) {
@@ -181,7 +182,7 @@ impl MegaCore {
             self.initialized.store(true, Ordering::Release);
         }
         vault::pgp::delete_keys().await;
-        
+
         // Try to load pgp keys from vault.
         if let Some(pk) = vault::pgp::load_pub_key().await {
             let sk = vault::pgp::load_sec_key().await.unwrap();
@@ -223,7 +224,6 @@ impl MegaCore {
                 }
             }
         });
-
 
         let ssh_ctx = inner.clone();
         let ssh_opt = ssh_addr.map(SshOptions::new).or(None);

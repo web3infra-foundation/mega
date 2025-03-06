@@ -6,9 +6,7 @@ use jupiter::context::Context as MegaContext;
 use mono::git_protocol::ssh::SshServer;
 use mono::server::https_server::app;
 use russh::server::Server;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::default;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{mpsc, Mutex};
@@ -37,7 +35,9 @@ impl HttpOptions {
         let key = crate::core::load_mega_resource(MEGA_HTTPS_KEY);
 
         // I don't know why I must manually install it, or it will panic on the next line...
-        rustls::crypto::ring::default_provider().install_default().unwrap();
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .unwrap();
         let tls_config = RustlsConfig::from_pem(cert, key).await;
 
         tracing::info!("Starting HTTPS server on: {}", self.addr);

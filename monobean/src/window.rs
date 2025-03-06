@@ -77,11 +77,8 @@ mod imp {
 
     impl ObjectImpl for MonobeanWindow {
         fn properties() -> &'static [ParamSpec] {
-            static PROPERTIES: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
-                vec![
-                    ParamSpecObject::builder::<Toast>("toast").build(),
-                ]
-            });
+            static PROPERTIES: LazyLock<Vec<ParamSpec>> =
+                LazyLock::new(|| vec![ParamSpecObject::builder::<Toast>("toast").build()]);
             PROPERTIES.as_ref()
         }
 
@@ -164,7 +161,12 @@ impl MonobeanWindow {
         stack.set_visible_child_name("main_page");
     }
 
-    pub fn show_hello_page(&self, name: Option<String>, email: Option<String>, pgp_generated: bool) {
+    pub fn show_hello_page(
+        &self,
+        name: Option<String>,
+        email: Option<String>,
+        pgp_generated: bool,
+    ) {
         let stack = self.imp().base_stack.clone();
         let page = self.imp().hello_page.clone();
         page.fill_entries(name, email, pgp_generated);

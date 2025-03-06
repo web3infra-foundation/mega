@@ -38,7 +38,6 @@ mod imp {
         pub pgp_button: TemplateChild<gtk::Button>,
         // #[template_child]
         // pub pgp_spin: TemplateChild<adw::Spinner>,
-
         pub sender: OnceCell<Sender<Action>>,
     }
 
@@ -103,9 +102,9 @@ impl HelloPage {
                 RegexCompileFlags::DEFAULT,
                 RegexMatchFlags::DEFAULT,
             )
-                .unwrap()
-                .unwrap();
-            
+            .unwrap()
+            .unwrap();
+
             if name.trim().is_empty() || email.trim().is_empty() || btn_sensitive {
                 return false;
             }
@@ -126,7 +125,11 @@ impl HelloPage {
                 let email = email_entry.text();
                 let name = name_entry.text();
 
-                continue_button.set_sensitive(should_continue(name, email, pgp_button.is_sensitive()));
+                continue_button.set_sensitive(should_continue(
+                    name,
+                    email,
+                    pgp_button.is_sensitive(),
+                ));
             }
         ));
 
@@ -142,8 +145,12 @@ impl HelloPage {
             move |_| {
                 let email = email_entry.text();
                 let name = name_entry.text();
-                
-                continue_button.set_sensitive(should_continue(name, email, pgp_button.is_sensitive()));
+
+                continue_button.set_sensitive(should_continue(
+                    name,
+                    email,
+                    pgp_button.is_sensitive(),
+                ));
             }
         ));
 
@@ -177,14 +184,17 @@ impl HelloPage {
                 #[cfg(debug_assertions)]
                 {
                     assert!(spinner.is_some());
-                    assert_eq!(spinner.clone().unwrap().widget_name(), GString::from("AdwSpinner"));
+                    assert_eq!(
+                        spinner.clone().unwrap().widget_name(),
+                        GString::from("AdwSpinner")
+                    );
                 }
 
                 let spinner = spinner.unwrap();
                 CONTEXT.spawn_local(async move {
                     spinner.set_visible(true);
                     sender.send(pgp_command).await.unwrap();
-                    if let Err(_) = rx.await.unwrap() {
+                    if rx.await.is_err() {
                         let toast = Action::AddToast("Failed to init pgp key".to_string());
                         sender.send(toast).await.unwrap();
                         pgp_button.set_sensitive(true);
@@ -192,8 +202,12 @@ impl HelloPage {
                         let email = email_entry.text();
                         let name = name_entry.text();
                         pgp_row.set_title("PGP key already generated");
-                        continue_button.set_sensitive(should_continue(name, email, pgp_button.is_sensitive()));
-                        
+                        continue_button.set_sensitive(should_continue(
+                            name,
+                            email,
+                            pgp_button.is_sensitive(),
+                        ));
+
                         let toast = Action::AddToast("PGP key initialized".to_string());
                         sender.send(toast).await.unwrap();
                     }
