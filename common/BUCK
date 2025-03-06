@@ -1,0 +1,30 @@
+rust_library (
+    name = "common",
+    srcs = [
+        "src/lib.rs",
+        "src/config.rs",
+        "src/enums.rs",
+        "src/errors.rs",
+        "src/model.rs",
+        "src/utils.rs",
+        "config.toml",
+    ],
+    crate_root = "src/lib.rs",
+    deps = [
+        "//third-party:axum",
+        "//third-party:anyhow",
+        "//third-party:sea-orm",
+        "//third-party:thiserror",
+        "//third-party:clap",
+        "//third-party:idgenerator",
+        "//third-party:serde",
+        "//third-party:config",
+        "//third-party:envsubst",
+        "//third-party:rand",
+        "//third-party:serde_json",
+        "//third-party:regex",
+    ],
+    visibility = [
+        'PUBLIC',
+    ],
+)

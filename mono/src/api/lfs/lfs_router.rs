@@ -242,7 +242,7 @@ pub async fn lfs_download_object(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
 ) -> Result<Response, (StatusCode, String)> {
-    let result = handler::lfs_download_object(state.context.clone(), &oid).await;
+    let result = handler::lfs_download_object(state.context.clone(), oid.clone()).await;
     match result {
         Ok(byte_stream) => Ok(Response::builder()
             .header("Content-Type", LFS_CONTENT_TYPE)
