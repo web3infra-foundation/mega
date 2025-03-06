@@ -1,0 +1,34 @@
+# libpsl, depends on `libidn2-2.3.7` and `libunistring-1.3`
+#
+
+PKG="libpsl"
+PKG_VERSION="0.21.5"
+PKG_FILE="libpsl-0.21.5.tar.gz"
+URL="https://github.com/rockdaboot/libpsl/releases/download/0.21.5/${PKG_FILE}"
+MD5="870a798ee9860b6e77896548428dba7b"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+# Your script here. Be aware that it is passed
+# verbatim, and that none of the above variables
+# will be defined when running the script. For example,
+# If you want to use ${PKG_VERSION}, you have to
+# redefine it here.
+
+mkdir build &&
+cd    build &&
+
+meson setup --prefix=/usr --buildtype=release &&
+
+ninja
+
+ninja install
+xEOFx
+) > tmp
