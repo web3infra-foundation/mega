@@ -1,5 +1,5 @@
 # install rust
-# Rust只支持用户安装，不支持root安装
+
 
 PKG=""
 PKG_VERSION=""

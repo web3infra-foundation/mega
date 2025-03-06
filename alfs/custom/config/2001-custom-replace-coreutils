@@ -1,5 +1,5 @@
 # install rust
-# Rust只支持用户安装，不支持root安装
+
 
 PKG=""
 PKG_VERSION=""
@@ -35,7 +35,6 @@ TOOLS=(
   "truncate" "tsort" "unexpand" "uniq" "unlink" "vdir" "wc" "yes"
 )
 
-# 将原来的的coreutils备份，并创建bash alias来调用rust的coreutils，如`coreutils ls`来替代/usr/bin/ls
 BACKUP_DIR="/usr/bin/coreutils.bak"
 RUST_UTIL="/root/.cargo/bin/coreutils"
 UTIL_MV="$RUST_UTIL mv"
@@ -46,11 +45,8 @@ for tool in "${TOOLS[@]}"; do
   if [ -f "/usr/bin/$tool" ]; then
     $UTIL_MV "/usr/bin/$tool" "$BACKUP_DIR/"
     $UTIL_ECHO "Backed up /usr/bin/$tool"
-    # 创建新的 Bash 脚本
     $UTIL_ECHO "#!/bin/bash" > "/usr/bin/$tool"
     $UTIL_ECHO "$RUST_UTIL $tool \"\$@\"" >> "/usr/bin/$tool"
-
-    # 给予脚本执行权限
     chmod +x "/usr/bin/$tool"
     $UTIL_ECHO "Created /usr/bin $tool as a wrapper to call Rust's version."
   else
