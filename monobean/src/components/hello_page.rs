@@ -2,6 +2,7 @@ use crate::application::Action;
 use crate::core::mega_core::MegaCommands;
 use crate::CONTEXT;
 use adw::glib::{clone, GString};
+use adw::prelude::*;
 use async_channel::Sender;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
 use gtk::subclass::prelude::*;
@@ -35,6 +36,8 @@ mod imp {
         pub pgp_row: TemplateChild<adw::PreferencesRow>,
         #[template_child]
         pub pgp_button: TemplateChild<gtk::Button>,
+        // #[template_child]
+        // pub pgp_spin: TemplateChild<adw::Spinner>,
 
         pub sender: OnceCell<Sender<Action>>,
     }
@@ -105,7 +108,7 @@ impl HelloPage {
             // )
             // .unwrap()
             // .unwrap();
-            //
+            // 
             // re.match_full(email.as_ref(),0 , RegexMatchFlags::DEFAULT)
             //     .is_ok()
             //     && !name.is_empty()
@@ -154,6 +157,8 @@ impl HelloPage {
             #[weak]
             pgp_row,
             #[weak]
+            pgp_button,
+            #[weak]
             email_entry,
             #[weak]
             name_entry,
@@ -161,7 +166,7 @@ impl HelloPage {
             sender,
             move |btn| {
                 // TODO: Ask user to input a passwd for pgp key.
-                btn.set_sensitive(false);
+                let sender = sender.clone();
                 let (tx, rx) = oneshot::channel();
                 let pgp_command = Action::MegaCore(MegaCommands::LoadOrInitPgp(
                     tx,
@@ -169,18 +174,30 @@ impl HelloPage {
                     email_entry.text().parse().unwrap(),
                     None,
                 ));
-
-                let sender = sender.clone();
-                CONTEXT.spawn(async move {
+                btn.set_sensitive(false);
+                
+                // Adw::Spinner type does not exist, we have to find a temporary solution for this.
+                let spinner = btn.prev_sibling();
+                #[cfg(debug_assertions)]
+                {
+                    assert!(spinner.is_some());
+                    assert_eq!(spinner.clone().unwrap().widget_name(), GString::from("AdwSpinner"));
+                }
+                
+                let spinner = spinner.unwrap();
+                CONTEXT.spawn_local(async move {
+                    spinner.set_visible(true);
                     sender.send(pgp_command).await.unwrap();
                     if let Err(_) = rx.await.unwrap() {
                         let toast = Action::AddToast("Failed to init pgp key".to_string());
                         sender.send(toast).await.unwrap();
+                        pgp_button.set_sensitive(true);
                     } else {
+                        pgp_row.set_title("PGP key already generated");
                         let toast = Action::AddToast("PGP key initialized".to_string());
                         sender.send(toast).await.unwrap();
-                        // pgp_row.set_css_classes(&["preference-completed"]);
                     }
+                    spinner.set_visible(false);
                 });
             }
         ));
@@ -212,7 +229,7 @@ impl HelloPage {
         }
         if pgp_generated {
             self.imp().pgp_button.set_sensitive(false);
-            self.imp().pgp_row.set_css_classes(&["preference-completed"]);
+            self.imp().pgp_row.set_title("PGP key already generated");
         }
     }
 }

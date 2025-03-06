@@ -36,6 +36,7 @@ impl MegaDelegate {
 
         std::thread::spawn(move || {
             runtime().block_on(async move {
+                core.init().await;
                 while let Ok(cmd) = core.receiver.recv().await {
                     tokio::spawn(async move {
                         core.process_command(cmd).await;
