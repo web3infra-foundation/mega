@@ -362,8 +362,9 @@ pub async fn lfs_upload_object(
 /// when server enable split,  if OID is a complete object, then splice the object and return it.
 pub async fn lfs_download_object(
     context: Context,
-    oid: &String,
+    oid: String,
 ) -> Result<impl Stream<Item = Result<Bytes, GitLFSError>>, GitLFSError> {
+    let oid = &oid;
     let config = context.config.lfs;
     let stg = context.services.lfs_db_storage.clone();
     let lfs_storage = context.services.lfs_storage.clone();
