@@ -31,7 +31,7 @@ tracing = "0.1.40"
 tracing-subscriber = "0.3.19"
 thiserror = "2.0.11"
 async-trait = "0.1.86"
-reqwest = "0.12.12"
+reqwest = { version = "0.12.12", features = ["json"] }
 assert_cmd = "2.0.16"
 # for one dep of different modules, features can be combined
 sea-orm = { version = "1.1.4", features = [
@@ -71,3 +71,22 @@ tokio-stream = "0.1.17"
 sysinfo = "0.33.1"
 ring = "0.17.8"
 crossbeam-channel = "0.5.10"
+jemallocator = "0.5.4"
+mimalloc = "0.1.43"
+http = "1.1.0"
+async-session = "3.0.0"
+oauth2 = "5.0.0"
+ctrlc = "3.4.4"
+ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
+async-stream = "0.3.6"
+axum-extra = { version = "0.10.0", features = ["typed-header"] }
+tower-http = { version = "0.6.1", features = [
+    "cors",
+    "trace",
+    "decompression-full",
+] }
+russh = "0.50.0"
+tracing-appender = "0.2"
+axum-server = { version = "0.7.1", features = ["tls-rustls"] }
+shadow-rs = "0.36.0"
+tower = "0.5.2"
