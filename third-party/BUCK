@@ -7349,6 +7349,10 @@ cargo.rust_library(
     crate = "displaydoc",
     crate_root = "vendor/displaydoc-0.2.5/src/lib.rs",
     edition = "2021",
+    features = [
+        "default",
+        "std",
+    ],
     proc_macro = True,
     visibility = [],
     deps = [
@@ -14225,6 +14229,7 @@ cargo.rust_library(
     crate_root = "vendor/num-traits-0.2.19/src/lib.rs",
     edition = "2021",
     features = [
+        "default",
         "i128",
         "libm",
         "std",
@@ -14683,8 +14688,8 @@ buildscript_run(
     package_name = "openssl-sys",
     buildscript_rule = ":openssl-sys-0.9.106-build-script-main",
     env = {
-        "OPENSSL_INCLUDE_DIR": "/opt/openssl-1.1.1g/include",
-        "OPENSSL_LIB_DIR": "/opt/openssl-1.1.1g/lib",
+        "OPENSSL_INCLUDE_DIR": "/usr/include",
+        "OPENSSL_LIB_DIR": "/usr/lib64",
         "OPT_LEVEL": "3",
     },
     version = "0.9.106",
@@ -16256,6 +16261,9 @@ cargo.rust_library(
     crate_root = "vendor/quinn-0.11.3/src/lib.rs",
     edition = "2021",
     features = [
+        "default",
+        "log",
+        "platform-verifier",
         "ring",
         "runtime-tokio",
         "rustls",
@@ -16332,6 +16340,8 @@ cargo.rust_library(
     crate_root = "vendor/quinn-proto-0.11.6/src/lib.rs",
     edition = "2021",
     features = [
+        "log",
+        "platform-verifier",
         "ring",
         "rustls",
     ],
@@ -16342,6 +16352,7 @@ cargo.rust_library(
         ":ring-0.17.8",
         ":rustc-hash-2.0.0",
         ":rustls-0.23.22",
+        ":rustls-platform-verifier-0.3.4",
         ":slab-0.4.9",
         ":thiserror-1.0.65",
         ":tinyvec-1.8.0",
@@ -16363,7 +16374,10 @@ cargo.rust_library(
     crate = "quinn_udp",
     crate_root = "vendor/quinn-udp-0.5.4/src/lib.rs",
     edition = "2021",
-    features = ["tracing"],
+    features = [
+        "log",
+        "tracing",
+    ],
     platform = {
         "windows-gnu": dict(
             deps = [
@@ -20136,6 +20150,72 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "rustls-platform-verifier-0.3.4",
+    srcs = [
+        "vendor/rustls-platform-verifier-0.3.4/README.md",
+        "vendor/rustls-platform-verifier-0.3.4/src/android.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/lib.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/tests/ffi.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/tests/mod.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/tests/verification_mock/mod.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/tests/verification_real_world/mod.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/tests/verification_real_world/update_valid_ee_certs.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/verification/android.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/verification/apple.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/verification/mod.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/verification/others.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/verification/windows.rs",
+        "vendor/rustls-platform-verifier-0.3.4/src/windows.rs",
+    ],
+    crate = "rustls_platform_verifier",
+    crate_root = "vendor/rustls-platform-verifier-0.3.4/src/lib.rs",
+    dlopen_enable = True,
+    edition = "2021",
+    platform = {
+        "linux-arm64": dict(
+            deps = [
+                ":rustls-native-certs-0.7.1",
+                ":rustls-webpki-0.102.8",
+            ],
+        ),
+        "linux-x86_64": dict(
+            deps = [
+                ":rustls-native-certs-0.7.1",
+                ":rustls-webpki-0.102.8",
+            ],
+        ),
+        "macos-arm64": dict(
+            deps = [
+                ":core-foundation-0.9.4",
+                ":core-foundation-sys-0.8.7",
+                ":security-framework-2.11.1",
+                ":security-framework-sys-2.11.1",
+            ],
+        ),
+        "macos-x86_64": dict(
+            deps = [
+                ":core-foundation-0.9.4",
+                ":core-foundation-sys-0.8.7",
+                ":security-framework-2.11.1",
+                ":security-framework-sys-2.11.1",
+            ],
+        ),
+        "windows-gnu": dict(
+            deps = [":winapi-0.3.9"],
+        ),
+        "windows-msvc": dict(
+            deps = [":winapi-0.3.9"],
+        ),
+    },
+    visibility = [],
+    deps = [
+        ":log-0.4.22",
+        ":once_cell-1.20.3",
+        ":rustls-0.23.22",
+    ],
+)
+
+cargo.rust_library(
     name = "rustls-webpki-0.102.8",
     srcs = [
         "vendor/rustls-webpki-0.102.8/src/alg_tests.rs",
@@ -21281,8 +21361,13 @@ cargo.rust_library(
         "OSX_10_10",
         "OSX_10_11",
         "OSX_10_12",
+        "OSX_10_13",
+        "OSX_10_14",
         "OSX_10_9",
+        "alpn",
         "default",
+        "serial-number-bigint",
+        "session-tickets",
     ],
     visibility = [],
     deps = [
@@ -21290,6 +21375,7 @@ cargo.rust_library(
         ":core-foundation-0.9.4",
         ":core-foundation-sys-0.8.7",
         ":libc-0.2.169",
+        ":num-bigint-0.4.6",
         ":security-framework-sys-2.11.1",
     ],
 )
@@ -21328,6 +21414,8 @@ cargo.rust_library(
         "OSX_10_10",
         "OSX_10_11",
         "OSX_10_12",
+        "OSX_10_13",
+        "OSX_10_14",
         "OSX_10_9",
         "default",
     ],
@@ -27545,6 +27633,7 @@ cargo.rust_library(
         "shlobj",
         "winbase",
         "wincon",
+        "wincrypt",
         "windef",
         "winerror",
         "winioctl",
@@ -27998,6 +28087,7 @@ cargo.rust_binary(
         "shlobj",
         "winbase",
         "wincon",
+        "wincrypt",
         "windef",
         "winerror",
         "winioctl",
@@ -28034,6 +28124,7 @@ buildscript_run(
         "shlobj",
         "winbase",
         "wincon",
+        "wincrypt",
         "windef",
         "winerror",
         "winioctl",
