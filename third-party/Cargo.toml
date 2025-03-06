@@ -19,15 +19,74 @@ bs58 = "0.5.1"
 serde = { version = "1.0.117", features = ["derive"] }
 secp256k1 = { version = "0.30.0" , features = ["serde", "rand","hashes"] }
 tokio = {version = "1.43.0", features = ["full"]}
+tokio-util = { version = "0.7.11", features = ["io"] }
 async-std = "1.13.0"
 
 anyhow = "1.0.93"
 axum = "0.8.1"
-clap = "4.5.28"
+clap = { version = "4.5.28", features = ["derive"] }
 base64 = "0.22.1"
 dotenvy = "0.15.7"
 tracing = "0.1.40"
+tracing-subscriber = "0.3.19"
 thiserror = "2.0.11"
 async-trait = "0.1.86"
-reqwest = "0.12.12"
+reqwest = { version = "0.12.12", features = ["json"] }
 assert_cmd = "2.0.16"
+# for one dep of different modules, features can be combined
+sea-orm = { version = "1.1.4", features = [
+    "sqlx-postgres",
+    "sqlx-mysql",
+    "sqlx-sqlite",
+    "runtime-tokio-rustls",
+    "macros",
+] }
+envsubst = "0.2.1"
+regex = "1.11.1"
+rand = "0.9.0"
+config = "0.15.7"
+idgenerator = "2.0.0"
+cedar-policy = "4.3.1"
+itertools = "0.14.0"
+diffs = "0.5.1"
+sha1 = "0.10.6"
+flate2 = { version = "1.0.35",features = ["zlib"] }
+bstr = "1.11.3"
+colored = "3.0.0"
+chrono = "0.4.39"
+uuid = { version = "1.13.1",features = ["v4"] }
+threadpool = "1.8.1"
+num_cpus = "1.16.0"
+dashmap = "6.0.1"
+lru-mem = "0.3.0"
+bincode = "1.3.3"
+byteorder = "1.5.0"
+futures-util = "0.3.30"
+bytes = "1.10.0"
+memchr = "2.7.4"
+encoding_rs = "0.8.31"
+rayon = "1.10.0"
+futures = "0.3.30"
+tokio-stream = "0.1.17"
+sysinfo = "0.33.1"
+ring = "0.17.8"
+crossbeam-channel = "0.5.10"
+jemallocator = "0.5.4"
+mimalloc = "0.1.43"
+http = "1.1.0"
+async-session = "3.0.0"
+oauth2 = "5.0.0"
+ctrlc = "3.4.4"
+ed25519-dalek = { version = "2.1.1", features = ["pkcs8"] }
+async-stream = "0.3.6"
+axum-extra = { version = "0.10.0", features = ["typed-header"] }
+tower-http = { version = "0.6.1", features = [
+    "cors",
+    "trace",
+    "decompression-full",
+] }
+russh = "0.50.0"
+tracing-appender = "0.2"
+axum-server = { version = "0.7.1", features = ["tls-rustls"] }
+shadow-rs = "0.36.0"
+tower = "0.5.2"

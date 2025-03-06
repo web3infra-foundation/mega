@@ -1,0 +1,8 @@
+rustc_flags = [
+    "-Lnative=$(location :libgit2-sys-0.17.0+1.8.1-build-script-run[out_dir])/build",
+    "-lstatic=git2",
+]
+
+[[buildscript]]
+[buildscript.gen_srcs]
+env = { OPT_LEVEL = "3" }
