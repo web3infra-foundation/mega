@@ -24,6 +24,7 @@ pub struct MegaCore {
     http_options: Arc<RwLock<Option<HttpOptions>>>,
     pgp: OnceCell<(SignedPublicKey, SignedSecretKey)>,
 
+    initialized: AtomicBool,
     mounted: AtomicBool,
 
     #[allow(dead_code)]
@@ -76,7 +77,8 @@ impl MegaCore {
             ssh_options: Default::default(),
             http_options: Default::default(),
             pgp: Default::default(),
-
+            
+            initialized: Default::default(),
             mounted: Default::default(),
             sender,
             receiver,
@@ -109,7 +111,6 @@ impl MegaCore {
         match cmd {
             MegaCommands::MegaStart(http_addr, ssh_addr) => {
                 tracing::info!("Starting Mega Core");
-                self.init().await;
                 self.launch(http_addr, ssh_addr).await.unwrap();
             }
             MegaCommands::MegaShutdown => {
@@ -168,7 +169,18 @@ impl MegaCore {
     }
 
     /// Initialize MegaCore at startup phrase.
-    async fn init(&self) {
+    /// 
+    /// # Warning
+    /// 
+    /// DO NOT add any blocking code here.
+    pub(crate) async fn init(&self) {
+        if self.initialized.load(Ordering::Acquire) {
+            tracing::error!("MegaCore is already initialized");
+            return;
+        } else {
+            self.initialized.store(true, Ordering::Release);
+        }
+        
         // Try to load pgp keys from vault.
         if let Some(pk) = vault::pgp::load_pub_key().await {
             let sk = vault::pgp::load_sec_key().await.unwrap();

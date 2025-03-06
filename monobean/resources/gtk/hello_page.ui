@@ -212,9 +212,23 @@
                               <object class="AdwActionRow" id="pgp_row">
                                 <property name="title" translatable="yes">PGP Key</property>
                                 <child>
-                                  <object class="GtkButton" id="pgp_button">
-                                    <property name="label" translatable="yes">Generate</property>
-                                    <property name="valign">center</property>
+                                  <object class="GtkBox">
+                                    <property name="orientation">horizontal</property>
+                                    <property name="spacing">12</property>
+                                    <child>
+                                      <object class="AdwSpinner" id="pgp_spin">
+                                        <property name="halign">center</property>
+                                        <property name="valign">center</property>
+                                        <property name="visible">False</property>
+                                      </object>
+                                    </child>
+
+                                    <child>
+                                      <object class="GtkButton" id="pgp_button">
+                                        <property name="label" translatable="yes">Generate</property>
+                                        <property name="valign">center</property>
+                                      </object>
+                                    </child>
                                   </object>
                                 </child>
                               </object>
