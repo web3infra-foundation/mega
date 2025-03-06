@@ -10,7 +10,6 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
-use futures::task::{LocalSpawnExt, SpawnExt};
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
@@ -168,7 +167,7 @@ impl MonobeanApplication {
             #[weak(rename_to = app)]
             self,
             move |_, _| {
-                app.send_command(MegaCommands::MegaShutdown);
+                app.blocking_send_command(MegaCommands::MegaShutdown);
                 app.quit();
             }
         ));
@@ -257,6 +256,10 @@ impl MonobeanApplication {
         self.imp().mega_delegate.send_command(cmd).await;
     }
 
+    pub fn blocking_send_command(&self, cmd: MegaCommands) {
+        self.imp().mega_delegate.blocking_send_command(cmd);
+    }
+
     pub async fn start_mega(&self) {
         // The first Action of the application, so it can never block the gui thread.
         let http_addr = self
@@ -289,7 +292,8 @@ impl MonobeanApplication {
         self.send_command(MegaStart(
             Option::from(SocketAddr::new(http_addr, http_port as u16)),
             Option::from(SocketAddr::new(ssh_addr, ssh_port as u16)),
-        )).await;
+        ))
+        .await;
     }
 
     /// Send a command to mega core

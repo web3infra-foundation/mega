@@ -19,9 +19,7 @@ impl MegaDelegate {
 
         DELEGATE.get_or_init(move || {
             let (cmd_sender, cmd_receiver) = async_channel::unbounded();
-            let ret = Self {
-                inner: cmd_sender
-            };
+            let ret = Self { inner: cmd_sender };
 
             ret.init_core(action_sender, cmd_receiver);
             ret
@@ -30,9 +28,7 @@ impl MegaDelegate {
 
     fn init_core(&self, act_sender: Sender<Action>, cmd_receiver: Receiver<MegaCommands>) {
         static CORE: OnceLock<MegaCore> = OnceLock::new();
-        let core = CORE.get_or_init(move || {
-            MegaCore::new(act_sender, cmd_receiver)
-        });
+        let core = CORE.get_or_init(move || MegaCore::new(act_sender, cmd_receiver));
 
         std::thread::spawn(move || {
             runtime().block_on(async move {
@@ -46,7 +42,18 @@ impl MegaDelegate {
         });
     }
 
+    /// Send a command to the mega core and block
     pub async fn send_command(&self, cmd: MegaCommands) {
         let _ = self.inner.send(cmd).await;
+    }
+
+    /// Send a command to the mega core and block until the command is sent.
+    ///
+    /// # Deadlock
+    ///
+    /// Same as described in `MegaCore::process_command` and async_channel::Sender::send_blocking.
+    /// Better not use this function in async context, or it would cause a deadlock.
+    pub fn blocking_send_command(&self, cmd: MegaCommands) {
+        let _ = self.inner.send_blocking(cmd);
     }
 }

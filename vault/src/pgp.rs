@@ -9,7 +9,6 @@ use pgp::types::SecretKeyTrait;
 pub use pgp::KeyType;
 use pgp::SecretKeyParams;
 use pgp::{SecretKeyParamsBuilder, SubkeyParamsBuilder};
-use secp256k1::rand::{CryptoRng, Rng};
 use smallvec::smallvec;
 
 const VAULT_KEY: &str = "pgp-signed-secret";
@@ -31,7 +30,7 @@ pub fn gen_pgp_keypair(
 ) -> (SignedPublicKey, SignedSecretKey) {
     let mut rng = secp256k1::rand::rngs::OsRng;
     let key = params
-        .generate(&mut rng)
+        .generate(rng)
         .expect("failed to generate secret key, encrypted");
 
     let signed_key = key
@@ -123,8 +122,7 @@ pub async fn save_keys(pub_key: SignedPublicKey, sec_key: SignedSecretKey) {
 
 /// Deletes the key pair from the vault.
 pub async fn delete_keys() {
-    let data = serde_json::json!({}).as_object().unwrap().clone();
-    delete_secret(VAULT_KEY, Some(data)).await.unwrap_or_else(|e| {
+    delete_secret(VAULT_KEY).await.unwrap_or_else(|e| {
         panic!("Failed to delete PGP keys: {:?}", e);
     });
 }
