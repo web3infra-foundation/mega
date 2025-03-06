@@ -6,9 +6,9 @@ use colored::Colorize;
 
 use mercury::errors::GitError;
 
-use mercury::internal::index::Index;
 use crate::utils::path_ext::PathExt;
 use crate::utils::{path, util};
+use mercury::internal::index::Index;
 
 #[derive(Parser, Debug)]
 pub struct RemoveArgs {
@@ -34,7 +34,10 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
     }
     let dirs = get_dirs(&args.pathspec, &index);
     if !dirs.is_empty() && !args.recursive {
-        println!("fatal: not removing '{}' recursively without -r", dirs[0].bright_blue()); // Git print first
+        println!(
+            "fatal: not removing '{}' recursively without -r",
+            dirs[0].bright_blue()
+        ); // Git print first
         return Ok(());
     }
 
@@ -44,7 +47,8 @@ pub fn execute(args: RemoveArgs) -> Result<(), GitError> {
         if dirs.contains(path_str) {
             // dir
             let removed = index.remove_dir_files(&path_wd);
-            for file in removed.iter() { // to workdir
+            for file in removed.iter() {
+                // to workdir
                 println!("rm '{}'", file.bright_green());
             }
             if !args.cached {

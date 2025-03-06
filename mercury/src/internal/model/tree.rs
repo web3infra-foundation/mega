@@ -19,7 +19,6 @@ impl From<Tree> for mega_tree::Model {
     }
 }
 
-
 impl From<Tree> for git_tree::Model {
     fn from(value: Tree) -> Self {
         git_tree::Model {
@@ -39,7 +38,6 @@ impl From<mega_tree::Model> for Tree {
         Tree::from_bytes(&value.sub_trees, SHA1::from_str(&value.tree_id).unwrap()).unwrap()
     }
 }
-
 
 impl From<git_tree::Model> for Tree {
     fn from(value: git_tree::Model) -> Self {

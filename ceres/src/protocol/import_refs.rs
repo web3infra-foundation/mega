@@ -25,7 +25,6 @@ impl From<import_refs::Model> for Refs {
     }
 }
 
-
 impl From<mega_refs::Model> for Refs {
     fn from(value: mega_refs::Model) -> Self {
         Self {

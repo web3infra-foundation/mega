@@ -1,22 +1,22 @@
-use axum::{Json, Router};
-use axum::response::{IntoResponse, Sse};
-use axum::response::sse::{Event, KeepAlive};
-use axum::routing::{get, post};
-use futures_util::stream::{self, Stream};
-use serde::{Deserialize, Serialize};
-use std::{time::Duration, convert::Infallible};
-use axum::extract::{Path, State};
-use dashmap::DashSet;
-use futures_util::StreamExt;
-use once_cell::sync::Lazy;
-use sea_orm::ActiveModelTrait;
-use sea_orm::ActiveValue::Set;
-use sea_orm::sqlx::types::chrono;
-use tokio::io::AsyncReadExt;
-use uuid::Uuid;
 use crate::buck_controller;
 use crate::model::builds;
 use crate::server::AppState;
+use axum::extract::{Path, State};
+use axum::response::sse::{Event, KeepAlive};
+use axum::response::{IntoResponse, Sse};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use dashmap::DashSet;
+use futures_util::stream::{self, Stream};
+use futures_util::StreamExt;
+use once_cell::sync::Lazy;
+use sea_orm::sqlx::types::chrono;
+use sea_orm::ActiveModelTrait;
+use sea_orm::ActiveValue::Set;
+use serde::{Deserialize, Serialize};
+use std::{convert::Infallible, time::Duration};
+use tokio::io::AsyncReadExt;
+use uuid::Uuid;
 
 pub fn routers() -> Router<AppState> {
     Router::new()
@@ -46,7 +46,10 @@ static BUILDING: Lazy<DashSet<String>> = Lazy::new(DashSet::new);
 // TODO avoid multi-task in one repo?
 // #[debug_handler] // better error msg
 // `Json` must be last arg, because it consumes the request body
-async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>) -> impl IntoResponse {
+async fn buck_build(
+    State(state): State<AppState>,
+    Json(req): Json<BuildRequest>,
+) -> impl IntoResponse {
     let id = Uuid::now_v7();
     let id_c = id;
     BUILDING.insert(id.to_string());
@@ -58,11 +61,19 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
             req.repo.clone(),
             req.target.clone(),
             req.args.unwrap_or_default(),
-            output_path.clone()
-        ).await {
+            output_path.clone(),
+        )
+        .await
+        {
             Ok(status) => {
-                let message = format!("Build {}",
-                                      if status.success() {"success"} else {"failed"});
+                let message = format!(
+                    "Build {}",
+                    if status.success() {
+                        "success"
+                    } else {
+                        "failed"
+                    }
+                );
                 tracing::info!("{}; Exit code: {:?}", message, status.code());
                 BuildResult {
                     success: status.success(),
@@ -108,9 +119,7 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
         // notify webhook
         if let Some(webhook) = req.webhook {
             let client = reqwest::Client::new();
-            let resp = client.post(webhook.clone())
-                .json(&build_resp)
-                .send().await;
+            let resp = client.post(webhook.clone()).json(&build_resp).send().await;
             match resp {
                 Ok(resp) => {
                     if resp.status().is_success() {
@@ -135,10 +144,13 @@ async fn buck_build(State(state): State<AppState>, Json(req): Json<BuildRequest>
 }
 
 /// SSE
-async fn build_output(State(state): State<AppState>, Path(id): Path<String>)
-    -> Sse<impl Stream<Item = Result<Event, Infallible>>> // impl IntoResponse
+async fn build_output(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> // impl IntoResponse
 {
-    if !BUILDING.contains(&id) { // build end, no file, in database
+    if !BUILDING.contains(&id) {
+        // build end, no file, in database
         let build_id: Uuid = id.parse().expect("Invalid build id");
         let output = builds::Model::get_by_build_id(build_id, state.conn).await;
         let output = match output {
@@ -157,7 +169,9 @@ async fn build_output(State(state): State<AppState>, Path(id): Path<String>)
     if !std::path::Path::new(&path).exists() {
         // 2 return types must same, which is hard without `.boxed()`
         // `Sse<Unfold<Reader<File>, ..., ...>>` != Sse<Once<..., ..., ...>> != Sse<Unfold<bool, ..., ...>>
-        return Sse::new(stream::once(async { Ok(Event::default().data("Build task not found")) }).boxed());
+        return Sse::new(
+            stream::once(async { Ok(Event::default().data("Build task not found")) }).boxed(),
+        );
     }
 
     let file = tokio::fs::File::open(&path).await.unwrap(); // read-only mode

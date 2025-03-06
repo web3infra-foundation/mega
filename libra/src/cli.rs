@@ -2,14 +2,17 @@
 //! It includes the definition of the CLI and the main function.
 //!
 //!
-use clap::{Parser, Subcommand};
-use mercury::errors::GitError;
 use crate::command;
 use crate::utils;
+use clap::{Parser, Subcommand};
+use mercury::errors::GitError;
 
 // The Cli struct represents the root of the command line interface.
 #[derive(Parser, Debug)]
-#[command(about = "Libra: A partial Git implemented in Rust", version = "0.1.0-pre")]
+#[command(
+    about = "Libra: A partial Git implemented in Rust",
+    version = "0.1.0-pre"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -84,7 +87,9 @@ pub async fn parse(args: Option<&[&str]>) -> Result<(), GitError> {
 /// `async` version of the [parse] function
 pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
     let args = match args {
-        Some(args) => Cli::try_parse_from(args).map_err(|e| GitError::InvalidArgument(e.to_string()))?,
+        Some(args) => {
+            Cli::try_parse_from(args).map_err(|e| GitError::InvalidArgument(e.to_string()))?
+        }
         None => Cli::parse(),
     };
     // TODO: try check repo before parsing

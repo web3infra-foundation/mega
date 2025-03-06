@@ -1,8 +1,18 @@
-use std::{mem::swap, sync::{atomic::{AtomicBool, AtomicI64}, Arc, Mutex, OnceLock}, time::Duration};
+use std::{
+    mem::swap,
+    sync::{
+        atomic::{AtomicBool, AtomicI64},
+        Arc, Mutex, OnceLock,
+    },
+    time::Duration,
+};
 
 use chrono::Utc;
 
-use crate::{event::Message, queue::{get_mq, MessageQueue}};
+use crate::{
+    event::Message,
+    queue::{get_mq, MessageQueue},
+};
 
 const FLUSH_INTERVAL: u64 = 10;
 
@@ -34,7 +44,7 @@ impl MessageCache {
             inner: Arc::new(Mutex::new(Vec::new())),
             bound_mq: get_mq(),
             last_flush: Arc::new(AtomicI64::new(now.timestamp_millis())),
-            stop: Arc::new(AtomicBool::new(false))
+            stop: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -43,7 +53,7 @@ impl MessageCache {
         tokio::spawn(async move {
             loop {
                 if stop.load(std::sync::atomic::Ordering::Acquire) {
-                    return
+                    return;
                 }
                 tokio::time::sleep(Duration::from_secs(FLUSH_INTERVAL)).await;
 
@@ -56,7 +66,7 @@ impl MessageCache {
         let mut res = Vec::new();
         let inner = self.inner.clone();
 
-        let mut locked  = inner.lock().unwrap();
+        let mut locked = inner.lock().unwrap();
         if !locked.is_empty() {
             swap(locked.as_mut(), &mut res);
         }
@@ -68,7 +78,7 @@ impl MessageCache {
         let inner = self.inner.clone();
         let should_flush: bool;
         {
-            let mut locked  = inner.lock().unwrap();
+            let mut locked = inner.lock().unwrap();
             let l = locked.len();
             should_flush = l >= 1;
             locked.push(msg);
@@ -89,10 +99,13 @@ pub async fn instant_flush() {
     let st = mc.bound_mq.context.services.mq_storage.clone();
     let data = mc
         .get_cache()
-        .into_iter().map(Into::<Model>::into)
+        .into_iter()
+        .map(Into::<Model>::into)
         .collect::<Vec<Model>>();
     st.save_messages(data).await;
 
-    let now =  Utc::now();
-    mc.last_flush.to_owned().store(now.timestamp_millis(), std::sync::atomic::Ordering::Relaxed);
+    let now = Utc::now();
+    mc.last_flush
+        .to_owned()
+        .store(now.timestamp_millis(), std::sync::atomic::Ordering::Relaxed);
 }

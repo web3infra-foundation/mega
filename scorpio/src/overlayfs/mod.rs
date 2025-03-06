@@ -465,7 +465,6 @@ impl Drop for RealInode {
         let layer = Arc::clone(&self.layer);
         let inode = self.inode;
         tokio::spawn(async move {
-            // 异步清理逻辑
             let ctx = Request::default();
             layer.forget(ctx, inode, 1).await;
         });
