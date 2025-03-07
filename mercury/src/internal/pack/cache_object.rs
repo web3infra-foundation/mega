@@ -35,7 +35,7 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
         if path.exists() {
             return Ok(());
         }
-        let data = bincode::serde::encode_to_vec(&self, bincode::config::standard()).unwrap();
+        let data = bincode::serde::encode_to_vec(self, bincode::config::standard()).unwrap();
         let path = path.with_extension("temp");
         {
             let mut file = OpenOptions::new()
