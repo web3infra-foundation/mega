@@ -6,7 +6,6 @@ authors = ["Quanyi Ma <genedna@gmail.com>"]
 keywords = ["git", "monorepo", "decentralized"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-build = "src/build.rs"
 
 [[bin]]
 name = "mega"
@@ -32,7 +31,6 @@ thiserror = { workspace = true }
 rand = { workspace = true }
 smallvec = { workspace = true }
 config = { workspace = true }
-shadow-rs = { workspace = true }
 ctrlc = { workspace = true }
 
 [target.'cfg(not(windows))'.dependencies]
@@ -44,8 +42,5 @@ mimalloc = "0.1.43"
 [dev-dependencies]
 tempfile = { workspace = true }
 serial_test = "3.1.1"
-lazy_static = {workspace = true}
+lazy_static = { workspace = true }
 assert_cmd = "2.0.16"
-
-[build-dependencies]
-shadow-rs = { workspace = true }
