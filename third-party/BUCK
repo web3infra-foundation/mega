@@ -1161,7 +1161,10 @@ cargo.rust_library(
     edition = "2021",
     features = [
         "alloc",
+        "default",
         "password-hash",
+        "rand",
+        "zeroize",
     ],
     platform = {
         "linux-x86_64": dict(
@@ -1182,6 +1185,7 @@ cargo.rust_library(
         ":base64ct-1.6.0",
         ":blake2-0.10.6",
         ":password-hash-0.5.0",
+        ":zeroize-1.8.1",
     ],
 )
 
@@ -3192,12 +3196,6 @@ buildscript_run(
     version = "0.4.6",
 )
 
-alias(
-    name = "bincode",
-    actual = ":bincode-1.3.3",
-    visibility = ["PUBLIC"],
-)
-
 cargo.rust_library(
     name = "bincode-1.3.3",
     srcs = [
@@ -3220,6 +3218,80 @@ cargo.rust_library(
     edition = "2015",
     visibility = [],
     deps = [":serde-1.0.217"],
+)
+
+alias(
+    name = "bincode",
+    actual = ":bincode-2.0.0",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "bincode-2.0.0",
+    srcs = [
+        "vendor/bincode-2.0.0/src/atomic.rs",
+        "vendor/bincode-2.0.0/src/config.rs",
+        "vendor/bincode-2.0.0/src/de/decoder.rs",
+        "vendor/bincode-2.0.0/src/de/impl_core.rs",
+        "vendor/bincode-2.0.0/src/de/impl_tuples.rs",
+        "vendor/bincode-2.0.0/src/de/impls.rs",
+        "vendor/bincode-2.0.0/src/de/mod.rs",
+        "vendor/bincode-2.0.0/src/de/read.rs",
+        "vendor/bincode-2.0.0/src/enc/encoder.rs",
+        "vendor/bincode-2.0.0/src/enc/impl_tuples.rs",
+        "vendor/bincode-2.0.0/src/enc/impls.rs",
+        "vendor/bincode-2.0.0/src/enc/mod.rs",
+        "vendor/bincode-2.0.0/src/enc/write.rs",
+        "vendor/bincode-2.0.0/src/error.rs",
+        "vendor/bincode-2.0.0/src/features/derive.rs",
+        "vendor/bincode-2.0.0/src/features/impl_alloc.rs",
+        "vendor/bincode-2.0.0/src/features/impl_std.rs",
+        "vendor/bincode-2.0.0/src/features/mod.rs",
+        "vendor/bincode-2.0.0/src/features/serde/de_borrowed.rs",
+        "vendor/bincode-2.0.0/src/features/serde/de_owned.rs",
+        "vendor/bincode-2.0.0/src/features/serde/mod.rs",
+        "vendor/bincode-2.0.0/src/features/serde/ser.rs",
+        "vendor/bincode-2.0.0/src/lib.rs",
+        "vendor/bincode-2.0.0/src/utils.rs",
+        "vendor/bincode-2.0.0/src/varint/decode_signed.rs",
+        "vendor/bincode-2.0.0/src/varint/decode_unsigned.rs",
+        "vendor/bincode-2.0.0/src/varint/encode_signed.rs",
+        "vendor/bincode-2.0.0/src/varint/encode_unsigned.rs",
+        "vendor/bincode-2.0.0/src/varint/mod.rs",
+    ],
+    crate = "bincode",
+    crate_root = "vendor/bincode-2.0.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "bincode_derive",
+        "default",
+        "derive",
+        "serde",
+        "std",
+    ],
+    visibility = [],
+    deps = [
+        ":bincode_derive-2.0.0",
+        ":serde-1.0.217",
+        ":unty-0.0.3",
+    ],
+)
+
+cargo.rust_library(
+    name = "bincode_derive-2.0.0",
+    srcs = [
+        "vendor/bincode_derive-2.0.0/src/attribute.rs",
+        "vendor/bincode_derive-2.0.0/src/derive_enum.rs",
+        "vendor/bincode_derive-2.0.0/src/derive_struct.rs",
+        "vendor/bincode_derive-2.0.0/src/lib.rs",
+    ],
+    crate = "bincode_derive",
+    crate_root = "vendor/bincode_derive-2.0.0/src/lib.rs",
+    edition = "2021",
+    proc_macro = True,
+    visibility = [],
+    deps = [":virtue-0.0.18"],
 )
 
 cargo.rust_library(
@@ -11091,7 +11163,7 @@ cargo.rust_library(
         ":p384-0.13.0",
         ":p521-0.13.3",
         ":rand_core-0.6.4",
-        ":rsa-0.9.6",
+        ":rsa-0.9.7",
         ":sec1-0.7.3",
         ":sha1-0.10.6",
         ":sha2-0.10.8",
@@ -13219,6 +13291,11 @@ cargo.rust_library(
     crate = "md5",
     crate_root = "vendor/md-5-0.10.6/src/lib.rs",
     edition = "2018",
+    features = [
+        "default",
+        "oid",
+        "std",
+    ],
     visibility = [],
     deps = [
         ":cfg-if-1.0.0",
@@ -14142,9 +14219,12 @@ cargo.rust_library(
     crate_root = "vendor/num-bigint-dig-0.8.4/src/lib.rs",
     edition = "2021",
     features = [
+        "default",
         "i128",
         "prime",
         "rand",
+        "serde",
+        "std",
         "u64_digit",
         "zeroize",
     ],
@@ -14157,6 +14237,7 @@ cargo.rust_library(
         ":num-iter-0.1.45",
         ":num-traits-0.2.19",
         ":rand-0.8.5",
+        ":serde-1.0.217",
         ":smallvec-1.13.2",
         ":zeroize-1.8.1",
     ],
@@ -14688,8 +14769,8 @@ buildscript_run(
     package_name = "openssl-sys",
     buildscript_rule = ":openssl-sys-0.9.106-build-script-main",
     env = {
-        "OPENSSL_INCLUDE_DIR": "/usr/include",
-        "OPENSSL_LIB_DIR": "/usr/lib64",
+        "OPENSSL_INCLUDE_DIR": "/opt/openssl-1.1.1g/include",
+        "OPENSSL_LIB_DIR": "/opt/openssl-1.1.1g/lib",
         "OPT_LEVEL": "3",
     },
     version = "0.9.106",
@@ -18038,44 +18119,44 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "rsa-0.9.6",
+    name = "rsa-0.9.7",
     srcs = [
-        "vendor/rsa-0.9.6/README.md",
-        "vendor/rsa-0.9.6/src/algorithms.rs",
-        "vendor/rsa-0.9.6/src/algorithms/generate.rs",
-        "vendor/rsa-0.9.6/src/algorithms/mgf.rs",
-        "vendor/rsa-0.9.6/src/algorithms/oaep.rs",
-        "vendor/rsa-0.9.6/src/algorithms/pad.rs",
-        "vendor/rsa-0.9.6/src/algorithms/pkcs1v15.rs",
-        "vendor/rsa-0.9.6/src/algorithms/pss.rs",
-        "vendor/rsa-0.9.6/src/algorithms/rsa.rs",
-        "vendor/rsa-0.9.6/src/dummy_rng.rs",
-        "vendor/rsa-0.9.6/src/encoding.rs",
-        "vendor/rsa-0.9.6/src/errors.rs",
-        "vendor/rsa-0.9.6/src/hazmat.rs",
-        "vendor/rsa-0.9.6/src/key.rs",
-        "vendor/rsa-0.9.6/src/lib.rs",
-        "vendor/rsa-0.9.6/src/oaep.rs",
-        "vendor/rsa-0.9.6/src/oaep/decrypting_key.rs",
-        "vendor/rsa-0.9.6/src/oaep/encrypting_key.rs",
-        "vendor/rsa-0.9.6/src/pkcs1v15.rs",
-        "vendor/rsa-0.9.6/src/pkcs1v15/decrypting_key.rs",
-        "vendor/rsa-0.9.6/src/pkcs1v15/encrypting_key.rs",
-        "vendor/rsa-0.9.6/src/pkcs1v15/signature.rs",
-        "vendor/rsa-0.9.6/src/pkcs1v15/signing_key.rs",
-        "vendor/rsa-0.9.6/src/pkcs1v15/verifying_key.rs",
-        "vendor/rsa-0.9.6/src/pss.rs",
-        "vendor/rsa-0.9.6/src/pss/blinded_signing_key.rs",
-        "vendor/rsa-0.9.6/src/pss/signature.rs",
-        "vendor/rsa-0.9.6/src/pss/signing_key.rs",
-        "vendor/rsa-0.9.6/src/pss/verifying_key.rs",
-        "vendor/rsa-0.9.6/src/traits.rs",
-        "vendor/rsa-0.9.6/src/traits/encryption.rs",
-        "vendor/rsa-0.9.6/src/traits/keys.rs",
-        "vendor/rsa-0.9.6/src/traits/padding.rs",
+        "vendor/rsa-0.9.7/README.md",
+        "vendor/rsa-0.9.7/src/algorithms.rs",
+        "vendor/rsa-0.9.7/src/algorithms/generate.rs",
+        "vendor/rsa-0.9.7/src/algorithms/mgf.rs",
+        "vendor/rsa-0.9.7/src/algorithms/oaep.rs",
+        "vendor/rsa-0.9.7/src/algorithms/pad.rs",
+        "vendor/rsa-0.9.7/src/algorithms/pkcs1v15.rs",
+        "vendor/rsa-0.9.7/src/algorithms/pss.rs",
+        "vendor/rsa-0.9.7/src/algorithms/rsa.rs",
+        "vendor/rsa-0.9.7/src/dummy_rng.rs",
+        "vendor/rsa-0.9.7/src/encoding.rs",
+        "vendor/rsa-0.9.7/src/errors.rs",
+        "vendor/rsa-0.9.7/src/hazmat.rs",
+        "vendor/rsa-0.9.7/src/key.rs",
+        "vendor/rsa-0.9.7/src/lib.rs",
+        "vendor/rsa-0.9.7/src/oaep.rs",
+        "vendor/rsa-0.9.7/src/oaep/decrypting_key.rs",
+        "vendor/rsa-0.9.7/src/oaep/encrypting_key.rs",
+        "vendor/rsa-0.9.7/src/pkcs1v15.rs",
+        "vendor/rsa-0.9.7/src/pkcs1v15/decrypting_key.rs",
+        "vendor/rsa-0.9.7/src/pkcs1v15/encrypting_key.rs",
+        "vendor/rsa-0.9.7/src/pkcs1v15/signature.rs",
+        "vendor/rsa-0.9.7/src/pkcs1v15/signing_key.rs",
+        "vendor/rsa-0.9.7/src/pkcs1v15/verifying_key.rs",
+        "vendor/rsa-0.9.7/src/pss.rs",
+        "vendor/rsa-0.9.7/src/pss/blinded_signing_key.rs",
+        "vendor/rsa-0.9.7/src/pss/signature.rs",
+        "vendor/rsa-0.9.7/src/pss/signing_key.rs",
+        "vendor/rsa-0.9.7/src/pss/verifying_key.rs",
+        "vendor/rsa-0.9.7/src/traits.rs",
+        "vendor/rsa-0.9.7/src/traits/encryption.rs",
+        "vendor/rsa-0.9.7/src/traits/keys.rs",
+        "vendor/rsa-0.9.7/src/traits/padding.rs",
     ],
     crate = "rsa",
-    crate_root = "vendor/rsa-0.9.6/src/lib.rs",
+    crate_root = "vendor/rsa-0.9.7/src/lib.rs",
     edition = "2021",
     features = [
         "default",
@@ -18309,7 +18390,7 @@ cargo.rust_library(
         ":poly1305-0.8.0",
         ":rand-0.8.5",
         ":rand_core-0.6.4",
-        ":rsa-0.9.6",
+        ":rsa-0.9.7",
         ":russh-cryptovec-0.50.0",
         ":russh-util-0.50.0",
         ":sec1-0.7.3",
@@ -21921,6 +22002,7 @@ cargo.rust_library(
     crate_root = "vendor/sha1-0.10.6/src/lib.rs",
     edition = "2018",
     features = [
+        "compress",
         "default",
         "oid",
         "std",
@@ -22063,6 +22145,11 @@ cargo.rust_library(
     crate = "sha3",
     crate_root = "vendor/sha3-0.10.8/src/lib.rs",
     edition = "2018",
+    features = [
+        "default",
+        "oid",
+        "std",
+    ],
     visibility = [],
     deps = [
         ":digest-0.10.7",
@@ -22269,6 +22356,7 @@ cargo.rust_library(
         "const_generics",
         "const_new",
         "serde",
+        "write",
     ],
     visibility = [],
     deps = [":serde-1.0.217"],
@@ -22898,7 +22986,7 @@ cargo.rust_library(
         ":once_cell-1.20.3",
         ":percent-encoding-2.3.1",
         ":rand-0.8.5",
-        ":rsa-0.9.6",
+        ":rsa-0.9.7",
         ":rust_decimal-1.35.0",
         ":serde-1.0.217",
         ":sha1-0.10.6",
@@ -26757,6 +26845,15 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "unty-0.0.3",
+    srcs = ["vendor/unty-0.0.3/src/lib.rs"],
+    crate = "unty",
+    crate_root = "vendor/unty-0.0.3/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "ureq-2.10.1",
     srcs = [
         "vendor/ureq-2.10.1/src/agent.rs",
@@ -27037,6 +27134,35 @@ cargo.rust_library(
     crate = "version_check",
     crate_root = "vendor/version_check-0.9.5/src/lib.rs",
     edition = "2015",
+    visibility = [],
+)
+
+cargo.rust_library(
+    name = "virtue-0.0.18",
+    srcs = [
+        "vendor/virtue-0.0.18/src/error.rs",
+        "vendor/virtue-0.0.18/src/generate/gen_enum.rs",
+        "vendor/virtue-0.0.18/src/generate/gen_struct.rs",
+        "vendor/virtue-0.0.18/src/generate/generate_item.rs",
+        "vendor/virtue-0.0.18/src/generate/generate_mod.rs",
+        "vendor/virtue-0.0.18/src/generate/generator.rs",
+        "vendor/virtue-0.0.18/src/generate/impl.rs",
+        "vendor/virtue-0.0.18/src/generate/impl_for.rs",
+        "vendor/virtue-0.0.18/src/generate/mod.rs",
+        "vendor/virtue-0.0.18/src/generate/stream_builder.rs",
+        "vendor/virtue-0.0.18/src/lib.rs",
+        "vendor/virtue-0.0.18/src/parse/attributes.rs",
+        "vendor/virtue-0.0.18/src/parse/body.rs",
+        "vendor/virtue-0.0.18/src/parse/data_type.rs",
+        "vendor/virtue-0.0.18/src/parse/generics.rs",
+        "vendor/virtue-0.0.18/src/parse/mod.rs",
+        "vendor/virtue-0.0.18/src/parse/utils.rs",
+        "vendor/virtue-0.0.18/src/parse/visibility.rs",
+        "vendor/virtue-0.0.18/src/utils.rs",
+    ],
+    crate = "virtue",
+    crate_root = "vendor/virtue-0.0.18/src/lib.rs",
+    edition = "2021",
     visibility = [],
 )
 
