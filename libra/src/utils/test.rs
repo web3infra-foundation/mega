@@ -115,21 +115,15 @@ pub async fn setup_with_new_libra() {
 }
 
 pub fn init_debug_logger() {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .finish(),
-    )
-    .unwrap();
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .try_init(); // avoid multi-init
 }
 
 pub fn init_logger() {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .finish(),
-    )
-    .unwrap();
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .try_init(); // avoid multi-init
 }
 
 /// create file related to working directory
@@ -145,4 +139,8 @@ pub fn ensure_file(path: impl AsRef<Path>, content: Option<&str>) {
         file.write_all(path.file_name().unwrap().as_encoded_bytes())
             .unwrap();
     }
+}
+
+pub fn reset_working_dir() {
+    env::set_current_dir(env!("CARGO_MANIFEST_DIR")).unwrap();
 }

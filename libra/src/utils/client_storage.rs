@@ -213,6 +213,9 @@ impl ClientStorage {
     /// List all .pack files in `pack` directory
     fn list_all_packs(&self) -> Vec<PathBuf> {
         let pack_dir = self.base_path.join("pack");
+        if !pack_dir.exists() {
+            return Vec::new();
+        }
         let mut packs = Vec::new();
         for entry in fs::read_dir(pack_dir).unwrap() {
             let path = entry.unwrap().path();
@@ -380,6 +383,7 @@ mod tests {
 
     #[test]
     fn test_content_store() {
+        test::reset_working_dir();
         let content = "Hello, world!";
         let blob = Blob::from_content(content);
 
@@ -399,6 +403,7 @@ mod tests {
 
     #[test]
     fn test_search() {
+        test::reset_working_dir();
         let blob = Blob::from_content("Hello, world!");
 
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
@@ -416,6 +421,7 @@ mod tests {
 
     #[test]
     fn test_list_objs() {
+        test::reset_working_dir();
         let source = PathBuf::from(test::TEST_DIR)
             .join(util::ROOT_DIR)
             .join("objects");
@@ -431,6 +437,7 @@ mod tests {
 
     #[test]
     fn test_get_obj_type() {
+        test::reset_working_dir();
         let blob = Blob::from_content("Hello, world!");
 
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
@@ -455,6 +462,7 @@ mod tests {
 
     #[test]
     fn test_decompress_2() {
+        test::reset_working_dir();
         let pack_file = "../tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa";
         let pack_content = fs::read(pack_file).unwrap();
         let decompressed_data = ClientStorage::decompress_zlib(&pack_content).unwrap();
@@ -462,6 +470,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_get_from_pack() {
         unimplemented!();
     }

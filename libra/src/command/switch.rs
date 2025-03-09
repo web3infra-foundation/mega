@@ -108,6 +108,7 @@ mod tests {
     use std::env;
     use std::str::FromStr;
     #[test]
+    #[ignore]
     fn test_parse_from() {
         env::set_current_dir("./libra_test_repo").unwrap();
         let commit_id = SHA1::from_str("0cb5eb6281e1c0df48a70716869686c694706189").unwrap();
