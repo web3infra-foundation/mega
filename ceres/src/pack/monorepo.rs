@@ -120,7 +120,10 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, mut receiver: Receiver<Entry>) -> Result<Option<Commit>, GitError> {
+    async fn handle_receiver(
+        &self,
+        mut receiver: Receiver<Entry>,
+    ) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.mono_storage.clone();
         let mut entry_list = Vec::new();
         let mut join_tasks = vec![];

@@ -53,7 +53,10 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, mut receiver: Receiver<Entry>) -> Result<Option<Commit>, GitError> {
+    async fn handle_receiver(
+        &self,
+        mut receiver: Receiver<Entry>,
+    ) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
