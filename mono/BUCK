@@ -37,7 +37,6 @@ cargo.rust_binary(
         "//third-party:ed25519-dalek",
         "//third-party:lazy_static",
         "//third-party:ctrlc",
-        "//third-party:shadow-rs",
         "//third-party:oauth2",
         "//third-party:base64",
         "//third-party:async-session",

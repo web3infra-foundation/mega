@@ -57,5 +57,6 @@ pager = "0.16.0"
 
 [dev-dependencies]
 tempfile = { workspace = true }
+serial_test = "3.2.0"
 tokio = { workspace = true, features = ["macros", "process"] }
 tracing-test = "0.2.4"

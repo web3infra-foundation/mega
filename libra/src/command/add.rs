@@ -160,6 +160,6 @@ mod test {
     #[test]
     #[should_panic]
     fn test_args_parse_update_conflict_with_all() {
-        let _ = AddArgs::parse_from(["test", "-A", "-u"]);
+        AddArgs::try_parse_from(["test", "-A", "-u"]).unwrap();
     }
 }

@@ -137,10 +137,12 @@ impl Branch {
 #[cfg(test)]
 mod tests {
     use crate::utils::test;
+    use serial_test::serial;
 
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_search_branch() {
         test::setup_with_new_libra().await;
 
