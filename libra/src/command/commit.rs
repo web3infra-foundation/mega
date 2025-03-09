@@ -169,6 +169,7 @@ async fn update_head(commit_id: &str) {
 #[cfg(test)]
 mod test {
     use mercury::internal::object::ObjectTrait;
+    use serial_test::serial;
 
     use crate::{
         command::{add::AddArgs, load_object},
@@ -195,6 +196,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_tree() {
         test::reset_working_dir();
         let index = Index::from_file("../tests/data/index/index-760").unwrap();
@@ -231,6 +233,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_execute_commit() {
         test::setup_with_new_libra().await;
         // create first empty commit

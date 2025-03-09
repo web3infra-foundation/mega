@@ -130,8 +130,10 @@ mod tests {
     use crate::{command::save_object, utils::test};
     use common::utils::format_commit_msg;
     use mercury::{hash::SHA1, internal::object::commit::Commit};
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn test_get_reachable_commits() {
         test::setup_with_new_libra().await;
         let commit_id = create_test_commit_tree().await;

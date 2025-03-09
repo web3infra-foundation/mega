@@ -13,7 +13,7 @@ use crate::utils::util;
 
 pub const TEST_DIR: &str = "libra_test_repo";
 
-fn find_cargo_dir() -> PathBuf {
+pub fn find_cargo_dir() -> PathBuf {
     let cargo_path = env::var("CARGO_MANIFEST_DIR");
 
     match cargo_path {
@@ -141,6 +141,7 @@ pub fn ensure_file(path: impl AsRef<Path>, content: Option<&str>) {
     }
 }
 
+/// reset working directory to the root of the module
 pub fn reset_working_dir() {
     env::set_current_dir(env!("CARGO_MANIFEST_DIR")).unwrap();
 }

@@ -265,8 +265,10 @@ pub fn extract_lfs_patterns(file_path: &str) -> io::Result<Vec<String>> {
 mod tests {
     use super::*;
     use crate::utils::test;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_generate_pointer_file() {
         test::reset_working_dir();
         let path =
