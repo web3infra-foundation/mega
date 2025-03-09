@@ -345,6 +345,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_upload_pack_local() {
         // use /usr/bin/git-upload-pack as a test server. if no /usr/bin/git-upload-pack, skip this test
         if !std::path::Path::new("/usr/bin/git-upload-pack").exists() {

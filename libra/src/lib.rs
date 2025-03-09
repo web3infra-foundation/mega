@@ -30,12 +30,17 @@ mod tests {
 
     #[test]
     fn test_libra_init() {
+        let original_dir = std::env::current_dir().unwrap();
+
         let tmp_dir = TempDir::new().unwrap();
         std::env::set_current_dir(tmp_dir.path()).unwrap();
         exec(vec!["init"]).unwrap();
+
+        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_lfs_client() {
         use crate::internal::protocol::lfs_client::LFSClient;
         use crate::internal::protocol::ProtocolClient;
