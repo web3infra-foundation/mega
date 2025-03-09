@@ -5692,127 +5692,6 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "const_fn-0.4.10",
-    srcs = [
-        "vendor/const_fn-0.4.10/src/ast.rs",
-        "vendor/const_fn-0.4.10/src/error.rs",
-        "vendor/const_fn-0.4.10/src/iter.rs",
-        "vendor/const_fn-0.4.10/src/lib.rs",
-        "vendor/const_fn-0.4.10/src/to_tokens.rs",
-        "vendor/const_fn-0.4.10/src/utils.rs",
-    ],
-    crate = "const_fn",
-    crate_root = "vendor/const_fn-0.4.10/src/lib.rs",
-    edition = "2018",
-    proc_macro = True,
-    visibility = [],
-)
-
-cargo.rust_library(
-    name = "const_format-0.2.32",
-    srcs = [
-        "vendor/const_format-0.2.32/src/__ascii_case_conv.rs",
-        "vendor/const_format-0.2.32/src/__ascii_case_conv/word_iterator.rs",
-        "vendor/const_format-0.2.32/src/__hidden_utils.rs",
-        "vendor/const_format-0.2.32/src/__str_methods.rs",
-        "vendor/const_format-0.2.32/src/__str_methods/pattern.rs",
-        "vendor/const_format-0.2.32/src/__str_methods/str_indexing.rs",
-        "vendor/const_format-0.2.32/src/__str_methods/str_repeat.rs",
-        "vendor/const_format-0.2.32/src/__str_methods/str_replace.rs",
-        "vendor/const_format-0.2.32/src/__str_methods/str_splice.rs",
-        "vendor/const_format-0.2.32/src/__str_methods/str_split.rs",
-        "vendor/const_format-0.2.32/src/char_encoding.rs",
-        "vendor/const_format-0.2.32/src/char_encoding/tests.rs",
-        "vendor/const_format-0.2.32/src/const_debug_derive.rs",
-        "vendor/const_format-0.2.32/src/const_generic_concatcp.rs",
-        "vendor/const_format-0.2.32/src/doctests.rs",
-        "vendor/const_format-0.2.32/src/equality.rs",
-        "vendor/const_format-0.2.32/src/fmt.rs",
-        "vendor/const_format-0.2.32/src/fmt/error.rs",
-        "vendor/const_format-0.2.32/src/fmt/formatter.rs",
-        "vendor/const_format-0.2.32/src/fmt/std_type_impls.rs",
-        "vendor/const_format-0.2.32/src/fmt/std_type_impls/ranges.rs",
-        "vendor/const_format-0.2.32/src/fmt/str_writer.rs",
-        "vendor/const_format-0.2.32/src/fmt/str_writer_mut.rs",
-        "vendor/const_format-0.2.32/src/for_assert_macros.rs",
-        "vendor/const_format-0.2.32/src/for_examples.rs",
-        "vendor/const_format-0.2.32/src/formatting.rs",
-        "vendor/const_format-0.2.32/src/lib.rs",
-        "vendor/const_format-0.2.32/src/macros.rs",
-        "vendor/const_format-0.2.32/src/macros/assertions.rs",
-        "vendor/const_format-0.2.32/src/macros/assertions/assertc_macros.rs",
-        "vendor/const_format-0.2.32/src/macros/assertions/assertcp_macros.rs",
-        "vendor/const_format-0.2.32/src/macros/call_debug_fmt.rs",
-        "vendor/const_format-0.2.32/src/macros/constructors.rs",
-        "vendor/const_format-0.2.32/src/macros/fmt_macros.rs",
-        "vendor/const_format-0.2.32/src/macros/helper_macros.rs",
-        "vendor/const_format-0.2.32/src/macros/impl_fmt.rs",
-        "vendor/const_format-0.2.32/src/macros/map_ascii_case.rs",
-        "vendor/const_format-0.2.32/src/macros/str_methods.rs",
-        "vendor/const_format-0.2.32/src/marker_traits.rs",
-        "vendor/const_format-0.2.32/src/marker_traits/format_marker.rs",
-        "vendor/const_format-0.2.32/src/marker_traits/write_marker.rs",
-        "vendor/const_format-0.2.32/src/msg.rs",
-        "vendor/const_format-0.2.32/src/pargument.rs",
-        "vendor/const_format-0.2.32/src/slice_cmp.rs",
-        "vendor/const_format-0.2.32/src/test_utils.rs",
-        "vendor/const_format-0.2.32/src/utils.rs",
-        "vendor/const_format-0.2.32/src/wrapper_types.rs",
-        "vendor/const_format-0.2.32/src/wrapper_types/ascii_str.rs",
-        "vendor/const_format-0.2.32/src/wrapper_types/pwrapper.rs",
-        "vendor/const_format-0.2.32/src/wrapper_types/pwrapper/tests.rs",
-        "vendor/const_format-0.2.32/src/wrapper_types/sliced.rs",
-    ],
-    crate = "const_format",
-    crate_root = "vendor/const_format-0.2.32/src/lib.rs",
-    edition = "2021",
-    features = ["default"],
-    visibility = [],
-    deps = [":const_format_proc_macros-0.2.32"],
-)
-
-cargo.rust_library(
-    name = "const_format_proc_macros-0.2.32",
-    srcs = [
-        "vendor/const_format_proc_macros-0.2.32/src/datastructure.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/datastructure/field_map.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/derive_debug.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/derive_debug/attribute_parsing.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/derive_debug/syntax.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/derive_debug/type_detection.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/error.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_args.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_args/parsing.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_macro.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_macro/tests.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_str.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_str/errors.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_str/parsing.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/format_str/tests.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/formatting.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/lib.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/macros.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/parse_utils.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/respan_to_macro.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/shared_arg_parsing.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/spanned.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/test_utils.rs",
-        "vendor/const_format_proc_macros-0.2.32/src/utils.rs",
-    ],
-    crate = "const_format_proc_macros",
-    crate_root = "vendor/const_format_proc_macros-0.2.32/src/lib.rs",
-    edition = "2021",
-    features = ["default"],
-    proc_macro = True,
-    visibility = [],
-    deps = [
-        ":proc-macro2-1.0.86",
-        ":quote-1.0.36",
-        ":unicode-xid-0.2.4",
-    ],
-)
-
-cargo.rust_library(
     name = "constant_time_eq-0.1.5",
     srcs = ["vendor/constant_time_eq-0.1.5/src/lib.rs"],
     crate = "constant_time_eq",
@@ -9167,97 +9046,6 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "git2-0.19.0",
-    srcs = [
-        "vendor/git2-0.19.0/src/apply.rs",
-        "vendor/git2-0.19.0/src/attr.rs",
-        "vendor/git2-0.19.0/src/blame.rs",
-        "vendor/git2-0.19.0/src/blob.rs",
-        "vendor/git2-0.19.0/src/branch.rs",
-        "vendor/git2-0.19.0/src/buf.rs",
-        "vendor/git2-0.19.0/src/build.rs",
-        "vendor/git2-0.19.0/src/call.rs",
-        "vendor/git2-0.19.0/src/cert.rs",
-        "vendor/git2-0.19.0/src/cherrypick.rs",
-        "vendor/git2-0.19.0/src/commit.rs",
-        "vendor/git2-0.19.0/src/config.rs",
-        "vendor/git2-0.19.0/src/cred.rs",
-        "vendor/git2-0.19.0/src/describe.rs",
-        "vendor/git2-0.19.0/src/diff.rs",
-        "vendor/git2-0.19.0/src/email.rs",
-        "vendor/git2-0.19.0/src/error.rs",
-        "vendor/git2-0.19.0/src/index.rs",
-        "vendor/git2-0.19.0/src/indexer.rs",
-        "vendor/git2-0.19.0/src/lib.rs",
-        "vendor/git2-0.19.0/src/mailmap.rs",
-        "vendor/git2-0.19.0/src/mempack.rs",
-        "vendor/git2-0.19.0/src/merge.rs",
-        "vendor/git2-0.19.0/src/message.rs",
-        "vendor/git2-0.19.0/src/note.rs",
-        "vendor/git2-0.19.0/src/object.rs",
-        "vendor/git2-0.19.0/src/odb.rs",
-        "vendor/git2-0.19.0/src/oid.rs",
-        "vendor/git2-0.19.0/src/oid_array.rs",
-        "vendor/git2-0.19.0/src/opts.rs",
-        "vendor/git2-0.19.0/src/packbuilder.rs",
-        "vendor/git2-0.19.0/src/panic.rs",
-        "vendor/git2-0.19.0/src/patch.rs",
-        "vendor/git2-0.19.0/src/pathspec.rs",
-        "vendor/git2-0.19.0/src/proxy_options.rs",
-        "vendor/git2-0.19.0/src/push_update.rs",
-        "vendor/git2-0.19.0/src/rebase.rs",
-        "vendor/git2-0.19.0/src/reference.rs",
-        "vendor/git2-0.19.0/src/reflog.rs",
-        "vendor/git2-0.19.0/src/refspec.rs",
-        "vendor/git2-0.19.0/src/remote.rs",
-        "vendor/git2-0.19.0/src/remote_callbacks.rs",
-        "vendor/git2-0.19.0/src/repo.rs",
-        "vendor/git2-0.19.0/src/revert.rs",
-        "vendor/git2-0.19.0/src/revspec.rs",
-        "vendor/git2-0.19.0/src/revwalk.rs",
-        "vendor/git2-0.19.0/src/signature.rs",
-        "vendor/git2-0.19.0/src/stash.rs",
-        "vendor/git2-0.19.0/src/status.rs",
-        "vendor/git2-0.19.0/src/string_array.rs",
-        "vendor/git2-0.19.0/src/submodule.rs",
-        "vendor/git2-0.19.0/src/tag.rs",
-        "vendor/git2-0.19.0/src/tagforeach.rs",
-        "vendor/git2-0.19.0/src/test.rs",
-        "vendor/git2-0.19.0/src/time.rs",
-        "vendor/git2-0.19.0/src/tracing.rs",
-        "vendor/git2-0.19.0/src/transaction.rs",
-        "vendor/git2-0.19.0/src/transport.rs",
-        "vendor/git2-0.19.0/src/tree.rs",
-        "vendor/git2-0.19.0/src/treebuilder.rs",
-        "vendor/git2-0.19.0/src/util.rs",
-        "vendor/git2-0.19.0/src/version.rs",
-        "vendor/git2-0.19.0/src/worktree.rs",
-    ],
-    crate = "git2",
-    crate_root = "vendor/git2-0.19.0/src/lib.rs",
-    edition = "2018",
-    env = {
-        "CARGO_MANIFEST_DIR": "vendor/git2-0.19.0",
-        "CARGO_PKG_AUTHORS": "Josh Triplett <josh@joshtriplett.org>:Alex Crichton <alex@alexcrichton.com>",
-        "CARGO_PKG_DESCRIPTION": "Bindings to libgit2 for interoperating with git repositories. This library is\nboth threadsafe and memory safe and allows both reading and writing git\nrepositories.\n",
-        "CARGO_PKG_NAME": "git2",
-        "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/git2-rs",
-        "CARGO_PKG_VERSION": "0.19.0",
-        "CARGO_PKG_VERSION_MAJOR": "0",
-        "CARGO_PKG_VERSION_MINOR": "19",
-        "CARGO_PKG_VERSION_PATCH": "0",
-    },
-    visibility = [],
-    deps = [
-        ":bitflags-2.6.0",
-        ":libc-0.2.169",
-        ":libgit2-sys-0.17.0+1.8.1",
-        ":log-0.4.22",
-        ":url-2.5.3",
-    ],
-)
-
-cargo.rust_library(
     name = "glob-0.3.1",
     srcs = ["vendor/glob-0.3.1/src/lib.rs"],
     crate = "glob",
@@ -11293,15 +11081,6 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "is_debug-1.0.1",
-    srcs = ["vendor/is_debug-1.0.1/src/lib.rs"],
-    crate = "is_debug",
-    crate_root = "vendor/is_debug-1.0.1/src/lib.rs",
-    edition = "2018",
-    visibility = [],
-)
-
-cargo.rust_library(
     name = "is_terminal_polyfill-1.70.1",
     srcs = ["vendor/is_terminal_polyfill-1.70.1/src/lib.rs"],
     crate = "is_terminal_polyfill",
@@ -12307,55 +12086,6 @@ buildscript_run(
 )
 
 cargo.rust_library(
-    name = "libgit2-sys-0.17.0+1.8.1",
-    srcs = [
-        "vendor/libgit2-sys-0.17.0+1.8.1/build.rs",
-        "vendor/libgit2-sys-0.17.0+1.8.1/lib.rs",
-    ],
-    crate = "libgit2_sys",
-    crate_root = "vendor/libgit2-sys-0.17.0+1.8.1/lib.rs",
-    edition = "2018",
-    env = {
-        "OUT_DIR": "$(location :libgit2-sys-0.17.0+1.8.1-build-script-run[out_dir])",
-    },
-    rustc_flags = [
-        "-Lnative=$(location :libgit2-sys-0.17.0+1.8.1-build-script-run[out_dir])/build",
-        "-lstatic=git2",
-    ],
-    visibility = [],
-    deps = [
-        ":libc-0.2.169",
-        ":libz-sys-1.1.20",
-    ],
-)
-
-cargo.rust_binary(
-    name = "libgit2-sys-0.17.0+1.8.1-build-script-build",
-    srcs = [
-        "vendor/libgit2-sys-0.17.0+1.8.1/build.rs",
-        "vendor/libgit2-sys-0.17.0+1.8.1/lib.rs",
-    ],
-    crate = "build_script_build",
-    crate_root = "vendor/libgit2-sys-0.17.0+1.8.1/build.rs",
-    edition = "2018",
-    visibility = [],
-    deps = [
-        ":cc-1.1.12",
-        ":pkg-config-0.3.30",
-    ],
-)
-
-buildscript_run(
-    name = "libgit2-sys-0.17.0+1.8.1-build-script-run",
-    package_name = "libgit2-sys",
-    buildscript_rule = ":libgit2-sys-0.17.0+1.8.1-build-script-build",
-    env = {
-        "OPT_LEVEL": "3",
-    },
-    version = "0.17.0+1.8.1",
-)
-
-cargo.rust_library(
     name = "libloading-0.8.5",
     srcs = [
         "vendor/libloading-0.8.5/src/changelog.rs",
@@ -12642,9 +12372,7 @@ cargo.rust_library(
     env = {
         "OUT_DIR": "$(location :libz-sys-1.1.20-build-script-run[out_dir])",
     },
-    features = ["libc"],
     visibility = [],
-    deps = [":libc-0.2.169"],
 )
 
 cargo.rust_binary(
@@ -12658,7 +12386,6 @@ cargo.rust_binary(
     crate = "build_script_build",
     crate_root = "vendor/libz-sys-1.1.20/build.rs",
     edition = "2018",
-    features = ["libc"],
     visibility = [],
     deps = [
         ":cc-1.1.12",
@@ -12674,7 +12401,6 @@ buildscript_run(
     env = {
         "OPT_LEVEL": "3",
     },
-    features = ["libc"],
     version = "1.1.20",
 )
 
@@ -14341,30 +14067,6 @@ cargo.rust_library(
         "linux-x86_64": dict(
             deps = [":libc-0.2.169"],
         ),
-        "macos-arm64": dict(
-            deps = [":libc-0.2.169"],
-        ),
-        "macos-x86_64": dict(
-            deps = [":libc-0.2.169"],
-        ),
-    },
-    visibility = [],
-)
-
-cargo.rust_library(
-    name = "num_threads-0.1.7",
-    srcs = [
-        "vendor/num_threads-0.1.7/src/aix.rs",
-        "vendor/num_threads-0.1.7/src/apple.rs",
-        "vendor/num_threads-0.1.7/src/freebsd.rs",
-        "vendor/num_threads-0.1.7/src/imp.rs",
-        "vendor/num_threads-0.1.7/src/lib.rs",
-        "vendor/num_threads-0.1.7/src/linux.rs",
-    ],
-    crate = "num_threads",
-    crate_root = "vendor/num_threads-0.1.7/src/lib.rs",
-    edition = "2015",
-    platform = {
         "macos-arm64": dict(
             deps = [":libc-0.2.169"],
         ),
@@ -22157,43 +21859,6 @@ cargo.rust_library(
     ],
 )
 
-alias(
-    name = "shadow-rs",
-    actual = ":shadow-rs-0.36.0",
-    visibility = ["PUBLIC"],
-)
-
-cargo.rust_library(
-    name = "shadow-rs-0.36.0",
-    srcs = [
-        "vendor/shadow-rs-0.36.0/src/build.rs",
-        "vendor/shadow-rs-0.36.0/src/ci.rs",
-        "vendor/shadow-rs-0.36.0/src/date_time.rs",
-        "vendor/shadow-rs-0.36.0/src/env.rs",
-        "vendor/shadow-rs-0.36.0/src/err.rs",
-        "vendor/shadow-rs-0.36.0/src/gen_const.rs",
-        "vendor/shadow-rs-0.36.0/src/git.rs",
-        "vendor/shadow-rs-0.36.0/src/hook.rs",
-        "vendor/shadow-rs-0.36.0/src/lib.rs",
-    ],
-    crate = "shadow_rs",
-    crate_root = "vendor/shadow-rs-0.36.0/src/lib.rs",
-    edition = "2021",
-    features = [
-        "default",
-        "git2",
-        "tzdb",
-    ],
-    visibility = [],
-    deps = [
-        ":const_format-0.2.32",
-        ":git2-0.19.0",
-        ":is_debug-1.0.1",
-        ":time-0.3.36",
-        ":tzdb-0.6.1",
-    ],
-)
-
 cargo.rust_library(
     name = "sharded-slab-0.1.7",
     srcs = [
@@ -24779,39 +24444,12 @@ cargo.rust_library(
         "alloc",
         "default",
         "formatting",
-        "local-offset",
         "macros",
         "parsing",
         "serde",
         "serde-well-known",
         "std",
     ],
-    platform = {
-        "linux-arm64": dict(
-            deps = [
-                ":libc-0.2.169",
-                ":num_threads-0.1.7",
-            ],
-        ),
-        "linux-x86_64": dict(
-            deps = [
-                ":libc-0.2.169",
-                ":num_threads-0.1.7",
-            ],
-        ),
-        "macos-arm64": dict(
-            deps = [
-                ":libc-0.2.169",
-                ":num_threads-0.1.7",
-            ],
-        ),
-        "macos-x86_64": dict(
-            deps = [
-                ":libc-0.2.169",
-                ":num_threads-0.1.7",
-            ],
-        ),
-    },
     visibility = [],
     deps = [
         ":deranged-0.3.11",
@@ -26494,76 +26132,6 @@ buildscript_run(
     buildscript_rule = ":typenum-1.17.0-build-script-main",
     features = ["force_unix_path_separator"],
     version = "1.17.0",
-)
-
-cargo.rust_library(
-    name = "tz-rs-0.6.14",
-    srcs = [
-        "vendor/tz-rs-0.6.14/src/constants/mod.rs",
-        "vendor/tz-rs-0.6.14/src/datetime/find.rs",
-        "vendor/tz-rs-0.6.14/src/datetime/mod.rs",
-        "vendor/tz-rs-0.6.14/src/error/mod.rs",
-        "vendor/tz-rs-0.6.14/src/lib.rs",
-        "vendor/tz-rs-0.6.14/src/parse/mod.rs",
-        "vendor/tz-rs-0.6.14/src/parse/tz_file.rs",
-        "vendor/tz-rs-0.6.14/src/parse/tz_string.rs",
-        "vendor/tz-rs-0.6.14/src/timezone/mod.rs",
-        "vendor/tz-rs-0.6.14/src/timezone/rule.rs",
-        "vendor/tz-rs-0.6.14/src/utils/const_fns.rs",
-        "vendor/tz-rs-0.6.14/src/utils/mod.rs",
-        "vendor/tz-rs-0.6.14/src/utils/types.rs",
-    ],
-    crate = "tz",
-    crate_root = "vendor/tz-rs-0.6.14/src/lib.rs",
-    edition = "2018",
-    features = [
-        "alloc",
-        "const",
-        "const_fn",
-        "std",
-    ],
-    visibility = [],
-    deps = [":const_fn-0.4.10"],
-)
-
-cargo.rust_library(
-    name = "tzdb-0.6.1",
-    srcs = [
-        "vendor/tzdb-0.6.1/src/changelog.rs",
-        "vendor/tzdb-0.6.1/src/lib.rs",
-        "vendor/tzdb-0.6.1/src/now.rs",
-    ],
-    crate = "tzdb",
-    crate_root = "vendor/tzdb-0.6.1/src/lib.rs",
-    edition = "2018",
-    features = [
-        "iana-time-zone",
-        "local",
-    ],
-    visibility = [],
-    deps = [
-        ":iana-time-zone-0.1.60",
-        ":tz-rs-0.6.14",
-        ":tzdb_data-0.1.2",
-    ],
-)
-
-cargo.rust_library(
-    name = "tzdb_data-0.1.2",
-    srcs = [
-        "vendor/tzdb_data-0.1.2/src/generated/by_name.rs",
-        "vendor/tzdb_data-0.1.2/src/generated/mod.rs",
-        "vendor/tzdb_data-0.1.2/src/generated/raw_tzdata.rs",
-        "vendor/tzdb_data-0.1.2/src/generated/test_all_names.rs",
-        "vendor/tzdb_data-0.1.2/src/generated/time_zone.rs",
-        "vendor/tzdb_data-0.1.2/src/generated/tzdata.rs",
-        "vendor/tzdb_data-0.1.2/src/lib.rs",
-    ],
-    crate = "tzdb_data",
-    crate_root = "vendor/tzdb_data-0.1.2/src/lib.rs",
-    edition = "2018",
-    visibility = [],
-    deps = [":tz-rs-0.6.14"],
 )
 
 cargo.rust_library(

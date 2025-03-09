@@ -71,8 +71,6 @@ tokio-stream = "0.1.17"
 sysinfo = "0.33.1"
 ring = "0.17.8"
 crossbeam-channel = "0.5.10"
-jemallocator = "0.5.4"
-mimalloc = "0.1.43"
 http = "1.1.0"
 async-session = "3.0.0"
 oauth2 = "5.0.0"
@@ -89,3 +87,9 @@ russh = "0.50.0"
 tracing-appender = "0.2"
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 tower = "0.5.2"
+
+[target.'cfg(not(windows))'.dependencies]
+jemallocator = "0.5.4"
+
+[target.'cfg(windows)'.dependencies]
+mimalloc = "0.1.43"
