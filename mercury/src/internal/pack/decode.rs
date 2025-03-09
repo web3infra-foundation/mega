@@ -799,8 +799,7 @@ mod tests {
         tokio::task::spawn_blocking(move || {
             let mut cnt = 0;
             while let Ok(_entry) = rx.try_recv() {
-                cnt += 1;//use entry here
-                
+                cnt += 1; //use entry here
             }
             tracing::info!("Received: {}", cnt);
             count_c.store(cnt, Ordering::Release);
