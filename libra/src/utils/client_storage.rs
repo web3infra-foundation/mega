@@ -370,12 +370,12 @@ impl ClientStorage {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-    use std::{env, fs};
-
     use mercury::internal::object::blob::Blob;
     use mercury::internal::object::types::ObjectType;
     use mercury::internal::object::ObjectTrait;
+    use serial_test::serial;
+    use std::fs;
+    use std::path::PathBuf;
 
     use crate::utils::{test, util};
 
@@ -383,11 +383,10 @@ mod tests {
 
     #[test]
     fn test_content_store() {
-        test::reset_working_dir();
         let content = "Hello, world!";
         let blob = Blob::from_content(content);
 
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
@@ -403,10 +402,9 @@ mod tests {
 
     #[test]
     fn test_search() {
-        test::reset_working_dir();
         let blob = Blob::from_content("Hello, world!");
 
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
@@ -420,6 +418,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_objs() {
         test::reset_working_dir();
         let source = PathBuf::from(test::TEST_DIR)
@@ -437,10 +436,9 @@ mod tests {
 
     #[test]
     fn test_get_obj_type() {
-        test::reset_working_dir();
         let blob = Blob::from_content("Hello, world!");
 
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
@@ -461,6 +459,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_decompress_2() {
         test::reset_working_dir();
         let pack_file = "../tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa";
