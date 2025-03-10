@@ -143,7 +143,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore] // ignore this test because it will open less and block the test
     async fn test_execute_log() {
         test::setup_with_new_libra().await;
         let _ = create_test_commit_tree().await;

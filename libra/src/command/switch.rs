@@ -104,13 +104,9 @@ async fn restore_to_commit(commit_id: SHA1) {
 mod tests {
     use super::*;
     use crate::command::restore::RestoreArgs;
-    use crate::utils::util;
-    use std::env;
     use std::str::FromStr;
     #[test]
-    #[ignore]
     fn test_parse_from() {
-        env::set_current_dir("./libra_test_repo").unwrap();
         let commit_id = SHA1::from_str("0cb5eb6281e1c0df48a70716869686c694706189").unwrap();
         let restore_args = RestoreArgs::parse_from([
             "restore", // important, the first will be ignored
@@ -118,7 +114,7 @@ mod tests {
             "--staged",
             "--source",
             &commit_id.to_string(),
-            util::working_dir().to_str().unwrap(),
+            "./",
         ]);
         println!("{:?}", restore_args);
     }
