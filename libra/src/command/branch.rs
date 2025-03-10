@@ -229,15 +229,16 @@ pub fn is_valid_git_branch_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-
     use crate::{
         command::commit::{self, CommitArgs},
         utils::test,
     };
+    use serial_test::serial;
 
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_branch() {
         test::setup_with_new_libra().await;
 
@@ -323,6 +324,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_branch_from_remote() {
         test::setup_with_new_libra().await;
         test::init_debug_logger();
@@ -355,6 +357,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_invalid_branch_name() {
         test::setup_with_new_libra().await;
         test::init_debug_logger();

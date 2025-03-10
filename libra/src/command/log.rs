@@ -126,12 +126,14 @@ pub async fn execute(args: LogArgs) {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{command::save_object, utils::test};
+    use common::utils::format_commit_msg;
     use mercury::{hash::SHA1, internal::object::commit::Commit};
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn test_get_reachable_commits() {
         test::setup_with_new_libra().await;
         let commit_id = create_test_commit_tree().await;
@@ -141,6 +143,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // ignore this test because it will open less and block the test
     async fn test_execute_log() {
         test::setup_with_new_libra().await;
         let _ = create_test_commit_tree().await;
@@ -157,27 +160,43 @@ mod tests {
     //           \  / \
     ///            4   7
     async fn create_test_commit_tree() -> String {
-        let mut commit_1 = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "Commit_1");
+        let mut commit_1 = Commit::from_tree_id(
+            SHA1::new(&[1; 20]),
+            vec![],
+            &format_commit_msg("Commit_1", None),
+        );
         commit_1.committer.timestamp = 1;
         // save_object(&commit_1);
         save_object(&commit_1, &commit_1.id).unwrap();
 
-        let mut commit_2 = Commit::from_tree_id(SHA1::new(&[2; 20]), vec![commit_1.id], "Commit_2");
+        let mut commit_2 = Commit::from_tree_id(
+            SHA1::new(&[2; 20]),
+            vec![commit_1.id],
+            &format_commit_msg("Commit_2", None),
+        );
         commit_2.committer.timestamp = 2;
         save_object(&commit_2, &commit_2.id).unwrap();
 
-        let mut commit_3 = Commit::from_tree_id(SHA1::new(&[3; 20]), vec![commit_2.id], "Commit_3");
+        let mut commit_3 = Commit::from_tree_id(
+            SHA1::new(&[3; 20]),
+            vec![commit_2.id],
+            &format_commit_msg("Commit_3", None),
+        );
         commit_3.committer.timestamp = 3;
         save_object(&commit_3, &commit_3.id).unwrap();
 
-        let mut commit_4 = Commit::from_tree_id(SHA1::new(&[4; 20]), vec![commit_2.id], "Commit_4");
+        let mut commit_4 = Commit::from_tree_id(
+            SHA1::new(&[4; 20]),
+            vec![commit_2.id],
+            &format_commit_msg("Commit_4", None),
+        );
         commit_4.committer.timestamp = 4;
         save_object(&commit_4, &commit_4.id).unwrap();
 
         let mut commit_5 = Commit::from_tree_id(
             SHA1::new(&[5; 20]),
             vec![commit_2.id, commit_4.id],
-            "Commit_5",
+            &format_commit_msg("Commit_5", None),
         );
         commit_5.committer.timestamp = 5;
         save_object(&commit_5, &commit_5.id).unwrap();
@@ -185,12 +204,16 @@ mod tests {
         let mut commit_6 = Commit::from_tree_id(
             SHA1::new(&[6; 20]),
             vec![commit_3.id, commit_5.id],
-            "Commit_6",
+            &format_commit_msg("Commit_6", None),
         );
         commit_6.committer.timestamp = 6;
         save_object(&commit_6, &commit_6.id).unwrap();
 
-        let mut commit_7 = Commit::from_tree_id(SHA1::new(&[7; 20]), vec![commit_5.id], "Commit_7");
+        let mut commit_7 = Commit::from_tree_id(
+            SHA1::new(&[7; 20]),
+            vec![commit_5.id],
+            &format_commit_msg("Commit_7", None),
+        );
         commit_7.committer.timestamp = 7;
         save_object(&commit_7, &commit_7.id).unwrap();
 
