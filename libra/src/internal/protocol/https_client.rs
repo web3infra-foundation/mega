@@ -345,7 +345,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore] // ignore this because **user should edit the `want` maurally**
     async fn test_upload_pack_local() {
         // use /usr/bin/git-upload-pack as a test server. if no /usr/bin/git-upload-pack, skip this test
         if !std::path::Path::new("/usr/bin/git-upload-pack").exists() {
@@ -356,7 +356,7 @@ mod tests {
 
         let have = vec!["1c05d7f7dd70e38150bfd2d5fb8fb969e2eb9851".to_string()];
         // **want MUST change to one of the refs in the remote repo, such as `refs/heads/main` before running the test**
-        let want = vec!["7ef152d43162e28b3177f6df380112f6412f5b42".to_string()];
+        let want = vec!["6b4e69962dbbc75e80d5263cc5c81571669db9bc".to_string()];
         let body = generate_upload_pack_content(&have, &want).await;
         tracing::info!("upload-pack content: {:?}", body);
         let mut cmd = tokio::process::Command::new("/usr/bin/git-upload-pack");

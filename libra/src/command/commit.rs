@@ -36,12 +36,10 @@ pub async fn execute(args: CommitArgs) {
     let storage = ClientStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
-        println!("fatal: no changes added to commit, use --allow-empty to override");
-        return;
+        panic!("fatal: no changes added to commit, use --allow-empty to override");
     }
     if args.conventional && !check_conventional_commits_message(&args.message) {
-        println!("fatal: commit message does not follow conventional commits");
-        return;
+        panic!("fatal: commit message does not follow conventional commits");
     }
 
     /* Create tree */
@@ -221,7 +219,6 @@ mod test {
 
     #[tokio::test]
     #[should_panic]
-    #[ignore]
     async fn test_execute_commit_with_empty_index_fail() {
         test::setup_with_new_libra().await;
         let args = CommitArgs {

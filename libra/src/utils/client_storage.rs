@@ -467,10 +467,4 @@ mod tests {
         let decompressed_data = ClientStorage::decompress_zlib(&pack_content).unwrap();
         println!("{:?}", String::from_utf8(decompressed_data).unwrap());
     }
-
-    #[test]
-    #[ignore]
-    fn test_get_from_pack() {
-        unimplemented!();
-    }
 }
