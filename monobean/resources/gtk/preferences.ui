@@ -1,0 +1,527 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0" />
+  <template class="MonobeanPreferences" parent="AdwPreferencesWindow">
+    <property name="can-navigate-back">True</property>
+    <property name="modal">True</property>
+    <property name="title" translatable="yes">Preferences</property>
+    <child>
+      <object class="AdwPreferencesPage">
+        <property name="title" translatable="yes">Mega Configuration</property>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">Base Settings</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Base Directory</property>
+                <property name="subtitle" translatable="yes">The directory where data files are located</property>
+                <property name="use_underline">True</property>
+                <child>
+                  <object class="GtkEntry" id="base_dir_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">/tmp/.mono</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">Logging</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Log Path</property>
+                <property name="subtitle" translatable="yes">The path where log files are saved</property>
+                <child>
+                  <object class="GtkEntry" id="log_path_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwComboRow" id="log_level">
+                <property name="title" translatable="yes">Log Level</property>
+                <property name="model">
+                  <object class="GtkStringList">
+                    <items>
+                      <item>debug</item>
+                      <item>info</item>
+                      <item>warning</item>
+                      <item>error</item>
+                    </items>
+                  </object>
+                </property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Print to Console</property>
+                <property name="subtitle" translatable="yes">Print standard log in console (disable in production)</property>
+                <property name="use_underline">True</property>
+                <property name="activatable-widget">print_std_switch</property>
+                <child>
+                  <object class="GtkSwitch" id="print_std_switch">
+                    <property name="valign">center</property>
+                    <property name="active">True</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">Database</property>
+            <child>
+              <object class="AdwComboRow" id="db_type">
+                <property name="title" translatable="yes">Database Type</property>
+                <property name="model">
+                  <object class="GtkStringList">
+                    <items>
+                      <item>sqlite</item>
+                      <item>postgres</item>
+                    </items>
+                  </object>
+                </property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Database Path</property>
+                <property name="subtitle" translatable="yes">Used for SQLite</property>
+                <child>
+                  <object class="GtkEntry" id="db_path_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">${base_dir}/mega.db</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Database URL</property>
+                <property name="subtitle" translatable="yes">Connection URL for PostgreSQL</property>
+                <child>
+                  <object class="GtkEntry" id="db_url_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">postgres://mono:mono@localhost:5432/mono</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Max Connections</property>
+                <child>
+                  <object class="GtkSpinButton" id="max_connection_spin">
+                    <property name="valign">center</property>
+                    <property name="adjustment">
+                      <object class="GtkAdjustment">
+                        <property name="lower">1</property>
+                        <property name="upper">100</property>
+                        <property name="step-increment">1</property>
+                        <property name="value">16</property>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Min Connections</property>
+                <child>
+                  <object class="GtkSpinButton" id="min_connection_spin">
+                    <property name="valign">center</property>
+                    <property name="adjustment">
+                      <object class="GtkAdjustment">
+                        <property name="lower">1</property>
+                        <property name="upper">100</property>
+                        <property name="step-increment">1</property>
+                        <property name="value">8</property>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">SQLx Logging</property>
+                <property name="activatable-widget">sqlx_logging_switch</property>
+                <child>
+                  <object class="GtkSwitch" id="sqlx_logging_switch">
+                    <property name="valign">center</property>
+                    <property name="active">False</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">Authentication</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Enable HTTP Authentication</property>
+                <property name="subtitle" translatable="yes">Login with GitHub and generate token before push</property>
+                <property name="activatable-widget">http_auth_switch</property>
+                <child>
+                  <object class="GtkSwitch" id="http_auth_switch">
+                    <property name="valign">center</property>
+                    <property name="active">False</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Enable Test User</property>
+                <property name="subtitle" translatable="yes">For debugging and development</property>
+                <property name="activatable-widget">test_user_switch</property>
+                <child>
+                  <object class="GtkSwitch" id="test_user_switch">
+                    <property name="valign">center</property>
+                    <property name="active">True</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Test User Name</property>
+                <child>
+                  <object class="GtkEntry" id="test_user_name_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">mega</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Test User Token</property>
+                <child>
+                  <object class="GtkEntry" id="test_user_token_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">mega</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">Storage</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">OBS Access Key</property>
+                <child>
+                  <object class="GtkEntry" id="obs_access_key_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">OBS Secret Key</property>
+                <child>
+                  <object class="GtkPasswordEntry" id="obs_secret_key_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">OBS Region</property>
+                <child>
+                  <object class="GtkEntry" id="obs_region_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">cn-east-3</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">OBS Endpoint</property>
+                <child>
+                  <object class="GtkEntry" id="obs_endpoint_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">https://obs.cn-east-3.myhuaweicloud.com</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">Monorepo</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Import Directory</property>
+                <property name="subtitle" translatable="yes">Directory that supports multi-branch commits and tags</property>
+                <child>
+                  <object class="GtkEntry" id="import_dir_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">/third-part</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Admin</property>
+                <property name="subtitle" translatable="yes">System admin GitHub username</property>
+                <child>
+                  <object class="GtkEntry" id="admin_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">admin</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Root Directories</property>
+                <property name="subtitle" translatable="yes">Comma-separated list of root directories</property>
+                <child>
+                  <object class="GtkEntry" id="root_dirs_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">third-part, project, doc, release</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">Pack</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Decode Memory Size</property>
+                <child>
+                  <object class="GtkEntry" id="pack_decode_mem_size_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">4G</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Decode Disk Size</property>
+                <child>
+                  <object class="GtkEntry" id="pack_decode_disk_size_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">20%</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Decode Cache Path</property>
+                <child>
+                  <object class="GtkEntry" id="pack_decode_cache_path_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">${base_dir}/cache</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Clean Cache After Decode</property>
+                <property name="activatable-widget">clean_cache_switch</property>
+                <child>
+                  <object class="GtkSwitch" id="clean_cache_switch">
+                    <property name="valign">center</property>
+                    <property name="active">True</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Channel Message Size</property>
+                <child>
+                  <object class="GtkSpinButton" id="channel_message_size_spin">
+                    <property name="valign">center</property>
+                    <property name="adjustment">
+                      <object class="GtkAdjustment">
+                        <property name="lower">1000</property>
+                        <property name="upper">10000000</property>
+                        <property name="step-increment">1000</property>
+                        <property name="value">1000000</property>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">LFS</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">LFS Server URL</property>
+                <child>
+                  <object class="GtkEntry" id="lfs_url_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">http://localhost:8000</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">LFS Object Path</property>
+                <child>
+                  <object class="GtkEntry" id="lfs_obj_local_path_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">${base_dir}/lfs</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Enable Split</property>
+                <property name="subtitle" translatable="yes">Split large files into chunks (only for new databases)</property>
+                <property name="activatable-widget">enable_split_switch</property>
+                <child>
+                  <object class="GtkSwitch" id="enable_split_switch">
+                    <property name="valign">center</property>
+                    <property name="active">True</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Split Size</property>
+                <child>
+                  <object class="GtkEntry" id="split_size_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">20M</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup">
+            <property name="title" translatable="yes">OAuth</property>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">GitHub Client ID</property>
+                <child>
+                  <object class="GtkEntry" id="github_client_id_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">GitHub Client Secret</property>
+                <child>
+                  <object class="GtkPasswordEntry" id="github_client_secret_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">UI Domain</property>
+                <child>
+                  <object class="GtkEntry" id="ui_domain_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">http://localhost:3000</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow">
+                <property name="title" translatable="yes">Cookie Domain</property>
+                <child>
+                  <object class="GtkEntry" id="cookie_domain_entry">
+                    <property name="valign">center</property>
+                    <property name="halign">fill</property>
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">localhost</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+
+    </child>
+    <child>
+      <object class="AdwPreferencesPage">
+        <property name="title" translatable="yes">Advanced Settings</property>
+
+      </object>
+    </child>
+  </template>
+</interface>
