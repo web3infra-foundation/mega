@@ -1,0 +1,42 @@
+# curl, depends on `libpsl-0.21.5`
+#
+
+PKG="curl"
+PKG_VERSION="8.12.0"
+PKG_FILE="curl-8.12.0.tar.xz"
+URL="https://curl.se/download/curl-8.12.0.tar.xz"
+MD5=""3005f775ce65b301a27f8d43a8c85511
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+# Your script here. Be aware that it is passed
+# verbatim, and that none of the above variables
+# will be defined when running the script. For example,
+# If you want to use ${PKG_VERSION}, you have to
+# redefine it here.
+
+./configure --prefix=/usr                           \
+            --disable-static                        \
+            --with-openssl                          \
+            --with-ca-path=/etc/ssl/certs &&
+make
+
+make install &&
+
+rm -rf docs/examples/.deps &&
+
+find docs \( -name Makefile\* -o  \
+             -name \*.1       -o  \
+             -name \*.3       -o  \
+             -name CMakeLists.txt \) -delete &&
+
+cp -v -R docs -T /usr/share/doc/curl-8.12.0
+xEOFx
+) > tmp

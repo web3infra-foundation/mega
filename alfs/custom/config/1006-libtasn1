@@ -1,0 +1,32 @@
+# Any comments you wish to add
+#
+
+PKG="libtasn1"
+PKG_VERSION="4.20.0"
+PKG_FILE="libtasn1-4.20.0.tar.gz"
+URL="https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz"
+MD5="930f71d788cf37505a0327c1b84741be"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+# Your script here. Be aware that it is passed
+# verbatim, and that none of the above variables
+# will be defined when running the script. For example,
+# If you want to use ${PKG_VERSION}, you have to
+# redefine it here.
+
+./configure --prefix=/usr --disable-static &&
+make
+
+make install
+
+make -C doc/reference install-data-local
+xEOFx
+) > tmp

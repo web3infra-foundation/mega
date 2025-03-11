@@ -1,0 +1,31 @@
+# install rust
+
+
+PKG=""
+PKG_VERSION=""
+PKG_FILE=""
+URL=""
+MD5=""
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+echo "pwd: $(pwd)"
+curl -LJO https://github.com/facebook/buck2/releases/download/latest/rust-project-x86_64-unknown-linux-gnu.zst
+unzstd rust-project-x86_64-unknown-linux-gnu.zst
+mv rust-project-x86_64-unknown-linux-gnu /usr/local/bin/buck2
+chmod +x /usr/local/bin/buck2
+rm rust-project-x86_64-unknown-linux-gnu.zst
+echo "buck2 installed"
+
+# ensure buck2 is in PATH
+echo 'export PATH="$PATH:/usr/local/bin"' >> /etc/profile
+xEOFx
+) > tmp

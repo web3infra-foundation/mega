@@ -264,9 +264,13 @@ pub fn extract_lfs_patterns(file_path: &str) -> io::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_generate_pointer_file() {
+        test::reset_working_dir();
         let path =
             Path::new("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
         let (pointer, _oid) = generate_pointer_file(path);
@@ -276,7 +280,7 @@ mod tests {
     #[test]
     fn test_is_pointer_file() {
         let data =
-            b"version https://git-lfs.github.com/spec/v1\noid sha256:1234567890abcdef\nsize 1234\n";
+            b"version https://git-lfs.github.com/spec/v1\noid sha256:3b2c9e5f8e6a8b7a9c8d6e5f7a9b8c7d6e5f8a9b7a9c8d6e5f8a9b7a9c8d6e51\nsize 1234\n";
         assert!(parse_pointer_data(data).is_some());
     }
 

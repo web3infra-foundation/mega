@@ -347,6 +347,7 @@ pub fn default_progress_bar(len: u64) -> ProgressBar {
 mod test {
     use super::*;
     use crate::utils::test;
+    use serial_test::serial;
     use std::env;
     use std::path::PathBuf;
 
@@ -372,6 +373,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_to_workdir_path() {
         test::setup_with_new_libra().await;
         assert_eq!(

@@ -15,3 +15,5 @@ serde = { version = "1.0.117", features = ["derive"] }
 secp256k1 = { workspace = true , features = ["serde", "rand","hashes"] }
 tokio = {workspace = true, features = ["full"]}
 async-std = "1.13.0"
+pgp = "0.15.0"
+smallvec = "1.6.1"

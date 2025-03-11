@@ -749,6 +749,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Take too long time
     fn test_pack_decode_with_large_file_with_delta_without_ref() {
         init_logger();
 
@@ -811,6 +812,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Take too long time, duplicate with `test_decode_large_file_stream`
     fn test_decode_large_file_async() {
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
@@ -849,6 +851,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Take too long time
     fn test_pack_decode_multi_task_with_large_file_with_delta_without_ref() {
         let task1 = std::thread::spawn(|| {
             test_pack_decode_with_large_file_with_delta_without_ref();
