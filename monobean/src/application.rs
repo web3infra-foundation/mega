@@ -16,6 +16,7 @@ use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
+use tokio::sync::oneshot;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -26,7 +27,7 @@ glib::wrapper! {
         @implements gio::ActionGroup, gio::ActionMap;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Action {
     // Mega Core Related Actions
     MegaCore(MegaCommands),
@@ -114,14 +115,13 @@ mod imp {
                     #[strong]
                     app,
                     async move {
+                        app.start_mega().await;
                         while let Ok(action) = receiver.recv().await {
                             app.process_action(action);
                         }
                     }
                 ),
             );
-
-            app.start_mega();
 
             // Ask the window manager/compositor to present the window
             window.present();
@@ -167,7 +167,7 @@ impl MonobeanApplication {
             #[weak(rename_to = app)]
             self,
             move |_, _| {
-                app.send_command(MegaCommands::MegaShutdown);
+                app.blocking_send_command(MegaCommands::MegaShutdown);
                 app.quit();
             }
         ));
@@ -252,11 +252,15 @@ impl MonobeanApplication {
         dialog.present();
     }
 
-    pub fn send_command(&self, cmd: MegaCommands) {
-        self.imp().mega_delegate.send_command(cmd);
+    pub async fn send_command(&self, cmd: MegaCommands) {
+        self.imp().mega_delegate.send_command(cmd).await;
     }
 
-    pub fn start_mega(&self) {
+    pub fn blocking_send_command(&self, cmd: MegaCommands) {
+        self.imp().mega_delegate.blocking_send_command(cmd);
+    }
+
+    pub async fn start_mega(&self) {
         // The first Action of the application, so it can never block the gui thread.
         let http_addr = self
             .settings()
@@ -288,7 +292,20 @@ impl MonobeanApplication {
         self.send_command(MegaStart(
             Option::from(SocketAddr::new(http_addr, http_port as u16)),
             Option::from(SocketAddr::new(ssh_addr, ssh_port as u16)),
-        ));
+        ))
+        .await;
+    }
+
+    /// Send a command to mega core
+    ///
+    /// # Warning:
+    /// May stuck main event loop.
+    pub(crate) fn core_status(&self) -> oneshot::Receiver<(bool, bool)> {
+        let (tx, rx) = oneshot::channel();
+        let cmd = MegaCommands::CoreStatus(tx);
+        let act = Action::MegaCore(cmd);
+        self.sender().send_blocking(act).unwrap();
+        rx
     }
 
     fn process_action(&self, action: Action) {
@@ -296,12 +313,23 @@ impl MonobeanApplication {
             return;
         }
 
+        let window = self.imp().window.get().unwrap().upgrade().unwrap();
+
+        tracing::debug!("Processing Glib Action: {:?}", action);
         match action {
-            Action::MegaCore(cmd) => self.send_command(cmd),
+            Action::MegaCore(cmd) => {
+                let delegate = self.imp().mega_delegate;
+                CONTEXT.spawn(async move {
+                    tracing::debug!("Sending {:?}", cmd);
+                    delegate.send_command(cmd).await;
+                    tracing::debug!("Done");
+                });
+            }
             Action::AddToast(msg) => {
-                self.window().unwrap().add_toast(msg);
+                window.add_toast(msg);
             }
             Action::UpdateGitConfig(name, email) => {
+                let sender = self.sender();
                 let mut config = self.git_config();
                 config.set_raw_value(&"user.name", name.as_bytes()).unwrap();
                 config
@@ -316,24 +344,27 @@ impl MonobeanApplication {
                 tracing::debug!("Git config: {:?}", config.meta());
 
                 let toast = Action::AddToast("Git config updated!".to_string());
-                self.sender().send_blocking(toast).unwrap();
+                CONTEXT.spawn(async move {
+                    sender.send(toast).await.unwrap();
+                });
             }
 
             Action::ShowHelloPage => {
-                let window = self.imp().window.get().unwrap().upgrade().unwrap();
-
+                let config = self.git_config();
                 let stack = window.imp().base_stack.clone();
                 stack.set_visible_child_name("hello_page");
 
-                let config = self.git_config();
                 let name = config.string("user.name").map(|name| name.to_string());
                 let email = config.string("user.email").map(|email| email.to_string());
 
-                window.show_hello_page(name, email);
+                let rx = self.core_status();
+                CONTEXT.spawn_local(async move {
+                    let (_, gpg_generated) = rx.await.unwrap();
+                    window.show_hello_page(name, email, gpg_generated);
+                });
             }
 
             Action::ShowMainPage => {
-                let window = self.imp().window.get().unwrap().upgrade().unwrap();
                 window.show_main_page();
             }
         }

@@ -1,0 +1,25 @@
+rust_library (
+    name = "jupiter",
+    srcs = glob(["src/**/*.rs", "sqlite_20241204_init.sql"]), # soft link must be file, not directory, for buck2 reason
+    crate_root = "src/lib.rs",
+    deps = [
+        "//jupiter/callisto:callisto",
+        "//common:common",
+        "//mercury:mercury",
+        "//saturn:saturn",
+        "//third-party:sea-orm",
+        "//third-party:tracing",
+        "//third-party:bytes",
+        "//third-party:chrono",
+        "//third-party:async-trait",
+        "//third-party:futures",
+        "//third-party:serde_json",
+        "//third-party:idgenerator",
+        "//third-party:serde",
+        "//third-party:tokio",
+        "//third-party:uuid",
+    ],
+    visibility = [
+        'PUBLIC',
+    ],
+)

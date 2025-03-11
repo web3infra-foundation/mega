@@ -1,11 +1,5 @@
-# cargo_env = true
-# cargo.toml links = "ring_core_0_17_8"
-env = {"CARGO_MANIFEST_LINKS" = "ring_core_0_17_8", "RING_CORE_PREFIX" = "ring_core_0_17_8_"}
-extra_srcs = [
-    "src/data/alg-rsa-encryption.der",
-    "src/ec/**/*.der"
-]
-
+cargo_env = true
 [[buildscript]]
 [buildscript.rustc_flags]
-env = { CARGO_MANIFEST_LINKS = "ring_core_0_17_8", OPT_LEVEL = "3" }
+env = { OPENSSL_LIB_DIR = "/usr/lib64", OPENSSL_INCLUDE_DIR = "/usr/include", OPT_LEVEL = "3"}
+#env = { OPENSSL_LIB_DIR = "/opt/openssl-1.1.1g/lib", OPENSSL_INCLUDE_DIR = "/opt/openssl-1.1.1g/include", OPT_LEVEL = "3"}
