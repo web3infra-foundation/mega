@@ -1,18 +1,21 @@
 use crate::config::WEBSITE;
 use crate::CONTEXT;
 
+use crate::components::preference::MonobeanPreferences;
 use crate::core::mega_core::MegaCommands;
 use crate::core::mega_core::MegaCommands::MegaStart;
 use crate::window::MonobeanWindow;
+use adw::ffi::AdwPreferencesDialog;
 use adw::gio::Settings;
 use adw::glib::LogLevels;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
+use adw::{Dialog, PreferencesDialog};
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
-use gtk::{gio, glib};
+use gtk::{gio, glib, Widget};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
@@ -162,6 +165,7 @@ impl MonobeanApplication {
     fn setup_gactions(&self) {
         let quit_action = gio::SimpleAction::new("quit", None);
         let about_action = gio::SimpleAction::new("about", None);
+        let preference_action = gio::SimpleAction::new("preference", None);
 
         quit_action.connect_activate(clone!(
             #[weak(rename_to = app)]
@@ -180,8 +184,17 @@ impl MonobeanApplication {
             }
         ));
 
+        preference_action.connect_activate(clone!(
+            #[weak(rename_to = app)]
+            self,
+            move |_, _| {
+                app.show_preference();
+            }
+        ));
+
         self.add_action(&quit_action);
         self.add_action(&about_action);
+        self.add_action(&preference_action);
     }
 
     fn setup_settings(&self) {
@@ -250,6 +263,15 @@ impl MonobeanApplication {
             .build();
 
         dialog.present();
+    }
+
+    fn show_preference(&self) {
+        let window = self.window();
+        let dialog = MonobeanPreferences::new();
+        dialog.set_transient_for(window.as_ref());
+        dialog.set_modal(true);
+
+        GtkWindowExt::present(&dialog);
     }
 
     pub async fn send_command(&self, cmd: MegaCommands) {
