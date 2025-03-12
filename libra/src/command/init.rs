@@ -249,6 +249,7 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 /// Unit tests for the init module
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
     use tempfile::tempdir;
 
     use super::*;
@@ -343,11 +344,17 @@ mod tests {
 
     /// Test the init function with an initial branch name
     #[tokio::test]
+    #[serial]
     async fn test_init_with_initial_branch() {
         // Set up the test environment without a Libra repository
         test::setup_clean_testing_env();
         let cur_dir = std::env::current_dir().unwrap();
-        let args = InitArgs { bare: false, initial_branch: Some("main".to_string()), repo_directory: cur_dir.to_str().unwrap().to_string(),quiet:false };
+        let args = InitArgs {
+            bare: false,
+            initial_branch: Some("main".to_string()),
+            repo_directory: cur_dir.to_str().unwrap().to_string(),
+            quiet: false,
+        };
         // Run the init function
         init(args).await.unwrap();
 

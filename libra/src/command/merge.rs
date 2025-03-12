@@ -7,8 +7,7 @@ use crate::{
 };
 
 use super::{
-    get_target_commit,
-    load_object, log,
+    get_target_commit, load_object, log,
     restore::{self, RestoreArgs},
 };
 

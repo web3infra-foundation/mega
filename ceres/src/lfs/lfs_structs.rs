@@ -100,7 +100,7 @@ pub struct BatchResponse {
 #[derive(Serialize, Deserialize)]
 pub struct FetchchunkResponse {
     pub oid: String,
-    pub size : i64,
+    pub size: i64,
     pub chunks: Vec<ChunkRepresentation>,
 }
 

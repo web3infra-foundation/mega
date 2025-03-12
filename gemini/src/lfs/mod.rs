@@ -16,8 +16,9 @@ use crate::{
 /// - `file_size`: file_size  
 /// - `origin`: origin  
 ///
-/// for example
-/// ```
+/// ## Example
+/// Here is an example of the JSON payload:
+/// ```json
 /// {
 ///  "bootstrap_node":"https://gitmono.org/relay",
 ///  "file_hash":"52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6",
@@ -70,7 +71,7 @@ pub async fn share_lfs(
 /// - `file_hash`: file_hash
 ///
 /// for example
-/// ```
+/// ```json
 /// {
 ///  "bootstrap_node":"https://gitmono.org/relay",
 ///  "file_hash":"52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6",
@@ -109,7 +110,7 @@ pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> O
 /// - `file_uri`: file_uri  
 ///
 /// for example
-/// ```
+/// ```json
 /// {
 ///  "bootstrap_node":"https://gitmono.org/relay",
 ///  "ztm_agent_port":777,

@@ -10,9 +10,11 @@ use dashmap::{DashMap, DashSet};
 use lru_mem::LruCache;
 use threadpool::ThreadPool;
 
-use crate::time_it;
 use crate::hash::SHA1;
-use crate::internal::pack::cache_object::{ArcWrapper, CacheObject, MemSizeRecorder, FileLoadStore};
+use crate::internal::pack::cache_object::{
+    ArcWrapper, CacheObject, FileLoadStore, MemSizeRecorder,
+};
+use crate::time_it;
 
 pub trait _Cache {
     fn new(mem_size: Option<usize>, tmp_path: PathBuf, thread_num: usize) -> Self
@@ -88,7 +90,7 @@ impl Caches {
     /// generate the temp file path, hex string of the hash
     fn generate_temp_path(&self, tmp_path: &Path, hash: SHA1) -> PathBuf {
         // This is enough for the original path, 2 chars directory, 40 chars hash, and extra slashes
-        let mut path = PathBuf::with_capacity(self.tmp_path.capacity() + SHA1::SIZE * 2 + 5); 
+        let mut path = PathBuf::with_capacity(self.tmp_path.capacity() + SHA1::SIZE * 2 + 5);
         path.push(tmp_path);
         let hash_str = hash._to_string();
         path.push(&hash_str[..2]); // use first 2 chars as the directory
@@ -114,7 +116,7 @@ impl Caches {
     /// memory used by the index (exclude lru_cache which is contained in CacheObject::get_mem_size())
     pub fn memory_used_index(&self) -> usize {
         self.map_offset.capacity() * (std::mem::size_of::<usize>() + std::mem::size_of::<SHA1>())
-        + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
+            + self.hash_set.capacity() * (std::mem::size_of::<SHA1>())
     }
 
     /// remove the tmp dir
@@ -208,8 +210,7 @@ impl _Cache for Caches {
         self.hash_set.len()
     }
     fn memory_used(&self) -> usize {
-        self.lru_cache.lock().unwrap().current_size()
-        + self.memory_used_index()
+        self.lru_cache.lock().unwrap().current_size() + self.memory_used_index()
     }
     fn clear(&self) {
         time_it!("Caches clear", {
@@ -233,7 +234,10 @@ mod test {
     use std::env;
 
     use super::*;
-    use crate::{hash::SHA1, internal::{object::types::ObjectType, pack::cache_object::CacheObjectInfo}};
+    use crate::{
+        hash::SHA1,
+        internal::{object::types::ObjectType, pack::cache_object::CacheObjectInfo},
+    };
 
     #[test]
     fn test_cache_single_thread() {

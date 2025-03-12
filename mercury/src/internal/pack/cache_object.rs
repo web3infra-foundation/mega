@@ -26,15 +26,16 @@ pub trait FileLoadStore: Serialize + for<'a> Deserialize<'a> {
 impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
     fn f_load(path: &Path) -> Result<T, io::Error> {
         let data = fs::read(path)?;
-        let obj: T =
-            bincode::deserialize(&data).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let obj: T = bincode::serde::decode_from_slice(&data, bincode::config::standard())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+            .0;
         Ok(obj)
     }
     fn f_save(&self, path: &Path) -> Result<(), io::Error> {
         if path.exists() {
             return Ok(());
         }
-        let data = bincode::serialize(&self).unwrap();
+        let data = bincode::serde::encode_to_vec(self, bincode::config::standard()).unwrap();
         let path = path.with_extension("temp");
         {
             let mut file = OpenOptions::new()
@@ -103,9 +104,9 @@ impl HeapSize for CacheObject {
     /// If a [`CacheObject`] is [`ObjectType::HashDelta`] or [`ObjectType::OffsetDelta`],
     /// it will expand to another [`CacheObject`] of other types. To prevent potential OOM,
     /// we record the size of the expanded object as well as that of the object itself.
-    /// 
-    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`], 
-    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same 
+    ///
+    /// Base objects, *i.e.*, [`ObjectType::Blob`], [`ObjectType::Tree`], [`ObjectType::Commit`],
+    /// and [`ObjectType::Tag`], will not be expanded, so the heap-size of the object is the same
     /// as the size of the data.
     ///
     /// See [Comment in PR #755](https://github.com/web3infra-foundation/mega/pull/755#issuecomment-2543100481) for more details.
@@ -189,7 +190,7 @@ impl CacheObject {
     }
 
     /// Get the [`SHA1`] hash of the object.
-    /// 
+    ///
     /// If the object is a delta object, return [`None`].
     pub fn base_object_hash(&self) -> Option<SHA1> {
         match &self.info {
@@ -199,7 +200,7 @@ impl CacheObject {
     }
 
     /// Get the offset delta of the object.
-    /// 
+    ///
     /// If the object is not an offset delta, return [`None`].
     pub fn offset_delta(&self) -> Option<usize> {
         match &self.info {
@@ -209,7 +210,7 @@ impl CacheObject {
     }
 
     /// Get the hash delta of the object.
-    /// 
+    ///
     /// If the object is not a hash delta, return [`None`].
     pub fn hash_delta(&self) -> Option<SHA1> {
         match &self.info {
@@ -372,7 +373,7 @@ mod test {
     #[test]
     fn test_cache_object_with_lru() {
         let mut cache = LruCache::new(2048);
-        
+
         let hash_a = SHA1::default();
         let hash_b = SHA1::new(b"b"); // whatever different hash
         let a = CacheObject {
@@ -490,8 +491,10 @@ mod test {
             data_decompressed: vec![0; 1024],
             mem_recorder: None,
         };
-        let s = bincode::serialize(&a).unwrap();
-        let b: CacheObject = bincode::deserialize(&s).unwrap();
+        let s = bincode::serde::encode_to_vec(&a, bincode::config::standard()).unwrap();
+        let b: CacheObject = bincode::serde::decode_from_slice(&s, bincode::config::standard())
+            .unwrap()
+            .0;
         assert_eq!(a.info, b.info);
         assert_eq!(a.data_decompressed, b.data_decompressed);
         assert_eq!(a.offset, b.offset);

@@ -1,7 +1,7 @@
+use sha1::{Digest, Sha1};
 use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
-use sha1::{Digest, Sha1};
 
 use crate::hash::SHA1;
 use crate::internal::object::types::ObjectType;
@@ -72,7 +72,10 @@ pub fn read_byte_and_check_continuation<R: Read>(stream: &mut R) -> io::Result<(
 /// # Returns
 /// Returns an `io::Result` containing a tuple of the type and the computed size.
 ///
-pub fn read_type_and_varint_size<R: Read>(stream: &mut R, offset: &mut usize) -> io::Result<(u8, usize)> {
+pub fn read_type_and_varint_size<R: Read>(
+    stream: &mut R,
+    offset: &mut usize,
+) -> io::Result<(u8, usize)> {
     let (first_byte, continuation) = read_byte_and_check_continuation(stream)?;
 
     // Increment the offset by one byte
@@ -131,7 +134,10 @@ pub fn read_varint_le<R: Read>(reader: &mut R) -> io::Result<(u64, usize)> {
         let byte = buf[0];
         if shift > 63 {
             // VarInt too long for u64
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "VarInt too long"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "VarInt too long",
+            ));
         }
 
         // Take the lower 7 bits of the byte
@@ -191,7 +197,6 @@ pub fn read_bytes<R: Read, const N: usize>(stream: &mut R) -> io::Result<[u8; N]
     Ok(bytes)
 }
 
-
 /// Reads a partial integer from a stream. (little-endian order)
 ///
 /// # Arguments
@@ -231,19 +236,19 @@ pub fn read_partial_int<R: Read>(
 }
 
 /// Reads the base size and result size of a delta object from the given stream.
-/// 
+///
 /// **Note**: The stream MUST be positioned at the start of the delta object.
-/// 
+///
 /// The base size and result size are encoded as variable-length integers in little-endian order.
-/// 
+///
 /// The base size is the size of the base object, and the result size is the size of the result object.
-/// 
+///
 /// # Parameters
 /// * `stream`: The stream from which the sizes are read.
-/// 
+///
 /// # Returns
 /// Returns a tuple containing the base size and result size.
-/// 
+///
 pub fn read_delta_object_size<R: Read>(stream: &mut R) -> io::Result<(usize, usize)> {
     let base_size = read_varint_le(stream)?.0 as usize;
     let result_size = read_varint_le(stream)?.0 as usize;
@@ -297,24 +302,22 @@ pub fn count_dir_files(path: &Path) -> io::Result<usize> {
 /// Count the time taken to execute a block of code.
 #[macro_export]
 macro_rules! time_it {
-    ($msg:expr, $block:block) => {
-        {
-            let start = std::time::Instant::now();
-            let result = $block;
-            let elapsed = start.elapsed();
-            // println!("{}: {:?}", $msg, elapsed);
-            tracing::info!("{}: {:?}", $msg, elapsed);
-            result
-        }
-    };
+    ($msg:expr, $block:block) => {{
+        let start = std::time::Instant::now();
+        let result = $block;
+        let elapsed = start.elapsed();
+        // println!("{}: {:?}", $msg, elapsed);
+        tracing::info!("{}: {:?}", $msg, elapsed);
+        result
+    }};
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::internal::object::types::ObjectType;
     use std::io;
     use std::io::Cursor;
     use std::io::Read;
-    use crate::internal::object::types::ObjectType;
 
     use crate::internal::pack::utils::*;
 
@@ -422,8 +425,8 @@ mod tests {
 
         assert_eq!(offset, 2); // Offset is 2
         assert_eq!(type_bits, 5); // Expected type is 5
-        // Expected size 000000110101
-        // 110101  = 1 * 2^5 + 1 * 2^4 + 0 * 2^3 + 1 * 2^2 + 0 * 2^1 + 1 * 2^0= 53
+                                  // Expected size 000000110101
+                                  // 110101  = 1 * 2^5 + 1 * 2^4 + 0 * 2^3 + 1 * 2^2 + 0 * 2^1 + 1 * 2^0= 53
         assert_eq!(size, 53);
     }
 
@@ -438,7 +441,7 @@ mod tests {
 
         assert_eq!(offset, 1); // Offset is 1
         assert_eq!(type_bits, 1); // Expected type is 1
-        // Expected size is 15
+                                  // Expected size is 15
         assert_eq!(size, 15);
     }
 
@@ -492,7 +495,9 @@ mod tests {
 
     #[test]
     fn test_read_varint_le_too_long() {
-        let data = vec![0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01];
+        let data = vec![
+            0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01,
+        ];
         let mut cursor = Cursor::new(data);
         let result = read_varint_le(&mut cursor);
 
@@ -500,8 +505,8 @@ mod tests {
     }
 
     #[test]
-    fn test_read_offset_encoding(){
-        let data:Vec<u8> = vec![0b_1101_0101,0b_0000_0101];
+    fn test_read_offset_encoding() {
+        let data: Vec<u8> = vec![0b_1101_0101, 0b_0000_0101];
         let mut cursor = Cursor::new(data);
         let result = read_offset_encoding(&mut cursor);
         assert!(result.is_ok());

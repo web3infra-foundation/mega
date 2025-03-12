@@ -1,5 +1,5 @@
-use std::{fs, io};
 use std::path::Path;
+use std::{fs, io};
 
 #[allow(dead_code)]
 /// Ensure the file exists, create it(with all parent dirs) if not.

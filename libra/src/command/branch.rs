@@ -1,5 +1,6 @@
 use crate::{
-    command::get_target_commit, internal::{branch::Branch, config::Config, head::Head}
+    command::get_target_commit,
+    internal::{branch::Branch, config::Config, head::Head},
 };
 use clap::Parser;
 use colored::Colorize;
@@ -72,10 +73,18 @@ pub async fn set_upstream(branch: &str, upstream: &str) {
         };
         Config::insert("branch", Some(branch), "remote", remote).await;
         // set upstream branch (tracking branch)
-        Config::insert("branch", Some(branch), "merge",
-                       &format!("refs/heads/{}", remote_branch)).await;
+        Config::insert(
+            "branch",
+            Some(branch),
+            "merge",
+            &format!("refs/heads/{}", remote_branch),
+        )
+        .await;
     }
-    println!("Branch '{}' set up to track remote branch '{}'", branch, upstream);
+    println!(
+        "Branch '{}' set up to track remote branch '{}'",
+        branch, upstream
+    );
 }
 
 pub async fn create_branch(new_branch: String, branch_or_commit: Option<String>) {
@@ -185,7 +194,6 @@ async fn list_branches(remotes: bool) {
     }
 }
 
-
 pub fn is_valid_git_branch_name(name: &str) -> bool {
     // Validate branch name
     // Not contain spaces, control characters or special characters
@@ -221,15 +229,16 @@ pub fn is_valid_git_branch_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-
     use crate::{
         command::commit::{self, CommitArgs},
         utils::test,
     };
+    use serial_test::serial;
 
     use super::*;
 
     #[tokio::test]
+    #[serial]
     async fn test_branch() {
         test::setup_with_new_libra().await;
 
@@ -315,6 +324,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_branch_from_remote() {
         test::setup_with_new_libra().await;
         test::init_debug_logger();
@@ -347,6 +357,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_invalid_branch_name() {
         test::setup_with_new_libra().await;
         test::init_debug_logger();

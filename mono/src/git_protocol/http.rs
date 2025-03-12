@@ -195,7 +195,7 @@ pub async fn git_receive_pack(
     let mut report_status = Bytes::new();
 
     let mut chunk_buffer = BytesMut::new(); // Used to cache the data of chunks before the PACK subsequence is found.
-    // Process the data stream to handle the Git receive-pack protocol.
+                                            // Process the data stream to handle the Git receive-pack protocol.
     while let Some(chunk) = data_stream.next().await {
         let chunk = chunk.unwrap();
         // Process the data up to the "PACK" subsequence.

@@ -1,28 +1,24 @@
+use crate::command::status;
+use crate::internal::head::Head;
+use crate::internal::protocol::lfs_client::LFSClient;
+use crate::utils::path_ext::PathExt;
+use crate::utils::{lfs, path, util};
+use ceres::lfs::lfs_structs::LockListQuery;
 use clap::Subcommand;
+use mercury::internal::index::Index;
+use reqwest::StatusCode;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use reqwest::StatusCode;
-use ceres::lfs::lfs_structs::LockListQuery;
-use mercury::internal::index::Index;
-use crate::command::status;
-use crate::internal::head::Head;
-use crate::internal::protocol::lfs_client::LFSClient;
-use crate::utils::{lfs, path, util};
-use crate::utils::path_ext::PathExt;
 
 /// [Docs](https://github.com/git-lfs/git-lfs/tree/main/docs/man)
 #[derive(Subcommand, Debug)]
 pub enum LfsCmds {
     /// View or add LFS paths to Libra Attributes (root)
-    Track {
-        pattern: Option<Vec<String>>,
-    },
+    Track { pattern: Option<Vec<String>> },
     /// Remove LFS paths from Libra Attributes
-    Untrack {
-        path: Vec<String>,
-    },
+    Untrack { path: Vec<String> },
     /// Lists currently locked files from the Libra LFS server. (Current Branch)
     Locks {
         #[clap(long, short)]
@@ -43,7 +39,7 @@ pub enum LfsCmds {
         #[clap(long, short)]
         force: bool,
         #[clap(long, short)]
-        id: Option<String>
+        id: Option<String>,
     },
     /// Show information about Git LFS files in the index and working tree (current branch)
     LsFiles {
@@ -56,14 +52,15 @@ pub enum LfsCmds {
         /// Show only the lfs tracked file names.
         #[clap(long, short)]
         name_only: bool,
-    }
+    },
 }
 
 pub async fn execute(cmd: LfsCmds) {
     // TODO: attributes file should be created in current dir, NOT root dir
     let attr_path = path::attributes().to_string_or_panic();
     match cmd {
-        LfsCmds::Track { pattern } => { // TODO: deduplicate
+        LfsCmds::Track { pattern } => {
+            // TODO: deduplicate
             match pattern {
                 Some(pattern) => {
                     let pattern = convert_patterns_to_workdir(pattern); //
@@ -80,7 +77,8 @@ pub async fn execute(cmd: LfsCmds) {
                 }
             }
         }
-        LfsCmds::Untrack { path } => { // only remove totally same pattern with path ?
+        LfsCmds::Untrack { path } => {
+            // only remove totally same pattern with path ?
             let path = convert_patterns_to_workdir(path); //
             untrack_lfs_patterns(&attr_path, path).unwrap();
         }
@@ -98,7 +96,12 @@ pub async fn execute(cmd: LfsCmds) {
             if !locks.is_empty() {
                 let max_path_len = locks.iter().map(|l| l.path.len()).max().unwrap();
                 for lock in locks {
-                    println!("{:<path_width$}\tID:{}", lock.path, lock.id, path_width = max_path_len);
+                    println!(
+                        "{:<path_width$}\tID:{}",
+                        lock.path,
+                        lock.id,
+                        path_width = max_path_len
+                    );
                 }
             }
         }
@@ -110,7 +113,10 @@ pub async fn execute(cmd: LfsCmds) {
             }
 
             let refspec = current_refspec().await.unwrap();
-            let code = LFSClient::get().await.lock(path.clone(), refspec.clone()).await;
+            let code = LFSClient::get()
+                .await
+                .lock(path.clone(), refspec.clone())
+                .await;
             if code.is_success() {
                 println!("Locked {}", path);
             } else if code == StatusCode::FORBIDDEN {
@@ -134,29 +140,40 @@ pub async fn execute(cmd: LfsCmds) {
             let id = match id {
                 None => {
                     // get id by path
-                    let locks = LFSClient::get().await.get_locks(LockListQuery {
-                        refspec: refspec.clone(),
-                        path: path.clone(),
-                        id: "".to_string(),
-                        cursor: "".to_string(),
-                        limit: "".to_string(),
-                    }).await.locks;
+                    let locks = LFSClient::get()
+                        .await
+                        .get_locks(LockListQuery {
+                            refspec: refspec.clone(),
+                            path: path.clone(),
+                            id: "".to_string(),
+                            cursor: "".to_string(),
+                            limit: "".to_string(),
+                        })
+                        .await
+                        .locks;
                     if locks.is_empty() {
                         eprintln!("fatal: no lock found for path '{}'", path);
                         return;
                     }
                     locks[0].id.clone()
                 }
-                Some(id) => id
+                Some(id) => id,
             };
-            let code = LFSClient::get().await.unlock(id.clone(), refspec.clone(), force).await;
+            let code = LFSClient::get()
+                .await
+                .unlock(id.clone(), refspec.clone(), force)
+                .await;
             if code.is_success() {
                 println!("Unlocked {}", path);
             } else if code == StatusCode::FORBIDDEN {
                 eprintln!("Forbidden: You must have push access to unlock");
             }
         }
-        LfsCmds::LsFiles { long, size, name_only} => {
+        LfsCmds::LsFiles {
+            long,
+            size,
+            name_only,
+        } => {
             let idx_file = path::index();
             let index = Index::load(&idx_file).unwrap();
             let entries = index.tracked_entries(0);
@@ -169,7 +186,11 @@ pub async fn execute(cmd: LfsCmds) {
                         let is_pointer = lfs::parse_pointer_file(&path_abs).is_ok();
                         // An asterisk (*) after the OID indicates a full object, a minus (-) indicates an LFS pointer.
                         // or not exists (-)
-                        let _type = if is_pointer || !path_abs.exists() { "-" } else { "*" };
+                        let _type = if is_pointer || !path_abs.exists() {
+                            "-"
+                        } else {
+                            "*"
+                        };
                         let oid = if long { oid } else { oid[..10].to_owned() };
                         let tail = if size {
                             let byte = util::auto_unit_bytes(lfs_size);
@@ -201,9 +222,10 @@ pub(crate) async fn current_refspec() -> Option<String> {
 
 /// temp
 fn convert_patterns_to_workdir(patterns: Vec<String>) -> Vec<String> {
-    patterns.into_iter().map(|p| {
-        util::to_workdir_path(&p).to_string_or_panic()
-    }).collect()
+    patterns
+        .into_iter()
+        .map(|p| util::to_workdir_path(&p).to_string_or_panic())
+        .collect()
 }
 
 fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()> {
@@ -231,7 +253,10 @@ fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> io::Result<()> {
             continue;
         }
         println!("Tracking \"{}\"", pattern);
-        let pattern = format!("{} filter=lfs diff=lfs merge=lfs -text\n", pattern.replace(" ", r"\ "));
+        let pattern = format!(
+            "{} filter=lfs diff=lfs merge=lfs -text\n",
+            pattern.replace(" ", r"\ ")
+        );
         file.write_all(pattern.as_bytes())?;
     }
 

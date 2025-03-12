@@ -36,12 +36,10 @@ pub async fn execute(args: CommitArgs) {
     let storage = ClientStorage::init(path::objects());
     let tracked_entries = index.tracked_entries(0);
     if tracked_entries.is_empty() && !args.allow_empty {
-        println!("fatal: no changes added to commit, use --allow-empty to override");
-        return;
+        panic!("fatal: no changes added to commit, use --allow-empty to override");
     }
     if args.conventional && !check_conventional_commits_message(&args.message) {
-        println!("fatal: commit message does not follow conventional commits");
-        return;
+        panic!("fatal: commit message does not follow conventional commits");
     }
 
     /* Create tree */
@@ -169,6 +167,7 @@ async fn update_head(commit_id: &str) {
 #[cfg(test)]
 mod test {
     use mercury::internal::object::ObjectTrait;
+    use serial_test::serial;
 
     use crate::{
         command::{add::AddArgs, load_object},
@@ -195,7 +194,9 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_create_tree() {
+        test::reset_working_dir();
         let index = Index::from_file("../tests/data/index/index-760").unwrap();
         println!("{:?}", index.tracked_entries(0).len());
         test::setup_with_new_libra().await;
@@ -229,6 +230,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_execute_commit() {
         test::setup_with_new_libra().await;
         // create first empty commit
@@ -249,7 +251,7 @@ mod test {
             let branch = Branch::find_branch(&branch_name, None).await.unwrap();
             let commit: Commit = load_object(&branch.commit).unwrap();
 
-            assert_eq!(commit.message, "init");
+            assert_eq!(commit.message.trim(), "init");
             let branch = Branch::find_branch(&branch_name, None).await.unwrap();
             assert_eq!(branch.commit, commit.id);
         }
@@ -279,11 +281,16 @@ mod test {
 
             let commit_id = Head::current_commit().await.unwrap();
             let commit: Commit = load_object(&commit_id).unwrap();
-            assert_eq!(commit.message, "add some files", "{}", commit.message);
+            assert_eq!(
+                commit.message.trim(),
+                "add some files",
+                "{}",
+                commit.message
+            );
 
             let pre_commit_id = commit.parent_commit_ids[0];
             let pre_commit: Commit = load_object(&pre_commit_id).unwrap();
-            assert_eq!(pre_commit.message, "init");
+            assert_eq!(pre_commit.message.trim(), "init");
 
             let tree_id = commit.tree_id;
             let tree: Tree = load_object(&tree_id).unwrap();

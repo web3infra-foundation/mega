@@ -1,4 +1,4 @@
-pub mod init;
-pub mod event;
-pub mod queue;
 pub mod cache;
+pub mod event;
+pub mod init;
+pub mod queue;
