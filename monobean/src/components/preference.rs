@@ -11,7 +11,7 @@ mod imp {
     use adw::glib;
     use adw::subclass::prelude::{AdwWindowImpl, PreferencesWindowImpl};
     use gtk::subclass::prelude::*;
-    use gtk::{CompositeTemplate, Entry, Switch, SpinButton};
+    use gtk::{CompositeTemplate, Entry, SpinButton, Switch};
     use std::cell::OnceCell;
 
     #[derive(Default, CompositeTemplate)]
@@ -19,11 +19,11 @@ mod imp {
     pub struct MonobeanPreferences {
         pub settings: OnceCell<Settings>,
 
-        // 基本设置
+        // Base Settings
         #[template_child]
         pub base_dir_entry: TemplateChild<Entry>,
 
-        // 日志设置
+        // Logging Settings
         #[template_child]
         pub log_path_entry: TemplateChild<Entry>,
         #[template_child]
@@ -31,7 +31,7 @@ mod imp {
         #[template_child]
         pub print_std_switch: TemplateChild<Switch>,
 
-        // 数据库设置
+        // DB Settings
         #[template_child]
         pub db_type: TemplateChild<adw::ComboRow>,
         #[template_child]
@@ -45,7 +45,7 @@ mod imp {
         #[template_child]
         pub sqlx_logging_switch: TemplateChild<Switch>,
 
-        // 认证设置
+        // Auth Settings
         #[template_child]
         pub http_auth_switch: TemplateChild<Switch>,
         #[template_child]
@@ -55,7 +55,7 @@ mod imp {
         #[template_child]
         pub test_user_token_entry: TemplateChild<Entry>,
 
-        // 存储设置
+        // Storage Settings
         #[template_child]
         pub obs_access_key_entry: TemplateChild<Entry>,
         #[template_child]
@@ -65,7 +65,7 @@ mod imp {
         #[template_child]
         pub obs_endpoint_entry: TemplateChild<Entry>,
 
-        // Monorepo 设置
+        // Monorepo Settings
         #[template_child]
         pub import_dir_entry: TemplateChild<Entry>,
         #[template_child]
@@ -73,7 +73,7 @@ mod imp {
         #[template_child]
         pub root_dirs_entry: TemplateChild<Entry>,
 
-        // Pack 设置
+        // Pack Settings
         #[template_child]
         pub pack_decode_mem_size_entry: TemplateChild<Entry>,
         #[template_child]
@@ -85,7 +85,7 @@ mod imp {
         #[template_child]
         pub channel_message_size_spin: TemplateChild<SpinButton>,
 
-        // LFS 设置
+        // LFS Settings
         #[template_child]
         pub lfs_url_entry: TemplateChild<Entry>,
         #[template_child]
@@ -95,7 +95,7 @@ mod imp {
         #[template_child]
         pub split_size_entry: TemplateChild<Entry>,
 
-        // OAuth 设置
+        // OAuth Settings
         #[template_child]
         pub github_client_id_entry: TemplateChild<Entry>,
         #[template_child]
@@ -104,6 +104,10 @@ mod imp {
         pub ui_domain_entry: TemplateChild<Entry>,
         #[template_child]
         pub cookie_domain_entry: TemplateChild<Entry>,
+
+        // Relay Settings
+        #[template_child]
+        pub relay_url: TemplateChild<Entry>,
     }
 
     #[glib::object_subclass]
@@ -163,12 +167,12 @@ impl MonobeanPreferences {
         let settings = self.settings();
         let imp = self.imp();
 
-        // 基本设置
+        // Base Settings
         settings.bind("base-dir", &imp.base_dir_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // 日志设置
+        // Logging Settings
         settings.bind("log-path", &imp.log_path_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
@@ -201,7 +205,7 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // 数据库设置
+        // DB Settings
         settings.bind("db-type", &imp.db_type.get(), "selected")
             .mapping(|variant, _| {
                 let db_type = variant.get::<String>().unwrap();
@@ -238,7 +242,7 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // 认证设置
+        // Auth Settings
         settings.bind("http-auth", &imp.http_auth_switch.get(), "active")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
@@ -252,7 +256,7 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // 存储设置
+        // Storage Settings
         settings.bind("obs-access-key", &imp.obs_access_key_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
@@ -266,7 +270,7 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // Monorepo 设置
+        // Monorepo Settings
         settings.bind("import-dir", &imp.import_dir_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
@@ -277,7 +281,7 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // Pack 设置
+        // Pack Settings
         settings.bind("pack-decode-mem-size", &imp.pack_decode_mem_size_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
@@ -294,7 +298,7 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // LFS 设置
+        // LFS Settings
         settings.bind("lfs-url", &imp.lfs_url_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
@@ -308,7 +312,7 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // OAuth 设置
+        // OAuth Settings
         settings.bind("github-client-id", &imp.github_client_id_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
@@ -319,6 +323,11 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
         settings.bind("cookie-domain", &imp.cookie_domain_entry.get(), "text")
+            .flags(adw::gio::SettingsBindFlags::DEFAULT)
+            .build();
+
+        // Relay Settings
+        settings.bind("relay-url", &imp.relay_url.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
     }

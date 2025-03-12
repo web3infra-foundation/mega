@@ -1,5 +1,6 @@
-use crate::config::WEBSITE;
-use crate::CONTEXT;
+use crate::config::{config_update, WEBSITE};
+use crate::core::CoreConfigChanged;
+use crate::{get_setting, static_array, CONTEXT};
 
 use crate::components::preference::MonobeanPreferences;
 use crate::core::mega_core::MegaCommands;
@@ -283,31 +284,13 @@ impl MonobeanApplication {
     }
 
     pub async fn start_mega(&self) {
-        // The first Action of the application, so it can never block the gui thread.
-        let http_addr = self
-            .settings()
-            .string("http-address")
-            .to_value()
-            .get::<String>()
-            .unwrap();
-        let http_port = self
-            .settings()
-            .uint("http-port")
-            .to_value()
-            .get::<u32>()
-            .unwrap();
-        let ssh_addr = self
-            .settings()
-            .string("ssh-address")
-            .to_value()
-            .get::<String>()
-            .unwrap();
-        let ssh_port = self
-            .settings()
-            .uint("ssh-port")
-            .to_value()
-            .get::<u32>()
-            .unwrap();
+        let settings = self.settings();
+
+        self.apply_user_config().await;
+        let http_addr = get_setting!(settings, "http-address", String);
+        let http_port = get_setting!(settings, "http-port", u32);
+        let ssh_addr = get_setting!(settings, "ssh-address", String);
+        let ssh_port = get_setting!(self.settings(), "ssh-port", u32);
 
         let http_addr = IpAddr::V4(http_addr.parse().unwrap());
         let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
@@ -328,6 +311,12 @@ impl MonobeanApplication {
         let act = Action::MegaCore(cmd);
         self.sender().send_blocking(act).unwrap();
         rx
+    }
+
+    async fn apply_user_config(&self) {
+        let update = config_update(self.settings());
+        let action = Action::MegaCore(MegaCommands::ApplyUserConfig(update));
+        self.sender().send(action).await.unwrap();
     }
 
     fn process_action(&self, action: Action) {
