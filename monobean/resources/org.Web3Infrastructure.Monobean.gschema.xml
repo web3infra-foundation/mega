@@ -43,6 +43,7 @@
             <summary>SSH Port</summary>
             <description>Port the ssh service listening</description>
         </key>
+        
         <!-- Base Settings -->
         <key name="base-dir" type="s">
             <default>'/tmp/.mono'</default>
@@ -217,6 +218,12 @@
         <key name="cookie-domain" type="s">
             <default>'localhost'</default>
             <summary>Cookie Domain</summary>
+        </key>
+
+        <!-- Relay Settings -->
+        <key name="relay-url" type="s">
+            <default>'http://localhost:1234'</default>
+            <summary>Relay Url</summary>
         </key>
     </schema>
 </schemalist>
