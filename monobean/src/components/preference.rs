@@ -2,17 +2,14 @@ use adw::gio::Settings;
 use adw::glib;
 use adw::prelude::*;
 use adw::subclass::prelude::ObjectSubclassIsExt;
-use gtk::prelude::*;
+use adw::subclass::prelude::{AdwWindowImpl, PreferencesWindowImpl};
+use gtk::subclass::prelude::*;
 use gtk::{Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager};
+use gtk::{CompositeTemplate, Entry, SpinButton, Switch};
+use std::cell::OnceCell;
 
 mod imp {
     use super::*;
-    use adw::gio::Settings;
-    use adw::glib;
-    use adw::subclass::prelude::{AdwWindowImpl, PreferencesWindowImpl};
-    use gtk::subclass::prelude::*;
-    use gtk::{CompositeTemplate, Entry, SpinButton, Switch};
-    use std::cell::OnceCell;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/preferences.ui")]
@@ -330,5 +327,11 @@ impl MonobeanPreferences {
         settings.bind("relay-url", &imp.relay_url.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
+    }
+}
+
+impl Default for MonobeanPreferences {
+    fn default() -> Self {
+        Self::new()
     }
 }
