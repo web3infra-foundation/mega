@@ -167,8 +167,8 @@ impl MegaCore {
                     self.pgp.set((pk, sk)).unwrap();
                 }
             },
-            MegaCommands::ApplyUserConfig(update) => {
-                self.merge_config(update);
+            MegaCommands::ApplyUserConfig( update) => {
+                self.merge_config(update).await;
             }
         }
     }

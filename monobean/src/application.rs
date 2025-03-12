@@ -119,8 +119,11 @@ mod imp {
                     #[strong]
                     app,
                     async move {
+                        let mut cnt = 0;
                         app.start_mega().await;
                         while let Ok(action) = receiver.recv().await {
+                            cnt += 1;
+                            tracing::debug!("Processing Glib Action {cnt}: {:?}", action);
                             app.process_action(action);
                         }
                     }
@@ -315,8 +318,7 @@ impl MonobeanApplication {
 
     async fn apply_user_config(&self) {
         let update = config_update(self.settings());
-        let action = Action::MegaCore(MegaCommands::ApplyUserConfig(update));
-        self.sender().send(action).await.unwrap();
+        self.send_command(MegaCommands::ApplyUserConfig(update)).await;
     }
 
     fn process_action(&self, action: Action) {
@@ -325,8 +327,6 @@ impl MonobeanApplication {
         }
 
         let window = self.imp().window.get().unwrap().upgrade().unwrap();
-
-        tracing::debug!("Processing Glib Action: {:?}", action);
         match action {
             Action::MegaCore(cmd) => {
                 let delegate = self.imp().mega_delegate;
@@ -362,8 +362,6 @@ impl MonobeanApplication {
 
             Action::ShowHelloPage => {
                 let config = self.git_config();
-                let stack = window.imp().base_stack.clone();
-                stack.set_visible_child_name("hello_page");
 
                 let name = config.string("user.name").map(|name| name.to_string());
                 let email = config.string("user.email").map(|email| email.to_string());
