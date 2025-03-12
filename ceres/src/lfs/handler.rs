@@ -364,7 +364,7 @@ pub async fn lfs_download_object(
     oid: String,
 ) -> Result<impl Stream<Item = Result<Bytes, GitLFSError>>, GitLFSError> {
     let oid = &oid;
-    let config = context.config.lfs;
+    let config = &context.config.lfs;
     let stg = context.services.lfs_db_storage.clone();
     let lfs_storage = context.services.lfs_storage.clone();
     if config.enable_split {
@@ -436,7 +436,7 @@ pub async fn lfs_download_chunk(
     offset: u64,
     size: u64,
 ) -> Result<Bytes, GitLFSError> {
-    let config = context.config.lfs;
+    let config = &context.config.lfs;
     let stg = context.services.lfs_db_storage.clone();
     let lfs_stg = context.services.lfs_storage.clone();
 

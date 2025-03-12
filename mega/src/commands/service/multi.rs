@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 
 use common::{
-    config::Config,
     errors::MegaResult,
     model::{CommonOptions, P2pOptions},
 };
@@ -50,7 +49,7 @@ pub fn cli() -> Command {
     )
 }
 
-pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
+pub(crate) async fn exec(context: Context, args: &ArgMatches) -> MegaResult {
     let server_matchers = StartOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();
@@ -58,13 +57,6 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     tracing::info!("{server_matchers:#?}");
 
     let service_type = server_matchers.service;
-
-    let context = Context::new(config.clone()).await;
-    context
-        .services
-        .mono_storage
-        .init_monorepo(&config.monorepo)
-        .await;
 
     let context_clone = context.clone();
     let http_server = if service_type.contains(&StartCommand::Http) {

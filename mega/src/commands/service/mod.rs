@@ -3,9 +3,13 @@
 //!
 //!
 //!
+
 use clap::{ArgMatches, Command};
+use std::sync::Arc;
 
 use common::{config::Config, errors::MegaResult};
+use jupiter::context::Context;
+use taurus::init::init_mq;
 
 mod http;
 mod https;
@@ -25,8 +29,9 @@ pub fn cli() -> Command {
 // It determines which subcommand was used and calls the appropriate function.
 #[tokio::main]
 pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
-    use taurus::init::init_mq;
-    init_mq(&config).await;
+    let config = Arc::new(config);
+    let context = Context::new(config.clone()).await;
+    init_mq(context.clone()).await;
 
     let (cmd, subcommand_args) = match args.subcommand() {
         Some((cmd, args)) => (cmd, args),
@@ -36,10 +41,10 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         }
     };
     match cmd {
-        "http" => http::exec(config, subcommand_args).await,
-        "https" => https::exec(config, subcommand_args).await,
-        "ssh" => ssh::exec(config, subcommand_args).await,
-        "multi" => multi::exec(config, subcommand_args).await,
+        "http" => http::exec(context, subcommand_args).await,
+        "https" => https::exec(context, subcommand_args).await,
+        "ssh" => ssh::exec(context, subcommand_args).await,
+        "multi" => multi::exec(context, subcommand_args).await,
         _ => Ok(()),
     }
 }
