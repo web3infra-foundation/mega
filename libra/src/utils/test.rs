@@ -8,12 +8,12 @@ use std::io::Write;
 use std::path::Path;
 use std::{env, fs, path::PathBuf};
 
-use crate::utils::util;
 use crate::command;
+use crate::utils::util;
 
 pub const TEST_DIR: &str = "libra_test_repo";
 
-fn find_cargo_dir() -> PathBuf {
+pub fn find_cargo_dir() -> PathBuf {
     let cargo_path = env::var("CARGO_MANIFEST_DIR");
 
     match cargo_path {
@@ -39,7 +39,6 @@ fn find_cargo_dir() -> PathBuf {
         }
     }
 }
-
 
 /// Sets up the environment for testing.
 ///
@@ -81,7 +80,7 @@ pub fn setup_clean_testing_env() {
     let cur_path = util::cur_dir();
 
     // Append the Libra root directory to the current directory
-    let root_path=cur_path.join(util::ROOT_DIR);
+    let root_path = cur_path.join(util::ROOT_DIR);
 
     // If the Libra root directory exists, remove it
     if root_path.exists() {
@@ -106,26 +105,25 @@ pub fn setup_clean_testing_env() {
 /// switch to test dir and create a new .libra
 pub async fn setup_with_new_libra() {
     setup_clean_testing_env();
-    let args = command::init::InitArgs { bare: false, initial_branch: None, repo_directory: util::cur_dir().to_str().unwrap().to_string(),quiet:false };
+    let args = command::init::InitArgs {
+        bare: false,
+        initial_branch: None,
+        repo_directory: util::cur_dir().to_str().unwrap().to_string(),
+        quiet: false,
+    };
     command::init::init(args).await.unwrap();
 }
 
 pub fn init_debug_logger() {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .finish(),
-    )
-    .unwrap();
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .try_init(); // avoid multi-init
 }
 
 pub fn init_logger() {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .finish(),
-    )
-    .unwrap();
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .try_init(); // avoid multi-init
 }
 
 /// create file related to working directory
@@ -141,4 +139,9 @@ pub fn ensure_file(path: impl AsRef<Path>, content: Option<&str>) {
         file.write_all(path.file_name().unwrap().as_encoded_bytes())
             .unwrap();
     }
+}
+
+/// reset working directory to the root of the module
+pub fn reset_working_dir() {
+    env::set_current_dir(env!("CARGO_MANIFEST_DIR")).unwrap();
 }

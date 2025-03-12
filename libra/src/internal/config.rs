@@ -43,12 +43,10 @@ impl Config {
         let db = get_db_conn_instance().await;
         let mut config: ActiveModel = config::Entity::find()
             .filter(config::Column::Configuration.eq(configuration))
-            .filter(
-                match name {
-                    Some(str) => config::Column::Name.eq(str),
-                    None => config::Column::Name.is_null()
-                }
-            )
+            .filter(match name {
+                Some(str) => config::Column::Name.eq(str),
+                None => config::Column::Name.is_null(),
+            })
             .filter(config::Column::Key.eq(key))
             .one(db)
             .await
@@ -63,12 +61,10 @@ impl Config {
         let db = get_db_conn_instance().await;
         config::Entity::find()
             .filter(config::Column::Configuration.eq(configuration))
-            .filter(
-                match name {
-                    Some(str) => config::Column::Name.eq(str),
-                    None => config::Column::Name.is_null()
-                }
-            )
+            .filter(match name {
+                Some(str) => config::Column::Name.eq(str),
+                None => config::Column::Name.is_null(),
+            })
             .filter(config::Column::Key.eq(key))
             .all(db)
             .await
@@ -92,13 +88,11 @@ impl Config {
     /// - `Error` if `HEAD` is detached
     pub async fn get_current_remote() -> Result<Option<String>, ()> {
         match Head::current().await {
-            Head::Branch(name) => {
-                Ok(Config::get_remote(&name).await)
-            },
+            Head::Branch(name) => Ok(Config::get_remote(&name).await),
             Head::Detached(_) => {
                 eprintln!("fatal: HEAD is detached, cannot get remote");
                 Err(())
-            },
+            }
         }
     }
 
@@ -135,20 +129,26 @@ impl Config {
             .await
             .unwrap()
             .iter()
-            .map(|m| 
+            .map(|m| {
                 (
                     match &m.name {
                         Some(n) => m.configuration.to_owned() + "." + n + "." + &m.key,
-                        None => m.configuration.to_owned() + "." + &m.key
+                        None => m.configuration.to_owned() + "." + &m.key,
                     },
-                    m.value.to_owned()
+                    m.value.to_owned(),
                 )
-            )
+            })
             .collect()
     }
 
     /// Delete one or all configuration using given key and value pattern
-    pub async fn remove_config(configuration: &str, name: Option<&str>, key: &str, valuepattern: Option<&str>, delete_all: bool) {
+    pub async fn remove_config(
+        configuration: &str,
+        name: Option<&str>,
+        key: &str,
+        valuepattern: Option<&str>,
+        delete_all: bool,
+    ) {
         let db = get_db_conn_instance().await;
         let entries: Vec<Model> = Self::query(configuration, name, key).await;
         for e in entries {
@@ -156,14 +156,11 @@ impl Config {
                 Some(vp) => {
                     if e.value.contains(vp) {
                         e.delete(db).await
-                    }
-                    else {
+                    } else {
                         continue;
                     }
                 }
-                None => {
-                    e.delete(db).await
-                }
+                None => e.delete(db).await,
             };
             if !delete_all {
                 break;

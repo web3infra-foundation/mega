@@ -4,7 +4,6 @@ use common::{config::Config, errors::MegaResult};
 use gateway::https_server::{self, HttpsOptions};
 use jupiter::context::Context;
 
-
 pub fn cli() -> Command {
     HttpsOptions::augment_args_for_update(Command::new("https").about("Start Mega HTTPS server"))
 }

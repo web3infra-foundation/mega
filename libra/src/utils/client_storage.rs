@@ -1,22 +1,22 @@
-use std::{fs, io};
 use std::collections::HashSet;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::{fs, io};
 
 use byteorder::{BigEndian, ReadBytesExt};
-use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use lru_mem::LruCache;
-use once_cell::sync::Lazy;
-use mercury::internal::pack::cache_object::CacheObject;
-use mercury::internal::pack::Pack;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
 use mercury::internal::object::types::ObjectType;
+use mercury::internal::pack::cache_object::CacheObject;
+use mercury::internal::pack::Pack;
 use mercury::utils::read_sha1;
+use once_cell::sync::Lazy;
 
 use crate::command;
 static PACK_OBJ_CACHE: Lazy<Mutex<LruCache<String, CacheObject>>> = Lazy::new(|| {
@@ -89,7 +89,8 @@ impl ClientStorage {
         let paths = fs::read_dir(&self.base_path).unwrap();
         for path in paths {
             let path = path.unwrap().path();
-            if path.is_dir() && path.file_name().unwrap().len() == 2 { // not very elegant
+            if path.is_dir() && path.file_name().unwrap().len() == 2 {
+                // not very elegant
                 let sub_paths = fs::read_dir(&path).unwrap();
                 for sub_path in sub_paths {
                     let sub_path = sub_path.unwrap().path();
@@ -136,11 +137,12 @@ impl ClientStorage {
     }
 
     fn parse_header(data: &[u8]) -> (String, usize, usize) {
-        let end_of_header = data.iter()
+        let end_of_header = data
+            .iter()
             .position(|&b| b == b'\0')
             .expect("Invalid object: no header terminator");
-        let header_str = std::str::from_utf8(&data[..end_of_header])
-            .expect("Invalid UTF-8 in header");
+        let header_str =
+            std::str::from_utf8(&data[..end_of_header]).expect("Invalid UTF-8 in header");
 
         let mut parts = header_str.splitn(2, ' ');
         let obj_type = parts.next().expect("No object type in header").to_string();
@@ -175,7 +177,12 @@ impl ClientStorage {
     }
 
     /// Save content to `objects`
-    pub fn put(&self, obj_id: &SHA1, content: &[u8], obj_type: ObjectType) -> Result<String, io::Error> {
+    pub fn put(
+        &self,
+        obj_id: &SHA1,
+        content: &[u8],
+        obj_type: ObjectType,
+    ) -> Result<String, io::Error> {
         let path = self.get_obj_path(obj_id);
         let dir = path.parent().unwrap();
         fs::create_dir_all(dir)?;
@@ -206,6 +213,9 @@ impl ClientStorage {
     /// List all .pack files in `pack` directory
     fn list_all_packs(&self) -> Vec<PathBuf> {
         let pack_dir = self.base_path.join("pack");
+        if !pack_dir.exists() {
+            return Vec::new();
+        }
         let mut packs = Vec::new();
         for entry in fs::read_dir(pack_dir).unwrap() {
             let path = entry.unwrap().path();
@@ -224,7 +234,8 @@ impl ClientStorage {
         for pack in packs {
             let idx = pack.with_extension("idx");
             if !idx.exists() {
-                command::index_pack::build_index_v1(pack.to_str().unwrap(), idx.to_str().unwrap()).unwrap();
+                command::index_pack::build_index_v1(pack.to_str().unwrap(), idx.to_str().unwrap())
+                    .unwrap();
             }
             idxs.push(idx);
         }
@@ -333,7 +344,7 @@ impl ClientStorage {
                 let base_obj = Self::read_pack_obj(pack_file, base_offset as u64)?;
                 let base_obj = Arc::new(base_obj);
                 Pack::rebuild_delta(obj, base_obj) // new obj
-            },
+            }
             ObjectType::HashDelta => {
                 let base_hash = obj.hash_delta().unwrap();
                 let idx_file = pack_file.with_extension("idx");
@@ -341,11 +352,16 @@ impl ClientStorage {
                 let base_obj = Self::read_pack_obj(pack_file, base_offset)?;
                 let base_obj = Arc::new(base_obj);
                 Pack::rebuild_delta(obj, base_obj) // new obj
-            },
+            }
             _ => obj,
         };
         // write cache
-        if PACK_OBJ_CACHE.lock().unwrap().insert(cache_key, full_obj.clone()).is_err() {
+        if PACK_OBJ_CACHE
+            .lock()
+            .unwrap()
+            .insert(cache_key, full_obj.clone())
+            .is_err()
+        {
             eprintln!("Warn: EntryTooLarge");
         }
         Ok(full_obj)
@@ -354,12 +370,12 @@ impl ClientStorage {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, fs};
-    use std::path::PathBuf;
-
     use mercury::internal::object::blob::Blob;
-    use mercury::internal::object::ObjectTrait;
     use mercury::internal::object::types::ObjectType;
+    use mercury::internal::object::ObjectTrait;
+    use serial_test::serial;
+    use std::fs;
+    use std::path::PathBuf;
 
     use crate::utils::{test, util};
 
@@ -370,11 +386,13 @@ mod tests {
         let content = "Hello, world!";
         let blob = Blob::from_content(content);
 
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage.put(&blob.id, &blob.data, blob.get_type()).is_ok());
+        assert!(client_storage
+            .put(&blob.id, &blob.data, blob.get_type())
+            .is_ok());
         assert!(client_storage.exist(&blob.id));
 
         let data = client_storage.get(&blob.id).unwrap();
@@ -386,11 +404,13 @@ mod tests {
     fn test_search() {
         let blob = Blob::from_content("Hello, world!");
 
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage.put(&blob.id, &blob.data, blob.get_type()).is_ok());
+        assert!(client_storage
+            .put(&blob.id, &blob.data, blob.get_type())
+            .is_ok());
 
         let objs = client_storage.search("5dd01c177");
 
@@ -398,8 +418,12 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_list_objs() {
-        let source = PathBuf::from(test::TEST_DIR).join(util::ROOT_DIR).join("objects");
+        test::reset_working_dir();
+        let source = PathBuf::from(test::TEST_DIR)
+            .join(util::ROOT_DIR)
+            .join("objects");
         if !source.exists() {
             return;
         }
@@ -414,11 +438,13 @@ mod tests {
     fn test_get_obj_type() {
         let blob = Blob::from_content("Hello, world!");
 
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
         source.push("tests/objects");
 
         let client_storage = ClientStorage::init(source.clone());
-        assert!(client_storage.put(&blob.id, &blob.data, blob.get_type()).is_ok());
+        assert!(client_storage
+            .put(&blob.id, &blob.data, blob.get_type())
+            .is_ok());
 
         let obj_type = client_storage.get_object_type(&blob.id).unwrap();
         assert_eq!(obj_type, ObjectType::Blob);
@@ -433,15 +459,12 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_decompress_2() {
+        test::reset_working_dir();
         let pack_file = "../tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa";
         let pack_content = fs::read(pack_file).unwrap();
         let decompressed_data = ClientStorage::decompress_zlib(&pack_content).unwrap();
         println!("{:?}", String::from_utf8(decompressed_data).unwrap());
-    }
-
-    #[test]
-    fn test_get_from_pack() {
-        unimplemented!();
     }
 }

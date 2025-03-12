@@ -1,6 +1,4 @@
-
 use std::io::Read;
-
 
 const VAR_INT_ENCODING_BITS: u8 = 7;
 const VAR_INT_CONTINUE_FLAG: u8 = 1 << VAR_INT_ENCODING_BITS;
@@ -78,5 +76,3 @@ pub fn read_var_int_byte<R: Read>(stream: &mut R) -> std::io::Result<(u8, bool)>
 
     Ok((value, more_bytes))
 }
-
-

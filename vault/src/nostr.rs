@@ -1,4 +1,4 @@
-use secp256k1::{PublicKey, rand, Secp256k1, SecretKey};
+use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
 
 pub fn generate_nostr_id() -> (String, (SecretKey, PublicKey)) {
     let secp = Secp256k1::new();
@@ -11,8 +11,8 @@ pub fn generate_nostr_id() -> (String, (SecretKey, PublicKey)) {
 
 #[cfg(test)]
 mod tests {
-    use secp256k1::Message;
     use super::*;
+    use secp256k1::Message;
 
     #[test]
     fn test_generate_nostr_id() {

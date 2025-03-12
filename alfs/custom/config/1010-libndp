@@ -1,0 +1,34 @@
+# Any comments you wish to add
+#
+
+PKG="libndp"
+PKG_VERSION="1.9"
+PKG_FILE="libndp-1.9.tar.gz"
+URL="http://libndp.org/files/libndp-1.9.tar.gz"
+MD5="9d486750569e7025e5d0afdcc509b93c"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+# Your script here. Be aware that it is passed
+# verbatim, and that none of the above variables
+# will be defined when running the script. For example,
+# If you want to use ${PKG_VERSION}, you have to
+# redefine it here.
+
+./configure --prefix=/usr        \
+            --sysconfdir=/etc    \
+            --localstatedir=/var \
+            --disable-static     &&
+make
+
+make install
+
+xEOFx
+) > tmp

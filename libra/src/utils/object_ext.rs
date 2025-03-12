@@ -1,12 +1,12 @@
-use std::fs;
-use std::io::{BufReader, Read};
-use std::path::{Path, PathBuf};
 use colored::Colorize;
 use mercury::hash::SHA1;
 use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
-use mercury::internal::object::ObjectTrait;
 use mercury::internal::object::tree::{Tree, TreeItemMode};
+use mercury::internal::object::ObjectTrait;
+use std::fs;
+use std::io::{BufReader, Read};
+use std::path::{Path, PathBuf};
 
 use crate::utils::{lfs, util};
 
@@ -37,8 +37,10 @@ impl TreeExt for Tree {
     fn get_plain_items(&self) -> Vec<(PathBuf, SHA1)> {
         let mut items = Vec::new();
         for item in self.tree_items.iter() {
-            if item.mode != TreeItemMode::Tree { // Not Tree, maybe Blob, link, etc.
-                if item.mode == TreeItemMode::Commit { // submodule
+            if item.mode != TreeItemMode::Tree {
+                // Not Tree, maybe Blob, link, etc.
+                if item.mode == TreeItemMode::Commit {
+                    // submodule
                     eprintln!("{}", "Warning: Submodule is not supported yet".red());
                 }
                 items.push((PathBuf::from(item.name.clone()), item.id));

@@ -1,54 +1,59 @@
 use crate::application::Action;
 use crate::core::mega_core::{MegaCommands, MegaCore};
 use crate::core::runtime;
-use async_channel::Sender;
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
+use async_channel::{Receiver, Sender};
+use std::sync::OnceLock;
 
 /// The delegate for the Mega core.
 /// If we directly use mega core in the application,
 /// it would be hard to operate cross glib and tokio runtimes.
 /// So we use this struct to build up a channel and delegate the commands to the mega core.
+#[derive(Clone, Debug)]
 pub struct MegaDelegate {
     inner: Sender<MegaCommands>,
-    core: Arc<Mutex<MegaCore>>,
 }
 
 impl MegaDelegate {
     pub fn new(action_sender: Sender<Action>) -> &'static Self {
         static DELEGATE: OnceLock<MegaDelegate> = OnceLock::new();
 
-        DELEGATE.get_or_init(move | |{
+        DELEGATE.get_or_init(move || {
             let (cmd_sender, cmd_receiver) = async_channel::unbounded();
-            let core = Arc::new(Mutex::new(MegaCore::new(action_sender, cmd_receiver)));
-            let ret = Self {
-                inner: cmd_sender,
-                core,
-            };
+            let ret = Self { inner: cmd_sender };
 
-            ret.init_core();
+            ret.init_core(action_sender, cmd_receiver);
             ret
         })
     }
 
-    pub fn init_core(&self) {
-        let core = self.core.clone();
+    fn init_core(&self, act_sender: Sender<Action>, cmd_receiver: Receiver<MegaCommands>) {
+        static CORE: OnceLock<MegaCore> = OnceLock::new();
+        let core = CORE.get_or_init(move || MegaCore::new(act_sender, cmd_receiver));
+
         std::thread::spawn(move || {
             runtime().block_on(async move {
-                if let Ok(mut lock) = core.try_lock() {
-                    tokio::select! {
-                        Ok(cmd) = lock.receiver.recv() => {
-                            lock.process_command(cmd).await;
-                        }
-                    }
-                } else {
-                    panic!("Failed to lock mega core.");
+                core.init().await;
+                while let Ok(cmd) = core.receiver.recv().await {
+                    tokio::spawn(async move {
+                        core.process_command(cmd).await;
+                    });
                 }
             });
         });
     }
 
-    pub fn send_command(&self, cmd: MegaCommands) {
+    /// Send a command to the mega core and block
+    pub async fn send_command(&self, cmd: MegaCommands) {
+        let _ = self.inner.send(cmd).await;
+    }
+
+    /// Send a command to the mega core and block until the command is sent.
+    ///
+    /// # Deadlock
+    ///
+    /// Same as described in `MegaCore::process_command` and async_channel::Sender::send_blocking.
+    /// Better not use this function in async context, or it would cause a deadlock.
+    pub fn blocking_send_command(&self, cmd: MegaCommands) {
         let _ = self.inner.send_blocking(cmd);
     }
 }

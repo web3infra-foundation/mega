@@ -55,7 +55,7 @@ mod imp {
 
         pub sender: OnceCell<Sender<Action>>,
         pub settings: OnceCell<Settings>,
-        
+
         toast: RefCell<Option<Toast>>,
     }
 
@@ -76,20 +76,9 @@ mod imp {
     }
 
     impl ObjectImpl for MonobeanWindow {
-        fn constructed(&self) {
-            self.parent_constructed();
-            let obj = self.obj();
-            self.toast.replace(Some(Toast::new("")));
-
-            obj.bind_settings();
-        }
-
         fn properties() -> &'static [ParamSpec] {
-            static PROPERTIES: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
-                vec![
-                    ParamSpecObject::builder::<Toast>("toast").build(),
-                ]
-            });
+            static PROPERTIES: LazyLock<Vec<ParamSpec>> =
+                LazyLock::new(|| vec![ParamSpecObject::builder::<Toast>("toast").build()]);
             PROPERTIES.as_ref()
         }
 
@@ -108,6 +97,14 @@ mod imp {
                 "toast" => self.toast.borrow().to_value(),
                 _ => unimplemented!(),
             }
+        }
+
+        fn constructed(&self) {
+            self.parent_constructed();
+            let obj = self.obj();
+            self.toast.replace(Some(Toast::new("")));
+
+            obj.bind_settings();
         }
     }
     impl WidgetImpl for MonobeanWindow {}
@@ -164,10 +161,15 @@ impl MonobeanWindow {
         stack.set_visible_child_name("main_page");
     }
 
-    pub fn show_hello_page(&self, name: Option<String>, email: Option<String>) {
+    pub fn show_hello_page(
+        &self,
+        name: Option<String>,
+        email: Option<String>,
+        pgp_generated: bool,
+    ) {
         let stack = self.imp().base_stack.clone();
         let page = self.imp().hello_page.clone();
-        page.fill_entries(name, email);
+        page.fill_entries(name, email, pgp_generated);
         stack.set_visible_child_name("hello_page");
     }
 
@@ -186,6 +188,7 @@ impl MonobeanWindow {
         let toast = Toast::builder()
             .title(glib::markup_escape_text(&message))
             .priority(adw::ToastPriority::High)
+            .timeout(3)
             .build();
         self.set_property("toast", &toast);
         self.imp().toast_overlay.add_toast(toast);

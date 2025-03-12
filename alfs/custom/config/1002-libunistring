@@ -1,0 +1,33 @@
+# Any comments you wish to add
+#
+
+PKG="libunistring"
+PKG_VERSION="1.3"
+PKG_FILE="libunistring-1.3.tar.xz"
+URL="https://ftp.gnu.org/gnu/libunistring/libunistring-1.3.tar.xz"
+MD5="57dfd9e4eba93913a564aa14eab8052e"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+# Your script here. Be aware that it is passed
+# verbatim, and that none of the above variables
+# will be defined when running the script. For example,
+# If you want to use ${PKG_VERSION}, you have to
+# redefine it here.
+
+./configure --prefix=/usr    \
+            --disable-static \
+            --docdir=/usr/share/doc/libunistring-1.3 &&
+make
+
+make install
+
+xEOFx
+) > tmp

@@ -41,7 +41,11 @@ impl Config {
     pub fn load_str(content: &str) -> Result<Self, c::ConfigError> {
         let builder = c::Config::builder()
             .add_source(c::File::from_str(content, FileFormat::Toml))
-            .add_source(c::Environment::with_prefix("mega").prefix_separator("_").separator("__"));
+            .add_source(
+                c::Environment::with_prefix("mega")
+                    .prefix_separator("_")
+                    .separator("__"),
+            );
 
         let config = variable_placeholder_substitute(builder);
 
@@ -62,7 +66,7 @@ impl Default for Config {
         std::fs::create_dir_all(&base_dir).unwrap();
 
         // use mega/config.toml because mega use sqlite as default db
-        let default_config = include_str!("../../mega/config.toml");
+        let default_config = include_str!("../config.toml");
         let default_config = default_config
             .lines()
             .map(|line| {
@@ -456,10 +460,7 @@ mod test {
             PackConfig::get_size_from_str("4G", || Ok(4 * 1024 * 1024 * 1024)).unwrap(),
             4 * 1024 * 1024 * 1024
         );
-        assert_eq!(
-            PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(),
-            1
-        );
+        assert_eq!(PackConfig::get_size_from_str("1%", || Ok(100)).unwrap(), 1);
         assert_eq!(
             PackConfig::get_size_from_str("50%", || Ok(100)).unwrap(),
             50
@@ -476,6 +477,5 @@ mod test {
             PackConfig::get_size_from_str("1", || Ok(100)).unwrap(),
             1024 * 1024 * 1024
         );
-        
     }
 }

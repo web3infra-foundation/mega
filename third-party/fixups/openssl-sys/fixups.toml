@@ -1,4 +1,5 @@
 cargo_env = true
 [[buildscript]]
 [buildscript.rustc_flags]
-env = { OPENSSL_LIB_DIR = "/opt/openssl-1.1.1g/lib", OPENSSL_INCLUDE_DIR = "/opt/openssl-1.1.1g/include", OPT_LEVEL = "3"}
+env = { OPENSSL_LIB_DIR = "/usr/lib64", OPENSSL_INCLUDE_DIR = "/usr/include", OPT_LEVEL = "3"}
+#env = { OPENSSL_LIB_DIR = "/opt/openssl-1.1.1g/lib", OPENSSL_INCLUDE_DIR = "/opt/openssl-1.1.1g/include", OPT_LEVEL = "3"}

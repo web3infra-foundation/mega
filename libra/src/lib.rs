@@ -1,9 +1,9 @@
 use mercury::errors::GitError;
 
+pub mod cli;
 mod command;
 pub mod internal;
 pub mod utils;
-pub mod cli;
 
 /// Execute the Libra command in `sync` way.
 /// ### Caution
@@ -25,10 +25,12 @@ pub async fn exec_async(mut args: Vec<&str>) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
-    use tempfile::TempDir;
     use super::*;
+    use serial_test::serial;
+    use tempfile::TempDir;
 
     #[test]
+    #[serial]
     fn test_libra_init() {
         let tmp_dir = TempDir::new().unwrap();
         std::env::set_current_dir(tmp_dir.path()).unwrap();
@@ -36,10 +38,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_lfs_client() {
-        use url::Url;
         use crate::internal::protocol::lfs_client::LFSClient;
         use crate::internal::protocol::ProtocolClient;
+        use url::Url;
 
         let client = LFSClient::from_url(&Url::parse("https://git.gitmono.org").unwrap());
         println!("{:?}", client);
@@ -47,14 +50,14 @@ mod tests {
             println!("progress: {:.2}%", progress);
             Ok(())
         };
-        client.download_object(
-            "a744b4beab939d899e22c8a070b7041a275582fb942483c9436d455173c7e23d",
-            338607424,
-            "/home/bean/projects/tmp/Qwen2.5-0.5B-Instruct-Q2_K.gguf",
-            Some((
-                &mut report_fn,
-                0.1
-            ))
-        ).await.expect("Failed to download object");
+        client
+            .download_object(
+                "a744b4beab939d899e22c8a070b7041a275582fb942483c9436d455173c7e23d",
+                338607424,
+                "/home/bean/projects/tmp/Qwen2.5-0.5B-Instruct-Q2_K.gguf",
+                Some((&mut report_fn, 0.1)),
+            )
+            .await
+            .expect("Failed to download object");
     }
 }

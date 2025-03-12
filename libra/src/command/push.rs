@@ -1,19 +1,3 @@
-use std::collections::{HashSet, VecDeque};
-use std::io::Write;
-use std::str::FromStr;
-use bytes::BytesMut;
-use clap::Parser;
-use colored::Colorize;
-use tokio::sync::mpsc;
-use url::Url;
-use ceres::protocol::ServiceType::ReceivePack;
-use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
-use mercury::hash::SHA1;
-use mercury::internal::object::blob::Blob;
-use mercury::internal::object::commit::Commit;
-use mercury::internal::object::tree::{Tree, TreeItemMode};
-use mercury::internal::pack::encode::PackEncoder;
-use mercury::internal::pack::entry::Entry;
 use crate::command::branch;
 use crate::internal::branch::Branch;
 use crate::internal::config::Config;
@@ -22,9 +6,26 @@ use crate::internal::protocol::https_client::HttpsClient;
 use crate::internal::protocol::lfs_client::LFSClient;
 use crate::internal::protocol::ProtocolClient;
 use crate::utils::object_ext::{BlobExt, CommitExt, TreeExt};
+use bytes::BytesMut;
+use ceres::protocol::smart::{add_pkt_line_string, read_pkt_line};
+use ceres::protocol::ServiceType::ReceivePack;
+use clap::Parser;
+use colored::Colorize;
+use mercury::hash::SHA1;
+use mercury::internal::object::blob::Blob;
+use mercury::internal::object::commit::Commit;
+use mercury::internal::object::tree::{Tree, TreeItemMode};
+use mercury::internal::pack::encode::PackEncoder;
+use mercury::internal::pack::entry::Entry;
+use std::collections::{HashSet, VecDeque};
+use std::io::Write;
+use std::str::FromStr;
+use tokio::sync::mpsc;
+use url::Url;
 
 #[derive(Parser, Debug)]
-pub struct PushArgs { // TODO --force
+pub struct PushArgs {
+    // TODO --force
     /// repository, e.g. origin
     #[clap(requires("refspec"))]
     repository: Option<String>,
@@ -37,7 +38,8 @@ pub struct PushArgs { // TODO --force
 }
 
 pub async fn execute(args: PushArgs) {
-    if args.repository.is_some() ^ args.refspec.is_some() { // must provide both or none
+    if args.repository.is_some() ^ args.refspec.is_some() {
+        // must provide both or none
         eprintln!("fatal: both repository and refspec should be provided");
         return;
     }
@@ -67,9 +69,16 @@ pub async fn execute(args: PushArgs) {
     let repo_url = Config::get_remote_url(&repository).await;
 
     let branch = args.refspec.unwrap_or(branch);
-    let commit_hash = Branch::find_branch(&branch, None).await.unwrap().commit.to_string();
+    let commit_hash = Branch::find_branch(&branch, None)
+        .await
+        .unwrap()
+        .commit
+        .to_string();
 
-    println!("pushing {}({}) to {}({})", branch, commit_hash, repository, repo_url);
+    println!(
+        "pushing {}({}) to {}({})",
+        branch, commit_hash, repository, repo_url
+    );
 
     let url = Url::parse(&repo_url).unwrap();
     let client = HttpsClient::from_url(&url);
@@ -87,27 +96,33 @@ pub async fn execute(args: PushArgs) {
 
     let tracked_ref = refs.iter().find(|r| r._ref == tracked_branch);
     // [0; 20] if new branch
-    let remote_hash = tracked_ref.map(|r| r._hash.clone()).unwrap_or(SHA1::default().to_string());
+    let remote_hash = tracked_ref
+        .map(|r| r._hash.clone())
+        .unwrap_or(SHA1::default().to_string());
     if remote_hash == commit_hash {
         println!("Everything up-to-date");
         return;
     }
 
     let mut data = BytesMut::new();
-    add_pkt_line_string(&mut data, format!("{} {} {}\0report-status\n",
-                                           remote_hash,
-                                           commit_hash,
-                                           tracked_branch));
+    add_pkt_line_string(
+        &mut data,
+        format!(
+            "{} {} {}\0report-status\n",
+            remote_hash, commit_hash, tracked_branch
+        ),
+    );
     data.extend_from_slice(b"0000");
     tracing::debug!("{:?}", data);
 
     // TODO 考虑remote有多个refs，可以少发一点commits
     let objs = incremental_objs(
         SHA1::from_str(&commit_hash).unwrap(),
-        SHA1::from_str(&remote_hash).unwrap()
+        SHA1::from_str(&remote_hash).unwrap(),
     );
 
-    { // upload lfs files
+    {
+        // upload lfs files
         let client = LFSClient::from_url(&url);
         let res = client.push_objects(&objs).await;
         if res.is_err() {
@@ -119,7 +134,7 @@ pub async fn execute(args: PushArgs) {
     // let (tx, rx) = mpsc::channel::<Entry>();
     let (entry_tx, entry_rx) = mpsc::channel(1_000_000);
     let (stream_tx, mut stream_rx) = mpsc::channel(1_000_000);
-    
+
     let encoder = PackEncoder::new(objs.len(), 0, stream_tx); // TODO: diff slow, so window_size = 0
     encoder.encode_async(entry_rx).await.unwrap();
 
@@ -166,7 +181,8 @@ pub async fn execute(args: PushArgs) {
 
 /// collect all commits from `commit_id` to root commit
 fn collect_history_commits(commit_id: &SHA1) -> HashSet<SHA1> {
-    if commit_id == &SHA1::default() { // 0000...0000 means not exist
+    if commit_id == &SHA1::default() {
+        // 0000...0000 means not exist
         return HashSet::new();
     }
 
@@ -188,7 +204,8 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
     tracing::debug!("local_ref: {}, remote_ref: {}", local_ref, remote_ref);
 
     // just fast-forward optimization
-    if remote_ref != SHA1::default() { // remote exists
+    if remote_ref != SHA1::default() {
+        // remote exists
         let mut commit = Commit::load(&local_ref);
         let mut commits = Vec::new();
         let mut ok = true;
@@ -197,14 +214,16 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
             if commit.id == remote_ref {
                 break;
             }
-            if commit.parent_commit_ids.len() != 1 { // merge commit or root commit
+            if commit.parent_commit_ids.len() != 1 {
+                // merge commit or root commit
                 ok = false;
                 break;
             }
             // update commit to it's only parent
             commit = Commit::load(&commit.parent_commit_ids[0]);
         }
-        if ok { // fast-forward
+        if ok {
+            // fast-forward
             let mut objs = HashSet::new();
             commits.reverse(); // from old to new
             for i in 0..commits.len() - 1 {
@@ -216,7 +235,6 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
             return objs;
         }
     }
-
 
     let mut objs = HashSet::new();
     let mut visit = HashSet::new(); // avoid duplicate commit visit
@@ -264,7 +282,8 @@ fn incremental_objs(local_ref: SHA1, remote_ref: SHA1) -> HashSet<Entry> {
 
 /// calc objects that in `new_tree` but not in `old_tree`
 /// - if `old_tree` is None, return all objects in `new_tree` (include tree itself)
-fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> { // TODO: skip objs that has been added in caller
+fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
+    // TODO: skip objs that has been added in caller
     let mut objs = HashSet::new();
     if let Some(old_tree) = old_tree {
         if old_tree == new_tree {
@@ -278,11 +297,12 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> { 
     let old_items = match old_tree {
         Some(tree) => {
             let tree = Tree::load(tree);
-            tree.tree_items.iter()
+            tree.tree_items
+                .iter()
                 .map(|item| item.id)
                 .collect::<HashSet<_>>()
         }
-        None => HashSet::new()
+        None => HashSet::new(),
     };
 
     for item in new_tree.tree_items.iter() {
@@ -291,8 +311,10 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> { 
                 TreeItemMode::Tree => {
                     objs.extend(diff_tree_objs(None, &item.id)); //TODO optimize, find same name tree
                 }
-                _ => { // TODO: submodule (TreeItemMode: Commit)
-                    if item.mode == TreeItemMode::Commit { // (160000)| Gitlink (Submodule)
+                _ => {
+                    // TODO: submodule (TreeItemMode: Commit)
+                    if item.mode == TreeItemMode::Commit {
+                        // (160000)| Gitlink (Submodule)
                         eprintln!("{}", "Warning: Submodule is not supported yet".red());
                     }
                     let blob = Blob::load(&item.id);
@@ -306,7 +328,7 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> { 
 }
 
 #[cfg(test)]
-mod test{
+mod test {
     use super::*;
     #[test]
     fn test_parse_args_success() {
@@ -347,5 +369,4 @@ mod test{
         let args = PushArgs::try_parse_from(args);
         assert!(args.is_err());
     }
-
 }

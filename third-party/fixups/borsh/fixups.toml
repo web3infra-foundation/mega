@@ -1,0 +1,6 @@
+cargo_env = true
+extra_srcs = [
+    "Cargo.toml",
+]
+# ~/.cargo/bin/cargo is not okay
+env = { CARGO = "/home/bean/.cargo/bin/cargo"}
