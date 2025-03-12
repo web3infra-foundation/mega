@@ -166,8 +166,8 @@ impl MegaCore {
                     back_chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 }
-            },
-            MegaCommands::ApplyUserConfig( update) => {
+            }
+            MegaCommands::ApplyUserConfig(update) => {
                 self.merge_config(update).await;
             }
         }
@@ -263,69 +263,75 @@ impl MegaCore {
 
     async fn merge_config(&self, update: Vec<CoreConfigChanged>) {
         let mut base = self.config.write().await;
-        update.into_iter().for_each(|entry| {
-            match entry {
-                CoreConfigChanged::BaseDir(path) => { base.base_dir = path }
-                CoreConfigChanged::LogPath(path) => { base.log.log_path = path }
-                CoreConfigChanged::Level(level) => { base.log.level = level }
-                CoreConfigChanged::PrintStd(print_std) => { base.log.print_std = print_std }
-                CoreConfigChanged::DbType(db_type) => { base.database.db_type = db_type }
-                CoreConfigChanged::DbPath(db_path) => { base.database.db_path = db_path }
-                CoreConfigChanged::DbUrl(db_url) => { base.database.db_url = db_url }
-                CoreConfigChanged::MaxConnection(max_conn) => { base.database.max_connection = max_conn }
-                CoreConfigChanged::MinConnection(min_conn) => { base.database.min_connection = min_conn }
-                CoreConfigChanged::SqlxLogging(sqlx_logging) => { base.database.sqlx_logging = sqlx_logging }
-                CoreConfigChanged::ObsAccessKey(key) => { base.storage.obs_access_key = key }
-                CoreConfigChanged::ObsSecretKey(key) => { base.storage.obs_secret_key = key }
-                CoreConfigChanged::ObsRegion(region) => { base.storage.obs_region = region }
-                CoreConfigChanged::ObsEndpoint(endpoint) => { base.storage.obs_endpoint = endpoint }
-                CoreConfigChanged::ImportDir(dir) => { base.monorepo.import_dir = dir }
-                CoreConfigChanged::Admin(admin) => { base.monorepo.admin = admin }
-                CoreConfigChanged::RootDirs(dirs) => { base.monorepo.root_dirs = dirs }
-                CoreConfigChanged::EnableHttpAuth(enable) => { base.authentication.enable_http_auth = enable }
-                CoreConfigChanged::EnableTestUser(enable) => { base.authentication.enable_test_user = enable }
-                CoreConfigChanged::TestUserName(name) => { base.authentication.test_user_name = name }
-                CoreConfigChanged::TestUserToken(token) => { base.authentication.test_user_token = token }
-                CoreConfigChanged::PackDecodeMemSize(size) => { base.pack.pack_decode_mem_size = size }
-                CoreConfigChanged::PackDecodeDiskSize(size) => { base.pack.pack_decode_disk_size = size }
-                CoreConfigChanged::PackDecodeCachePath(path) => { base.pack.pack_decode_cache_path = path }
-                CoreConfigChanged::CleanCacheAfterDecode(clean) => { base.pack.clean_cache_after_decode = clean }
-                CoreConfigChanged::ChannelMessageSize(size) => { base.pack.channel_message_size = size }
-                CoreConfigChanged::LfsUrl(url) => { base.lfs.url = url }
-                CoreConfigChanged::LfsObjLocalPath(path) => { base.lfs.lfs_obj_local_path = path }
-                CoreConfigChanged::EnableSplit(enable) => { base.lfs.enable_split = enable }
-                CoreConfigChanged::SplitSize(size) => { base.lfs.split_size = size }
-                CoreConfigChanged::GithubClientId(id) => {
-                    if base.oauth.is_none() {
-                        base.oauth = Some(common::config::OauthConfig::default());
-                    }
-                    if let Some(oauth) = &mut base.oauth {
-                        oauth.github_client_id = id;
-                    }
+        update.into_iter().for_each(|entry| match entry {
+            CoreConfigChanged::BaseDir(path) => base.base_dir = path,
+            CoreConfigChanged::LogPath(path) => base.log.log_path = path,
+            CoreConfigChanged::Level(level) => base.log.level = level,
+            CoreConfigChanged::PrintStd(print_std) => base.log.print_std = print_std,
+            CoreConfigChanged::DbType(db_type) => base.database.db_type = db_type,
+            CoreConfigChanged::DbPath(db_path) => base.database.db_path = db_path,
+            CoreConfigChanged::DbUrl(db_url) => base.database.db_url = db_url,
+            CoreConfigChanged::MaxConnection(max_conn) => base.database.max_connection = max_conn,
+            CoreConfigChanged::MinConnection(min_conn) => base.database.min_connection = min_conn,
+            CoreConfigChanged::SqlxLogging(sqlx_logging) => {
+                base.database.sqlx_logging = sqlx_logging
+            }
+            CoreConfigChanged::ObsAccessKey(key) => base.storage.obs_access_key = key,
+            CoreConfigChanged::ObsSecretKey(key) => base.storage.obs_secret_key = key,
+            CoreConfigChanged::ObsRegion(region) => base.storage.obs_region = region,
+            CoreConfigChanged::ObsEndpoint(endpoint) => base.storage.obs_endpoint = endpoint,
+            CoreConfigChanged::ImportDir(dir) => base.monorepo.import_dir = dir,
+            CoreConfigChanged::Admin(admin) => base.monorepo.admin = admin,
+            CoreConfigChanged::RootDirs(dirs) => base.monorepo.root_dirs = dirs,
+            CoreConfigChanged::EnableHttpAuth(enable) => {
+                base.authentication.enable_http_auth = enable
+            }
+            CoreConfigChanged::EnableTestUser(enable) => {
+                base.authentication.enable_test_user = enable
+            }
+            CoreConfigChanged::TestUserName(name) => base.authentication.test_user_name = name,
+            CoreConfigChanged::TestUserToken(token) => base.authentication.test_user_token = token,
+            CoreConfigChanged::PackDecodeMemSize(size) => base.pack.pack_decode_mem_size = size,
+            CoreConfigChanged::PackDecodeDiskSize(size) => base.pack.pack_decode_disk_size = size,
+            CoreConfigChanged::PackDecodeCachePath(path) => base.pack.pack_decode_cache_path = path,
+            CoreConfigChanged::CleanCacheAfterDecode(clean) => {
+                base.pack.clean_cache_after_decode = clean
+            }
+            CoreConfigChanged::ChannelMessageSize(size) => base.pack.channel_message_size = size,
+            CoreConfigChanged::LfsUrl(url) => base.lfs.url = url,
+            CoreConfigChanged::LfsObjLocalPath(path) => base.lfs.lfs_obj_local_path = path,
+            CoreConfigChanged::EnableSplit(enable) => base.lfs.enable_split = enable,
+            CoreConfigChanged::SplitSize(size) => base.lfs.split_size = size,
+            CoreConfigChanged::GithubClientId(id) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
                 }
-                CoreConfigChanged::GithubClientSecret(secret) => {
-                    if base.oauth.is_none() {
-                        base.oauth = Some(common::config::OauthConfig::default());
-                    }
-                    if let Some(oauth) = &mut base.oauth {
-                        oauth.github_client_secret = secret;
-                    }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.github_client_id = id;
                 }
-                CoreConfigChanged::UiDomain(domain) => {
-                    if base.oauth.is_none() {
-                        base.oauth = Some(common::config::OauthConfig::default());
-                    }
-                    if let Some(oauth) = &mut base.oauth {
-                        oauth.ui_domain = domain;
-                    }
+            }
+            CoreConfigChanged::GithubClientSecret(secret) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
                 }
-                CoreConfigChanged::CookieDomain(domain) => {
-                    if base.oauth.is_none() {
-                        base.oauth = Some(common::config::OauthConfig::default());
-                    }
-                    if let Some(oauth) = &mut base.oauth {
-                        oauth.cookie_domain = domain;
-                    }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.github_client_secret = secret;
+                }
+            }
+            CoreConfigChanged::UiDomain(domain) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
+                }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.ui_domain = domain;
+                }
+            }
+            CoreConfigChanged::CookieDomain(domain) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
+                }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.cookie_domain = domain;
                 }
             }
         });

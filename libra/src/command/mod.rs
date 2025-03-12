@@ -127,16 +127,18 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use common::utils::{format_commit_msg, parse_commit_msg};
     use mercury::internal::object::commit::Commit;
+    use serial_test::serial;
 
     use super::*;
     use crate::utils::test;
     #[tokio::test]
+    #[serial]
     async fn test_save_load_object() {
         test::setup_with_new_libra().await;
-        let object = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "Commit_1");
+        let object = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "\nCommit_1");
         save_object(&object, &object.id).unwrap();
         let _ = load_object::<Commit>(&object.id).unwrap();
     }

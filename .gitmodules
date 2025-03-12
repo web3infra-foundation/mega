@@ -1,0 +1,7 @@
+[submodule "alfs/lfs-git"]
+	path = alfs/lfs-git
+	url = https://git.linuxfromscratch.org/lfs.git
+[submodule "alfs/jhalfs"]
+	path = alfs/jhalfs
+	url = https://git.linuxfromscratch.org/jhalfs.git
+    

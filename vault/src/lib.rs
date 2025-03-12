@@ -1,7 +1,3 @@
-use secp256k1::{Keypair, Secp256k1};
-
-use crate::vault::{read_secret, write_secret};
-
 pub mod nostr;
 pub mod pgp;
 pub mod pki;
@@ -11,6 +7,8 @@ pub mod vault;
 /// - return: `(Nostr ID, secret_key)`
 /// - You can get `Public Key` by just `base58::decode(nostr)`
 pub async fn init() -> (String, String) {
+    use crate::vault::{read_secret, write_secret};
+
     let mut id = read_secret("id").await.unwrap();
     if id.is_none() {
         println!("Nostr ID not found, generating new one...");
@@ -39,9 +37,9 @@ pub async fn get_peerid() -> String {
     id
 }
 
-pub async fn get_keypair() -> Keypair {
+pub async fn get_keypair() -> secp256k1::Keypair {
     let (_, sk) = init().await;
-    let secp = Secp256k1::new();
+    let secp = secp256k1::Secp256k1::new();
     secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap()
 }
 

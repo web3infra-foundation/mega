@@ -165,16 +165,19 @@ impl MonobeanPreferences {
         let imp = self.imp();
 
         // Base Settings
-        settings.bind("base-dir", &imp.base_dir_entry.get(), "text")
+        settings
+            .bind("base-dir", &imp.base_dir_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // Logging Settings
-        settings.bind("log-path", &imp.log_path_entry.get(), "text")
+        settings
+            .bind("log-path", &imp.log_path_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        settings.bind("log-level", &imp.log_level.get(), "selected")
+        settings
+            .bind("log-level", &imp.log_level.get(), "selected")
             .mapping(|variant, _| {
                 let level = variant.get::<String>().unwrap();
                 let index = match level.as_str() {
@@ -198,12 +201,14 @@ impl MonobeanPreferences {
                 Some(level.to_variant())
             })
             .build();
-        settings.bind("print-std", &imp.print_std_switch.get(), "active")
+        settings
+            .bind("print-std", &imp.print_std_switch.get(), "active")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // DB Settings
-        settings.bind("db-type", &imp.db_type.get(), "selected")
+        settings
+            .bind("db-type", &imp.db_type.get(), "selected")
             .mapping(|variant, _| {
                 let db_type = variant.get::<String>().unwrap();
                 let index = match db_type.as_str() {
@@ -223,108 +228,166 @@ impl MonobeanPreferences {
                 Some(db_type.to_variant())
             })
             .build();
-        settings.bind("db-path", &imp.db_path_entry.get(), "text")
+        settings
+            .bind("db-path", &imp.db_path_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("db-url", &imp.db_url_entry.get(), "text")
+        settings
+            .bind("db-url", &imp.db_url_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("max-connections", &imp.max_connection_spin.get(), "value")
+        settings
+            .bind("max-connections", &imp.max_connection_spin.get(), "value")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("min-connections", &imp.min_connection_spin.get(), "value")
+        settings
+            .bind("min-connections", &imp.min_connection_spin.get(), "value")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("sqlx-logging", &imp.sqlx_logging_switch.get(), "active")
+        settings
+            .bind("sqlx-logging", &imp.sqlx_logging_switch.get(), "active")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // Auth Settings
-        settings.bind("http-auth", &imp.http_auth_switch.get(), "active")
+        settings
+            .bind("http-auth", &imp.http_auth_switch.get(), "active")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("test-user", &imp.test_user_switch.get(), "active")
+        settings
+            .bind("test-user", &imp.test_user_switch.get(), "active")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("test-user-name", &imp.test_user_name_entry.get(), "text")
+        settings
+            .bind("test-user-name", &imp.test_user_name_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("test-user-token", &imp.test_user_token_entry.get(), "text")
+        settings
+            .bind("test-user-token", &imp.test_user_token_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // Storage Settings
-        settings.bind("obs-access-key", &imp.obs_access_key_entry.get(), "text")
+        settings
+            .bind("obs-access-key", &imp.obs_access_key_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("obs-secret-key", &imp.obs_secret_key_entry.get(), "text")
+        settings
+            .bind("obs-secret-key", &imp.obs_secret_key_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("obs-region", &imp.obs_region_entry.get(), "text")
+        settings
+            .bind("obs-region", &imp.obs_region_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("obs-endpoint", &imp.obs_endpoint_entry.get(), "text")
+        settings
+            .bind("obs-endpoint", &imp.obs_endpoint_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // Monorepo Settings
-        settings.bind("import-dir", &imp.import_dir_entry.get(), "text")
+        settings
+            .bind("import-dir", &imp.import_dir_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("admin", &imp.admin_entry.get(), "text")
+        settings
+            .bind("admin", &imp.admin_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("root-dirs", &imp.root_dirs_entry.get(), "text")
+        settings
+            .bind("root-dirs", &imp.root_dirs_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // Pack Settings
-        settings.bind("pack-decode-mem-size", &imp.pack_decode_mem_size_entry.get(), "text")
+        settings
+            .bind(
+                "pack-decode-mem-size",
+                &imp.pack_decode_mem_size_entry.get(),
+                "text",
+            )
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("pack-decode-disk-size", &imp.pack_decode_disk_size_entry.get(), "text")
+        settings
+            .bind(
+                "pack-decode-disk-size",
+                &imp.pack_decode_disk_size_entry.get(),
+                "text",
+            )
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("pack-decode-cache-path", &imp.pack_decode_cache_path_entry.get(), "text")
+        settings
+            .bind(
+                "pack-decode-cache-path",
+                &imp.pack_decode_cache_path_entry.get(),
+                "text",
+            )
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("clean-cache", &imp.clean_cache_switch.get(), "active")
+        settings
+            .bind("clean-cache", &imp.clean_cache_switch.get(), "active")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("channel-message-size", &imp.channel_message_size_spin.get(), "value")
+        settings
+            .bind(
+                "channel-message-size",
+                &imp.channel_message_size_spin.get(),
+                "value",
+            )
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // LFS Settings
-        settings.bind("lfs-url", &imp.lfs_url_entry.get(), "text")
+        settings
+            .bind("lfs-url", &imp.lfs_url_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("lfs-obj-local-path", &imp.lfs_obj_local_path_entry.get(), "text")
+        settings
+            .bind(
+                "lfs-obj-local-path",
+                &imp.lfs_obj_local_path_entry.get(),
+                "text",
+            )
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("enable-split", &imp.enable_split_switch.get(), "active")
+        settings
+            .bind("enable-split", &imp.enable_split_switch.get(), "active")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("split-size", &imp.split_size_entry.get(), "text")
+        settings
+            .bind("split-size", &imp.split_size_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // OAuth Settings
-        settings.bind("github-client-id", &imp.github_client_id_entry.get(), "text")
+        settings
+            .bind(
+                "github-client-id",
+                &imp.github_client_id_entry.get(),
+                "text",
+            )
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("github-client-secret", &imp.github_client_secret_entry.get(), "text")
+        settings
+            .bind(
+                "github-client-secret",
+                &imp.github_client_secret_entry.get(),
+                "text",
+            )
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("ui-domain", &imp.ui_domain_entry.get(), "text")
+        settings
+            .bind("ui-domain", &imp.ui_domain_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings.bind("cookie-domain", &imp.cookie_domain_entry.get(), "text")
+        settings
+            .bind("cookie-domain", &imp.cookie_domain_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
         // Relay Settings
-        settings.bind("relay-url", &imp.relay_url.get(), "text")
+        settings
+            .bind("relay-url", &imp.relay_url.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
     }
