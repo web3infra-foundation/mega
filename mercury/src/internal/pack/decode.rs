@@ -478,7 +478,9 @@ impl Pack {
     ) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
-                sender.try_send(entry).unwrap();
+                if let Err(e) = sender.try_send(entry) {
+                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                }
             })
             .unwrap();
             self
