@@ -7,7 +7,7 @@ use crate::server::{
     https_server::{self, HttpOptions, HttpsOptions},
     ssh_server::{self, SshCustom, SshOptions},
 };
-use common::{config::Config, errors::MegaResult, model::CommonOptions};
+use common::{errors::MegaResult, model::CommonOptions};
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum StartCommand {
@@ -53,7 +53,7 @@ pub(crate) async fn exec(ctx: Context, args: &ArgMatches) -> MegaResult {
     tracing::info!("{server_matchers:#?}");
 
     let service_type = server_matchers.service;
-    
+
     let context_clone = ctx.clone();
     let http_server = if service_type.contains(&StartCommand::Http) {
         let http = HttpOptions {

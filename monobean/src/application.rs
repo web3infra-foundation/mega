@@ -1,22 +1,19 @@
 use crate::config::{config_update, WEBSITE};
-use crate::core::CoreConfigChanged;
-use crate::{get_setting, static_array, CONTEXT};
+use crate::{get_setting, CONTEXT};
 
 use crate::components::preference::MonobeanPreferences;
 use crate::core::mega_core::MegaCommands;
 use crate::core::mega_core::MegaCommands::MegaStart;
 use crate::window::MonobeanWindow;
-use adw::ffi::AdwPreferencesDialog;
 use adw::gio::Settings;
 use adw::glib::LogLevels;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use adw::{Dialog, PreferencesDialog};
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
-use gtk::{gio, glib, Widget};
+use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};

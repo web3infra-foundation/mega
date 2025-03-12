@@ -1,6 +1,6 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
-use common::{config::Config, errors::MegaResult};
+use common::errors::MegaResult;
 use jupiter::context::Context;
 
 use crate::server::https_server::{start_https, HttpsOptions};

@@ -15,7 +15,6 @@ use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
     TokenResponse, TokenUrl,
 };
-use std::sync::Arc;
 
 use common::config::OauthConfig;
 use jupiter::storage::user_storage::UserStorage;

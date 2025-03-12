@@ -185,7 +185,6 @@ impl MegaCore {
         } else {
             self.initialized.store(true, Ordering::Release);
         }
-        vault::pgp::delete_keys().await;
 
         // Try to load pgp keys from vault.
         if let Some(pk) = vault::pgp::load_pub_key().await {

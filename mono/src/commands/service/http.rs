@@ -1,7 +1,7 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
 use crate::server::https_server::{self, HttpOptions};
-use common::{config::Config, errors::MegaResult};
+use common::errors::MegaResult;
 use jupiter::context::Context;
 
 pub fn cli() -> Command {
