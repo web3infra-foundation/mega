@@ -522,7 +522,7 @@ mod tests_raw {
 
     #[tokio::test]
     async fn test_pki_module() {
-        let dir = env::temp_dir().join("rusty_vault_pki_module");
+        let dir = env::temp_dir().join("rusty_vault_pki_module-test");
         assert!(fs::create_dir(&dir).is_ok());
         defer! (
             assert!(fs::remove_dir_all(&dir).is_ok());

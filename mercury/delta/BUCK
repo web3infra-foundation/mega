@@ -1,0 +1,14 @@
+rust_library (
+    name = "delta",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    features = ["diff_mydrs"],
+    deps = [
+        "//third-party:diffs",
+        "//third-party:thiserror",
+        "//third-party:flate2",
+    ],
+    visibility = [
+        'PUBLIC',
+    ],
+)

@@ -315,7 +315,8 @@ impl MonobeanApplication {
 
     async fn apply_user_config(&self) {
         let update = config_update(self.settings());
-        self.send_command(MegaCommands::ApplyUserConfig(update)).await;
+        self.send_command(MegaCommands::ApplyUserConfig(update))
+            .await;
     }
 
     fn process_action(&self, action: Action) {

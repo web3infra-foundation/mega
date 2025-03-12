@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use adw::gio::Settings;
 use gtk::prelude::*;
 
-use crate::{core::CoreConfigChanged};
+use crate::core::CoreConfigChanged;
 
 /* Application metadata */
 pub const VERSION: &str = "0.0.1";
@@ -83,13 +83,17 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     // Base settings
     let base_dir: String = get_setting!(setting, "base-dir", String);
     if base_dir != "/tmp/.mono" {
-        update.push(CoreConfigChanged::BaseDir(base_dir.parse::<PathBuf>().unwrap()));
+        update.push(CoreConfigChanged::BaseDir(
+            base_dir.parse::<PathBuf>().unwrap(),
+        ));
     }
 
     // Log settings
     let log_path: String = get_setting!(setting, "log-path", String);
     if !log_path.is_empty() {
-        update.push(CoreConfigChanged::LogPath(log_path.parse::<PathBuf>().unwrap()));
+        update.push(CoreConfigChanged::LogPath(
+            log_path.parse::<PathBuf>().unwrap(),
+        ));
     }
 
     let log_level: String = get_setting!(setting, "log-level", String);
@@ -98,7 +102,8 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     let print_std: bool = get_setting!(setting, "print-std", bool);
-    if !print_std {  // Default is true
+    if !print_std {
+        // Default is true
         update.push(CoreConfigChanged::PrintStd(print_std));
     }
 
@@ -129,7 +134,8 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     let sqlx_logging: bool = get_setting!(setting, "sqlx-logging", bool);
-    if sqlx_logging {  // Default is false
+    if sqlx_logging {
+        // Default is false
         update.push(CoreConfigChanged::SqlxLogging(sqlx_logging));
     }
 
@@ -157,7 +163,9 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     // Monorepo settings
     let import_dir: String = get_setting!(setting, "import-dir", String);
     if import_dir != "/third-part" {
-        update.push(CoreConfigChanged::ImportDir(import_dir.parse::<PathBuf>().unwrap()));
+        update.push(CoreConfigChanged::ImportDir(
+            import_dir.parse::<PathBuf>().unwrap(),
+        ));
     }
 
     let admin: String = get_setting!(setting, "admin", String);
@@ -168,20 +176,20 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     let root_dirs: String = get_setting!(setting, "root-dirs", String);
     if root_dirs != "third-part, project, doc, release" {
         // Convert comma-separated string to Vec<String>
-        let dirs: Vec<String> = root_dirs.split(',')
-            .map(|s| s.trim().to_string())
-            .collect();
+        let dirs: Vec<String> = root_dirs.split(',').map(|s| s.trim().to_string()).collect();
         update.push(CoreConfigChanged::RootDirs(dirs));
     }
 
     // Authentication settings
     let http_auth: bool = get_setting!(setting, "http-auth", bool);
-    if http_auth {  // Default is false
+    if http_auth {
+        // Default is false
         update.push(CoreConfigChanged::EnableHttpAuth(http_auth));
     }
 
     let test_user: bool = get_setting!(setting, "test-user", bool);
-    if !test_user {  // Default is true
+    if !test_user {
+        // Default is true
         update.push(CoreConfigChanged::EnableTestUser(test_user));
     }
 
@@ -208,17 +216,22 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     let pack_decode_cache_path: String = get_setting!(setting, "pack-decode-cache-path", String);
     if !pack_decode_cache_path.is_empty() {
-        update.push(CoreConfigChanged::PackDecodeCachePath(pack_decode_cache_path.parse::<PathBuf>().unwrap()));
+        update.push(CoreConfigChanged::PackDecodeCachePath(
+            pack_decode_cache_path.parse::<PathBuf>().unwrap(),
+        ));
     }
 
     let clean_cache: bool = get_setting!(setting, "clean-cache", bool);
-    if !clean_cache {  // Default is true
+    if !clean_cache {
+        // Default is true
         update.push(CoreConfigChanged::CleanCacheAfterDecode(clean_cache));
     }
 
     let channel_message_size: u32 = get_setting!(setting, "channel-message-size", u32);
     if channel_message_size != 1000000 {
-        update.push(CoreConfigChanged::ChannelMessageSize(channel_message_size as usize));
+        update.push(CoreConfigChanged::ChannelMessageSize(
+            channel_message_size as usize,
+        ));
     }
 
     // LFS settings
@@ -229,11 +242,14 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     let lfs_obj_local_path: String = get_setting!(setting, "lfs-obj-local-path", String);
     if !lfs_obj_local_path.is_empty() {
-        update.push(CoreConfigChanged::LfsObjLocalPath(lfs_obj_local_path.parse::<PathBuf>().unwrap()));
+        update.push(CoreConfigChanged::LfsObjLocalPath(
+            lfs_obj_local_path.parse::<PathBuf>().unwrap(),
+        ));
     }
 
     let enable_split: bool = get_setting!(setting, "enable-split", bool);
-    if !enable_split {  // Default is true
+    if !enable_split {
+        // Default is true
         update.push(CoreConfigChanged::EnableSplit(enable_split));
     }
 
@@ -264,5 +280,4 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     update
-
 }
