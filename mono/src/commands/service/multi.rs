@@ -45,7 +45,7 @@ pub fn cli() -> Command {
     )
 }
 
-pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
+pub(crate) async fn exec(ctx: Context, args: &ArgMatches) -> MegaResult {
     let server_matchers = StartOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();
@@ -53,14 +53,8 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     tracing::info!("{server_matchers:#?}");
 
     let service_type = server_matchers.service;
-
-    let context = Context::new(config.clone()).await;
-    context
-        .services
-        .mono_storage
-        .init_monorepo(&config.monorepo)
-        .await;
-    let context_clone = context.clone();
+    
+    let context_clone = ctx.clone();
     let http_server = if service_type.contains(&StartCommand::Http) {
         let http = HttpOptions {
             common: server_matchers.common.clone(),
@@ -84,7 +78,7 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
             common: server_matchers.common.clone(),
             custom: server_matchers.ssh,
         };
-        tokio::spawn(async move { ssh_server::start_server(context, &ssh).await })
+        tokio::spawn(async move { ssh_server::start_server(ctx, &ssh).await })
     } else {
         tokio::task::spawn(async {})
     };

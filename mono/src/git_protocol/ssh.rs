@@ -106,9 +106,10 @@ impl server::Handler for SshServer {
             // back to the hybrid protocol using `git-lfs-authenticate`.
             "git-lfs-authenticate" => {
                 let mut header = HashMap::new();
+                let config = smart_protocol.context.config.clone();
                 header.insert("Accept".to_string(), "application/vnd.git-lfs".to_string());
                 let link = Link {
-                    href: smart_protocol.context.config.lfs.url,
+                    href: config.lfs.url.clone(),
                     header,
                     expires_at: {
                         let expire_time: DateTime<Utc> =

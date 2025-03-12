@@ -140,7 +140,7 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
 
     let api_state = MonoApiServiceState {
         context: context.clone(),
-        oauth_client: Some(oauth_client(context.config.oauth.unwrap()).unwrap()),
+        oauth_client: Some(oauth_client(context.config.oauth.clone().unwrap()).unwrap()),
         store: Some(MemoryStore::new()),
     };
 
