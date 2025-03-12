@@ -20,8 +20,9 @@ sudo pacman -S qemu-img nbd
 This is the directory where the LFS system will be built and the final disk image will be stored.
 
 ```bash
-# create a new image
-qemu-img create -f qcow2 vda.qcow2 30G
+# create a new image,at least 30G for image build, more for mega build & test.
+qemu-img create -f qcow2 vda.qcow2 100G
+```
 
 # enable nbd
 sudo modprobe nbd max_part=16
@@ -123,6 +124,7 @@ The following options must be set:
 -   set `BOOK Settings  Location of local copy (mandatory)` to absolute path of `mega/alfs/lfs-git` directory.
 -   set `General Settings → Build directory` to your build directory, the value of `LFS_DIR` in the previous step.
 -   `[*] Rebuild the Makefile (see help)`
+-   `Build Settings → Parallelism settings → [*] Use all cores`
 
 Then save and exit the TUI, continue the build process. The process will take a long time, maybe 2~3 hours, depending on the performance of the host machine.
 
