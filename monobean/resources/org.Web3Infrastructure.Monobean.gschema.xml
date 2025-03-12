@@ -43,5 +43,187 @@
             <summary>SSH Port</summary>
             <description>Port the ssh service listening</description>
         </key>
+        
+        <!-- Base Settings -->
+        <key name="base-dir" type="s">
+            <default>'/tmp/.mono'</default>
+            <summary>Base Directory</summary>
+            <description>The directory where data files are located</description>
+        </key>
+
+        <!-- Logging Settings -->
+        <key name="log-path" type="s">
+            <default>''</default>
+            <summary>Log Path</summary>
+            <description>The path where log files are saved</description>
+        </key>
+        <key name="log-level" type="s">
+            <choices>
+                <choice value='debug' />
+                <choice value='info' />
+                <choice value='warning' />
+                <choice value='error' />
+            </choices>
+            <default>'info'</default>
+            <summary>Log Level</summary>
+        </key>
+        <key name="print-std" type="b">
+            <default>true</default>
+            <summary>Print to Console</summary>
+            <description>Print standard log in console</description>
+        </key>
+
+        <!-- Database Settings -->
+        <key name="db-type" type="s">
+            <choices>
+                <choice value='sqlite' />
+                <choice value='postgres' />
+            </choices>
+            <default>'sqlite'</default>
+            <summary>Database Type</summary>
+        </key>
+        <key name="db-path" type="s">
+            <default>''</default>
+            <summary>Database Path</summary>
+            <description>Path for SQLite database</description>
+        </key>
+        <key name="db-url" type="s">
+            <default>'postgres://mono:mono@localhost:5432/mono'</default>
+            <summary>Database URL</summary>
+            <description>Connection URL for PostgreSQL</description>
+        </key>
+        <key name="max-connections" type="u">
+            <default>16</default>
+            <summary>Maximum Database Connections</summary>
+        </key>
+        <key name="min-connections" type="u">
+            <default>8</default>
+            <summary>Minimum Database Connections</summary>
+        </key>
+        <key name="sqlx-logging" type="b">
+            <default>false</default>
+            <summary>SQLx Logging</summary>
+            <description>Enable SQLx query logging</description>
+        </key>
+
+        <!-- Authentication Settings -->
+        <key name="http-auth" type="b">
+            <default>false</default>
+            <summary>HTTP Authentication</summary>
+            <description>Enable HTTP authentication with GitHub</description>
+        </key>
+        <key name="test-user" type="b">
+            <default>true</default>
+            <summary>Test User</summary>
+            <description>Enable test user for debugging</description>
+        </key>
+        <key name="test-user-name" type="s">
+            <default>'mega'</default>
+            <summary>Test User Name</summary>
+        </key>
+        <key name="test-user-token" type="s">
+            <default>'mega'</default>
+            <summary>Test User Token</summary>
+        </key>
+
+        <!-- Storage Settings -->
+        <key name="obs-access-key" type="s">
+            <default>''</default>
+            <summary>OBS Access Key</summary>
+        </key>
+        <key name="obs-secret-key" type="s">
+            <default>''</default>
+            <summary>OBS Secret Key</summary>
+        </key>
+        <key name="obs-region" type="s">
+            <default>'cn-east-3'</default>
+            <summary>OBS Region</summary>
+        </key>
+        <key name="obs-endpoint" type="s">
+            <default>'https://obs.cn-east-3.myhuaweicloud.com'</default>
+            <summary>OBS Endpoint</summary>
+        </key>
+
+        <!-- Monorepo Settings -->
+        <key name="import-dir" type="s">
+            <default>'/third-part'</default>
+            <summary>Import Directory</summary>
+            <description>Directory that supports multi-branch commits and tags</description>
+        </key>
+        <key name="admin" type="s">
+            <default>'admin'</default>
+            <summary>Admin Username</summary>
+            <description>System admin GitHub username</description>
+        </key>
+        <key name="root-dirs" type="s">
+            <default>'third-part, project, doc, release'</default>
+            <summary>Root Directories</summary>
+            <description>Comma-separated list of root directories</description>
+        </key>
+
+        <!-- Pack Settings -->
+        <key name="pack-decode-mem-size" type="s">
+            <default>'4G'</default>
+            <summary>Decode Memory Size</summary>
+        </key>
+        <key name="pack-decode-disk-size" type="s">
+            <default>'20%'</default>
+            <summary>Decode Disk Size</summary>
+        </key>
+        <key name="pack-decode-cache-path" type="s">
+            <default>''</default>
+            <summary>Decode Cache Path</summary>
+        </key>
+        <key name="clean-cache" type="b">
+            <default>true</default>
+            <summary>Clean Cache After Decode</summary>
+        </key>
+        <key name="channel-message-size" type="u">
+            <default>1000000</default>
+            <summary>Channel Message Size</summary>
+        </key>
+
+        <!-- LFS Settings -->
+        <key name="lfs-url" type="s">
+            <default>'http://localhost:8000'</default>
+            <summary>LFS Server URL</summary>
+        </key>
+        <key name="lfs-obj-local-path" type="s">
+            <default>''</default>
+            <summary>LFS Object Path</summary>
+        </key>
+        <key name="enable-split" type="b">
+            <default>true</default>
+            <summary>Enable Split</summary>
+            <description>Split large files into chunks</description>
+        </key>
+        <key name="split-size" type="s">
+            <default>'20M'</default>
+            <summary>Split Size</summary>
+        </key>
+
+        <!-- OAuth Settings -->
+        <key name="github-client-id" type="s">
+            <default>''</default>
+            <summary>GitHub Client ID</summary>
+        </key>
+        <key name="github-client-secret" type="s">
+            <default>''</default>
+            <summary>GitHub Client Secret</summary>
+        </key>
+        <key name="ui-domain" type="s">
+            <default>'http://localhost:3000'</default>
+            <summary>UI Domain</summary>
+        </key>
+        <key name="cookie-domain" type="s">
+            <default>'localhost'</default>
+            <summary>Cookie Domain</summary>
+        </key>
+
+        <!-- Relay Settings -->
+        <key name="relay-url" type="s">
+            <default>'http://localhost:1234'</default>
+            <summary>Relay Url</summary>
+        </key>
     </schema>
 </schemalist>

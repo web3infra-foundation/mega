@@ -15,11 +15,11 @@ use crate::{
 #[derive(Clone)]
 pub struct Context {
     pub services: Arc<Service>,
-    pub config: Config,
+    pub config: Arc<Config>,
 }
 
 impl Context {
-    pub async fn new(config: Config) -> Self {
+    pub async fn new(config: Arc<Config>) -> Self {
         Context {
             services: Service::shared(&config).await,
             config,
@@ -41,7 +41,7 @@ impl Context {
     pub fn mock() -> Self {
         Context {
             services: Service::mock(),
-            config: Config::default(),
+            config: Arc::new(Config::default()),
         }
     }
 }
