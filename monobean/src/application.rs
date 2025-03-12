@@ -1,6 +1,7 @@
-use crate::config::WEBSITE;
-use crate::CONTEXT;
+use crate::config::{config_update, WEBSITE};
+use crate::{get_setting, CONTEXT};
 
+use crate::components::preference::MonobeanPreferences;
 use crate::core::mega_core::MegaCommands;
 use crate::core::mega_core::MegaCommands::MegaStart;
 use crate::window::MonobeanWindow;
@@ -115,8 +116,11 @@ mod imp {
                     #[strong]
                     app,
                     async move {
+                        let mut cnt = 0;
                         app.start_mega().await;
                         while let Ok(action) = receiver.recv().await {
+                            cnt += 1;
+                            tracing::debug!("Processing Glib Action {cnt}: {:?}", action);
                             app.process_action(action);
                         }
                     }
@@ -162,6 +166,7 @@ impl MonobeanApplication {
     fn setup_gactions(&self) {
         let quit_action = gio::SimpleAction::new("quit", None);
         let about_action = gio::SimpleAction::new("about", None);
+        let preference_action = gio::SimpleAction::new("preference", None);
 
         quit_action.connect_activate(clone!(
             #[weak(rename_to = app)]
@@ -180,8 +185,17 @@ impl MonobeanApplication {
             }
         ));
 
+        preference_action.connect_activate(clone!(
+            #[weak(rename_to = app)]
+            self,
+            move |_, _| {
+                app.show_preference();
+            }
+        ));
+
         self.add_action(&quit_action);
         self.add_action(&about_action);
+        self.add_action(&preference_action);
     }
 
     fn setup_settings(&self) {
@@ -252,6 +266,15 @@ impl MonobeanApplication {
         dialog.present();
     }
 
+    fn show_preference(&self) {
+        let window = self.window();
+        let dialog = MonobeanPreferences::new();
+        dialog.set_transient_for(window.as_ref());
+        dialog.set_modal(true);
+
+        GtkWindowExt::present(&dialog);
+    }
+
     pub async fn send_command(&self, cmd: MegaCommands) {
         self.imp().mega_delegate.send_command(cmd).await;
     }
@@ -261,31 +284,13 @@ impl MonobeanApplication {
     }
 
     pub async fn start_mega(&self) {
-        // The first Action of the application, so it can never block the gui thread.
-        let http_addr = self
-            .settings()
-            .string("http-address")
-            .to_value()
-            .get::<String>()
-            .unwrap();
-        let http_port = self
-            .settings()
-            .uint("http-port")
-            .to_value()
-            .get::<u32>()
-            .unwrap();
-        let ssh_addr = self
-            .settings()
-            .string("ssh-address")
-            .to_value()
-            .get::<String>()
-            .unwrap();
-        let ssh_port = self
-            .settings()
-            .uint("ssh-port")
-            .to_value()
-            .get::<u32>()
-            .unwrap();
+        let settings = self.settings();
+
+        self.apply_user_config().await;
+        let http_addr = get_setting!(settings, "http-address", String);
+        let http_port = get_setting!(settings, "http-port", u32);
+        let ssh_addr = get_setting!(settings, "ssh-address", String);
+        let ssh_port = get_setting!(self.settings(), "ssh-port", u32);
 
         let http_addr = IpAddr::V4(http_addr.parse().unwrap());
         let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
@@ -308,14 +313,18 @@ impl MonobeanApplication {
         rx
     }
 
+    async fn apply_user_config(&self) {
+        let update = config_update(self.settings());
+        self.send_command(MegaCommands::ApplyUserConfig(update))
+            .await;
+    }
+
     fn process_action(&self, action: Action) {
         if self.active_window().is_none() {
             return;
         }
 
         let window = self.imp().window.get().unwrap().upgrade().unwrap();
-
-        tracing::debug!("Processing Glib Action: {:?}", action);
         match action {
             Action::MegaCore(cmd) => {
                 let delegate = self.imp().mega_delegate;
@@ -351,8 +360,6 @@ impl MonobeanApplication {
 
             Action::ShowHelloPage => {
                 let config = self.git_config();
-                let stack = window.imp().base_stack.clone();
-                stack.set_visible_child_name("hello_page");
 
                 let name = config.string("user.name").map(|name| name.to_string());
                 let email = config.string("user.email").map(|email| email.to_string());

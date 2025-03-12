@@ -1,5 +1,5 @@
 use c::{ConfigError, FileFormat};
-use config as c;
+pub use config as c;
 use config::builder::DefaultState;
 use config::{Source, ValueKind};
 use serde::{Deserialize, Deserializer, Serialize};
