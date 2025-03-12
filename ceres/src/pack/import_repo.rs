@@ -2,15 +2,13 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     str::FromStr,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc::Receiver,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use async_trait::async_trait;
 use futures::{future::join_all, StreamExt};
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{db_enums::RefType, mega_tree, raw_blob};
@@ -55,12 +53,15 @@ impl PackHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<Option<Commit>, GitError> {
+    async fn handle_receiver(
+        &self,
+        mut receiver: Receiver<Entry>,
+    ) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
         let mut join_tasks = vec![];
         let repo_id = self.repo.repo_id;
-        for entry in receiver {
+        while let Some(entry) = receiver.recv().await {
             entry_list.push(entry);
             if entry_list.len() >= 10000 {
                 let stg_clone = storage.clone();
