@@ -1,7 +1,6 @@
 use std::io::{self, BufRead, Cursor, ErrorKind, Read};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
@@ -11,6 +10,7 @@ use bytes::Bytes;
 use flate2::bufread::ZlibDecoder;
 use futures_util::{Stream, StreamExt};
 use threadpool::ThreadPool;
+use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
 use crate::errors::GitError;
@@ -478,7 +478,9 @@ impl Pack {
     ) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
-                sender.send(entry).unwrap();
+                if let Err(e) = sender.try_send(entry) {
+                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                }
             })
             .unwrap();
             self
@@ -508,7 +510,7 @@ impl Pack {
             self.decode(
                 &mut reader,
                 move |entry, _| {
-                    if sender.send(entry).is_ok() {}
+                    if sender.try_send(entry).is_ok() {}
                 },
             )
             .unwrap();
@@ -791,14 +793,14 @@ mod tests {
             true,
         );
 
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
         let handle = tokio::spawn(async move { p.decode_stream(stream, tx).await });
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
         // in tests, RUNTIME is single-threaded, so `sync code` will block the tokio runtime
         tokio::task::spawn_blocking(move || {
             let mut cnt = 0;
-            for _entry in rx {
+            while let Ok(_entry) = rx.try_recv() {
                 cnt += 1; //use entry here
             }
             tracing::info!("Received: {}", cnt);
@@ -826,10 +828,10 @@ mod tests {
             true,
         );
 
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
         let handle = p.decode_async(buffered, tx); // new thread
         let mut cnt = 0;
-        for _entry in rx {
+        while let Ok(_entry) = rx.try_recv() {
             cnt += 1; //use entry here
         }
         let p = handle.join().unwrap();
