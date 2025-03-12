@@ -133,7 +133,8 @@ async fn logout(
     TypedHeader(cookies): TypedHeader<headers::Cookie>,
 ) -> Result<impl IntoResponse, ApiError> {
     let store: MemoryStore = MemoryStore::from_ref(&state);
-    let config = state.context.config.oauth.unwrap();
+    let full_config = state.context.config.clone();
+    let config = full_config.oauth.as_ref().unwrap();
     let cookie = cookies
         .get(COOKIE_NAME)
         .context("unexpected error getting cookie name")?;
@@ -146,7 +147,7 @@ async fn logout(
     {
         Some(s) => s,
         // No session active, just redirect
-        None => return Ok((headers, Redirect::to(&config.ui_domain))),
+        None => return Ok((headers, Redirect::to(config.ui_domain.as_str()))),
     };
 
     store

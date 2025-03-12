@@ -20,6 +20,11 @@
         </item>
 
         <item>
+          <attribute name="label" translatable="true">_Preferences</attribute>
+          <attribute name="action">app.preference</attribute>
+        </item>
+
+        <item>
           <attribute name="label" translatable="yes">_About MonoBean</attribute>
           <attribute name="action">app.about</attribute>
         </item>

@@ -1,6 +1,3 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
-
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
@@ -8,6 +5,9 @@ use axum::{Json, Router};
 use clap::Parser;
 use common::config::Config;
 use jupiter::context::Context;
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
@@ -33,7 +33,7 @@ pub struct AppState {
     pub relay_option: RelayOptions,
 }
 
-pub async fn run_relay_server(config: Config, option: RelayOptions) {
+pub async fn run_relay_server(config: Arc<Config>, option: RelayOptions) {
     let app = app(config.clone(), option.clone()).await;
 
     let server_url = format!("{}:{}", option.host, option.relay_port);
@@ -46,9 +46,9 @@ pub async fn run_relay_server(config: Config, option: RelayOptions) {
         .unwrap();
 }
 
-pub async fn app(config: Config, relay_option: RelayOptions) -> Router {
+pub async fn app(config: Arc<Config>, relay_option: RelayOptions) -> Router {
     let state = AppState {
-        context: Context::new(config.clone()).await,
+        context: Context::new(config).await,
         relay_option,
     };
 
