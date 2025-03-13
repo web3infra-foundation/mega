@@ -123,8 +123,8 @@ The following options must be set:
 -   `General Settings → [*] Run the makefile`
 -   set `BOOK Settings  Location of local copy (mandatory)` to absolute path of `mega/alfs/lfs-git` directory.
 -   set `General Settings → Build directory` to your build directory, the value of `LFS_DIR` in the previous step.
--   `[*] Rebuild the Makefile (see help)`
 -   `Build Settings → Parallelism settings → [*] Use all cores`
+-   If you building failuer first time, in the second should select `[*] Rebuild the Makefile (see help)`.
 
 Then save and exit the TUI, continue the build process. The process will take a long time, maybe 2~3 hours, depending on the performance of the host machine.
 
