@@ -27,8 +27,8 @@ qemu-img create -f qcow2 vda.qcow2 100G
 # enable nbd
 sudo modprobe nbd max_part=16
 
-NBDX=/dev/nbd1 # or any other free nbd device
-LFS_DIR=/mnt/lfs
+export NBDX=/dev/nbd1 # or any other free nbd device
+export LFS_DIR=/mnt/lfs
 
 # connect the image to nbd
 sudo qemu-nbd -c $NBDX ./vda.qcow2
@@ -64,13 +64,13 @@ cp -r custom/config/. jhalfs/custom/config/
 If the network is not available, you can copy the needed packages to `source` directory. If not, the build process will download the packages from the internet.
 
 ```bash
-mkdir -pv $LFS_DIR/sources
+sudo mkdir -pv $LFS_DIR/sources
 ```
 
 Use `download-sources.sh` to download the needed packages to target directory manually.
 
 ```bash
-./download-sources.sh ./package_list.txt $LFS_DIR/sources
+sudo ./download-sources.sh ./package_list.txt $LFS_DIR/sources
 ```
 
 3. copy system configurations to target directory
