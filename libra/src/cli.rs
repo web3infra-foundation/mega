@@ -73,6 +73,9 @@ enum Commands {
         hide = true
     )]
     IndexPack(command::index_pack::IndexPackArgs),
+
+    #[command(about = "Switch to a local or remote branch", hide = true)]
+    Checkout(command::checkout::CheckoutArgs),
 }
 
 /// The main function is the entry point of the Libra application.
@@ -119,6 +122,7 @@ pub async fn parse_async(args: Option<&[&str]>) -> Result<(), GitError> {
         Commands::Remote(cmd) => command::remote::execute(cmd).await,
         Commands::Pull(args) => command::pull::execute(args).await,
         Commands::Config(args) => command::config::execute(args).await,
+        Commands::Checkout(args) => command::checkout::execute(args).await,
     }
     Ok(())
 }
