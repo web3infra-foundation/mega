@@ -22,7 +22,7 @@ This is the directory where the LFS system will be built and the final disk imag
 ```bash
 # create a new image,at least 30G for image build, more for mega build & test.
 qemu-img create -f qcow2 vda.qcow2 100G
-```
+
 
 # enable nbd
 sudo modprobe nbd max_part=16
