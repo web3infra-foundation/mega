@@ -250,11 +250,14 @@ fn lfs_split_with_git() {
     let mut mega = run_mega_server(mega_dir.path());
 
     let url = &format!("http://localhost:{}/third-part/lfs.git", PORT);
-    git_lfs_push(url).expect("Failed to push large file to mega server");
-    git_lfs_clone(url).expect("Failed to clone large file from mega server");
+    let push_result = git_lfs_push(url);
+    let clone_result = git_lfs_clone(url);
 
     mega.kill().expect("Failed to kill mega server");
     let _ = mega.wait();
+
+    push_result.expect("Failed to push large file to mega server");
+    clone_result.expect("Failed to clone large file from mega server");
     thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
 }
 
@@ -274,11 +277,14 @@ fn lfs_split_with_libra() {
     let mut mega = run_mega_server(mega_dir.path());
 
     let url = &format!("http://localhost:{}/third-part/lfs-libra.git", PORT);
-    libra_lfs_push(url).expect("(libra)Failed to push large file to mega server");
-    libra_lfs_clone(url).expect("(libra)Failed to clone large file from mega server");
+    let push_result = libra_lfs_push(url);
+    let clone_result = libra_lfs_clone(url);
 
     env::set_var("MEGA_authentication__enable_http_auth", "false"); // avoid affecting other tests
     mega.kill().expect("Failed to kill mega server");
     let _ = mega.wait();
+
+    push_result.expect("Failed to push large file to mega server");
+    clone_result.expect("Failed to clone large file from mega server");
     thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
 }
