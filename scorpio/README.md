@@ -77,8 +77,35 @@ curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: applicati
 [7] [Scalar](https://github.com/microsoft/git/blob/HEAD/contrib/scalar/docs/index.md) : Scalar is a tool that helps Git scale to some of the largest Git repositories. Initially, it was a single standalone git plugin based on Vfs for git, inheriting GVFS. No longer using FUSE. It implements aware partial directory management. Users need to manage and register the required workspace directory on their own. Ease of use can be improved through the fuse mechanism.
 
 
-# TODO
-1. * BUILD : monorepo build , which dictionary ?
-2. *** API list... for add mount point .
-3. - .https://opentitan.org/
-4. overlay fs rename ..... <HARD>
+
+# Scorpio RoadMap
+
+## **1. [libufse-fs] overlayFS + passthroughFS**
+1. **Performance Optimization**  
+   - Enhance performance by leveraging `mmap` and `eBPF`.
+
+2. **Encryption Experimentation**  
+   - Explore `rencfs` for file encryption capabilities.
+
+3. **File Layer Management**  
+   - Support file layer management for `Docker Build`.
+
+
+## **2. Git Operation Functionality**
+- Support More basic Git operations:  
+  - `git log`  
+  - `git status`  
+  - `git add`  
+  - Support `.gitignore` functionality.
+
+## **3. Git LFS Support**
+- Integrate Git Large File Storage (LFS) for managing large files.
+
+## **4. Directory Management**
+1. **Local Directory Storage Recovery**  
+   - Implement recovery functionality for local directory storage.
+
+2. **Directory Change Monitoring**  
+   - Monitor and address inconsistencies between local and remote storage directories.
+
+

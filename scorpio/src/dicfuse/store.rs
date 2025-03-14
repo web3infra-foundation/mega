@@ -14,8 +14,9 @@ use std::{collections::HashMap, error::Error};
 use std::collections::VecDeque;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
-use crate::util::atomic::AtomicU64;
+
 use crate::READONLY_INODE;
+use std::sync::atomic::AtomicU64;
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::tree_store::{StorageItem, TreeStorage};
@@ -170,9 +171,9 @@ impl DictionaryStore {
         init
     }
     async fn update_inode(&self,parent: u64,item:Item) ->std::io::Result<u64> {
-        self.next_inode.fetch_add(1).await;
+        self.next_inode.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         
-        let alloc_inode = self.next_inode.load().await;
+        let alloc_inode = self.next_inode.load(std::sync::atomic::Ordering::SeqCst);
         
         assert!(alloc_inode < READONLY_INODE );
         
