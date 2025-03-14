@@ -33,6 +33,12 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     let context = Context::new(config.clone()).await;
     init_mq(context.clone()).await;
 
+    context
+        .services
+        .mono_storage
+        .init_monorepo(&config.monorepo)
+        .await;
+
     let (cmd, subcommand_args) = match args.subcommand() {
         Some((cmd, args)) => (cmd, args),
         _ => {
