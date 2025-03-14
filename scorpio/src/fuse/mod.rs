@@ -2,11 +2,12 @@
 
 use fuse3::raw::{Filesystem, Request};
 use inode_alloc::InodeAlloc;
+use libfuse_fs::{overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
 use tokio::sync::Mutex;
 
 
 use std::{collections::HashMap, io::Error, path::{Path, PathBuf}, sync::Arc};
-use crate::{dicfuse::Dicfuse, manager::ScorpioManager, overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
+use crate::{dicfuse::Dicfuse, manager::ScorpioManager};
 
 mod inode_alloc;
 mod async_io;
@@ -94,7 +95,6 @@ impl MegaFuse{
         let upperdir = upper;
 
         let config = config::Config {
-            work: String::new(),
             mountpoint: String::new(),
             do_import: true,
             ..Default::default()
