@@ -29,7 +29,7 @@ pub struct SwitchArgs {
 
 pub async fn execute(args: SwitchArgs) {
     if check_status().await {
-        return ();
+        return;
     }
 
     match args.create {
