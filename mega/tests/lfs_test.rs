@@ -26,12 +26,20 @@ lazy_static! {
     };
 
     static ref LIBRA: PathBuf = {
-        let path = format!("{}/debug/libra", TARGET.as_str());
+        let path = if cfg!(target_os = "windows") {
+            format!("{}/debug/libra.exe", TARGET.as_str())
+        } else {
+            format!("{}/debug/libra", TARGET.as_str())
+        };
         PathBuf::from(path)
     };
 
     static ref MEGA: PathBuf = {
-        let path = format!("{}/debug/mega", TARGET.as_str());
+        let path = if cfg!(target_os = "windows") {
+            format!("{}/debug/mega.exe", TARGET.as_str())
+        } else {
+            format!("{}/debug/mega", TARGET.as_str())
+        };
         PathBuf::from(path)
     };
 }
