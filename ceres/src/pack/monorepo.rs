@@ -2,16 +2,14 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Component, PathBuf},
     str::FromStr,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc::Receiver,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
     vec,
 };
 
 use async_trait::async_trait;
 use futures::future::join_all;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{db_enums::ConvType, raw_blob};
@@ -122,13 +120,16 @@ impl PackHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn handle_receiver(&self, receiver: Receiver<Entry>) -> Result<Option<Commit>, GitError> {
+    async fn handle_receiver(
+        &self,
+        mut receiver: Receiver<Entry>,
+    ) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.mono_storage.clone();
         let mut entry_list = Vec::new();
         let mut join_tasks = vec![];
         let mut current_commit_id = String::new();
         let mut current_commit = None;
-        for entry in receiver {
+        while let Some(entry) = receiver.recv().await {
             if current_commit.is_none() {
                 if entry.obj_type == ObjectType::Commit {
                     current_commit_id = entry.hash.to_string();

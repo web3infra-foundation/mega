@@ -145,6 +145,7 @@ impl server::Handler for SshServer {
             tracing::warn!("Client public key verification failed!");
             Ok(Auth::Reject {
                 proceed_with_methods: None,
+                partial_success: false,
             })
         }
     }
