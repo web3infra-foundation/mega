@@ -74,7 +74,10 @@ enum Commands {
     )]
     IndexPack(command::index_pack::IndexPackArgs),
 
-    #[command(about = "Switch to a local or remote branch", hide = true)]
+    #[command(
+        about = "Check out and switch to a local or remote branches",
+        hide = true
+    )]
     Checkout(command::checkout::CheckoutArgs),
 }
 
