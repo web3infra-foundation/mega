@@ -1,9 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
-
 use tokio::sync::Mutex;
-
-use crate::util::atomic::AtomicU64;
-
+use std::sync::atomic::AtomicU64;
  
 
 
@@ -11,11 +8,22 @@ use crate::util::atomic::AtomicU64;
 #[allow(unused)]
 const INODE_ALLOC_BATCH:u64 = 0x1_0000_0000;
 
-#[derive(Clone)]
 pub struct InodeAlloc {
     next_ino_batch: AtomicU64,
     // Alloc inode/INODE_ALLOC_BATCH  -->  Ovlay-Inode
     alloc: Arc<Mutex<HashMap<u64,u64>> >,
+}
+// Note:
+// AtomicU64 uses atomic hardware instructions to ensure thread-safe access.
+// Wrapping it in an Arc would be redundant unless you specifically need to share
+// the same atomic counter across multiple InodeAlloc instances.
+impl Clone for InodeAlloc {
+    fn clone(&self) -> Self {
+        InodeAlloc {
+            next_ino_batch: AtomicU64::new(self.next_ino_batch.load(std::sync::atomic::Ordering::Relaxed)),
+            alloc: self.alloc.clone(),
+        }
+    }
 }
 
 #[allow(unused)]
@@ -27,8 +35,8 @@ impl InodeAlloc{
         }
     }
     pub async fn alloc_inode(&self,ovl_inode:u64)-> u64{
-        self.next_ino_batch.fetch_add(1).await;
-        let ainode =  self.next_ino_batch.load().await;
+        self.next_ino_batch.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let ainode =  self.next_ino_batch.load(std::sync::atomic::Ordering::Relaxed);
         let mut alloc = self.alloc.lock().await;
         alloc.insert(ainode,ovl_inode);
         ainode
@@ -38,7 +46,7 @@ impl InodeAlloc{
     }
     pub async fn clear(&self){
         self.alloc.lock().await.clear();
-        self.next_ino_batch.store(1).await;
+        self.next_ino_batch.store(1, std::sync::atomic::Ordering::Relaxed);
     }
 
 }
