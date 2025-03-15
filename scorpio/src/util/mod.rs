@@ -1,6 +1,7 @@
 use std::{fmt::Display, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
+pub mod scorpio_config;
 
 #[derive(Debug,Deserialize, Serialize,Clone,Default)]
 pub struct GPath{
