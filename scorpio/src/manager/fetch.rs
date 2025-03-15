@@ -12,6 +12,7 @@ use async_recursion::async_recursion;
 
 use crate::manager::store::store_trees;
 use crate::util::GPath;
+use crate::util::scorpio_config;
 
 use super::{ScorpioManager, WorkDir};
 
@@ -46,7 +47,9 @@ impl CheckHash for ScorpioManager{
             for handle in handlers {
                 let _ = handle.await;
             }
-            let _ = self.to_toml("config.toml"); //TODO: configabel.
+            //Get config file path from scorpio_config.rs
+            let config_file = scorpio_config::get_config().get_value("config_file").unwrap();
+            let _ = self.to_toml(config_file);
         }
 
     }
@@ -66,7 +69,8 @@ impl CheckHash for ScorpioManager{
         let _lower = PathBuf::from(&self.store_path).join(&workdir.hash).join("lower");
         fetch_code(&p, _lower).await;
         self.works.push(workdir.clone());
-        let _ = self.to_toml("config.toml"); //TODO: configabel.
+        let config_file = scorpio_config::get_config().get_value("config_file").unwrap();
+        let _ = self.to_toml(config_file);
         workdir
     }
 }
@@ -86,7 +90,8 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
     let _lower = PathBuf::from(manager.store_path.clone()).join(&workdir.hash).join("lower");
     fetch_code(&p, _lower).await;
     manager.works.push(workdir.clone());
-    let _ = manager.to_toml("config.toml"); //TODO: configabel.
+    let config_file = scorpio_config::get_config().get_value("config_file").unwrap();
+    let _ = manager.to_toml(config_file);
     workdir
 }
 
@@ -298,7 +303,8 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-    let url = format!("http://localhost:8000/api/v1/file/blob/{}",url);//TODO: configabel.
+    let file_blob_endpoint = scorpio_config::get_config().get_value("file_blob_endpoint").unwrap();
+    let url = format!("{}/{}",file_blob_endpoint,url);
     // Send GET request
     let response = client.get(url).send().await?;
     
