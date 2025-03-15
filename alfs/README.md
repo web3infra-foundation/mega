@@ -44,8 +44,8 @@ sudo mkfs.ext4 ${NBDX}p2
 
 # mount partitions
 sudo mkdir -pv $LFS_DIR
-sudo mkdir -pv $LFS_DIR/boot
 sudo mount ${NBDX}p2 $LFS_DIR
+sudo mkdir -pv $LFS_DIR/boot
 sudo mount ${NBDX}p1 $LFS_DIR/boot
 ```
 
@@ -90,7 +90,7 @@ Run `sudo blkid` to get the UUID of the partitions, The Result should be like th
 /dev/nbd1p2: UUID="41686c57-192d-4ed8-87a2-7399482c0261" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="dfd4b6d0-02"
 ```
 
--   Edit `jhalfs/custom/config/1102-custom-config-fstab`
+-   Edit `jhalfs/custom/config/1101-custom-config-fstab`
 
 replace the UUID , the result should be like this:
 
