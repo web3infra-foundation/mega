@@ -12,6 +12,15 @@ pub struct PullArgs {
     refspec: Option<String>,
 }
 
+impl PullArgs {
+    pub fn make(repository: Option<String>, refspec: Option<String>) -> Self {
+        Self {
+            repository,
+            refspec,
+        }
+    }
+}
+
 pub async fn execute(args: PullArgs) {
     fetch::execute(fetch::FetchArgs {
         repository: args.repository,

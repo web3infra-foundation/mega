@@ -155,7 +155,7 @@ async fn show_current_branch() {
     }
 }
 
-async fn list_branches(remotes: bool) {
+pub async fn list_branches(remotes: bool) {
     let branches = match remotes {
         true => {
             // list all remote branches
