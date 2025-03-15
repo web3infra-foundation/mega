@@ -2,14 +2,10 @@ use clap::Parser;
 use mercury::hash::SHA1;
 
 use crate::{
-    internal::{branch::Branch, config::Config, head::Head},
+    command::restore::{self, RestoreArgs},
+    command::{branch, pull, switch},
+    internal::{branch::Branch, head::Head},
     utils::util,
-};
-
-use super::{
-    branch, fetch, merge,
-    restore::{self, RestoreArgs},
-    switch,
 };
 
 #[derive(Parser, Debug)]
@@ -51,34 +47,6 @@ async fn show_current_branch() {
     }
 }
 
-pub async fn pull_upstream() {
-    fetch::execute(fetch::FetchArgs {
-        repository: None,
-        refspec: None,
-        all: false,
-    })
-    .await;
-
-    let head = Head::current().await;
-    match head {
-        Head::Branch(name) => match Config::branch_config(&name).await {
-            Some(branch_config) => {
-                let merge_args = merge::MergeArgs {
-                    branch: format!("{}/{}", branch_config.remote, branch_config.merge),
-                };
-                merge::execute(merge_args).await;
-            }
-            None => {
-                eprintln!("There is no tracking information for the current branch.");
-                eprintln!("hint: set up a tracking branch with `libra branch --set-upstream-to=<remote>/<branch>`")
-            }
-        },
-        _ => {
-            eprintln!("You are not currently on a branch.");
-        }
-    }
-}
-
 async fn switch_branch(branch_name: &str) {
     let target_branch: Option<Branch> = Branch::find_branch(branch_name, None).await;
     let commit_id = target_branch.unwrap().commit;
@@ -94,10 +62,21 @@ async fn create_and_switch_new_branch(new_branch: &str) {
     println!("Switched to a new branch '{new_branch}'");
 }
 
-async fn check_branch_and_get_remote(branch_name: &str) -> bool {
+async fn get_remote(branch_name: &str) {
+    let remote_branch_name: String = format!("origin/{}", branch_name);
+
+    create_and_switch_new_branch(branch_name).await;
+    // Set branch upstream
+    branch::set_upstream(branch_name, &remote_branch_name).await;
+    // Synchronous branches
+    // Use the pull command to update the local branch with the latest changes from the remote branch
+    pull::execute(pull::PullArgs::make(None, None)).await;
+}
+
+async fn check_branch(branch_name: &str) -> Option<bool> {
     if get_current_branch().await == Some(branch_name.to_string()) {
         println!("Already on {branch_name}");
-        return true;
+        return None;
     }
 
     let target_branch: Option<Branch> = Branch::find_branch(branch_name, None).await;
@@ -106,28 +85,26 @@ async fn check_branch_and_get_remote(branch_name: &str) -> bool {
         if !Branch::search_branch(&remote_branch_name).await.is_empty() {
             println!("branch '{branch_name}' set up to track '{remote_branch_name}'.");
 
-            create_and_switch_new_branch(branch_name).await;
-            // Set branch upstream
-            branch::set_upstream(branch_name, &remote_branch_name).await;
-            // Synchronous branches
-            pull_upstream().await;
-
-            false
+            Some(true)
         } else {
-            eprintln!("fatal: branch '{}' not found", &branch_name);
-            true
+            eprintln!(
+                "fatal: Path specification '{}' did not match any files known to libra",
+                &branch_name
+            );
+            None
         }
     } else {
         println!("Switched to branch '{branch_name}'");
-        false
+        Some(false)
     }
 }
 
 async fn check_and_switch_branch(branch_name: &str) {
-    if check_branch_and_get_remote(branch_name).await {
-        return;
+    match check_branch(branch_name).await {
+        Some(true) => get_remote(branch_name).await,
+        Some(false) => switch_branch(branch_name).await,
+        None => (),
     }
-    switch_branch(branch_name).await;
 }
 
 async fn restore_to_commit(commit_id: SHA1) {
@@ -138,4 +115,103 @@ async fn restore_to_commit(commit_id: SHA1) {
         pathspec: vec![util::working_dir_string()],
     };
     restore::execute(restore_args).await;
+}
+
+/// Unit tests for the checkout module
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command::{commit, init};
+    use colored::Colorize;
+    use std::{env, fs};
+    use tempfile::tempdir;
+
+    async fn test_check_branch() {
+        println!("\n\x1b[1mTest check_branch function.\x1b[0m");
+
+        // For non-existent branches, it should return None
+        assert_eq!(check_branch("non_existent_branch").await, None);
+        // For the current branch, it should return None
+        assert_eq!(
+            check_branch(&get_current_branch().await.unwrap_or("main".to_string())).await,
+            None
+        );
+        // For other existing branches, it should return Some(false)
+        assert_eq!(check_branch("new_branch_01").await, Some(false));
+    }
+
+    async fn test_switch_branch() {
+        println!("\n\x1b[1mTest switch_branch function.\x1b[0m");
+
+        let show_all_branches = async || {
+            // Use the list_branches function of the branch module to list all current local branches
+            branch::list_branches(false).await;
+            println!(
+                "Current branch is '{}'.",
+                get_current_branch()
+                    .await
+                    .unwrap_or("Get_current_branch_failed".to_string())
+                    .green()
+            );
+        };
+
+        // Switch to the new branch and back
+        show_all_branches().await;
+        switch_branch("new_branch_01").await;
+        show_all_branches().await;
+        switch_branch("new_branch_02").await;
+        show_all_branches().await;
+        switch_branch("main").await;
+        show_all_branches().await;
+    }
+
+    #[tokio::test]
+    async fn test_checkout_module_functions() {
+        println!("\n\x1b[1mTest checkout module functions.\x1b[0m");
+
+        let target_dir = tempdir().unwrap().into_path();
+
+        // Create a test directory and set args
+        let test_dir = target_dir.join("test_checkout_module_functions");
+        fs::create_dir(&test_dir).unwrap();
+
+        let init_args = init::InitArgs {
+            bare: false,
+            initial_branch: Some("main".to_string()),
+            repo_directory: test_dir.to_str().unwrap().to_owned(),
+            quiet: false,
+        };
+
+        // Run the init function and change the current directory
+        // to the test directory.
+        let raw_dir = env::current_dir().unwrap();
+        let result = init::init(init_args).await;
+        if let Err(e) = result {
+            eprintln!("Error initializing repository: {}", e);
+            return;
+        }
+        assert!(env::set_current_dir(&test_dir).is_ok());
+
+        // Initialize the main branch by creating an empty commit
+        let commit_args = commit::CommitArgs {
+            message: "An empty initial commit".to_string(),
+            allow_empty: true,
+            conventional: false,
+        };
+        commit::execute(commit_args).await;
+
+        // Create tow new branch
+        branch::create_branch(String::from("new_branch_01"), get_current_branch().await).await;
+        branch::create_branch(String::from("new_branch_02"), get_current_branch().await).await;
+
+        // Test the checkout module funsctions
+        test_check_branch().await;
+        test_switch_branch().await;
+
+        // Clean the test data
+        assert!(env::set_current_dir(&raw_dir).is_ok());
+        if let Err(e) = fs::remove_dir_all(&target_dir) {
+            eprintln!("Error removing test directory: {}", e);
+        }
+    }
 }
