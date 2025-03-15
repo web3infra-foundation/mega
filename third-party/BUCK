@@ -655,6 +655,24 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "aes-kw-0.2.1",
+    srcs = [
+        "vendor/aes-kw-0.2.1/README.md",
+        "vendor/aes-kw-0.2.1/src/error.rs",
+        "vendor/aes-kw-0.2.1/src/lib.rs",
+    ],
+    crate = "aes_kw",
+    crate_root = "vendor/aes-kw-0.2.1/src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "std",
+    ],
+    visibility = [],
+    deps = [":aes-0.8.4"],
+)
+
+cargo.rust_library(
     name = "ahash-0.7.8",
     srcs = [
         "vendor/ahash-0.7.8/src/aes_hash.rs",
@@ -3545,6 +3563,15 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "bitfield-0.17.0",
+    srcs = ["vendor/bitfield-0.17.0/src/lib.rs"],
+    crate = "bitfield",
+    crate_root = "vendor/bitfield-0.17.0/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "bitflags-1.3.2",
     srcs = [
         "vendor/bitflags-1.3.2/src/example_generated.rs",
@@ -4365,6 +4392,24 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "buffer-redux-1.0.2",
+    srcs = [
+        "vendor/buffer-redux-1.0.2/src/buffer/mod.rs",
+        "vendor/buffer-redux-1.0.2/src/buffer/slice_deque_buf.rs",
+        "vendor/buffer-redux-1.0.2/src/buffer/std_buf.rs",
+        "vendor/buffer-redux-1.0.2/src/lib.rs",
+        "vendor/buffer-redux-1.0.2/src/policy.rs",
+        "vendor/buffer-redux-1.0.2/src/ringbuf_tests.rs",
+        "vendor/buffer-redux-1.0.2/src/std_tests.rs",
+    ],
+    crate = "buffer_redux",
+    crate_root = "vendor/buffer-redux-1.0.2/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":memchr-2.7.4"],
+)
+
+cargo.rust_library(
     name = "build-time-0.1.3",
     srcs = ["vendor/build-time-0.1.3/src/lib.rs"],
     crate = "build_time",
@@ -4487,6 +4532,37 @@ cargo.rust_library(
     edition = "2021",
     visibility = [],
     deps = [":bytes-1.10.0"],
+)
+
+cargo.rust_library(
+    name = "camellia-0.1.0",
+    srcs = [
+        "vendor/camellia-0.1.0/src/camellia.rs",
+        "vendor/camellia-0.1.0/src/consts.rs",
+        "vendor/camellia-0.1.0/src/lib.rs",
+    ],
+    crate = "camellia",
+    crate_root = "vendor/camellia-0.1.0/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [
+        ":byteorder-1.5.0",
+        ":cipher-0.4.4",
+    ],
+)
+
+cargo.rust_library(
+    name = "cast5-0.11.1",
+    srcs = [
+        "vendor/cast5-0.11.1/src/consts.rs",
+        "vendor/cast5-0.11.1/src/lib.rs",
+        "vendor/cast5-0.11.1/src/schedule.rs",
+    ],
+    crate = "cast5",
+    crate_root = "vendor/cast5-0.11.1/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":cipher-0.4.4"],
 )
 
 cargo.rust_library(
@@ -5036,6 +5112,20 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "cfb-mode-0.8.2",
+    srcs = [
+        "vendor/cfb-mode-0.8.2/src/decrypt.rs",
+        "vendor/cfb-mode-0.8.2/src/encrypt.rs",
+        "vendor/cfb-mode-0.8.2/src/lib.rs",
+    ],
+    crate = "cfb_mode",
+    crate_root = "vendor/cfb-mode-0.8.2/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":cipher-0.4.4"],
+)
+
+cargo.rust_library(
     name = "cfg-if-0.1.10",
     srcs = ["vendor/cfg-if-0.1.10/src/lib.rs"],
     crate = "cfg_if",
@@ -5489,6 +5579,20 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "cmac-0.7.2",
+    srcs = ["vendor/cmac-0.7.2/src/lib.rs"],
+    crate = "cmac",
+    crate_root = "vendor/cmac-0.7.2/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [
+        ":cipher-0.4.4",
+        ":dbl-0.3.2",
+        ":digest-0.10.7",
+    ],
+)
+
+cargo.rust_library(
     name = "cmake-0.1.51",
     srcs = ["vendor/cmake-0.1.51/src/lib.rs"],
     crate = "cmake",
@@ -5929,6 +6033,40 @@ cargo.rust_library(
     crate_root = "vendor/crc-catalog-2.4.0/src/lib.rs",
     edition = "2018",
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "crc24-0.1.6",
+    srcs = [
+        "vendor/crc24-0.1.6/src/lib.rs",
+        "vendor/crc24-0.1.6/src/tablegen.rs",
+    ],
+    crate = "crc24",
+    crate_root = "vendor/crc24-0.1.6/src/lib.rs",
+    edition = "2015",
+    env = {
+        "OUT_DIR": "$(location :crc24-0.1.6-build-script-tablegen-run[out_dir])",
+    },
+    visibility = [],
+)
+
+cargo.rust_binary(
+    name = "crc24-0.1.6-build-script-tablegen",
+    srcs = [
+        "vendor/crc24-0.1.6/src/lib.rs",
+        "vendor/crc24-0.1.6/src/tablegen.rs",
+    ],
+    crate = "build_script_tablegen",
+    crate_root = "vendor/crc24-0.1.6/src/tablegen.rs",
+    edition = "2015",
+    visibility = [],
+)
+
+buildscript_run(
+    name = "crc24-0.1.6-build-script-tablegen-run",
+    package_name = "crc24",
+    buildscript_rule = ":crc24-0.1.6-build-script-tablegen",
+    version = "0.1.6",
 )
 
 cargo.rust_library(
@@ -6872,6 +7010,16 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "dbl-0.3.2",
+    srcs = ["vendor/dbl-0.3.2/src/lib.rs"],
+    crate = "dbl",
+    crate_root = "vendor/dbl-0.3.2/src/lib.rs",
+    edition = "2015",
+    visibility = [],
+    deps = [":generic-array-0.14.7"],
+)
+
+cargo.rust_library(
     name = "delay_timer-0.11.6",
     srcs = [
         "vendor/delay_timer-0.11.6/src/entity.rs",
@@ -7066,6 +7214,71 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "derive_builder-0.20.2",
+    srcs = [
+        "vendor/derive_builder-0.20.2/src/error.rs",
+        "vendor/derive_builder-0.20.2/src/lib.rs",
+    ],
+    crate = "derive_builder",
+    crate_root = "vendor/derive_builder-0.20.2/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = [":derive_builder_macro-0.20.2"],
+)
+
+cargo.rust_library(
+    name = "derive_builder_core-0.20.2",
+    srcs = [
+        "vendor/derive_builder_core-0.20.2/src/block.rs",
+        "vendor/derive_builder_core-0.20.2/src/build_method.rs",
+        "vendor/derive_builder_core-0.20.2/src/builder.rs",
+        "vendor/derive_builder_core-0.20.2/src/builder_field.rs",
+        "vendor/derive_builder_core-0.20.2/src/change_span.rs",
+        "vendor/derive_builder_core-0.20.2/src/default_expression.rs",
+        "vendor/derive_builder_core-0.20.2/src/doc_comment.rs",
+        "vendor/derive_builder_core-0.20.2/src/doc_tpl/builder_method.md",
+        "vendor/derive_builder_core-0.20.2/src/doc_tpl/builder_struct.md",
+        "vendor/derive_builder_core-0.20.2/src/doc_tpl/mod.rs",
+        "vendor/derive_builder_core-0.20.2/src/initializer.rs",
+        "vendor/derive_builder_core-0.20.2/src/lib.rs",
+        "vendor/derive_builder_core-0.20.2/src/macro_options/darling_opts.rs",
+        "vendor/derive_builder_core-0.20.2/src/macro_options/mod.rs",
+        "vendor/derive_builder_core-0.20.2/src/options.rs",
+        "vendor/derive_builder_core-0.20.2/src/setter.rs",
+    ],
+    crate = "derive_builder_core",
+    crate_root = "vendor/derive_builder_core-0.20.2/src/lib.rs",
+    edition = "2018",
+    features = ["lib_has_std"],
+    visibility = [],
+    deps = [
+        ":darling-0.20.10",
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
+    name = "derive_builder_macro-0.20.2",
+    srcs = ["vendor/derive_builder_macro-0.20.2/src/lib.rs"],
+    crate = "derive_builder_macro",
+    crate_root = "vendor/derive_builder_macro-0.20.2/src/lib.rs",
+    edition = "2018",
+    features = ["lib_has_std"],
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":derive_builder_core-0.20.2",
+        ":syn-2.0.87",
+    ],
+)
+
+cargo.rust_library(
     name = "derive_more-0.99.18",
     srcs = [
         "vendor/derive_more-0.99.18/src/add_assign_like.rs",
@@ -7136,6 +7349,128 @@ cargo.rust_library(
         ":quote-1.0.36",
         ":syn-2.0.87",
     ],
+)
+
+cargo.rust_library(
+    name = "derive_more-1.0.0",
+    srcs = [
+        "vendor/derive_more-1.0.0/src/add.rs",
+        "vendor/derive_more-1.0.0/src/as.rs",
+        "vendor/derive_more-1.0.0/src/convert.rs",
+        "vendor/derive_more-1.0.0/src/fmt.rs",
+        "vendor/derive_more-1.0.0/src/lib.rs",
+        "vendor/derive_more-1.0.0/src/ops.rs",
+        "vendor/derive_more-1.0.0/src/str.rs",
+        "vendor/derive_more-1.0.0/src/try_unwrap.rs",
+        "vendor/derive_more-1.0.0/src/vendor/mod.rs",
+        "vendor/derive_more-1.0.0/src/vendor/thiserror/aserror.rs",
+        "vendor/derive_more-1.0.0/src/vendor/thiserror/mod.rs",
+    ],
+    crate = "derive_more",
+    crate_root = "vendor/derive_more-1.0.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "debug",
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = [":derive_more-impl-1.0.0"],
+)
+
+cargo.rust_library(
+    name = "derive_more-impl-1.0.0",
+    srcs = [
+        "vendor/derive_more-impl-1.0.0/README.md",
+        "vendor/derive_more-impl-1.0.0/doc/add.md",
+        "vendor/derive_more-impl-1.0.0/doc/add_assign.md",
+        "vendor/derive_more-impl-1.0.0/doc/as_mut.md",
+        "vendor/derive_more-impl-1.0.0/doc/as_ref.md",
+        "vendor/derive_more-impl-1.0.0/doc/constructor.md",
+        "vendor/derive_more-impl-1.0.0/doc/debug.md",
+        "vendor/derive_more-impl-1.0.0/doc/deref.md",
+        "vendor/derive_more-impl-1.0.0/doc/deref_mut.md",
+        "vendor/derive_more-impl-1.0.0/doc/display.md",
+        "vendor/derive_more-impl-1.0.0/doc/error.md",
+        "vendor/derive_more-impl-1.0.0/doc/from.md",
+        "vendor/derive_more-impl-1.0.0/doc/from_str.md",
+        "vendor/derive_more-impl-1.0.0/doc/index.md",
+        "vendor/derive_more-impl-1.0.0/doc/index_mut.md",
+        "vendor/derive_more-impl-1.0.0/doc/into.md",
+        "vendor/derive_more-impl-1.0.0/doc/into_iterator.md",
+        "vendor/derive_more-impl-1.0.0/doc/is_variant.md",
+        "vendor/derive_more-impl-1.0.0/doc/mul.md",
+        "vendor/derive_more-impl-1.0.0/doc/mul_assign.md",
+        "vendor/derive_more-impl-1.0.0/doc/not.md",
+        "vendor/derive_more-impl-1.0.0/doc/sum.md",
+        "vendor/derive_more-impl-1.0.0/doc/try_from.md",
+        "vendor/derive_more-impl-1.0.0/doc/try_into.md",
+        "vendor/derive_more-impl-1.0.0/doc/try_unwrap.md",
+        "vendor/derive_more-impl-1.0.0/doc/unwrap.md",
+        "vendor/derive_more-impl-1.0.0/src/add_assign_like.rs",
+        "vendor/derive_more-impl-1.0.0/src/add_helpers.rs",
+        "vendor/derive_more-impl-1.0.0/src/add_like.rs",
+        "vendor/derive_more-impl-1.0.0/src/as/mod.rs",
+        "vendor/derive_more-impl-1.0.0/src/as/mut.rs",
+        "vendor/derive_more-impl-1.0.0/src/as/ref.rs",
+        "vendor/derive_more-impl-1.0.0/src/constructor.rs",
+        "vendor/derive_more-impl-1.0.0/src/deref.rs",
+        "vendor/derive_more-impl-1.0.0/src/deref_mut.rs",
+        "vendor/derive_more-impl-1.0.0/src/error.rs",
+        "vendor/derive_more-impl-1.0.0/src/fmt/debug.rs",
+        "vendor/derive_more-impl-1.0.0/src/fmt/display.rs",
+        "vendor/derive_more-impl-1.0.0/src/fmt/mod.rs",
+        "vendor/derive_more-impl-1.0.0/src/fmt/parsing.rs",
+        "vendor/derive_more-impl-1.0.0/src/from.rs",
+        "vendor/derive_more-impl-1.0.0/src/from_str.rs",
+        "vendor/derive_more-impl-1.0.0/src/index.rs",
+        "vendor/derive_more-impl-1.0.0/src/index_mut.rs",
+        "vendor/derive_more-impl-1.0.0/src/into.rs",
+        "vendor/derive_more-impl-1.0.0/src/into_iterator.rs",
+        "vendor/derive_more-impl-1.0.0/src/is_variant.rs",
+        "vendor/derive_more-impl-1.0.0/src/lib.rs",
+        "vendor/derive_more-impl-1.0.0/src/mul_assign_like.rs",
+        "vendor/derive_more-impl-1.0.0/src/mul_helpers.rs",
+        "vendor/derive_more-impl-1.0.0/src/mul_like.rs",
+        "vendor/derive_more-impl-1.0.0/src/not_like.rs",
+        "vendor/derive_more-impl-1.0.0/src/parsing.rs",
+        "vendor/derive_more-impl-1.0.0/src/sum_like.rs",
+        "vendor/derive_more-impl-1.0.0/src/try_from.rs",
+        "vendor/derive_more-impl-1.0.0/src/try_into.rs",
+        "vendor/derive_more-impl-1.0.0/src/try_unwrap.rs",
+        "vendor/derive_more-impl-1.0.0/src/unwrap.rs",
+        "vendor/derive_more-impl-1.0.0/src/utils.rs",
+    ],
+    crate = "derive_more_impl",
+    crate_root = "vendor/derive_more-impl-1.0.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "debug",
+        "default",
+    ],
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+        ":unicode-xid-0.2.4",
+    ],
+)
+
+cargo.rust_library(
+    name = "des-0.8.1",
+    srcs = [
+        "vendor/des-0.8.1/src/consts.rs",
+        "vendor/des-0.8.1/src/des.rs",
+        "vendor/des-0.8.1/src/lib.rs",
+        "vendor/des-0.8.1/src/tdes.rs",
+    ],
+    crate = "des",
+    crate_root = "vendor/des-0.8.1/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":cipher-0.4.4"],
 )
 
 cargo.rust_library(
@@ -7359,6 +7694,38 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "dsa-0.6.3",
+    srcs = [
+        "vendor/dsa-0.6.3/README.md",
+        "vendor/dsa-0.6.3/src/components.rs",
+        "vendor/dsa-0.6.3/src/generate.rs",
+        "vendor/dsa-0.6.3/src/generate/components.rs",
+        "vendor/dsa-0.6.3/src/generate/keypair.rs",
+        "vendor/dsa-0.6.3/src/generate/secret_number.rs",
+        "vendor/dsa-0.6.3/src/lib.rs",
+        "vendor/dsa-0.6.3/src/signing_key.rs",
+        "vendor/dsa-0.6.3/src/size.rs",
+        "vendor/dsa-0.6.3/src/verifying_key.rs",
+    ],
+    crate = "dsa",
+    crate_root = "vendor/dsa-0.6.3/src/lib.rs",
+    edition = "2021",
+    named_deps = {
+        "num_bigint": ":num-bigint-dig-0.8.4",
+    },
+    visibility = [],
+    deps = [
+        ":digest-0.10.7",
+        ":num-traits-0.2.19",
+        ":pkcs8-0.10.2",
+        ":rfc6979-0.4.0",
+        ":sha2-0.10.8",
+        ":signature-2.2.0",
+        ":zeroize-1.8.1",
+    ],
+)
+
+cargo.rust_library(
     name = "dtoa-1.0.9",
     srcs = [
         "vendor/dtoa-1.0.9/src/diyfp.rs",
@@ -7378,6 +7745,31 @@ cargo.rust_library(
     crate_root = "vendor/dunce-1.0.5/src/lib.rs",
     edition = "2021",
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "eax-0.5.0",
+    srcs = [
+        "vendor/eax-0.5.0/src/lib.rs",
+        "vendor/eax-0.5.0/src/online.rs",
+        "vendor/eax-0.5.0/src/traits.rs",
+    ],
+    crate = "eax",
+    crate_root = "vendor/eax-0.5.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "default",
+        "getrandom",
+    ],
+    visibility = [],
+    deps = [
+        ":aead-0.5.2",
+        ":cipher-0.4.4",
+        ":cmac-0.7.2",
+        ":ctr-0.9.2",
+        ":subtle-2.6.1",
+    ],
 )
 
 cargo.rust_library(
@@ -10610,6 +11002,20 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "idea-0.5.1",
+    srcs = [
+        "vendor/idea-0.5.1/src/consts.rs",
+        "vendor/idea-0.5.1/src/lib.rs",
+        "vendor/idea-0.5.1/src/tests.rs",
+    ],
+    crate = "idea",
+    crate_root = "vendor/idea-0.5.1/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":cipher-0.4.4"],
+)
+
+cargo.rust_library(
     name = "ident_case-1.0.1",
     srcs = ["vendor/ident_case-1.0.1/src/lib.rs"],
     crate = "ident_case",
@@ -11092,6 +11498,19 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "iter-read-1.1.0",
+    srcs = [
+        "vendor/iter-read-1.1.0/src/impls.rs",
+        "vendor/iter-read-1.1.0/src/lib.rs",
+        "vendor/iter-read-1.1.0/src/tests.rs",
+    ],
+    crate = "iter_read",
+    crate_root = "vendor/iter-read-1.1.0/src/lib.rs",
+    edition = "2018",
+    visibility = [],
+)
+
+cargo.rust_library(
     name = "itertools-0.12.1",
     srcs = [
         "vendor/itertools-0.12.1/src/adaptors/coalesce.rs",
@@ -11397,6 +11816,66 @@ cargo.rust_library(
         ":pest-2.7.11",
         ":pest_derive-2.7.11",
         ":serde-1.0.217",
+    ],
+)
+
+cargo.rust_library(
+    name = "k256-0.13.4",
+    srcs = [
+        "vendor/k256-0.13.4/README.md",
+        "vendor/k256-0.13.4/src/arithmetic.rs",
+        "vendor/k256-0.13.4/src/arithmetic/affine.rs",
+        "vendor/k256-0.13.4/src/arithmetic/dev.rs",
+        "vendor/k256-0.13.4/src/arithmetic/field.rs",
+        "vendor/k256-0.13.4/src/arithmetic/field/field_10x26.rs",
+        "vendor/k256-0.13.4/src/arithmetic/field/field_5x52.rs",
+        "vendor/k256-0.13.4/src/arithmetic/field/field_impl.rs",
+        "vendor/k256-0.13.4/src/arithmetic/hash2curve.rs",
+        "vendor/k256-0.13.4/src/arithmetic/mul.rs",
+        "vendor/k256-0.13.4/src/arithmetic/projective.rs",
+        "vendor/k256-0.13.4/src/arithmetic/scalar.rs",
+        "vendor/k256-0.13.4/src/arithmetic/scalar/wide32.rs",
+        "vendor/k256-0.13.4/src/arithmetic/scalar/wide64.rs",
+        "vendor/k256-0.13.4/src/ecdh.rs",
+        "vendor/k256-0.13.4/src/ecdsa.rs",
+        "vendor/k256-0.13.4/src/lib.rs",
+        "vendor/k256-0.13.4/src/schnorr.rs",
+        "vendor/k256-0.13.4/src/schnorr/signing.rs",
+        "vendor/k256-0.13.4/src/schnorr/verifying.rs",
+        "vendor/k256-0.13.4/src/test_vectors.rs",
+        "vendor/k256-0.13.4/src/test_vectors/ecdsa.rs",
+        "vendor/k256-0.13.4/src/test_vectors/field.rs",
+        "vendor/k256-0.13.4/src/test_vectors/group.rs",
+    ],
+    crate = "k256",
+    crate_root = "vendor/k256-0.13.4/src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "arithmetic",
+        "default",
+        "digest",
+        "ecdsa",
+        "ecdsa-core",
+        "once_cell",
+        "pkcs8",
+        "precomputed-tables",
+        "schnorr",
+        "sha2",
+        "sha256",
+        "signature",
+        "std",
+    ],
+    named_deps = {
+        "ecdsa_core": ":ecdsa-0.16.9",
+    },
+    visibility = [],
+    deps = [
+        ":cfg-if-1.0.0",
+        ":elliptic-curve-0.13.8",
+        ":once_cell-1.20.3",
+        ":sha2-0.10.8",
+        ":signature-2.2.0",
     ],
 )
 
@@ -14084,6 +14563,46 @@ cargo.rust_library(
     visibility = [],
 )
 
+cargo.rust_library(
+    name = "num_enum-0.7.3",
+    srcs = ["vendor/num_enum-0.7.3/src/lib.rs"],
+    crate = "num_enum",
+    crate_root = "vendor/num_enum-0.7.3/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = [":num_enum_derive-0.7.3"],
+)
+
+cargo.rust_library(
+    name = "num_enum_derive-0.7.3",
+    srcs = [
+        "vendor/num_enum_derive-0.7.3/src/enum_attributes.rs",
+        "vendor/num_enum_derive-0.7.3/src/lib.rs",
+        "vendor/num_enum_derive-0.7.3/src/parsing.rs",
+        "vendor/num_enum_derive-0.7.3/src/utils.rs",
+        "vendor/num_enum_derive-0.7.3/src/variant_attributes.rs",
+    ],
+    crate = "num_enum_derive",
+    crate_root = "vendor/num_enum_derive-0.7.3/src/lib.rs",
+    edition = "2021",
+    features = [
+        "proc-macro-crate",
+        "std",
+    ],
+    proc_macro = True,
+    visibility = [],
+    deps = [
+        ":proc-macro-crate-3.2.0",
+        ":proc-macro2-1.0.86",
+        ":quote-1.0.36",
+        ":syn-2.0.87",
+    ],
+)
+
 alias(
     name = "oauth2",
     actual = ":oauth2-5.0.0",
@@ -14132,6 +14651,31 @@ cargo.rust_library(
         ":sha2-0.10.8",
         ":thiserror-1.0.65",
         ":url-2.5.3",
+    ],
+)
+
+cargo.rust_library(
+    name = "ocb3-0.1.0",
+    srcs = [
+        "vendor/ocb3-0.1.0/README.md",
+        "vendor/ocb3-0.1.0/src/lib.rs",
+        "vendor/ocb3-0.1.0/src/util.rs",
+    ],
+    crate = "ocb3",
+    crate_root = "vendor/ocb3-0.1.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "default",
+        "getrandom",
+        "rand_core",
+    ],
+    visibility = [],
+    deps = [
+        ":aead-0.5.2",
+        ":cipher-0.4.4",
+        ":ctr-0.9.2",
+        ":subtle-2.6.1",
     ],
 )
 
@@ -18716,6 +19260,187 @@ cargo.rust_library(
     ],
 )
 
+alias(
+    name = "pgp",
+    actual = ":pgp-0.15.0",
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_library(
+    name = "pgp-0.15.0",
+    srcs = [
+        "vendor/pgp-0.15.0/src/armor/mod.rs",
+        "vendor/pgp-0.15.0/src/armor/reader.rs",
+        "vendor/pgp-0.15.0/src/armor/writer.rs",
+        "vendor/pgp-0.15.0/src/base64_decoder.rs",
+        "vendor/pgp-0.15.0/src/base64_reader.rs",
+        "vendor/pgp-0.15.0/src/composed/any.rs",
+        "vendor/pgp-0.15.0/src/composed/cleartext.rs",
+        "vendor/pgp-0.15.0/src/composed/key/builder.rs",
+        "vendor/pgp-0.15.0/src/composed/key/mod.rs",
+        "vendor/pgp-0.15.0/src/composed/key/public.rs",
+        "vendor/pgp-0.15.0/src/composed/key/secret.rs",
+        "vendor/pgp-0.15.0/src/composed/key/shared.rs",
+        "vendor/pgp-0.15.0/src/composed/message/decrypt.rs",
+        "vendor/pgp-0.15.0/src/composed/message/mod.rs",
+        "vendor/pgp-0.15.0/src/composed/message/parser.rs",
+        "vendor/pgp-0.15.0/src/composed/message/types.rs",
+        "vendor/pgp-0.15.0/src/composed/mod.rs",
+        "vendor/pgp-0.15.0/src/composed/shared.rs",
+        "vendor/pgp-0.15.0/src/composed/signature.rs",
+        "vendor/pgp-0.15.0/src/composed/signed_key/key_parser.rs",
+        "vendor/pgp-0.15.0/src/composed/signed_key/mod.rs",
+        "vendor/pgp-0.15.0/src/composed/signed_key/parse.rs",
+        "vendor/pgp-0.15.0/src/composed/signed_key/public.rs",
+        "vendor/pgp-0.15.0/src/composed/signed_key/secret.rs",
+        "vendor/pgp-0.15.0/src/composed/signed_key/shared.rs",
+        "vendor/pgp-0.15.0/src/crypto/aead.rs",
+        "vendor/pgp-0.15.0/src/crypto/aes_kw.rs",
+        "vendor/pgp-0.15.0/src/crypto/checksum.rs",
+        "vendor/pgp-0.15.0/src/crypto/dsa.rs",
+        "vendor/pgp-0.15.0/src/crypto/ecc_curve.rs",
+        "vendor/pgp-0.15.0/src/crypto/ecdh.rs",
+        "vendor/pgp-0.15.0/src/crypto/ecdsa.rs",
+        "vendor/pgp-0.15.0/src/crypto/eddsa.rs",
+        "vendor/pgp-0.15.0/src/crypto/hash.rs",
+        "vendor/pgp-0.15.0/src/crypto/mod.rs",
+        "vendor/pgp-0.15.0/src/crypto/pkcs5.rs",
+        "vendor/pgp-0.15.0/src/crypto/public_key.rs",
+        "vendor/pgp-0.15.0/src/crypto/rsa.rs",
+        "vendor/pgp-0.15.0/src/crypto/sym.rs",
+        "vendor/pgp-0.15.0/src/crypto/x25519.rs",
+        "vendor/pgp-0.15.0/src/crypto/x448.rs",
+        "vendor/pgp-0.15.0/src/errors.rs",
+        "vendor/pgp-0.15.0/src/lib.rs",
+        "vendor/pgp-0.15.0/src/line_writer.rs",
+        "vendor/pgp-0.15.0/src/normalize_lines.rs",
+        "vendor/pgp-0.15.0/src/packet/compressed_data.rs",
+        "vendor/pgp-0.15.0/src/packet/key.rs",
+        "vendor/pgp-0.15.0/src/packet/key/public.rs",
+        "vendor/pgp-0.15.0/src/packet/key/secret.rs",
+        "vendor/pgp-0.15.0/src/packet/literal_data.rs",
+        "vendor/pgp-0.15.0/src/packet/many.rs",
+        "vendor/pgp-0.15.0/src/packet/marker.rs",
+        "vendor/pgp-0.15.0/src/packet/mod.rs",
+        "vendor/pgp-0.15.0/src/packet/mod_detection_code.rs",
+        "vendor/pgp-0.15.0/src/packet/one_pass_signature.rs",
+        "vendor/pgp-0.15.0/src/packet/packet_sum.rs",
+        "vendor/pgp-0.15.0/src/packet/padding.rs",
+        "vendor/pgp-0.15.0/src/packet/public_key_encrypted_session_key.rs",
+        "vendor/pgp-0.15.0/src/packet/public_key_parser.rs",
+        "vendor/pgp-0.15.0/src/packet/secret_key_parser.rs",
+        "vendor/pgp-0.15.0/src/packet/signature/config.rs",
+        "vendor/pgp-0.15.0/src/packet/signature/de.rs",
+        "vendor/pgp-0.15.0/src/packet/signature/mod.rs",
+        "vendor/pgp-0.15.0/src/packet/signature/ser.rs",
+        "vendor/pgp-0.15.0/src/packet/signature/types.rs",
+        "vendor/pgp-0.15.0/src/packet/single.rs",
+        "vendor/pgp-0.15.0/src/packet/sym_encrypted_data.rs",
+        "vendor/pgp-0.15.0/src/packet/sym_encrypted_protected_data.rs",
+        "vendor/pgp-0.15.0/src/packet/sym_key_encrypted_session_key.rs",
+        "vendor/pgp-0.15.0/src/packet/trust.rs",
+        "vendor/pgp-0.15.0/src/packet/user_attribute.rs",
+        "vendor/pgp-0.15.0/src/packet/user_id.rs",
+        "vendor/pgp-0.15.0/src/ser.rs",
+        "vendor/pgp-0.15.0/src/types/compression.rs",
+        "vendor/pgp-0.15.0/src/types/fingerprint.rs",
+        "vendor/pgp-0.15.0/src/types/key_id.rs",
+        "vendor/pgp-0.15.0/src/types/mod.rs",
+        "vendor/pgp-0.15.0/src/types/mpi.rs",
+        "vendor/pgp-0.15.0/src/types/packet.rs",
+        "vendor/pgp-0.15.0/src/types/params/encrypted_secret.rs",
+        "vendor/pgp-0.15.0/src/types/params/mod.rs",
+        "vendor/pgp-0.15.0/src/types/params/plain_secret.rs",
+        "vendor/pgp-0.15.0/src/types/params/public.rs",
+        "vendor/pgp-0.15.0/src/types/params/secret.rs",
+        "vendor/pgp-0.15.0/src/types/public_key.rs",
+        "vendor/pgp-0.15.0/src/types/revocation_key.rs",
+        "vendor/pgp-0.15.0/src/types/s2k.rs",
+        "vendor/pgp-0.15.0/src/types/secret_key.rs",
+        "vendor/pgp-0.15.0/src/types/secret_key_repr.rs",
+        "vendor/pgp-0.15.0/src/types/user.rs",
+        "vendor/pgp-0.15.0/src/util.rs",
+    ],
+    crate = "pgp",
+    crate_root = "vendor/pgp-0.15.0/src/lib.rs",
+    edition = "2021",
+    env = {
+        "CARGO_MANIFEST_DIR": "vendor/pgp-0.15.0",
+        "CARGO_PKG_AUTHORS": "dignifiedquire <dignifiedquire@gmail.com>",
+        "CARGO_PKG_DESCRIPTION": "OpenPGP implementation in Rust",
+        "CARGO_PKG_NAME": "pgp",
+        "CARGO_PKG_REPOSITORY": "https://github.com/rpgp/rpgp",
+        "CARGO_PKG_VERSION": "0.15.0",
+        "CARGO_PKG_VERSION_MAJOR": "0",
+        "CARGO_PKG_VERSION_MINOR": "15",
+        "CARGO_PKG_VERSION_PATCH": "0",
+    },
+    features = ["default"],
+    named_deps = {
+        "num_bigint": ":num-bigint-dig-0.8.4",
+    },
+    visibility = [],
+    deps = [
+        ":aes-0.8.4",
+        ":aes-gcm-0.10.3",
+        ":aes-kw-0.2.1",
+        ":argon2-0.5.3",
+        ":base64-0.22.1",
+        ":bitfield-0.17.0",
+        ":block-padding-0.3.3",
+        ":blowfish-0.9.1",
+        ":bstr-1.11.3",
+        ":buffer-redux-1.0.2",
+        ":byteorder-1.5.0",
+        ":camellia-0.1.0",
+        ":cast5-0.11.1",
+        ":cfb-mode-0.8.2",
+        ":chrono-0.4.39",
+        ":cipher-0.4.4",
+        ":const-oid-0.9.6",
+        ":crc24-0.1.6",
+        ":curve25519-dalek-4.1.3",
+        ":derive_builder-0.20.2",
+        ":derive_more-1.0.0",
+        ":des-0.8.1",
+        ":digest-0.10.7",
+        ":dsa-0.6.3",
+        ":eax-0.5.0",
+        ":ecdsa-0.16.9",
+        ":ed25519-dalek-2.1.1",
+        ":elliptic-curve-0.13.8",
+        ":flate2-1.0.35",
+        ":generic-array-0.14.7",
+        ":hex-0.4.3",
+        ":hkdf-0.12.4",
+        ":idea-0.5.1",
+        ":iter-read-1.1.0",
+        ":k256-0.13.4",
+        ":log-0.4.22",
+        ":md-5-0.10.6",
+        ":nom-7.1.3",
+        ":num-traits-0.2.19",
+        ":num_enum-0.7.3",
+        ":ocb3-0.1.0",
+        ":p256-0.13.2",
+        ":p384-0.13.0",
+        ":p521-0.13.3",
+        ":rand-0.8.5",
+        ":ripemd-0.1.3",
+        ":rsa-0.9.7",
+        ":sha1-0.10.6",
+        ":sha1-checked-0.10.0",
+        ":sha2-0.10.8",
+        ":sha3-0.10.8",
+        ":signature-2.2.0",
+        ":smallvec-1.13.2",
+        ":thiserror-2.0.11",
+        ":twofish-0.7.1",
+        ":x25519-dalek-2.0.1",
+        ":zeroize-1.8.1",
+    ],
+)
+
 cargo.rust_library(
     name = "phf_shared-0.10.0",
     srcs = ["vendor/phf_shared-0.10.0/src/lib.rs"],
@@ -21174,6 +21899,27 @@ buildscript_run(
         "dev_urandom_fallback",
     ],
     version = "0.17.8",
+)
+
+cargo.rust_library(
+    name = "ripemd-0.1.3",
+    srcs = [
+        "vendor/ripemd-0.1.3/src/c128.rs",
+        "vendor/ripemd-0.1.3/src/c160.rs",
+        "vendor/ripemd-0.1.3/src/c256.rs",
+        "vendor/ripemd-0.1.3/src/c320.rs",
+        "vendor/ripemd-0.1.3/src/lib.rs",
+    ],
+    crate = "ripemd",
+    crate_root = "vendor/ripemd-0.1.3/src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "oid",
+        "std",
+    ],
+    visibility = [],
+    deps = [":digest-0.10.7"],
 )
 
 cargo.rust_library(
@@ -25317,6 +26063,31 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
+    name = "sha1-checked-0.10.0",
+    srcs = [
+        "vendor/sha1-checked-0.10.0/README.md",
+        "vendor/sha1-checked-0.10.0/src/compress.rs",
+        "vendor/sha1-checked-0.10.0/src/lib.rs",
+        "vendor/sha1-checked-0.10.0/src/ubc_check.rs",
+    ],
+    crate = "sha1_checked",
+    crate_root = "vendor/sha1-checked-0.10.0/src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "oid",
+        "std",
+        "zeroize",
+    ],
+    visibility = [],
+    deps = [
+        ":digest-0.10.7",
+        ":sha1-0.10.6",
+        ":zeroize-1.8.1",
+    ],
+)
+
+cargo.rust_library(
     name = "sha2-0.10.8",
     srcs = [
         "vendor/sha2-0.10.8/src/consts.rs",
@@ -25584,6 +26355,12 @@ cargo.rust_library(
         "std",
     ],
     visibility = [],
+)
+
+alias(
+    name = "smallvec",
+    actual = ":smallvec-1.13.2",
+    visibility = ["PUBLIC"],
 )
 
 cargo.rust_library(
@@ -29646,6 +30423,20 @@ cargo.rust_library(
     crate_root = "vendor/try-lock-0.2.5/src/lib.rs",
     edition = "2015",
     visibility = [],
+)
+
+cargo.rust_library(
+    name = "twofish-0.7.1",
+    srcs = [
+        "vendor/twofish-0.7.1/src/consts.rs",
+        "vendor/twofish-0.7.1/src/lib.rs",
+        "vendor/twofish-0.7.1/src/tests.rs",
+    ],
+    crate = "twofish",
+    crate_root = "vendor/twofish-0.7.1/src/lib.rs",
+    edition = "2021",
+    visibility = [],
+    deps = [":cipher-0.4.4"],
 )
 
 cargo.rust_library(
@@ -34947,6 +35738,31 @@ cargo.rust_library(
     edition = "2018",
     visibility = [],
     deps = [":tap-1.0.1"],
+)
+
+cargo.rust_library(
+    name = "x25519-dalek-2.0.1",
+    srcs = [
+        "vendor/x25519-dalek-2.0.1/README.md",
+        "vendor/x25519-dalek-2.0.1/src/lib.rs",
+        "vendor/x25519-dalek-2.0.1/src/x25519.rs",
+    ],
+    crate = "x25519_dalek",
+    crate_root = "vendor/x25519-dalek-2.0.1/src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "precomputed-tables",
+        "static_secrets",
+        "zeroize",
+    ],
+    visibility = [],
+    deps = [
+        ":curve25519-dalek-4.1.3",
+        ":rand_core-0.6.4",
+        ":serde-1.0.217",
+        ":zeroize-1.8.1",
+    ],
 )
 
 cargo.rust_library(

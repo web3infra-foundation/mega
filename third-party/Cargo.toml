@@ -87,6 +87,8 @@ russh = "0.51.1"
 tracing-appender = "0.2"
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 tower = "0.5.2"
+pgp = "0.15.0"
+smallvec = "1.6.1"
 
 [target.'cfg(not(windows))'.dependencies]
 jemallocator = "0.5.4"
