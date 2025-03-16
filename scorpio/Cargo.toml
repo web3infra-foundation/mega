@@ -34,16 +34,15 @@ futures-util = { version = "0.3.30", features = ["sink"] }
 quote = "1.0.38"
 proc-macro2 = "1.0.93"
 syn = { version = "2.0.98", features = ["full", "extra-traits"] }
-
-logging_macros = { path = "src/passthrough/logging_macros" }
 uuid = "1.14.0"
+libfuse-fs = "0.1.0"
 
 
 [features] 
 async-io = []
 
 [workspace]
-members = ["src/passthrough/logging_macros"]
+
 
 [package.metadata.docs.rs]
 all-features = true
