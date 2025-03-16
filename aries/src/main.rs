@@ -1,6 +1,7 @@
 use clap::Parser;
 use common::config::{Config, LogConfig};
 use service::relay_server::{run_relay_server, RelayOptions};
+use std::sync::Arc;
 use std::{env, path::PathBuf};
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
@@ -33,7 +34,7 @@ async fn main() {
     tracing::info!("{:?}", option);
 
     //Start  relay server
-    run_relay_server(config, option).await;
+    run_relay_server(Arc::new(config), option).await;
 }
 
 fn init_log(config: &LogConfig) {

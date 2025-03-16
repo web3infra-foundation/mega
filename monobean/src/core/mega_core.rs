@@ -1,7 +1,7 @@
 use crate::application::Action;
 use crate::config::MEGA_CONFIG_PATH;
-use crate::core::load_mega_resource;
 use crate::core::servers::{HttpOptions, SshOptions};
+use crate::core::{load_mega_resource, CoreConfigChanged};
 use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
 use common::config::Config;
@@ -16,7 +16,7 @@ use tokio::sync::{oneshot, OnceCell, RwLock};
 use vault::pgp::{SignedPublicKey, SignedSecretKey};
 
 pub struct MegaCore {
-    config: Arc<Config>,
+    config: Arc<RwLock<Config>>,
     running_context: Arc<RwLock<Option<MegaContext>>>,
     mount_point: Arc<RwLock<Option<PathBuf>>>,
     ssh_options: Arc<RwLock<Option<SshOptions>>>,
@@ -52,6 +52,7 @@ pub enum MegaCommands {
         String,         // User Email
         Option<String>, // Passwd
     ),
+    ApplyUserConfig(Vec<CoreConfigChanged>),
 }
 
 impl Debug for MegaCore {
@@ -72,7 +73,7 @@ impl MegaCore {
             Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
 
         Self {
-            config: Arc::from(config),
+            config: Arc::from(RwLock::new(config)),
             running_context: Default::default(),
             mount_point: Default::default(),
             ssh_options: Default::default(),
@@ -166,6 +167,9 @@ impl MegaCore {
                     self.pgp.set((pk, sk)).unwrap();
                 }
             }
+            MegaCommands::ApplyUserConfig(update) => {
+                self.merge_config(update).await;
+            }
         }
     }
 
@@ -181,7 +185,6 @@ impl MegaCore {
         } else {
             self.initialized.store(true, Ordering::Release);
         }
-        vault::pgp::delete_keys().await;
 
         // Try to load pgp keys from vault.
         if let Some(pk) = vault::pgp::load_pub_key().await {
@@ -203,11 +206,12 @@ impl MegaCore {
             return Err(MonoBeanError::MegaCoreError(err.to_string()));
         }
 
-        let inner = MegaContext::new((*self.config).clone()).await;
+        let config: Arc<Config> = self.config.read().await.clone().into();
+        let inner = MegaContext::new(config.clone()).await;
         inner
             .services
             .mono_storage
-            .init_monorepo(&self.config.monorepo)
+            .init_monorepo(&config.monorepo)
             .await;
 
         let http_ctx = inner.clone();
@@ -255,6 +259,82 @@ impl MegaCore {
         *self.http_options.write().await = None;
         *self.http_options.write().await = None;
         *self.running_context.write().await = None;
+    }
+
+    async fn merge_config(&self, update: Vec<CoreConfigChanged>) {
+        let mut base = self.config.write().await;
+        update.into_iter().for_each(|entry| match entry {
+            CoreConfigChanged::BaseDir(path) => base.base_dir = path,
+            CoreConfigChanged::LogPath(path) => base.log.log_path = path,
+            CoreConfigChanged::Level(level) => base.log.level = level,
+            CoreConfigChanged::PrintStd(print_std) => base.log.print_std = print_std,
+            CoreConfigChanged::DbType(db_type) => base.database.db_type = db_type,
+            CoreConfigChanged::DbPath(db_path) => base.database.db_path = db_path,
+            CoreConfigChanged::DbUrl(db_url) => base.database.db_url = db_url,
+            CoreConfigChanged::MaxConnection(max_conn) => base.database.max_connection = max_conn,
+            CoreConfigChanged::MinConnection(min_conn) => base.database.min_connection = min_conn,
+            CoreConfigChanged::SqlxLogging(sqlx_logging) => {
+                base.database.sqlx_logging = sqlx_logging
+            }
+            CoreConfigChanged::ObsAccessKey(key) => base.storage.obs_access_key = key,
+            CoreConfigChanged::ObsSecretKey(key) => base.storage.obs_secret_key = key,
+            CoreConfigChanged::ObsRegion(region) => base.storage.obs_region = region,
+            CoreConfigChanged::ObsEndpoint(endpoint) => base.storage.obs_endpoint = endpoint,
+            CoreConfigChanged::ImportDir(dir) => base.monorepo.import_dir = dir,
+            CoreConfigChanged::Admin(admin) => base.monorepo.admin = admin,
+            CoreConfigChanged::RootDirs(dirs) => base.monorepo.root_dirs = dirs,
+            CoreConfigChanged::EnableHttpAuth(enable) => {
+                base.authentication.enable_http_auth = enable
+            }
+            CoreConfigChanged::EnableTestUser(enable) => {
+                base.authentication.enable_test_user = enable
+            }
+            CoreConfigChanged::TestUserName(name) => base.authentication.test_user_name = name,
+            CoreConfigChanged::TestUserToken(token) => base.authentication.test_user_token = token,
+            CoreConfigChanged::PackDecodeMemSize(size) => base.pack.pack_decode_mem_size = size,
+            CoreConfigChanged::PackDecodeDiskSize(size) => base.pack.pack_decode_disk_size = size,
+            CoreConfigChanged::PackDecodeCachePath(path) => base.pack.pack_decode_cache_path = path,
+            CoreConfigChanged::CleanCacheAfterDecode(clean) => {
+                base.pack.clean_cache_after_decode = clean
+            }
+            CoreConfigChanged::ChannelMessageSize(size) => base.pack.channel_message_size = size,
+            CoreConfigChanged::LfsUrl(url) => base.lfs.url = url,
+            CoreConfigChanged::LfsObjLocalPath(path) => base.lfs.lfs_obj_local_path = path,
+            CoreConfigChanged::EnableSplit(enable) => base.lfs.enable_split = enable,
+            CoreConfigChanged::SplitSize(size) => base.lfs.split_size = size,
+            CoreConfigChanged::GithubClientId(id) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
+                }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.github_client_id = id;
+                }
+            }
+            CoreConfigChanged::GithubClientSecret(secret) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
+                }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.github_client_secret = secret;
+                }
+            }
+            CoreConfigChanged::UiDomain(domain) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
+                }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.ui_domain = domain;
+                }
+            }
+            CoreConfigChanged::CookieDomain(domain) => {
+                if base.oauth.is_none() {
+                    base.oauth = Some(common::config::OauthConfig::default());
+                }
+                if let Some(oauth) = &mut base.oauth {
+                    oauth.cookie_domain = domain;
+                }
+            }
+        });
     }
 
     pub async fn is_core_running(&self) -> bool {

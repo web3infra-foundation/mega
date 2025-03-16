@@ -1,16 +1,14 @@
 use std::{
     collections::HashSet,
     pin::Pin,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc::Receiver,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
 use sysinfo::System;
+use tokio::sync::mpsc::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::protocol::import_refs::{RefCommand, Refs};
@@ -39,7 +37,7 @@ pub mod monorepo;
 pub trait PackHandler: Send + Sync {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
-    async fn handle_receiver(&self, rx: Receiver<Entry>) -> Result<Option<Commit>, GitError>;
+    async fn handle_receiver(&self, mut rx: Receiver<Entry>) -> Result<Option<Commit>, GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
@@ -103,7 +101,7 @@ pub trait PackHandler: Send + Sync {
                 Err(err) => return Err(ProtocolError::InvalidInput(err)),
             };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = tokio::sync::mpsc::channel(1024);
         let p = Pack::new(
             None,
             Some(cache_mem),

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use async_session::MemoryStore;
 use axum::extract::FromRef;
 use oauth2::{
@@ -9,6 +7,7 @@ use oauth2::{
     },
     Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
 };
+use std::path::PathBuf;
 
 use ceres::{
     api_service::{
