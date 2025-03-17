@@ -18,14 +18,17 @@ done
 ( cat << "xEOFx"
 
 echo "pwd: $(pwd)"
-curl -LJO https://github.com/facebook/buck2/releases/download/latest/rust-project-x86_64-unknown-linux-gnu.zst
-unzstd rust-project-x86_64-unknown-linux-gnu.zst
-mv rust-project-x86_64-unknown-linux-gnu /usr/local/bin/buck2
+curl -LJO https://github.com/facebook/buck2/releases/download/latest/buck2-x86_64-unknown-linux-gnu.zst
+unzstd buck2-x86_64-unknown-linux-gnu.zst
+mv buck2-x86_64-unknown-linux-gnu /usr/local/bin/buck2
 chmod +x /usr/local/bin/buck2
-rm rust-project-x86_64-unknown-linux-gnu.zst
+rm buck2-x86_64-unknown-linux-gnu.zst
 echo "buck2 installed"
 
 # ensure buck2 is in PATH
 echo 'export PATH="$PATH:/usr/local/bin"' >> /etc/profile
+
+# install reindeer, a buck2 optional dependency
+cargo install --locked --git https://github.com/facebookincubator/reindeer reindeer
 xEOFx
 ) > tmp
