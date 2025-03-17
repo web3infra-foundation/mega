@@ -119,10 +119,11 @@ The following options must be set:
 
 -   `BOOK Settings → [*] Add custom tools support (NEW)`
 -   `BOOK Settings → Init system/[*] Systemd (NEW)`
+-   set `BOOK Settings → Location of local copy (mandatory)` to absolute path of `mega/alfs/lfs-git` directory.
 -   `BOOK Settings → XML Source of Book/(X) Local Copy`
 -   `General Settings → [*] Run the makefile`
--   set `BOOK Settings  Location of local copy (mandatory)` to absolute path of `mega/alfs/lfs-git` directory.
 -   set `General Settings → Build directory` to your build directory, the value of `LFS_DIR` in the previous step.
+-   If you want to check the source code of the packages `General Settings → [*] Retrieve source files`
 -   `Build Settings → Parallelism settings → [*] Use all cores`
 -   If you building failuer first time, in the second should select `[*] Rebuild the Makefile (see help)`.
 
