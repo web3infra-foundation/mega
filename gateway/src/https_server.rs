@@ -153,7 +153,7 @@ pub async fn app(context: Context, host: String, port: u16, p2p: P2pOptions) -> 
         .with_state(state)
 }
 
-pub fn check_run_with_p2p(_context: Context, p2p: P2pOptions) {
+pub fn check_run_with_p2p(context: Context, p2p: P2pOptions) {
     //Mega server join a ztm mesh
     match p2p.bootstrap_node {
         Some(bootstrap_node) => {
@@ -162,7 +162,7 @@ pub fn check_run_with_p2p(_context: Context, p2p: P2pOptions) {
                 bootstrap_node.clone()
             );
 
-            tokio::spawn(async move { gemini::p2p::client::run(bootstrap_node).await });
+            tokio::spawn(async move { gemini::p2p::client::run(context, bootstrap_node).await });
         }
         None => {
             tracing::info!("The bootstrap node is not set, prepare to start mega server locally");

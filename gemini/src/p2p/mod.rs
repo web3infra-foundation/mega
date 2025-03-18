@@ -1,5 +1,6 @@
 use std::fmt;
 
+use callisto::import_refs;
 use serde::{Deserialize, Serialize};
 
 pub mod client;
@@ -13,6 +14,7 @@ pub enum Action {
     Send,
     Call,
     Callback,
+    RepoShare,
 }
 
 impl fmt::Display for Action {
@@ -29,6 +31,9 @@ impl fmt::Display for Action {
             }
             Action::Callback => {
                 write!(f, "Callback")
+            }
+            Action::RepoShare => {
+                write!(f, "RepoShare")
             }
         }
     }
@@ -55,20 +60,17 @@ pub struct ResponseData {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum ConnectionType {
-    MSG,
-    FILE,
+pub struct GitCloneHeader {
+    pub from: String,
+    pub target: String,
+    pub git_path: String,
+    pub branches: Vec<import_refs::Model>,
 }
 
-impl fmt::Display for ConnectionType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ConnectionType::MSG => {
-                write!(f, "MSG")
-            }
-            ConnectionType::FILE => {
-                write!(f, "FILE")
-            }
-        }
-    }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LFSHeader {
+    pub from: String,
+    pub target: String,
+    pub oid: String,
+    pub size: i64,
 }
