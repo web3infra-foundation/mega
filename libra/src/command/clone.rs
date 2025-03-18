@@ -23,6 +23,10 @@ pub struct CloneArgs {
 
     /// The local path to clone the repository to
     pub local_path: Option<String>,
+
+    /// The branch to clone
+    #[clap(short = 'b', long, required = false)]
+    pub branch: Option<String>,
 }
 
 pub async fn execute(args: CloneArgs) {
@@ -73,7 +77,7 @@ pub async fn execute(args: CloneArgs) {
     env::set_current_dir(&local_path).unwrap();
     let init_args = command::init::InitArgs {
         bare: false,
-        initial_branch: None,
+        initial_branch: args.branch.clone(),
         repo_directory: local_path.to_str().unwrap().to_string(),
         quiet: false,
     };
@@ -84,52 +88,26 @@ pub async fn execute(args: CloneArgs) {
         name: "origin".to_string(),
         url: remote_repo.clone(),
     };
-    fetch::fetch_repository(&remote_config, None).await;
+    fetch::fetch_repository(&remote_config, args.branch.clone()).await;
 
     /* setup */
-    setup(remote_repo.clone()).await;
+    setup(remote_repo.clone(), args.branch.clone()).await;
 
     is_success.set(true);
 }
 
-async fn setup(remote_repo: String) {
+async fn setup(remote_repo: String, specified_branch: Option<String>) {
     // look for remote head and set local HEAD&branch
     let remote_head = Head::remote_current(ORIGIN).await;
 
-    match remote_head {
-        Some(Head::Branch(name)) => {
-            let origin_head_branch = Branch::find_branch(&name, Some(ORIGIN))
-                .await
-                .expect("origin HEAD branch not found");
-
-            Branch::update_branch(&name, &origin_head_branch.commit.to_string(), None).await;
-            Head::update(Head::Branch(name.to_owned()), None).await;
-
-            // set config: remote.origin.url
-            Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
-            // set config: remote.origin.fetch
-            // todo: temporary ignore fetch option
-
-            // set config: branch.$name.merge, e.g.
-            let merge = "refs/heads/".to_owned() + &name;
-            Config::insert("branch", Some(&name), "merge", &merge).await;
-            // set config: branch.$name.remote
-            Config::insert("branch", Some(&name), "remote", ORIGIN).await;
-
-            // restore all files to worktree from HEAD
-            command::restore::execute(RestoreArgs {
-                worktree: true,
-                staged: true,
-                source: None,
-                pathspec: vec![util::working_dir_string()],
-            })
-            .await;
-        }
-        Some(Head::Detached(_)) => {
-            eprintln!("fatal: remote HEAD points to a detached commit");
-        }
-        None => {
-            println!("warning: You appear to have cloned an empty repository.");
+    if let Some(specified_branch) = specified_branch {
+        setup_branch(specified_branch).await;
+    }else if let Some(Head::Branch(name)) = remote_head {
+        setup_branch(name).await;
+    }else if let Some(Head::Detached(_)) = remote_head {
+        eprintln!("fatal: remote HEAD points to a detached commit");
+    }else {
+        println!("warning: You appear to have cloned an empty repository.");
 
             // set config: remote.origin.url
             Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
@@ -141,6 +119,26 @@ async fn setup(remote_repo: String) {
             Config::insert("branch", Some("master"), "merge", &merge).await;
             // set config: branch.$name.remote
             Config::insert("branch", Some("master"), "remote", ORIGIN).await;
-        }
     }
+}
+
+async fn setup_branch(branch_name: String) {
+    let origin_head_branch = Branch::find_branch(&branch_name, Some(ORIGIN))
+    .await
+    .expect("origin HEAD branch not found");
+
+    Branch::update_branch(&branch_name, &origin_head_branch.commit.to_string(), None).await;
+    Head::update(Head::Branch(branch_name.to_owned()), None).await;
+
+    let merge = "refs/heads/".to_owned() + &branch_name;
+    Config::insert("branch", Some(&branch_name), "merge", &merge).await;
+    Config::insert("branch", Some(&branch_name), "remote", ORIGIN).await;
+
+    command::restore::execute(RestoreArgs {
+        worktree: true,
+        staged: true,
+        source: None,
+        pathspec: vec![util::working_dir_string()],
+    })
+    .await;
 }
