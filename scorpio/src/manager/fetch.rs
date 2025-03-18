@@ -74,8 +74,11 @@ impl CheckHash for ScorpioManager{
         let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
         fetch_code(&p, _lower).await;
         self.works.push(workdir.clone());
-        let config_file = scorpio_config::get_config().get_value("config_file").unwrap();
-        let _ = self.to_toml(config_file);
+        if let Some(config_file) = scorpio_config::get_config().get_value("config_file") {
+            let _ = self.to_toml(config_file);
+        } else {
+            eprintln!("Error: config_file key is missing in the configuration.");
+        }
         workdir
     }
 }
