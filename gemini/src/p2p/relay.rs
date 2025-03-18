@@ -7,23 +7,27 @@ use quinn::rustls::server::WebPkiClientVerifier;
 use quinn::{
     crypto::rustls::QuicServerConfig,
     rustls::{self},
+    Connection,
 };
 use quinn::{IdleTimeout, ServerConfig, TransportConfig, VarInt};
 use std::time::Duration;
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
+use tokio::sync::RwLock;
 use tracing::{error, info};
 
-use crate::ca;
-use crate::p2p::RequestData;
-use crate::p2p::ResponseData;
 use crate::p2p::ALPN_QUIC_HTTP;
+use crate::p2p::{GitCloneHeader, RequestData};
+use crate::p2p::{LFSHeader, ResponseData};
+use crate::{ca, RepoInfo};
 
 use super::Action;
 
 lazy_static! {
-    static ref MSG_CONNECTION_MAP: DashMap<String, Arc<quinn::Connection>> = DashMap::new();
-    static ref FILE_CONNECTION_MAP: DashMap<String, Arc<quinn::Connection>> = DashMap::new();
-    static ref REQ_ID_MAP: DashMap<String, Arc<quinn::Connection>> = DashMap::new();
+    static ref MSG_CONNECTION_MAP: DashMap<String, Arc<Connection>> = DashMap::new();
+    static ref GIT_OBJECTS_CONNECTION_MAP: DashMap<String, Arc<Connection>> = DashMap::new();
+    static ref LFS_CONNECTION_MAP: DashMap<String, Arc<Connection>> = DashMap::new();
+    static ref REQ_ID_MAP: DashMap<String, Arc<Connection>> = DashMap::new();
+    static ref REPO_LIST: RwLock<Vec<RepoInfo>> = RwLock::new(Vec::new());
 }
 
 pub async fn run(host: String, port: u16) -> Result<()> {
@@ -95,22 +99,26 @@ async fn handle_connection(conn: quinn::Incoming) -> Result<()> {
     let len = recv.read(&mut buf).await.unwrap().unwrap();
     let registration = String::from_utf8_lossy(&buf[..len]);
 
-    //register: Peer_id|ConnectionType (MSG/FILE)
+    //register: key |ConnectionType (MSG/REQUEST_GIT_CLONE/REQUEST_LFS)
     let parts: Vec<&str> = registration.split('|').collect();
-    let (peer_id, connection_type) = (parts[0], parts[1]);
-    info!("Key:{}, Connection_type:{}", peer_id, connection_type);
+    let (key, connection_type) = (parts[0], parts[1]);
+    info!("Key:{}, Connection_type:{}", key, connection_type);
     match connection_type {
         "MSG" => {
-            MSG_CONNECTION_MAP.insert(peer_id.to_string(), connection.clone());
+            MSG_CONNECTION_MAP.insert(key.to_string(), connection.clone());
             msg_handle_receive(connection.clone()).await?;
         }
-        "REQUEST_FILE" => {
-            FILE_CONNECTION_MAP.insert(peer_id.to_string(), connection.clone());
-            // file_handle_receive(connection.clone()).await?;
+        "REQUEST_GIT_CLONE" => {
+            GIT_OBJECTS_CONNECTION_MAP.insert(key.to_string(), connection.clone());
         }
-        "REPONSE_FILE" => {
-            FILE_CONNECTION_MAP.insert(peer_id.to_string(), connection.clone());
-            file_handle_receive(connection.clone()).await?;
+        "RESPONSE_GIT_CLONE" => {
+            git_clone_handle_receive(connection.clone()).await?;
+        }
+        "REQUEST_LFS" => {
+            LFS_CONNECTION_MAP.insert(key.to_string(), connection.clone());
+        }
+        "RESPONSE_LFS" => {
+            lfs_handle_receive(connection.clone()).await?;
         }
         _ => {}
     }
@@ -237,6 +245,29 @@ async fn msg_handle_receive(connection: Arc<quinn::Connection>) -> anyhow::Resul
                 }
                 REQ_ID_MAP.remove(data.req_id.as_str());
             }
+
+            Action::RepoShare => {
+                let response = ResponseData {
+                    from: "relay".to_string(),
+                    data: "ok".as_bytes().to_vec(),
+                    func: data.func.clone(),
+                    err: "".to_string(),
+                    to: data.from.to_string(),
+                    req_id: data.req_id.clone(),
+                };
+                //return to from node
+                let connection = match MSG_CONNECTION_MAP.get(data.from.as_str()) {
+                    None => {
+                        error!("Failed to find connection to {}", data.to);
+                        return Err(anyhow!("Failed to find connection to {}", data.to));
+                    }
+                    Some(conn) => conn,
+                };
+                let json = serde_json::to_string(&response)?;
+                let (mut send, _) = connection.open_bi().await?;
+                send.write_all(json.as_bytes()).await?;
+                send.finish()?;
+            }
         }
 
         {
@@ -252,37 +283,84 @@ async fn msg_handle_receive(connection: Arc<quinn::Connection>) -> anyhow::Resul
     }
 }
 
-async fn file_handle_receive(connection: Arc<quinn::Connection>) -> anyhow::Result<()> {
-    let connection_clone: Arc<quinn::Connection> = connection.clone();
-    let (_file_sender, mut file_reciever) = connection_clone.accept_bi().await?;
+async fn git_clone_handle_receive(connection: Arc<Connection>) -> Result<()> {
+    let connection_clone: Arc<Connection> = connection.clone();
+    let (_file_sender, mut file_receiver) = connection_clone.accept_bi().await?;
 
-    //read header -> {target_peer_id}|{from_peer_id}|{file_path}
-    let mut header_buf = [0u8; 256];
-    let len = file_reciever.read(&mut header_buf).await.unwrap().unwrap();
+    //read header
+    let mut header_buf = [0u8; 4096];
+    let len = file_receiver.read(&mut header_buf).await?.unwrap();
     let header = String::from_utf8_lossy(&header_buf[..len]);
-    let parts: Vec<&str> = header.splitn(3, '|').collect();
-    let (target_id, from, file_path) = (parts[0], parts[1], parts[2]);
+    let header: GitCloneHeader = serde_json::from_str(&header)?;
+    let (target_id, from, git_path) = (header.target, header.from, header.git_path);
     info!(
         "File handle receive, target_id:{}, from:{}, file_path:{}",
-        target_id, from, file_path
+        target_id, from, git_path
     );
-    let key = format!("{}-{}", target_id, from);
-    let header = format!("{}|{}|{}", target_id, from, file_path);
+    let key = format!("git-clone-{}-{}", target_id, from);
 
-    if let Some(target_conn) = FILE_CONNECTION_MAP.get(&key) {
-        info!("find target connection");
+    if let Some(target_conn) = GIT_OBJECTS_CONNECTION_MAP.get(&key) {
+        info!("Find target connection to {}", target_id);
+        //header data
+        info!("Send git clone header to {}", target_id);
         let (mut target_sender, _) = target_conn.open_bi().await?;
-        target_sender.write_all(header.as_bytes()).await.unwrap();
+        target_sender.write_all(&header_buf[..len]).await?;
         target_sender.finish()?;
 
-        // relay the stream
+        //git objects data
+        info!("Send git clone objects to {}", target_id);
         let (mut target_sender, _) = target_conn.open_bi().await?;
-        let (_file_sender, mut file_reciever) = connection_clone.accept_bi().await?;
-
-        tokio::io::copy(&mut file_reciever, &mut target_sender)
-            .await
-            .unwrap();
+        let (_file_sender, mut file_receiver) = connection_clone.accept_bi().await?;
+        tokio::io::copy(&mut file_receiver, &mut target_sender).await?;
         target_sender.finish()?;
+
+        //send finish to from peer
+        let (mut sender, _) = connection_clone.open_bi().await?;
+        sender.write_all("finish".as_bytes()).await?;
+        sender.finish()?;
+        info!("Finish git clone to provider:{}", from);
+    } else {
+        connection_clone.close(VarInt::from_u32(1), "Cannot find target peer".as_bytes());
+    }
+    Ok(())
+}
+
+async fn lfs_handle_receive(connection: Arc<Connection>) -> Result<()> {
+    let connection_clone: Arc<Connection> = connection.clone();
+    let (_file_sender, mut file_receiver) = connection_clone.accept_bi().await?;
+
+    //read header
+    let mut header_buf = [0u8; 4096];
+    let len = file_receiver.read(&mut header_buf).await?.unwrap();
+    let header = String::from_utf8_lossy(&header_buf[..len]);
+    let header: LFSHeader = serde_json::from_str(&header)?;
+    let (target_id, from, oid, size) = (header.target, header.from, header.oid, header.size);
+    info!(
+        "LFS handle receive, target_id:{}, from:{}, oid:{}: size:{}",
+        target_id, from, oid, size
+    );
+    let key = format!("lfs-{}-{}", target_id, from);
+
+    if let Some(target_conn) = LFS_CONNECTION_MAP.get(&key) {
+        info!("Find target connection to {}", target_id);
+        //header data
+        info!("Send lfs header to {}", target_id);
+        let (mut target_sender, _) = target_conn.open_bi().await?;
+        target_sender.write_all(&header_buf[..len]).await?;
+        target_sender.finish()?;
+
+        //lfs data
+        info!("Send lfs data to {}", target_id);
+        let (mut target_sender, _) = target_conn.open_bi().await?;
+        let (_file_sender, mut file_receiver) = connection_clone.accept_bi().await?;
+        tokio::io::copy(&mut file_receiver, &mut target_sender).await?;
+        target_sender.finish()?;
+
+        //send finish to from peer
+        let (mut sender, _) = connection_clone.open_bi().await?;
+        sender.write_all("finish".as_bytes()).await?;
+        sender.finish()?;
+        info!("Finish lfs to provider:{}", from);
     } else {
         connection_clone.close(VarInt::from_u32(1), "Cannot find target peer".as_bytes());
     }

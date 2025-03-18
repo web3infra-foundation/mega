@@ -1,20 +1,21 @@
 use std::collections::HashMap;
 
+use crate::api::MegaApiServiceState;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     routing::get,
     Json, Router,
 };
-
+use callisto::git_repo::Model;
 use common::model::CommonResult;
-use gemini::http::handler::{get_alias_from_identifier, get_peer_id_from_identifier};
-
-use crate::api::MegaApiServiceState;
+use gemini::http::handler::{get_path_from_identifier, get_peer_id_from_identifier};
+use gemini::util::repo_path_to_identifier;
 
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
         .route("/p2p/repo_fork", get(repo_fork))
+        .route("/p2p/repo_share", get(repo_share))
         .route("/p2p/peer_id", get(peer_id))
 }
 
@@ -40,7 +41,7 @@ async fn repo_fork(
             ))
         }
     };
-    let alias = match get_alias_from_identifier(identifier.clone()) {
+    let path = match get_path_from_identifier(identifier.clone()) {
         Ok(p) => p,
         Err(_e) => {
             return Err((
@@ -58,9 +59,59 @@ async fn repo_fork(
             ))
         }
     };
-    let res = gemini::p2p::client::request_file(bootstrap_node, alias, remote_peer_id).await;
+    let res = gemini::p2p::client::request_git_clone(
+        state.inner.context.clone(),
+        bootstrap_node,
+        path,
+        remote_peer_id,
+    )
+    .await;
     let res = match res {
         Ok(_) => CommonResult::success(Some("ok".to_string())),
+        Err(err) => CommonResult::failed(&err.to_string()),
+    };
+
+    Ok(Json(res))
+}
+
+async fn repo_share(
+    Query(query): Query<HashMap<String, String>>,
+    state: State<MegaApiServiceState>,
+) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
+    let path = match query.get("path") {
+        Some(i) => i,
+        None => {
+            return Err((StatusCode::BAD_REQUEST, String::from("path not provide\n")));
+        }
+    };
+
+    let _bootstrap_node = match state.p2p.bootstrap_node.clone() {
+        Some(b) => b,
+        None => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                String::from("bootstrap node not provide\n"),
+            ))
+        }
+    };
+    let storage = state.inner.context.services.git_db_storage.clone();
+    let repo: Model = match storage
+        .find_git_repo_exact_match(path.as_str())
+        .await
+        .unwrap()
+    {
+        Some(repo) => repo,
+        None => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                String::from("Repo path invalid\n"),
+            ))
+        }
+    };
+    let identifier = repo_path_to_identifier(repo.repo_path).await;
+    let res = gemini::p2p::client::repo_share(identifier).await;
+    let res = match res {
+        Ok(s) => CommonResult::success(Some(s.to_string())),
         Err(err) => CommonResult::failed(&err.to_string()),
     };
 
