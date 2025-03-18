@@ -49,8 +49,11 @@ impl CheckHash for ScorpioManager{
                 let _ = handle.await;
             }
             //Get config file path from scorpio_config.rs
-            let config_file = scorpio_config::get_config().get_value("config_file").unwrap();
-            let _ = self.to_toml(config_file);
+            if let Some(config_file) = scorpio_config::get_config().get_value("config_file") {
+                let _ = self.to_toml(config_file);
+            } else {
+                eprintln!("Error: 'config_file' key is missing in the configuration.");
+            }
         }
 
     }
