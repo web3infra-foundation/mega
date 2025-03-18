@@ -38,7 +38,8 @@ impl CheckHash for ScorpioManager{
                 let tree = fetch_tree(&p).await.unwrap();
                 work.hash = tree.id.to_string();
                 // the lower path is store file path for remote code version .
-                let store_path = scorpio_config::get_config().get_value("store_path").unwrap();
+                let store_path = scorpio_config::get_config().get_value("store_path")
+                    .expect("Error: 'store_path' key is missing in the configuration.");
                 let _lower = PathBuf::from(store_path).join(&work.hash).join("lower");
                 handlers.push(tokio::spawn(async move { fetch_code(&p, _lower).await }));
             }
@@ -70,7 +71,8 @@ impl CheckHash for ScorpioManager{
         };
         //work.hash = tree.id.to_string();
         // the lower path is store file path for remote code version . 
-        let store_path = scorpio_config::get_config().get_value("store_path").unwrap();
+        let store_path = scorpio_config::get_config().get_value("store_path")
+            .expect("Error: 'store_path' key is missing in the configuration.");
         let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
         fetch_code(&p, _lower).await;
         self.works.push(workdir.clone());
@@ -95,11 +97,13 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
     };
     //work.hash = tree.id.to_string();
     // the lower path is store file path for remote code version . 
-    let store_path = scorpio_config::get_config().get_value("store_path").unwrap();
+    let store_path = scorpio_config::get_config().get_value("store_path")
+        .expect("Error: 'store_path' key is missing in the configuration.");
     let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
     fetch_code(&p, _lower).await;
     manager.works.push(workdir.clone());
-    let config_file = scorpio_config::get_config().get_value("config_file").unwrap();
+    let config_file = scorpio_config::get_config().get_value("config_file")
+        .expect("Error: 'store_path' key is missing in the configuration.");
     let _ = manager.to_toml(config_file);
     workdir
 }
