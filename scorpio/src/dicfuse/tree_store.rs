@@ -5,7 +5,7 @@ use sled::Db;
 use serde::{Serialize, Deserialize};
 use std::io::{Error, ErrorKind};
 use std::io;
-use crate::util::GPath;
+use crate::util::{scorpio_config, GPath};
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::store::Item;
@@ -61,14 +61,11 @@ impl TreeStorage {
     }
     pub fn new() -> io::Result<Self>{
         let config_content = std::fs::read_to_string(CONFIG_PATH)
-            .map_err(|e| Error::new(ErrorKind::Other, e))?;
+            .map_err(Error::other)?;
         let config: Value = toml::de::from_str(&config_content)
-            .map_err(|e| Error::new(ErrorKind::Other, e))?;
-
-        let store_path = config["store_path"]
-            .as_str()
+            .map_err(Error::other)?;
+        let store_path = scorpio_config::get_config().get_value("store_path")
             .ok_or_else(|| Error::new(ErrorKind::NotFound, "store_path not found in config"))?;
-
         let path = format!("{}/path.db", store_path);
         let db = sled::open(path).unwrap();
         Ok(TreeStorage { db })
@@ -87,8 +84,8 @@ impl TreeStorage {
 
         // Insert an item into db and update the parent item's children list.
         self.db
-            .insert(inode.to_be_bytes(), bincode::serialize(&storage_item).map_err(|e| Error::new(ErrorKind::Other, e))?)
-            .map_err(|e| Error::new(ErrorKind::Other, e))?;
+            .insert(inode.to_be_bytes(), bincode::serialize(&storage_item).map_err(Error::other)?)
+            .map_err(Error::other)?;
 
         if parent != 0 {
             let mut parent_item: StorageItem = self.get_storage_item(parent)?;
@@ -96,8 +93,8 @@ impl TreeStorage {
             parent_item.children.push(inode);
             // write back
             self.db
-                .insert(parent.to_be_bytes(), bincode::serialize(&parent_item).map_err(|e| Error::new(ErrorKind::Other, e))?)
-                .map_err(|e| Error::new(ErrorKind::Other, e))?;
+                .insert(parent.to_be_bytes(), bincode::serialize(&parent_item).map_err(Error::other)?)
+                .map_err(Error::other)?;
         }
 
         Ok(())
@@ -121,8 +118,8 @@ impl TreeStorage {
                 let mut parent_item: StorageItem = self.get_storage_item(storage_item.parent)?;
                 parent_item.children.retain(|&x| x != inode);
                 self.db
-                    .insert(storage_item.parent.to_be_bytes(), bincode::serialize(&parent_item).map_err(|e| Error::new(ErrorKind::Other, e))?)
-                    .map_err(|e| Error::new(ErrorKind::Other, e))?;
+                    .insert(storage_item.parent.to_be_bytes(), bincode::serialize(&parent_item).map_err(Error::other)?)
+                    .map_err(Error::other)?;
             }
 
             // Delete current item.
@@ -136,8 +133,8 @@ impl TreeStorage {
         let mut st = self.get_storage_item(parent)?;
         st.children.push(inode);
         self.db
-            .insert(parent.to_be_bytes(), bincode::serialize(&st).map_err(|e| Error::new(ErrorKind::Other, e))?)
-            .map_err(|e| Error::new(ErrorKind::Other, e))?;
+            .insert(parent.to_be_bytes(), bincode::serialize(&st).map_err(Error::other)?)
+            .map_err(Error::other)?;
         Ok(())
     }
     pub fn get_children(&self,inode: u64) -> io::Result<Vec<StorageItem>>{
@@ -156,7 +153,7 @@ impl TreeStorage {
         match self.db.get(inode.to_be_bytes())? {
             Some(value) => {
                 let item: StorageItem = bincode::deserialize(&value)
-                    .map_err(|e| Error::new(ErrorKind::Other, e))?;
+                    .map_err(Error::other)?;
                 Ok(item)
             }
             None => Err(Error::new(ErrorKind::NotFound, "Item not found")),
