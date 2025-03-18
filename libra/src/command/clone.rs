@@ -142,3 +142,34 @@ async fn setup_branch(branch_name: String) {
     })
     .await;
 }
+
+/// Unit tests for the clone module
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+    use tempfile::tempdir;
+    use std::path::Path;
+    use super::*;
+
+    #[tokio::test]
+    #[serial]
+    async fn test_clone_branch() {
+        let local_dir = tempdir().unwrap().into_path();
+        let local_repo = local_dir.to_str().unwrap().to_string();
+
+        let remote_url = "https://gitee.com/pikady/test.git".to_string();
+        
+        command::clone::execute(CloneArgs {
+            remote_repo: remote_url,
+            local_path: Some(local_repo.clone()),
+            branch: Some("dev".to_string()),
+        }).await;
+
+        
+        let libra_dir = Path::new(&local_repo).join(".libra");
+        assert!(libra_dir.exists());
+
+        let text_file = Path::new(&local_repo).join("dev.md");
+        assert!(text_file.exists());
+    }
+}
