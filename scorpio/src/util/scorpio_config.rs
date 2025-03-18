@@ -44,7 +44,13 @@ mod tests {
     #[test]
     fn test_get_url() {
         let config = get_config();
+        assert_eq!(config.get_value("base_url"), Some("http://localhost:8000"));
+        assert_eq!(config.get_value("workspace"), Some("/home/luxian/megadir/mount"));
+        assert_eq!(config.get_value("store_path"), Some("/home/luxian/megadir/store"));
+        assert_eq!(config.get_value("git_author"), Some("MEGA"));
+        assert_eq!(config.get_value("git_email"), Some("admin@mega.org"));
         assert_eq!(config.get_value("file_blob_endpoint"), Some("http://localhost:8000/api/v1/file/blob"));
+        assert_eq!(config.get_value("config_file"), Some("config.toml"));
     }
 
 }

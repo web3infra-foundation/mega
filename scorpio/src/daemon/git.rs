@@ -2,7 +2,7 @@
 use axum::{extract::{Query, State}, response::IntoResponse};
 use mercury::internal::object::commit::Commit;
 use serde::{Deserialize, Serialize};
-
+use crate::util::scorpio_config;
 use super::{ScoState, FAIL, SUCCESS};
 #[derive(serde::Serialize,Default)]
 pub(super) struct GitStatus{
@@ -24,13 +24,14 @@ pub(super) async fn git_status_handler(
 
     let mut  status = axum::Json(GitStatus::default());
     let manager_lock = state.manager.lock().await;
+    let store_path = scorpio_config::get_config().get_value("store_path").unwrap();
     for works in manager_lock.works.iter(){
         if works.path.eq(&params.path){
             return axum::Json(GitStatus{
                 status: SUCCESS.to_string(),
                 mono_path: params.path,
-                upper_path: format!("{}/{}/upper",manager_lock.store_path,works.hash),
-                lower_path: format!("{}/{}/lower",manager_lock.store_path,works.hash),
+                upper_path: format!("{}/{}/upper",store_path,works.hash),
+                lower_path: format!("{}/{}/lower",store_path,works.hash),
                 message: SUCCESS.to_string(),
             });
         }
