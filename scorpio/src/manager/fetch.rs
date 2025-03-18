@@ -312,7 +312,8 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-    let file_blob_endpoint = scorpio_config::get_config().get_value("file_blob_endpoint").unwrap();
+    let file_blob_endpoint = scorpio_config::get_config().get_value("file_blob_endpoint")
+        .ok_or("Missing configuration key: file_blob_endpoint")?;
     let url = format!("{}/{}",file_blob_endpoint,url);
     // Send GET request
     let response = client.get(url).send().await?;
