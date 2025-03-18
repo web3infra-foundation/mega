@@ -42,7 +42,8 @@ impl ScorpioManager {
         Ok(())
     }
     pub async fn mono_commit(&self ,mono_path:String, commit_msg:String) -> Result<Commit, Box<dyn std::error::Error>>{
-        let store_path = scorpio_config::get_config().get_value("store_path").unwrap();
+        let store_path = scorpio_config::get_config().get_value("store_path")
+            .expect("Error: 'store_path' key is missing in the configuration.");
         let work_dir = self.select_work(&mono_path)?;
         let path = PathBuf::from(store_path);
         path.join(work_dir.hash.clone());
@@ -58,8 +59,10 @@ impl ScorpioManager {
         let mut blobs= Vec::new();
         let root_tree = change(upper, path.clone(), &mut trees, &mut blobs, &db);
         trees.push(root_tree.clone());
-        let git_author = scorpio_config::get_config().get_value("git_author").unwrap();
-        let git_email = scorpio_config::get_config().get_value("git_email").unwrap();
+        let git_author = scorpio_config::get_config().get_value("git_author")
+            .expect("Error: 'git_author' key is missing in the configuration.");
+        let git_email = scorpio_config::get_config().get_value("git_email")
+            .expect("Error: 'git_email' key is missing in the configuration.");
         let sign = Signature::new(SignatureType::Author,git_author.to_string(), git_email.to_string());
         let remote_hash  = SHA1::from_str(&work_dir.hash)?;
         let commit = Commit::new(
@@ -95,7 +98,8 @@ impl ScorpioManager {
     pub  async fn push_commit(&self,mono_path:&str) ->Result<reqwest::Response, Box<dyn std::error::Error>>{
         
         let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
-        let store_path = scorpio_config::get_config().get_value("store_path").unwrap();
+        let store_path = scorpio_config::get_config().get_value("store_path")
+            .expect("Error: 'store_path' key is missing in the configuration.");
         let mut path = store_path.to_string();
         path.push_str(&work_dir.hash);
         path.push_str("commit");
@@ -113,7 +117,8 @@ impl ScorpioManager {
 
 
         // Send Commit data to remote mono.
-        let base_url = scorpio_config::get_config().get_value("base_url").unwrap();
+        let base_url = scorpio_config::get_config().get_value("base_url")
+            .expect("Error: 'base_url' key is missing in the configuration.");
         let url = format!("{}/{}/git-receive-pack",base_url,mono_path);
         let client = reqwest::Client::new();
         client
