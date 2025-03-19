@@ -92,6 +92,21 @@ pub fn get_alias_from_identifier(identifier: String) -> Result<String, String> {
     Ok(words.get(3).unwrap().to_string())
 }
 
+pub fn get_path_from_identifier(identifier: String) -> Result<String, String> {
+    // p2p://wGg2inNE22LY1eHttDB63znw2MnsK8CPXeG2nfhpXs5a/third-part/aaa.git
+    let words: Vec<&str> = identifier.split('/').collect();
+    if words.len() <= 3 {
+        return Err("invalid identifier".to_string());
+    }
+    let s: String = words
+        .iter()
+        .skip(3)
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join("/");
+    Ok("/".to_string() + s.as_str())
+}
+
 pub async fn get_git_path_by_alias(
     alias: String,
     peer_id: String,
@@ -114,4 +129,13 @@ pub async fn get_git_path_by_alias(
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::http::handler::get_path_from_identifier;
+
+    #[test]
+    fn test_a() {
+        let s = "p2p://2/third-part/git_inner_net.git";
+        let s = get_path_from_identifier(s.to_string()).unwrap();
+        print!("{}", s);
+    }
+}
