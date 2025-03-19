@@ -6,7 +6,7 @@ use std::{env, fs};
 use async_trait::async_trait;
 use tokio::process::Command;
 
-use callisto::db_enums::ConvType;
+use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_blob, mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::context::Context;
@@ -227,7 +227,7 @@ impl MonoApiService {
             // add conversation
             self.context
                 .mr_stg()
-                .add_mr_conversation(&mr.link, 0, ConvType::Merged, None)
+                .add_mr_conversation(&mr.link, 0, ConvTypeEnum::Merged, None)
                 .await
                 .unwrap();
             // update mr status last
