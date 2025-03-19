@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 
-use callisto::{db_enums::MergeStatus, mega_mr};
+use callisto::{mega_mr, sea_orm_active_enums::MergeStatusEnum};
 use common::utils::generate_id;
 
 #[derive(Clone)]
@@ -8,7 +8,7 @@ pub struct MergeRequest {
     pub id: i64,
     pub link: String,
     pub title: String,
-    pub status: MergeStatus,
+    pub status: MergeStatusEnum,
     pub merge_date: Option<NaiveDateTime>,
     pub path: String,
     pub from_hash: String,
@@ -21,7 +21,7 @@ impl Default for MergeRequest {
             id: generate_id(),
             link: String::new(),
             title: String::new(),
-            status: MergeStatus::Open,
+            status: MergeStatusEnum::Open,
             merge_date: None,
             path: String::new(),
             from_hash: String::new(),
@@ -32,11 +32,11 @@ impl Default for MergeRequest {
 
 impl MergeRequest {
     pub fn close(&mut self) {
-        self.status = MergeStatus::Closed;
+        self.status = MergeStatusEnum::Closed;
     }
 
     pub fn merge(&mut self) {
-        self.status = MergeStatus::Merged;
+        self.status = MergeStatusEnum::Merged;
         self.merge_date = Some(chrono::Utc::now().naive_utc())
     }
 }

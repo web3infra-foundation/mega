@@ -23,7 +23,7 @@ jupiter = { path = "../jupiter" }
 taurus = { path = "../taurus" }
 vault = { path = "../vault" }
 tokio = "1.43.0"
-russh = "0.50.2"
+russh = "0.51.1"
 axum = "0.8.1"
 axum-server = "0.7.1"
 bytes = "1.10.0"

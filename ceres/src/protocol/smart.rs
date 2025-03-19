@@ -5,7 +5,7 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::db_enums::RefType;
+use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::errors::ProtocolError;
 
 use crate::protocol::import_refs::RefCommand;
@@ -232,7 +232,7 @@ impl SmartProtocol {
 
         //2. update each refs and build report
         for command in &mut self.command_list {
-            if command.ref_type == RefType::Tag {
+            if command.ref_type == RefTypeEnum::Tag {
                 // just update if refs type is tag
                 pack_handler.update_refs(None, None, command).await.unwrap();
             } else {
@@ -409,7 +409,7 @@ pub fn read_pkt_line(bytes: &mut Bytes) -> (usize, Bytes) {
 #[cfg(test)]
 pub mod test {
     use bytes::{Bytes, BytesMut};
-    use callisto::db_enums::RefType;
+    use callisto::sea_orm_active_enums::RefTypeEnum;
 
     use crate::protocol::import_refs::{CommandType, RefCommand};
     use crate::protocol::smart::{add_pkt_line_string, read_pkt_line, read_until_white_space};
@@ -476,7 +476,7 @@ pub mod test {
             status: String::from("ok"),
             error_msg: String::new(),
             command_type: CommandType::Create,
-            ref_type: RefType::Branch,
+            ref_type: RefTypeEnum::Branch,
             default_branch: false,
         };
         assert_eq!(result, command);
