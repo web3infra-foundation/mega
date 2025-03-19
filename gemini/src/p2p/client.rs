@@ -46,7 +46,7 @@ use crate::ca;
 use crate::p2p::RequestData;
 use crate::p2p::ResponseData;
 use crate::p2p::{Action, GitCloneHeader};
-use crate::util::{get_git_model_by_path, parse_pointer_data};
+use crate::util::{get_git_model_by_path, get_repo_path, parse_pointer_data};
 
 struct MsgSingletonConnection {
     conn: Arc<Connection>,
@@ -348,8 +348,7 @@ pub async fn request_git_clone(
     let (_file_sender, file_receiver) = file_connection.accept_bi().await?;
 
     let stream = ReaderStream::new(file_receiver).map_err(axum::Error::new);
-    // let repo = Repo::new(path.parse()?, false);
-    let repo = Repo::new(path.parse()?, false);
+    let repo = Repo::new(get_repo_path(path).parse()?, false);
 
     //decode the git objects
     let (sender, mut receiver) = mpsc::channel(1024);
