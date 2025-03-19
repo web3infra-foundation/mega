@@ -1,4 +1,5 @@
 use c::{ConfigError, FileFormat};
+use callisto::sea_orm_active_enums::StorageTypeEnum;
 pub use config as c;
 use config::builder::DefaultState;
 use config::{Source, ValueKind};
@@ -13,7 +14,6 @@ pub struct Config {
     pub base_dir: PathBuf,
     pub log: LogConfig,
     pub database: DbConfig,
-    pub storage: StorageConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
     pub authentication: AuthConfig,
@@ -207,25 +207,6 @@ impl Default for DbConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct StorageConfig {
-    pub obs_access_key: String,
-    pub obs_secret_key: String,
-    pub obs_region: String,
-    pub obs_endpoint: String,
-}
-
-impl Default for StorageConfig {
-    fn default() -> Self {
-        Self {
-            obs_access_key: String::new(),
-            obs_secret_key: String::new(),
-            obs_region: String::from("cn-east-3"),
-            obs_endpoint: String::from("https://obs.cn-east-3.myhuaweicloud.com"),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
     pub import_dir: PathBuf,
     pub admin: String,
@@ -405,23 +386,47 @@ impl PackConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
     pub url: String,
-    pub lfs_obj_local_path: PathBuf,
-    pub enable_split: bool,
-    #[serde(deserialize_with = "string_or_usize")]
-    pub split_size: String,
+    pub storage_type: StorageTypeEnum,
+    pub local: LFSLocalConfig,
+    pub aws: LFSAwsConfig,
 }
 
 impl Default for LFSConfig {
     fn default() -> Self {
         Self {
             url: "http://localhost:8000".to_string(),
-            lfs_obj_local_path: PathBuf::from("/tmp/.mega/lfs"),
+            storage_type: StorageTypeEnum::LocalFs,
+            local: LFSLocalConfig::default(),
+            aws: LFSAwsConfig::default(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LFSLocalConfig {
+    pub lfs_file_path: PathBuf,
+    pub enable_split: bool,
+    #[serde(deserialize_with = "string_or_usize")]
+    pub split_size: String,
+}
+
+impl Default for LFSLocalConfig {
+    fn default() -> Self {
+        Self {
+            lfs_file_path: PathBuf::from("/tmp/.mega/lfs"),
             enable_split: true,
             split_size: "20M".to_string(),
         }
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct LFSAwsConfig {
+    pub s3_bucket: String,
+    pub s3_region: String,
+    pub s3_access_key_id: String,
+    pub s3_secret_access_key: String,
+}
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OauthConfig {
     pub github_client_id: String,

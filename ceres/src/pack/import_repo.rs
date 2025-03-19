@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 
-use callisto::{db_enums::RefType, mega_tree, raw_blob};
+use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
 use jupiter::{context::Context, storage::batch_save_model};
 use mercury::{
@@ -344,7 +344,7 @@ impl ImportRepo {
             .command_list
             .clone()
             .into_iter()
-            .find(|c| c.ref_type == RefType::Branch);
+            .find(|c| c.ref_type == RefTypeEnum::Branch);
         if iter.is_none() {
             return Ok(());
         }

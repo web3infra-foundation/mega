@@ -272,9 +272,8 @@ async fn cache_public_lfs_handler(
             continue;
         }
         let lfs_object = context
-            .services
-            .lfs_db_storage
-            .get_lfs_object(lfs.file_hash.clone())
+            .lfs_stg()
+            .get_lfs_object(&lfs.file_hash)
             .await
             .unwrap();
         if lfs_object.is_some() {
