@@ -187,7 +187,7 @@ pub async fn get_client_connection(bootstrap_node: String) -> Result<Connection>
     client_crypto.alpn_protocols = ALPN_QUIC_HTTP.iter().map(|&x| x.into()).collect();
     client_crypto.enable_early_data = true;
     let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(client_crypto)?));
-    let mut endpoint = Endpoint::client(SocketAddr::from_str("127.0.0.1:0").unwrap())?;
+    let mut endpoint = Endpoint::client(SocketAddr::from_str("[::]:0").unwrap())?;
     endpoint.set_default_client_config(client_config);
 
     let server_addr: SocketAddr = bootstrap_node.parse()?;
@@ -465,9 +465,15 @@ pub async fn response_git_clone(
     }
     file_sender.finish()?;
 
-    let (_file_sender, mut file_receiver) = file_connection.accept_bi().await?;
     //wait finish msg
-    file_receiver.read_to_end(1024).await?;
+    match file_connection.accept_bi().await {
+        Ok((_file_sender, mut file_receiver)) => {
+            file_receiver.read_to_end(1024).await?;
+        }
+        Err(_) => {
+            info!("Git clone connection closed.");
+        }
+    };
     info!(
         "Send git clone data to[{}] with path[{}] successfully",
         to_peer_id, path
@@ -641,9 +647,15 @@ pub async fn response_lfs(
     }
     file_sender.finish()?;
 
-    let (_file_sender, mut file_receiver) = file_connection.accept_bi().await?;
     //wait finish msg
-    file_receiver.read_to_end(1024).await?;
+    match file_connection.accept_bi().await {
+        Ok((_file_sender, mut file_receiver)) => {
+            file_receiver.read_to_end(1024).await?;
+        }
+        Err(_) => {
+            info!("LFS connection closed.");
+        }
+    };
     info!(
         "Send lfs data to[{}], oid: {} successfully",
         to_peer_id, oid
