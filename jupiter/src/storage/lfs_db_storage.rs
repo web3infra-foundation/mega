@@ -28,20 +28,14 @@ impl LfsDbStorage {
         }
     }
 
-    pub async fn new_lfs_object(
-        &self,
-        object: lfs_objects::Model,
-    ) -> Result<InsertResult<lfs_objects::ActiveModel>, MegaError> {
-        Ok(lfs_objects::Entity::insert(object.into_active_model())
+    pub async fn new_lfs_object(&self, object: lfs_objects::Model) -> Result<bool, MegaError> {
+        let res = lfs_objects::Entity::insert(object.into_active_model())
             .exec(self.get_connection())
-            .await
-            .unwrap())
+            .await;
+        Ok(res.is_ok())
     }
 
-    pub async fn get_lfs_object(
-        &self,
-        oid: String,
-    ) -> Result<Option<lfs_objects::Model>, MegaError> {
+    pub async fn get_lfs_object(&self, oid: &str) -> Result<Option<lfs_objects::Model>, MegaError> {
         let result = lfs_objects::Entity::find_by_id(oid)
             .one(self.get_connection())
             .await
@@ -49,11 +43,22 @@ impl LfsDbStorage {
         Ok(result)
     }
 
+    pub async fn save_lfs_relations(
+        &self,
+        models: Vec<lfs_split_relations::Model>,
+    ) -> Result<bool, MegaError> {
+        let a_models: Vec<_> = models.into_iter().map(|m| m.into_active_model()).collect();
+        let res = lfs_split_relations::Entity::insert_many(a_models)
+            .exec(self.get_connection())
+            .await;
+        Ok(res.is_ok())
+    }
+
     pub async fn get_lfs_relations(
         &self,
-        oid: String,
+        oid: &str,
     ) -> Result<Vec<lfs_split_relations::Model>, MegaError> {
-        let obj = self.get_lfs_object(oid.clone()).await?;
+        let obj = self.get_lfs_object(oid).await?;
         if obj.is_none() {
             return Err(MegaError::with_message("Object not found"));
         }
@@ -66,10 +71,7 @@ impl LfsDbStorage {
         Ok(result)
     }
 
-    pub async fn get_lfs_relations_ori_oid(
-        &self,
-        sub_oid: &String,
-    ) -> Result<Vec<String>, MegaError> {
+    pub async fn get_lfs_relations_ori_oid(&self, sub_oid: &str) -> Result<Vec<String>, MegaError> {
         let result = lfs_split_relations::Entity::find()
             .filter(lfs_split_relations::Column::SubOid.eq(sub_oid))
             .all(self.get_connection())
@@ -92,6 +94,15 @@ impl LfsDbStorage {
     ) -> Result<(), MegaError> {
         let r: lfs_split_relations::ActiveModel = object.into();
         lfs_split_relations::Entity::delete(r)
+            .exec(self.get_connection())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    pub async fn delete_lfs_relations(&self, oid: &str) -> Result<(), MegaError> {
+        lfs_split_relations::Entity::delete_many()
+            .filter(lfs_split_relations::Column::OriOid.eq(oid))
             .exec(self.get_connection())
             .await
             .unwrap();
