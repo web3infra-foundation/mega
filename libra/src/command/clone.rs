@@ -1,4 +1,4 @@
-use crate::command;
+use crate::command::{self, branch};
 use crate::command::restore::RestoreArgs;
 use crate::internal::branch::Branch;
 use crate::internal::config::{Config, RemoteConfig};
@@ -73,6 +73,14 @@ pub async fn execute(args: CloneArgs) {
         }
     }
 
+    //check if the branch name is valid
+    if let Some(branch) = args.branch.clone() {
+        if !branch::is_valid_git_branch_name(&branch) {
+            eprintln!("invalid branch name: '{}'.\n\nBranch names must:\n- Not contain spaces, control characters, or any of these characters: \\ : \" ? * [\n- Not start or end with a slash ('/'), or end with a dot ('.')\n- Not contain consecutive slashes ('//') or dots ('..')\n- Not be reserved names like 'HEAD' or contain '@{{'\n- Not be empty or just a dot ('.')\n\nPlease choose a valid branch name.", branch);
+            return;
+        }
+    }
+
     // CAUTION: change [current_dir] to the repo directory
     env::set_current_dir(&local_path).unwrap();
     let init_args = command::init::InitArgs {
@@ -109,16 +117,16 @@ async fn setup(remote_repo: String, specified_branch: Option<String>) {
     }else {
         println!("warning: You appear to have cloned an empty repository.");
 
-            // set config: remote.origin.url
-            Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
-            // set config: remote.origin.fetch
-            // todo: temporary ignore fetch option
+        // set config: remote.origin.url
+        Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
+        // set config: remote.origin.fetch
+        // todo: temporary ignore fetch option
 
-            // set config: branch.$name.merge, e.g.
-            let merge = "refs/heads/master".to_owned();
-            Config::insert("branch", Some("master"), "merge", &merge).await;
-            // set config: branch.$name.remote
-            Config::insert("branch", Some("master"), "remote", ORIGIN).await;
+        // set config: branch.$name.merge, e.g.
+        let merge = "refs/heads/master".to_owned();
+        Config::insert("branch", Some("master"), "merge", &merge).await;
+        // set config: branch.$name.remote
+        Config::insert("branch", Some("master"), "remote", ORIGIN).await;
     }
 }
 
@@ -157,7 +165,7 @@ mod tests {
         let local_dir = tempdir().unwrap().into_path();
         let local_repo = local_dir.to_str().unwrap().to_string();
 
-        let remote_url = "https://gitee.com/pikady/test.git".to_string();
+        let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
         
         command::clone::execute(CloneArgs {
             remote_repo: remote_url,
@@ -165,11 +173,70 @@ mod tests {
             branch: Some("dev".to_string()),
         }).await;
 
-        
+        // Verify that the `.libra` directory exists
         let libra_dir = Path::new(&local_repo).join(".libra");
         assert!(libra_dir.exists());
 
-        let text_file = Path::new(&local_repo).join("dev.md");
-        assert!(text_file.exists());
+        // Verify the Head reference
+        match Head::current().await {
+            Head::Branch(current_branch) => {
+                assert_eq!(current_branch, "dev");
+            }
+            _ => panic!("should be branch"),
+        };
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_clone_default_branch() {
+        let local_dir = tempdir().unwrap().into_path();
+        let local_repo = local_dir.to_str().unwrap().to_string();
+
+        let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
+        
+        command::clone::execute(CloneArgs {
+            remote_repo: remote_url,
+            local_path: Some(local_repo.clone()),
+            branch: None,
+        }).await;
+
+        // Verify that the `.libra` directory exists
+        let libra_dir = Path::new(&local_repo).join(".libra");
+        assert!(libra_dir.exists());
+
+        // Verify the Head reference
+        match Head::current().await {
+            Head::Branch(current_branch) => {
+                assert_eq!(current_branch, "master");
+            }
+            _ => panic!("should be branch"),
+        };
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_clone_empty_repo() {
+        let local_dir = tempdir().unwrap().into_path();
+        let local_repo = local_dir.to_str().unwrap().to_string();
+
+        let remote_url = "https://gitee.com/pikady/mega-libra-empty-repo.git".to_string();
+        
+        command::clone::execute(CloneArgs {
+            remote_repo: remote_url,
+            local_path: Some(local_repo.clone()),
+            branch: None,
+        }).await;
+
+        // Verify that the `.libra` directory exists
+        let libra_dir = Path::new(&local_repo).join(".libra");
+        assert!(libra_dir.exists());
+
+        // Verify the Head reference
+        match Head::current().await {
+            Head::Branch(current_branch) => {
+                assert_eq!(current_branch, "master");
+            }
+            _ => panic!("should be branch"),
+        };
     }
 }
