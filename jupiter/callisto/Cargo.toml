@@ -6,7 +6,7 @@ publish = false
 
 [lib]
 name = "callisto"
-path = "src/lib.rs"
+path = "src/mod.rs"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
