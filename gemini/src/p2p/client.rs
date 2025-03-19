@@ -10,7 +10,7 @@ use anyhow::Result;
 use callisto::{import_refs, lfs_objects};
 use ceres::lfs::handler;
 use ceres::lfs::handler::lfs_download_object;
-use ceres::lfs::lfs_structs::RequestVars;
+use ceres::lfs::lfs_structs::RequestObject;
 use ceres::protocol::repo::Repo;
 use common::utils::generate_id;
 use dashmap::DashMap;
@@ -552,14 +552,10 @@ pub async fn request_lfs(
         oid: header.oid,
         size: header.size,
         exist: true,
-        splited: config.enable_split,
+        splited: config.local.enable_split,
     };
 
-    let res = context
-        .services
-        .lfs_db_storage
-        .new_lfs_object(meta_to)
-        .await;
+    let res = context.lfs_stg().new_lfs_object(meta_to).await;
     match res {
         Ok(_) => {}
         Err(e) => {
@@ -568,13 +564,12 @@ pub async fn request_lfs(
     }
 
     // Load request parameters into struct.
-    let request_vars = RequestVars {
+    let req_obj = RequestObject {
         oid,
-        authorization: "".to_string(),
         ..Default::default()
     };
 
-    let result = handler::lfs_upload_object(&context.clone(), &request_vars, data.as_slice()).await;
+    let result = handler::lfs_upload_object(&context.clone(), &req_obj, data).await;
 
     match result {
         Ok(_) => {
@@ -595,9 +590,8 @@ pub async fn response_lfs(
 ) -> Result<()> {
     info!("oid:{}", oid.clone());
     let result = context
-        .services
-        .lfs_db_storage
-        .get_lfs_object(oid.to_owned())
+        .lfs_stg()
+        .get_lfs_object(oid.as_str())
         .await
         .unwrap();
 
