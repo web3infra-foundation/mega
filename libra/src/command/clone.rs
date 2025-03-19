@@ -1,5 +1,5 @@
-use crate::command::{self, branch};
 use crate::command::restore::RestoreArgs;
+use crate::command::{self, branch};
 use crate::internal::branch::Branch;
 use crate::internal::config::{Config, RemoteConfig};
 use crate::internal::head::Head;
@@ -110,11 +110,11 @@ async fn setup(remote_repo: String, specified_branch: Option<String>) {
 
     if let Some(specified_branch) = specified_branch {
         setup_branch(specified_branch).await;
-    }else if let Some(Head::Branch(name)) = remote_head {
+    } else if let Some(Head::Branch(name)) = remote_head {
         setup_branch(name).await;
-    }else if let Some(Head::Detached(_)) = remote_head {
+    } else if let Some(Head::Detached(_)) = remote_head {
         eprintln!("fatal: remote HEAD points to a detached commit");
-    }else {
+    } else {
         println!("warning: You appear to have cloned an empty repository.");
 
         // set config: remote.origin.url
@@ -132,8 +132,8 @@ async fn setup(remote_repo: String, specified_branch: Option<String>) {
 
 async fn setup_branch(branch_name: String) {
     let origin_head_branch = Branch::find_branch(&branch_name, Some(ORIGIN))
-    .await
-    .expect("origin HEAD branch not found");
+        .await
+        .expect("origin HEAD branch not found");
 
     Branch::update_branch(&branch_name, &origin_head_branch.commit.to_string(), None).await;
     Head::update(Head::Branch(branch_name.to_owned()), None).await;
@@ -154,10 +154,10 @@ async fn setup_branch(branch_name: String) {
 /// Unit tests for the clone module
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
-    use tempfile::tempdir;
-    use std::path::Path;
     use super::*;
+    use serial_test::serial;
+    use std::path::Path;
+    use tempfile::tempdir;
 
     #[tokio::test]
     #[serial]
@@ -166,12 +166,13 @@ mod tests {
         let local_repo = local_dir.to_str().unwrap().to_string();
 
         let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
-        
+
         command::clone::execute(CloneArgs {
             remote_repo: remote_url,
             local_path: Some(local_repo.clone()),
             branch: Some("dev".to_string()),
-        }).await;
+        })
+        .await;
 
         // Verify that the `.libra` directory exists
         let libra_dir = Path::new(&local_repo).join(".libra");
@@ -193,12 +194,13 @@ mod tests {
         let local_repo = local_dir.to_str().unwrap().to_string();
 
         let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
-        
+
         command::clone::execute(CloneArgs {
             remote_repo: remote_url,
             local_path: Some(local_repo.clone()),
             branch: None,
-        }).await;
+        })
+        .await;
 
         // Verify that the `.libra` directory exists
         let libra_dir = Path::new(&local_repo).join(".libra");
@@ -220,12 +222,13 @@ mod tests {
         let local_repo = local_dir.to_str().unwrap().to_string();
 
         let remote_url = "https://gitee.com/pikady/mega-libra-empty-repo.git".to_string();
-        
+
         command::clone::execute(CloneArgs {
             remote_repo: remote_url,
             local_path: Some(local_repo.clone()),
             branch: None,
-        }).await;
+        })
+        .await;
 
         // Verify that the `.libra` directory exists
         let libra_dir = Path::new(&local_repo).join(".libra");
