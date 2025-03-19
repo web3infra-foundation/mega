@@ -43,7 +43,8 @@ pub async fn run(host: String, port: u16) -> Result<()> {
             let fut = handle_connection(conn);
             tokio::spawn(async move {
                 if let Err(e) = fut.await {
-                    error!("connection failed: {reason}", reason = e.to_string())
+                    error!("connection failed: {reason}", reason = e.to_string());
+                    // remove_close_connection();
                 }
             });
         }
@@ -124,6 +125,13 @@ async fn handle_connection(conn: quinn::Incoming) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn _remove_close_connection() {
+    MSG_CONNECTION_MAP.retain(|_, v| v.close_reason().is_some());
+    GIT_OBJECTS_CONNECTION_MAP.retain(|_, v| v.close_reason().is_some());
+    LFS_CONNECTION_MAP.retain(|_, v| v.close_reason().is_some());
+    REQ_ID_MAP.retain(|_, v| v.close_reason().is_some());
 }
 
 async fn msg_handle_receive(connection: Arc<quinn::Connection>) -> anyhow::Result<()> {
