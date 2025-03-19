@@ -98,7 +98,7 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     if let Some(data) =
         data.strip_prefix(format!("version {}\noid {}:", LFS_VERSION, LFS_HASH_ALGO).as_bytes())
     {
-        if data[LFS_OID_LEN] == b'\n' {
+        if data.len() >= LFS_OID_LEN + 1 && data[LFS_OID_LEN] == b'\n' {
             // check `oid` length
             let oid = String::from_utf8(data[..LFS_OID_LEN].to_vec()).unwrap();
             if let Some(data) = data.strip_prefix(format!("{}\nsize ", oid).as_bytes()) {
