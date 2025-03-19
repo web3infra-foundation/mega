@@ -144,7 +144,7 @@ mod tests {
 
         // Test the check_status
         // Expect false when no changes
-        assert_eq!(check_status().await, false);
+        assert!(!check_status().await);
 
         // Create a file and add it to the index
         // Expect true when there are unstaged changes
@@ -156,12 +156,12 @@ mod tests {
             verbose: true,
         };
         add::execute(add_args).await;
-        assert_eq!(check_status().await, true);
+        assert!(check_status().await);
 
         // Modify a file
         // Expect true when there are uncommitted changes
         fs::write("foo.txt", "modified content").unwrap();
-        assert_eq!(check_status().await, true);
+        assert!(check_status().await);
     }
 
     #[tokio::test]

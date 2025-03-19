@@ -4,17 +4,16 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "git_tree")]
+#[sea_orm(table_name = "builds")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub id: i64,
-    pub repo_id: i64,
-    pub tree_id: String,
-    #[sea_orm(column_type = "VarBinary(StringLen::None)")]
-    pub sub_trees: Vec<u8>,
-    pub size: i32,
-    pub commit_id: String,
-    pub created_at: DateTime,
+    pub build_id: Uuid,
+    pub output: String,
+    pub exit_code: Option<i32>,
+    pub start_at: DateTime,
+    pub end_at: DateTime,
+    pub repo_name: String,
+    pub target: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
