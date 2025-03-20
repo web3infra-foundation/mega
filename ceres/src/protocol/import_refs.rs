@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use callisto::{db_enums::RefType, import_refs, mega_refs};
+use callisto::{import_refs, mega_refs, sea_orm_active_enums::RefTypeEnum};
 use common::utils::{generate_id, MEGA_BRANCH_NAME, ZERO_ID};
 
 ///
@@ -52,7 +52,7 @@ pub struct RefCommand {
     pub status: String,
     pub error_msg: String,
     pub command_type: CommandType,
-    pub ref_type: RefType,
+    pub ref_type: RefTypeEnum,
     pub default_branch: bool,
 }
 
@@ -79,9 +79,9 @@ impl RefCommand {
             error_msg: "".to_owned(),
             command_type,
             ref_type: if ref_name.starts_with("refs/tags") {
-                RefType::Tag
+                RefTypeEnum::Tag
             } else {
-                RefType::Branch
+                RefTypeEnum::Branch
             },
             default_branch: false,
         }

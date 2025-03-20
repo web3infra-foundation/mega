@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use axum::{
     extract::{Query, State},
@@ -9,12 +9,8 @@ use axum::{
 
 use callisto::{ztm_nostr_event, ztm_nostr_req};
 use gemini::nostr::{
-    client_message::{ClientMessage, SubscriptionId},
-    event::NostrEvent,
-    relay_message::RelayMessage,
-    tag::TagKind,
+    client_message::ClientMessage, event::NostrEvent, relay_message::RelayMessage,
 };
-use jupiter::storage::ztm_storage::ZTMStorage;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -112,129 +108,6 @@ async fn recieve(
         }
     }
 }
-
-async fn _transfer_event_to_subscribed_nodes(
-    storage: ZTMStorage,
-    nostr_event: NostrEvent,
-    ztm_agent_port: u16,
-) {
-    // only support p2p_uri subscription
-    let mut uri = String::new();
-    for tag in nostr_event.clone().tags {
-        if let gemini::nostr::tag::Tag::Generic(TagKind::URI, t) = tag {
-            if !t.is_empty() {
-                uri = t.first().unwrap().to_string();
-            }
-        }
-    }
-    if uri.is_empty() {
-        return;
-    }
-    let req_list: Vec<Req> = storage
-        .get_all_nostr_req()
-        .await
-        .unwrap()
-        .iter()
-        .map(|x| x.clone().into())
-        .collect();
-    let mut subscription_id_set: HashSet<String> = HashSet::new();
-    for req in req_list {
-        for filter in req.clone().filters {
-            if let Some(uri_vec) = filter.generic_tags.get(&TagKind::URI.to_string()) {
-                if uri_vec.is_empty() {
-                    continue;
-                }
-                let req_uri = uri_vec.first().unwrap();
-                if *req_uri == uri {
-                    subscription_id_set.insert(req.subscription_id.clone());
-                }
-            }
-        }
-    }
-
-    for subscription_id in subscription_id_set {
-        //send event
-        let msg = RelayMessage::new_event(
-            SubscriptionId::new(subscription_id.clone()),
-            nostr_event.clone(),
-        )
-        .as_json();
-        match gemini::ztm::send_post_request_to_peer_by_tunnel(
-            ztm_agent_port,
-            subscription_id.clone(),
-            "api/v1/mega/nostr".to_string(),
-            msg,
-        )
-        .await
-        {
-            Ok(_) => {
-                tracing::info!("send event msg to {} successfully", subscription_id)
-            }
-            Err(e) => {
-                tracing::error!("send event msg to {} failed:{}", subscription_id, e)
-            }
-        };
-    }
-}
-
-// async fn search_event_by_filters(
-//     storage: Arc<ZTMStorage>,
-//     filters: Vec<Filter>,
-// ) -> Vec<NostrEvent> {
-//     // only support repo_uri subscribe
-//     // todo support all filter
-//     // todo Optimizing the code
-//     let mut list = vec![];
-
-//     let mut uri_event_map: HashMap<String, Vec<NostrEvent>> = HashMap::new();
-
-//     let event_list = storage.get_all_nostr_event().await.unwrap();
-//     let event_list: Vec<NostrEvent> = event_list
-//         .iter()
-//         .map(|x| x.clone().try_into().unwrap())
-//         .collect();
-
-//     for event in event_list {
-//         for tag in event.clone().tags {
-//             match tag {
-//                 gemini::nostr::tag::Tag::Generic(TagKind::URI, v) => {
-//                     if !v.is_empty() {
-//                         let event_tag_uri = v.first().unwrap().to_string();
-//                         match uri_event_map.get(&event_tag_uri) {
-//                             Some(vec) => {
-//                                 let mut vec = vec.clone();
-//                                 vec.push(event.clone());
-//                                 uri_event_map.insert(event_tag_uri, vec);
-//                             }
-//                             None => {
-//                                 let vec = vec![event.clone()];
-//                                 uri_event_map.insert(event_tag_uri, vec);
-//                             }
-//                         }
-//                     }
-//                 }
-//                 _ => {}
-//             }
-//         }
-//     }
-
-//     for f in filters {
-//         // tracing::info!("filter:{:?}", f);
-//         match f.generic_tags.get(&TagKind::URI.to_string()) {
-//             Some(uri_vec) => {
-//                 if uri_vec.is_empty() {
-//                     continue;
-//                 }
-//                 let uri = uri_vec.first().unwrap();
-//                 if let Some(vec) = uri_event_map.get(uri) {
-//                     list.extend(vec.clone());
-//                 }
-//             }
-//             None => {}
-//         }
-//     }
-//     list
-// }
 
 pub async fn event_list(
     Query(_query): Query<HashMap<String, String>>,

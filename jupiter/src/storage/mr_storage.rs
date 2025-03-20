@@ -5,7 +5,7 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
-use callisto::db_enums::{ConvType, MergeStatus};
+use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use callisto::{mega_conversation, mega_mr};
 use common::errors::MegaError;
 use common::utils::generate_id;
@@ -36,7 +36,7 @@ impl MrStorage {
     ) -> Result<Option<mega_mr::Model>, MegaError> {
         let model = mega_mr::Entity::find()
             .filter(mega_mr::Column::Path.eq(path))
-            .filter(mega_mr::Column::Status.eq(MergeStatus::Open))
+            .filter(mega_mr::Column::Status.eq(MergeStatusEnum::Open))
             .one(self.get_connection())
             .await
             .unwrap();
@@ -45,7 +45,7 @@ impl MrStorage {
 
     pub async fn get_mr_by_status(
         &self,
-        status: Vec<MergeStatus>,
+        status: Vec<MergeStatusEnum>,
         page: u64,
         per_page: u64,
     ) -> Result<(Vec<mega_mr::Model>, u64), MegaError> {
@@ -85,7 +85,7 @@ impl MrStorage {
         self.add_mr_conversation(
             &model.link,
             user_id,
-            ConvType::Closed,
+            ConvTypeEnum::Closed,
             Some(format!("{} closed this", username)),
         )
         .await
@@ -103,7 +103,7 @@ impl MrStorage {
         self.add_mr_conversation(
             &model.link,
             user_id,
-            ConvType::Reopen,
+            ConvTypeEnum::Reopen,
             Some(format!("{} reopen this", username)),
         )
         .await
@@ -142,7 +142,7 @@ impl MrStorage {
         &self,
         link: &str,
         user_id: i64,
-        conv_type: ConvType,
+        conv_type: ConvTypeEnum,
         comment: Option<String>,
     ) -> Result<i64, MegaError> {
         let conversation = mega_conversation::Model {

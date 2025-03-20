@@ -16,6 +16,7 @@ callisto = { workspace = true }
 vault = { workspace = true }
 jupiter = { workspace = true }
 ceres = { workspace = true }
+mercury = { workspace = true }
 
 axum = { workspace = true }
 serde = { workspace = true }
@@ -25,12 +26,12 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 chrono = { workspace = true }
 secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
-ring = "0.17.8"
-hex = { workspace = true }
-async-trait = { workspace = true }
 quinn = "0.11"
 anyhow = { workspace = true }
 lazy_static = { workspace = true }
-rcgen = {version="0.13",features=["x509-parser","pem", "crypto"]}
+rcgen = { version = "0.13", features = ["x509-parser", "pem", "crypto"] }
 dashmap = "6.0.1"
 uuid = { workspace = true }
+futures-util = { workspace = true }
+tokio-util = "0.7.13"
+futures = { workspace = true }

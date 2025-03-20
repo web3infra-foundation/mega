@@ -4,6 +4,7 @@ mod async_io;
 mod tree_store;
 use std::{collections::HashMap, ffi::{OsStr, OsString}, sync::Arc};
 use crate::manager::fetch::fetch_tree;
+use crate::util::scorpio_config;
 
 use mercury::internal::object::tree::TreeItemMode;
 use reqwest::Client;
@@ -35,6 +36,9 @@ impl Dicfuse{
     async fn load_one_file(&self, parent: u64, name: &OsStr) -> std::io::Result<()>{
         let mut parent_item = self.store.find_path(parent).await.unwrap();
         let tree = fetch_tree(&parent_item).await.unwrap();
+
+        let file_blob_endpoint = scorpio_config::get_config().get_value("file_blob_endpoint")
+            .expect("Error: 'file_blob_endpoint' key is missing in the configuration.");
        
         let client = Client::new();
         for i in tree.tree_items{
@@ -45,7 +49,7 @@ impl Dicfuse{
                 return Ok(());
             }
 
-            let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.
+            let url = format!("{}/{}",file_blob_endpoint,i.id);
             // Send GET request
             let response = client.get(url).send().await.unwrap();//todo error 
             
@@ -76,12 +80,14 @@ impl Dicfuse{
         let tree = fetch_tree(&gpath).await.unwrap(); 
         let mut is_first  = true;
         let client = Client::new();
+        let file_blob_endpoint = scorpio_config::get_config().get_value("file_blob_endpoint")
+            .expect("Error: 'file_blob_endpoint' key is missing in the configuration.");
         for i in tree.tree_items{
             //TODO & POS_BUG: how to deal with the link?
             if i.mode!=TreeItemMode::Blob && i.mode!=TreeItemMode::BlobExecutable{
                 continue;
             }
-            let url = format!("http://localhost:8000/api/v1/file/blob/{}",i.id);//TODO: configabel.
+            let url = format!("{}/{}",file_blob_endpoint,i.id);
             // Send GET request
             let response = client.get(url).send().await.unwrap();//todo error 
             
