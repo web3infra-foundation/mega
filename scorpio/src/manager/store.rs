@@ -59,6 +59,53 @@ pub async fn store_trees(storepath:&str,mut tree_channel: Receiver<(GPath,Tree)>
     
     println!("finish store....");
 }
+
+pub trait StatusStore {
+    fn add(&self,path:PathBuf) -> Result<()>;
+    fn add_content(&self,path:PathBuf,content: &[u8]) -> Result<()>;// if the state of a file is deleted, content is None.
+    fn state_list(&self) -> Result<Vec<PathBuf>>;
+    fn get_content(&self,path:PathBuf) -> Result<Vec<u8>>;
+    fn delete(&self,path:PathBuf) -> Result<bool>; // true for success, false for no this path.
+}
+impl StatusStore for sled::Db {
+    fn add(&self, path: PathBuf) -> Result<()> {
+        let key = path.to_str().unwrap();
+        self.insert(key, b"")?;
+        Ok(())
+    }
+    
+    fn add_content(&self, path: PathBuf, content: &[u8]) -> Result<()> {
+        let key = path.to_str().unwrap();
+        self.insert(key, content)?;
+        Ok(())
+    }
+    
+    fn state_list(&self) -> Result<Vec<PathBuf>> {
+        let mut paths = Vec::new();
+        for item in self.iter() {
+            let (key, _) = item?;
+            let key_str = std::str::from_utf8(&key).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Invalid UTF8"))?;
+            paths.push(PathBuf::from(key_str));
+        }
+        Ok(paths)
+    }
+    
+    fn get_content(&self, path: PathBuf) -> Result<Vec<u8>> {
+        let key = path.to_str().unwrap();
+        if let Some(content) = self.get(key)? {
+            Ok(content.to_vec())
+        } else {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"))
+        }
+    }
+    
+    fn delete(&self, path: PathBuf) -> Result<bool> {
+        let key = path.to_str().unwrap();
+        let removed = self.remove(key)?;
+        Ok(removed.is_some())
+    }
+}
+
 #[cfg(test)]
 mod test{
     use std::vec;
