@@ -9,8 +9,9 @@ use axum::{
 };
 use callisto::git_repo::Model;
 use common::model::CommonResult;
-use gemini::http::handler::{get_path_from_identifier, get_peer_id_from_identifier};
-use gemini::util::repo_path_to_identifier;
+use gemini::util::{
+    get_path_from_identifier, get_peer_id_from_identifier, repo_path_to_identifier,
+};
 
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
