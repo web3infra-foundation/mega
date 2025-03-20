@@ -5,9 +5,9 @@ use crate::internal::protocol::ProtocolClient;
 use crate::utils::{lfs, util};
 use anyhow::anyhow;
 use ceres::lfs::lfs_structs::{
-    BatchRequest, ChunkRepresentation, FetchchunkResponse, LockList, LockListQuery, LockRequest,
-    ObjectError, Ref, Representation, RequestVars, UnlockRequest, VerifiableLockList,
-    VerifiableLockRequest,
+    Action, BatchRequest, ChunkDownloadObject, FetchchunkResponse, LockList, LockListQuery,
+    LockRequest, ObjectError, Operation, Ref, RequestObject, ResponseObject, UnlockRequest,
+    VerifiableLockList, VerifiableLockRequest,
 };
 use futures_util::StreamExt;
 use mercury::internal::object::types::ObjectType;
@@ -43,7 +43,7 @@ impl LFSClient {
 #[derive(Serialize, Deserialize)]
 struct LfsBatchResponse {
     transfer: Option<String>,
-    objects: Vec<Representation>,
+    objects: Vec<ResponseObject>,
     hash_algo: Option<String>,
 }
 
@@ -115,7 +115,7 @@ impl LFSClient {
                 continue;
             }
             let size = path.metadata().unwrap().len() as i64;
-            lfs_objs.push(RequestVars {
+            lfs_objs.push(RequestObject {
                 oid: oid.to_owned(),
                 size,
                 ..Default::default()
@@ -184,7 +184,7 @@ impl LFSClient {
         }
 
         let batch_request = BatchRequest {
-            operation: "upload".to_string(),
+            operation: Operation::Upload,
             transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
             objects: lfs_objs,
             hash_algo: lfs::LFS_HASH_ALGO.to_string(),
@@ -217,9 +217,9 @@ impl LFSClient {
     /// push LFS object to remote server, didn't need local lfs storage
     pub async fn push_object(&self, oid: &str, file: &Path) -> Result<(), ()> {
         let batch_request = BatchRequest {
-            operation: "upload".to_string(),
+            operation: Operation::Upload,
             transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
-            objects: vec![RequestVars {
+            objects: vec![RequestObject {
                 oid: oid.to_owned(),
                 size: file.metadata().unwrap().len() as i64,
                 ..Default::default()
@@ -255,7 +255,7 @@ impl LFSClient {
     }
 
     /// upload (PUT) one LFS file to remote server
-    async fn upload_object(&self, object: Representation, file: &Path) -> Result<(), ()> {
+    async fn upload_object(&self, object: ResponseObject, file: &Path) -> Result<(), ()> {
         if let Some(err) = object.error {
             eprintln!(
                 "fatal: LFS upload failed. Code: {}, Message: {}",
@@ -265,7 +265,7 @@ impl LFSClient {
         }
 
         if let Some(actions) = object.actions {
-            let upload_link = actions.get("upload");
+            let upload_link = actions.get(&Action::Upload);
             if upload_link.is_none() {
                 eprintln!("fatal: LFS upload failed. No upload action found");
                 return Err(());
@@ -337,9 +337,9 @@ impl LFSClient {
         )>,
     ) -> anyhow::Result<()> {
         let batch_request = BatchRequest {
-            operation: "download".to_string(),
+            operation: Operation::Download,
             transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
-            objects: vec![RequestVars {
+            objects: vec![RequestObject {
                 oid: oid.to_owned(),
                 size: size as i64,
                 ..Default::default()
@@ -375,7 +375,12 @@ impl LFSClient {
             return Err(anyhow!("LFS download failed."));
         }
 
-        let link = obj.actions.as_ref().unwrap().get("download").unwrap();
+        let link = obj
+            .actions
+            .as_ref()
+            .unwrap()
+            .get(&Action::Download)
+            .unwrap();
 
         let mut is_chunked = false;
         // Chunk API
@@ -500,7 +505,7 @@ impl LFSClient {
     }
 
     /// Only for MonoRepo (mega)
-    async fn fetch_chunks(&self, obj_link: &str) -> Result<Vec<ChunkRepresentation>, ()> {
+    async fn fetch_chunks(&self, obj_link: &str) -> Result<Vec<ChunkDownloadObject>, ()> {
         let mut url = Url::parse(obj_link).unwrap();
         let path = url.path().trim_end_matches('/');
         url.set_path(&(path.to_owned() + "/chunks")); // reserve query params (for GitHub link)
@@ -809,7 +814,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_request_vars() {
-        let vars = RequestVars {
+        let vars = RequestObject {
             oid: "123".to_string(),
             size: 123,
             ..Default::default()
@@ -820,9 +825,9 @@ mod tests {
     #[tokio::test]
     async fn test_github_batch() {
         let batch_request = BatchRequest {
-            operation: "download".to_string(),
+            operation: Operation::Download,
             transfers: vec![lfs::LFS_TRANSFER_API.to_string()],
-            objects: vec![RequestVars {
+            objects: vec![RequestObject {
                 oid: "01cb1483670f1c497412f25f9f8f7dde31a8fab0960291035af03939ae1dfa6b".to_string(),
                 size: 104103,
                 ..Default::default()
