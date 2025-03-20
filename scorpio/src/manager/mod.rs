@@ -6,6 +6,7 @@ use push::pack;
 use serde::{Deserialize, Serialize};
 use tokio::{fs::File, io::AsyncWriteExt};
 use std::{fs, path::PathBuf, str::FromStr};
+use crate::util::scorpio_config;
 
 pub mod diff;
 pub mod push;
@@ -14,11 +15,11 @@ pub mod store;
 mod commit;
 #[derive(Serialize,Deserialize)]
 pub struct  ScorpioManager{
-    pub url:String,
-    pub workspace:String,
-    pub store_path:String,// the path to store init code (or remote code), name is hash value . 
-    pub git_author:String,
-    pub git_email:String,
+    // pub url:String,
+    // pub workspace:String,
+    // pub store_path:String,// the path to store init code (or remote code), name is hash value .
+    // pub git_author:String,
+    // pub git_email:String,
     pub works:Vec<WorkDir>,
 }
 #[derive(Serialize,Deserialize,Clone)]
@@ -41,8 +42,10 @@ impl ScorpioManager {
         Ok(())
     }
     pub async fn mono_commit(&self ,mono_path:String, commit_msg:String) -> Result<Commit, Box<dyn std::error::Error>>{
+        let store_path = scorpio_config::get_config().get_value("store_path")
+            .expect("Error: 'store_path' key is missing in the configuration.");
         let work_dir = self.select_work(&mono_path)?;
-        let path = PathBuf::from(self.store_path.clone());
+        let path = PathBuf::from(store_path);
         path.join(work_dir.hash.clone());
         let mut lower  = path.clone();
         lower.push("lower");
@@ -56,7 +59,11 @@ impl ScorpioManager {
         let mut blobs= Vec::new();
         let root_tree = change(upper, path.clone(), &mut trees, &mut blobs, &db);
         trees.push(root_tree.clone());
-        let sign = Signature::new(SignatureType::Author,self.git_author.clone(), self.git_email.clone());
+        let git_author = scorpio_config::get_config().get_value("git_author")
+            .expect("Error: 'git_author' key is missing in the configuration.");
+        let git_email = scorpio_config::get_config().get_value("git_email")
+            .expect("Error: 'git_email' key is missing in the configuration.");
+        let sign = Signature::new(SignatureType::Author,git_author.to_string(), git_email.to_string());
         let remote_hash  = SHA1::from_str(&work_dir.hash)?;
         let commit = Commit::new(
             sign.clone(),
@@ -91,7 +98,9 @@ impl ScorpioManager {
     pub  async fn push_commit(&self,mono_path:&str) ->Result<reqwest::Response, Box<dyn std::error::Error>>{
         
         let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
-        let mut path = self.store_path.clone();
+        let store_path = scorpio_config::get_config().get_value("store_path")
+            .expect("Error: 'store_path' key is missing in the configuration.");
+        let mut path = store_path.to_string();
         path.push_str(&work_dir.hash);
         path.push_str("commit");
 
@@ -108,7 +117,9 @@ impl ScorpioManager {
 
 
         // Send Commit data to remote mono.
-        let url = format!("{}/{}/git-receive-pack",self.url,mono_path);
+        let base_url = scorpio_config::get_config().get_value("base_url")
+            .expect("Error: 'base_url' key is missing in the configuration.");
+        let url = format!("{}/{}/git-receive-pack",base_url,mono_path);
         let client = reqwest::Client::new();
         client
             .post(&url)
@@ -150,16 +161,12 @@ mod tests {
     #[test]
     fn test_from_toml() {
         let toml_content = r#"
-            url = "http://example.com"
-            mount_path = "/mnt/example"
-            works = [{ path = "/path/to/work1", hash = "hash1" }]
+            works = [{ path = "/path/to/work1", hash = "hash1", node = 1}]
         "#;
 
         fs::write(TEST_FILE, toml_content).expect("Unable to write test file");
 
         let manager = ScorpioManager::from_toml(TEST_FILE).expect("Failed to parse TOML");
-        assert_eq!(manager.url, "http://example.com");
-        assert_eq!(manager.workspace, "/mnt/example");
         assert_eq!(manager.works.len(), 1);
         assert_eq!(manager.works[0].path, "/path/to/work1");
         assert_eq!(manager.works[0].hash, "hash1");
@@ -169,21 +176,14 @@ mod tests {
     #[test]
     fn test_to_toml() {
         let manager = ScorpioManager {
-            url: "http://example.com".to_string(),
-            workspace: "/mnt/example".to_string(),
             works: vec![
                 WorkDir {path:"/path/to/work1".to_string(),hash:"hash1".to_string(), node: 4 },
                 WorkDir {path:"/path/to/work2".to_string(),hash:"hash2".to_string(), node: 5 }],
-            store_path: "/path/to/lower".to_string(),
-            git_author: "MEGA".to_string(),
-            git_email:  "admin@mega.com".to_string(),
         };
 
         manager.to_toml(TEST_FILE).expect("Failed to write TOML");
 
         let content = fs::read_to_string(TEST_FILE).expect("Unable to read test file");
-        assert!(content.contains("url = \"http://example.com\""));
-        assert!(content.contains("mount_path = \"/mnt/example\""));
         assert!(content.contains("path = \"/path/to/work1\""));
         assert!(content.contains("hash = \"hash1\""));
        
