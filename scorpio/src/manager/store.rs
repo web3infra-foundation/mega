@@ -21,7 +21,7 @@ impl  TreeStore for sled::Db {
     fn get_bypath(&self,path:PathBuf)-> Result<Tree> {
         let key = path.to_str().unwrap();
         let encoded_value= self.get(key)?;
-        let decoded: Result<Tree> = bincode::deserialize(&encoded_value.unwrap()).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Deserialization error"));
+        let decoded: Result<Tree> = bincode::deserialize(&encoded_value.unwrap()).map_err(|_| std::io::Error::other("Deserialization error"));
         let decoded: Tree = decoded?;
         Ok(decoded)
     }
@@ -37,13 +37,13 @@ impl CommitStore for sled::Db{
         if re.is_some(){
             Ok(())
         }else {
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to store commit"))
+            Err(std::io::Error::other("Failed to store commit"))
         }
     }
 
     fn get_commit(&self) -> Result<Commit> {
         let encoded_value= self.get("COMMIT")?;
-        let decoded: Result<Commit> = bincode::deserialize(&encoded_value.unwrap()).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Deserialization error"));
+        let decoded: Result<Commit> = bincode::deserialize(&encoded_value.unwrap()).map_err(|_| std::io::Error::other("Deserialization error"));
         decoded
     }
 }
