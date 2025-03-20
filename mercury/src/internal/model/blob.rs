@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use callisto::{db_enums::StorageType, git_blob, mega_blob, raw_blob};
+use callisto::{git_blob, mega_blob, raw_blob, sea_orm_active_enums::StorageTypeEnum};
 use common::utils::generate_id;
 
 use crate::{hash::SHA1, internal::object::blob::Blob};
@@ -37,7 +37,7 @@ impl From<Blob> for raw_blob::Model {
         raw_blob::Model {
             id: generate_id(),
             sha1: value.id.to_string(),
-            storage_type: StorageType::Database,
+            storage_type: StorageTypeEnum::Database,
             data: Some(value.data),
             content: None,
             file_type: None,

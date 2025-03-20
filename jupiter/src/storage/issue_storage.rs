@@ -5,7 +5,7 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
-use callisto::db_enums::ConvType;
+use callisto::sea_orm_active_enums::ConvTypeEnum;
 use callisto::{mega_conversation, mega_issue};
 use common::errors::MegaError;
 use common::model::Pagination;
@@ -127,7 +127,7 @@ impl IssueStorage {
             id: generate_id(),
             link: link.to_owned(),
             user_id,
-            conv_type: ConvType::Comment,
+            conv_type: ConvTypeEnum::Comment,
             comment,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),

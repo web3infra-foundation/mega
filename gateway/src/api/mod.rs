@@ -4,6 +4,7 @@ use mono::api::MonoApiServiceState;
 pub mod github_router;
 mod model;
 pub mod nostr_router;
+pub mod p2p_router;
 pub mod ztm_router;
 
 #[derive(Clone)]
