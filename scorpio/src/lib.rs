@@ -5,7 +5,7 @@ extern crate log;
 
 pub mod fuse;
 mod dicfuse;
-mod util;
+pub mod util;
 pub mod manager;
 pub mod server;
 pub mod daemon;

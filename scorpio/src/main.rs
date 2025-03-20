@@ -7,6 +7,7 @@ use scorpio::daemon::daemon_main;
 use scorpio::fuse::MegaFuse;
 use scorpio::manager::{fetch::CheckHash, ScorpioManager};
 use scorpio::server::mount_filesystem;
+use scorpio::util::scorpio_config;
 
 #[tokio::main]
 async fn main() {
@@ -16,7 +17,9 @@ async fn main() {
     let mut manager = ScorpioManager::from_toml(config_path).unwrap();
     manager.check().await;
     let fuse_interface = MegaFuse::new_from_manager(&manager).await;
-    let mountpoint =OsStr::new(&manager.workspace) ;
+    let workspace = scorpio_config::get_config().get_value("workspace")
+        .expect("Error: 'workspace' key is missing in the configuration.");
+    let mountpoint =OsStr::new(workspace) ;
     let lgfs = LoggingFileSystem::new(fuse_interface.clone());
     let mut mount_handle =  mount_filesystem(lgfs, mountpoint).await;
     let handle = &mut mount_handle;
@@ -34,5 +37,5 @@ async fn main() {
             mount_handle.unmount().await.unwrap();
             
         }
-    };
+    }
 }
