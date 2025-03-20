@@ -7,13 +7,10 @@ use serde::{Deserialize, Serialize};
 use util::get_utc_timestamp;
 
 pub mod ca;
-pub mod cache;
-pub mod http;
 pub mod lfs;
 pub mod nostr;
 pub mod p2p;
 pub mod util;
-pub mod ztm;
 
 #[derive(Deserialize, Debug)]
 pub struct RelayGetParams {

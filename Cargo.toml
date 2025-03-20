@@ -6,6 +6,7 @@ members = [
     "common",
     "mercury",
     "jupiter",
+    "jupiter/migration",
     "ceres",
     "libra",
     "vault",
@@ -26,6 +27,7 @@ mercury = { path = "mercury" }
 jupiter = { path = "jupiter" }
 ceres = { path = "ceres" }
 callisto = { path = "jupiter/callisto" }
+migration = { path = "jupiter/migration" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
 saturn = { path = "saturn" }
@@ -86,6 +88,8 @@ secp256k1 = "0.30.0"
 oauth2 = "5.0.0"
 base64 = "0.22.1"
 encoding_rs = "0.8.31"
+aws-config= "1.6.0"
+aws-sdk-s3= "1.79.0"
 
 [profile.release]
 debug = true

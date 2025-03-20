@@ -114,8 +114,8 @@ async fn send(
             ))
         }
     };
-    let http_port = state.port;
-    let identifier = repo_path_to_identifier(http_port, git_model.clone().repo_path).await;
+    // let http_port = state.port;
+    let identifier = repo_path_to_identifier(git_model.clone().repo_path).await;
 
     let git_ref = git_db_storage
         .get_default_ref(git_model.id)

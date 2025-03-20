@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
 use crate::manager::{ScorpioManager, WorkDir};
-use crate::util::GPath;
+use crate::util::{scorpio_config, GPath};
 mod git;
 const SUCCESS: &str   = "Success";
 const FAIL : &str   = "Fail";
@@ -132,7 +132,8 @@ async fn mount_handler(
             message: format!("The {} is already check-out ",mounted_path),
         })
     }
-    let store_path = ml.store_path.clone();
+    let store_path = scorpio_config::get_config().get_value("store_path")
+        .expect("Error: 'store_path' key is missing in the configuration.");
     // if it is a temp mount , mount it & return the hash and path.
     if temp_mount{
         let temp_hash = {
@@ -237,15 +238,18 @@ async fn umount_handler(
     
 }
 
-async fn config_handler(State(state): State<ScoState>) -> axum::Json<ConfigResponse> {
-    let t = state.manager.lock().await;
-    
+async fn config_handler() -> axum::Json<ConfigResponse> {
+    let base_url = scorpio_config::get_config().get_value("base_url")
+        .expect("Error: 'base_url' key is missing in the configuration.");
+    let workspace = scorpio_config::get_config().get_value("workspace")
+        .expect("Error: 'workspace' key is missing in the configuration.");
+    let store_path = scorpio_config::get_config().get_value("store_path")
+        .expect("Error: 'store_path' key is missing in the configuration.");
     let config_info = ConfigInfo {
-        mega_url: t.url.clone(),
-        mount_path: t.workspace.clone(),
-        store_path: t.store_path.clone(),
+        mega_url:base_url.to_string(),
+        mount_path: workspace.to_string(),
+        store_path: store_path.to_string(),
     };
-    drop(t);
 
     axum::Json(ConfigResponse {
         status: SUCCESS.into(),

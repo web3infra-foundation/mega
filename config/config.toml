@@ -35,18 +35,6 @@ min_connection = 8
 # Whether to disabling SQLx Log
 sqlx_logging = false
 
-
-[storage]
-
-obs_access_key = ""
-obs_secret_key = ""
-
-# cloud storage region
-obs_region = "cn-east-3"
-
-# Override the endpoint URL used for remote storage services
-obs_endpoint = "https://obs.cn-east-3.myhuaweicloud.com"
-
 [authentication]
 # Support http authentication, login in with github and generate token before push
 enable_http_auth = false
@@ -94,15 +82,25 @@ channel_message_size = 1_000_000
 # LFS Server url
 url = "http://localhost:8000"
 
+# lfs file storage type, support values can be "local_fs" or "aws_s3"
+storage_type = "local_fs"
+
+[lfs.local]
 # set the local path of the lfs storage
-lfs_obj_local_path = "${base_dir}/lfs"
+lfs_file_path = "${base_dir}/lfs"
 
 ## IMPORTANT: The 'enable_split' feature can only be enabled for new databases. Existing databases do not support this feature.
 # Enable or disable splitting large files into smaller chunks
-enable_split = true  # Default is disabled. Set to true to enable file splitting.
+enable_split = true # Default is disabled. Set to true to enable file splitting.
 
 # Size of each file chunk when splitting is enabled. Ignored if splitting is disabled.
 split_size = "20M"
+
+[lfs.aws]
+s3_bucket = "gitmono"
+s3_region = "ap-southeast-2"
+s3_access_key_id = ""
+s3_secret_access_key = ""
 
 [oauth]
 # GitHub OAuth application client id and secret

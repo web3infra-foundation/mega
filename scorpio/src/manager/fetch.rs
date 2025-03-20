@@ -12,6 +12,7 @@ use async_recursion::async_recursion;
 
 use crate::manager::store::store_trees;
 use crate::util::GPath;
+use crate::util::scorpio_config;
 
 use super::{ScorpioManager, WorkDir};
 
@@ -36,8 +37,10 @@ impl CheckHash for ScorpioManager{
                 // Get the tree and its hash value, for name dictionary .
                 let tree = fetch_tree(&p).await.unwrap();
                 work.hash = tree.id.to_string();
-                // the lower path is store file path for remote code version . 
-                let _lower = PathBuf::from(&self.store_path).join(&work.hash).join("lower");
+                // the lower path is store file path for remote code version .
+                let store_path = scorpio_config::get_config().get_value("store_path")
+                    .expect("Error: 'store_path' key is missing in the configuration.");
+                let _lower = PathBuf::from(store_path).join(&work.hash).join("lower");
                 handlers.push(tokio::spawn(async move { fetch_code(&p, _lower).await }));
             }
         }
@@ -46,7 +49,12 @@ impl CheckHash for ScorpioManager{
             for handle in handlers {
                 let _ = handle.await;
             }
-            let _ = self.to_toml("config.toml"); //TODO: configabel.
+            //Get config file path from scorpio_config.rs
+            if let Some(config_file) = scorpio_config::get_config().get_value("config_file") {
+                let _ = self.to_toml(config_file);
+            } else {
+                eprintln!("Error: 'config_file' key is missing in the configuration.");
+            }
         }
 
     }
@@ -63,10 +71,16 @@ impl CheckHash for ScorpioManager{
         };
         //work.hash = tree.id.to_string();
         // the lower path is store file path for remote code version . 
-        let _lower = PathBuf::from(&self.store_path).join(&workdir.hash).join("lower");
+        let store_path = scorpio_config::get_config().get_value("store_path")
+            .expect("Error: 'store_path' key is missing in the configuration.");
+        let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
         fetch_code(&p, _lower).await;
         self.works.push(workdir.clone());
-        let _ = self.to_toml("config.toml"); //TODO: configabel.
+        if let Some(config_file) = scorpio_config::get_config().get_value("config_file") {
+            let _ = self.to_toml(config_file);
+        } else {
+            eprintln!("Error: config_file key is missing in the configuration.");
+        }
         workdir
     }
 }
@@ -83,10 +97,14 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
     };
     //work.hash = tree.id.to_string();
     // the lower path is store file path for remote code version . 
-    let _lower = PathBuf::from(manager.store_path.clone()).join(&workdir.hash).join("lower");
+    let store_path = scorpio_config::get_config().get_value("store_path")
+        .expect("Error: 'store_path' key is missing in the configuration.");
+    let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
     fetch_code(&p, _lower).await;
     manager.works.push(workdir.clone());
-    let _ = manager.to_toml("config.toml"); //TODO: configabel.
+    let config_file = scorpio_config::get_config().get_value("config_file")
+        .expect("Error: 'store_path' key is missing in the configuration.");
+    let _ = manager.to_toml(config_file);
     workdir
 }
 
@@ -298,7 +316,9 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-    let url = format!("http://localhost:8000/api/v1/file/blob/{}",url);//TODO: configabel.
+    let file_blob_endpoint = scorpio_config::get_config().get_value("file_blob_endpoint")
+        .ok_or("Missing configuration key: file_blob_endpoint")?;
+    let url = format!("{}/{}",file_blob_endpoint,url);
     // Send GET request
     let response = client.get(url).send().await?;
     
