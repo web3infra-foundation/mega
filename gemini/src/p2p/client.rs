@@ -351,7 +351,7 @@ pub async fn request_git_clone(
     let repo = Repo::new(get_repo_path(path).parse()?, false);
 
     //decode the git objects
-    let (sender, mut receiver) = mpsc::channel(1024);
+    let (sender, mut receiver) = mpsc::unbounded_channel();
     let p = Pack::new(
         None,
         Some(1024 * 1024 * 1024 * 4),

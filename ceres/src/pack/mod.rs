@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
 use sysinfo::System;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::protocol::import_refs::{RefCommand, Refs};
@@ -37,7 +37,7 @@ pub mod monorepo;
 pub trait PackHandler: Send + Sync {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
-    async fn handle_receiver(&self, mut rx: Receiver<Entry>) -> Result<Option<Commit>, GitError>;
+    async fn handle_receiver(&self, mut rx: UnboundedReceiver<Entry>) -> Result<Option<Commit>, GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
@@ -89,7 +89,7 @@ pub trait PackHandler: Send + Sync {
         &self,
         pack_config: &PackConfig,
         stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
-    ) -> Result<Receiver<Entry>, ProtocolError> {
+    ) -> Result<UnboundedReceiver<Entry>, ProtocolError> {
         let total_mem = || {
             let sys = System::new_all();
             Ok(sys.total_memory() as usize)
@@ -101,7 +101,7 @@ pub trait PackHandler: Send + Sync {
                 Err(err) => return Err(ProtocolError::InvalidInput(err)),
             };
 
-        let (sender, receiver) = tokio::sync::mpsc::channel(1024);
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let p = Pack::new(
             None,
             Some(cache_mem),
