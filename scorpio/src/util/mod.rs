@@ -15,8 +15,16 @@ impl GPath{
             path:Vec::new()        
         }
     }
-    pub fn push(&mut self, path:String){
-        self.path.push(path);
+    pub fn push(&mut self, path: String) {
+        if path.contains('/') {
+            for part in path.split('/') {
+                if !part.is_empty() {
+                    self.path.push(part.to_string());
+                }
+            }
+        } else {
+            self.path.push(path);
+        }
     }
     pub fn pop(&mut self)->Option<String>  {
         self.path.pop()
