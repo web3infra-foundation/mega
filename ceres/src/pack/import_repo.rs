@@ -7,8 +7,7 @@ use std::{
 
 use async_trait::async_trait;
 use futures::{future::join_all, StreamExt};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
@@ -55,7 +54,7 @@ impl PackHandler for ImportRepo {
 
     async fn handle_receiver(
         &self,
-        mut receiver: Receiver<Entry>,
+        mut receiver: UnboundedReceiver<Entry>,
     ) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];

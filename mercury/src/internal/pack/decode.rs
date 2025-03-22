@@ -10,7 +10,7 @@ use bytes::Bytes;
 use flate2::bufread::ZlibDecoder;
 use futures_util::{Stream, StreamExt};
 use threadpool::ThreadPool;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 use crate::errors::GitError;
@@ -474,11 +474,11 @@ impl Pack {
     pub fn decode_async(
         mut self,
         mut pack: (impl BufRead + Send + 'static),
-        sender: Sender<Entry>,
+        sender: UnboundedSender<Entry>,
     ) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
-                if let Err(e) = sender.try_send(entry) {
+                if let Err(e) = sender.send(entry) {
                     eprintln!("Channel full, failed to send entry: {:?}", e);
                 }
             })
@@ -491,7 +491,7 @@ impl Pack {
     pub async fn decode_stream(
         mut self,
         mut stream: impl Stream<Item = Result<Bytes, Error>> + Unpin + Send + 'static,
-        sender: Sender<Entry>,
+        sender: UnboundedSender<Entry>,
     ) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         let mut reader = StreamBufReader::new(rx);
@@ -507,12 +507,12 @@ impl Pack {
         // CPU-bound task, so use spawn_blocking
         // DO NOT use thread::spawn, because it will block tokio runtime (if single-threaded runtime, like in tests)
         tokio::task::spawn_blocking(move || {
-            self.decode(
-                &mut reader,
-                move |entry, _| {
-                    if sender.try_send(entry).is_ok() {}
-                },
-            )
+            self.decode(&mut reader, move |entry: Entry, _| {
+                // as we used unbound channel here, it will never full so can be send with synchronous
+                if let Err(e) = sender.send(entry) {
+                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                }
+            })
             .unwrap();
             self
         })
@@ -793,7 +793,7 @@ mod tests {
             true,
         );
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let handle = tokio::spawn(async move { p.decode_stream(stream, tx).await });
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
@@ -828,7 +828,7 @@ mod tests {
             true,
         );
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let handle = p.decode_async(buffered, tx); // new thread
         let mut cnt = 0;
         while let Ok(_entry) = rx.try_recv() {
