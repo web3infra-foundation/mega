@@ -8,8 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future::join_all;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{raw_blob, sea_orm_active_enums::ConvTypeEnum};
@@ -122,7 +121,7 @@ impl PackHandler for MonoRepo {
 
     async fn handle_receiver(
         &self,
-        mut receiver: Receiver<Entry>,
+        mut receiver: UnboundedReceiver<Entry>,
     ) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.mono_storage.clone();
         let mut entry_list = Vec::new();
