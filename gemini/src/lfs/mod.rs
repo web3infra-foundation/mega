@@ -2,19 +2,16 @@ use std::collections::HashSet;
 
 use reqwest::{get, Client};
 
-use crate::{
-    util::handle_response, ztm::get_or_create_remote_mega_tunnel, LFSInfo, LFSInfoPostBody,
-    LFSInfoRes,
-};
+use crate::{util::handle_response, LFSInfo, LFSInfoPostBody, LFSInfoRes};
 
 /// share lfs
 ///
 /// ## paras
 /// - `bootstrap_node`: bootstrap_node
 /// - `file_hash`: file_hash
-/// - `hash_type`: hash_type  
-/// - `file_size`: file_size  
-/// - `origin`: origin  
+/// - `hash_type`: hash_type
+/// - `file_size`: file_size
+/// - `origin`: origin
 ///
 /// ## Example
 /// Here is an example of the JSON payload:
@@ -107,7 +104,7 @@ pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> O
 /// ## Paras
 /// - `bootstrap_node`: bootstrap_node
 /// - `ztm_agent_port`: ztm_agent_port
-/// - `file_uri`: file_uri  
+/// - `file_uri`: file_uri
 ///
 /// for example
 /// ```json
@@ -123,7 +120,7 @@ pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> O
 /// Each port is for a remote peer
 pub async fn create_lfs_download_tunnel(
     bootstrap_node: String,
-    ztm_agent_port: u16,
+    _ztm_agent_port: u16,
     file_uri: String,
 ) -> Result<Vec<u16>, String> {
     let file_hash = match get_file_hash_from_origin(file_uri) {
@@ -157,17 +154,17 @@ pub async fn create_lfs_download_tunnel(
         .collect();
     tracing::info!("Search lfs[{}] download peer:{:?}", file_hash, peer_list);
 
-    let mut tunnel_list: Vec<u16> = vec![];
-    for peer_id in peer_list {
-        match get_or_create_remote_mega_tunnel(ztm_agent_port, peer_id).await {
-            Ok(port) => {
-                tunnel_list.push(port);
-            }
-            Err(s) => {
-                tracing::error!("{}", s);
-            }
-        }
-    }
+    let tunnel_list: Vec<u16> = vec![];
+    // for peer_id in peer_list {
+    //     match get_or_create_remote_mega_tunnel(ztm_agent_port, peer_id).await {
+    //         Ok(port) => {
+    //             tunnel_list.push(port);
+    //         }
+    //         Err(s) => {
+    //             tracing::error!("{}", s);
+    //         }
+    //     }
+    // }
     Ok(tunnel_list)
 }
 

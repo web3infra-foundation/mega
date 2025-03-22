@@ -253,10 +253,7 @@ impl DictionaryStore {
     
     pub async fn find_path(&self,inode :u64)-> Option<GPath>{
 
-        match self.persistent_path_store.lock().await.get_all_path(inode) {
-            Ok(a) => Some(a),
-            Err(_) => None,
-        }
+        self.persistent_path_store.lock().await.get_all_path(inode).ok()
 
     }
     pub async fn get_inode(&self,inode: u64) -> Result<StorageItem, io::Error> {

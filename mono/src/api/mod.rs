@@ -82,15 +82,15 @@ impl MonoApiServiceState {
     }
 
     fn issue_stg(&self) -> IssueStorage {
-        self.context.services.issue_storage()
+        self.context.issue_stg()
     }
 
     fn mr_stg(&self) -> MrStorage {
-        self.context.services.mr_storage()
+        self.context.mr_stg()
     }
 
     fn user_stg(&self) -> UserStorage {
-        self.context.services.user_storage()
+        self.context.user_stg()
     }
 
     async fn api_handler(&self, path: PathBuf) -> Result<Box<dyn ApiHandler>, ProtocolError> {

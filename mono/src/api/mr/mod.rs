@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use callisto::{mega_conversation, mega_mr};
+use callisto::{
+    mega_conversation, mega_mr,
+    sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum},
+};
 
 pub mod mr_router;
 
@@ -13,7 +16,7 @@ pub struct MRStatusParams {
 pub struct MrInfoItem {
     pub link: String,
     pub title: String,
-    pub status: String,
+    pub status: MergeStatusEnum,
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
     pub updated_at: i64,
@@ -24,7 +27,7 @@ impl From<mega_mr::Model> for MrInfoItem {
         Self {
             link: value.link,
             title: value.title,
-            status: value.status.to_string(),
+            status: value.status,
             open_timestamp: value.created_at.and_utc().timestamp(),
             merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),
             updated_at: value.updated_at.and_utc().timestamp(),
@@ -37,7 +40,7 @@ pub struct MRDetail {
     pub id: i64,
     pub link: String,
     pub title: String,
-    pub status: String,
+    pub status: MergeStatusEnum,
     pub open_timestamp: i64,
     pub merge_timestamp: Option<i64>,
     pub conversations: Vec<MegaConversation>,
@@ -49,7 +52,7 @@ impl From<mega_mr::Model> for MRDetail {
             id: value.id,
             link: value.link,
             title: value.title,
-            status: value.status.to_string(),
+            status: value.status,
             open_timestamp: value.created_at.and_utc().timestamp(),
             merge_timestamp: value.merge_date.map(|dt| dt.and_utc().timestamp()),
             conversations: vec![],
@@ -61,7 +64,7 @@ impl From<mega_mr::Model> for MRDetail {
 pub struct MegaConversation {
     pub id: i64,
     pub user_id: i64,
-    pub conv_type: String,
+    pub conv_type: ConvTypeEnum,
     pub comment: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -72,7 +75,7 @@ impl From<mega_conversation::Model> for MegaConversation {
         Self {
             id: value.id,
             user_id: value.user_id,
-            conv_type: value.conv_type.to_string(),
+            conv_type: value.conv_type,
             comment: value.comment,
             created_at: value.created_at.and_utc().timestamp(),
             updated_at: value.updated_at.and_utc().timestamp(),

@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use callisto::db_enums::RefType;
+use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
@@ -183,7 +183,7 @@ impl SmartProtocol {
             if let Some(command) = self
                 .command_list
                 .iter()
-                .find(|x| x.ref_type == RefType::Branch)
+                .find(|x| x.ref_type == RefTypeEnum::Branch)
             {
                 res.from_hash = command.old_id.clone();
                 res.to_hash = command.new_id.clone();
