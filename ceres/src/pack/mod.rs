@@ -37,7 +37,10 @@ pub mod monorepo;
 pub trait PackHandler: Send + Sync {
     async fn head_hash(&self) -> (String, Vec<Refs>);
 
-    async fn handle_receiver(&self, mut rx: UnboundedReceiver<Entry>) -> Result<Option<Commit>, GitError>;
+    async fn handle_receiver(
+        &self,
+        mut rx: UnboundedReceiver<Entry>,
+    ) -> Result<Option<Commit>, GitError>;
 
     /// Asynchronously retrieves the full pack data for the specified repository path.
     /// This function collects commits and nodes from the storage and packs them into
