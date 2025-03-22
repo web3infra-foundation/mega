@@ -1,0 +1,13 @@
+[Unit]
+Description=mega-scorpio
+After=network.target
+
+[Service]
+ExecStart=/root/.cargo/bin/scorpio
+WorkingDirectory=/root/.cargo/bin
+Restart=always
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

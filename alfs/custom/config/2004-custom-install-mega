@@ -1,0 +1,67 @@
+# install rust
+
+
+PKG=""
+PKG_VERSION=""
+PKG_FILE=""
+URL=""
+MD5=""
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+echo "pwd: $(pwd)"
+git clone https://github.com/web3infra-foundation/mega.git
+cd mega
+
+cargo build -p orion
+cargo install --path orion
+
+cd scorpio
+cargo install --path .
+cargo install
+
+mkdir -pv /opt/megadir/mount
+mkdir -pv /opt/megadir/store
+# Currently, the config file must be located in the same directory as the binary.
+cat << "yEOFy" >  ~/.cargo/bin/scorpio.toml
+[config]
+base_url = "http://localhost:8000"
+
+workspace = "/opt/megadir/mount"
+
+store_path = "/opt/megadir/store"
+
+git_author = "MEGA"
+
+git_email = "admin@mega.org"
+
+file_blob_endpoint = "http://localhost:8000/api/v1/file/blob"
+
+config_file = "config.toml"
+
+yEOFy
+
+cat << "zEOFz" > ~/.cargo/bin/config.toml
+
+works = []
+
+zEOFz
+
+
+cp /systemd-configs/mega-scorpio.service /etc/systemd/system/
+cp /systemd-configs/mega-orion.service /etc/systemd/system/
+systemctl enable mega-scorpio
+systemctl enable mega-orion
+systemctl start mega-scorpio
+systemctl start mega-orion
+
+xEOFx
+) > tmp
