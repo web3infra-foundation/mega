@@ -8,7 +8,7 @@ use axum::{
 
 use bytes::Bytes;
 
-use callisto::db_enums::{ConvType, MergeStatus};
+use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::protocol::mr::MergeRequest;
 use common::model::{CommonPage, CommonResult, PageParams};
 use saturn::ActionEnum;
@@ -41,7 +41,7 @@ async fn reopen_mr(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
-        if model.status == MergeStatus::Closed {
+        if model.status == MergeStatusEnum::Closed {
             util::check_permissions(
                 &user.name,
                 &model.path,
@@ -51,7 +51,7 @@ async fn reopen_mr(
             .await
             .unwrap();
             let mut mr: MergeRequest = model.into();
-            mr.status = MergeStatus::Open;
+            mr.status = MergeStatusEnum::Open;
             let res = match state
                 .mr_stg()
                 .reopen_mr(mr.into(), user.user_id, &user.name)
@@ -72,7 +72,7 @@ async fn close_mr(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
-        if model.status == MergeStatus::Open {
+        if model.status == MergeStatusEnum::Open {
             util::check_permissions(
                 &user.name,
                 &model.path,
@@ -82,7 +82,7 @@ async fn close_mr(
             .await
             .unwrap();
             let mut mr: MergeRequest = model.into();
-            mr.status = MergeStatus::Closed;
+            mr.status = MergeStatusEnum::Closed;
             let res = match state
                 .mr_stg()
                 .close_mr(mr.into(), user.user_id, &user.name)
@@ -103,7 +103,7 @@ async fn merge(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
-        if model.status == MergeStatus::Open {
+        if model.status == MergeStatusEnum::Open {
             let path = model.path.clone();
             util::check_permissions(
                 &user.name,
@@ -133,11 +133,15 @@ async fn fetch_mr_list(
     ApiRequestEvent::notify(ApiType::MergeList, &state.0.context.config);
     let status = json.additional.status;
     let status = if status == "open" {
-        vec![MergeStatus::Open]
+        vec![MergeStatusEnum::Open]
     } else if status == "closed" {
-        vec![MergeStatus::Closed, MergeStatus::Merged]
+        vec![MergeStatusEnum::Closed, MergeStatusEnum::Merged]
     } else {
-        vec![MergeStatus::Open, MergeStatus::Closed, MergeStatus::Merged]
+        vec![
+            MergeStatusEnum::Open,
+            MergeStatusEnum::Closed,
+            MergeStatusEnum::Merged,
+        ]
     };
     let res = match state
         .mr_stg()
@@ -213,7 +217,7 @@ async fn save_comment(
             .add_mr_conversation(
                 &model.link,
                 user.user_id,
-                ConvType::Comment,
+                ConvTypeEnum::Comment,
                 Some(json_string),
             )
             .await
