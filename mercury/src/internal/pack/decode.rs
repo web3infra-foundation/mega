@@ -672,8 +672,9 @@ mod tests {
     use crate::internal::pack::Pack;
     use futures_util::TryStreamExt;
 
-    #[test]
-    fn test_pack_check_header() {
+    #[tokio::test]
+    async fn test_pack_check_header() {
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
@@ -750,11 +751,11 @@ mod tests {
         p.decode(&mut buffered, |_, _| {}).unwrap();
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore] // Take too long time
-    fn test_pack_decode_with_large_file_with_delta_without_ref() {
+    async fn test_pack_decode_with_large_file_with_delta_without_ref() {
         init_logger();
-
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
@@ -780,6 +781,7 @@ mod tests {
     #[tokio::test]
     async fn test_decode_large_file_stream() {
         init_logger();
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
@@ -812,9 +814,10 @@ mod tests {
         assert_eq!(count.load(Ordering::Acquire), p.number);
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore] // Take too long time, duplicate with `test_decode_large_file_stream`
-    fn test_decode_large_file_async() {
+    async fn test_decode_large_file_async() {
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
