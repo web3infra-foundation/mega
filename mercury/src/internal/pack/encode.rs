@@ -382,6 +382,7 @@ mod tests {
     }
 
     async fn get_entries_for_test() -> Arc<Mutex<Vec<Entry>>> {
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
