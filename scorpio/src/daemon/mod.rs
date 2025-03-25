@@ -132,8 +132,7 @@ async fn mount_handler(
             message: format!("The {} is already check-out ",mounted_path),
         })
     }
-    let store_path = scorpio_config::get_config().get_value("store_path")
-        .expect("Error: 'store_path' key is missing in the configuration.");
+    let store_path = scorpio_config::get_config().store_path();
     // if it is a temp mount , mount it & return the hash and path.
     if temp_mount{
         let temp_hash = {
@@ -239,12 +238,10 @@ async fn umount_handler(
 }
 
 async fn config_handler() -> axum::Json<ConfigResponse> {
-    let base_url = scorpio_config::get_config().get_value("base_url")
-        .expect("Error: 'base_url' key is missing in the configuration.");
-    let workspace = scorpio_config::get_config().get_value("workspace")
-        .expect("Error: 'workspace' key is missing in the configuration.");
-    let store_path = scorpio_config::get_config().get_value("store_path")
-        .expect("Error: 'store_path' key is missing in the configuration.");
+    let config = scorpio_config::get_config();
+    let base_url = config.base_url();
+    let workspace = config.workspace();
+    let store_path = config.store_path();
     let config_info = ConfigInfo {
         mega_url:base_url.to_string(),
         mount_path: workspace.to_string(),

@@ -24,8 +24,7 @@ pub(super) async fn git_status_handler(
 
     let mut  status = axum::Json(GitStatus::default());
     let manager_lock = state.manager.lock().await;
-    let store_path = scorpio_config::get_config().get_value("store_path")
-        .expect("Error: 'store_path' key is missing in the configuration.");
+    let store_path = scorpio_config::get_config().store_path();
     for works in manager_lock.works.iter(){
         if works.path.eq(&params.path){
             return axum::Json(GitStatus{
