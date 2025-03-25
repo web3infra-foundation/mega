@@ -36,6 +36,8 @@ axum = { workspace = true }
 memchr = { workspace = true }
 encoding_rs = { workspace = true }
 rayon = "1.10.0"
+reqwest = { workspace = true }
+ring = { workspace = true }
 
 [dev-dependencies]
 tracing-test = "0.2.4"
