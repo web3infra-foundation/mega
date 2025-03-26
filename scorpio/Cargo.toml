@@ -37,6 +37,7 @@ syn = { version = "2.0.98", features = ["full", "extra-traits"] }
 uuid = "1.14.0"
 libfuse-fs = "0.1.0"
 whoami = "1.6.0"
+regex = "1.11.1"
 
 
 [features] 

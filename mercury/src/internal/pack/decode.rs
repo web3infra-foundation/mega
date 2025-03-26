@@ -10,7 +10,7 @@ use bytes::Bytes;
 use flate2::bufread::ZlibDecoder;
 use futures_util::{Stream, StreamExt};
 use threadpool::ThreadPool;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 use crate::errors::GitError;
@@ -474,11 +474,11 @@ impl Pack {
     pub fn decode_async(
         mut self,
         mut pack: (impl BufRead + Send + 'static),
-        sender: Sender<Entry>,
+        sender: UnboundedSender<Entry>,
     ) -> JoinHandle<Pack> {
         thread::spawn(move || {
             self.decode(&mut pack, move |entry, _| {
-                if let Err(e) = sender.try_send(entry) {
+                if let Err(e) = sender.send(entry) {
                     eprintln!("Channel full, failed to send entry: {:?}", e);
                 }
             })
@@ -491,7 +491,7 @@ impl Pack {
     pub async fn decode_stream(
         mut self,
         mut stream: impl Stream<Item = Result<Bytes, Error>> + Unpin + Send + 'static,
-        sender: Sender<Entry>,
+        sender: UnboundedSender<Entry>,
     ) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         let mut reader = StreamBufReader::new(rx);
@@ -507,12 +507,12 @@ impl Pack {
         // CPU-bound task, so use spawn_blocking
         // DO NOT use thread::spawn, because it will block tokio runtime (if single-threaded runtime, like in tests)
         tokio::task::spawn_blocking(move || {
-            self.decode(
-                &mut reader,
-                move |entry, _| {
-                    if sender.try_send(entry).is_ok() {}
-                },
-            )
+            self.decode(&mut reader, move |entry: Entry, _| {
+                // as we used unbound channel here, it will never full so can be send with synchronous
+                if let Err(e) = sender.send(entry) {
+                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                }
+            })
             .unwrap();
             self
         })
@@ -672,8 +672,9 @@ mod tests {
     use crate::internal::pack::Pack;
     use futures_util::TryStreamExt;
 
-    #[test]
-    fn test_pack_check_header() {
+    #[tokio::test]
+    async fn test_pack_check_header() {
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
@@ -750,11 +751,11 @@ mod tests {
         p.decode(&mut buffered, |_, _| {}).unwrap();
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore] // Take too long time
-    fn test_pack_decode_with_large_file_with_delta_without_ref() {
+    async fn test_pack_decode_with_large_file_with_delta_without_ref() {
         init_logger();
-
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
@@ -780,6 +781,7 @@ mod tests {
     #[tokio::test]
     async fn test_decode_large_file_stream() {
         init_logger();
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
@@ -793,7 +795,7 @@ mod tests {
             true,
         );
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let handle = tokio::spawn(async move { p.decode_stream(stream, tx).await });
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
@@ -812,9 +814,10 @@ mod tests {
         assert_eq!(count.load(Ordering::Acquire), p.number);
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore] // Take too long time, duplicate with `test_decode_large_file_stream`
-    fn test_decode_large_file_async() {
+    async fn test_decode_large_file_async() {
+        crate::test_utils::setup_lfs_file().await;
         let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
@@ -828,7 +831,7 @@ mod tests {
             true,
         );
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let handle = p.decode_async(buffered, tx); // new thread
         let mut cnt = 0;
         while let Ok(_entry) = rx.try_recv() {

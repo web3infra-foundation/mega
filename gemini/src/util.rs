@@ -111,3 +111,36 @@ pub fn parse_pointer_data(data: &[u8]) -> Option<(String, u64)> {
     }
     None
 }
+
+pub fn get_peer_id_from_identifier(identifier: String) -> Result<String, String> {
+    // p2p://mrJ46F8gd2sa2Dx3iCYf6DauJ2WpAaepus7PwyZVebgD/8000/third-part/mega_143.git
+    let words: Vec<&str> = identifier.split('/').collect();
+    if words.len() <= 2 {
+        return Err("invalid identifier".to_string());
+    }
+    Ok(words.get(2).unwrap().to_string())
+}
+
+pub fn get_alias_from_identifier(identifier: String) -> Result<String, String> {
+    // p2p://wGg2inNE22LY1eHttDB63znw2MnsK8CPXeG2nfhpXs5a/serde_python
+    let words: Vec<&str> = identifier.split('/').collect();
+    if words.len() <= 3 {
+        return Err("invalid identifier".to_string());
+    }
+    Ok(words.get(3).unwrap().to_string())
+}
+
+pub fn get_path_from_identifier(identifier: String) -> Result<String, String> {
+    // p2p://wGg2inNE22LY1eHttDB63znw2MnsK8CPXeG2nfhpXs5a/third-part/aaa.git
+    let words: Vec<&str> = identifier.split('/').collect();
+    if words.len() <= 3 {
+        return Err("invalid identifier".to_string());
+    }
+    let s: String = words
+        .iter()
+        .skip(3)
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join("/");
+    Ok("/".to_string() + s.as_str())
+}

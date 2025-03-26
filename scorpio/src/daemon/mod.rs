@@ -81,7 +81,7 @@ pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
         fuse,
         manager: Arc::new(Mutex::new(manager)),
     };
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/api/fs/mount", post(mount_handler))
         .route("/api/fs/mpoint", get(mounts_handler))
         .route("/api/fs/umount", post(umount_handler))
@@ -91,6 +91,11 @@ pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
         .route("/api/git/commit", post(git::git_commit_handler))
         .route("/api/git/push", post(git::git_push_handler))
         .with_state(inner);
+
+    // LFS route & merge it
+    let lfs_route = crate::scolfs::route::router();
+    let app = app.merge(lfs_route);
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2725").await.unwrap();
     axum::serve(listener, app).await.unwrap()
 }
