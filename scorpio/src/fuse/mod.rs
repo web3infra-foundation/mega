@@ -66,7 +66,7 @@ impl MegaFuse{
     pub async fn new_from_manager(manager: &ScorpioManager) -> MegaFuse {
 
         let megafuse = MegaFuse::new().await;
-        let store_path = scorpio_config::get_config().store_path();
+        let store_path = scorpio_config::store_path();
 
         // mount user works.
         for dir in &manager.works {

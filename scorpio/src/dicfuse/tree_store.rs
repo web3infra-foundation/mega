@@ -64,7 +64,7 @@ impl TreeStorage {
             .map_err(Error::other)?;
         let config: Value = toml::de::from_str(&config_content)
             .map_err(Error::other)?;
-        let store_path = scorpio_config::get_config().store_path();
+        let store_path = scorpio_config::store_path();
         let path = format!("{}/path.db", store_path);
         let db = sled::open(path).unwrap();
         Ok(TreeStorage { db })
