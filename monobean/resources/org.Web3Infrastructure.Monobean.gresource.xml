@@ -25,7 +25,10 @@
         <file compressed="true">css/themesselector.css</file>
 
         <!-- Icons -->
-
+        <file compressed="true">icon/font-black-w290px.png</file>
+        <file compressed="true">icon/font-white-w290px.png</file>
+        <file compressed="true">icon/logo-black-128_128.png</file>
+        <file compressed="true">icon/logo-white-128_128.png</file>
 
     </gresource>
 </gresources>
