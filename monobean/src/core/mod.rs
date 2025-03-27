@@ -25,12 +25,6 @@ pub enum CoreConfigChanged {
     MinConnection(u32),
     SqlxLogging(bool),
 
-    // Storage Config
-    ObsAccessKey(String),
-    ObsSecretKey(String),
-    ObsRegion(String),
-    ObsEndpoint(String),
-
     // Monorepo Config
     ImportDir(PathBuf),
     Admin(String),
@@ -51,10 +45,7 @@ pub enum CoreConfigChanged {
 
     // LFS Config
     LfsUrl(String),
-    LfsObjLocalPath(PathBuf),
-    EnableSplit(bool),
-    SplitSize(String),
-
+    
     // OAuth Config
     GithubClientId(String),
     GithubClientSecret(String),
