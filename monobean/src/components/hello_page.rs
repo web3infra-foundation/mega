@@ -33,6 +33,8 @@ mod imp {
         #[template_child]
         pub continue_button: TemplateChild<gtk::Button>,
         #[template_child]
+        pub logo: TemplateChild<gtk::Image>,
+        #[template_child]
         pub pgp_row: TemplateChild<adw::PreferencesRow>,
         #[template_child]
         pub pgp_button: TemplateChild<gtk::Button>,
