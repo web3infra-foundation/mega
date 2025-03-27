@@ -66,8 +66,7 @@ impl MegaFuse{
     pub async fn new_from_manager(manager: &ScorpioManager) -> MegaFuse {
 
         let megafuse = MegaFuse::new().await;
-        let store_path = scorpio_config::get_config().get_value("store_path")
-            .expect("Error: 'store_path' key is missing in the configuration.");
+        let store_path = scorpio_config::store_path();
 
         // mount user works.
         for dir in &manager.works {
