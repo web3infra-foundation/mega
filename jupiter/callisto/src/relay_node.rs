@@ -4,13 +4,17 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "ztm_nostr_req")]
+#[sea_orm(table_name = "relay_node")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub id: String,
-    pub subscription_id: String,
-    #[sea_orm(column_type = "Text")]
-    pub filters: String,
+    pub peer_id: String,
+    pub hub: String,
+    pub agent_name: String,
+    pub service_name: String,
+    pub r#type: String,
+    pub online: bool,
+    pub last_online_time: i64,
+    pub service_port: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

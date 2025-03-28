@@ -1,6 +1,8 @@
 use std::fmt;
 
-use callisto::{lfs_objects, lfs_split_relations, ztm_lfs_info, ztm_node, ztm_repo_info};
+use callisto::{
+    git_repo, lfs_objects, lfs_split_relations, relay_lfs_info, relay_node, relay_repo_info,
+};
 use chrono::Utc;
 use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
@@ -86,7 +88,7 @@ impl TryFrom<RelayGetParams> for Node {
     }
 }
 
-impl TryFrom<RelayGetParams> for ztm_node::Model {
+impl TryFrom<RelayGetParams> for relay_node::Model {
     type Error = ConversionError;
 
     fn try_from(paras: RelayGetParams) -> Result<Self, Self::Error> {
@@ -99,7 +101,7 @@ impl TryFrom<RelayGetParams> for ztm_node::Model {
             return Err(ConversionError::InvalidParas);
         }
         let now = Utc::now().timestamp_millis();
-        Ok(ztm_node::Model {
+        Ok(relay_node::Model {
             peer_id: paras.peer_id.unwrap(),
             hub: paras.hub.unwrap(),
             agent_name: paras.agent_name.unwrap(),
@@ -112,11 +114,11 @@ impl TryFrom<RelayGetParams> for ztm_node::Model {
     }
 }
 
-impl TryFrom<Node> for ztm_node::Model {
+impl TryFrom<Node> for relay_node::Model {
     type Error = ConversionError;
 
     fn try_from(n: Node) -> Result<Self, Self::Error> {
-        Ok(ztm_node::Model {
+        Ok(relay_node::Model {
             peer_id: n.peer_id,
             hub: n.hub,
             agent_name: n.agent_name,
@@ -129,8 +131,8 @@ impl TryFrom<Node> for ztm_node::Model {
     }
 }
 
-impl From<ztm_node::Model> for Node {
-    fn from(n: ztm_node::Model) -> Self {
+impl From<relay_node::Model> for Node {
+    fn from(n: relay_node::Model) -> Self {
         Node {
             peer_id: n.peer_id,
             hub: n.hub,
@@ -154,9 +156,15 @@ pub struct RepoInfo {
     pub peer_online: bool,
 }
 
-impl From<RepoInfo> for ztm_repo_info::Model {
+impl RepoInfo {
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+}
+
+impl From<RepoInfo> for relay_repo_info::Model {
     fn from(r: RepoInfo) -> Self {
-        ztm_repo_info::Model {
+        relay_repo_info::Model {
             identifier: r.identifier,
             name: r.name,
             origin: r.origin,
@@ -166,14 +174,27 @@ impl From<RepoInfo> for ztm_repo_info::Model {
     }
 }
 
-impl From<ztm_repo_info::Model> for RepoInfo {
-    fn from(r: ztm_repo_info::Model) -> Self {
+impl From<relay_repo_info::Model> for RepoInfo {
+    fn from(r: relay_repo_info::Model) -> Self {
         RepoInfo {
             identifier: r.identifier,
             name: r.name,
             origin: r.origin,
             update_time: r.update_time,
             commit: r.commit,
+            peer_online: false,
+        }
+    }
+}
+
+impl From<git_repo::Model> for RepoInfo {
+    fn from(r: git_repo::Model) -> Self {
+        RepoInfo {
+            identifier: "".to_string(),
+            name: r.repo_name,
+            origin: "".to_string(),
+            update_time: r.updated_at.and_utc().timestamp_millis(),
+            commit: "".to_string(),
             peer_online: false,
         }
     }
@@ -190,9 +211,9 @@ pub struct LFSInfo {
     pub peer_online: bool,
 }
 
-impl From<LFSInfo> for ztm_lfs_info::Model {
+impl From<LFSInfo> for relay_lfs_info::Model {
     fn from(r: LFSInfo) -> Self {
-        ztm_lfs_info::Model {
+        relay_lfs_info::Model {
             id: generate_id(),
             file_hash: r.file_hash,
             hash_type: r.hash_type,
@@ -204,8 +225,8 @@ impl From<LFSInfo> for ztm_lfs_info::Model {
     }
 }
 
-impl From<ztm_lfs_info::Model> for LFSInfo {
-    fn from(r: ztm_lfs_info::Model) -> Self {
+impl From<relay_lfs_info::Model> for LFSInfo {
+    fn from(r: relay_lfs_info::Model) -> Self {
         LFSInfo {
             file_hash: r.file_hash,
             hash_type: r.hash_type,
@@ -239,9 +260,9 @@ pub struct LFSInfoPostBody {
     pub origin: String,
 }
 
-impl From<LFSInfoPostBody> for ztm_lfs_info::Model {
+impl From<LFSInfoPostBody> for relay_lfs_info::Model {
     fn from(r: LFSInfoPostBody) -> Self {
-        ztm_lfs_info::Model {
+        relay_lfs_info::Model {
             id: generate_id(),
             file_hash: r.file_hash,
             hash_type: r.hash_type,

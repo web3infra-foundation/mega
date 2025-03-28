@@ -6,8 +6,8 @@ pub mod mono_storage;
 pub mod mq_storage;
 pub mod mr_storage;
 pub mod raw_db_storage;
+pub mod relay_storage;
 pub mod user_storage;
-pub mod ztm_storage;
 
 use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, EntityTrait};
 

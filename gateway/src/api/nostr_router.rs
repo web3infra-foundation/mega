@@ -19,7 +19,6 @@ use crate::api::MegaApiServiceState;
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
         .route("/nostr", post(recieve))
-        .route("/nostr/send_event", post(send))
         .route("/nostr/event_list", get(event_list))
 }
 
@@ -53,7 +52,7 @@ async fn recieve(
                 .inner
                 .context
                 .services
-                .ztm_storage
+                .relay_storage
                 .insert_nostr_event(ztm_nostr_event)
                 .await;
         };
@@ -87,76 +86,11 @@ impl GitEventReq {
     }
 }
 
-async fn send(
-    state: State<MegaApiServiceState>,
-    body: String,
-) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
-    tracing::info!("git event recieve:{}", body);
-    let git_event_req: GitEventReq = match serde_json::from_str(&body) {
-        Ok(r) => r,
-        Err(e) => {
-            return Err((StatusCode::BAD_REQUEST, e.to_string()));
-        }
-    };
-
-    let git_db_storage = state.inner.context.services.git_db_storage.clone();
-    let git_model = git_db_storage
-        .find_git_repo_exact_match(&git_event_req.path)
-        .await
-        .unwrap();
-
-    let git_model = match git_model.clone() {
-        Some(r) => r,
-        None => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Repo not found".to_string(),
-            ))
-        }
-    };
-    // let http_port = state.port;
-    let identifier = repo_path_to_identifier(git_model.clone().repo_path).await;
-
-    let git_ref = git_db_storage
-        .get_default_ref(git_model.id)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let bootstrap_node = match state.p2p.bootstrap_node.clone() {
-        Some(b) => b,
-        None => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "bootstrap node is not set".to_string(),
-            ));
-        }
-    };
-
-    let git_event = git_event_req
-        .to_git_event(identifier, git_ref.ref_git_id)
-        .await;
-
-    match git_event.sent_to_relay(bootstrap_node.clone()).await {
-        Ok(_) => {
-            tracing::info!(
-                "send event to relay({}) successfully\n{:?}",
-                bootstrap_node,
-                git_event
-            );
-        }
-        Err(e) => {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
-        }
-    }
-    Ok(Json(CommonResult::success(None)))
-}
-
 pub async fn event_list(
     Query(_query): Query<HashMap<String, String>>,
     state: State<MegaApiServiceState>,
 ) -> Result<Json<Vec<NostrEvent>>, (StatusCode, String)> {
-    let storage = state.inner.context.services.ztm_storage.clone();
+    let storage = state.inner.context.services.relay_storage.clone();
     let event_list: Vec<NostrEvent> = storage
         .get_all_nostr_event()
         .await

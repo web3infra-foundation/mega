@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::anyhow;
 use anyhow::bail;
 use anyhow::Result;
-use callisto::{import_refs, lfs_objects};
+use callisto::{git_repo, import_refs, lfs_objects};
 use ceres::lfs::handler;
 use ceres::lfs::handler::lfs_download_object;
 use ceres::lfs::lfs_structs::RequestObject;
@@ -32,9 +32,10 @@ use quinn::rustls::pki_types::PrivateKeyDer;
 use quinn::Connection;
 use quinn::{rustls, ClientConfig, Endpoint};
 use std::result::Result::Ok;
-use tokio::sync::mpsc;
+use tokio::join;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
+use tokio::sync::{mpsc, Mutex};
 use tokio_util::io::ReaderStream;
 use tracing::error;
 use tracing::info;
@@ -42,11 +43,17 @@ use uuid::Uuid;
 use vault::get_peerid;
 
 use super::{LFSHeader, ALPN_QUIC_HTTP};
-use crate::ca;
+use crate::nostr::client_message::{ClientMessage, Filter, SubscriptionId};
+use crate::nostr::event::NostrEvent;
+use crate::nostr::relay_message::RelayMessage;
+use crate::nostr::GitEvent;
 use crate::p2p::RequestData;
 use crate::p2p::ResponseData;
 use crate::p2p::{Action, GitCloneHeader};
-use crate::util::{get_git_model_by_path, get_repo_path, parse_pointer_data};
+use crate::util::{
+    get_git_model_by_path, get_repo_path, parse_pointer_data, repo_path_to_identifier,
+};
+use crate::{ca, RepoInfo};
 
 struct MsgSingletonConnection {
     conn: Arc<Connection>,
@@ -54,7 +61,9 @@ struct MsgSingletonConnection {
 static INSTANCE: OnceLock<MsgSingletonConnection> = OnceLock::new();
 
 lazy_static! {
-    static ref REQ_SENDER_MAP: DashMap<String, Arc<Sender<Vec<u8>>>> = DashMap::new();
+    //oneshot sender map
+    static ref REQ_SENDER_MAP: DashMap<String, Arc<Mutex<Option<Sender<Vec<u8>>>>>> =
+        DashMap::new();
 }
 
 impl MsgSingletonConnection {
@@ -144,7 +153,6 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
                     return;
                 }
             };
-            info!("Channel Received message: {:?}", data);
             match data.func.as_str() {
                 "request_git_clone" => {
                     let path = String::from_utf8(data.data).unwrap();
@@ -158,12 +166,18 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
                         .await
                         .unwrap();
                 }
-                "" => {}
+                "nostr" => {
+                    receive_nostr(data.data).await.unwrap();
+                }
+                "" => {
+                    if let Some(sender) = REQ_SENDER_MAP.get(data.req_id.as_str()) {
+                        let mut guard = sender.lock().await;
+                        if let Some(tx) = guard.take() {
+                            tx.send(data.data).expect("Sender error");
+                        }
+                    }
+                }
                 _ => {
-                    // if let Some(s) = REQ_SENDER_MAP.get(data.req_id.as_str()) {
-                    //     // let sender = s.value().clone();
-                    //     // sender.send(data).await?;
-                    // }
                     error!("Unsupported function");
                 }
             }
@@ -235,33 +249,71 @@ pub async fn call(to_peer_id: String, func: String, data: Vec<u8>) -> Result<Vec
         }
     });
     let message = rx.await?;
-    info!(
-        "Channel Received message: {}",
-        String::from_utf8_lossy(&message)
-    );
     let data: ResponseData = serde_json::from_slice(&message)?;
     Ok(data.data)
 }
 
-pub async fn repo_share(identifier: String) -> Result<String> {
-    // let (tx, rx) = tokio::sync::oneshot::channel();
+pub async fn send(to_peer_id: String, func: String, data: Vec<u8>) -> Result<()> {
+    let connection = MsgSingletonConnection::get_connection();
+
+    let connection_clone = connection.clone();
+    let local_peer_id = get_peerid().await;
+    let t = tokio::spawn(async move {
+        let (mut sender, _) = connection_clone.open_bi().await.unwrap();
+        let send = RequestData {
+            from: local_peer_id.clone(),
+            data: data.clone(),
+            func: func.to_string(),
+            action: Action::Send,
+            to: to_peer_id.to_string(),
+            req_id: Uuid::new_v4().into(),
+        };
+        let json = serde_json::to_string(&send).unwrap();
+        sender.write_all(json.as_bytes()).await.unwrap();
+        sender.finish().unwrap();
+    });
+    let _ = join!(t);
+    Ok(())
+}
+
+pub async fn repo_share(context: Context, path: String) -> Result<String> {
+    let storage = context.services.git_db_storage.clone();
+
+    let repo: git_repo::Model = match get_git_model_by_path(context.clone(), path.clone()).await {
+        None => {
+            bail!("Repo not found: {}", path);
+        }
+        Some(repo) => repo.into(),
+    };
+    let commit = storage.get_last_commit_by_repo_id(repo.id).await.unwrap();
+    let commit = match commit {
+        Some(commit) => commit,
+        None => {
+            bail!("Repo commit error");
+        }
+    };
+    let mut repo_info: RepoInfo = repo.clone().into();
+    let identifier = repo_path_to_identifier(repo.repo_path).await;
+    repo_info.identifier = identifier.clone();
+    repo_info.commit = commit.commit_id;
+    repo_info.update_time = commit.created_at.and_utc().timestamp();
+    repo_info.origin = get_peerid().await;
 
     let connection = MsgSingletonConnection::get_connection();
 
     let connection_clone = connection.clone();
     let local_peer_id = get_peerid().await;
     let req_id: String = Uuid::new_v4().into();
-    // let shared_tx = Mutex::new(Arc::new(tx));
 
-    // REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(tx));
-    let identifier_clone = identifier.clone();
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
     tokio::spawn(async move {
         let (mut sender, _) = connection_clone.open_bi().await.unwrap();
         let send = RequestData {
             from: local_peer_id.clone(),
-            data: identifier_clone.as_bytes().to_vec(),
+            data: repo_info.to_json().into_bytes(),
             func: "".to_string(),
-            action: Action::Send,
+            action: Action::RepoShare,
             to: "".to_string(),
             req_id: req_id.clone(),
         };
@@ -270,13 +322,9 @@ pub async fn repo_share(identifier: String) -> Result<String> {
         sender.finish().unwrap();
     });
 
-    // let message: Vec<u8> = rx.await?;
-    // info!(
-    //     "Channel Received message: {}",
-    //     String::from_utf8_lossy(&message)
-    // );
-    // let _data: ResponseData = serde_json::from_slice(&message)?;
-    Ok(identifier.clone())
+    let _ = rx.await?;
+    info!("Repo share success: {}", identifier);
+    Ok(identifier)
 }
 
 pub async fn request_git_clone(
@@ -653,6 +701,56 @@ pub async fn response_lfs(
         "Send lfs data to[{}], oid: {} successfully",
         to_peer_id, oid
     );
+    Ok(())
+}
+
+pub async fn subscribe_repo(identifier: String) -> Result<()> {
+    let filters = vec![Filter::new().repo_uri(identifier)];
+    let subscription_id = get_peerid().await;
+    let client_req = ClientMessage::new_req(SubscriptionId::new(subscription_id), filters);
+
+    let relay_message = send_nostr_msg(client_req).await?;
+    info!("Subscribe repo result: {}", relay_message.as_json());
+    Ok(())
+}
+
+pub async fn send_git_event(git_event: GitEvent) -> Result<()> {
+    let keypair = vault::get_keypair().await;
+    let event = NostrEvent::new_git_event(keypair, git_event);
+    let client_message = ClientMessage::new_event(event);
+    let relay_message = send_nostr_msg(client_message).await?;
+    info!("Sent git event result: {}", relay_message.as_json());
+    Ok(())
+}
+
+async fn send_nostr_msg(client_message: ClientMessage) -> Result<RelayMessage> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let req_id: String = Uuid::new_v4().into();
+    let local_peer_id = get_peerid().await;
+    REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
+    let connection = MsgSingletonConnection::get_connection();
+    tokio::spawn(async move {
+        let (mut sender, _) = connection.open_bi().await.unwrap();
+        let send = RequestData {
+            from: local_peer_id.clone(),
+            data: client_message.as_json().as_bytes().to_vec(),
+            func: "".to_string(),
+            action: Action::Nostr,
+            to: "".to_string(),
+            req_id: req_id.clone(),
+        };
+        let json = serde_json::to_string(&send).unwrap();
+        sender.write_all(json.as_bytes()).await.unwrap();
+        sender.finish().unwrap();
+    });
+    let data = rx.await?;
+    let data = RelayMessage::from_json(data)?;
+    Ok(data)
+}
+
+pub async fn receive_nostr(data: Vec<u8>) -> Result<()> {
+    let event = NostrEvent::from_json(data)?;
+    info!("Receive nostr event:{:?}", event);
     Ok(())
 }
 
