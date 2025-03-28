@@ -750,8 +750,8 @@ async fn send_nostr_msg(client_message: ClientMessage) -> Result<RelayMessage> {
 }
 
 pub async fn receive_nostr(data: Vec<u8>) -> Result<()> {
-    let event = NostrEvent::from_json(data)?;
-    info!("Receive nostr event:{:?}", event);
+    info!("Nostr data:{}", String::from_utf8(data.clone())?);
+    let _relay_message: RelayMessage = serde_json::from_slice(data.as_slice()).unwrap();
     Ok(())
 }
 
