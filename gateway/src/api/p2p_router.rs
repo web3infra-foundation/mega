@@ -95,22 +95,8 @@ async fn repo_share(
             ))
         }
     };
-    let storage = state.inner.context.services.git_db_storage.clone();
-    let repo: Model = match storage
-        .find_git_repo_exact_match(path.as_str())
-        .await
-        .unwrap()
-    {
-        Some(repo) => repo,
-        None => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                String::from("Repo path invalid\n"),
-            ))
-        }
-    };
-    let identifier = repo_path_to_identifier(repo.repo_path).await;
-    let res = gemini::p2p::client::repo_share(identifier).await;
+
+    let res = gemini::p2p::client::repo_share(state.inner.context.clone(), path.clone()).await;
     let res = match res {
         Ok(s) => CommonResult::success(Some(s.to_string())),
         Err(err) => CommonResult::failed(&err.to_string()),

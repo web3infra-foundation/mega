@@ -4,7 +4,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "ztm_nostr_event")]
+#[sea_orm(table_name = "relay_nostr_event")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
