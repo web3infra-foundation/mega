@@ -8,10 +8,7 @@ use axum::{
 };
 
 use common::model::CommonResult;
-use gemini::{
-    nostr::{event::NostrEvent, relay_message::RelayMessage, GitEvent},
-    util::repo_path_to_identifier,
-};
+use gemini::nostr::{event::NostrEvent, relay_message::RelayMessage, GitEvent};
 use serde::{Deserialize, Serialize};
 
 use crate::api::MegaApiServiceState;

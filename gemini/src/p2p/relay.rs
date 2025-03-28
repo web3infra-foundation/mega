@@ -49,15 +49,8 @@ pub async fn run(content: Context, host: String, port: u16) -> Result<()> {
     let (tx, mut rx) = mpsc::channel(32);
     NOSTR_EVENT_QUEUE.set(tx)?;
     tokio::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Some((peer_id, nostr_event)) => {
-                    send_nostr_event(peer_id, nostr_event).await.unwrap();
-                }
-                None => {
-                    break;
-                }
-            }
+        while let Some((peer_id, nostr_event)) = rx.recv().await {
+            send_nostr_event(peer_id, nostr_event).await.unwrap();
         }
     });
 
@@ -384,10 +377,7 @@ async fn nostr_handle(
             let req_list: Vec<relay_nostr_req::Model> = relay_storage
                 .get_all_nostr_req_by_subscription_id(&subscription_id.to_string())
                 .await
-                .unwrap()
-                .iter()
-                .map(|x| x.clone().into())
-                .collect();
+                .unwrap();
             match req_list.iter().find(|&x| x.filters == filters_json) {
                 Some(_) => {}
                 None => {

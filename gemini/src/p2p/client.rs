@@ -59,10 +59,11 @@ struct MsgSingletonConnection {
     conn: Arc<Connection>,
 }
 static INSTANCE: OnceLock<MsgSingletonConnection> = OnceLock::new();
+type ReqSenderType = Sender<Vec<u8>>;
 
 lazy_static! {
     //oneshot sender map
-    static ref REQ_SENDER_MAP: DashMap<String, Arc<Mutex<Option<Sender<Vec<u8>>>>>> =
+    static ref REQ_SENDER_MAP: DashMap<String, Arc<Mutex<Option<ReqSenderType>>>> =
         DashMap::new();
 }
 
@@ -283,7 +284,7 @@ pub async fn repo_share(context: Context, path: String) -> Result<String> {
         None => {
             bail!("Repo not found: {}", path);
         }
-        Some(repo) => repo.into(),
+        Some(repo) => repo,
     };
     let commit = storage.get_last_commit_by_repo_id(repo.id).await.unwrap();
     let commit = match commit {

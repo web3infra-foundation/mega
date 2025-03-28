@@ -80,9 +80,7 @@ impl From<HexToArrayError> for Error {
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            _ => Some(self),
-        }
+        Some(self)
     }
 }
 
