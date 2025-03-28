@@ -84,7 +84,7 @@ impl StatusStore for sled::Db {
         let mut paths = Vec::new();
         for item in self.iter() {
             let (key, _) = item?;
-            let key_str = std::str::from_utf8(&key).map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Invalid UTF8"))?;
+            let key_str = std::str::from_utf8(&key).map_err(|_| std::io::Error::other("Invalid UTF8"))?;
             paths.push(PathBuf::from(key_str));
         }
         Ok(paths)
