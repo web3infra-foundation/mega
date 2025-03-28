@@ -16,9 +16,13 @@ async fn main() {
     let config_path = "config.toml";
     let mut manager = ScorpioManager::from_toml(config_path).unwrap();
     manager.check().await;
+    //init scorpio configuration
+    if let Err(e) = scorpio_config::init_config("scorpio.toml") {
+        eprintln!("Failed to load config: {}", e);
+        std::process::exit(1);
+    }
     let fuse_interface = MegaFuse::new_from_manager(&manager).await;
-    let workspace = scorpio_config::get_config().get_value("workspace")
-        .expect("Error: 'workspace' key is missing in the configuration.");
+    let workspace = scorpio_config::workspace();
     let mountpoint =OsStr::new(workspace) ;
     let lgfs = LoggingFileSystem::new(fuse_interface.clone());
     let mut mount_handle =  mount_filesystem(lgfs, mountpoint).await;

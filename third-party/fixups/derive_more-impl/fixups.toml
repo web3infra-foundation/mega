@@ -1,0 +1,4 @@
+extra_srcs = [
+    "README.md",
+    "doc/*.md"
+]

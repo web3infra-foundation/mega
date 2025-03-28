@@ -267,9 +267,10 @@ mod tests {
     use crate::utils::test;
     use serial_test::serial;
 
-    #[test]
+    #[tokio::test]
     #[serial]
-    fn test_generate_pointer_file() {
+    async fn test_generate_pointer_file() {
+        mercury::test_utils::setup_lfs_file().await;
         test::reset_working_dir();
         let path =
             Path::new("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");

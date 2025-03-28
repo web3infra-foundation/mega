@@ -1,14 +1,7 @@
-[config]
-base_url = "http://localhost:8000"
-
-workspace = "/home/luxian/megadir/mount"
-
-store_path = "/home/luxian/megadir/store"
-
 git_author = "MEGA"
-
 git_email = "admin@mega.org"
-
-file_blob_endpoint = "http://localhost:8000/api/v1/file/blob"
-
+workspace = ""
+store_path = ""
+base_url = "http://localhost:8000"
 config_file = "config.toml"
+file_blob_endpoint = "http://localhost:8000/api/v1/file/blob"

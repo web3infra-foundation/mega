@@ -5,3 +5,5 @@ mda/*
 # Except for the data directory and its subdirectory
 !.gitignore
 !objects/.gitkeep
+
+data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack

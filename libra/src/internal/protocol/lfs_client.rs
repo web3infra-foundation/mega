@@ -852,6 +852,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // need to start local mega server
     async fn test_push_object() {
+        mercury::test_utils::setup_lfs_file().await;
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
         let file =
             PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
@@ -867,6 +868,7 @@ mod tests {
     #[cfg(feature = "p2p")]
     #[ignore] // need to start local mega server
     async fn test_download_chunk() {
+        mercury::test_utils::setup_lfs_file().await;
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
         let file =
             PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");

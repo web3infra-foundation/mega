@@ -1,13 +1,14 @@
 use std::{fs, path::PathBuf};
-use super::super::util::config;
+use crate::util::scorpio_config;
 // Get the `lfs_path` from the TOML file and return a PathBuf.
 pub fn lfs_path() -> PathBuf{
-    let mut store_path_buf = config::store_path();
-    store_path_buf.push("scorpio_lfs");
-    if !store_path_buf.exists() {
-        fs::create_dir_all(&store_path_buf).expect("Failed to create directory");
+    let store_path_buf = scorpio_config::store_path();
+    let mut lfs_path = PathBuf::from(store_path_buf);
+    lfs_path.push("scorpio_lfs");
+    if !lfs_path.exists() {
+        fs::create_dir_all(&lfs_path).expect("Failed to create directory");
     }
-    store_path_buf
+    lfs_path
 
 }
 
@@ -15,4 +16,8 @@ pub fn lfs_path() -> PathBuf{
 pub fn lfs_attribate() -> PathBuf{
     let mut lfs_path = lfs_path();
     lfs_path.push(".libra_attribute");
+    if !lfs_path.exists() {
+        fs::create_dir_all(&lfs_path).expect("Failed to create directory");
+    }
+    lfs_path
 }
