@@ -4,14 +4,13 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "ztm_repo_info")]
+#[sea_orm(table_name = "relay_nostr_req")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub identifier: String,
-    pub name: String,
-    pub origin: String,
-    pub update_time: i64,
-    pub commit: String,
+    pub id: String,
+    pub subscription_id: String,
+    #[sea_orm(column_type = "Text")]
+    pub filters: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -1,7 +1,7 @@
 use crate::nostr::kind::NostrKind;
 use crate::nostr::tag::Tag;
 use crate::util::get_utc_timestamp;
-use callisto::ztm_nostr_event;
+use callisto::relay_nostr_event;
 use secp256k1::hashes::hex::HexToArrayError;
 use secp256k1::hashes::{sha256, Hash};
 use secp256k1::schnorr::Signature;
@@ -49,6 +49,17 @@ impl fmt::Display for Error {
     }
 }
 
+impl fmt::Display for ConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidSignature => write!(f, "Invalid signature"),
+            Self::InvalidParas => write!(f, "Invalid paras"),
+            Self::InvalidPubkey => write!(f, "Invalid pubkey"),
+            Self::JsonError => write!(f, "Invalid json"),
+        }
+    }
+}
+
 impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Self {
         Self::Json(e)
@@ -67,6 +78,12 @@ impl From<HexToArrayError> for Error {
     }
 }
 
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self)
+    }
+}
+
 ///  nostr event.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct NostrEvent {
@@ -78,7 +95,7 @@ pub struct NostrEvent {
     pub content: String,
     pub sig: Signature,
 }
-impl TryFrom<NostrEvent> for ztm_nostr_event::Model {
+impl TryFrom<NostrEvent> for relay_nostr_event::Model {
     type Error = ConversionError;
 
     fn try_from(n: NostrEvent) -> Result<Self, Self::Error> {
@@ -88,7 +105,7 @@ impl TryFrom<NostrEvent> for ztm_nostr_event::Model {
                 return Err(ConversionError::JsonError);
             }
         };
-        Ok(ztm_nostr_event::Model {
+        Ok(relay_nostr_event::Model {
             id: n.id.0,
             pubkey: n.pubkey.to_string(),
             created_at: n.created_at,
@@ -100,10 +117,10 @@ impl TryFrom<NostrEvent> for ztm_nostr_event::Model {
     }
 }
 
-impl TryFrom<ztm_nostr_event::Model> for NostrEvent {
+impl TryFrom<relay_nostr_event::Model> for NostrEvent {
     type Error = ConversionError;
 
-    fn try_from(n: ztm_nostr_event::Model) -> Result<Self, Self::Error> {
+    fn try_from(n: relay_nostr_event::Model) -> Result<Self, Self::Error> {
         let pk = match XOnlyPublicKey::from_str(&n.pubkey) {
             Ok(pk) => pk,
             Err(_) => {
@@ -283,6 +300,10 @@ impl EventId {
         let event_str: String = json.to_string();
         let id = sha256::Hash::hash(event_str.as_bytes()).to_string();
         Self(id)
+    }
+
+    pub fn empty() -> Self {
+        EventId("".to_string())
     }
 
     /// Get [`EventId`] as [`String`]

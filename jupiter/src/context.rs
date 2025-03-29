@@ -7,8 +7,8 @@ use crate::{
     storage::{
         git_db_storage::GitDbStorage, init::database_connection, issue_storage::IssueStorage,
         lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, mq_storage::MQStorage,
-        mr_storage::MrStorage, raw_db_storage::RawDbStorage, user_storage::UserStorage,
-        ztm_storage::ZTMStorage,
+        mr_storage::MrStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
+        user_storage::UserStorage,
     },
 };
 
@@ -60,7 +60,7 @@ pub struct Service {
     pub git_db_storage: GitDbStorage,
     pub raw_db_storage: RawDbStorage,
     lfs_db_storage: LfsDbStorage,
-    pub ztm_storage: ZTMStorage,
+    pub relay_storage: RelayStorage,
     pub mq_storage: MQStorage,
     user_storage: UserStorage,
     mr_storage: MrStorage,
@@ -77,7 +77,7 @@ impl Service {
             git_db_storage: GitDbStorage::new(connection.clone()).await,
             raw_db_storage: RawDbStorage::new(connection.clone()).await,
             lfs_db_storage: lfs_db_storage.clone(),
-            ztm_storage: ZTMStorage::new(connection.clone()).await,
+            relay_storage: RelayStorage::new(connection.clone()).await,
             mq_storage: MQStorage::new(connection.clone()).await,
             user_storage: UserStorage::new(connection.clone()).await,
             mr_storage: MrStorage::new(connection.clone()).await,
@@ -116,7 +116,7 @@ impl Service {
             git_db_storage: GitDbStorage::mock(),
             raw_db_storage: RawDbStorage::mock(),
             lfs_db_storage: LfsDbStorage::mock(),
-            ztm_storage: ZTMStorage::mock(),
+            relay_storage: RelayStorage::mock(),
             mq_storage: MQStorage::mock(),
             user_storage: UserStorage::mock(),
             lfs_file_storage: Arc::new(LocalStorage::mock()),
