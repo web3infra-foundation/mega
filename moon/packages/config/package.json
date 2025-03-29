@@ -1,0 +1,17 @@
+{
+  "name": "@gitmono/config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf .turbo dist node_modules"
+  },
+  "devDependencies": {
+    "@gitmono/eslint-config": "workspace:*",
+    "@gitmono/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

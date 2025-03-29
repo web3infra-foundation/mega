@@ -6,9 +6,41 @@
 #   3. 2025-02-27: Reconstruct the workflow and add `install-dep` action to support test on multiple platforms by Neon <yyk1249501542@gmail.com>
 #
 
-on: [ push, pull_request ]
+on: 
+  push:
+    paths-ignore:
+      - 'alfs/**'
+      - 'archived/**'
+      - 'aries/**'
+      - 'congig/**'
+      - 'docker/**'
+      - 'docs/**'
+      - 'moon/**'
+      - 'rust/**'
+      - 'scripts/**'
+      - 'third-party/**'
+      - 'toolchains/**'
+      - '.github/**'
+  pull_request: 
+    paths-ignore:
+      - 'alfs/**'
+      - 'archived/**'
+      - 'aries/**'
+      - 'congig/**'
+      - 'docker/**'
+      - 'docs/**'
+      - 'moon/**'
+      - 'rust/**'
+      - 'scripts/**'
+      - 'third-party/**'
+      - 'toolchains/**'
+      - '.github/**'
 
 name: Base GitHub Action for Check, Test and Lints
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # cache files before all jobs
@@ -160,35 +192,3 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo clippy --manifest-path scorpio/Cargo.toml --all-targets --all-features -- -D warnings
-
-  moon-lint-and-build:
-    name: MOON Lint & Build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-          cache-dependency-path: ./moon/package.json
-
-      - name: Install dependencies
-        working-directory: ./moon
-        run: pnpm i --frozen-lockfile
-
-      - name: Run ESLint
-        working-directory: ./moon
-        run: pnpm run lint
-
-      - name: Build Next.js application
-        working-directory: ./moon
-        run: pnpm run build

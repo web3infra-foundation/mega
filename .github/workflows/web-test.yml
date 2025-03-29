@@ -1,0 +1,57 @@
+name: Test Web UI
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/web-*.yml'
+      - 'moon/**'
+
+env:
+  TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+
+jobs:
+  test-web-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4.0.0
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
+      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+
+      - name: Install dependencies
+        working-directory: ./moon
+        run: pnpm i --frozen-lockfile
+
+      - name: Run ESLint
+        working-directory: ./moon
+        run: pnpm run lint
+
+      - name: Build Next.js application
+        working-directory: ./moon
+        run: pnpm run build
