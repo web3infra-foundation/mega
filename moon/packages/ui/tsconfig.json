@@ -1,0 +1,5 @@
+{
+  "extends": "@gitmono/tsconfig/nextjs.json",
+  "include": ["."],
+  "exclude": ["dist", "build", "node_modules"]
+}
