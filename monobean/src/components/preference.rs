@@ -133,7 +133,7 @@ mod imp {
 
 glib::wrapper! {
     pub struct MonobeanPreferences(ObjectSubclass<imp::MonobeanPreferences>)
-        @extends gtk::Widget, gtk::Window, adw::Dialog, adw::PreferencesDialog,
+        @extends gtk::Widget, gtk::Window, adw::Window, adw::PreferencesWindow,
         @implements Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager;
 }
 

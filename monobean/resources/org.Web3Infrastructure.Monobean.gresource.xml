@@ -11,10 +11,12 @@
         <!-- Composite Templates -->
         <file compressed="true">gtk/window.ui</file>
         <file compressed="true">gtk/hello_page.ui</file>
+        <file compressed="true">gtk/code_page.ui</file>
         <file compressed="true">gtk/mega_tab.ui</file>
         <file compressed="true">gtk/repo_tab.ui</file>
         <file compressed="true">gtk/repo_detail.ui</file>
         <file compressed="true">gtk/preferences.ui</file>
+        <file compressed="true">gtk/file_row.ui</file>
 
         <file compressed="true">gtk/theme_selector.ui</file>
         <file compressed="true">gtk/not_implemented.ui</file>
@@ -25,10 +27,10 @@
         <file compressed="true">css/themesselector.css</file>
 
         <!-- Icons -->
-        <file compressed="true">icon/font-black-w290px.png</file>
-        <file compressed="true">icon/font-white-w290px.png</file>
-        <file compressed="true">icon/logo-black-128_128@2x.png</file>
-        <file compressed="true">icon/logo-white-128_128@2x.png</file>
+        <file compressed="true">icons/font-black-w290px.png</file>
+        <file compressed="true">icons/font-white-w290px.png</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/scalable/apps/mono-black-logo.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/scalable/apps/mono-white-logo.svg</file>
 
     </gresource>
 </gresources>
