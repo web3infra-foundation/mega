@@ -85,6 +85,16 @@
                             </property>
                           </object>
                         </child>
+                        <child>
+                          <object class="AdwViewStackPage">
+                            <property name="name">code</property>
+                            <property name="title" translatable="true">Code</property>
+                            <property name="icon-name">x-package-repository</property>
+                            <property name="child">
+                              <object class="CodePage" id="code_page"></object>
+                            </property>
+                          </object>
+                        </child>
 
                         <child>
                           <object class="AdwViewStackPage">

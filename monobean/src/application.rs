@@ -11,9 +11,11 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
+use gtk::builders::IconThemeBuilder;
+use gtk::ffi::{gtk_icon_theme_add_search_path, gtk_icon_theme_new, gtk_icon_theme_set_search_path};
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
-use gtk::{gio, glib};
+use gtk::{gio, glib, IconTheme};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
@@ -157,7 +159,9 @@ impl MonobeanApplication {
 
     fn create_window(&self) -> MonobeanWindow {
         let window = MonobeanWindow::new(&self.clone(), self.sender());
-
+        
+        window.set_decorated(false);
+        window.set_icon_name(Some("mono-white-logo"));
         self.add_window(&window);
         window.present();
         window
