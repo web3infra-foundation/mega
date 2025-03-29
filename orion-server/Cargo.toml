@@ -18,3 +18,4 @@ dashmap = "6.1.0"
 tower-http = { workspace = true, features = ["trace"] }
 scopeguard = "1.2.0"
 rand = "0.8.5"
+orion = { path = "../orion" }

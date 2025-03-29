@@ -6,9 +6,10 @@ use axum::routing::{any, post};
 use axum::{Json, Router};
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
+use orion::ws::WSMessage;
 use rand::seq::SliceRandom;
 use scopeguard::defer;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -21,23 +22,6 @@ struct BuildRequest {
     repo: String,
     target: String,
     args: Option<Vec<String>>,
-}
-
-#[derive(Debug, Serialize)]
-pub enum WSMessage {
-    Task {
-        id: String,
-        repo: String,
-        target: String,
-        args: Option<Vec<String>>,
-    },
-    TaskAck {
-        id: String,
-        success: bool,
-        message: String,
-    },
-    BuildOutput,
-    BuildComplete,
 }
 
 #[derive(Clone)]
@@ -165,6 +149,31 @@ fn process_message(msg: Message, who: SocketAddr) -> ControlFlow<(), ()> {
     match msg {
         Message::Text(t) => {
             println!(">>> {who} sent str: {:?}", t.as_str());
+            match serde_json::from_str::<WSMessage>(t.as_str()) {
+                Ok(msg) => match msg {
+                    WSMessage::Task {
+                        id,
+                        repo,
+                        target,
+                        args,
+                    } => {
+                        println!(
+                            ">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}"
+                        );
+                    }
+                    WSMessage::TaskAck {
+                        id,
+                        success,
+                        message,
+                    } => {
+                        println!(">>> got task ack: id:{id}, success:{success}, message:{message}");
+                    }
+                    _ => {}
+                },
+                Err(e) => {
+                    println!("Error parsing message: {e}");
+                }
+            }
         }
         Message::Binary(d) => {
             println!(">>> {} sent {} bytes: {:?}", who, d.len(), d);
