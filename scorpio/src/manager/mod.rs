@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{fs::File, io::AsyncWriteExt};
 use std::{fs, path::PathBuf, str::FromStr};
 use crate::util::scorpio_config;
+use crate::manager::diff::add_and_del;
 
 pub mod diff;
 pub mod push;
@@ -28,6 +29,7 @@ pub struct WorkDir{
     pub node:u64,
     pub hash:String,
 }
+
 #[allow(unused)]
 impl ScorpioManager {
     pub fn from_toml(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
@@ -44,8 +46,7 @@ impl ScorpioManager {
     pub async fn mono_commit(&self ,mono_path:String, commit_msg:String) -> Result<Commit, Box<dyn std::error::Error>>{
         let store_path = scorpio_config::store_path();
         let work_dir = self.select_work(&mono_path)?;
-        let path = PathBuf::from(store_path);
-        path.join(work_dir.hash.clone());
+        let path = PathBuf::from(store_path).join(work_dir.hash.clone());
         let mut lower  = path.clone();
         lower.push("lower");
         let mut upper  = path.clone();
@@ -92,6 +93,72 @@ impl ScorpioManager {
         Err(Box::from("WorkDir not found"))
         
     }
+
+    fn select_work_for_add(&self , mono_path:&str ) ->Result<(&WorkDir, PathBuf), Box<dyn std::error::Error>> {
+        println!("Start");
+        let workspace = scorpio_config::workspace();
+        let workspace = PathBuf::from(workspace);
+        let os_mono_path = workspace.join(mono_path); // Construct the full path of mono_path
+        println!("Start match");
+        println!("os_mono_path = {}", os_mono_path.display());
+        
+        // Remove this part will cause a security issue, since it will not check the real path.
+        // such as:
+        /*
+            #[test]
+            fn test() {
+                use std::path::Path;
+                use std::fs;
+
+                fs::create_dir_all("/tmp/tmp1746/").unwrap();
+                
+                let path = Path::new("/usr/bin/../../../../tmp/tmp1746/");
+                let path2 = Path::new("/usr");
+                
+                assert!(path.starts_with(path2));
+                assert!(!path.canonicalize().unwrap().starts_with(path2));
+            }
+        */
+        // However, due to the shortcomings of OverlayFs, we have to make compromises.
+        /*
+        match os_mono_path.canonicalize() {
+            // Standardized path
+            Ok(path) => {
+                println!("len = {}", self.works.len());
+                // for works in self.works.iter(){
+                for works in self.works.iter() {
+                    let os_work_path = workspace.join(&works.path);
+                    println!("os_mono_path = {}", path.display());
+                    println!("\tos_work_path = {}", os_work_path.display()); 
+                    if path.starts_with(os_work_path) {
+                        // This allows for partial matches, e.g., if os_mono_path is a subdirectory of works.path
+                        println!("Found matching work: {}", works.path);
+                        return Ok((works, path));
+                    }
+                }
+                Err(Box::from("WorkDir not found"))
+            },
+            Err(e) => {
+                println!("  Err");
+                Err(Box::from(format!("Failed to canonicalize path: {}", e)))
+            }
+        }
+        */
+        println!("len = {}", self.works.len());
+        // for works in self.works.iter(){
+        for works in self.works.iter() {
+            let os_work_path = workspace.join(&works.path);
+            println!("os_mono_path = {}", os_mono_path.display());
+            println!("\tos_work_path = {}", os_work_path.display()); 
+            if os_mono_path.starts_with(os_work_path) {
+                // This allows for partial matches, e.g., if os_mono_path is a subdirectory of works.path
+                println!("Found matching work: {}", works.path);
+                return Ok((works, os_mono_path));
+            }
+        }
+        Err(Box::from("WorkDir not found"))
+    }
+
     pub  async fn push_commit(&self,mono_path:&str) ->Result<reqwest::Response, Box<dyn std::error::Error>>{
         
         let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
@@ -144,6 +211,27 @@ impl ScorpioManager {
         } else {
             Err(Box::from("Workspace not found"))
         }
+    }
+
+    pub async fn mono_add(&self ,mono_path: &str) -> Result<(), Box<dyn std::error::Error>>{
+        println!("  mono_path = {}", mono_path);
+        let (work_dir, mono_path) = self.select_work_for_add(mono_path)?;
+        println!("  select_work_for_add OK");
+
+        let store_path = scorpio_config::store_path();
+        println!("  store_path OK");
+        let path = PathBuf::from(store_path).join(work_dir.hash.clone());
+        println!("  store_path = {}", store_path); // Debugging line to see the store path being used
+
+        let mut dbpath = path.join("store.db");
+        let mut upper_path = path.join("upper");
+
+        println!("  dbpath = {:?}", dbpath); // Debugging line to see the database path being used
+    
+        let db = sled::open(dbpath).unwrap();
+        add_and_del(upper_path, path, &db)?;
+        println!("OK");
+        Ok(())
     }
 }
 
