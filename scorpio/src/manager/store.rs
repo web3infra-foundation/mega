@@ -20,10 +20,23 @@ impl  TreeStore for sled::Db {
 
     fn get_bypath(&self,path:PathBuf)-> Result<Tree> {
         let key = path.to_str().unwrap();
+        match self.get(key)? {
+            Some(encoded_value) => {
+                let decoded: Result<Tree> = bincode::deserialize(&encoded_value).map_err(|_| std::io::Error::other("Deserialization error"));
+                let decoded: Tree = decoded?;
+                Ok(decoded)
+            },
+            None => {
+                // If the db is empty, return an error not a panic.
+                Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("Path '{}' not found", key)))
+            },
+        }
+        /*
         let encoded_value= self.get(key)?;
         let decoded: Result<Tree> = bincode::deserialize(&encoded_value.unwrap()).map_err(|_| std::io::Error::other("Deserialization error"));
         let decoded: Tree = decoded?;
         Ok(decoded)
+        */
     }
 }
 #[allow(unused)]

@@ -8,8 +8,7 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use mercury::internal::object::types::ObjectType;
 
-use crate::manager::store::TreeStore;
-
+use crate::manager::store::{StatusStore, TreeStore};
 
 fn collect_paths<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
     let mut paths = Vec::new();
@@ -205,6 +204,130 @@ pub fn change(
         tree.rehash();//Re compute the hash value .
         tree
 
+}
+
+/// This function dosn't check the input path, so if you call it outside the 
+/// mono_add() function, be careful the directory injection vulnerability.
+///
+/// This function should not make any changes to the existing Tree structure,
+/// and should only make changes during the Commit operation.
+pub fn add_and_del(real_path: PathBuf, tree_path: PathBuf, db: &sled::Db) -> Result<(), Box<dyn std::error::Error>>{
+    println!("Start");
+    let root_tree = db.get_bypath(tree_path.clone());
+    let tree = match root_tree {
+        Ok(root_tree) => {
+            // exit dictionry
+            println!("Exit tree:{:?}", tree_path);
+            root_tree
+        }
+        Err(_) => {
+            // there is a new dictionary.
+            println!("New tree:{:?}", tree_path);
+            Tree {
+                id: SHA1::default(),
+                tree_items: vec![],
+            }
+        }
+    };
+
+    println!("Processing directory: {}", real_path.display());
+    let entries = match std::fs::read_dir(&real_path) {
+        Ok(entries) => entries,
+        Err(e) => {
+            let e_message = format!("Failed to read directory {:?}: {}", real_path, e);
+            eprintln!("{e_message}");
+            return Err(Box::from(e_message));
+        }
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        let mut new = true;
+
+        for item in &tree.tree_items {
+            if item.name == name {
+                new = false;
+                if is_whiteout_inode(&path) {
+                    println!("change: Deleting: {}", item.name);
+                    match db.delete(path.clone()) {
+                        Ok(tmp) => println!("Del: {}", tmp),
+                        Err(e) => {
+                            let e_message = format!("Failed to delete {:?} from DB: {}", item.name, e);
+                            eprintln!("{e_message}");
+                            return Err(Box::from(e_message));
+                        }
+                    }
+                } else if path.is_dir() {
+                    println!("change: Updating directory: {}", item.name);
+                    let new_tree_path = tree_path.join(&name);
+                    add_and_del(path.clone(), new_tree_path, db)?;
+                } else {
+                    // Thanks to the hierarchical structure of OverlayFs, we
+                    // can now get all the changed files directly from the
+                    // Upper folder without having to read from the mount point
+                    // using the FUSE system. This saves a lot of work, such as
+                    // Hash verification.
+                    /*
+                    let content = std::fs::read(&path).unwrap();
+                    let new_hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
+                    if item.id != new_hash {
+                        println!("change: Updating file: {}", item.name);
+                        match db.add_content(path.clone(), &content) {
+                            Ok(()) => (), // Successfully updated content in DB
+                            Err(e) => {
+                                let e_message = format!("Failed to update content in DB: {}", e);
+                                eprintln!("{e_message}");
+                                return Err(Box::from(e_message));
+                            },
+                        }
+                    }
+                    */
+                    println!("change: Updating file: {}", item.name);
+                    match db.add_content(path.clone(), &content) {
+                        Ok(()) => (), // Successfully updated content in DB
+                        Err(e) => {
+                            let e_message = format!("Failed to update content in DB: {}", e);
+                            eprintln!("{e_message}");
+                            return Err(Box::from(e_message));
+                        },
+                    }
+                }
+                break;
+            }
+        }
+
+        if new {
+            if path.is_dir() {
+                println!("Adding new directory: {}", name);
+                let new_tree_path = tree_path.join(&name);
+                add_and_del(path.clone(), new_tree_path, db)?;
+            } else {
+                println!("Adding new file: {}", name);
+                let content = std::fs::read(&path).unwrap();
+                match db.add_content(path.clone(), &content) {
+                    Ok(()) => (),
+                    Err(e) => {
+                        let e_message = format!("Failed to update content in DB: {}", e);
+                        eprintln!("{e_message}");
+                        return Err(Box::from(e_message));
+                    },
+                }
+            }
+        }
+    }
+
+    match db.insert_tree(tree_path, tree.clone()) {
+        Ok(()) => {
+            println!("Add operation completed successfully");
+            Ok(())
+        }
+        Err(e) => {
+            let e_message = format!("Failed to update content in DB: {}", e);
+            eprintln!("{e_message}");
+            return Err(Box::from(e_message));
+        }
+    }
 }
 
 #[cfg(test)]
