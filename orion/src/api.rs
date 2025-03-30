@@ -1,6 +1,7 @@
 use crate::buck_controller;
 use crate::model::builds;
 use crate::server::AppState;
+use crate::ws::WSMessage;
 use axum::extract::{Path, State};
 use axum::response::sse::{Event, KeepAlive};
 use axum::response::{IntoResponse, Sse};
@@ -16,40 +17,43 @@ use sea_orm::ActiveValue::Set;
 use serde::{Deserialize, Serialize};
 use std::{convert::Infallible, time::Duration};
 use tokio::io::AsyncReadExt;
+use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 pub fn routers() -> Router<AppState> {
     Router::new()
-        .route("/build", post(buck_build))
+        // .route("/build", post(buck_build))
         .route("/build-output/:id", get(build_output))
 }
 
 const BUILD_LOG_DIR: &str = "/tmp/buck2ctl";
 #[derive(Debug, Deserialize)]
-struct BuildRequest {
-    repo: String,
-    target: String,
-    args: Option<Vec<String>>,
-    webhook: Option<String>, // post
+pub struct BuildRequest {
+    pub repo: String,
+    pub target: String,
+    pub args: Option<Vec<String>>,
+    pub webhook: Option<String>, // post
 }
 
 #[derive(Debug, Serialize)]
-struct BuildResult {
-    success: bool,
-    id: String,
+pub struct BuildResult {
+    pub success: bool,
+    pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    exit_code: Option<i32>,
-    message: String,
+    pub exit_code: Option<i32>,
+    pub message: String,
 }
 
 static BUILDING: Lazy<DashSet<String>> = Lazy::new(DashSet::new);
 // TODO avoid multi-task in one repo?
 // #[debug_handler] // better error msg
 // `Json` must be last arg, because it consumes the request body
-async fn buck_build(
-    State(state): State<AppState>,
-    Json(req): Json<BuildRequest>,
-) -> impl IntoResponse {
+pub async fn buck_build(
+    // State(state): State<AppState>,
+    // Json(req): Json<BuildRequest>,
+    req: BuildRequest,
+    sender: UnboundedSender<WSMessage>,
+) -> Json<BuildResult> {
     let id = Uuid::now_v7();
     let id_c = id;
     BUILDING.insert(id.to_string());
@@ -58,10 +62,12 @@ async fn buck_build(
         let start_at = chrono::Utc::now();
         let output_path = format!("{}/{}", BUILD_LOG_DIR, id_c);
         let build_resp = match buck_controller::build(
+            id_c.to_string(),
             req.repo.clone(),
             req.target.clone(),
             req.args.unwrap_or_default(),
-            output_path.clone(),
+            // output_path.clone(),
+            sender.clone(),
         )
         .await
         {
@@ -93,46 +99,55 @@ async fn buck_build(
             }
         };
 
-        let model = builds::ActiveModel {
-            build_id: Set(id_c),
-            output: Set(std::fs::read_to_string(&output_path).unwrap_or_default()),
-            exit_code: Set(build_resp.exit_code),
-            start_at: Set(start_at),
-            end_at: Set(chrono::Utc::now()),
-            repo_name: Set(req.repo),
-            target: Set(req.target),
-        };
-        model.insert(&state.conn).await.unwrap();
+        // let model = builds::ActiveModel {
+        //     build_id: Set(id_c),
+        //     output: Set(std::fs::read_to_string(&output_path).unwrap_or_default()),
+        //     exit_code: Set(build_resp.exit_code),
+        //     start_at: Set(start_at),
+        //     end_at: Set(chrono::Utc::now()),
+        //     repo_name: Set(req.repo),
+        //     target: Set(req.target),
+        // };
+        // model.insert(&state.conn).await.unwrap();
 
         // remove log file
         // TODO on Linux, it's okay to delete a file that is being read
         //  but on Windows, it may cause `Permission denied`
         //  we can retry after every SSE read with file
-        if std::fs::remove_file(&output_path).is_err() {
-            tracing::warn!("Remove log file failed: {}", output_path);
-        } else {
-            tracing::info!("Remove log file: {}", output_path);
-        }
+        // if std::fs::remove_file(&output_path).is_err() {
+        //     tracing::warn!("Remove log file failed: {}", output_path);
+        // } else {
+        //     tracing::info!("Remove log file: {}", output_path);
+        // }
 
         BUILDING.remove(&id_c.to_string()); // MUST after database insert to ensure data accessible
 
+        sender
+            .send(WSMessage::BuildComplete {
+                build_id: id_c.to_string(),
+                success: build_resp.success,
+                exit_code: build_resp.exit_code,
+                message: build_resp.message.clone(),
+            })
+            .unwrap();
+
         // notify webhook
-        if let Some(webhook) = req.webhook {
-            let client = reqwest::Client::new();
-            let resp = client.post(webhook.clone()).json(&build_resp).send().await;
-            match resp {
-                Ok(resp) => {
-                    if resp.status().is_success() {
-                        tracing::info!("Webhook notify success: {}", webhook);
-                    } else {
-                        tracing::error!("Webhook notify failed: {}", resp.status());
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Webhook notify failed: {}", e);
-                }
-            }
-        }
+        // if let Some(webhook) = req.webhook {
+        //     let client = reqwest::Client::new();
+        //     let resp = client.post(webhook.clone()).json(&build_resp).send().await;
+        //     match resp {
+        //         Ok(resp) => {
+        //             if resp.status().is_success() {
+        //                 tracing::info!("Webhook notify success: {}", webhook);
+        //             } else {
+        //                 tracing::error!("Webhook notify failed: {}", resp.status());
+        //             }
+        //         }
+        //         Err(e) => {
+        //             tracing::error!("Webhook notify failed: {}", e);
+        //         }
+        //     }
+        // }
     });
 
     Json(BuildResult {

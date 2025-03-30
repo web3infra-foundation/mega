@@ -1,9 +1,11 @@
+use axum::Json;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::ops::ControlFlow;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, OnceCell};
 // we will use tungstenite for websocket client impl (same library as what axum is using)
+use crate::api::{buck_build, BuildRequest};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use tungstenite::Utf8Bytes;
 
@@ -19,11 +21,20 @@ pub enum WSMessage {
     },
     TaskAck {
         id: String,
+        build_id: String,
         success: bool,
         message: String,
     },
-    BuildOutput,
-    BuildComplete,
+    BuildOutput {
+        build_id: String,
+        output: String,
+    },
+    BuildComplete {
+        build_id: String,
+        success: bool,
+        exit_code: Option<i32>,
+        message: String,
+    },
 }
 
 pub async fn spawn_client(server: &str) {
@@ -40,14 +51,6 @@ pub async fn spawn_client(server: &str) {
 
     let (mut sender, mut receiver) = ws_stream.split();
 
-    //we can ping the server for start
-    // sender
-    //     .send(Message::Ping(axum::body::Bytes::from_static(
-    //         b"Hello, Server!",
-    //     )))
-    //     .await
-    //     .expect("Can not send!");
-
     let (tx, mut rx) = mpsc::unbounded_channel::<WSMessage>();
     SENDER.set(tx).unwrap();
 
@@ -63,7 +66,7 @@ pub async fn spawn_client(server: &str) {
 
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
-            if process_message(msg).is_break() {
+            if process_message(msg).await.is_break() {
                 break;
             }
         }
@@ -80,7 +83,7 @@ pub async fn spawn_client(server: &str) {
     }
 }
 
-fn process_message(msg: Message) -> ControlFlow<(), ()> {
+async fn process_message(msg: Message) -> ControlFlow<(), ()> {
     match msg {
         Message::Text(t) => match serde_json::from_str::<WSMessage>(&t) {
             Ok(msg) => match msg {
@@ -91,14 +94,24 @@ fn process_message(msg: Message) -> ControlFlow<(), ()> {
                     args,
                 } => {
                     println!(">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}");
-
+                    let Json(res) = buck_build(
+                        BuildRequest {
+                            repo,
+                            target,
+                            args,
+                            webhook: None,
+                        },
+                        SENDER.get().unwrap().clone(),
+                    )
+                    .await;
                     SENDER
                         .get()
                         .unwrap()
                         .send(WSMessage::TaskAck {
                             id: id.clone(),
-                            success: true,
-                            message: "ok".to_string(),
+                            build_id: res.id,
+                            success: res.success,
+                            message: res.message,
                         })
                         .unwrap();
                 }
