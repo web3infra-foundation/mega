@@ -10,12 +10,15 @@ use orion::ws::WSMessage;
 use rand::seq::SliceRandom;
 use scopeguard::defer;
 use serde::Deserialize;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
+
+const BUILD_LOG_DIR: &str = "/tmp/buck2ctl";
 
 #[derive(Debug, Deserialize)]
 struct BuildRequest {
@@ -147,34 +150,43 @@ async fn handle_socket(mut socket: WebSocket, who: SocketAddr, state: AppState) 
 /// helper to print contents of messages to stdout. Has special treatment for Close.
 fn process_message(msg: Message, who: SocketAddr) -> ControlFlow<(), ()> {
     match msg {
-        Message::Text(t) => {
-            println!(">>> {who} sent str: {:?}", t.as_str());
-            match serde_json::from_str::<WSMessage>(t.as_str()) {
-                Ok(msg) => match msg {
-                    WSMessage::Task {
-                        id,
-                        repo,
-                        target,
-                        args,
-                    } => {
-                        println!(
-                            ">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}"
-                        );
-                    }
-                    WSMessage::TaskAck {
-                        id,
-                        success,
-                        message,
-                    } => {
-                        println!(">>> got task ack: id:{id}, success:{success}, message:{message}");
-                    }
-                    _ => {}
-                },
-                Err(e) => {
-                    println!("Error parsing message: {e}");
+        Message::Text(t) => match serde_json::from_str::<WSMessage>(t.as_str()) {
+            Ok(msg) => match msg {
+                WSMessage::TaskAck {
+                    id,
+                    build_id,
+                    success,
+                    message,
+                } => {
+                    println!(
+                        ">>> task ack: id:{id}, build_id:{build_id}, success:{success}, msg:{message}"
+                    );
                 }
+                WSMessage::BuildOutput { build_id, output } => {
+                    println!(">>> build output: id:{build_id}, output:{output}");
+                    let mut file = std::fs::OpenOptions::new() // TODO optimize: open & close too many times
+                        .append(true)
+                        .create(true)
+                        .open(format!("{BUILD_LOG_DIR}/{build_id}"))
+                        .unwrap();
+                    file.write_all(format!("{output}\n").as_bytes()).unwrap();
+                }
+                WSMessage::BuildComplete {
+                    build_id,
+                    success,
+                    exit_code,
+                    message,
+                } => {
+                    println!(
+                        ">>> got build complete: id:{build_id}, success:{success}, exit_code:{exit_code:?}, msg:{message}"
+                    );
+                }
+                _ => unreachable!(),
+            },
+            Err(e) => {
+                println!("Error parsing message: {e}");
             }
-        }
+        },
         Message::Binary(d) => {
             println!(">>> {} sent {} bytes: {:?}", who, d.len(), d);
         }
