@@ -151,7 +151,7 @@ impl MonobeanWindow {
         // let setting = self.settings();
 
         imp.hello_page.setup_hello_page(self.sender());
-        imp.code_page.setup_code_page(self.sender());
+        imp.code_page.setup_code_page(self.sender(), None);
 
         // We are developing, so always show hello_page for debug
         let stack = imp.base_stack.clone();

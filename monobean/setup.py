@@ -58,7 +58,7 @@ def setup_environmental_variables():
         # convert to abs path
         value = os.pathsep.join([os.path.abspath(p) for p in value.split(';')[:-1]])
 
-        commands.append(f'$env:{key} = "$env:{key};{value}"')
+        commands.append(f'$env:{key} = "{value};$env:{key}"')
 
     print("Copy and paste these commands to set environment variables in PowerShell:\n")
     for cmd in commands:
