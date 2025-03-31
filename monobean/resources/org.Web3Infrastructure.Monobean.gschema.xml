@@ -188,19 +188,6 @@
             <default>'http://localhost:8000'</default>
             <summary>LFS Server URL</summary>
         </key>
-        <key name="lfs-obj-local-path" type="s">
-            <default>''</default>
-            <summary>LFS Object Path</summary>
-        </key>
-        <key name="enable-split" type="b">
-            <default>true</default>
-            <summary>Enable Split</summary>
-            <description>Split large files into chunks</description>
-        </key>
-        <key name="split-size" type="s">
-            <default>'20M'</default>
-            <summary>Split Size</summary>
-        </key>
 
         <!-- OAuth Settings -->
         <key name="github-client-id" type="s">
