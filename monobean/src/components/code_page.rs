@@ -1,7 +1,10 @@
+use std::path::Path;
+
 use async_channel::Sender;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
+use scv::{prelude::*, Buffer};
 
 use crate::application::Action;
 
@@ -19,6 +22,12 @@ mod imp {
         // pub search_entry: TemplateChild<gtk::SearchEntry>,
         #[template_child]
         pub listview: TemplateChild<gtk::ListView>,
+        #[template_child]
+        pub code_stack: TemplateChild<gtk::Stack>,
+        #[template_child]
+        pub empty_page: TemplateChild<gtk::Box>,
+        #[template_child]
+        pub source_view: TemplateChild<scv::View>,
 
         pub sender: OnceCell<Sender<Action>>,
     }
@@ -64,11 +73,42 @@ impl CodePage {
         glib::object::Object::new()
     }
 
-    pub fn setup_code_page(&self, sender: Sender<Action>) {
+    pub fn setup_code_page(&self, sender: Sender<Action>, opened_file: Option<&Path>) {
         self.imp()
             .sender
             .set(sender)
             .expect("Code Page sender can only be set once");
         // self.setup_action();
+
+        let buf = Buffer::new(None);
+        buf.set_highlight_syntax(true);
+        if let Some(ref language) = scv::LanguageManager::new().language("rust") {
+            buf.set_language(Some(language));
+        }
+        // if let Some(ref scheme) = scv::StyleSchemeManager::new().scheme("solarized-dark") {
+        //     buf.set_style_scheme(Some(scheme));
+        // }
+
+        // FIXME: be care with os path
+        let pb = std::path::PathBuf::from("E:/Projects/mega/monobean/src/components/code_page.rs");
+        let file = adw::gio::File::for_path(&pb);
+        let file = scv::File::builder().location(&file).build();
+        let loader = scv::FileLoader::new(&buf, &file);
+        loader.load_async_with_callback(
+            glib::Priority::default(),
+            adw::gio::Cancellable::NONE,
+            move |current_num_bytes, total_num_bytes| {
+                println!(
+                    "loading: {:?}",
+                    (current_num_bytes as f32 / total_num_bytes as f32) * 100f32
+                );
+            },
+            |res| {
+                println!("loaded: {:?}", res);
+            },
+        );
+
+        self.imp().source_view.set_buffer(Some(&buf));
+        self.imp().code_stack.set_visible_child_name("source_view");
     }
 }

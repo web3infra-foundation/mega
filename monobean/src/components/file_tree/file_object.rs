@@ -3,14 +3,16 @@ use std::ops::Deref;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::gio::FileInfo;
+use gtk::glib::enums::EnumTypeChecker;
+use gtk::glib::property::Property;
 use gtk::glib::value::FromValue;
-use gtk::glib::{self, ParamSpec, ParamSpecUInt, ParamSpecUIntBuilder, Value, ValueDelegate};
+use gtk::glib::{self, Enum, ParamSpec, ParamSpecUInt, ParamSpecUIntBuilder, Value, ValueDelegate};
 use gtk::glib::translate::{FromGlib, IntoGlib};
 use gtk::glib::{ParamSpecEnum};
 use gtk::prelude::*;
 
 mod imp {
-    use std::cell::RefCell;
+    use std::{cell::RefCell, rc::Rc};
 
     use super::*;
     use gtk::glib::Properties;
@@ -22,13 +24,13 @@ mod imp {
         #[property(name = "label", get, set, type = String, member = label)]
         pub data: RefCell<FileRowData>,
 
-        #[property(name = "file-type", get, set, type = FileType)]
-        pub file_type: FileType,
+        #[property(get, set, builder(FileType::File))]
+        pub file_type: Rc<RefCell<FileType>>,
     }
 
     #[glib::object_subclass]
     impl ObjectSubclass for FileRowObject {
-        const NAME: &'static str = "FileObject";
+        const NAME: &'static str = "FileRowObject";
         type Type = super::FileRowObject;
     }
 
@@ -56,7 +58,8 @@ pub struct FileRowData {
     pub label: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+#[enum_type(name = "FileType")]
 pub enum FileType {
     File = 0,
     Directory,
@@ -65,55 +68,5 @@ pub enum FileType {
 impl Default for FileType {
     fn default() -> Self {
         FileType::File
-    }
-}
-
-impl From<u32> for FileType {
-    fn from(value: u32) -> Self {
-        match value {
-            0 => FileType::File,
-            1 => FileType::Directory,
-            _ => FileType::File,
-        }
-    }
-}
-
-impl From<&FileType> for u32 {
-    fn from(value: &FileType) -> u32 {
-        match value {
-            FileType::File => 0,
-            FileType::Directory => 1,
-        }
-    }
-}
-
-impl ToValue for FileType {
-    fn to_value(&self) -> Value {
-        let value = Value::from(Into::<u32>::into(self));
-        value
-    }
-
-    fn value_type(&self) -> glib::Type {
-        glib::Type::U32
-    }
-}
-impl HasParamSpec for FileType {
-    type ParamSpec = ParamSpecUInt;
-
-    type SetValue = u32;
-
-    type BuilderFn = fn(&str) -> ParamSpecUIntBuilder;
-
-    fn param_spec_builder() -> Self::BuilderFn {
-        Self::ParamSpec::builder
-    }
-}
-
-unsafe impl FromValue<'_> for FileType {
-    type Checker = glib::value::GenericValueTypeChecker<Self>;
-
-    unsafe fn from_value(value: &Value) -> Self {
-        let value = value.get::<u32>().expect("Wrong type");
-        value.into()
     }
 }
