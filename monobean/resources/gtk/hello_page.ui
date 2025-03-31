@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <requires lib="gtk" version="4.0"/>
+  <requires lib="gtk" version="4.0" />
   <template class="HelloPage" parent="GtkBox">
     <property name="orientation">vertical</property>
     <property name="hexpand">true</property>
@@ -103,6 +103,15 @@
             <child type="start">
               <object class="GtkBox">
                 <property name="orientation">horizontal</property>
+                <property name="margin-start">6</property>
+                <property name="spacing">4</property>
+
+                <!-- Icon -->
+                <child>
+                  <object class="GtkImage">
+                    <property name="icon-name">mono-white-logo</property>
+                  </object>
+                </child>
 
                 <!-- MenuBar -->
                 <child>
@@ -396,14 +405,10 @@
                     <property name="valign">center</property>
 
                     <property name="child">
-                      <object class="GtkImage">
-                        <property name="icon-name">drive-multidisk</property>
+                      <object class="GtkImage" id="logo">
+                        <property name="icon-name">mono-white-logo</property>
                         <property name="pixel-size">128</property>
                         <property name="valign">end</property>
-                        <property name="tooltip-text">icon-dropshadow</property>
-                        <style>
-                          <class name="icon-dropshadow"/>
-                        </style>
                       </object>
                     </property>
                   </object>

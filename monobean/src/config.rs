@@ -139,27 +139,6 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
         update.push(CoreConfigChanged::SqlxLogging(sqlx_logging));
     }
 
-    // Storage settings
-    let obs_access_key: String = get_setting!(setting, "obs-access-key", String);
-    if !obs_access_key.is_empty() {
-        update.push(CoreConfigChanged::ObsAccessKey(obs_access_key));
-    }
-
-    let obs_secret_key: String = get_setting!(setting, "obs-secret-key", String);
-    if !obs_secret_key.is_empty() {
-        update.push(CoreConfigChanged::ObsSecretKey(obs_secret_key));
-    }
-
-    let obs_region: String = get_setting!(setting, "obs-region", String);
-    if obs_region != "cn-east-3" {
-        update.push(CoreConfigChanged::ObsRegion(obs_region));
-    }
-
-    let obs_endpoint: String = get_setting!(setting, "obs-endpoint", String);
-    if obs_endpoint != "https://obs.cn-east-3.myhuaweicloud.com" {
-        update.push(CoreConfigChanged::ObsEndpoint(obs_endpoint));
-    }
-
     // Monorepo settings
     let import_dir: String = get_setting!(setting, "import-dir", String);
     if import_dir != "/third-part" {
@@ -238,24 +217,6 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     let lfs_url: String = get_setting!(setting, "lfs-url", String);
     if lfs_url != "http://localhost:8000" {
         update.push(CoreConfigChanged::LfsUrl(lfs_url));
-    }
-
-    let lfs_obj_local_path: String = get_setting!(setting, "lfs-obj-local-path", String);
-    if !lfs_obj_local_path.is_empty() {
-        update.push(CoreConfigChanged::LfsObjLocalPath(
-            lfs_obj_local_path.parse::<PathBuf>().unwrap(),
-        ));
-    }
-
-    let enable_split: bool = get_setting!(setting, "enable-split", bool);
-    if !enable_split {
-        // Default is true
-        update.push(CoreConfigChanged::EnableSplit(enable_split));
-    }
-
-    let split_size: String = get_setting!(setting, "split-size", String);
-    if split_size != "20M" {
-        update.push(CoreConfigChanged::SplitSize(split_size));
     }
 
     // OAuth settings
