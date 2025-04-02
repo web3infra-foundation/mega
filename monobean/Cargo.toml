@@ -36,6 +36,7 @@ tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"] 
 rustls = "0.23.23"
 gix-config = "0.43.0"
 home = "0.5.11"
+smallvec = "1.14.0"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"

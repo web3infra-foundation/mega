@@ -1,7 +1,9 @@
-use gtk::glib::Object;
-use gtk::{prelude::*, SignalListItemFactory};
+use gtk::glib;
+use gtk::{self, CompositeTemplate};
+use gtk::glib::subclass::InitializingObject;
+
+use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use gtk::{glib, CompositeTemplate};
 
 mod imp {
     use super::*;
@@ -20,39 +22,30 @@ mod imp {
         type ParentType = gtk::Box;
 
         fn class_init(klass: &mut Self::Class) {
-            klass.bind_template();
+            Self::bind_template(klass);
         }
 
-        fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
+        fn instance_init(obj: &InitializingObject<Self>) {
             obj.init_template();
         }
     }
 
-    impl ObjectImpl for FileRow {
-        fn constructed(&self) {
-           self.parent_constructed();
-
-           let obj = self.obj();
-        }
-    }
+    impl ObjectImpl for FileRow {}
     impl WidgetImpl for FileRow {}
     impl BoxImpl for FileRow {}
 }
 
 glib::wrapper! {
     pub struct FileRow(ObjectSubclass<imp::FileRow>)
-        @extends gtk::Widget, gtk::Box,
-        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Orientable;
-}
-
-impl Default for FileRow {
-    fn default() -> Self {
-        glib::Object::new()
-    }
+        @extends gtk::Widget, gtk::Box;
 }
 
 impl FileRow {
     pub fn new() -> Self {
-        Self::default()
+        glib::Object::new()
+    }
+
+    pub fn set_item<O: IsA<glib::Object>>(&self, item: &O) {
+        self.set_property("item", item);
     }
 }
