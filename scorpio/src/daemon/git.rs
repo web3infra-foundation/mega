@@ -83,10 +83,9 @@ pub(super) async fn git_add_handler(
     axum::Json(req): axum::Json<AddReq>, 
 ) -> impl IntoResponse {
     let path = req.mono_path;
-    println!("mono_path = {}", path);
     let res = state.manager.lock().await.mono_add(&path).await;
     match res {
-        Ok(()) => (axum::http::StatusCode::OK, format!("{path} has already added.")).into_response(),
+        Ok(()) => (axum::http::StatusCode::OK).into_response(),
         Err(err) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Error: {err}")).into_response(),
     }
 }
