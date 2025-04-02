@@ -16,6 +16,7 @@
         <file compressed="true">gtk/repo_tab.ui</file>
         <file compressed="true">gtk/repo_detail.ui</file>
         <file compressed="true">gtk/preferences.ui</file>
+        <file compressed="true">gtk/file_tree.ui</file>
         <file compressed="true">gtk/file_row.ui</file>
 
         <file compressed="true">gtk/theme_selector.ui</file>

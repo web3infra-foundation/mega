@@ -36,7 +36,7 @@
             <property name="propagate-natural-width">1</property>
             <property name="vexpand">1</property>
             <property name="child">
-              <object class="GtkListView" id="listview">
+              <object class="GtkListView" id="list_view">
                 <style>
                   <class name="navigation-sidebar" />
                 </style>
@@ -51,6 +51,11 @@
           </object>
         </child>
       </object>
+    </child>
+
+    <!-- Test -->
+    <child>
+      <object class="FileTreeView" id="file_tree_view"/>
     </child>
 
     <!-- Right Side: Code Viewer  -->

@@ -1,26 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.0" />
-  <template class="FileRow" parent="GtkBox">
-    <property name="hexpand">True</property>
-    <property name="focusable">0</property>
+  <template class="FileTreeRow" parent="GtkListBoxRow">
     <child>
-      <object class="GtkTreeExpander" id="expander">
-        <binding name="list-row">
-          <lookup name="item">FileRow</lookup>
-        </binding>
-        <property name="child">
-          <object class="GtkInscription">
-            <property name="hexpand">1</property>
-            <property name="nat-chars">25</property>
-            <property name="text-overflow">ellipsize-end</property>
-            <binding name="text">
-              <lookup name="title" type="GtkDemo">
-                <lookup name="item">expander</lookup>
-              </lookup>
-            </binding>
+      <object class="GtkBox" id="row_container">
+        <property name="margin-start">8</property>
+        <property name="margin-end">8</property>
+        <property name="spacing">6</property>
+
+        <!-- 展开指示器 -->
+        <child>
+          <object class="GtkTreeExpander" id="expander">
+            <property name="visible">False</property>
           </object>
-        </property>
+        </child>
+
+        <!-- 图标 -->
+        <child>
+          <object class="GtkImage" id="icon" />
+        </child>
+
+        <!-- 主标签 -->
+        <child>
+          <object class="GtkLabel" id="label" />
+        </child>
       </object>
     </child>
   </template>

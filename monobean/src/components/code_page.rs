@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use async_channel::Sender;
 use gtk::prelude::*;
@@ -11,6 +11,8 @@ use crate::application::Action;
 mod imp {
     use tokio::sync::OnceCell;
 
+    use crate::components::file_tree::FileTreeView;
+
     use super::*;
 
     #[derive(Debug, Default, CompositeTemplate)]
@@ -21,7 +23,9 @@ mod imp {
         // #[template_child]
         // pub search_entry: TemplateChild<gtk::SearchEntry>,
         #[template_child]
-        pub listview: TemplateChild<gtk::ListView>,
+        pub list_view: TemplateChild<gtk::ListView>,
+        #[template_child]
+        pub file_tree_view: TemplateChild<FileTreeView>,
         #[template_child]
         pub code_stack: TemplateChild<gtk::Stack>,
         #[template_child]
@@ -80,6 +84,18 @@ impl CodePage {
             .expect("Code Page sender can only be set once");
         // self.setup_action();
 
+        self.setup_source_view(opened_file);
+        self.setup_file_tree();
+    }
+
+    fn setup_file_tree(&self) {
+        let imp = self.imp();
+
+        let file_tree_view = self.imp().file_tree_view.get();
+        file_tree_view.setup_file_tree(imp.sender.get().unwrap().clone(), PathBuf::from("E:/Projects/mega/"));
+    }
+
+    fn setup_source_view(&self, opened_file: Option<&Path>) {
         let buf = Buffer::new(None);
         buf.set_highlight_syntax(true);
         if let Some(ref language) = scv::LanguageManager::new().language("rust") {

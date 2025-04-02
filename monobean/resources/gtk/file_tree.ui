@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="FileTreeView" parent="GtkBox">
+    <child>
+      <object class="GtkScrolledWindow">
+        <property name="hscrollbar-policy">never</property>
+        <property name="propagate-natural-width">True</property>
+        <property name="vexpand">True</property>
+        <child>
+          <object class="GtkListView" id="list_view">
+            <style>
+              <class name="navigation-sidebar" />
+            </style>
+          </object>
+        </child>
+        <style>
+          <class name="sidebar" />
+        </style>
+      </object>
+    </child>
+  </template>
+</interface>
