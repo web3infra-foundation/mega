@@ -3,7 +3,6 @@ pub mod preference;
 pub mod repo_detail;
 pub mod repo_tab;
 pub mod file_tree;
-pub mod file_row;
 
 pub mod hello_page;
 pub mod code_page;
