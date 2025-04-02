@@ -3,27 +3,23 @@
   <requires lib="gtk" version="4.0" />
   <template class="FileTreeRow" parent="GtkListBoxRow">
     <child>
-      <object class="GtkBox" id="row_container">
-        <property name="margin-start">8</property>
-        <property name="margin-end">8</property>
-        <property name="spacing">6</property>
+      <object class="GtkTreeExpander" id="expander">
+        <property name="indent-for-depth">true</property>
+        <property name="child">
+          <object class="GtkBox" id="row_container">
+            <property name="orientation">horizontal</property>
+            <property name="spacing">6</property>
 
-        <!-- 展开指示器 -->
-        <child>
-          <object class="GtkTreeExpander" id="expander">
-            <property name="visible">False</property>
+            <child>
+              <object class="GtkImage" id="icon" />
+            </child>
+
+            <child>
+              <object class="GtkLabel" id="label"/>
+            </child>
+
           </object>
-        </child>
-
-        <!-- 图标 -->
-        <child>
-          <object class="GtkImage" id="icon" />
-        </child>
-
-        <!-- 主标签 -->
-        <child>
-          <object class="GtkLabel" id="label" />
-        </child>
+        </property>
       </object>
     </child>
   </template>

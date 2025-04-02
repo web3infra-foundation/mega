@@ -194,11 +194,13 @@ impl FileTreeView {
 
         factory.connect_bind(move |_, item| {
             // item: ListItem -(.item)-> TreeListRow -(.item)-> FileTreeRowData
-            println!("Bind file_tree item: {:?}", item.type_().name());
+            tracing::trace!("Bind file_tree item: {:?}", item.type_().name());
             let list_item = item.downcast_ref::<gtk::ListItem>().unwrap();
-            let list_row = list_item.item().and_downcast::<gtk::TreeListRow>().expect("Item is not a TreeListRow");
 
-            let data = list_row
+            let data = list_item
+                .item()
+                .and_downcast::<gtk::TreeListRow>()
+                .expect("Item is not a TreeListRow")
                 .item()
                 .and_downcast::<FileTreeRowData>()
                 .expect("Item is not a FileTreeRowData");
@@ -238,13 +240,15 @@ impl FileTreeRow {
         let icon = imp.icon.get();
         let expander = imp.expander.get();
 
+        tracing::trace!("Bind row name: {:?}", data.label());
         let label_binding = data
             .bind_property("label", &label, "label")
-            .flags(glib::BindingFlags::BIDIRECTIONAL)
+            .sync_create()
+            .bidirectional()
             .build();
         let icon_binding = data
             .bind_property("file-type", &icon, "icon-name")
-            .flags(glib::BindingFlags::SYNC_CREATE)
+            .sync_create()
             .transform_to(|_, t: FileType| {
                 if t.is_dir() {
                     Some("folder-symbolic")
@@ -253,24 +257,18 @@ impl FileTreeRow {
                 }
             })
             .build();
-        let depth_binding = data
-            .bind_property("depth", &expander, "indent-for-depth")
-            .flags(glib::BindingFlags::SYNC_CREATE)
-            .transform_from(|_, depth: u8| Some(depth * 10))
-            .build();
         // let expanded_binding = data
         //     .bind_property("expanded", &expander, "expanded")
         //     .flags(glib::BindingFlags::BIDIRECTIONAL)
         //     .build();
         let expandable_binding = data
             .bind_property("file-type", &expander, "hide-expander")
-            .flags(glib::BindingFlags::SYNC_CREATE)
-            .transform_from(|_, t: FileType| Some(t.is_dir()))
+            .sync_create()
+            .transform_to(|_, t: FileType| Some(t.is_dir()))
             .build();
 
         bindings.push(label_binding);
         bindings.push(icon_binding);
-        bindings.push(depth_binding);
         bindings.push(expandable_binding);
     }
 
@@ -283,7 +281,7 @@ impl FileTreeRow {
 
 impl FileTreeRowData {
     pub fn new(depth: u8, entry: DirEntry) -> Self {
-        let name = entry.file_name().to_string_lossy().to_string();
+        let name = entry.path().file_name().unwrap_or_default().to_string_lossy().to_string();
         let file_type = if entry.file_type().unwrap().is_dir() {
             FileType::Directory
         } else {
