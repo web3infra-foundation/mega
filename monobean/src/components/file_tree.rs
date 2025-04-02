@@ -194,6 +194,7 @@ impl FileTreeView {
 
         factory.connect_bind(move |_, item| {
             // item: ListItem -(.item)-> TreeListRow -(.item)-> FileTreeRowData
+            println!("Bind file_tree item: {:?}", item.type_().name());
             let list_item = item.downcast_ref::<gtk::ListItem>().unwrap();
             let list_row = list_item.item().and_downcast::<gtk::TreeListRow>().expect("Item is not a TreeListRow");
 
@@ -201,9 +202,7 @@ impl FileTreeView {
                 .item()
                 .and_downcast::<FileTreeRowData>()
                 .expect("Item is not a FileTreeRowData");
-            let row = item
-                .downcast_ref::<gtk::ListItem>()
-                .unwrap()
+            let row = list_item
                 .child()
                 .and_downcast::<FileTreeRow>()
                 .expect("Child is not a FileTreeRow");
@@ -212,9 +211,11 @@ impl FileTreeView {
 
         factory.connect_unbind(move |_, item| {
             tracing::trace!("Unbind file_tree item: {:?}", item);
-            let row = item
-                .downcast_ref::<FileTreeRow>()
-                .expect("Item is not a FileTreeRow");
+            let list_item = item.downcast_ref::<gtk::ListItem>().unwrap();
+            let row = list_item
+                .child()
+                .and_downcast::<FileTreeRow>()
+                .expect("Child is not a FileTreeRow");
             row.unbind();
         });
 
