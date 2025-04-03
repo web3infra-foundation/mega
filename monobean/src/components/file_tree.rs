@@ -20,6 +20,7 @@ use std::{
 mod imp {
     use std::path::PathBuf;
 
+    use adw::subclass::prelude::BinImpl;
     use smallvec::SmallVec;
 
     use super::*;
@@ -87,7 +88,7 @@ mod imp {
     #[glib::object_subclass]
     impl ObjectSubclass for FileTreeRow {
         const NAME: &'static str = "FileTreeRow";
-        type ParentType = gtk::ListBoxRow;
+        type ParentType = adw::Bin;
         type Type = super::FileTreeRow;
 
         fn class_init(klass: &mut Self::Class) {
@@ -116,7 +117,7 @@ mod imp {
         }
     }
     impl WidgetImpl for FileTreeRow {}
-    impl ListBoxRowImpl for FileTreeRow {}
+    impl BinImpl for FileTreeRow {}
 }
 
 glib::wrapper! {
@@ -131,7 +132,7 @@ glib::wrapper! {
 
 glib::wrapper! {
     pub struct FileTreeRow(ObjectSubclass<imp::FileTreeRow>)
-       @extends gtk::Widget, gtk::ListBoxRow,
+       @extends gtk::Widget, gtk::Paned,
         @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Orientable;
 }
 
@@ -196,11 +197,12 @@ impl FileTreeView {
             // item: ListItem -(.item)-> TreeListRow -(.item)-> FileTreeRowData
             tracing::trace!("Bind file_tree item: {:?}", item.type_().name());
             let list_item = item.downcast_ref::<gtk::ListItem>().unwrap();
-
-            let data = list_item
+            let list_row = list_item
                 .item()
                 .and_downcast::<gtk::TreeListRow>()
-                .expect("Item is not a TreeListRow")
+                .expect("Item is not a TreeListRow");
+
+            let data = list_row
                 .item()
                 .and_downcast::<FileTreeRowData>()
                 .expect("Item is not a FileTreeRowData");
@@ -208,6 +210,7 @@ impl FileTreeView {
                 .child()
                 .and_downcast::<FileTreeRow>()
                 .expect("Child is not a FileTreeRow");
+            row.imp().expander.set_list_row(Some(&list_row));
             row.bind(&data);
         });
 
@@ -239,6 +242,7 @@ impl FileTreeRow {
         let label = imp.label.get();
         let icon = imp.icon.get();
         let expander = imp.expander.get();
+        let sender = imp.sender.get().unwrap();
 
         tracing::trace!("Bind row name: {:?}", data.label());
         let label_binding = data
@@ -257,10 +261,6 @@ impl FileTreeRow {
                 }
             })
             .build();
-        // let expanded_binding = data
-        //     .bind_property("expanded", &expander, "expanded")
-        //     .flags(glib::BindingFlags::BIDIRECTIONAL)
-        //     .build();
         let expandable_binding = data
             .bind_property("file-type", &expander, "hide-expander")
             .sync_create()
@@ -270,6 +270,34 @@ impl FileTreeRow {
         bindings.push(label_binding);
         bindings.push(icon_binding);
         bindings.push(expandable_binding);
+
+        // Connect click handler to expand/collapse directories when clicked
+        let gesture = gtk::GestureClick::new();
+        gesture.connect_released(clone!(
+            #[weak] data,
+            #[weak] expander,
+            #[strong] sender,
+            move |gesture, _, _, _| {
+            if data.file_type() == FileType::Directory {
+                // Toggle expanded state
+                let is_expanded = data.expanded();
+                data.set_expanded(!is_expanded);
+
+                // Update the expander
+                if let Some(list_row) = expander.list_row() {
+                    list_row.set_expanded(!is_expanded);
+                }
+            } else {
+                // Handle file click - could send an action to open the file
+                let path = data.path();
+                // let _ = sender.try_send(Action::OpenFile(path.to_path_buf()));
+            }
+
+            // Stop the event from propagating
+            gesture.set_state(gtk::EventSequenceState::Claimed);
+        }));
+
+        self.add_controller(gesture);
     }
 
     pub fn unbind(&self) {
