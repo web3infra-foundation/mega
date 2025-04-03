@@ -8,7 +8,7 @@ use std::ffi::CString;
 use std::path::{Path, PathBuf};
 use std::vec;
 
-use crate::manager::store::{HashToBlobStore, KVBatchStore, KVStore, TreeStore};
+use crate::manager::store::{ModifiedKVStore, StorageSpace, TreeStore};
 
 fn collect_paths<P: AsRef<Path>>(path: P) -> Vec<PathBuf> {
     let mut paths = Vec::new();
@@ -286,8 +286,8 @@ fn get_file_hash(path: &PathBuf) -> String {
 /// A wrapper add function for adding new files to a blob object.
 fn add_blob(
     real_path: &PathBuf,
-    work_dir: &PathBuf,
-    batch: &mut sled::Batch,
+    work_dir: &StorageSpace,
+    batch: &mut StorageSpace,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("change: Adding file: {}", real_path.display());
     let content = std::fs::read(real_path).unwrap();
@@ -295,7 +295,7 @@ fn add_blob(
 
     // Add the Hash to Batch.
     print!("Adding hash to path...");
-    batch.add_value_to_key(real_path, &new_hash);
+    batch.bat_add_kv(real_path, &new_hash);
     println!("Done.");
 
     // Add the Blobs to Objects.
@@ -312,9 +312,9 @@ fn add_blob(
 /// modification content and the key value of the Tree object
 fn update_hash(
     real_path: &PathBuf,
-    work_dir: &PathBuf,
+    work_dir: &StorageSpace,
     db_map: &HashMap<PathBuf, String>,
-    batch: &mut sled::Batch,
+    batch: &mut StorageSpace,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("change: Updating file: {}", real_path.display());
     let content = std::fs::read(real_path).unwrap();
@@ -323,7 +323,7 @@ fn update_hash(
 
     // Update the Hash in Batch.
     print!("Updating hash to path...");
-    batch.add_value_to_key(real_path, &new_hash);
+    batch.bat_add_kv(real_path, &new_hash);
     println!("Done.");
 
     // Del the Blob in Objects.
@@ -357,34 +357,51 @@ fn update_hash(
 /// Path and Hash, thus avoiding file operation conflicts.
 fn delete_blob(
     path_vec: &Vec<PathBuf>,
-    work_dir: &PathBuf,
+    work_dir: &StorageSpace,
     hash_vec: &Vec<String>,
-    batch: &mut sled::Batch,
+    batch: &mut StorageSpace,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Deling hash by path...");
     path_vec.iter().for_each(|path| {
         println!("change: Deleting file: {}", path.display());
         // Del the Hash in Db.
-        let _ = batch.del_value_by_key(path);
+        let _ = batch.bat_del_kv(path);
     });
     println!("Done.");
 
     print!("Deling blob by hash...");
-    for hash in hash_vec {
-        // Del the Blob in Objects.
-        work_dir
-            .del_blob_by_hash(hash)
-            .box_from_io_with_msg("delete_blob: Del blob failed.")?;
-    }
+    let res = hash_vec
+        .iter()
+        .filter_map(|hash| match hash.as_str() {
+            // This avoids secondary deletion of WhiteOut files.
+            StorageSpace::WHITEOUT_FLAG => None,
+            _ => Some(
+                work_dir
+                    .del_blob_by_hash(hash)
+                    .box_from_io_with_msg("delete_blob: Del blob failed."),
+            ),
+        })
+        .collect::<Result<(), Box<dyn std::error::Error>>>();
     println!("Done.");
 
-    Ok(())
+    res
 }
 
 /// A wrapper add function for adding whiteout files to the db.
-fn add_whiteout_inode(path: &PathBuf, batch: &mut sled::Batch) {
-    println!("change: WhiteOut file: {}", path.display());
-    batch.add_whiteout_file(path);
+fn add_whiteout_inode(
+    path: &PathBuf,
+    batch: &mut StorageSpace,
+    white_out_vec: &Vec<PathBuf>,
+) {
+    match white_out_vec.iter()
+        .find(|&tmp_path| tmp_path.eq(path))
+    {
+        Some(tmp_path) => println!("This WhiteOut {} has allready added.", tmp_path.display()),
+        None => {
+            println!("change: WhiteOut file: {}", path.display());
+            batch.bat_add_whiteout(path);
+        }
+    }
 }
 
 /// This function dosn't check the input path, so if you call it outside the
@@ -406,7 +423,13 @@ pub fn add_and_del(
     work_dir: PathBuf,
     index_db: &sled::Db,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let index_db_map: HashMap<PathBuf, String> = index_db
+    let db_space: StorageSpace = StorageSpace::SledDb(index_db.clone());
+    let path_space: StorageSpace = StorageSpace::BlobFs(work_dir);
+    // Using batch processing to simplify I/O operations
+    // and reduce disk consumption.
+    let mut batch_space: StorageSpace = StorageSpace::SledBat(sled::Batch::default());
+
+    let index_db_map: HashMap<PathBuf, String> = db_space
         .list_db()
         .box_from_io_with_msg("Failed to get HashMap from index DB")?;
     // One problem with using traditional Vec for delete_blob is that when
@@ -418,17 +441,15 @@ pub fn add_and_del(
     // This version introduces a counting HashMap to count the number of
     // hash value repetitions. If the number of repetitions is zero, call
     // delete_blob to delete.
-    let mut count_db_map: HashMap<String, usize> = index_db
+    let mut count_db_map: HashMap<String, usize> = db_space
         .list_values()
         .box_from_io_with_msg("Failed to get HashMap from index DB")?;
     let entries: Vec<PathBuf> = match real_path.is_dir() {
         true => read_dir_to_vec(&real_path)?,
         false => vec![real_path.clone()],
     };
-    let mut path_vec: Vec<PathBuf> = index_db.list_keys()?;
-    // Using batch processing to simplify I/O operations
-    // and reduce disk consumption.
-    let mut index_batch: sled::Batch = sled::Batch::default();
+    let mut path_vec: Vec<PathBuf> = db_space.list_keys()?;
+    let white_out_vec: Vec<PathBuf> = db_space.list_whiteout_file()?;
 
     /// There are three options here:
     /// 1. One is to use function recursion, which is the
@@ -450,7 +471,7 @@ pub fn add_and_del(
             &Space,
             &Vec<PathBuf>,
             &mut Vec<PathBuf>,
-            &mut sled::Batch,
+            &mut StorageSpace,
         ) -> Result<(), Box<dyn std::error::Error>>,
     }
     let main_closure = Space {
@@ -465,17 +486,17 @@ pub fn add_and_del(
                     true => {
                         let new_entries: Vec<PathBuf> = read_dir_to_vec(path)?;
                         (main_closure.space_01)(main_closure, &new_entries, path_vec, batch)?
-                    },
+                    }
                     // If a file, check the HashMap.
                     false => match is_whiteout_inode(path) {
                         // If a discarded original file, Use special flags
                         // to add it to the database.
-                        true => add_whiteout_inode(path, batch),
+                        true => add_whiteout_inode(path, batch, &white_out_vec),
                         // If not, check if the HashMap is empty.
                         false => match index_db_map.is_empty() {
                             // If the HashMap is empty, create blobs object
                             // and update the db.
-                            true => add_blob(path, &work_dir, batch)?,
+                            true => add_blob(path, &path_space, batch)?,
                             // If not, check if the path is a whiteout inode.
                             false => match index_db_map.get(path) {
                                 // If the path exists in the HashMap, check
@@ -488,12 +509,14 @@ pub fn add_and_del(
                                         // Already latest.
                                         true => (),
                                         // Update the file record.
-                                        false => update_hash(path, &work_dir, &index_db_map, batch)?,
+                                        false => {
+                                            update_hash(path, &path_space, &index_db_map, batch)?
+                                        }
                                     }
-                                },
+                                }
                                 // If it does not exist, create create blobs
                                 // object and update the db.
-                                None => add_blob(path, &work_dir, batch)?,
+                                None => add_blob(path, &path_space, batch)?,
                             },
                         },
                     },
@@ -503,30 +526,30 @@ pub fn add_and_del(
         },
     };
 
-    (main_closure.space_01)(&main_closure, &entries, &mut path_vec, &mut index_batch)?;
+    (main_closure.space_01)(&main_closure, &entries, &mut path_vec, &mut batch_space)?;
 
     // Changing Mutability
     let path_vec: Vec<PathBuf> = path_vec;
     let mut db_map: HashMap<PathBuf, String> = index_db_map;
 
-    let mut hash_vec: Vec<String> = Vec::new();
-    path_vec
+    let hash_vec: Vec<String> = path_vec
         .iter()
         .map(|path| db_map.remove(path).unwrap())
-        .for_each(|hash| {
+        .filter_map(|hash| {
             let count = count_db_map.entry(hash.clone()).or_insert(0);
             *count -= 1;
             match count {
-                0 => hash_vec.push(hash),
-                _ => (),
+                0 => Some(hash),
+                _ => None,
             }
-        });
-    let hash_vec = hash_vec;
+        })
+        .collect::<Vec<String>>();
 
-    delete_blob(&path_vec, &work_dir, &hash_vec, &mut index_batch)?;
+    delete_blob(&path_vec, &path_space, &hash_vec, &mut batch_space)?;
 
+    let batch: sled::Batch = batch_space.try_to_bat().unwrap().to_owned();
     index_db
-        .apply_batch(index_batch)
+        .apply_batch(batch)
         .box_from_io_with_msg("Apply batch failed.")?;
     index_db.flush()?;
 
