@@ -9,52 +9,6 @@
 
     <!-- Left Side: File Tree -->
     <child>
-      <object class="GtkBox">
-        <property name="orientation">vertical</property>
-        <!-- <child>
-          <object class="GtkSearchBar" id="searchbar">
-            <accessibility>
-              <relation name="labelled-by">search-entry</relation>
-            </accessibility>
-            <property name="key-capture-widget">window</property>
-            <property name="child">
-              <object class="GtkSearchEntry" id="search-entry">
-                <accessibility>
-                  <property name="label" translatable="yes">Search</property>
-                  <relation name="controls">listview</relation>
-                </accessibility>
-              </object>
-            </property>
-          </object>
-        </child> -->
-        <child>
-          <object class="GtkScrolledWindow">
-            <style>
-              <class name="sidebar" />
-            </style>
-            <property name="hscrollbar-policy">never</property>
-            <property name="propagate-natural-width">1</property>
-            <property name="vexpand">1</property>
-            <property name="child">
-              <object class="GtkListView" id="list_view">
-                <style>
-                  <class name="navigation-sidebar" />
-                </style>
-                <property name="tab-behavior">item</property>
-                <property name="factory">
-                  <object class="GtkBuilderListItemFactory">
-                    <property name="resource">/org/Web3Infrastructure/Monobean/gtk/file_row.ui</property>
-                  </object>
-                </property>
-              </object>
-            </property>
-          </object>
-        </child>
-      </object>
-    </child>
-
-    <!-- Test -->
-    <child>
       <object class="FileTreeView" id="file_tree_view"/>
     </child>
 
@@ -71,7 +25,7 @@
             <property name="name">empty_view</property>
             <property name="title" translatable="true">Empty View</property>
             <property name="child">
-              <object class="GtkBox" id="empty_page">
+              <object class="GtkBox" id="empty_view">
                 <property name="orientation">vertical</property>
                 <property name="valign">center</property>
                 <property name="halign">center</property>
