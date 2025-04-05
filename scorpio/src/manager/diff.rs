@@ -361,7 +361,7 @@ fn delete_blob(
     hash_vec: &Vec<String>,
     batch: &mut StorageSpace,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Deling hash by path...");
+    println!("Deleting hash by path...");
     path_vec.iter().for_each(|path| {
         println!("change: Deleting file: {}", path.display());
         // Del the Hash in Db.
@@ -369,7 +369,7 @@ fn delete_blob(
     });
     println!("Done.");
 
-    print!("Deling blob by hash...");
+    print!("Deleting blob by hash...");
     let res = hash_vec
         .iter()
         .filter_map(|hash| match hash.as_str() {
