@@ -19,3 +19,9 @@ tower-http = { workspace = true, features = ["trace"] }
 scopeguard = "1.2.0"
 rand = "0.8.5"
 orion = { path = "../orion" }
+sea-orm = { workspace = true, features = [
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+] }
+dotenvy = "0.15.7"

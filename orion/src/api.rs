@@ -1,6 +1,4 @@
 use crate::buck_controller;
-use crate::model::builds;
-use crate::server::AppState;
 use crate::ws::WSMessage;
 use axum::extract::{Path, State};
 use axum::response::sse::{Event, KeepAlive};
@@ -20,11 +18,11 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
-pub fn routers() -> Router<AppState> {
-    Router::new()
-        // .route("/build", post(buck_build))
-        .route("/build-output/:id", get(build_output))
-}
+// pub fn routers() -> Router<AppState> {
+//     Router::new()
+//         // .route("/build", post(buck_build))
+//         .route("/build-output/:id", get(build_output))
+// }
 
 const BUILD_LOG_DIR: &str = "/tmp/buck2ctl";
 #[derive(Debug, Deserialize)]
@@ -51,10 +49,11 @@ static BUILDING: Lazy<DashSet<String>> = Lazy::new(DashSet::new);
 pub async fn buck_build(
     // State(state): State<AppState>,
     // Json(req): Json<BuildRequest>,
+    id: Uuid,
     req: BuildRequest,
     sender: UnboundedSender<WSMessage>,
 ) -> Json<BuildResult> {
-    let id = Uuid::now_v7();
+    // let id = Uuid::now_v7();
     let id_c = id;
     BUILDING.insert(id.to_string());
     tracing::info!("Start build task: {}", id);
@@ -124,7 +123,7 @@ pub async fn buck_build(
 
         sender
             .send(WSMessage::BuildComplete {
-                build_id: id_c.to_string(),
+                id: id_c.to_string(),
                 success: build_resp.success,
                 exit_code: build_resp.exit_code,
                 message: build_resp.message.clone(),
@@ -157,7 +156,7 @@ pub async fn buck_build(
         message: "Build started".to_string(),
     })
 }
-
+/*
 /// SSE
 async fn build_output(
     State(state): State<AppState>,
@@ -224,3 +223,4 @@ async fn build_output(
 
     Sse::new(stream.boxed()).keep_alive(KeepAlive::new()) // empty comment to keep alive
 }
+*/
