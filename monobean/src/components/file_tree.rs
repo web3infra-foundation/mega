@@ -7,8 +7,7 @@ use gtk::glib::Enum;
 use gtk::glib::{clone, Properties};
 use gtk::subclass::prelude::*;
 use gtk::{
-    glib, prelude::*, BuilderListItemFactory, CompositeTemplate, SignalListItemFactory,
-    SingleSelection, TreeListModel,
+    glib, prelude::*, BuilderListItemFactory, CompositeTemplate, GestureClick, SignalListItemFactory, SingleSelection, TreeListModel
 };
 use std::fs::DirEntry;
 use std::{cell::OnceCell, path::Path};
@@ -290,7 +289,7 @@ impl FileTreeRow {
             } else {
                 // Handle file click - could send an action to open the file
                 let path = data.path();
-                // let _ = sender.try_send(Action::OpenFile(path.to_path_buf()));
+                let _ = sender.try_send(Action::OpenEditorOn(path.to_path_buf()));
             }
 
             // Stop the event from propagating

@@ -19,6 +19,7 @@ use gtk::{gio, glib, IconTheme};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use tokio::sync::oneshot;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
@@ -40,6 +41,8 @@ pub enum Action {
     UpdateGitConfig(String, String),
     ShowHelloPage,
     ShowMainPage,
+    MountRepo,
+    OpenEditorOn(PathBuf),
 }
 
 mod imp {
@@ -159,7 +162,7 @@ impl MonobeanApplication {
 
     fn create_window(&self) -> MonobeanWindow {
         let window = MonobeanWindow::new(&self.clone(), self.sender());
-        
+
         window.set_decorated(false);
         window.set_icon_name(Some("mono-white-logo"));
         self.add_window(&window);
@@ -331,53 +334,57 @@ impl MonobeanApplication {
         let window = self.imp().window.get().unwrap().upgrade().unwrap();
         match action {
             Action::MegaCore(cmd) => {
-                let delegate = self.imp().mega_delegate;
-                CONTEXT.spawn(async move {
-                    tracing::debug!("Sending {:?}", cmd);
-                    delegate.send_command(cmd).await;
-                    tracing::debug!("Done");
-                });
-            }
+                        let delegate = self.imp().mega_delegate;
+                        CONTEXT.spawn(async move {
+                            tracing::debug!("Sending {:?}", cmd);
+                            delegate.send_command(cmd).await;
+                            tracing::debug!("Done");
+                        });
+                    }
             Action::AddToast(msg) => {
-                window.add_toast(msg);
-            }
+                        window.add_toast(msg);
+                    }
             Action::UpdateGitConfig(name, email) => {
-                let sender = self.sender();
-                let mut config = self.git_config();
-                config.set_raw_value(&"user.name", name.as_bytes()).unwrap();
-                config
-                    .set_raw_value(&"user.email", email.as_bytes())
-                    .unwrap();
+                        let sender = self.sender();
+                        let mut config = self.git_config();
+                        config.set_raw_value(&"user.name", name.as_bytes()).unwrap();
+                        config
+                            .set_raw_value(&"user.email", email.as_bytes())
+                            .unwrap();
 
-                // gix_config does not write back to file automatically
-                // so we need to write it back manually.
-                let loc = config.meta().path.clone().unwrap();
-                let mut fd = std::fs::File::create(loc).unwrap();
-                config.write_to(&mut fd).unwrap();
-                tracing::debug!("Git config: {:?}", config.meta());
+                        // gix_config does not write back to file automatically
+                        // so we need to write it back manually.
+                        let loc = config.meta().path.clone().unwrap();
+                        let mut fd = std::fs::File::create(loc).unwrap();
+                        config.write_to(&mut fd).unwrap();
+                        tracing::debug!("Git config: {:?}", config.meta());
 
-                let toast = Action::AddToast("Git config updated!".to_string());
-                CONTEXT.spawn(async move {
-                    sender.send(toast).await.unwrap();
-                });
-            }
-
+                        let toast = Action::AddToast("Git config updated!".to_string());
+                        CONTEXT.spawn(async move {
+                            sender.send(toast).await.unwrap();
+                        });
+                    }
             Action::ShowHelloPage => {
-                let config = self.git_config();
+                        let config = self.git_config();
 
-                let name = config.string("user.name").map(|name| name.to_string());
-                let email = config.string("user.email").map(|email| email.to_string());
+                        let name = config.string("user.name").map(|name| name.to_string());
+                        let email = config.string("user.email").map(|email| email.to_string());
 
-                let rx = self.core_status();
-                CONTEXT.spawn_local(async move {
-                    let (_, gpg_generated) = rx.await.unwrap();
-                    window.show_hello_page(name, email, gpg_generated);
-                });
-            }
-
+                        let rx = self.core_status();
+                        CONTEXT.spawn_local(async move {
+                            let (_, gpg_generated) = rx.await.unwrap();
+                            window.show_hello_page(name, email, gpg_generated);
+                        });
+                    }
             Action::ShowMainPage => {
-                window.show_main_page();
-            }
+                        window.show_main_page();
+                    }
+            Action::MountRepo => todo!(),
+            Action::OpenEditorOn(path) => {
+                let window = window.imp();
+                let code_page = window.code_page.get();
+                code_page.show_editor(path);
+            },
         }
     }
 }
