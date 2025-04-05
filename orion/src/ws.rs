@@ -21,16 +21,15 @@ pub enum WSMessage {
     },
     TaskAck {
         id: String,
-        build_id: String,
         success: bool,
         message: String,
     },
     BuildOutput {
-        build_id: String,
+        id: String,
         output: String,
     },
     BuildComplete {
-        build_id: String,
+        id: String,
         success: bool,
         exit_code: Option<i32>,
         message: String,
@@ -95,6 +94,7 @@ async fn process_message(msg: Message) -> ControlFlow<(), ()> {
                 } => {
                     println!(">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}");
                     let Json(res) = buck_build(
+                        id.parse().unwrap(),
                         BuildRequest {
                             repo,
                             target,
@@ -109,7 +109,6 @@ async fn process_message(msg: Message) -> ControlFlow<(), ()> {
                         .unwrap()
                         .send(WSMessage::TaskAck {
                             id: id.clone(),
-                            build_id: res.id,
                             success: res.success,
                             message: res.message,
                         })

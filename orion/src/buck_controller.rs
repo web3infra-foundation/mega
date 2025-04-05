@@ -44,7 +44,7 @@ pub async fn build(
                 match result {
                     Ok(Some(line)) => {
                         sender.send(WSMessage::BuildOutput {
-                            build_id: id.clone(),
+                            id: id.clone(),
                             output: line.clone(),
                         }).unwrap();
                     },
@@ -56,7 +56,7 @@ pub async fn build(
                 match result {
                     Ok(Some(line)) => {
                         sender.send(WSMessage::BuildOutput {
-                            build_id: id.clone(),
+                            id: id.clone(),
                             output: line.clone(),
                         }).unwrap();
                     },
