@@ -73,7 +73,22 @@ pub(super) async fn git_commit_handler(
     
 }
 
+#[derive(serde::Deserialize)]
+pub(super) struct AddReq{
+    mono_path: String,
+}
 
+pub(super) async fn git_add_handler(
+    State(state): State<ScoState>,
+    axum::Json(req): axum::Json<AddReq>, 
+) -> impl IntoResponse {
+    let path = req.mono_path;
+    let res = state.manager.lock().await.mono_add(&path).await;
+    match res {
+        Ok(()) => (axum::http::StatusCode::OK).into_response(),
+        Err(err) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Error: {err}")).into_response(),
+    }
+}
 
 #[derive(serde::Deserialize)]
 pub(super) struct PushRequest {

@@ -16,7 +16,7 @@ const SUCCESS: &str   = "Success";
 const FAIL : &str   = "Fail";
 
 #[derive(Debug, Deserialize, Serialize)]
-struct MountRequest {
+struct MountRequest{
     path: String,
 }
 
@@ -90,6 +90,7 @@ pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
         .route("/api/git/status", get(git::git_status_handler))
         .route("/api/git/commit", post(git::git_commit_handler))
         .route("/api/git/push", post(git::git_push_handler))
+        .route("/api/git/add", post(git::git_add_handler))
         .with_state(inner);
 
     // LFS route & merge it
