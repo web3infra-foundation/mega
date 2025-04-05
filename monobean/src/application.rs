@@ -264,7 +264,7 @@ impl MonobeanApplication {
             .transient_for(&window)
             .modal(true)
             .program_name(crate::APP_NAME)
-            .logo_icon_name("logo")
+            .logo_icon_name("mono-white-logo")
             .version(crate::config::VERSION)
             .authors(vec!["Neon"])
             .license_type(gtk::License::MitX11)

@@ -116,7 +116,8 @@ impl CodePage {
     fn setup_source_view(&self, opened_file: Option<&Path>) {
         let imp = self.imp();
         let source_view = imp.source_view.get();
-        source_view.set_accepts_tab(true);
+        source_view.set_can_focus(false);
+        source_view.set_editable(false);
 
         match opened_file {
             Some(path) => {
