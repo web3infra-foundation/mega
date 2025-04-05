@@ -9,6 +9,7 @@ use scv::{prelude::*, Buffer, StyleSchemeChooser};
 use crate::application::Action;
 
 mod imp {
+    use adw::subclass::prelude::BinImpl;
     use tokio::sync::OnceCell;
 
     use crate::components::file_tree::FileTreeView;
@@ -22,6 +23,8 @@ mod imp {
         // pub searchbar: TemplateChild<gtk::SearchBar>,
         // #[template_child]
         // pub search_entry: TemplateChild<gtk::SearchEntry>,
+        #[template_child]
+        pub paned: TemplateChild<gtk::Paned>,
         #[template_child]
         pub file_tree_view: TemplateChild<FileTreeView>,
         #[template_child]
@@ -38,7 +41,7 @@ mod imp {
     impl ObjectSubclass for CodePage {
         const NAME: &'static str = "CodePage";
         type Type = super::CodePage;
-        type ParentType = gtk::Box;
+        type ParentType = adw::Bin;
 
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
@@ -55,12 +58,12 @@ mod imp {
         }
     }
     impl WidgetImpl for CodePage {}
-    impl BoxImpl for CodePage {}
+    impl BinImpl for CodePage {}
 }
 
 glib::wrapper! {
     pub struct CodePage(ObjectSubclass<imp::CodePage>)
-        @extends gtk::Widget, gtk::Box,
+        @extends gtk::Widget, adw::Bin,
         @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Orientable;
 }
 
@@ -82,8 +85,22 @@ impl CodePage {
             .expect("Code Page sender can only be set once");
         // self.setup_action();
 
+        self.setup_paned();
         self.setup_source_view(opened_file);
         self.setup_file_tree();
+    }
+
+    fn setup_paned(&self) {
+        let imp = self.imp();
+        let paned = imp.paned.get();
+        let file_tree = imp.file_tree_view.get();
+        let code_stack = imp.code_stack.get();
+
+        paned.set_shrink_start_child(false);
+        paned.set_shrink_end_child(false);
+
+        file_tree.set_size_request(50, -1);
+        code_stack.set_size_request(50, -1);
     }
 
     fn setup_file_tree(&self) {

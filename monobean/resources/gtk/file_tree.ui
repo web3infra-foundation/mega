@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="FileTreeView" parent="GtkBox">
+    <property name="orientation">vertical</property>
     <child>
       <object class="GtkScrolledWindow">
         <property name="hscrollbar-policy">never</property>

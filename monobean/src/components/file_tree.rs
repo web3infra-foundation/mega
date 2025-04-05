@@ -231,19 +231,24 @@ impl FileTreeView {
 impl FileTreeRow {
     pub fn new(sender: Sender<Action>) -> Self {
         let row: Self = glib::Object::new();
+        row.set_can_focus(true);
+        row.set_can_target(true);
+        row.set_overflow(gtk::Overflow::Hidden);
+        row.set_focus_on_click(true);
         row.imp().sender.set(sender).unwrap();
         row
     }
 
     pub fn bind(&self, data: &FileTreeRowData) {
         let imp = self.imp();
-        let mut bindings = imp.bindings.borrow_mut();
         let label = imp.label.get();
         let icon = imp.icon.get();
         let expander = imp.expander.get();
         let sender = imp.sender.get().unwrap();
+        let mut bindings = imp.bindings.borrow_mut();
 
         tracing::trace!("Bind row name: {:?}", data.label());
+        label.set_ellipsize(gtk::pango::EllipsizeMode::End);
         let label_binding = data
             .bind_property("label", &label, "label")
             .sync_create()
@@ -278,11 +283,9 @@ impl FileTreeRow {
             #[strong] sender,
             move |gesture, _, _, _| {
             if data.file_type() == FileType::Directory {
-                // Toggle expanded state
                 let is_expanded = data.expanded();
                 data.set_expanded(!is_expanded);
 
-                // Update the expander
                 if let Some(list_row) = expander.list_row() {
                     list_row.set_expanded(!is_expanded);
                 }
@@ -292,7 +295,6 @@ impl FileTreeRow {
                 let _ = sender.try_send(Action::OpenEditorOn(path.to_path_buf()));
             }
 
-            // Stop the event from propagating
             gesture.set_state(gtk::EventSequenceState::Claimed);
         }));
 
