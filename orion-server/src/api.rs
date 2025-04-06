@@ -1,20 +1,23 @@
 use crate::model::builds;
 use axum::body::Bytes;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
-use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
+use axum::extract::{ConnectInfo, Path, State, WebSocketUpgrade};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{any, post};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
+use axum_extra::json;
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use orion::ws::WSMessage;
+use orion::ws::WSMessage::Task;
 use rand::seq::SliceRandom;
 use scopeguard::defer;
 use sea_orm::ActiveValue::Set;
 use sea_orm::prelude::DateTimeUtc;
 use sea_orm::sqlx::types::chrono;
 use sea_orm::{ActiveModelTrait, DatabaseConnection};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
@@ -39,6 +42,25 @@ pub struct BuildInfo {
     start_at: DateTimeUtc,
 }
 
+#[derive(Debug, Serialize, Default)]
+enum TaskStatusEnum {
+    Building,
+    Interrupted, // exit code is None
+    Failed,
+    Completed,
+    #[default]
+    NotFound,
+}
+
+#[derive(Debug, Serialize, Default)]
+struct TaskStatus {
+    status: TaskStatusEnum,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exit_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub clients: Arc<DashMap<String, UnboundedSender<WSMessage>>>,
@@ -50,6 +72,64 @@ pub fn routers() -> Router<AppState> {
     Router::new()
         .route("/ws", any(ws_handler))
         .route("/task", post(task_handler))
+        .route("/task-status/{id}", get(task_status_handler))
+}
+
+async fn task_status_handler(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let (code, status) = if state.building.contains_key(&id) {
+        (
+            StatusCode::OK,
+            TaskStatus {
+                status: TaskStatusEnum::Building,
+                ..Default::default()
+            },
+        )
+    } else {
+        match Uuid::parse_str(&id) {
+            Ok(id) => {
+                let output = builds::Model::get_by_build_id(id, state.conn).await;
+                match output {
+                    Some(model) => {
+                        let status = if model.exit_code.is_none() {
+                            TaskStatusEnum::Interrupted
+                        } else if model.exit_code.unwrap() == 0 {
+                            TaskStatusEnum::Completed
+                        } else {
+                            TaskStatusEnum::Failed
+                        };
+                        (
+                            StatusCode::OK,
+                            TaskStatus {
+                                status,
+                                exit_code: model.exit_code,
+                                ..Default::default()
+                            },
+                        )
+                    }
+                    None => (
+                        StatusCode::NOT_FOUND,
+                        TaskStatus {
+                            status: TaskStatusEnum::NotFound,
+                            message: Some("Build task not found".to_string()),
+                            ..Default::default()
+                        },
+                    ),
+                }
+            }
+            Err(_) => (
+                StatusCode::BAD_REQUEST,
+                TaskStatus {
+                    status: TaskStatusEnum::NotFound,
+                    message: Some("Invalid build id".to_string()),
+                    ..Default::default()
+                },
+            ),
+        }
+    };
+    (code, Json(status))
 }
 
 async fn task_handler(
