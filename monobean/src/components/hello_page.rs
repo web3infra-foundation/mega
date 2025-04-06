@@ -4,6 +4,7 @@ use crate::CONTEXT;
 use adw::glib::{clone, GString, Regex, RegexCompileFlags, RegexMatchFlags};
 use adw::prelude::*;
 use async_channel::Sender;
+use gtk::glib::random_int_range;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
@@ -87,7 +88,25 @@ impl HelloPage {
             .sender
             .set(sender)
             .expect("Hello Page sender can only be set once");
+        self.setup_logo();
         self.setup_action();
+    }
+
+    fn setup_logo(&self) {
+        let logo = self.imp().logo.clone();
+        let id = random_int_range(1, 6);
+        logo.set_icon_name(Some(format!("walrus-{}", id).as_str()));
+
+        let gesture = gtk::GestureClick::new();
+        gesture.connect_pressed(clone!(
+            #[weak]
+            logo,
+            move |_, _, _, _| {
+                let id = random_int_range(1, 6);
+                logo.set_icon_name(Some(format!("walrus-{}", id).as_str()));
+            }
+        ));
+        logo.add_controller(gesture);
     }
 
     fn setup_action(&self) {

@@ -30,6 +30,12 @@
         <!-- Icons -->
         <file preprocess="xml-stripblanks" compressed="true">icons/scalable/apps/mono-black-logo.svg</file>
         <file preprocess="xml-stripblanks" compressed="true">icons/scalable/apps/mono-white-logo.svg</file>
+        <file compressed="true">icons/scalable/apps/walrus-1.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-2.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-3.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-4.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-5.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-6.png</file>
 
     </gresource>
 </gresources>
