@@ -45,7 +45,7 @@ pub enum CoreConfigChanged {
 
     // LFS Config
     LfsUrl(String),
-    
+
     // OAuth Config
     GithubClientId(String),
     GithubClientSecret(String),

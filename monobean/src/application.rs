@@ -11,13 +11,9 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
-use gtk::builders::IconThemeBuilder;
-use gtk::ffi::{
-    gtk_icon_theme_add_search_path, gtk_icon_theme_new, gtk_icon_theme_set_search_path,
-};
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
-use gtk::{gio, glib, IconTheme};
+use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};

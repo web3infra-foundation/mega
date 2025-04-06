@@ -1,6 +1,4 @@
-use adw::NavigationSplitView;
 use gtk::{glib, CompositeTemplate};
-use gtk::{Box, Stack};
 
 use gtk::subclass::prelude::*;
 
