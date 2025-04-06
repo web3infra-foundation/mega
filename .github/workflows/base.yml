@@ -6,7 +6,7 @@
 #   3. 2025-02-27: Reconstruct the workflow and add `install-dep` action to support test on multiple platforms by Neon <yyk1249501542@gmail.com>
 #
 
-on: 
+on:
   push:
     paths-ignore:
       - 'alfs/**'
@@ -21,7 +21,7 @@ on:
       - 'third-party/**'
       - 'toolchains/**'
       - '.github/**'
-  pull_request: 
+  pull_request:
     paths-ignore:
       - 'alfs/**'
       - 'archived/**'
@@ -158,7 +158,7 @@ jobs:
   monobean:
     name: Test Monobean for ${{ matrix.os }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
 
