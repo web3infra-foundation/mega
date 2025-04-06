@@ -46,7 +46,7 @@
               </object>
             </child> -->
             <child>
-              <object class="GtkListView" id="list_view">
+              <object class="GtkListView" id="repo_list_view">
                 <style>
                   <class name="navigation-sidebar" />
                 </style>

@@ -6,6 +6,7 @@ use gtk::subclass::prelude::*;
 
 mod imp {
     use adw::{subclass::prelude::BinImpl, OverlaySplitView};
+    use gtk::ListView;
 
     use crate::components::repo_detail::RepoDetail;
 
@@ -16,6 +17,8 @@ mod imp {
     pub struct RepoTab {
         #[template_child]
         pub split_view: TemplateChild<OverlaySplitView>,
+        #[template_child]
+        pub repo_list_view: TemplateChild<ListView>,
         #[template_child]
         pub repo_detail: TemplateChild<RepoDetail>,
     }

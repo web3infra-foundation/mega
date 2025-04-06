@@ -7,7 +7,8 @@ use gtk::glib::Enum;
 use gtk::glib::{clone, Properties};
 use gtk::subclass::prelude::*;
 use gtk::{
-    glib, prelude::*, BuilderListItemFactory, CompositeTemplate, GestureClick, SignalListItemFactory, SingleSelection, TreeListModel
+    glib, prelude::*, BuilderListItemFactory, CompositeTemplate, GestureClick,
+    SignalListItemFactory, SingleSelection, TreeListModel,
 };
 use std::fs::DirEntry;
 use std::{cell::OnceCell, path::Path};
@@ -192,26 +193,30 @@ impl FileTreeView {
             item.set_child(Some(&row));
         });
 
-        factory.connect_bind(move |_, item| {
-            // item: ListItem -(.item)-> TreeListRow -(.item)-> FileTreeRowData
-            tracing::trace!("Bind file_tree item: {:?}", item.type_().name());
-            let list_item = item.downcast_ref::<gtk::ListItem>().unwrap();
-            let list_row = list_item
-                .item()
-                .and_downcast::<gtk::TreeListRow>()
-                .expect("Item is not a TreeListRow");
+        factory.connect_bind(clone!(
+            #[weak]
+            selection,
+            move |factory, item| {
+                // item: ListItem -(.item)-> TreeListRow -(.item)-> FileTreeRowData
+                tracing::trace!("Bind file_tree item: {:?}", item.type_().name());
+                let list_item = item.downcast_ref::<gtk::ListItem>().unwrap();
+                let list_row = list_item
+                    .item()
+                    .and_downcast::<gtk::TreeListRow>()
+                    .expect("Item is not a TreeListRow");
 
-            let data = list_row
-                .item()
-                .and_downcast::<FileTreeRowData>()
-                .expect("Item is not a FileTreeRowData");
-            let row = list_item
-                .child()
-                .and_downcast::<FileTreeRow>()
-                .expect("Child is not a FileTreeRow");
-            row.imp().expander.set_list_row(Some(&list_row));
-            row.bind(&data);
-        });
+                let data = list_row
+                    .item()
+                    .and_downcast::<FileTreeRowData>()
+                    .expect("Item is not a FileTreeRowData");
+                let row = list_item
+                    .child()
+                    .and_downcast::<FileTreeRow>()
+                    .expect("Child is not a FileTreeRow");
+                row.imp().expander.set_list_row(Some(&list_row));
+                row.bind(&data, &selection);
+            }
+        ));
 
         factory.connect_unbind(move |_, item| {
             tracing::trace!("Unbind file_tree item: {:?}", item);
@@ -239,7 +244,7 @@ impl FileTreeRow {
         row
     }
 
-    pub fn bind(&self, data: &FileTreeRowData) {
+    pub fn bind(&self, data: &FileTreeRowData, selection: &SingleSelection) {
         let imp = self.imp();
         let label = imp.label.get();
         let icon = imp.icon.get();
@@ -278,25 +283,34 @@ impl FileTreeRow {
         // Connect click handler to expand/collapse directories when clicked
         let gesture = gtk::GestureClick::new();
         gesture.connect_released(clone!(
-            #[weak] data,
-            #[weak] expander,
-            #[strong] sender,
+            #[weak]
+            data,
+            #[weak]
+            expander,
+            #[weak]
+            selection,
+            #[strong]
+            sender,
             move |gesture, _, _, _| {
-            if data.file_type() == FileType::Directory {
-                let is_expanded = data.expanded();
-                data.set_expanded(!is_expanded);
+                let list_row = expander.list_row().unwrap();
+                let position = list_row.position();
+                selection.set_selected(position);
+                
+                if data.file_type() == FileType::Directory {
+                    let is_expanded = data.expanded();
+                    data.set_expanded(!is_expanded);
 
-                if let Some(list_row) = expander.list_row() {
-                    list_row.set_expanded(!is_expanded);
+                    if let Some(list_row) = expander.list_row() {
+                        list_row.set_expanded(!is_expanded);
+                    }
+                } else {
+                    // Handle file click - could send an action to open the file
+                    let path = data.path();
+                    let _ = sender.try_send(Action::OpenEditorOn(path.to_path_buf()));
                 }
-            } else {
-                // Handle file click - could send an action to open the file
-                let path = data.path();
-                let _ = sender.try_send(Action::OpenEditorOn(path.to_path_buf()));
+                gesture.set_state(gtk::EventSequenceState::Claimed);
             }
-
-            gesture.set_state(gtk::EventSequenceState::Claimed);
-        }));
+        ));
 
         self.add_controller(gesture);
     }
@@ -310,7 +324,12 @@ impl FileTreeRow {
 
 impl FileTreeRowData {
     pub fn new(depth: u8, entry: DirEntry) -> Self {
-        let name = entry.path().file_name().unwrap_or_default().to_string_lossy().to_string();
+        let name = entry
+            .path()
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let file_type = if entry.file_type().unwrap().is_dir() {
             FileType::Directory
         } else {
