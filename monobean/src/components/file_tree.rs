@@ -123,8 +123,8 @@ glib::wrapper! {
 
 glib::wrapper! {
     pub struct FileTreeRow(ObjectSubclass<imp::FileTreeRow>)
-       @extends gtk::Widget, gtk::Paned,
-        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Orientable;
+       @extends gtk::Widget, adw::Bin,
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
 impl Default for FileTreeView {
