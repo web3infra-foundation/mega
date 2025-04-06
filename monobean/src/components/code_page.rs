@@ -4,7 +4,7 @@ use async_channel::Sender;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
-use scv::{prelude::*, Buffer, StyleSchemeChooser};
+use scv::{prelude::*, Buffer};
 
 use crate::application::Action;
 

@@ -2,20 +2,13 @@ use crate::application::Action;
 use adw::prelude::*;
 use async_channel::Sender;
 use gtk::gio::{ListModel, ListStore};
-use gtk::glib::property::PropertySet;
 use gtk::glib::Enum;
 use gtk::glib::{clone, Properties};
 use gtk::subclass::prelude::*;
-use gtk::{
-    glib, prelude::*, BuilderListItemFactory, CompositeTemplate, GestureClick,
-    SignalListItemFactory, SingleSelection, TreeListModel,
-};
+use gtk::{glib, CompositeTemplate, SignalListItemFactory, SingleSelection, TreeListModel};
+use std::cell::{Cell, RefCell};
 use std::fs::DirEntry;
 use std::{cell::OnceCell, path::Path};
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
 
 mod imp {
     use std::path::PathBuf;
@@ -136,6 +129,12 @@ glib::wrapper! {
         @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Orientable;
 }
 
+impl Default for FileTreeView {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileTreeView {
     pub fn new() -> Self {
         glib::Object::new()
@@ -154,7 +153,6 @@ impl FileTreeView {
             .as_ref()
             .read_dir()
             .unwrap()
-            .into_iter()
             .filter_map(|i| {
                 if let Ok(entry) = i {
                     Some(FileTreeRowData::new(0, entry))
@@ -196,7 +194,7 @@ impl FileTreeView {
         factory.connect_bind(clone!(
             #[weak]
             selection,
-            move |factory, item| {
+            move |_, item| {
                 // item: ListItem -(.item)-> TreeListRow -(.item)-> FileTreeRowData
                 tracing::trace!("Bind file_tree item: {:?}", item.type_().name());
                 let list_item = item.downcast_ref::<gtk::ListItem>().unwrap();
@@ -295,7 +293,7 @@ impl FileTreeRow {
                 let list_row = expander.list_row().unwrap();
                 let position = list_row.position();
                 selection.set_selected(position);
-                
+
                 if data.file_type() == FileType::Directory {
                     let is_expanded = data.expanded();
                     data.set_expanded(!is_expanded);
@@ -348,15 +346,11 @@ impl FileTreeRowData {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
 #[enum_type(name = "FileType")]
+#[derive(Default)]
 pub enum FileType {
+    #[default]
     File = 0,
     Directory,
-}
-
-impl Default for FileType {
-    fn default() -> Self {
-        FileType::File
-    }
 }
 
 impl FileType {
