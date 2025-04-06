@@ -214,6 +214,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
                         target: Set(info.target.clone()),
                         arguments: Set(info.args.clone().unwrap_or_default().join(" ")),
                     };
+                    drop(info); // !!release ref or deadlock when insert
                     model.insert(&state.conn).await.unwrap();
                     state.building.remove(&id); // task over
                 }
