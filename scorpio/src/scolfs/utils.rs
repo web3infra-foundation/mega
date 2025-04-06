@@ -16,8 +16,10 @@ pub fn lfs_path() -> PathBuf{
 pub fn lfs_attribate() -> PathBuf{
     let mut lfs_path = lfs_path();
     lfs_path.push(".libra_attribute");
-    if !lfs_path.exists() {
-        fs::create_dir_all(&lfs_path).expect("Failed to create directory");
-    }
     lfs_path
+}
+
+// ==== Helper Functions ====
+pub fn current_refspec() -> Option<String> {
+    Some("refs/heads/main".to_string())
 }
