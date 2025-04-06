@@ -14,7 +14,8 @@ path = "src/main.rs"
 
 [dependencies]
 gtk = { version = "~0.9", package = "gtk4", features = ["v4_14"] }
-adw = { version = "~0.7", package = "libadwaita", features = ["v1_5"] }
+adw = { version = "0.7.2", package = "libadwaita", features = ["v1_5"] }
+scv = { version = "0.9.0", package = "sourceview5", features = ["gtk_v4_12", "v5_10"]}
 
 # To run mega core, we have to add these:
 mono = { path = "../mono" }
@@ -35,6 +36,7 @@ tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"] 
 rustls = "0.23.23"
 gix-config = "0.43.0"
 home = "0.5.11"
+smallvec = "1.14.0"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"
@@ -44,4 +46,3 @@ panic = "abort" # glib panics are not human friendly, just leave them alone
 
 [profile.release]
 lto = "fat"
-

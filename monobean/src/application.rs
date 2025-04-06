@@ -17,6 +17,7 @@ use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use tokio::sync::oneshot;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
@@ -38,6 +39,8 @@ pub enum Action {
     UpdateGitConfig(String, String),
     ShowHelloPage,
     ShowMainPage,
+    MountRepo,
+    OpenEditorOn(PathBuf),
 }
 
 mod imp {
@@ -158,6 +161,8 @@ impl MonobeanApplication {
     fn create_window(&self) -> MonobeanWindow {
         let window = MonobeanWindow::new(&self.clone(), self.sender());
 
+        window.set_decorated(false);
+        window.set_icon_name(Some("mono-white-logo"));
         self.add_window(&window);
         window.present();
         window
@@ -255,7 +260,7 @@ impl MonobeanApplication {
             .transient_for(&window)
             .modal(true)
             .program_name(crate::APP_NAME)
-            .logo_icon_name("logo")
+            .logo_icon_name("mono-white-logo")
             .version(crate::config::VERSION)
             .authors(vec!["Neon"])
             .license_type(gtk::License::MitX11)
@@ -357,7 +362,6 @@ impl MonobeanApplication {
                     sender.send(toast).await.unwrap();
                 });
             }
-
             Action::ShowHelloPage => {
                 let config = self.git_config();
 
@@ -370,9 +374,16 @@ impl MonobeanApplication {
                     window.show_hello_page(name, email, gpg_generated);
                 });
             }
-
             Action::ShowMainPage => {
                 window.show_main_page();
+            }
+            Action::MountRepo => todo!(),
+            Action::OpenEditorOn(path) => {
+                CONTEXT.spawn_local(async move {
+                    let window = window.imp();
+                    let code_page = window.code_page.get();
+                    code_page.show_editor(path);
+                });
             }
         }
     }

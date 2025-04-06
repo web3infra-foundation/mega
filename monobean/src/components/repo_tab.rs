@@ -1,10 +1,11 @@
-use adw::NavigationSplitView;
 use gtk::{glib, CompositeTemplate};
-use gtk::{Box, Stack};
 
 use gtk::subclass::prelude::*;
 
 mod imp {
+    use adw::{subclass::prelude::BinImpl, OverlaySplitView};
+    use gtk::ListView;
+
     use crate::components::repo_detail::RepoDetail;
 
     use super::*;
@@ -13,9 +14,9 @@ mod imp {
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/repo_tab.ui")]
     pub struct RepoTab {
         #[template_child]
-        pub nav_view: TemplateChild<NavigationSplitView>,
+        pub split_view: TemplateChild<OverlaySplitView>,
         #[template_child]
-        pub info_stack: TemplateChild<Stack>,
+        pub repo_list_view: TemplateChild<ListView>,
         #[template_child]
         pub repo_detail: TemplateChild<RepoDetail>,
     }
@@ -24,7 +25,7 @@ mod imp {
     impl ObjectSubclass for RepoTab {
         const NAME: &'static str = "RepoTab";
         type Type = super::RepoTab;
-        type ParentType = Box;
+        type ParentType = adw::Bin;
 
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
@@ -43,12 +44,12 @@ mod imp {
     }
 
     impl WidgetImpl for RepoTab {}
-    impl BoxImpl for RepoTab {}
+    impl BinImpl for RepoTab {}
 }
 
 glib::wrapper! {
     pub struct RepoTab(ObjectSubclass<imp::RepoTab>)
-        @extends gtk::Widget, gtk::Box,
+        @extends gtk::Widget, adw::Bin,
         @implements gtk::Accessible, gtk::Buildable,gtk::ConstraintTarget, gtk::Orientable;
 }
 

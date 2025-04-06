@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0" />
+  <requires lib="sourceview" version="5.0" />
+  <template class="CodePage" parent="AdwBin">
+    <property name="hexpand">true</property>
+    <property name="vexpand">true</property>
+
+    <property name="child">
+      <object class="GtkPaned" id="paned">
+        <property name="position">300</property>
+
+        <!-- Left Side: File Tree -->
+        <property name="start-child">
+          <object class="FileTreeView" id="file_tree_view" />
+        </property>
+
+        <!-- Right Side: Code Viewer  -->
+        <property name="end-child">
+          <object class="GtkStack" id="code_stack">
+            <property name="transition-type">crossfade</property>
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+
+            <!-- Empty page -->
+            <child>
+              <object class="GtkStackPage">
+                <property name="name">empty_view</property>
+                <property name="title" translatable="true">Empty View</property>
+                <property name="child">
+                  <object class="GtkBox" id="empty_view">
+                    <property name="orientation">vertical</property>
+                    <property name="valign">center</property>
+                    <property name="halign">center</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">text-x-generic-symbolic</property>
+                        <property name="pixel-size">64</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">No file selected</property>
+                        <style>
+                          <class name="title-2" />
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </child>
+
+            <!-- Source view page -->
+            <child>
+              <object class="GtkStackPage">
+                <property name="name">source_view</property>
+                <property name="title">Source View</property>
+                <property name="child">
+                  <object class="GtkScrolledWindow" id="source_scroll">
+                    <property name="hexpand">true</property>
+                    <property name="vexpand">true</property>
+                    <child>
+                      <object class="GtkSourceView" id="source_view">
+                        <property name="monospace">true</property>
+                        <property name="show-line-numbers">true</property>
+                        <property name="highlight-current-line">true</property>
+                        <property name="tab-width">4</property>
+                        <property name="auto-indent">true</property>
+                        <property name="wrap-mode">word</property>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </child>
+          </object>
+        </property>
+
+      </object>
+    </property>
+
+  </template>
+</interface>
