@@ -169,7 +169,9 @@ async fn check_node_status(relay_storage: Arc<RelayStorage>) {
         if now - n.last_online_time > 60_000 {
             let mut node = n.clone();
             node.online = false;
-            let _ = relay_storage.update_node(node).await;
+            if let Err(e) = relay_storage.update_node(node).await {
+                error!("Failed to update node: {:?}", e);
+            }
         }
     }
 }
