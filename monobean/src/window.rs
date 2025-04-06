@@ -155,7 +155,7 @@ impl MonobeanWindow {
 
         // We are developing, so always show hello_page for debug
         let stack = imp.base_stack.clone();
-        stack.set_visible_child_name("main_page");
+        stack.set_visible_child_name("hello_page");
         // let action = Action::ShowHelloPage;
         // self.sender().send_blocking(action).unwrap();
     }
