@@ -11,6 +11,7 @@ use tokio::time;
 use async_recursion::async_recursion;
 
 use crate::manager::store::store_trees;
+use crate::scolfs;
 use crate::util::GPath;
 use crate::util::scorpio_config;
 
@@ -101,6 +102,7 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
 }
 
 const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
+
 #[allow(unused)]
 #[allow(clippy::blocks_in_conditions)]
 async fn worker_thread(
@@ -111,7 +113,7 @@ async fn worker_thread(
     send_tree :Sender<Tree>,
 ) {
     let client = Client::new();
-    let mut interval = time::interval(Duration::from_millis(50)); 
+    //let mut interval = time::interval(Duration::from_millis(50)); 
     let timeout_duration = Duration::from_millis(300);
     loop {
         let path = tokio::select! {
@@ -214,7 +216,7 @@ async fn worker_ro_thread(
                 // mkdir 
                 tokio::fs::create_dir_all(real_path).await.unwrap();
             } else {
-                
+
                 let e = fetch_and_save_file(&item.id,real_path).await;
                 println!("{:?}",e);
             }
@@ -255,8 +257,11 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
     
     // Clean up workers (depends on how you implement worker_thread termination)
     let _ = handle.await;
-    
-    print!("finish ...")
+
+    //get lfs file
+    let _ = scolfs::lfs::lfs_restore(save_path.as_ref().to_str().unwrap()).await.unwrap();
+
+    print!("finish code for {}...", path);
 }
 
 

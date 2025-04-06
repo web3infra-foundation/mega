@@ -41,10 +41,10 @@ impl LFSClient {
 
 /// see [successful-responses](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md#successful-responses)
 #[derive(Serialize, Deserialize)]
-struct LfsBatchResponse {
-    transfer: Option<String>,
-    objects: Vec<ResponseObject>,
-    hash_algo: Option<String>,
+pub struct LfsBatchResponse {
+    pub transfer: Option<String>,
+    pub objects: Vec<ResponseObject>,
+    pub hash_algo: Option<String>,
 }
 
 impl ProtocolClient for LFSClient {
@@ -255,7 +255,7 @@ impl LFSClient {
     }
 
     /// upload (PUT) one LFS file to remote server
-    async fn upload_object(&self, object: ResponseObject, file: &Path) -> Result<(), ()> {
+    pub async fn upload_object(&self, object: ResponseObject, file: &Path) -> Result<(), ()> {
         if let Some(err) = object.error {
             eprintln!(
                 "fatal: LFS upload failed. Code: {}, Message: {}",
