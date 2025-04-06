@@ -1,4 +1,1 @@
-[[works]]
-path = "third-part/buck-hello"
-node = 8
-hash = "5f70f0f460d92d73eac0ea09ef2edb3840bfc68f"
+works = []

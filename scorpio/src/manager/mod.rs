@@ -56,8 +56,9 @@ impl ScorpioManager {
     ) -> Result<Commit, Box<dyn std::error::Error>> {
         let store_path = scorpio_config::store_path();
         let work_dir = self.select_work(&mono_path)?;
-        let path = PathBuf::from(store_path).join(work_dir.hash.clone());
-        let mut lower = path.clone();
+        let path = PathBuf::from(store_path);
+        let path = path.join(work_dir.hash.clone());
+        let mut lower  = path.clone();
         lower.push("lower");
         let mut upper = path.clone();
         upper.push("upper");
@@ -102,28 +103,29 @@ impl ScorpioManager {
         Ok(commit)
     }
 
-    fn select_work(&self, mono_path: &str) -> Result<&WorkDir, Box<dyn std::error::Error>> {
-        for works in self.works.iter() {
-            if works.path.eq(&mono_path) {
+/// Extracts and returns the corresponding workspace for the provided `mono_path`.
+///
+/// This function iterates over the manager's work directories and selects the one whose path
+/// is either exactly equal to `mono_path` or is a prefix of `mono_path`. In other words, it
+/// finds the workspace that best matches the given path.
+/// 
+/// # Parameters
+///
+/// - `mono_path`: A string slice representing the path to match against the work directories.
+///
+/// # Returns
+///
+/// - `Ok(&WorkDir)` if a matching workspace is found.
+/// - `Err("WorkDir not found")` otherwise.
+    fn select_work(&self , mono_path:&str ) ->Result<&WorkDir, Box<dyn std::error::Error>> {
+        for works in self.works.iter(){
+            if mono_path.starts_with(&works.path) || mono_path.eq(&works.path) {
                 return Ok(works);
             }
         }
         Err(Box::from("WorkDir not found"))
     }
 
-    fn select_work_for_add(
-        &self,
-        mono_path: &str,
-    ) -> Result<(&WorkDir, PathBuf), Box<dyn std::error::Error>> {
-        for works in self.works.iter() {
-            // This allows for partial matches, e.g., if os_mono_path is a subdirectory of works.path
-            match PathBuf::from(mono_path).strip_prefix(&works.path) {
-                Ok(real_path) => return Ok((works, real_path.to_path_buf())),
-                Err(_) => (),
-            }
-        }
-        Err(Box::from("WorkDir not found"))
-    }
 
     pub async fn push_commit(
         &self,
@@ -185,7 +187,7 @@ impl ScorpioManager {
         // The OS path cannot be used, and should be mapped from
         // the FUSE system to the path under Upper.
         // For example, work_dir/1.sh corresponds to upper/1.sh
-        let (work_dir, mono_path) = self.select_work_for_add(mono_path)?;
+        let work_dir = self.select_work(mono_path)?;
         let store_path = scorpio_config::store_path();
         let path = PathBuf::from(store_path).join(work_dir.hash.clone());
 
@@ -194,7 +196,7 @@ impl ScorpioManager {
         let modifypath = path.join("modifiedstore");
         let index_dbpath = modifypath.join("index.db");
         let upper_path = path.join("upper");
-        let real_path = upper_path.join(&mono_path);
+        let real_path = upper_path.join(&work_dir.path);
 
         // In the Upper path, we can safely use the canonicalize function
         // to standardized path.
