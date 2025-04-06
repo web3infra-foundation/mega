@@ -269,7 +269,7 @@ impl FileTreeRow {
         let expandable_binding = data
             .bind_property("file-type", &expander, "hide-expander")
             .sync_create()
-            .transform_to(|_, t: FileType| Some(t.is_dir()))
+            .transform_to(|_, t: FileType| Some(!t.is_dir()))
             .build();
 
         bindings.push(label_binding);
