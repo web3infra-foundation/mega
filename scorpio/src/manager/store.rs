@@ -373,9 +373,7 @@ impl ModifiedKVStore for StorageSpace {
     /// version will migrate the db to the "ModifyStore"
     /// folder.
     ///
-    /// Added WhiteOut file support to avoid some unexpected
-    /// errors.
-
+    /// Added WhiteOut file support to avoid some unexpected errors.
     /// Add a Blob Object into the folder by a hash.
     fn add_blob_to_hash(&self, hash: &str, blob: &[u8]) -> Result<()> {
         match (hash, hash.len()) {

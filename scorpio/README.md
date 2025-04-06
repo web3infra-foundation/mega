@@ -101,6 +101,18 @@ curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: applicati
 ## **3. Git LFS Support**
 - Integrate Git Large File Storage (LFS) for managing large files.
 
+after mount: 
+1. read the .libra_attribute in monorepo , store the patterns in the store path ..
+2. get all maybe lfs point(blob);
+3. if the file is lfs point, then download it.
+before git push .
+1. read the  .libra_attribute in the store path ..
+2. get all change lfs point(blob);
+3. push changed blob to the lfs server;
+4. get the lfs point(blob) from the lfs server;
+5. build the commit with the lfs point(blob);
+
+
 ## **4. Directory Management**
 1. **Local Directory Storage Recovery**  
    - Implement recovery functionality for local directory storage.
