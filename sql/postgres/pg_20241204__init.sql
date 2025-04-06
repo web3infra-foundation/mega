@@ -224,13 +224,9 @@ CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
 
 CREATE TABLE IF NOT EXISTS "relay_node" (
   "peer_id" VARCHAR(64) PRIMARY KEY,
-  "hub" VARCHAR(64),
-  "agent_name" VARCHAR(64),
-  "service_name" VARCHAR(64),
   "type" VARCHAR(64),
   "online" BOOLEAN NOT NULL,
-  "last_online_time" BIGINT NOT NULL,
-  "service_port" INT NOT NULL
+  "last_online_time" BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "relay_repo_info" (
