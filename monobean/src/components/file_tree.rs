@@ -1,21 +1,19 @@
 use crate::application::Action;
 use adw::prelude::*;
+use adw::subclass::prelude::BinImpl;
 use async_channel::Sender;
 use gtk::gio::{ListModel, ListStore};
 use gtk::glib::Enum;
 use gtk::glib::{clone, Properties};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate, SignalListItemFactory, SingleSelection, TreeListModel};
+use smallvec::SmallVec;
 use std::cell::{Cell, RefCell};
 use std::fs::DirEntry;
+use std::path::PathBuf;
 use std::{cell::OnceCell, path::Path};
 
 mod imp {
-    use std::path::PathBuf;
-
-    use adw::subclass::prelude::BinImpl;
-    use smallvec::SmallVec;
-
     use super::*;
 
     #[derive(Debug, Default, Properties)]
