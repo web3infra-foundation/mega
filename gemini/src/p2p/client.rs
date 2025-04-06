@@ -762,7 +762,7 @@ pub async fn get_peers() -> Result<Vec<relay_node::Model>> {
     REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
     let connection = MsgSingletonConnection::get_connection();
     tokio::spawn(async move {
-        let (mut sender, _) = connection.open_bi().await?;
+        let (mut sender, _) = connection.open_bi().await.unwrap();
         let send = RequestData {
             from: local_peer_id.clone(),
             data: vec![],
