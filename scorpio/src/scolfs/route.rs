@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use ceres::lfs::lfs_structs::{LockListQuery, Lock};
 use crate::util::{scorpio_config, GPath};
 
-use super::{lfs, utils};
+use super::{lfs, utils::{self, current_refspec}};
 
 #[derive(Debug, Deserialize)]
 struct TrackRequest {
@@ -97,7 +97,6 @@ async fn list_locks(
     Query(query): Query<ListLocksQuery>
 ) -> Result<Json<LockResponse>, ErrorResponse> {
     let refspec = current_refspec()
-        .await
         .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
 
     let locks = LFSClient::get()
@@ -124,7 +123,6 @@ async fn create_lock(
     }
 
     let refspec = current_refspec()
-        .await
         .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
 
     let status = LFSClient::get()
@@ -150,7 +148,6 @@ async fn remove_lock(
     Query(query): Query<UnlockQuery>
 ) -> Result<StatusCode, ErrorResponse> {
     let refspec = current_refspec()
-        .await
         .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
 
     let id = match query.id {
@@ -187,10 +184,6 @@ async fn remove_lock(
 }
 
 
-// ==== Helper Functions ====
-async fn current_refspec() -> Option<String> {
-    Some("refs/heads/main".to_string())
-}
 
 
 /// [different from `libra`].
