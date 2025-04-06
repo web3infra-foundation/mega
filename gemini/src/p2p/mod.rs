@@ -16,6 +16,7 @@ pub enum Action {
     Callback,
     RepoShare,
     Nostr,
+    Peers,
 }
 
 impl fmt::Display for Action {
@@ -38,6 +39,9 @@ impl fmt::Display for Action {
             }
             Action::Nostr => {
                 write!(f, "Nostr")
+            }
+            Action::Peers => {
+                write!(f, "Peers")
             }
         }
     }
@@ -87,6 +91,7 @@ mod tests {
     // use common::config::Config;
     // use jupiter::context::Context;
     // use std::sync::Arc;
+    // use tracing::info;
     //
     // #[tokio::test]
     // async fn test_repo_share() {
@@ -186,6 +191,22 @@ mod tests {
     //
     //     client::send_git_event(git_event).await.unwrap();
     //     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_get_peers() {
+    //     test_with_logs();
+    //     let config = Config::new("E:\\code\\mega\\config.toml").unwrap();
+    //     let context = Context::new(Arc::from(config)).await;
+    //     let context_clone = context.clone();
+    //     tokio::spawn(async move {
+    //         client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
+    //             .await
+    //             .unwrap();
+    //     });
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //     let peers = client::get_peers().await.unwrap();
+    //     info!("peers: {:?}", peers);
     // }
     //
     // fn test_with_logs() {

@@ -61,9 +61,6 @@ impl RelayStorage {
         node: relay_node::Model,
     ) -> Result<relay_node::Model, MegaError> {
         let mut active_model: relay_node::ActiveModel = node.clone().into_active_model();
-        active_model.hub = Set(node.hub);
-        active_model.agent_name = Set(node.agent_name);
-        active_model.service_name = Set(node.service_name);
         active_model.r#type = Set(node.r#type);
         active_model.online = Set(node.online);
         active_model.last_online_time = Set(node.last_online_time);
@@ -80,9 +77,6 @@ impl RelayStorage {
         match self.get_node_by_id(&node.peer_id).await.unwrap() {
             Some(_) => {
                 let mut active_model: relay_node::ActiveModel = node.clone().into_active_model();
-                active_model.hub = Set(node.hub);
-                active_model.agent_name = Set(node.agent_name);
-                active_model.service_name = Set(node.service_name);
                 active_model.r#type = Set(node.r#type);
                 active_model.online = Set(node.online);
                 active_model.last_online_time = Set(node.last_online_time);
