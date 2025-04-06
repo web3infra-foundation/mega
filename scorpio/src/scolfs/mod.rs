@@ -125,7 +125,9 @@ impl ScorpioLFS for LFSClient{
        .await
        .unwrap();
 
-       let resp = response.json::<LfsBatchResponse>().await.unwrap();
+       let resp = response.json::<LfsBatchResponse>().await.map_err(|e| {
+           eprintln!("fatal: LFS batch request failed. Error: {}", e);
+       })?;
        println!(
            "LFS push response:\n {:#?}",
            serde_json::to_value(&resp).unwrap()
