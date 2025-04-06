@@ -276,10 +276,6 @@ impl MegaCore {
             CoreConfigChanged::SqlxLogging(sqlx_logging) => {
                 base.database.sqlx_logging = sqlx_logging
             }
-            CoreConfigChanged::ObsAccessKey(key) => base.storage.obs_access_key = key,
-            CoreConfigChanged::ObsSecretKey(key) => base.storage.obs_secret_key = key,
-            CoreConfigChanged::ObsRegion(region) => base.storage.obs_region = region,
-            CoreConfigChanged::ObsEndpoint(endpoint) => base.storage.obs_endpoint = endpoint,
             CoreConfigChanged::ImportDir(dir) => base.monorepo.import_dir = dir,
             CoreConfigChanged::Admin(admin) => base.monorepo.admin = admin,
             CoreConfigChanged::RootDirs(dirs) => base.monorepo.root_dirs = dirs,
@@ -299,9 +295,6 @@ impl MegaCore {
             }
             CoreConfigChanged::ChannelMessageSize(size) => base.pack.channel_message_size = size,
             CoreConfigChanged::LfsUrl(url) => base.lfs.url = url,
-            CoreConfigChanged::LfsObjLocalPath(path) => base.lfs.lfs_obj_local_path = path,
-            CoreConfigChanged::EnableSplit(enable) => base.lfs.enable_split = enable,
-            CoreConfigChanged::SplitSize(size) => base.lfs.split_size = size,
             CoreConfigChanged::GithubClientId(id) => {
                 if base.oauth.is_none() {
                     base.oauth = Some(common::config::OauthConfig::default());
