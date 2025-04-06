@@ -44,16 +44,13 @@ fn encode_header(object_number: usize) -> Vec<u8> {
 fn encode_offset(mut value: usize) -> Vec<u8> {
     assert_ne!(value, 0, "offset can't be zero");
     let mut bytes = Vec::new();
-    let mut first_byte = true;
-    while value != 0 || first_byte {
-        let mut byte = (value & 0x7F) as u8; // 获取当前值的最低7位
-        value >>= 7; // 右移7位准备处理下一个字节
-        if first_byte {
-            first_byte = false;
-        } else {
-            byte -= 1; // sub 1
-            byte |= 0x80; // set first bit one
-        }
+
+    bytes.push((value & 0x7F) as u8);
+    value >>= 7;
+    while value != 0 {
+        value -= 1;
+        let byte = (value & 0x7F) as u8 | 0x80; // set first bit one
+        value >>= 7;
         bytes.push(byte);
     }
     bytes.reverse();
@@ -483,11 +480,14 @@ mod tests {
 
     #[test]
     fn test_encode_offset() {
-        let value = 11013;
+        // let value = 11013;
+        let value = 16389;
+
         let data = encode_offset(value);
         println!("{:?}", data);
-        assert_eq!(data.len(), 2);
-        assert_eq!(data[0], 0b_1101_0101);
-        assert_eq!(data[1], 0b_0000_0101);
+        let mut reader = Cursor::new(data);
+        let (result, _) = read_offset_encoding(&mut reader).unwrap();
+        println!("result: {}", result);
+        assert_eq!(result, value as u64);
     }
-}
+    }
