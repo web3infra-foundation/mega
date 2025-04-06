@@ -1,0 +1,1 @@
+It is a copy of the `zstdelta` crate from the `facebook/sapling` repository, which is licensed under MIT License.
