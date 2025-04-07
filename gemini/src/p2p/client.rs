@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::anyhow;
 use anyhow::bail;
 use anyhow::Result;
-use callisto::{git_repo, import_refs, lfs_objects, relay_node};
+use callisto::{git_repo, import_refs, lfs_objects};
 use ceres::lfs::handler;
 use ceres::lfs::handler::lfs_download_object;
 use ceres::lfs::lfs_structs::RequestObject;
@@ -53,7 +53,7 @@ use crate::p2p::{Action, GitCloneHeader};
 use crate::util::{
     get_git_model_by_path, get_repo_path, parse_pointer_data, repo_path_to_identifier,
 };
-use crate::{ca, RepoInfo};
+use crate::{ca, Node, RepoInfo};
 
 struct MsgSingletonConnection {
     conn: Arc<Connection>,
@@ -322,8 +322,7 @@ pub async fn repo_share(context: Context, path: String) -> Result<String> {
         sender.write_all(json.as_bytes()).await.unwrap();
         sender.finish().unwrap();
     });
-
-    let _ = rx.await?;
+    let _message = wait_rx_with_timeout(rx).await?;
     info!("Repo share success: {}", identifier);
     Ok(identifier)
 }
@@ -755,7 +754,7 @@ async fn receive_nostr(data: Vec<u8>) -> Result<()> {
     Ok(())
 }
 
-pub async fn get_peers() -> Result<Vec<relay_node::Model>> {
+pub async fn get_peers() -> Result<Vec<Node>> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     let req_id: String = Uuid::new_v4().into();
     let local_peer_id = get_peerid().await;
@@ -775,9 +774,34 @@ pub async fn get_peers() -> Result<Vec<relay_node::Model>> {
         sender.write_all(json.as_bytes()).await.unwrap();
         sender.finish().unwrap();
     });
-    let message = wait_rx_with_timeout(rx).await?;
-    let peers: Vec<relay_node::Model> = serde_json::from_slice(message.as_slice())?;
+    let res = wait_rx_with_timeout(rx).await?;
+    let peers: Vec<Node> = serde_json::from_slice(res.as_slice())?;
     Ok(peers)
+}
+
+pub async fn get_repos() -> Result<Vec<RepoInfo>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let req_id: String = Uuid::new_v4().into();
+    let local_peer_id = get_peerid().await;
+    REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
+    let connection = MsgSingletonConnection::get_connection();
+    tokio::spawn(async move {
+        let (mut sender, _) = connection.open_bi().await.unwrap();
+        let send = RequestData {
+            from: local_peer_id.clone(),
+            data: vec![],
+            func: "".to_string(),
+            action: Action::Repos,
+            to: "".to_string(),
+            req_id: req_id.clone(),
+        };
+        let json = serde_json::to_string(&send).unwrap();
+        sender.write_all(json.as_bytes()).await.unwrap();
+        sender.finish().unwrap();
+    });
+    let res = wait_rx_with_timeout(rx).await?;
+    let repo_list: Vec<RepoInfo> = serde_json::from_slice(res.as_slice())?;
+    Ok(repo_list)
 }
 
 async fn wait_rx_with_timeout(rx: tokio::sync::oneshot::Receiver<Vec<u8>>) -> Result<Vec<u8>> {
