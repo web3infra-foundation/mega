@@ -1,6 +1,6 @@
-use std::fmt;
-
-use callisto::{git_repo, lfs_objects, lfs_split_relations, relay_lfs_info, relay_repo_info};
+use callisto::{
+    git_repo, lfs_objects, lfs_split_relations, relay_lfs_info, relay_node, relay_repo_info,
+};
 use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
 use util::get_utc_timestamp;
@@ -22,33 +22,23 @@ pub struct RelayGetParams {
     pub file_hash: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RelayResultRes {
-    pub success: bool,
-}
-
-#[derive(Debug)]
-pub enum MegaType {
-    Agent,
-    Relay,
-}
-
-impl fmt::Display for MegaType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            MegaType::Agent => write!(f, "Agent"),
-            MegaType::Relay => write!(f, "Relay"),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Node {
     pub peer_id: String,
-    pub service_name: String,
     pub mega_type: String,
     pub online: bool,
     pub last_online_time: i64,
+}
+
+impl From<relay_node::Model> for Node {
+    fn from(r: relay_node::Model) -> Self {
+        Node {
+            peer_id: r.peer_id,
+            mega_type: r.r#type,
+            online: r.online,
+            last_online_time: r.last_online_time,
+        }
+    }
 }
 
 #[derive(Debug)]
