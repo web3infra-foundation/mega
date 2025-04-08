@@ -95,12 +95,7 @@ async fn process_message(msg: Message) -> ControlFlow<(), ()> {
                     println!(">>> got task: id:{id}, repo:{repo}, target:{target}, args:{args:?}");
                     let Json(res) = buck_build(
                         id.parse().unwrap(),
-                        BuildRequest {
-                            repo,
-                            target,
-                            args,
-                            webhook: None,
-                        },
+                        BuildRequest { repo, target, args },
                         SENDER.get().unwrap().clone(),
                     )
                     .await;
