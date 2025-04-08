@@ -3,14 +3,15 @@ use axum::body::Bytes;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use axum::extract::{ConnectInfo, Path, State, WebSocketUpgrade};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::sse::{Event, KeepAlive};
+use axum::response::{IntoResponse, Sse};
 use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use axum_extra::json;
 use dashmap::DashMap;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, Stream, StreamExt, stream};
+use once_cell::sync::Lazy;
 use orion::ws::WSMessage;
-use orion::ws::WSMessage::Task;
 use rand::seq::SliceRandom;
 use scopeguard::defer;
 use sea_orm::ActiveValue::Set;
@@ -18,15 +19,19 @@ use sea_orm::prelude::DateTimeUtc;
 use sea_orm::sqlx::types::chrono;
 use sea_orm::{ActiveModelTrait, DatabaseConnection};
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
-const BUILD_LOG_DIR: &str = "/tmp/buck2ctl";
+static BUILD_LOG_DIR: Lazy<String> =
+    Lazy::new(|| std::env::var("BUILD_LOG_DIR").expect("BUILD_LOG_DIR must be set"));
 
 #[derive(Debug, Deserialize)]
 struct BuildRequest {
@@ -73,6 +78,7 @@ pub fn routers() -> Router<AppState> {
         .route("/ws", any(ws_handler))
         .route("/task", post(task_handler))
         .route("/task-status/{id}", get(task_status_handler))
+        .route("/task-output/{id}", get(task_output_handler))
 }
 
 async fn task_status_handler(
@@ -132,6 +138,58 @@ async fn task_status_handler(
     (code, Json(status))
 }
 
+/// SSE
+async fn task_output_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> // impl IntoResponse
+{
+    let path = format!("{}/{}", BUILD_LOG_DIR.to_owned(), id);
+    if !std::path::Path::new(&path).exists() {
+        // 2 return types must same, which is hard without `.boxed()`
+        // `Sse<Unfold<Reader<File>, ..., ...>>` != Sse<Once<..., ..., ...>> != Sse<Unfold<bool, ..., ...>>
+        return Sse::new(
+            stream::once(async { Ok(Event::default().data("Task output file not found")) }).boxed(),
+        );
+    }
+
+    let file = tokio::fs::File::open(&path).await.unwrap(); // read-only mode
+    let reader = tokio::io::BufReader::new(file);
+
+    let stream = stream::unfold(reader, move |mut reader| {
+        let id_c = id.clone(); // must, or err
+        let building = state.building.clone();
+        async move {
+            let mut buf = String::new();
+            let is_building = building.contains_key(&id_c); // MUST check before reading
+            let size = reader.read_to_string(&mut buf).await.unwrap();
+            if size == 0 {
+                if is_building {
+                    // wait for new content
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    let size = reader.read_to_string(&mut buf).await.unwrap();
+                    if size > 0 {
+                        tracing::debug!("Read: {}", buf); // little duplicate code, but more efficient
+                        Some((Ok(Event::default().data(buf)), reader))
+                    } else {
+                        tracing::debug!("Not Modified, waiting...");
+                        // return control to `axum`, or it can't auto-detect client disconnect & close
+                        Some((Ok(Event::default().comment("")), reader))
+                    }
+                } else {
+                    // build end & no more content
+                    None
+                }
+            } else {
+                tracing::debug!("Read: {}", buf);
+                Some((Ok(Event::default().data(buf)), reader))
+            }
+        }
+    });
+
+    Sse::new(stream.boxed()).keep_alive(KeepAlive::new()) // empty comment to keep alive
+}
+
 async fn task_handler(
     State(state): State<AppState>,
     Json(req): Json<BuildRequest>,
@@ -154,14 +212,14 @@ async fn task_handler(
         .collect();
 
     if client_ids.is_empty() {
-        return axum_extra::json!({"error": "No clients connected"});
+        return json!({"message": "No clients connected"});
     }
 
     let mut rng = rand::thread_rng();
     let chosen_id = client_ids.choose(&mut rng).unwrap();
 
     let msg = WSMessage::Task {
-        id,
+        id: id.clone(),
         repo: req.repo,
         target: req.target,
         args: req.args,
@@ -169,7 +227,7 @@ async fn task_handler(
 
     state.clients.get(chosen_id).unwrap().send(msg).unwrap(); // TODO client maybe disconnected
 
-    axum_extra::json!({"client_id": chosen_id})
+    json!({"task_id": id, "client_id": chosen_id})
 }
 async fn ws_handler(
     ws: WebSocketUpgrade,
@@ -270,7 +328,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
                     let mut file = std::fs::OpenOptions::new() // TODO optimize: open & close too many times
                         .append(true)
                         .create(true)
-                        .open(format!("{BUILD_LOG_DIR}/{id}"))
+                        .open(format!("{}/{}", BUILD_LOG_DIR.to_string(), id))
                         .unwrap();
                     file.write_all(format!("{output}\n").as_bytes()).unwrap();
                 }
@@ -286,7 +344,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
                     let info = state.building.get(&id).expect("Build info not found");
                     let model = builds::ActiveModel {
                         build_id: Set(id.parse().unwrap()),
-                        output_file: Set(format!("{BUILD_LOG_DIR}/{id}")),
+                        output_file: Set(format!("{}/{}", BUILD_LOG_DIR.to_string(), id)),
                         exit_code: Set(exit_code),
                         start_at: Set(info.start_at),
                         end_at: Set(chrono::Utc::now()),
