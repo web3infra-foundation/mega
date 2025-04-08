@@ -4,7 +4,7 @@ use gtk::{style_context_add_provider_for_display, PopoverMenu};
 
 use crate::application::{Action, MonobeanApplication};
 use crate::components::theme_selector::ThemeSelector;
-use crate::components::{mega_tab::MegaTab, not_implemented::NotImplemented, repo_tab::RepoTab};
+use crate::components::{mega_tab::MegaTab, repo_tab::RepoTab};
 use crate::config::PREFIX;
 use adw::glib::Priority;
 use adw::prelude::{Cast, ObjectExt, SettingsExtManual, ToValue};
@@ -18,13 +18,15 @@ use std::cell::OnceCell;
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
-        @extends gtk::Widget, gtk::Window, gtk::ApplicationWindow,
+        @extends gtk::Widget, gtk::Window, adw::ApplicationWindow,
         @implements gio::ActionGroup, gio::ActionMap;
 }
 
 mod imp {
     use super::*;
+    use crate::components::code_page::CodePage;
     use crate::components::hello_page::HelloPage;
+    use crate::components::not_implemented::NotImplemented;
     use adw::glib::{ParamSpec, ParamSpecObject, Value};
     use std::cell::RefCell;
     use std::sync::LazyLock;
@@ -49,6 +51,8 @@ mod imp {
         pub mega_tab: TemplateChild<MegaTab>,
         #[template_child]
         pub repo_tab: TemplateChild<RepoTab>,
+        #[template_child]
+        pub code_page: TemplateChild<CodePage>,
 
         #[template_child]
         pub not_implemented: TemplateChild<NotImplemented>,
@@ -147,13 +151,13 @@ impl MonobeanWindow {
         // let setting = self.settings();
 
         imp.hello_page.setup_hello_page(self.sender());
+        imp.code_page.setup_code_page(self.sender(), None);
 
         // We are developing, so always show hello_page for debug
         let stack = imp.base_stack.clone();
         stack.set_visible_child_name("hello_page");
-
-        let action = Action::ShowHelloPage;
-        self.sender().send_blocking(action).unwrap();
+        // let action = Action::ShowHelloPage;
+        // self.sender().send_blocking(action).unwrap();
     }
 
     pub fn show_main_page(&self) {

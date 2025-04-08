@@ -1,0 +1,17 @@
+{
+  "name": "@gitmono/types",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf .turbo dist node_modules"
+  },
+  "devDependencies": {
+    "@gitmono/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

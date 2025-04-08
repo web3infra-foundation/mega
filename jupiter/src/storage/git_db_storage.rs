@@ -270,6 +270,18 @@ impl GitDbStorage {
         Ok(stream)
     }
 
+    pub async fn get_last_commit_by_repo_id(
+        &self,
+        repo_id: i64,
+    ) -> Result<Option<git_commit::Model>, MegaError> {
+        let one = git_commit::Entity::find()
+            .filter(git_commit::Column::RepoId.eq(repo_id))
+            .order_by_desc(git_commit::Column::CreatedAt)
+            .one(self.get_connection())
+            .await?;
+        Ok(one)
+    }
+
     pub async fn get_trees_by_repo_id(
         &self,
         repo_id: i64,

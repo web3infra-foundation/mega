@@ -1,5 +1,5 @@
+use callisto::relay_nostr_req;
 use client_message::{ClientMessage, Filter, SubscriptionId};
-use event::NostrEvent;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -12,6 +12,52 @@ pub mod event;
 pub mod kind;
 pub mod relay_message;
 pub mod tag;
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GitEventReq {
+    pub path: String,
+    pub action: String,
+    pub title: String,
+    pub content: String,
+}
+
+impl GitEventReq {
+    pub async fn to_git_event(&self, identifier: String, commit: String) -> GitEvent {
+        GitEvent {
+            peer: vault::get_peerid().await,
+            uri: identifier,
+            action: self.action.clone(),
+            r#ref: "".to_string(),
+            commit,
+            issue: "".to_string(),
+            mr: "".to_string(),
+            title: self.title.clone(),
+            content: self.content.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Req {
+    pub subscription_id: String,
+    pub filters: Vec<Filter>,
+}
+
+impl From<relay_nostr_req::Model> for Req {
+    fn from(n: relay_nostr_req::Model) -> Self {
+        let filters: Vec<Filter> = serde_json::from_str(&n.filters).unwrap();
+        Req {
+            subscription_id: n.subscription_id,
+            filters,
+        }
+    }
+}
+
+impl Req {
+    pub fn filters_json(&self) -> String {
+        serde_json::to_string(&self.filters).unwrap()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct GitEvent {
@@ -27,33 +73,6 @@ pub struct GitEvent {
 }
 
 impl GitEvent {
-    pub async fn sent_to_relay(&self, bootstrap_node: String) -> Result<(), String> {
-        let keypair = vault::get_keypair().await;
-        let event = NostrEvent::new_git_event(keypair, self.clone());
-        let client_message = ClientMessage::new_event(event);
-
-        //send to relay
-        let client = Client::new();
-        let url = format!("{bootstrap_node}/api/v1/nostr");
-        let request_result = client
-            .post(url.clone())
-            .header(CONTENT_TYPE, "application/json")
-            .body(client_message.as_json())
-            .send()
-            .await;
-
-        match handle_response(request_result).await {
-            Ok(s) => {
-                tracing::info!("post response from url {}:\n{}", url, s.clone());
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!("post response from url {} failed:\n{}", url, e);
-                Err(e)
-            }
-        }
-    }
-
     pub fn to_tags(&self) -> Vec<Tag> {
         let mut tags: Vec<Tag> = Vec::new();
         if !self.peer.is_empty() {

@@ -41,10 +41,10 @@ impl LFSClient {
 
 /// see [successful-responses](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md#successful-responses)
 #[derive(Serialize, Deserialize)]
-struct LfsBatchResponse {
-    transfer: Option<String>,
-    objects: Vec<ResponseObject>,
-    hash_algo: Option<String>,
+pub struct LfsBatchResponse {
+    pub transfer: Option<String>,
+    pub objects: Vec<ResponseObject>,
+    pub hash_algo: Option<String>,
 }
 
 impl ProtocolClient for LFSClient {
@@ -255,7 +255,7 @@ impl LFSClient {
     }
 
     /// upload (PUT) one LFS file to remote server
-    async fn upload_object(&self, object: ResponseObject, file: &Path) -> Result<(), ()> {
+    pub async fn upload_object(&self, object: ResponseObject, file: &Path) -> Result<(), ()> {
         if let Some(err) = object.error {
             eprintln!(
                 "fatal: LFS upload failed. Code: {}, Message: {}",
@@ -852,6 +852,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // need to start local mega server
     async fn test_push_object() {
+        mercury::test_utils::setup_lfs_file().await;
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
         let file =
             PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
@@ -867,6 +868,7 @@ mod tests {
     #[cfg(feature = "p2p")]
     #[ignore] // need to start local mega server
     async fn test_download_chunk() {
+        mercury::test_utils::setup_lfs_file().await;
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
         let file =
             PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");

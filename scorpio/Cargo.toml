@@ -35,8 +35,12 @@ quote = "1.0.38"
 proc-macro2 = "1.0.93"
 syn = { version = "2.0.98", features = ["full", "extra-traits"] }
 uuid = "1.14.0"
-libfuse-fs = "0.1.0"
+libfuse-fs = "0.1.1"
 regex = "1.11.1"
+whoami = "1.6.0"
+wax = "0.6.0"
+ignore = "0.4.23"
+url = "2.5.4"
 
 
 [features] 

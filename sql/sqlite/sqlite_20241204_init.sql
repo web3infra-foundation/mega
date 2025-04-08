@@ -220,18 +220,14 @@ CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
   PRIMARY KEY ("ori_oid", "sub_oid", "offset")
 );
 
-CREATE TABLE IF NOT EXISTS "ztm_node" (
+CREATE TABLE IF NOT EXISTS "relay_node" (
   "peer_id" VARCHAR(64) PRIMARY KEY,
-  "hub" VARCHAR(64),
-  "agent_name" VARCHAR(64),
-  "service_name" VARCHAR(64),
   "type" VARCHAR(64),
   "online" BOOLEAN NOT NULL,
-  "last_online_time" BIGINT NOT NULL,
-  "service_port" INT NOT NULL
+  "last_online_time" BIGINT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
+CREATE TABLE IF NOT EXISTS "relay_repo_info" (
   "identifier" TEXT PRIMARY KEY,
   "name" TEXT,
   "origin" TEXT,
@@ -239,7 +235,7 @@ CREATE TABLE IF NOT EXISTS "ztm_repo_info" (
   "commit" TEXT
 );
 
-CREATE TABLE IF NOT EXISTS "ztm_lfs_info" (
+CREATE TABLE IF NOT EXISTS "relay_lfs_info" (
   "id" BIGINT PRIMARY KEY,
   "file_hash" VARCHAR(256),
   "hash_type" VARCHAR(64),
@@ -249,7 +245,7 @@ CREATE TABLE IF NOT EXISTS "ztm_lfs_info" (
   "origin" VARCHAR(256)
 );
 
-CREATE TABLE IF NOT EXISTS "ztm_nostr_event" (
+CREATE TABLE IF NOT EXISTS "relay_nostr_event" (
   "id" VARCHAR(128) PRIMARY KEY,
   "pubkey" VARCHAR(128),
   "created_at" BIGINT NOT NULL,
@@ -259,7 +255,7 @@ CREATE TABLE IF NOT EXISTS "ztm_nostr_event" (
   "sig" VARCHAR(256)
 );
 
-CREATE TABLE IF NOT EXISTS "ztm_nostr_req" (
+CREATE TABLE IF NOT EXISTS "relay_nostr_req" (
   "id" VARCHAR(128) PRIMARY KEY,
   "subscription_id" VARCHAR(128),
   "filters" TEXT
@@ -272,7 +268,7 @@ CREATE TABLE IF NOT EXISTS "mq_storage" (
   "content" TEXT
 );
 
-CREATE TABLE IF NOT EXISTS "ztm_path_mapping" (
+CREATE TABLE IF NOT EXISTS "relay_path_mapping" (
   "id" BIGINT PRIMARY KEY,
   "alias" TEXT NOT NULL,
   "repo_path" TEXT NOT NULL,
