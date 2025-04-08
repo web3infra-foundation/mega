@@ -25,3 +25,4 @@ sea-orm = { workspace = true, features = [
     "macros",
 ] }
 dotenvy = "0.15.7"
+once_cell = "1.19.0"
