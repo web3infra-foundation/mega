@@ -144,7 +144,7 @@ async fn task_output_handler(
     Path(id): Path<String>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> // impl IntoResponse
 {
-    let path = format!("{}/{}", BUILD_LOG_DIR.to_owned(), id);
+    let path = format!("{}/{}", *BUILD_LOG_DIR, id);
     if !std::path::Path::new(&path).exists() {
         // 2 return types must same, which is hard without `.boxed()`
         // `Sse<Unfold<Reader<File>, ..., ...>>` != Sse<Once<..., ..., ...>> != Sse<Unfold<bool, ..., ...>>
@@ -328,7 +328,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
                     let mut file = std::fs::OpenOptions::new() // TODO optimize: open & close too many times
                         .append(true)
                         .create(true)
-                        .open(format!("{}/{}", BUILD_LOG_DIR.to_string(), id))
+                        .open(format!("{}/{}", *BUILD_LOG_DIR, id))
                         .unwrap();
                     file.write_all(format!("{output}\n").as_bytes()).unwrap();
                 }
@@ -344,7 +344,7 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
                     let info = state.building.get(&id).expect("Build info not found");
                     let model = builds::ActiveModel {
                         build_id: Set(id.parse().unwrap()),
-                        output_file: Set(format!("{}/{}", BUILD_LOG_DIR.to_string(), id)),
+                        output_file: Set(format!("{}/{}", *BUILD_LOG_DIR, id)),
                         exit_code: Set(exit_code),
                         start_at: Set(info.start_at),
                         end_at: Set(chrono::Utc::now()),

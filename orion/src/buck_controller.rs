@@ -21,7 +21,7 @@ pub async fn build(
         .arg("build")
         .args(args)
         .arg(target)
-        .current_dir(format!("{}/{}", PROJECT_ROOT.to_string(), repo))
+        .current_dir(format!("{}/{}", *PROJECT_ROOT, repo))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     // actually, some info (like: "BUILD SUCCESSFUL") is printed to stderr
@@ -60,7 +60,7 @@ pub async fn build(
                 }
             }
             result = child.wait() => {
-                return Ok(result?);
+                return result;
             }
         }
     }
