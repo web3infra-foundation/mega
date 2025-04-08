@@ -1,33 +1,41 @@
+use crate::manager::diff::add_and_del;
+use crate::util::scorpio_config;
 use bytes::{Bytes, BytesMut};
 use ceres::protocol::smart::add_pkt_line_string;
 use diff::change;
-use mercury::{hash::SHA1, internal::object::{commit::Commit, signature::{Signature, SignatureType}}};
+use mercury::{
+    hash::SHA1,
+    internal::object::{
+        commit::Commit,
+        signature::{Signature, SignatureType},
+    },
+};
 use push::pack;
 use serde::{Deserialize, Serialize};
-use tokio::{fs::File, io::AsyncWriteExt};
 use std::{fs, path::PathBuf, str::FromStr};
-use crate::util::scorpio_config;
+use tokio::{fs::File, io::AsyncWriteExt};
 
-pub mod diff;
-pub mod push;
-pub mod fetch;
-pub mod store;
 mod commit;
-#[derive(Serialize,Deserialize)]
-pub struct  ScorpioManager{
+pub mod diff;
+pub mod fetch;
+pub mod push;
+pub mod store;
+#[derive(Serialize, Deserialize)]
+pub struct ScorpioManager {
     // pub url:String,
     // pub workspace:String,
     // pub store_path:String,// the path to store init code (or remote code), name is hash value .
     // pub git_author:String,
     // pub git_email:String,
-    pub works:Vec<WorkDir>,
+    pub works: Vec<WorkDir>,
 }
-#[derive(Serialize,Deserialize,Clone)]
-pub struct WorkDir{
-    pub path:String,
-    pub node:u64,
-    pub hash:String,
+#[derive(Serialize, Deserialize, Clone)]
+pub struct WorkDir {
+    pub path: String,
+    pub node: u64,
+    pub hash: String,
 }
+
 #[allow(unused)]
 impl ScorpioManager {
     pub fn from_toml(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
@@ -41,65 +49,90 @@ impl ScorpioManager {
         fs::write(file_path, content)?;
         Ok(())
     }
-    pub async fn mono_commit(&self ,mono_path:String, commit_msg:String) -> Result<Commit, Box<dyn std::error::Error>>{
-        let store_path = scorpio_config::get_config().get_value("store_path")
-            .expect("Error: 'store_path' key is missing in the configuration.");
+    pub async fn mono_commit(
+        &self,
+        mono_path: String,
+        commit_msg: String,
+    ) -> Result<Commit, Box<dyn std::error::Error>> {
+        let store_path = scorpio_config::store_path();
         let work_dir = self.select_work(&mono_path)?;
         let path = PathBuf::from(store_path);
-        path.join(work_dir.hash.clone());
+        let path = path.join(work_dir.hash.clone());
         let mut lower  = path.clone();
         lower.push("lower");
-        let mut upper  = path.clone();
+        let mut upper = path.clone();
         upper.push("upper");
-        let mut dbpath  = path.clone();
+        let mut dbpath = path.clone();
         dbpath.push("tree.db");
-    
+
         let db = sled::open(dbpath).unwrap();
         let mut trees = Vec::new();
-        let mut blobs= Vec::new();
+        let mut blobs = Vec::new();
         let root_tree = change(upper, path.clone(), &mut trees, &mut blobs, &db);
         trees.push(root_tree.clone());
-        let git_author = scorpio_config::get_config().get_value("git_author")
-            .expect("Error: 'git_author' key is missing in the configuration.");
-        let git_email = scorpio_config::get_config().get_value("git_email")
-            .expect("Error: 'git_email' key is missing in the configuration.");
-        let sign = Signature::new(SignatureType::Author,git_author.to_string(), git_email.to_string());
-        let remote_hash  = SHA1::from_str(&work_dir.hash)?;
+        let git_author = scorpio_config::git_author();
+        let git_email = scorpio_config::git_email();
+        let sign = Signature::new(
+            SignatureType::Author,
+            git_author.to_string(),
+            git_email.to_string(),
+        );
+        let remote_hash = SHA1::from_str(&work_dir.hash)?;
         let commit = Commit::new(
             sign.clone(),
-            sign, 
-            root_tree.id, 
-            vec![remote_hash], 
-            &commit_msg);
+            sign,
+            root_tree.id,
+            vec![remote_hash],
+            &commit_msg,
+        );
         let mut data = BytesMut::new();
-        add_pkt_line_string(&mut data, format!("{} {} {}\0report-status\n",
-                                            work_dir.hash,
-                                            commit.id,
-                                            "refs/heads/main"));//TODO : configable
+        add_pkt_line_string(
+            &mut data,
+            format!(
+                "{} {} {}\0report-status\n",
+                work_dir.hash, commit.id, "refs/heads/main"
+            ),
+        ); //TODO : configable
         data.extend_from_slice(b"0000");
-        data.extend(pack(commit.clone(),trees,blobs).await);
+        data.extend(pack(commit.clone(), trees, blobs).await);
         let mut commit_path = path.clone();
-        commit_path.push("commit");  
+        commit_path.push("commit");
         // write back the commit file.
-        let mut file = File::create(commit_path).await?;  
-        file.write_all(&data).await?;  
+        let mut file = File::create(commit_path).await?;
+        file.write_all(&data).await?;
         Ok(commit)
     }
 
+/// Extracts and returns the corresponding workspace for the provided `mono_path`.
+///
+/// This function iterates over the manager's work directories and selects the one whose path
+/// is either exactly equal to `mono_path` or is a prefix of `mono_path`. In other words, it
+/// finds the workspace that best matches the given path.
+/// 
+/// # Parameters
+///
+/// - `mono_path`: A string slice representing the path to match against the work directories.
+///
+/// # Returns
+///
+/// - `Ok(&WorkDir)` if a matching workspace is found.
+/// - `Err("WorkDir not found")` otherwise.
     fn select_work(&self , mono_path:&str ) ->Result<&WorkDir, Box<dyn std::error::Error>> {
         for works in self.works.iter(){
-            if works.path.eq(&mono_path){
+            if mono_path.starts_with(&works.path) || mono_path.eq(&works.path) {
                 return Ok(works);
             }
         }
         Err(Box::from("WorkDir not found"))
-        
     }
-    pub  async fn push_commit(&self,mono_path:&str) ->Result<reqwest::Response, Box<dyn std::error::Error>>{
-        
+
+
+    pub async fn push_commit(
+        &self,
+        mono_path: &str,
+    ) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
         let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
-        let store_path = scorpio_config::get_config().get_value("store_path")
-            .expect("Error: 'store_path' key is missing in the configuration.");
+        let store_path = scorpio_config::store_path();
         let mut path = store_path.to_string();
         path.push_str(&work_dir.hash);
         path.push_str("commit");
@@ -115,11 +148,9 @@ impl ScorpioManager {
         // read the file as the body to send
         let commit_data = tokio::fs::read(&path).await?;
 
-
         // Send Commit data to remote mono.
-        let base_url = scorpio_config::get_config().get_value("base_url")
-            .expect("Error: 'base_url' key is missing in the configuration.");
-        let url = format!("{}/{}/git-receive-pack",base_url,mono_path);
+        let base_url = scorpio_config::base_url();
+        let url = format!("{}/{}/git-receive-pack", base_url, mono_path);
         let client = reqwest::Client::new();
         client
             .post(&url)
@@ -128,11 +159,9 @@ impl ScorpioManager {
             .send()
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-
-
     }
 
-    pub fn check_before_mount(&self , mono_path: &str) ->Result<(),String>{
+    pub fn check_before_mount(&self, mono_path: &str) -> Result<(), String> {
         for work in &self.works {
             if work.path.starts_with(mono_path) || mono_path.starts_with(&work.path) {
                 return Err(work.path.clone());
@@ -141,13 +170,53 @@ impl ScorpioManager {
         Ok(())
     }
     /// Iterate through the manager's works to find the specified path's workspace and remove it.
-    pub async fn remove_workspace(&mut self, mono_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn remove_workspace(
+        &mut self,
+        mono_path: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(pos) = self.works.iter().position(|work| work.path == mono_path) {
             self.works.remove(pos);
             self.to_toml("config.toml")?;
             Ok(())
         } else {
             Err(Box::from("Workspace not found"))
+        }
+    }
+
+    pub async fn mono_add(&self, mono_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        // The OS path cannot be used, and should be mapped from
+        // the FUSE system to the path under Upper.
+        // For example, work_dir/1.sh corresponds to upper/1.sh
+        let work_dir = self.select_work(mono_path)?;
+        let store_path = scorpio_config::store_path();
+        let path = PathBuf::from(store_path).join(work_dir.hash.clone());
+
+        // Since index.db is the private space of the sled database,
+        // we will combine it with objects to form a new working directory.
+        let modifypath = path.join("modifiedstore");
+        let index_dbpath = modifypath.join("index.db");
+        let upper_path = path.join("upper");
+        let real_path = upper_path.join(&work_dir.path);
+
+        // In the Upper path, we can safely use the canonicalize function
+        // to standardized path.
+        match real_path.canonicalize() {
+            // Preventing Directory Traversal Vulnerabilities
+            Ok(path) => match path.starts_with(upper_path) {
+                true => {
+                    let index_db = sled::open(index_dbpath).unwrap();
+                    add_and_del(path, modifypath, &index_db)?;
+                    Ok(())
+                }
+                false => {
+                    let e_message = format!("Not allowed path: {}", real_path.display());
+                    Err(Box::from(e_message))
+                }
+            },
+            Err(e) => {
+                let e_message = format!("Failed to canonicalize path: {}", e);
+                Err(Box::from(e_message))
+            }
         }
     }
 }
@@ -170,15 +239,23 @@ mod tests {
         assert_eq!(manager.works.len(), 1);
         assert_eq!(manager.works[0].path, "/path/to/work1");
         assert_eq!(manager.works[0].hash, "hash1");
-
     }
 
     #[test]
     fn test_to_toml() {
         let manager = ScorpioManager {
             works: vec![
-                WorkDir {path:"/path/to/work1".to_string(),hash:"hash1".to_string(), node: 4 },
-                WorkDir {path:"/path/to/work2".to_string(),hash:"hash2".to_string(), node: 5 }],
+                WorkDir {
+                    path: "/path/to/work1".to_string(),
+                    hash: "hash1".to_string(),
+                    node: 4,
+                },
+                WorkDir {
+                    path: "/path/to/work2".to_string(),
+                    hash: "hash2".to_string(),
+                    node: 5,
+                },
+            ],
         };
 
         manager.to_toml(TEST_FILE).expect("Failed to write TOML");
@@ -186,9 +263,5 @@ mod tests {
         let content = fs::read_to_string(TEST_FILE).expect("Unable to read test file");
         assert!(content.contains("path = \"/path/to/work1\""));
         assert!(content.contains("hash = \"hash1\""));
-       
     }
-
-
-    
 }

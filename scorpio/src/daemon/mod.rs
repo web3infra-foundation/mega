@@ -16,7 +16,7 @@ const SUCCESS: &str   = "Success";
 const FAIL : &str   = "Fail";
 
 #[derive(Debug, Deserialize, Serialize)]
-struct MountRequest {
+struct MountRequest{
     path: String,
 }
 
@@ -90,6 +90,7 @@ pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
         .route("/api/git/status", get(git::git_status_handler))
         .route("/api/git/commit", post(git::git_commit_handler))
         .route("/api/git/push", post(git::git_push_handler))
+        .route("/api/git/add", post(git::git_add_handler))
         .with_state(inner);
 
     // LFS route & merge it
@@ -137,8 +138,7 @@ async fn mount_handler(
             message: format!("The {} is already check-out ",mounted_path),
         })
     }
-    let store_path = scorpio_config::get_config().get_value("store_path")
-        .expect("Error: 'store_path' key is missing in the configuration.");
+    let store_path = scorpio_config::store_path();
     // if it is a temp mount , mount it & return the hash and path.
     if temp_mount{
         let temp_hash = {
@@ -244,12 +244,9 @@ async fn umount_handler(
 }
 
 async fn config_handler() -> axum::Json<ConfigResponse> {
-    let base_url = scorpio_config::get_config().get_value("base_url")
-        .expect("Error: 'base_url' key is missing in the configuration.");
-    let workspace = scorpio_config::get_config().get_value("workspace")
-        .expect("Error: 'workspace' key is missing in the configuration.");
-    let store_path = scorpio_config::get_config().get_value("store_path")
-        .expect("Error: 'store_path' key is missing in the configuration.");
+    let base_url = scorpio_config::base_url();
+    let workspace = scorpio_config::workspace();
+    let store_path = scorpio_config::store_path();
     let config_info = ConfigInfo {
         mega_url:base_url.to_string(),
         mount_path: workspace.to_string(),

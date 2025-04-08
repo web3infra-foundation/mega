@@ -32,4 +32,4 @@ rand = { workspace = true }
 sea-orm = { workspace = true }
 ring = { workspace = true }
 hex = { workspace = true }
-sysinfo = "0.33.1"
+sysinfo = "0.34.1"

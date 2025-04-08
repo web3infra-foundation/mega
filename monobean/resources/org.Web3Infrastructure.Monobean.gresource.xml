@@ -11,10 +11,13 @@
         <!-- Composite Templates -->
         <file compressed="true">gtk/window.ui</file>
         <file compressed="true">gtk/hello_page.ui</file>
+        <file compressed="true">gtk/code_page.ui</file>
         <file compressed="true">gtk/mega_tab.ui</file>
         <file compressed="true">gtk/repo_tab.ui</file>
         <file compressed="true">gtk/repo_detail.ui</file>
         <file compressed="true">gtk/preferences.ui</file>
+        <file compressed="true">gtk/file_tree.ui</file>
+        <file compressed="true">gtk/file_row.ui</file>
 
         <file compressed="true">gtk/theme_selector.ui</file>
         <file compressed="true">gtk/not_implemented.ui</file>
@@ -25,7 +28,14 @@
         <file compressed="true">css/themesselector.css</file>
 
         <!-- Icons -->
-
+        <file preprocess="xml-stripblanks" compressed="true">icons/scalable/apps/mono-black-logo.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/scalable/apps/mono-white-logo.svg</file>
+        <file compressed="true">icons/scalable/apps/walrus-1.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-2.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-3.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-4.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-5.png</file>
+        <file compressed="true">icons/scalable/apps/walrus-6.png</file>
 
     </gresource>
 </gresources>

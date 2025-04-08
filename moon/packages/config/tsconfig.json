@@ -1,0 +1,9 @@
+{
+  "extends": "@gitmono/tsconfig/base.json",
+  "include": ["src"],
+  "exclude": ["node_modules"],
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "src"
+  }
+}

@@ -35,10 +35,12 @@ pub struct AppState {
 
 pub async fn run_relay_server(config: Arc<Config>, option: RelayOptions) {
     let app = app(config.clone(), option.clone()).await;
-
     let server_url = format!("{}:{}", option.host, option.relay_port);
     tracing::info!("start relay server: {server_url}");
-    tokio::spawn(async move { gemini::p2p::relay::run(option.host, option.relay_port).await });
+    tokio::spawn(async move {
+        let context = Context::new(config).await;
+        gemini::p2p::relay::run(context, option.host, option.relay_port).await
+    });
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
@@ -85,7 +87,7 @@ async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
 //     Query(query): Query<RelayGetParams>,
 //     state: State<AppState>,
 // ) -> Result<Json<RelayResultRes>, (StatusCode, String)> {
-//     let storage = state.context.services.ztm_storage.clone();
+//     let storage = state.context.services.relay_storage.clone();
 //     let node: ztm_node::Model = match query.try_into() {
 //         Ok(n) => n,
 //         Err(_) => {
@@ -105,7 +107,7 @@ async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
 //     Query(_query): Query<RelayGetParams>,
 //     state: State<AppState>,
 // ) -> Result<Json<Vec<Node>>, (StatusCode, String)> {
-//     let storage = state.context.services.ztm_storage.clone();
+//     let storage = state.context.services.relay_storage.clone();
 //     let nodelist: Vec<Node> = storage
 //         .get_all_node()
 //         .await
@@ -124,7 +126,7 @@ async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
 //         return Err((StatusCode::BAD_REQUEST, "paras invalid".to_string()));
 //     }
 //     let repo_info_model: ztm_repo_info::Model = repo_info.into();
-//     let storage = state.context.services.ztm_storage.clone();
+//     let storage = state.context.services.relay_storage.clone();
 //     match storage.insert_or_update_repo_info(repo_info_model).await {
 //         Ok(_) => Ok(Json(RelayResultRes { success: true })),
 //         Err(_) => Err((
@@ -138,7 +140,7 @@ async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
 //     Query(_query): Query<RelayGetParams>,
 //     state: State<AppState>,
 // ) -> Result<Json<Vec<RepoInfo>>, (StatusCode, String)> {
-//     let storage = state.context.services.ztm_storage.clone();
+//     let storage = state.context.services.relay_storage.clone();
 //     let repo_info_list: Vec<RepoInfo> = storage
 //         .get_all_repo_info()
 //         .await
@@ -170,7 +172,7 @@ async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
 //     Json(lfs_info): Json<LFSInfoPostBody>,
 // ) -> Result<Json<RelayResultRes>, (StatusCode, String)> {
 //     let ztm_lfs_model: ztm_lfs_info::Model = lfs_info.into();
-//     let storage = state.context.services.ztm_storage.clone();
+//     let storage = state.context.services.relay_storage.clone();
 //     match storage.insert_lfs_info(ztm_lfs_model).await {
 //         Ok(_) => Ok(Json(RelayResultRes { success: true })),
 //         Err(_) => Err((
@@ -189,7 +191,7 @@ async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
 // }
 
 // async fn lfs_list_handler(state: State<AppState>) -> Vec<LFSInfo> {
-//     let storage = state.context.services.ztm_storage.clone();
+//     let storage = state.context.services.relay_storage.clone();
 //     let lfs_info_list: Vec<LFSInfo> = storage
 //         .get_all_lfs_info()
 //         .await
@@ -289,7 +291,7 @@ async fn hello() -> Result<impl IntoResponse, (StatusCode, String)> {
 // }
 
 // async fn ping_self(context: Context) {
-//     let storage = context.services.ztm_storage.clone();
+//     let storage = context.services.relay_storage.clone();
 //     let nodelist: Vec<ztm_node::Model> =
 //         storage.get_all_node().await.unwrap().into_iter().collect();
 //     for mut node in nodelist {

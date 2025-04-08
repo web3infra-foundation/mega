@@ -11,6 +11,7 @@ use tokio::time;
 use async_recursion::async_recursion;
 
 use crate::manager::store::store_trees;
+use crate::scolfs;
 use crate::util::GPath;
 use crate::util::scorpio_config;
 
@@ -38,8 +39,7 @@ impl CheckHash for ScorpioManager{
                 let tree = fetch_tree(&p).await.unwrap();
                 work.hash = tree.id.to_string();
                 // the lower path is store file path for remote code version .
-                let store_path = scorpio_config::get_config().get_value("store_path")
-                    .expect("Error: 'store_path' key is missing in the configuration.");
+                let store_path = scorpio_config::store_path();
                 let _lower = PathBuf::from(store_path).join(&work.hash).join("lower");
                 handlers.push(tokio::spawn(async move { fetch_code(&p, _lower).await }));
             }
@@ -50,11 +50,9 @@ impl CheckHash for ScorpioManager{
                 let _ = handle.await;
             }
             //Get config file path from scorpio_config.rs
-            if let Some(config_file) = scorpio_config::get_config().get_value("config_file") {
-                let _ = self.to_toml(config_file);
-            } else {
-                eprintln!("Error: 'config_file' key is missing in the configuration.");
-            }
+            let config_file = scorpio_config::config_file();
+            let _ = self.to_toml(config_file);
+
         }
 
     }
@@ -71,16 +69,13 @@ impl CheckHash for ScorpioManager{
         };
         //work.hash = tree.id.to_string();
         // the lower path is store file path for remote code version . 
-        let store_path = scorpio_config::get_config().get_value("store_path")
-            .expect("Error: 'store_path' key is missing in the configuration.");
+        let store_path = scorpio_config::store_path();
         let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
         fetch_code(&p, _lower).await;
         self.works.push(workdir.clone());
-        if let Some(config_file) = scorpio_config::get_config().get_value("config_file") {
-            let _ = self.to_toml(config_file);
-        } else {
-            eprintln!("Error: config_file key is missing in the configuration.");
-        }
+        let config_file = scorpio_config::config_file();
+        let _ = self.to_toml(config_file);
+
         workdir
     }
 }
@@ -97,18 +92,17 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
     };
     //work.hash = tree.id.to_string();
     // the lower path is store file path for remote code version . 
-    let store_path = scorpio_config::get_config().get_value("store_path")
-        .expect("Error: 'store_path' key is missing in the configuration.");
+    let store_path = scorpio_config::store_path();
     let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
     fetch_code(&p, _lower).await;
     manager.works.push(workdir.clone());
-    let config_file = scorpio_config::get_config().get_value("config_file")
-        .expect("Error: 'store_path' key is missing in the configuration.");
+    let config_file = scorpio_config::config_file();
     let _ = manager.to_toml(config_file);
     workdir
 }
 
 const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
+
 #[allow(unused)]
 #[allow(clippy::blocks_in_conditions)]
 async fn worker_thread(
@@ -119,7 +113,7 @@ async fn worker_thread(
     send_tree :Sender<Tree>,
 ) {
     let client = Client::new();
-    let mut interval = time::interval(Duration::from_millis(50)); 
+    //let mut interval = time::interval(Duration::from_millis(50)); 
     let timeout_duration = Duration::from_millis(300);
     loop {
         let path = tokio::select! {
@@ -222,7 +216,7 @@ async fn worker_ro_thread(
                 // mkdir 
                 tokio::fs::create_dir_all(real_path).await.unwrap();
             } else {
-                
+
                 let e = fetch_and_save_file(&item.id,real_path).await;
                 println!("{:?}",e);
             }
@@ -263,8 +257,11 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
     
     // Clean up workers (depends on how you implement worker_thread termination)
     let _ = handle.await;
-    
-    print!("finish ...")
+
+    //get lfs file
+    let _ = scolfs::lfs::lfs_restore(save_path.as_ref().to_str().unwrap()).await.unwrap();
+
+    print!("finish code for {}...", path);
 }
 
 
@@ -316,8 +313,7 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-    let file_blob_endpoint = scorpio_config::get_config().get_value("file_blob_endpoint")
-        .ok_or("Missing configuration key: file_blob_endpoint")?;
+    let file_blob_endpoint = scorpio_config::file_blob_endpoint();
     let url = format!("{}/{}",file_blob_endpoint,url);
     // Send GET request
     let response = client.get(url).send().await?;

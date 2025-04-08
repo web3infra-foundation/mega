@@ -64,6 +64,7 @@ runs:
           libgtk-4-dev \
           libadwaita-1-0 \
           libadwaita-1-dev \
+          libgtksourceview-5-dev \
           fuse3 \
           libfuse3-dev \
 
@@ -83,6 +84,7 @@ runs:
           gtk4 \
           libadwaita \
           librsvg \
+          gtksourceview5 \
 
     # =============== Platform-specific Initialization (Windows) ===============
     # According to https://github.com/actions/runner-images/blob/main/images/windows/toolsets/toolset-2025.json

@@ -1,6 +1,5 @@
-use std::{fmt::Display, path::PathBuf};
+use std::{fmt::Display, path::{Path, PathBuf}};
 use serde::{Deserialize, Serialize};
-
 pub mod scorpio_config;
 
 #[derive(Debug,Deserialize, Serialize,Clone,Default)]
@@ -59,6 +58,32 @@ impl Display for GPath{
         write!(f, "{}", self.path.join("/"))
     }
 }
+
+/// Turn a path to a relative path to the working directory
+/// - not check existence
+pub fn to_workdir_path(path: impl AsRef<Path>) -> PathBuf {
+    let p = path.as_ref();
+    let binding = scorpio_config::workspace();
+    let workspace = std::path::Path::new(&binding);
+    if let Ok(relative) = p.strip_prefix(workspace) {
+        relative.to_path_buf()
+    } else {
+        p.to_path_buf()
+    }
+}
+
+pub fn from_store_path_to_workdir(path: impl AsRef<Path>) -> PathBuf {
+    let p = path.as_ref();
+    let binding = scorpio_config::store_path();
+    let workspace = std::path::Path::new(&binding);
+    if let Ok(relative) = p.strip_prefix(workspace) {
+        relative.to_path_buf()
+    } else {
+        p.to_path_buf()
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests{
