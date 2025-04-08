@@ -1,32 +1,27 @@
-use crate::util;
 use crate::ws::WSMessage;
+use once_cell::sync::Lazy;
 use std::io;
 use std::process::{ExitStatus, Stdio};
 use tokio::io::AsyncBufReadExt;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
 
-const PROJECT_ROOT: &str = "/home/bean/projects/buck2";
+static PROJECT_ROOT: Lazy<String> =
+    Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
 
 pub async fn build(
     id: String,
     repo: String,
     target: String,
     args: Vec<String>,
-    // log_path: String,
     sender: UnboundedSender<WSMessage>,
 ) -> io::Result<ExitStatus> {
-    // util::ensure_parent_dirs(&log_path)?;
-    // let output_file = std::fs::File::create(log_path)?;
-
     let mut cmd = Command::new("buck2");
     let cmd = cmd
         .arg("build")
         .args(args)
         .arg(target)
-        .current_dir(format!("{}/{}", PROJECT_ROOT, repo))
-        // .stdout(output_file.try_clone()?)
-        // .stderr(output_file);
+        .current_dir(format!("{}/{}", PROJECT_ROOT.to_string(), repo))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     // actually, some info (like: "BUILD SUCCESSFUL") is printed to stderr
