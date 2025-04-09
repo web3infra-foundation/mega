@@ -16,6 +16,7 @@ members = [
     "atlas",
     "orion",
     "third-party",
+    "orion-server",
 ]
 default-members = ["mega", "mono", "libra", "aries"]
 resolver = "1"
@@ -87,8 +88,8 @@ secp256k1 = "0.30.0"
 oauth2 = "5.0.0"
 base64 = "0.22.1"
 encoding_rs = "0.8.31"
-aws-config= "1.6.0"
-aws-sdk-s3= "1.79.0"
+aws-config = "1.6.0"
+aws-sdk-s3 = "1.79.0"
 
 [profile.release]
 debug = true
