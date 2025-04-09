@@ -346,7 +346,7 @@ pub fn default_progress_bar(len: u64) -> ProgressBar {
 }
 
 /// Check each directory level from `work_dir` to `target_file` to see if there is a `.gitignore` file that matches `target_file`.
-/// 
+///
 /// Assume `target_file` is `in work_dir`.
 pub fn check_gitignore(work_dir: &PathBuf, target_file: &PathBuf) -> bool {
     assert!(target_file.starts_with(work_dir));
@@ -359,7 +359,10 @@ pub fn check_gitignore(work_dir: &PathBuf, target_file: &PathBuf) -> bool {
         if cur_file.exists() {
             let (ignore, err) = Gitignore::new(&cur_file);
             if let Some(e) = err {
-                println!("warniing: There are some invalid globs in libraignore file {:#?}:\n{}\n", cur_file, e);
+                println!(
+                    "warniing: There are some invalid globs in libraignore file {:#?}:\n{}\n",
+                    cur_file, e
+                );
             }
             if let Match::Ignore(_) = ignore.matched(target_file, false) {
                 return true;
