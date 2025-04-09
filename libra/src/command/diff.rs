@@ -255,8 +255,10 @@ async fn get_commit_blobs(commit_hash: &SHA1) -> Vec<(PathBuf, SHA1)> {
 
 // diff need to print hash even if the file is not added
 fn get_files_blobs(files: &[PathBuf]) -> Vec<(PathBuf, SHA1)> {
+    let working_dir = util::working_dir();
     files
         .iter()
+        .filter(|&p| !util::check_gitignore(&working_dir, p))
         .map(|p| {
             let path = util::workdir_to_absolute(p);
             let data = std::fs::read(&path).unwrap();

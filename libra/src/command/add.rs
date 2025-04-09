@@ -30,7 +30,6 @@ pub struct AddArgs {
 }
 
 pub async fn execute(args: AddArgs) {
-    // TODO .gitignore
     if !util::check_repo_exist() {
         return;
     }
