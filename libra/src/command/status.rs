@@ -45,7 +45,6 @@ pub async fn execute() {
     if !util::check_repo_exist() {
         return;
     }
-    // TODO .gitignore
     match Head::current().await {
         Head::Detached(commit) => {
             println!(
@@ -167,7 +166,9 @@ pub fn changes_to_be_staged() -> Changes {
     for file in tracked_files.iter() {
         let file_str = file.to_str().unwrap();
         let file_abs = util::workdir_to_absolute(file);
-        if !file_abs.exists() {
+        if util::check_gitignore(&workdir, &file_abs) {
+            continue;
+        } else if !file_abs.exists() {
             changes.deleted.push(file.clone());
         } else if index.is_modified(file_str, 0, &workdir) {
             // only calc the hash if the file is modified (metadata), for optimization

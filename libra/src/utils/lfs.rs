@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 use url::Url;
 use wax::Pattern;
+use ignore::{gitignore::GitignoreBuilder, Match};
 
 lazy_static! {
     static ref LFS_PATTERNS: Vec<String> = { // cache
@@ -38,9 +39,22 @@ where
         return false;
     }
 
+    let patterns = LFS_PATTERNS.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+
+    let mut gitignore = GitignoreBuilder::new(util::working_dir());
+    patterns.iter().for_each(|&s| {
+        gitignore.add_line(None, s).unwrap();
+    });
+    let gitignore = gitignore.build().unwrap();
+    let match_gitignore = gitignore.matched(&path, false);
+    let gitignore_matched = match match_gitignore {
+        Match::Ignore(_) => false,
+        _ => true,
+    };
+
     let path = util::to_workdir_path(path);
-    let glob = wax::any(LFS_PATTERNS.iter().map(|s| s.as_str()).collect::<Vec<_>>()).unwrap();
-    glob.is_match(path.to_str().unwrap())
+    let glob = wax::any(patterns).unwrap();
+    glob.is_match(path.to_str().unwrap()) || gitignore_matched
 }
 
 const LFS_VERSION: &str = "https://git-lfs.github.com/spec/v1";
