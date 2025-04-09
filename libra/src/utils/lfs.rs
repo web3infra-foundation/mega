@@ -1,5 +1,6 @@
 use crate::utils::path_ext::PathExt;
 use crate::utils::{path, util};
+use ignore::{gitignore::GitignoreBuilder, Match};
 use lazy_static::lazy_static;
 use mercury::internal::index::Index;
 use regex::Regex;
@@ -11,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 use url::Url;
 use wax::Pattern;
-use ignore::{gitignore::GitignoreBuilder, Match};
 
 lazy_static! {
     static ref LFS_PATTERNS: Vec<String> = { // cache
@@ -28,7 +28,7 @@ lazy_static! {
 }
 
 /// Check if a file is LFS tracked
-/// - support Glob pattern matching (TODO: support .gitignore patterns)
+/// - support Glob pattern matching
 /// - only check root attributes file now, should check all attributes files in sub-dirs
 /// - absolute path
 pub fn is_lfs_tracked<P>(path: P) -> bool
@@ -47,10 +47,7 @@ where
     });
     let gitignore = gitignore.build().unwrap();
     let match_gitignore = gitignore.matched(&path, false);
-    let gitignore_matched = match match_gitignore {
-        Match::Ignore(_) => false,
-        _ => true,
-    };
+    let gitignore_matched = matches!(match_gitignore, Match::Ignore(_));
 
     let path = util::to_workdir_path(path);
     let glob = wax::any(patterns).unwrap();
