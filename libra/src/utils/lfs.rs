@@ -43,7 +43,7 @@ where
 
     let mut gitignore = GitignoreBuilder::new(util::working_dir());
     patterns.iter().for_each(|&s| {
-        gitignore.add_line(None, s).unwrap();
+        let _ = gitignore.add_line(None, s);
     });
     let gitignore = gitignore.build().unwrap();
     let match_gitignore = gitignore.matched(&path, false);

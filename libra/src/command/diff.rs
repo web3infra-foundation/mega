@@ -258,7 +258,10 @@ fn get_files_blobs(files: &[PathBuf]) -> Vec<(PathBuf, SHA1)> {
     let working_dir = util::working_dir();
     files
         .iter()
-        .filter(|&p| !util::check_gitignore(&working_dir, p))
+        .filter(|&p| {
+            let path = util::workdir_to_absolute(p);
+            !util::check_gitignore(&working_dir, &path)
+        })
         .map(|p| {
             let path = util::workdir_to_absolute(p);
             let data = std::fs::read(&path).unwrap();
@@ -340,6 +343,10 @@ fn imara_diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
 
 #[cfg(test)]
 mod test {
+    use crate::utils::test;
+    use serial_test::serial;
+    use std::fs;
+
     use super::*;
     #[test]
     fn test_args() {
@@ -386,5 +393,21 @@ mod test {
         similar_diff_result(old, new, &mut buf);
         let result = String::from_utf8(buf).unwrap();
         println!("{}", result);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_files_blob_gitignore() {
+        test::setup_with_new_libra().await;
+
+        let mut gitignore_file = fs::File::create(".libraignore").unwrap();
+        gitignore_file.write_all(b"should_ignore").unwrap();
+
+        fs::File::create("should_ignore").unwrap();
+        fs::File::create("not_ignore").unwrap();
+
+        let blob = get_files_blobs(&[PathBuf::from("should_ignore"), PathBuf::from("not_ignore")]);
+        assert_eq!(blob.len(), 1);
+        assert_eq!(blob[0].0, PathBuf::from("not_ignore"));
     }
 }
