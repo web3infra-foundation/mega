@@ -180,10 +180,125 @@ pub fn changes_to_be_staged() -> Changes {
     }
     let files = util::list_workdir_files().unwrap(); // to workdir
     for file in files.iter() {
+        let file_abs = util::workdir_to_absolute(file);
+        if util::check_gitignore(&workdir, &file_abs) {
+            // file ignored in .libraignore
+            continue;
+        }
         if !index.tracked(file.to_str().unwrap(), 0) {
             // file not tracked in `index`
             changes.new.push(file.clone());
         }
     }
     changes
+}
+
+#[cfg(test)]
+mod test {
+    use std::{fs, io::Write, path::Path};
+
+    use super::*;
+    use crate::{
+        command::{self, add::AddArgs},
+        utils::test::{self, TEST_DIR},
+    };
+    use clap::builder::OsStr;
+    use serial_test::serial;
+
+    #[tokio::test]
+    #[serial]
+    async fn test_changes_to_be_staged() {
+        let test_dir = Path::new(TEST_DIR);
+        if test_dir.exists() {
+            fs::remove_dir_all(test_dir).unwrap();
+        }
+
+        test::setup_with_new_libra().await;
+
+        let mut gitignore_file = fs::File::create(".libraignore").unwrap();
+        gitignore_file
+            .write_all(b"should_ignore*\nignore_dir/")
+            .unwrap();
+
+        let mut should_ignore_file_0 = fs::File::create("should_ignore.0").unwrap();
+        let mut not_ignore_file_0 = fs::File::create("not_ignore.0").unwrap();
+        fs::create_dir("ignore_dir").unwrap();
+        let mut should_ignore_file_1 = fs::File::create("ignore_dir/should_ignore.1").unwrap();
+        fs::create_dir("not_ignore_dir").unwrap();
+        let mut not_ignore_file_1 = fs::File::create("not_ignore_dir/not_ignore.1").unwrap();
+
+        let change = changes_to_be_staged();
+        assert!(!change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.0")));
+        assert!(!change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.1")));
+        assert!(change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.0")));
+        assert!(change
+            .new
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.1")));
+
+        command::add::execute(AddArgs {
+            pathspec: vec![String::from(".")],
+            all: true,
+            update: false,
+            verbose: false,
+        })
+        .await;
+
+        should_ignore_file_0.write_all(b"foo").unwrap();
+        should_ignore_file_1.write_all(b"foo").unwrap();
+        not_ignore_file_0.write_all(b"foo").unwrap();
+        not_ignore_file_1.write_all(b"foo").unwrap();
+
+        let change = changes_to_be_staged();
+        assert!(!change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.0")));
+        assert!(!change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.1")));
+        assert!(change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.0")));
+        assert!(change
+            .modified
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.1")));
+
+        fs::remove_dir_all("ignore_dir").unwrap();
+        fs::remove_dir_all("not_ignore_dir").unwrap();
+        fs::remove_file("should_ignore.0").unwrap();
+        fs::remove_file("not_ignore.0").unwrap();
+
+        not_ignore_file_1.write_all(b"foo").unwrap();
+
+        let change = changes_to_be_staged();
+        assert!(!change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.0")));
+        assert!(!change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.1")));
+        assert!(change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.0")));
+        assert!(change
+            .deleted
+            .iter()
+            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.1")));
+    }
 }
