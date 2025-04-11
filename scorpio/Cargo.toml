@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+walkdir = "2.5.0"
 libra = { path = "../libra" }
 mercury = { path = "../mercury" }
 ceres = { path = "../ceres" }
