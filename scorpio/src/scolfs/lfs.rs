@@ -252,7 +252,7 @@ mod tests {
                 .expect("Failed to convert bin_blob data to string"); 
             println!("bin_blob data as string: {}", data_string);
             let e  = Entry::from(bin_blob);
-            let res = client.scorpio_push(vec![e].iter()).await;
+            let res = client.scorpio_push([e].iter()).await;
             
             if res.is_err() {
                 eprintln!("fatal: LFS files upload failed, stop pushing");
