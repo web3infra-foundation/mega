@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-walkdir = "2.5.0"
 libra = { path = "../libra" }
 mercury = { path = "../mercury" }
 ceres = { path = "../ceres" }
@@ -42,6 +41,7 @@ whoami = "1.6.0"
 wax = "0.6.0"
 ignore = "0.4.23"
 url = "2.5.4"
+walkdir = "2.5.0"
 
 
 [features] 

@@ -59,33 +59,27 @@ pub fn add_and_del(
         println!("entry.path() = {}", entry_path.display());
         println!("path = {key}");
 
-        match is_whiteout_inode(entry_path) {
-            true => {
-                println!("    [\x1b[34mINFO\x1b[0m] whiteout_inode: {key}");
-                rm_batch.insert(key.as_bytes(), b"");
-            }
-            false => {
-                let content = std::fs::read(entry_path)?;
-                let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
-                match stored_db.get(&path) {
-                    Some(old_hash) => {
-                        match old_hash.eq(&hash._to_string()) {
-                            true => (),
-                            false => {
-                                println!("    [\x1b[34mINFO\x1b[0m] Update: {key}");
-                                index_batch.insert(key.as_bytes(), hash._to_string().as_bytes());
-                                modified_path.add_blob_to_hash(&hash._to_string(), &content)?;
-                            }
-                        }
-                        let index = stored_path.iter().position(|tmp| tmp == &path).unwrap();
-                        stored_path.remove(index);
-                    }
-                    None => {
-                        println!("    [\x1b[34mINFO\x1b[0m] Add: {key}");
-                        index_batch.insert(key.as_bytes(), hash._to_string().as_bytes());
-                        modified_path.add_blob_to_hash(&hash._to_string(), &content)?;
-                    }
+        if is_whiteout_inode(entry_path) {
+            println!("    [\x1b[34mINFO\x1b[0m] whiteout_inode: {key}");
+            rm_batch.insert(key.as_bytes(), b"");
+            continue;
+        }
+        let content = std::fs::read(entry_path)?;
+        let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
+        match stored_db.get(&path) {
+            Some(old_hash) => {
+                if !old_hash.eq(&hash._to_string()) {
+                    println!("    [\x1b[34mINFO\x1b[0m] Update: {key}");
+                    index_batch.insert(key.as_bytes(), hash._to_string().as_bytes());
+                    modified_path.add_blob_to_hash(&hash._to_string(), &content)?;
                 }
+                let index = stored_path.iter().position(|tmp| tmp == &path).unwrap();
+                stored_path.remove(index);
+            }
+            None => {
+                println!("    [\x1b[34mINFO\x1b[0m] Add: {key}");
+                index_batch.insert(key.as_bytes(), hash._to_string().as_bytes());
+                modified_path.add_blob_to_hash(&hash._to_string(), &content)?;
             }
         }
     }
