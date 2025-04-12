@@ -8,14 +8,14 @@ use crate::manager::store::ModifiedStore;
 
 fn get_difference(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) -> HashSet<PathBuf> {
     hashset_a
-        .difference(&hashset_b)
+        .difference(hashset_b)
         .cloned()
         .collect::<HashSet<PathBuf>>()
 }
 
 fn get_intersection(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) -> HashSet<PathBuf> {
     hashset_a
-        .intersection(&hashset_b)
+        .intersection(hashset_b)
         .cloned()
         .collect::<HashSet<PathBuf>>()
 }
@@ -73,7 +73,7 @@ pub fn status_core(
         .collect::<HashSet<PathBuf>>();
 
     let mut buffer = String::with_capacity(2000);
-    
+
     if !(added_files.is_empty() && added_removed_files.is_empty()) {
         buffer += "Changes to be committed:\n";
         buffer += "  (use \"git restore --staged <file>...\" to unstage)\n\x1b[32m";
