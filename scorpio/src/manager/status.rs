@@ -62,11 +62,13 @@ pub fn status_core(
     // Upper cannot be directly reflected, we still use the
     // is_char_device or is_white_out function.
     let same_part = get_intersection(&upper_content, &lower_content);
-    let tmp = get_difference(&same_part, &added_files);
-    let unstored_part = get_difference(&tmp, &added_removed_files);
+    // Since the difference() function cannot obtain the difference
+    // between the three HashSets, we introduced the middle part.
+    let mid_part = get_difference(&same_part, &added_files);
+    let unstored_part = get_difference(&mid_part, &added_removed_files);
     let unstored_del = unstored_part
         .iter()
-        .filter(|tmp| is_whiteout_inode(upper_path.join(tmp)))
+        .filter(|tmp_path| is_whiteout_inode(upper_path.join(tmp_path)))
         .cloned()
         .collect::<HashSet<PathBuf>>();
 
@@ -75,16 +77,16 @@ pub fn status_core(
     if !(added_files.is_empty() && added_removed_files.is_empty()) {
         buffer += "Changes to be committed:\n";
         buffer += "  (use \"git restore --staged <file>...\" to unstage)\n\x1b[32m";
-        for tmp in new_files.difference(&untracked_files) {
-            buffer += format!("\tnew file:\t{}\n", tmp.display()).as_str();
+        for added_new_path in new_files.difference(&untracked_files) {
+            buffer += format!("\tnew file:\t{}\n", added_new_path.display()).as_str();
         }
-        for tmp in added_removed_files {
-            buffer += format!("\tdeleted:\t{}\n", tmp.display()).as_str();
+        for added_del_path in added_removed_files {
+            buffer += format!("\tdeleted:\t{}\n", added_del_path.display()).as_str();
         }
         // All files in the temporary storage area except newly created
         // files are modified files.
-        for tmp in added_files.difference(&new_files) {
-            buffer += format!("\tmodified:\t{}\n", tmp.display()).as_str();
+        for added_modified_path in added_files.difference(&new_files) {
+            buffer += format!("\tmodified:\t{}\n", added_modified_path.display()).as_str();
         }
 
         buffer += "\x1b[0m\n";
@@ -95,11 +97,11 @@ pub fn status_core(
         buffer += "  (use \"git add/rm <file>...\" to update what will be committed)\n";
         buffer +=
             "  (use \"git restore <file>....\" to discard changes in working directory)\n\x1b[31m";
-        for tmp in unstored_del.iter() {
-            buffer += format!("\tdeleted:\t{}\n", tmp.display()).as_str();
+        for unstored_del_path in unstored_del.iter() {
+            buffer += format!("\tdeleted:\t{}\n", unstored_del_path.display()).as_str();
         }
-        for tmp in unstored_part.difference(&unstored_del) {
-            buffer += format!("\tmodified:\t{}\n", tmp.display()).as_str();
+        for unstored_modified_path in unstored_part.difference(&unstored_del) {
+            buffer += format!("\tmodified:\t{}\n", unstored_modified_path.display()).as_str();
         }
 
         buffer += "\x1b[0m\n";
@@ -108,8 +110,8 @@ pub fn status_core(
     if !untracked_files.is_empty() {
         buffer += "Untracked files:\n";
         buffer += "  (use \"git add <file>...\" to include in what will be committed)\n\x1b[31m";
-        for tmp in untracked_files {
-            buffer += format!("\t{}", tmp.display()).as_str();
+        for untracked_path in untracked_files {
+            buffer += format!("\t{}", untracked_path.display()).as_str();
         }
 
         buffer += "\x1b[0m";
