@@ -1,4 +1,5 @@
 use super::{ScoState, FAIL, SUCCESS};
+use crate::manager::reset::reset_core;
 use crate::manager::status::status_core;
 use crate::util::scorpio_config;
 use axum::{
@@ -111,6 +112,38 @@ pub(super) async fn git_add_handler(
         )
             .into_response(),
     }
+}
+
+#[derive(serde::Deserialize, Default)]
+pub(super) struct ResetReq {
+    path: String,
+}
+
+pub(super) async fn git_reset_handler(
+    Query(req): Query<ResetReq>,
+    State(state): State<ScoState>,
+) -> impl IntoResponse {
+    let manager_lock = state.manager.lock().await;
+    let store_path = scorpio_config::store_path();
+    for works in manager_lock.works.iter() {
+        if works.path.eq(&req.path) {
+            let work_path = PathBuf::from(store_path).join(works.hash.clone());
+            return match reset_core(&work_path) {
+                Ok(_) => (axum::http::StatusCode::OK).into_response(),
+                Err(err) => (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Error: {err}"),
+                )
+                    .into_response(),
+            };
+        }
+    }
+
+    (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        "Error: Mount dir not found.",
+    )
+        .into_response()
 }
 
 #[derive(serde::Deserialize)]

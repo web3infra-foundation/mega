@@ -15,12 +15,13 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, str::FromStr};
 use tokio::{fs::File, io::AsyncWriteExt};
 
-pub mod status;
 pub mod add;
 mod commit;
 pub mod diff;
 pub mod fetch;
 pub mod push;
+pub mod reset;
+pub mod status;
 pub mod store;
 #[derive(Serialize, Deserialize)]
 pub struct ScorpioManager {
