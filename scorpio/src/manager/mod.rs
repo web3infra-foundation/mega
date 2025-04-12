@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, str::FromStr};
 use tokio::{fs::File, io::AsyncWriteExt};
 
+pub mod status;
 pub mod add;
 mod commit;
 pub mod diff;
