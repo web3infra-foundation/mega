@@ -73,7 +73,7 @@ pub fn add_and_del(
                     index_batch.insert(key.as_bytes(), hash._to_string().as_bytes());
                     modified_path.add_blob_to_hash(&hash._to_string(), &content)?;
                 }
-                let index = stored_path.iter().position(|tmp| tmp == &path).unwrap();
+                let index = stored_path.iter().position(|tmp_path| tmp_path == &path).unwrap();
                 stored_path.remove(index);
             }
             None => {
