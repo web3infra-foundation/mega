@@ -6,6 +6,7 @@ use walkdir::WalkDir;
 use crate::manager::diff::is_whiteout_inode;
 use crate::manager::store::ModifiedStore;
 
+// Get the difference between two HashSets
 fn get_difference(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) -> HashSet<PathBuf> {
     hashset_a
         .difference(hashset_b)
@@ -13,6 +14,7 @@ fn get_difference(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) ->
         .collect::<HashSet<PathBuf>>()
 }
 
+// Get the intersection of two HashSets
 fn get_intersection(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) -> HashSet<PathBuf> {
     hashset_a
         .intersection(hashset_b)
@@ -20,8 +22,7 @@ fn get_intersection(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) 
         .collect::<HashSet<PathBuf>>()
 }
 
-
-
+// Use WalkDir to read the target dir into a HashSet
 fn walk_paths(root: &PathBuf) -> HashSet<PathBuf> {
     WalkDir::new(root)
         .into_iter()
@@ -32,9 +33,6 @@ fn walk_paths(root: &PathBuf) -> HashSet<PathBuf> {
 }
 
 /// The core function of status operation.
-///
-/// This function dosn't check the input path, so if you call it outside the
-/// mono_add() function, be careful the directory injection vulnerability.
 pub fn status_core(
     work_path: &Path,
     index_db: &sled::Db,
