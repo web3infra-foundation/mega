@@ -5,7 +5,8 @@ use libra::internal::protocol::lfs_client::LFSClient;
 use wax::Pattern;
 use libra::utils::lfs;
 use crate::util;
-use super::utils;
+use super::{utils, ScorpioLFS};
+
 
 pub fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Result<()> {
     let mut file = OpenOptions::new()
@@ -133,10 +134,9 @@ pub fn lfs_object_path(oid: &str) -> PathBuf {
         .join(oid)
 }
 
-
-pub async fn lfs_restore(mount_path: &str)-> std::io::Result<()>{
-    let lfs_client = LFSClient::get().await;
-    for entry in ignore::Walk::new(mount_path).filter_map(|e| e.ok()) {
+pub async fn lfs_restore(mono_path:&str, lower_path: &str)-> std::io::Result<()>{
+    let lfs_client = LFSClient::scorpio_new(mono_path);
+    for entry in ignore::Walk::new(lower_path).filter_map(|e| e.ok()) {
         if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
             let path_str = entry.path().to_str().unwrap();
             if is_lfs_tracked(path_str) {
