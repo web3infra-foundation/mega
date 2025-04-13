@@ -51,7 +51,8 @@ use crate::p2p::RequestData;
 use crate::p2p::ResponseData;
 use crate::p2p::{Action, GitCloneHeader};
 use crate::util::{
-    get_git_model_by_path, get_repo_path, parse_pointer_data, repo_path_to_identifier,
+    get_git_model_by_path, get_path_from_identifier, get_peer_id_from_identifier, get_repo_path,
+    parse_pointer_data, repo_path_to_identifier,
 };
 use crate::{ca, Node, RepoInfo};
 
@@ -59,6 +60,12 @@ struct MsgSingletonConnection {
     conn: Arc<Connection>,
 }
 static INSTANCE: OnceLock<MsgSingletonConnection> = OnceLock::new();
+
+struct BootstrapNode {
+    bootstrap_node: String,
+}
+static BOOTSTRAP_NODE_INSTANCE: OnceLock<BootstrapNode> = OnceLock::new();
+
 type ReqSenderType = Sender<Vec<u8>>;
 
 lazy_static! {
@@ -84,8 +91,29 @@ impl MsgSingletonConnection {
             .expect("Singleton not initialized. Call Singleton::init() first.")
     }
 
-    pub fn get_connection() -> Arc<quinn::Connection> {
+    pub fn get_connection() -> Arc<Connection> {
         MsgSingletonConnection::instance().conn.clone()
+    }
+}
+impl BootstrapNode {
+    fn new(bootstrap_node: String) -> Self {
+        BootstrapNode { bootstrap_node }
+    }
+
+    pub fn init(bootstrap_node: String) {
+        BOOTSTRAP_NODE_INSTANCE
+            .set(Self::new(bootstrap_node))
+            .unwrap_or_else(|_| panic!("Singleton already initialized!"));
+    }
+
+    pub fn instance() -> &'static Self {
+        BOOTSTRAP_NODE_INSTANCE
+            .get()
+            .expect("Singleton not initialized. Call Singleton::init() first.")
+    }
+
+    pub fn get() -> String {
+        BootstrapNode::instance().bootstrap_node.clone()
     }
 }
 
@@ -94,6 +122,7 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
 
     let connection = Arc::new(connection);
     MsgSingletonConnection::init(connection.clone());
+    BootstrapNode::init(bootstrap_node.clone());
 
     let (tx, mut rx) = mpsc::channel(8);
 
@@ -140,7 +169,6 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
     });
 
     while let Some(message) = rx.recv().await {
-        let bootstrap_node = bootstrap_node.clone();
         let context = context.clone();
         tokio::spawn(async move {
             let data: ResponseData = match serde_json::from_slice(&message) {
@@ -153,15 +181,13 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
             match data.func.as_str() {
                 "request_git_clone" => {
                     let path = String::from_utf8(data.data).unwrap();
-                    response_git_clone(context.clone(), bootstrap_node.clone(), path, data.from)
+                    response_git_clone(context.clone(), path, data.from)
                         .await
                         .unwrap();
                 }
                 "request_lfs" => {
                     let oid = String::from_utf8(data.data).unwrap();
-                    response_lfs(context.clone(), bootstrap_node.clone(), oid, data.from)
-                        .await
-                        .unwrap();
+                    response_lfs(context.clone(), oid, data.from).await.unwrap();
                 }
                 "nostr" => {
                     receive_nostr(data.data).await.unwrap();
@@ -184,7 +210,7 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
     Ok(())
 }
 
-pub async fn get_client_connection(bootstrap_node: String) -> Result<Connection> {
+async fn get_client_connection(bootstrap_node: String) -> Result<Connection> {
     let (user_cert, user_key) = get_user_cert_from_ca(bootstrap_node.clone()).await?;
     let ca_cert = get_ca_cert_from_ca(bootstrap_node.clone()).await?;
 
@@ -323,12 +349,25 @@ pub async fn repo_share(context: Context, path: String) -> Result<String> {
     Ok(identifier)
 }
 
-pub async fn request_git_clone(
-    context: Context,
-    bootstrap_node: String,
-    path: String,
-    to_peer_id: String,
-) -> Result<()> {
+pub async fn repo_clone(context: Context, identifier: String) -> Result<String> {
+    let remote_peer_id = match get_peer_id_from_identifier(identifier.clone()) {
+        Ok(p) => p,
+        Err(_e) => {
+            bail!("Identifier invalid");
+        }
+    };
+    let path = match get_path_from_identifier(identifier.clone()) {
+        Ok(p) => p,
+        Err(_e) => {
+            bail!("Identifier invalid");
+        }
+    };
+
+    request_git_clone(context, path, remote_peer_id).await?;
+    Ok(identifier.clone())
+}
+
+async fn request_git_clone(context: Context, path: String, to_peer_id: String) -> Result<()> {
     let storage = context.services.git_db_storage.clone();
     let model = storage
         .find_git_repo_exact_match(path.as_str())
@@ -339,6 +378,7 @@ pub async fn request_git_clone(
     }
 
     // Register file connection to relay
+    let bootstrap_node = BootstrapNode::get();
     let file_connection = get_client_connection(bootstrap_node.clone()).await?;
     let (mut file_sender, mut _file_receiver) = file_connection.open_bi().await?;
     let peer_id = get_peerid().await;
@@ -414,18 +454,12 @@ pub async fn request_git_clone(
         let oid = parse_pointer_data(&blob.data);
         if let Some(oid) = oid {
             let context = context.clone();
-            let bootstrap_node = bootstrap_node.clone();
             let to_peer_id = to_peer_id.clone();
             let t = tokio::spawn(async move {
                 //try to download lfs
-                request_lfs(
-                    context.clone(),
-                    bootstrap_node.clone(),
-                    oid.0.to_string(),
-                    to_peer_id.clone(),
-                )
-                .await
-                .unwrap();
+                request_lfs(context.clone(), oid.0.to_string(), to_peer_id.clone())
+                    .await
+                    .unwrap();
             });
             task.push(t);
         }
@@ -456,12 +490,8 @@ pub async fn request_git_clone(
     Ok(())
 }
 
-pub async fn response_git_clone(
-    context: Context,
-    bootstrap_node: String,
-    path: String,
-    to_peer_id: String,
-) -> Result<()> {
+async fn response_git_clone(context: Context, path: String, to_peer_id: String) -> Result<()> {
+    let bootstrap_node = BootstrapNode::get();
     let storage = context.services.git_db_storage.clone();
 
     let repo: Repo = match get_git_model_by_path(context.clone(), path.clone()).await {
@@ -524,12 +554,8 @@ pub async fn response_git_clone(
     Ok(())
 }
 
-pub async fn request_lfs(
-    context: Context,
-    bootstrap_node: String,
-    oid: String,
-    to_peer_id: String,
-) -> Result<()> {
+async fn request_lfs(context: Context, oid: String, to_peer_id: String) -> Result<()> {
+    let bootstrap_node = BootstrapNode::get();
     // Register file connection to relay
     let file_connection = get_client_connection(bootstrap_node).await?;
     let (mut file_sender, _file_receiver) = file_connection.open_bi().await?;
@@ -626,12 +652,8 @@ pub async fn request_lfs(
     Ok(())
 }
 
-pub async fn response_lfs(
-    context: Context,
-    bootstrap_node: String,
-    oid: String,
-    to_peer_id: String,
-) -> Result<()> {
+async fn response_lfs(context: Context, oid: String, to_peer_id: String) -> Result<()> {
+    let bootstrap_node = BootstrapNode::get();
     info!("oid:{}", oid.clone());
     let result = context
         .lfs_stg()
@@ -700,7 +722,7 @@ pub async fn response_lfs(
     Ok(())
 }
 
-pub async fn subscribe_repo(identifier: String) -> Result<()> {
+pub async fn repo_subscribe(identifier: String) -> Result<()> {
     let filters = vec![Filter::new().repo_uri(identifier)];
     let subscription_id = get_peerid().await;
     let client_req = ClientMessage::new_req(SubscriptionId::new(subscription_id), filters);
@@ -883,7 +905,7 @@ async fn get_encode_git_objects_by_repo(context: Context, repo: Repo) -> Receive
     stream_rx
 }
 
-pub async fn get_user_cert_from_ca(
+async fn get_user_cert_from_ca(
     ca: String,
 ) -> Result<(CertificateDer<'static>, PrivateKeyDer<'static>)> {
     let cert = ca::client::get_user_cert_from_ca(ca).await?;
@@ -893,7 +915,7 @@ pub async fn get_user_cert_from_ca(
     Ok((cert, key))
 }
 
-pub async fn get_ca_cert_from_ca(ca: String) -> Result<CertificateDer<'static>> {
+async fn get_ca_cert_from_ca(ca: String) -> Result<CertificateDer<'static>> {
     let cert = ca::client::get_ca_cert_from_ca(ca).await?;
     let cert = CertificateDer::from_pem_slice(cert.as_bytes())?;
     Ok(cert)
