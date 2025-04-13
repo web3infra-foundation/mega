@@ -5,6 +5,7 @@ use crate::core::{load_mega_resource, CoreConfigChanged};
 use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
 use common::config::Config;
+use common::model::P2pOptions;
 use jupiter::context::Context as MegaContext;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -263,71 +264,93 @@ impl MegaCore {
 
     async fn merge_config(&self, update: Vec<CoreConfigChanged>) {
         let mut base = self.config.write().await;
-        update.into_iter().for_each(|entry| match entry {
-            CoreConfigChanged::BaseDir(path) => base.base_dir = path,
-            CoreConfigChanged::LogPath(path) => base.log.log_path = path,
-            CoreConfigChanged::Level(level) => base.log.level = level,
-            CoreConfigChanged::PrintStd(print_std) => base.log.print_std = print_std,
-            CoreConfigChanged::DbType(db_type) => base.database.db_type = db_type,
-            CoreConfigChanged::DbPath(db_path) => base.database.db_path = db_path,
-            CoreConfigChanged::DbUrl(db_url) => base.database.db_url = db_url,
-            CoreConfigChanged::MaxConnection(max_conn) => base.database.max_connection = max_conn,
-            CoreConfigChanged::MinConnection(min_conn) => base.database.min_connection = min_conn,
-            CoreConfigChanged::SqlxLogging(sqlx_logging) => {
-                base.database.sqlx_logging = sqlx_logging
-            }
-            CoreConfigChanged::ImportDir(dir) => base.monorepo.import_dir = dir,
-            CoreConfigChanged::Admin(admin) => base.monorepo.admin = admin,
-            CoreConfigChanged::RootDirs(dirs) => base.monorepo.root_dirs = dirs,
-            CoreConfigChanged::EnableHttpAuth(enable) => {
-                base.authentication.enable_http_auth = enable
-            }
-            CoreConfigChanged::EnableTestUser(enable) => {
-                base.authentication.enable_test_user = enable
-            }
-            CoreConfigChanged::TestUserName(name) => base.authentication.test_user_name = name,
-            CoreConfigChanged::TestUserToken(token) => base.authentication.test_user_token = token,
-            CoreConfigChanged::PackDecodeMemSize(size) => base.pack.pack_decode_mem_size = size,
-            CoreConfigChanged::PackDecodeDiskSize(size) => base.pack.pack_decode_disk_size = size,
-            CoreConfigChanged::PackDecodeCachePath(path) => base.pack.pack_decode_cache_path = path,
-            CoreConfigChanged::CleanCacheAfterDecode(clean) => {
-                base.pack.clean_cache_after_decode = clean
-            }
-            CoreConfigChanged::ChannelMessageSize(size) => base.pack.channel_message_size = size,
-            CoreConfigChanged::LfsUrl(url) => base.lfs.url = url,
-            CoreConfigChanged::GithubClientId(id) => {
-                if base.oauth.is_none() {
-                    base.oauth = Some(common::config::OauthConfig::default());
+        for entry in update {
+            match entry {
+                CoreConfigChanged::BaseDir(path) => base.base_dir = path,
+                CoreConfigChanged::LogPath(path) => base.log.log_path = path,
+                CoreConfigChanged::Level(level) => base.log.level = level,
+                CoreConfigChanged::PrintStd(print_std) => base.log.print_std = print_std,
+                CoreConfigChanged::DbType(db_type) => base.database.db_type = db_type,
+                CoreConfigChanged::DbPath(db_path) => base.database.db_path = db_path,
+                CoreConfigChanged::DbUrl(db_url) => base.database.db_url = db_url,
+                CoreConfigChanged::MaxConnection(max_conn) => {
+                    base.database.max_connection = max_conn
                 }
-                if let Some(oauth) = &mut base.oauth {
-                    oauth.github_client_id = id;
+                CoreConfigChanged::MinConnection(min_conn) => {
+                    base.database.min_connection = min_conn
+                }
+                CoreConfigChanged::SqlxLogging(sqlx_logging) => {
+                    base.database.sqlx_logging = sqlx_logging
+                }
+                CoreConfigChanged::ImportDir(dir) => base.monorepo.import_dir = dir,
+                CoreConfigChanged::Admin(admin) => base.monorepo.admin = admin,
+                CoreConfigChanged::RootDirs(dirs) => base.monorepo.root_dirs = dirs,
+                CoreConfigChanged::EnableHttpAuth(enable) => {
+                    base.authentication.enable_http_auth = enable
+                }
+                CoreConfigChanged::EnableTestUser(enable) => {
+                    base.authentication.enable_test_user = enable
+                }
+                CoreConfigChanged::TestUserName(name) => base.authentication.test_user_name = name,
+                CoreConfigChanged::TestUserToken(token) => {
+                    base.authentication.test_user_token = token
+                }
+                CoreConfigChanged::PackDecodeMemSize(size) => base.pack.pack_decode_mem_size = size,
+                CoreConfigChanged::PackDecodeDiskSize(size) => {
+                    base.pack.pack_decode_disk_size = size
+                }
+                CoreConfigChanged::PackDecodeCachePath(path) => {
+                    base.pack.pack_decode_cache_path = path
+                }
+                CoreConfigChanged::CleanCacheAfterDecode(clean) => {
+                    base.pack.clean_cache_after_decode = clean
+                }
+                CoreConfigChanged::ChannelMessageSize(size) => {
+                    base.pack.channel_message_size = size
+                }
+                CoreConfigChanged::LfsUrl(url) => base.lfs.url = url,
+                CoreConfigChanged::GithubClientId(id) => {
+                    if base.oauth.is_none() {
+                        base.oauth = Some(common::config::OauthConfig::default());
+                    }
+                    if let Some(oauth) = &mut base.oauth {
+                        oauth.github_client_id = id;
+                    }
+                }
+                CoreConfigChanged::GithubClientSecret(secret) => {
+                    if base.oauth.is_none() {
+                        base.oauth = Some(common::config::OauthConfig::default());
+                    }
+                    if let Some(oauth) = &mut base.oauth {
+                        oauth.github_client_secret = secret;
+                    }
+                }
+                CoreConfigChanged::UiDomain(domain) => {
+                    if base.oauth.is_none() {
+                        base.oauth = Some(common::config::OauthConfig::default());
+                    }
+                    if let Some(oauth) = &mut base.oauth {
+                        oauth.ui_domain = domain;
+                    }
+                }
+                CoreConfigChanged::CookieDomain(domain) => {
+                    if base.oauth.is_none() {
+                        base.oauth = Some(common::config::OauthConfig::default());
+                    }
+                    if let Some(oauth) = &mut base.oauth {
+                        oauth.cookie_domain = domain;
+                    }
+                }
+                CoreConfigChanged::P2POption(option) => {
+                    let http_opt = self.http_options.read().await;
+                    if let Some(http_opt) = &*http_opt {
+                        http_opt.set_p2p(P2pOptions { bootstrap_node: Some(option)});
+                    } else {
+                        tracing::error!("P2P options not initialized, cannot update");
+                    }
                 }
             }
-            CoreConfigChanged::GithubClientSecret(secret) => {
-                if base.oauth.is_none() {
-                    base.oauth = Some(common::config::OauthConfig::default());
-                }
-                if let Some(oauth) = &mut base.oauth {
-                    oauth.github_client_secret = secret;
-                }
-            }
-            CoreConfigChanged::UiDomain(domain) => {
-                if base.oauth.is_none() {
-                    base.oauth = Some(common::config::OauthConfig::default());
-                }
-                if let Some(oauth) = &mut base.oauth {
-                    oauth.ui_domain = domain;
-                }
-            }
-            CoreConfigChanged::CookieDomain(domain) => {
-                if base.oauth.is_none() {
-                    base.oauth = Some(common::config::OauthConfig::default());
-                }
-                if let Some(oauth) = &mut base.oauth {
-                    oauth.cookie_domain = domain;
-                }
-            }
-        });
+        }
     }
 
     pub async fn is_core_running(&self) -> bool {

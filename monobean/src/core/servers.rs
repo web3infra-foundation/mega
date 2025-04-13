@@ -2,9 +2,10 @@ use crate::config::{MEGA_HTTPS_CERT, MEGA_HTTPS_KEY};
 use crate::error::MonoBeanResult;
 use axum_server::tls_rustls::RustlsConfig;
 use bytes::BytesMut;
+use common::model::P2pOptions;
 use jupiter::context::Context as MegaContext;
 use mono::git_protocol::ssh::SshServer;
-use mono::server::https_server::app;
+use gateway::https_server::{app, check_run_with_p2p};
 use russh::server::Server;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
@@ -21,18 +22,26 @@ pub(crate) struct SshOptions {
 pub(crate) struct HttpOptions {
     addr: SocketAddr,
     handle: axum_server::Handle,
+    p2p: OnceLock<P2pOptions>,
 }
 
 impl HttpOptions {
     pub fn new(addr: SocketAddr) -> Self {
         let handle = axum_server::Handle::default();
-        Self { addr, handle }
+        Self { addr, handle, p2p: OnceLock::new() }
+    }
+
+    pub fn set_p2p(&self, p2p: P2pOptions) {
+        self.p2p.set(p2p).unwrap();
     }
 
     pub async fn run_server(&self, mega_ctx: MegaContext) -> MonoBeanResult<()> {
-        let app = app(mega_ctx, self.addr.ip().to_string(), self.addr.port()).await;
+        let p2p = self.p2p.get_or_init(|| P2pOptions::default());
+        let app = app(mega_ctx.clone(), self.addr.ip().to_string(), self.addr.port(), p2p.clone()).await;
         let cert = crate::core::load_mega_resource(MEGA_HTTPS_CERT);
         let key = crate::core::load_mega_resource(MEGA_HTTPS_KEY);
+
+        check_run_with_p2p(mega_ctx, p2p.clone());
 
         // I don't know why I must manually install it, or it will panic on the next line...
         rustls::crypto::ring::default_provider()
