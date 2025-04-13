@@ -4,7 +4,7 @@ mod async_io;
 mod tree_store;
 use std::{collections::HashMap, ffi::{OsStr, OsString}, sync::Arc};
 use crate::manager::fetch::fetch_tree;
-use crate::util::scorpio_config;
+use crate::util::config;
 
 use mercury::internal::object::tree::TreeItemMode;
 use reqwest::Client;
@@ -37,7 +37,7 @@ impl Dicfuse{
         let mut parent_item = self.store.find_path(parent).await.unwrap();
         let tree = fetch_tree(&parent_item).await.unwrap();
 
-        let file_blob_endpoint = scorpio_config::file_blob_endpoint();
+        let file_blob_endpoint = config::file_blob_endpoint();
        
         let client = Client::new();
         for i in tree.tree_items{
@@ -79,7 +79,7 @@ impl Dicfuse{
         let tree = fetch_tree(&gpath).await.unwrap(); 
         let mut is_first  = true;
         let client = Client::new();
-        let file_blob_endpoint = scorpio_config::file_blob_endpoint();
+        let file_blob_endpoint = config::file_blob_endpoint();
         for i in tree.tree_items{
             //TODO & POS_BUG: how to deal with the link?
             if i.mode!=TreeItemMode::Blob && i.mode!=TreeItemMode::BlobExecutable{

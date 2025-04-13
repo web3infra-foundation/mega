@@ -1,43 +1,194 @@
-// ... existing code ...
 use std::collections::HashMap;
-use ceres::lfs;
-use serde::Deserialize;
-use toml::Table;
-use std::path::PathBuf;
-use std::{fs, io};
+use std::fs;
+use std::path::Path;
+use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
-static CONFIG:&str = "config.toml";
+// Configuration error type (using simple String for error messages)
+pub type ConfigError = String;
 
-// Read the scorpio (config)TOML file and return a Table.
-#[inline]
-fn read_toml() -> Table{
-    
-    let config_content = std::fs::read_to_string(CONFIG).expect("Unable to read config file");
-    toml::de::from_str(&config_content).expect("Unable to parse TOML")
+// Result type for configuration operations
+pub type ConfigResult<T> = Result<T, ConfigError>;
 
+/// Main configuration structure
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ScorpioConfig {
+    config: HashMap<String, String>,
 }
 
-// Get the `store_path` from the TOML file and return a PathBuf.
-pub fn store_path() -> PathBuf{
-    let config = read_toml();
-    let store_path = config.get("store_path").expect("store_path not found in config").as_str().unwrap();
-    
+// Global configuration management
+static SCORPIO_CONFIG: OnceLock<ScorpioConfig> = OnceLock::new();
 
-    let mut store_path_buf = PathBuf::from(store_path);
-    
-    if !store_path_buf.exists() {
-        fs::create_dir_all(&store_path_buf).expect("Failed to create directory");
+/// Initialize global configuration
+///
+/// # Arguments
+/// * `path` - Path to the configuration file
+///
+/// # Returns
+/// `ConfigResult<()>` - Success or error
+pub fn init_config(path: &str) -> ConfigResult<()> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("Config file not found at '{}': {}", path, e))?;
+
+    let mut config: HashMap<String, String> = toml::from_str(&content)
+        .map_err(|e| format!("Invalid config format: {}", e))?;
+
+    // Set default values and validate configuration
+    set_defaults(&mut config, path)?;
+    validate(&mut config)?;
+
+    let scorpio_config = ScorpioConfig { config };
+    SCORPIO_CONFIG.set(scorpio_config)
+        .map_err(|_| "Configuration already initialized".into())
+}
+
+/// Set default values
+///
+/// # Arguments
+/// * `config` - Mutable reference to configuration HashMap
+/// * `path` - Path to save the configuration file if defaults are set
+///
+/// # Returns
+/// `ConfigResult<()>` - Success or error
+fn set_defaults(config: &mut HashMap<String, String>, path: &str) -> ConfigResult<()> {
+    let username = whoami::username();
+    let base_path = format!("/home/{}/megadir", username);
+
+    // Check if critical fields are empty (first run scenario)
+    let is_first_run = config.get("workspace").map(|s| s.is_empty()).unwrap_or(true)
+        || config.get("store_path").map(|s| s.is_empty()).unwrap_or(true);
+
+    if is_first_run {
+        // Handle workspace path
+        let workspace_path = {
+            let entry = config.entry("workspace".into());
+            entry.and_modify(|v| if v.is_empty() { *v = format!("{}/mount", base_path) })
+                .or_insert_with(|| format!("{}/mount", base_path))
+                .to_owned()
+        };
+
+        // Handle store path
+        let store_path = {
+            let entry = config.entry("store_path".into());
+            entry.and_modify(|v| if v.is_empty() { *v = format!("{}/store", base_path) })
+                .or_insert_with(|| format!("{}/store", base_path))
+                .to_owned()
+        };
+
+        // Create required directories
+        for path in [workspace_path.as_str(), store_path.as_str()] {
+            let path = Path::new(path);
+            if let Err(e) = fs::create_dir_all(path) {
+                if e.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!("Failed to create directory {}: {}", path.display(), e));
+                }
+            }
+        }
+
+        // Save updated configuration
+        let toml = toml::to_string(&config)
+            .expect("Failed to serialize config");
+        fs::write(path, toml)
+            .unwrap_or_else(|e| panic!("Failed to save config: {}", e));
+        
+        // Create the config.toml
+        let config_file = config
+                                .get("config_file")
+                                .ok_or("Missing 'config_file' in configuration".to_string())?;
+        if !Path::new(config_file).exists(){
+            fs::write(config_file, "works=[]")
+                .map_err(|e| format!("Failed to create {}: {}", config.get("config_file").unwrap(), e))?;
+        }
+
     }
-    store_path_buf
+    Ok(())
 }
 
-pub fn mount_path() -> PathBuf{
-    let config = read_toml();
-    let mount_path = config.get("mount_path").expect("mount_path not found in config").as_str().unwrap();
-    PathBuf::from(mount_path)
+/// Get reference to global configuration
+///
+/// # Panics
+/// Panics if configuration hasn't been initialized
+fn get_config() -> &'static ScorpioConfig {
+    SCORPIO_CONFIG.get().expect("Configuration not initialized")
 }
-pub fn git_branch() -> Result<String,io::Error>{
-    let config = read_toml();
-    let git_branch = config.get("git_branch").expect("git_branch not found in config").as_str()?;
-    Ok(git_branch.to_string())
+
+/// Validate configuration fields
+///
+/// # Arguments
+/// * `config` - Mutable reference to configuration HashMap
+///
+/// # Returns
+/// `ConfigResult<()>` - Success if all required fields are present and non-empty
+fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
+    let required_keys = [
+        "base_url",
+        "workspace",
+        "store_path",
+        "git_author",
+        "git_email",
+        "config_file",
+        "lfs_url",
+    ];
+
+    for key in required_keys {
+        if let Some(value) = config.get(key) {
+            if !value.is_empty() {
+                continue;
+            }
+        }
+        return Err(format!("Missing or empty required config: {}", key));
+    }
+    Ok(())
+}
+
+
+// Configuration accessor functions
+pub fn base_url() -> &'static str {
+    &get_config().config["base_url"]
+}
+
+pub fn workspace() -> &'static str {
+    &get_config().config["workspace"]
+}
+
+pub fn store_path() -> &'static str {
+    &get_config().config["store_path"]
+}
+
+pub fn git_author() -> &'static str {
+    &get_config().config["git_author"]
+}
+
+pub fn git_email() -> &'static str {
+    &get_config().config["git_email"]
+}
+
+pub fn file_blob_endpoint() -> String {
+    format!("{}/api/v1/file/blob", base_url())
+}
+pub fn tree_file_endpoint() -> String {
+    format!("{}/api/v1/file/tree?path=/", base_url())
+}
+pub fn config_file() -> &'static str {
+    &get_config().config["config_file"]
+}
+pub fn lfs_url() -> &'static str {
+    &get_config().config["lfs_url"]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_get_url() {
+        init_config("scorpio.toml").expect("panic message");
+        assert_eq!(base_url(), "http://localhost:8000");
+        assert_eq!(workspace(), format!("/home/{}/megadir/mount", whoami::username()));
+        assert_eq!(store_path(), format!("/home/{}/megadir/store", whoami::username()));
+        assert_eq!(git_author(), "MEGA");
+        assert_eq!(git_email(), "admin@mega.org");
+        assert_eq!(file_blob_endpoint(), "http://localhost:8000/api/v1/file/blob");
+        assert_eq!(config_file(), "config.toml");
+    }
+
 }

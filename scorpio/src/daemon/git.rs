@@ -1,7 +1,7 @@
 use super::{ScoState, FAIL, SUCCESS};
 use crate::manager::reset::reset_core;
 use crate::manager::status::status_core;
-use crate::util::scorpio_config;
+use crate::util::config;
 use axum::{
     extract::{Query, State},
     response::IntoResponse,
@@ -28,7 +28,7 @@ pub(super) async fn git_status_handler(
 ) -> axum::Json<GitStatus> {
     let mut status = axum::Json(GitStatus::default());
     let manager_lock = state.manager.lock().await;
-    let store_path = scorpio_config::store_path();
+    let store_path = config::store_path();
     for works in manager_lock.works.iter() {
         if works.path.eq(&params.path) {
             let work_path = PathBuf::from(store_path).join(works.hash.clone());
@@ -124,7 +124,7 @@ pub(super) async fn git_reset_handler(
     axum::Json(req): axum::Json<ResetReq>,
 ) -> impl IntoResponse {
     let manager_lock = state.manager.lock().await;
-    let store_path = scorpio_config::store_path();
+    let store_path = config::store_path();
     for works in manager_lock.works.iter() {
         if works.path.eq(&req.path) {
             // e.g.
