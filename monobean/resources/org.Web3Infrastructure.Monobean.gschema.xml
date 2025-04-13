@@ -43,7 +43,7 @@
             <summary>SSH Port</summary>
             <description>Port the ssh service listening</description>
         </key>
-        
+
         <!-- Base Settings -->
         <key name="base-dir" type="s">
             <default>'/tmp/.mono'</default>
@@ -188,19 +188,6 @@
             <default>'http://localhost:8000'</default>
             <summary>LFS Server URL</summary>
         </key>
-        <key name="lfs-obj-local-path" type="s">
-            <default>''</default>
-            <summary>LFS Object Path</summary>
-        </key>
-        <key name="enable-split" type="b">
-            <default>true</default>
-            <summary>Enable Split</summary>
-            <description>Split large files into chunks</description>
-        </key>
-        <key name="split-size" type="s">
-            <default>'20M'</default>
-            <summary>Split Size</summary>
-        </key>
 
         <!-- OAuth Settings -->
         <key name="github-client-id" type="s">
@@ -221,9 +208,9 @@
         </key>
 
         <!-- Relay Settings -->
-        <key name="relay-url" type="s">
+        <key name="bootstrap-node" type="s">
             <default>'http://localhost:1234'</default>
-            <summary>Relay Url</summary>
+            <summary>Bootstrap Node</summary>
         </key>
     </schema>
 </schemalist>

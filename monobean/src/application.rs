@@ -11,12 +11,14 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
+use common::model::P2pOptions;
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
 use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use tokio::sync::oneshot;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
@@ -38,6 +40,8 @@ pub enum Action {
     UpdateGitConfig(String, String),
     ShowHelloPage,
     ShowMainPage,
+    MountRepo,
+    OpenEditorOn(PathBuf),
 }
 
 mod imp {
@@ -158,6 +162,8 @@ impl MonobeanApplication {
     fn create_window(&self) -> MonobeanWindow {
         let window = MonobeanWindow::new(&self.clone(), self.sender());
 
+        window.set_decorated(true);
+        window.set_icon_name(Some("mono-white-logo"));
         self.add_window(&window);
         window.present();
         window
@@ -223,7 +229,7 @@ impl MonobeanApplication {
     fn setup_log(&self) {
         // TODO: Use gtk settings for log level.
         // FIXME: currently not working for glib logs.
-        let filter = tracing_subscriber::EnvFilter::new("warn,monobean=debug");
+        let filter = tracing_subscriber::EnvFilter::new("info,monobean=debug");
         tracing_subscriber::registry()
             .with(fmt::layer())
             .with(filter)
@@ -255,7 +261,7 @@ impl MonobeanApplication {
             .transient_for(&window)
             .modal(true)
             .program_name(crate::APP_NAME)
-            .logo_icon_name("logo")
+            .logo_icon_name("mono-white-logo")
             .version(crate::config::VERSION)
             .authors(vec!["Neon"])
             .license_type(gtk::License::MitX11)
@@ -287,6 +293,7 @@ impl MonobeanApplication {
         let settings = self.settings();
 
         self.apply_user_config().await;
+        let bootstrap_node = get_setting!(settings, "bootstrap-node", String);
         let http_addr = get_setting!(settings, "http-address", String);
         let http_port = get_setting!(settings, "http-port", u32);
         let ssh_addr = get_setting!(settings, "ssh-address", String);
@@ -294,9 +301,18 @@ impl MonobeanApplication {
 
         let http_addr = IpAddr::V4(http_addr.parse().unwrap());
         let ssh_addr = IpAddr::V4(ssh_addr.parse().unwrap());
+        let p2p_opt = if bootstrap_node.is_empty() {
+            P2pOptions::default()
+        } else {
+            P2pOptions {
+                bootstrap_node: Some(bootstrap_node),
+            }
+        };
+
         self.send_command(MegaStart(
             Option::from(SocketAddr::new(http_addr, http_port as u16)),
             Option::from(SocketAddr::new(ssh_addr, ssh_port as u16)),
+            p2p_opt,
         ))
         .await;
     }
@@ -357,7 +373,6 @@ impl MonobeanApplication {
                     sender.send(toast).await.unwrap();
                 });
             }
-
             Action::ShowHelloPage => {
                 let config = self.git_config();
 
@@ -370,9 +385,16 @@ impl MonobeanApplication {
                     window.show_hello_page(name, email, gpg_generated);
                 });
             }
-
             Action::ShowMainPage => {
                 window.show_main_page();
+            }
+            Action::MountRepo => todo!(),
+            Action::OpenEditorOn(path) => {
+                CONTEXT.spawn_local(async move {
+                    let window = window.imp();
+                    let code_page = window.code_page.get();
+                    code_page.show_editor(path);
+                });
             }
         }
     }

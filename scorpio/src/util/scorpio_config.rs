@@ -118,6 +118,7 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
         "git_email",
         "file_blob_endpoint",
         "config_file",
+        "lfs_url",
     ];
 
     for key in required_keys {
@@ -159,6 +160,9 @@ pub fn file_blob_endpoint() -> &'static str {
 
 pub fn config_file() -> &'static str {
     &get_config().config["config_file"]
+}
+pub fn lfs_url() -> &'static str {
+    &get_config().config["lfs_url"]
 }
 
 #[cfg(test)]

@@ -16,6 +16,8 @@ pub enum Action {
     Callback,
     RepoShare,
     Nostr,
+    Peers,
+    Repos,
 }
 
 impl fmt::Display for Action {
@@ -38,6 +40,12 @@ impl fmt::Display for Action {
             }
             Action::Nostr => {
                 write!(f, "Nostr")
+            }
+            Action::Peers => {
+                write!(f, "Peers")
+            }
+            Action::Repos => {
+                write!(f, "Repos")
             }
         }
     }
@@ -87,6 +95,39 @@ mod tests {
     // use common::config::Config;
     // use jupiter::context::Context;
     // use std::sync::Arc;
+    // use tracing::info;
+    //
+    // #[tokio::test]
+    // async fn test_get_peers() {
+    //     test_with_logs();
+    //     let config = Config::new("E:\\code\\mega\\config.toml").unwrap();
+    //     let context = Context::new(Arc::from(config)).await;
+    //     let context_clone = context.clone();
+    //     tokio::spawn(async move {
+    //         client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
+    //             .await
+    //             .unwrap();
+    //     });
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //     let peers = client::get_peers().await.unwrap();
+    //     info!("peers: {:?}", peers);
+    // }
+    //
+    // #[tokio::test]
+    // async fn test_get_repos() {
+    //     test_with_logs();
+    //     let config = Config::new("E:\\code\\mega\\config.toml").unwrap();
+    //     let context = Context::new(Arc::from(config)).await;
+    //     let context_clone = context.clone();
+    //     tokio::spawn(async move {
+    //         client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
+    //             .await
+    //             .unwrap();
+    //     });
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //     let repos = client::get_repos().await.unwrap();
+    //     info!("repos: {:?}", repos);
+    // }
     //
     // #[tokio::test]
     // async fn test_repo_share() {
@@ -95,7 +136,7 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
+    //         client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
     //             .await
     //             .unwrap();
     //     });
@@ -122,14 +163,13 @@ mod tests {
     //             .unwrap();
     //     });
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-    //     client::request_git_clone(
+    //     client::repo_clone(
     //         context.clone(),
-    //         "47.74.41.94:8001".to_string(),
-    //         "/third-part/lfs_test".to_string(),
-    //         "23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA".to_string(),
+    //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-part/lfs_test.git"
+    //             .to_string(),
     //     )
     //     .await
-    //     .unwrap()
+    //     .unwrap();
     // }
     //
     // #[tokio::test]
@@ -144,7 +184,7 @@ mod tests {
     //             .unwrap();
     //     });
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-    //     client::subscribe_repo(
+    //     client::repo_subscribe(
     //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-part/lfs_test.git"
     //             .to_string(),
     //     )

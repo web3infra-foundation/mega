@@ -1,13 +1,13 @@
 use crate::api;
+use crate::api::AppState;
 use crate::model::builds;
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
+use dashmap::DashMap;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbErr, Schema, TransactionTrait};
-
-#[derive(Clone)]
-pub struct AppState {
-    pub(crate) conn: DatabaseConnection,
-}
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tower_http::trace::TraceLayer;
 
 pub async fn start_server(port: u16) {
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
@@ -20,14 +20,25 @@ pub async fn start_server(port: u16) {
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .merge(api::routers())
-        .with_state(AppState { conn });
+        .with_state(AppState {
+            clients: Arc::new(DashMap::new()),
+            conn,
+            building: Arc::new(DashMap::new()),
+        })
+        // logging so we can see what's going on
+        .layer(TraceLayer::new_for_http());
 
     tracing::info!("Listening on port {}", port);
 
     let addr = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port))
         .await
         .unwrap();
-    axum::serve(addr, app.into_make_service()).await.unwrap();
+    axum::serve(
+        addr,
+        app.into_make_service_with_connect_info::<SocketAddr>(), // or `ConnectInfo<SocketAddr>` fail
+    )
+    .await
+    .unwrap();
 }
 
 /// create if not exists

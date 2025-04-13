@@ -4,7 +4,7 @@ use gtk::{style_context_add_provider_for_display, PopoverMenu};
 
 use crate::application::{Action, MonobeanApplication};
 use crate::components::theme_selector::ThemeSelector;
-use crate::components::{mega_tab::MegaTab, not_implemented::NotImplemented, repo_tab::RepoTab};
+use crate::components::{mega_tab::MegaTab, repo_tab::RepoTab};
 use crate::config::PREFIX;
 use adw::glib::Priority;
 use adw::prelude::{Cast, ObjectExt, SettingsExtManual, ToValue};
@@ -12,19 +12,21 @@ use adw::subclass::prelude::*;
 use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::glib;
-use gtk::prelude::GtkWindowExt;
+use gtk::prelude::{GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
 
 glib::wrapper! {
     pub struct MonobeanWindow(ObjectSubclass<imp::MonobeanWindow>)
-        @extends gtk::Widget, gtk::Window, gtk::ApplicationWindow,
+        @extends gtk::Widget, gtk::Window, adw::ApplicationWindow,
         @implements gio::ActionGroup, gio::ActionMap;
 }
 
 mod imp {
     use super::*;
+    use crate::components::code_page::CodePage;
     use crate::components::hello_page::HelloPage;
+    use crate::components::not_implemented::NotImplemented;
     use adw::glib::{ParamSpec, ParamSpecObject, Value};
     use std::cell::RefCell;
     use std::sync::LazyLock;
@@ -42,6 +44,8 @@ mod imp {
         pub toast_overlay: TemplateChild<adw::ToastOverlay>,
         #[template_child]
         pub primary_menu_button: TemplateChild<gtk::MenuButton>,
+        #[template_child]
+        pub view_switcher: TemplateChild<adw::ViewSwitcher>,
 
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
@@ -49,6 +53,8 @@ mod imp {
         pub mega_tab: TemplateChild<MegaTab>,
         #[template_child]
         pub repo_tab: TemplateChild<RepoTab>,
+        #[template_child]
+        pub code_page: TemplateChild<CodePage>,
 
         #[template_child]
         pub not_implemented: TemplateChild<NotImplemented>,
@@ -147,17 +153,19 @@ impl MonobeanWindow {
         // let setting = self.settings();
 
         imp.hello_page.setup_hello_page(self.sender());
+        imp.code_page.setup_code_page(self.sender(), None);
 
         // We are developing, so always show hello_page for debug
         let stack = imp.base_stack.clone();
         stack.set_visible_child_name("hello_page");
-
         let action = Action::ShowHelloPage;
         self.sender().send_blocking(action).unwrap();
     }
 
     pub fn show_main_page(&self) {
         let stack = self.imp().base_stack.clone();
+        let switcher = self.imp().view_switcher.clone();
+        switcher.set_visible(true);
         stack.set_visible_child_name("main_page");
     }
 
@@ -169,6 +177,8 @@ impl MonobeanWindow {
     ) {
         let stack = self.imp().base_stack.clone();
         let page = self.imp().hello_page.clone();
+        let switcher = self.imp().view_switcher.clone();
+        switcher.set_visible(false);
         page.fill_entries(name, email, pgp_generated);
         stack.set_visible_child_name("hello_page");
     }

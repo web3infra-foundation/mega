@@ -443,12 +443,7 @@ mod tests {
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
         // decode pack file to get entries
-        let mut p = Pack::new(
-            None,
-            None,
-            Some(PathBuf::from("/tmp/.cache_temp")),
-            true,
-        );
+        let mut p = Pack::new(None, None, Some(PathBuf::from("/tmp/.cache_temp")), true);
 
         let f = std::fs::File::open(source).unwrap();
         tracing::info!("pack file size: {}", f.metadata().unwrap().len());
