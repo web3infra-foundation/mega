@@ -161,7 +161,7 @@ impl MonobeanApplication {
     fn create_window(&self) -> MonobeanWindow {
         let window = MonobeanWindow::new(&self.clone(), self.sender());
 
-        window.set_decorated(false);
+        window.set_decorated(true);
         window.set_icon_name(Some("mono-white-logo"));
         self.add_window(&window);
         window.present();

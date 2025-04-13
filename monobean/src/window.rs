@@ -12,7 +12,7 @@ use adw::subclass::prelude::*;
 use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::glib;
-use gtk::prelude::GtkWindowExt;
+use gtk::prelude::{GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
 
@@ -44,6 +44,8 @@ mod imp {
         pub toast_overlay: TemplateChild<adw::ToastOverlay>,
         #[template_child]
         pub primary_menu_button: TemplateChild<gtk::MenuButton>,
+        #[template_child]
+        pub view_switcher: TemplateChild<adw::ViewSwitcher>,
 
         #[template_child]
         pub hello_page: TemplateChild<HelloPage>,
@@ -156,12 +158,14 @@ impl MonobeanWindow {
         // We are developing, so always show hello_page for debug
         let stack = imp.base_stack.clone();
         stack.set_visible_child_name("hello_page");
-        // let action = Action::ShowHelloPage;
-        // self.sender().send_blocking(action).unwrap();
+        let action = Action::ShowHelloPage;
+        self.sender().send_blocking(action).unwrap();
     }
 
     pub fn show_main_page(&self) {
         let stack = self.imp().base_stack.clone();
+        let switcher = self.imp().view_switcher.clone();
+        switcher.set_visible(true);
         stack.set_visible_child_name("main_page");
     }
 
@@ -173,6 +177,8 @@ impl MonobeanWindow {
     ) {
         let stack = self.imp().base_stack.clone();
         let page = self.imp().hello_page.clone();
+        let switcher = self.imp().view_switcher.clone();
+        switcher.set_visible(false);
         page.fill_entries(name, email, pgp_generated);
         stack.set_visible_child_name("hello_page");
     }
