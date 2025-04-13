@@ -1,13 +1,23 @@
 
-use std::{fs::{File, OpenOptions}, io::{BufRead, BufReader, Read, Seek, SeekFrom, Write}, path::{Path, PathBuf}};
+use std::{fs::{File, OpenOptions}, io::{BufRead, BufReader, Read, Seek, SeekFrom, Write}, path::{Path, PathBuf}, sync::Arc};
 
 use libra::internal::protocol::lfs_client::LFSClient;
+use once_cell::sync::Lazy;
+use tokio::sync::Mutex;
 use wax::Pattern;
 use libra::utils::lfs;
 use crate::util;
-use super::utils;
+use super::{utils, ScorpioLFS};
 
-pub fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Result<()> {
+
+// 使用 Lazy 和 Mutex 实现单例模式
+pub static LFS_PATTERNSTON: Lazy<Arc<Mutex<Vec<String>>>> = Lazy::new(|| {
+    
+    // 在初始化时调用 add_lfs_patterns 函数
+    let patterns = extract_lfs_patterns(utils::lfs_attribate().to_str().unwrap()).unwrap();
+    Arc::new(Mutex::new(patterns))  // 确保返回的是 Mutex 类型
+});
+pub async fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Result<()> {
     let mut file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -38,6 +48,9 @@ pub fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Resu
         );
         file.write_all(pattern.as_bytes())?;
     }
+
+    file.flush()?;
+    let _ = update_global_lfs_patterns(file_path).await;
 
     Ok(())
 }
@@ -73,7 +86,7 @@ where
     Ok(patterns)
 }
 
-pub fn untrack_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Result<()> {
+pub async fn untrack_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Result<()> {
     if !Path::new(file_path).exists() {
         return Ok(());
     }
@@ -108,16 +121,24 @@ pub fn untrack_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::
         file.write_all(line.as_bytes())?;
         file.write_all(b"\n")?;
     }
+    file.flush()?;
+    let _ = update_global_lfs_patterns(file_path).await;
+    Ok(())
+}
 
+async fn update_global_lfs_patterns(file_path: &str) -> std::io::Result<()> {
+    let new_patterns = extract_lfs_patterns(file_path)?;
+    let mut patterns = LFS_PATTERNSTON.lock().await;
+    *patterns = new_patterns;
     Ok(())
 }
 
 /// - absolute path
-fn is_lfs_tracked<P>(path: P) -> bool
+async fn is_lfs_tracked<P>(path: P) -> bool
 where
     P: AsRef<Path>,
 {
-    let lfs_pattern = extract_lfs_patterns(utils::lfs_attribate()).unwrap();
+    let lfs_pattern =LFS_PATTERNSTON.lock().await;
 
     let path = util::to_workdir_path(path);
     let glob = wax::any(lfs_pattern.iter().map(|s| s.as_str()).collect::<Vec<_>>()).unwrap();
@@ -133,13 +154,12 @@ pub fn lfs_object_path(oid: &str) -> PathBuf {
         .join(oid)
 }
 
-
-pub async fn lfs_restore(mount_path: &str)-> std::io::Result<()>{
-    let lfs_client = LFSClient::get().await;
-    for entry in ignore::Walk::new(mount_path).filter_map(|e| e.ok()) {
+pub async fn lfs_restore(mono_path:&str, lower_path: &str)-> std::io::Result<()>{
+    let lfs_client = LFSClient::scorpio_new(mono_path);
+    for entry in ignore::Walk::new(lower_path).filter_map(|e| e.ok()) {
         if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
             let path_str = entry.path().to_str().unwrap();
-            if is_lfs_tracked(path_str) {
+            if is_lfs_tracked(path_str).await {
                 let pointer_bytes = std::fs::read(path_str).expect("Failed to read file");
                 let (oid,size) = lfs::parse_pointer_data(&pointer_bytes).unwrap();// parse pointer data
                  // LFS file
@@ -197,8 +217,8 @@ mod tests {
     use super::utils;
    
     
-    #[test]
-    fn test_lfs_patterns() {
+    #[tokio::test]
+    async fn test_lfs_patterns() {
         
         let temp_dir = Path::new("/tmp/mega");
         if temp_dir.exists() {
@@ -225,9 +245,9 @@ mod tests {
         let _ = super::add_lfs_patterns(utils::lfs_attribate().to_str().unwrap(),
          vec![ "a.txt".to_string(),
                         "*.bin".to_string()]
-        ).is_ok();
+        ).await.is_ok();
         
-        assert!(super::is_lfs_tracked("test.bin"));
+        assert!(super::is_lfs_tracked("test.bin").await);
         test_lfs_point_file();
         
     }
@@ -252,7 +272,7 @@ mod tests {
                 .expect("Failed to convert bin_blob data to string"); 
             println!("bin_blob data as string: {}", data_string);
             let e  = Entry::from(bin_blob);
-            let res = client.scorpio_push(vec![e].iter()).await;
+            let res = client.scorpio_push([e].iter()).await;
             
             if res.is_err() {
                 eprintln!("fatal: LFS files upload failed, stop pushing");

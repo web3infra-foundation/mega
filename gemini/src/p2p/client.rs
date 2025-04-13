@@ -32,10 +32,10 @@ use quinn::rustls::pki_types::PrivateKeyDer;
 use quinn::Connection;
 use quinn::{rustls, ClientConfig, Endpoint};
 use std::result::Result::Ok;
-use tokio::join;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
 use tokio::sync::{mpsc, Mutex};
+use tokio::{join, time};
 use tokio_util::io::ReaderStream;
 use tracing::error;
 use tracing::info;
@@ -53,7 +53,7 @@ use crate::p2p::{Action, GitCloneHeader};
 use crate::util::{
     get_git_model_by_path, get_repo_path, parse_pointer_data, repo_path_to_identifier,
 };
-use crate::{ca, RepoInfo};
+use crate::{ca, Node, RepoInfo};
 
 struct MsgSingletonConnection {
     conn: Arc<Connection>,
@@ -116,7 +116,7 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
                 data: vec![],
                 func: "".to_string(),
                 action: Action::Ping,
-                to: "".to_string(),
+                to: "relay".to_string(),
                 req_id: Uuid::new_v4().into(),
             };
             let json = serde_json::to_string(&ping).unwrap();
@@ -318,8 +318,7 @@ pub async fn repo_share(context: Context, path: String) -> Result<String> {
         sender.write_all(json.as_bytes()).await.unwrap();
         sender.finish().unwrap();
     });
-
-    let _ = rx.await?;
+    let _message = wait_rx_with_timeout(rx).await?;
     info!("Repo share success: {}", identifier);
     Ok(identifier)
 }
@@ -745,10 +744,69 @@ async fn send_nostr_msg(client_message: ClientMessage) -> Result<RelayMessage> {
     Ok(data)
 }
 
-pub async fn receive_nostr(data: Vec<u8>) -> Result<()> {
+async fn receive_nostr(data: Vec<u8>) -> Result<()> {
     info!("Nostr data:{}", String::from_utf8(data.clone())?);
     let _relay_message: RelayMessage = serde_json::from_slice(data.as_slice()).unwrap();
     Ok(())
+}
+
+pub async fn get_peers() -> Result<Vec<Node>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let req_id: String = Uuid::new_v4().into();
+    let local_peer_id = get_peerid().await;
+    REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
+    let connection = MsgSingletonConnection::get_connection();
+    tokio::spawn(async move {
+        let (mut sender, _) = connection.open_bi().await.unwrap();
+        let send = RequestData {
+            from: local_peer_id.clone(),
+            data: vec![],
+            func: "".to_string(),
+            action: Action::Peers,
+            to: "".to_string(),
+            req_id: req_id.clone(),
+        };
+        let json = serde_json::to_string(&send).unwrap();
+        sender.write_all(json.as_bytes()).await.unwrap();
+        sender.finish().unwrap();
+    });
+    let res = wait_rx_with_timeout(rx).await?;
+    let peers: Vec<Node> = serde_json::from_slice(res.as_slice())?;
+    Ok(peers)
+}
+
+pub async fn get_repos() -> Result<Vec<RepoInfo>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let req_id: String = Uuid::new_v4().into();
+    let local_peer_id = get_peerid().await;
+    REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
+    let connection = MsgSingletonConnection::get_connection();
+    tokio::spawn(async move {
+        let (mut sender, _) = connection.open_bi().await.unwrap();
+        let send = RequestData {
+            from: local_peer_id.clone(),
+            data: vec![],
+            func: "".to_string(),
+            action: Action::Repos,
+            to: "".to_string(),
+            req_id: req_id.clone(),
+        };
+        let json = serde_json::to_string(&send).unwrap();
+        sender.write_all(json.as_bytes()).await.unwrap();
+        sender.finish().unwrap();
+    });
+    let res = wait_rx_with_timeout(rx).await?;
+    let repo_list: Vec<RepoInfo> = serde_json::from_slice(res.as_slice())?;
+    Ok(repo_list)
+}
+
+async fn wait_rx_with_timeout(rx: tokio::sync::oneshot::Receiver<Vec<u8>>) -> Result<Vec<u8>> {
+    match time::timeout(Duration::from_secs(5), rx).await {
+        Ok(r) => Ok(r.clone()?),
+        Err(_) => {
+            bail!("Timed out waiting for quic result");
+        }
+    }
 }
 
 async fn get_encode_git_objects_by_repo(context: Context, repo: Repo) -> Receiver<Vec<u8>> {

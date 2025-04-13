@@ -1,9 +1,6 @@
-use std::fmt;
-
 use callisto::{
     git_repo, lfs_objects, lfs_split_relations, relay_lfs_info, relay_node, relay_repo_info,
 };
-use chrono::Utc;
 use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
 use util::get_utc_timestamp;
@@ -25,125 +22,28 @@ pub struct RelayGetParams {
     pub file_hash: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RelayResultRes {
-    pub success: bool,
-}
-
-#[derive(Debug)]
-pub enum MegaType {
-    Agent,
-    Relay,
-}
-
-impl fmt::Display for MegaType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            MegaType::Agent => write!(f, "Agent"),
-            MegaType::Relay => write!(f, "Relay"),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Node {
     pub peer_id: String,
-    pub hub: String,
-    pub agent_name: String,
-    pub service_name: String,
     pub mega_type: String,
     pub online: bool,
     pub last_online_time: i64,
-    pub service_port: i32,
+}
+
+impl From<relay_node::Model> for Node {
+    fn from(r: relay_node::Model) -> Self {
+        Node {
+            peer_id: r.peer_id,
+            mega_type: r.r#type,
+            online: r.online,
+            last_online_time: r.last_online_time,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum ConversionError {
     InvalidParas,
-}
-
-impl TryFrom<RelayGetParams> for Node {
-    type Error = ConversionError;
-
-    fn try_from(paras: RelayGetParams) -> Result<Self, Self::Error> {
-        if paras.peer_id.is_none()
-            || paras.hub.is_none()
-            || paras.agent_name.is_none()
-            || paras.service_name.is_none()
-            || paras.service_port.is_none()
-        {
-            return Err(ConversionError::InvalidParas);
-        }
-        let now = Utc::now().timestamp_millis();
-        Ok(Node {
-            peer_id: paras.peer_id.unwrap(),
-            hub: paras.hub.unwrap(),
-            agent_name: paras.agent_name.unwrap(),
-            service_name: paras.service_name.unwrap(),
-            mega_type: MegaType::Agent.to_string(),
-            online: true,
-            last_online_time: now,
-            service_port: paras.service_port.unwrap(),
-        })
-    }
-}
-
-impl TryFrom<RelayGetParams> for relay_node::Model {
-    type Error = ConversionError;
-
-    fn try_from(paras: RelayGetParams) -> Result<Self, Self::Error> {
-        if paras.peer_id.is_none()
-            || paras.hub.is_none()
-            || paras.agent_name.is_none()
-            || paras.service_name.is_none()
-            || paras.service_port.is_none()
-        {
-            return Err(ConversionError::InvalidParas);
-        }
-        let now = Utc::now().timestamp_millis();
-        Ok(relay_node::Model {
-            peer_id: paras.peer_id.unwrap(),
-            hub: paras.hub.unwrap(),
-            agent_name: paras.agent_name.unwrap(),
-            service_name: paras.service_name.unwrap(),
-            r#type: MegaType::Agent.to_string(),
-            online: true,
-            last_online_time: now,
-            service_port: paras.service_port.unwrap(),
-        })
-    }
-}
-
-impl TryFrom<Node> for relay_node::Model {
-    type Error = ConversionError;
-
-    fn try_from(n: Node) -> Result<Self, Self::Error> {
-        Ok(relay_node::Model {
-            peer_id: n.peer_id,
-            hub: n.hub,
-            agent_name: n.agent_name,
-            service_name: n.service_name,
-            r#type: n.mega_type,
-            online: n.online,
-            last_online_time: n.last_online_time,
-            service_port: n.service_port,
-        })
-    }
-}
-
-impl From<relay_node::Model> for Node {
-    fn from(n: relay_node::Model) -> Self {
-        Node {
-            peer_id: n.peer_id,
-            hub: n.hub,
-            agent_name: n.agent_name,
-            service_name: n.service_name,
-            mega_type: n.r#type,
-            online: n.online,
-            last_online_time: n.last_online_time,
-            service_port: n.service_port,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

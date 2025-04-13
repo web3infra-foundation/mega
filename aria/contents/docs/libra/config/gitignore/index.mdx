@@ -1,4 +1,39 @@
 ---
 title: The .gitignore File
-description:
+description: Specify files and directories that Libra should ignore
 ---
+
+### Introduction
+
+The `.gitignore` file, or more precisely in this project, the `.libraignore` file, is used to specify files and directories that Libra should ignore. These files and directories will not be tracked by Libra. If a file is already tracked by Libra, the `.libraignore` file will not affect it.
+
+The patterns in the `.libraignore` file determine whether a path should be ignored. These patterns can be simple filenames, wildcards, or more complex patterns.
+
+### .libraignore File Usage
+
+#### Compatibility with Gitignore Patterns
+
+The `.libraignore` file supports the same pattern syntax as `.gitignore`. This includes:
+
+- **Simple Filenames**: Directly specify a filename. For example, `file.txt` matches a file named `file.txt` in the current directory.
+- **Wildcards**: Use `*` to match any sequence of characters. For example, `*.tmp` matches all files ending with `.tmp`.
+- **Directory Matching**: Use `/` to match directories. For example, `dir/` matches a directory named `dir`.
+- **Recursive Matching**: Use `**` to match any path. For example, `**/*.tmp` matches all files ending with `.tmp` in any directory.
+- **Exclusion Patterns**: Use `!` at the beginning of a pattern to exclude files that were previously matched. For example, `!file.txt` excludes `file.txt` from being ignored.
+- **Comments**: Lines starting with `#` are treated as comments and are not parsed.
+
+#### Matching Rules
+
+Libra checks for `.libraignore` files from the directory of the target file upwards to the root of the working directory. If a match is found in any `.libraignore` file, the file will be ignored.
+
+- **Matching Order**: Libra starts checking from the directory of the target file and moves upwards. Once a match is found, Libra stops checking and ignores the file.
+- **Subdirectory Precedence**: If multiple `.libraignore` files contain matching patterns, the patterns in the `.libraignore` file closest to the target file take precedence.
+
+
+#### Support for .libraignore in Subdirectories
+
+Libra supports placing `.libraignore` files in any subdirectory within the working directory. Libra will check for `.libraignore` files from the directory of the target file upwards to the root of the working directory. If a match is found in any `.libraignore` file along the path, the file will be ignored.
+
+- **Subdirectory `.libraignore` Files**: The patterns in a `.libraignore` file within a subdirectory are relative to that subdirectory. For example, if there is a pattern `*.tmp` in `work_dir/subdir/.libraignore`, it will match `file.tmp` within `subdir`, but not `file.tmp` in the root of the working directory.
+
+
