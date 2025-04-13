@@ -44,16 +44,13 @@ fn encode_header(object_number: usize) -> Vec<u8> {
 fn encode_offset(mut value: usize) -> Vec<u8> {
     assert_ne!(value, 0, "offset can't be zero");
     let mut bytes = Vec::new();
-    let mut first_byte = true;
-    while value != 0 || first_byte {
-        let mut byte = (value & 0x7F) as u8; // 获取当前值的最低7位
-        value >>= 7; // 右移7位准备处理下一个字节
-        if first_byte {
-            first_byte = false;
-        } else {
-            byte -= 1; // sub 1
-            byte |= 0x80; // set first bit one
-        }
+
+    bytes.push((value & 0x7F) as u8);
+    value >>= 7;
+    while value != 0 {
+        value -= 1;
+        let byte = (value & 0x7F) as u8 | 0x80; // set first bit one
+        value >>= 7;
         bytes.push(byte);
     }
     bytes.reverse();
@@ -89,7 +86,7 @@ fn encode_one_object(entry: &Entry, offset: Option<usize>) -> Result<Vec<u8>, Gi
     encoded_data.extend(header_data);
 
     // **offset** encoding
-    if entry.obj_type == ObjectType::OffsetDelta {
+    if entry.obj_type == ObjectType::OffsetDelta || entry.obj_type == ObjectType::OffsetZstdelta {
         let offset_data = encode_offset(offset.unwrap());
         encoded_data.extend(offset_data);
     } else if entry.obj_type == ObjectType::HashDelta {
@@ -145,7 +142,22 @@ impl PackEncoder {
     /// Returns `Ok(())` if encoding is successful, or a `GitError` in case of failure.
     /// - Returns a `GitError` if there is a failure during the encoding process.
     /// - Returns `PackEncodeError` if an encoding operation is already in progress.
-    pub async fn encode(&mut self, mut entry_rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
+    pub async fn encode(&mut self, entry_rx: mpsc::Receiver<Entry>) -> Result<(), GitError> {
+        return self.inner_encode(entry_rx, false).await;
+    }
+
+    pub async fn encode_with_zstdelta(
+        &mut self,
+        entry_rx: mpsc::Receiver<Entry>,
+    ) -> Result<(), GitError> {
+        return self.inner_encode(entry_rx, true).await;
+    }
+
+    async fn inner_encode(
+        &mut self,
+        mut entry_rx: mpsc::Receiver<Entry>,
+        enable_zstdelta: bool,
+    ) -> Result<(), GitError> {
         let head = encode_header(self.object_number);
         self.send_data(head.clone()).await;
         self.inner_hash.update(&head);
@@ -163,7 +175,10 @@ impl PackEncoder {
                     // push window after encode to void diff by self
                     let offset = self.inner_offset;
                     let mut try_delta_entry = entry.clone();
-                    let try_delfa_offset = self.try_as_offset_delta(&mut try_delta_entry);
+                    let try_delfa_offset = match enable_zstdelta {
+                        true => self.try_as_offset_zstdelta(&mut try_delta_entry),
+                        false => self.try_as_offset_delta(&mut try_delta_entry),
+                    };
                     let obj_data = encode_one_object(&try_delta_entry, try_delfa_offset)?;
 
                     self.write_all_and_update(&obj_data).await;
@@ -268,7 +283,7 @@ impl PackEncoder {
     /// # Returns
     /// - Return (offset) if success make delta
     /// - Return (None) if didn't delta,
-    fn try_as_offset_delta(&mut self, entry: &mut Entry) -> Option<usize> {
+    fn try_as_offset_delta(&self, entry: &mut Entry) -> Option<usize> {
         let mut best_base: Option<&(Entry, usize)> = None;
         let mut best_rate: f64 = 0.0;
         for try_base in self.window.iter() {
@@ -281,17 +296,47 @@ impl PackEncoder {
                 best_base = Some(try_base);
             }
         }
-        if best_rate > 0.0 {
-            let best_base = best_base.unwrap(); // must some if best rate > 0
+        best_base.map(|best_base| {
             let delta = delta::encode(&best_base.0.data, &entry.data);
             let offset = self.inner_offset - best_base.1;
             entry.obj_type = ObjectType::OffsetDelta;
             entry.data = delta;
+            offset
+        })
+    }
 
-            Some(offset)
-        } else {
-            None
+    /// Try to encode as sapling-zstdelta using objects in window
+    /// Refs: https://sapling-scm.com/docs/dev/internals/zstdelta/
+    /// # Returns
+    /// - Return (offset) if success make delta
+    /// - Return (None) if didn't delta,
+    fn try_as_offset_zstdelta(&self, entry: &mut Entry) -> Option<usize> {
+        let mut best_delta_obj = None; // obj, offset
+        let mut best_rate: f64 = 0.0;
+        for try_base in self.window.iter() {
+            if try_base.0.obj_type != entry.obj_type {
+                continue;
+            }
+            let try_delta_obj = zstdelta::diff(&try_base.0.data, &entry.data);
+            if try_delta_obj.is_err() {
+                return None; // IO error, can't handle
+            }
+            let try_delta_obj = try_delta_obj.unwrap();
+            // The DeltaDiff algorithm uses the proportion of the delta part as the delta rate,
+            // while zstdelta does not have this data and directly uses the overall compression rate.
+            let rate = 1.0 - try_delta_obj.len() as f64 / entry.data.len() as f64;
+            if rate > MIN_DELTA_RATE && rate > best_rate {
+                best_rate = rate;
+                best_delta_obj = Some((try_delta_obj, try_base.1));
+            }
         }
+        best_delta_obj.map(|(best_delta_data, best_base_offset)| {
+            let offset = self.inner_offset - best_base_offset;
+            entry.obj_type = ObjectType::OffsetZstdelta;
+            entry.data = best_delta_data;
+            tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
+            offset
+        })
     }
 
     /// Write data to writer and update hash & offset
@@ -315,6 +360,16 @@ impl PackEncoder {
             }
         }))
     }
+
+    pub async fn encode_async_with_zstdelta(
+        mut self,
+        rx: mpsc::Receiver<Entry>,
+    ) -> Result<JoinHandle<()>, GitError> {
+        Ok(tokio::spawn(async move {
+            // Do not use parallel encode with zstdelta because it make no sense.
+            self.encode_with_zstdelta(rx).await.unwrap()
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -327,6 +382,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use crate::internal::object::blob::Blob;
+    use crate::internal::pack::utils::read_offset_encoding;
     use crate::internal::pack::{tests::init_logger, Pack};
     use crate::time_it;
 
@@ -387,12 +443,7 @@ mod tests {
         source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
 
         // decode pack file to get entries
-        let mut p = Pack::new(
-            None,
-            Some(1024 * 1024 * 1024 * 6),
-            Some(PathBuf::from("/tmp/.cache_temp")),
-            true,
-        );
+        let mut p = Pack::new(None, None, Some(PathBuf::from("/tmp/.cache_temp")), true);
 
         let f = std::fs::File::open(source).unwrap();
         tracing::info!("pack file size: {}", f.metadata().unwrap().len());
@@ -481,13 +532,47 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_pack_encoder_with_zstdelta() {
+        init_logger();
+        let entries = get_entries_for_test().await;
+        let entries_number = entries.lock().await.len();
+        let (tx, mut rx) = mpsc::channel(100_000);
+        let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
+
+        let encoder = PackEncoder::new(entries_number, 10, tx);
+        encoder.encode_async_with_zstdelta(entry_rx).await.unwrap();
+
+        // spawn a task to send entries
+        tokio::spawn(async move {
+            let entries = entries.lock().await;
+            for entry in entries.iter() {
+                entry_tx.send(entry.clone()).await.unwrap();
+            }
+            drop(entry_tx);
+            tracing::info!("all entries sent");
+        });
+
+        // only receive data
+        let mut result = Vec::new();
+        while let Some(chunk) = rx.recv().await {
+            result.extend(chunk);
+        }
+        tracing::info!("new pack file size: {}", result.len());
+        // check format
+        check_format(&result);
+    }
+
     #[test]
     fn test_encode_offset() {
-        let value = 11013;
+        // let value = 11013;
+        let value = 16389;
+
         let data = encode_offset(value);
         println!("{:?}", data);
-        assert_eq!(data.len(), 2);
-        assert_eq!(data[0], 0b_1101_0101);
-        assert_eq!(data[1], 0b_0000_0101);
+        let mut reader = Cursor::new(data);
+        let (result, _) = read_offset_encoding(&mut reader).unwrap();
+        println!("result: {}", result);
+        assert_eq!(result, value as u64);
     }
 }
