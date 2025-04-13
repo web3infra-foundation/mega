@@ -1,5 +1,6 @@
-use mercury::hash::SHA1;
-use mercury::internal::object::types::ObjectType;
+use libra::utils::lfs::is_lfs_tracked;
+
+use mercury::internal::object::blob::Blob;
 use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -64,8 +65,9 @@ pub fn add_and_del(
             rm_batch.insert(key.as_bytes(), b"");
             continue;
         }
-        let content = std::fs::read(entry_path)?;
-        let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
+        let blob = gen_blob_from_file(entry_path);
+        let hash = blob.id;
+        let content = blob.data;
         match stored_db.get(&path) {
             Some(old_hash) => {
                 if !old_hash.eq(&hash._to_string()) {
@@ -100,4 +102,15 @@ pub fn add_and_del(
     rm_db.flush()?;
 
     Ok(())
+}
+
+use crate::scolfs::ext::BlobExt;
+/// Generate a `Blob` from a file
+/// - if the file is tracked by LFS, generate a `Blob` with pointer file
+fn gen_blob_from_file(path: impl AsRef<Path>) -> Blob {
+     if is_lfs_tracked(&path) {
+        Blob::from_lfs_file(&path)
+    } else {
+        Blob::from_file(&path)
+    }
 }
