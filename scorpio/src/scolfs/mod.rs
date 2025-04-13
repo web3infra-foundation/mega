@@ -2,25 +2,34 @@
 pub mod lfs;
 mod utils;
 pub mod route;
-mod ext;
+pub mod ext;
 
 use std::collections::HashSet;
 
 use ceres::lfs::lfs_structs::{BatchRequest, Operation, Ref, RequestObject, VerifiableLockRequest};
-use libra::internal::protocol::{https_client::BasicAuth, lfs_client::{LFSClient, LfsBatchResponse}};
+use libra::internal::protocol::{https_client::BasicAuth, lfs_client::{LFSClient, LfsBatchResponse}, ProtocolClient};
 use mercury::internal::{object::types::ObjectType, pack::entry::Entry};
 use libra::utils::lfs as lfsutils;
 use reqwest::StatusCode;
-
+use crate::util::scorpio_config;
 
 #[allow(unused)]
 trait ScorpioLFS {
     async fn scorpio_push<'a, I>(&self, objs: I) -> Result<(), ()>
     where
         I: IntoIterator<Item = &'a Entry>;
+
+    fn scorpio_new(mono_path:&str) -> Self;
 }
 
 impl ScorpioLFS for LFSClient{
+    
+    fn scorpio_new(mono_path:&str) -> Self {
+        let url = format!("{}/{}", scorpio_config::lfs_url(), mono_path);
+        let url = url::Url::parse(&url).unwrap();
+        LFSClient::from_url(&url)
+    }
+
     async fn scorpio_push<'a, I>(&self, objs: I) -> Result<(), ()>
     where
         I: IntoIterator<Item = &'a Entry> {
