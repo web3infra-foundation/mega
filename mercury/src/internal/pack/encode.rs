@@ -296,14 +296,13 @@ impl PackEncoder {
                 best_base = Some(try_base);
             }
         }
-        return best_base.map(|best_base| {
+        best_base.map(|best_base| {
             let delta = delta::encode(&best_base.0.data, &entry.data);
             let offset = self.inner_offset - best_base.1;
             entry.obj_type = ObjectType::OffsetDelta;
             entry.data = delta;
-            tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
             offset
-        });
+        })
     }
 
     /// Try to encode as sapling-zstdelta using objects in window
@@ -331,13 +330,13 @@ impl PackEncoder {
                 best_delta_obj = Some((try_delta_obj, try_base.1));
             }
         }
-        return best_delta_obj.map(|(best_delta_data, best_base_offset)| {
+        best_delta_obj.map(|(best_delta_data, best_base_offset)| {
             let offset = self.inner_offset - best_base_offset;
             entry.obj_type = ObjectType::OffsetZstdelta;
             entry.data = best_delta_data;
             tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
             offset
-        });
+        })
     }
 
     /// Write data to writer and update hash & offset
@@ -446,7 +445,7 @@ mod tests {
         // decode pack file to get entries
         let mut p = Pack::new(
             None,
-            Some(1024 * 1024 * 1024 * 6),
+            None,
             Some(PathBuf::from("/tmp/.cache_temp")),
             true,
         );
@@ -540,13 +539,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_pack_encoder_with_zstdelta() {
-        let entries = get_entries_for_test().await;
         init_logger();
+        let entries = get_entries_for_test().await;
         let entries_number = entries.lock().await.len();
         let (tx, mut rx) = mpsc::channel(100_000);
         let (entry_tx, entry_rx) = mpsc::channel::<Entry>(100_000);
 
-        let encoder = PackEncoder::new(entries_number, 100, tx);
+        let encoder = PackEncoder::new(entries_number, 10, tx);
         encoder.encode_async_with_zstdelta(entry_rx).await.unwrap();
 
         // spawn a task to send entries
