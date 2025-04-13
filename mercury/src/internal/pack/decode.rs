@@ -51,7 +51,7 @@ impl Pack {
     ///   It can't be zero, or panic <br>
     /// - `mem_limit`: The maximum size of the memory cache in bytes, or None for unlimited.
     ///   The 80% of it will be used for [Caches]  <br>
-    ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
+    ///   **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
     /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
     ///   For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
     /// - `clean_tmp`: whether to remove temp directory when Pack is dropped
@@ -95,7 +95,7 @@ impl Pack {
     ///
     /// # Parameters
     /// * `pack`: A mutable reference to an object implementing the `Read` trait,
-    ///           representing the source of the pack file data (e.g., file, memory stream).
+    ///   representing the source of the pack file data (e.g., file, memory stream).
     ///
     /// # Returns
     /// A `Result` which is:

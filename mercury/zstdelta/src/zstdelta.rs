@@ -131,8 +131,7 @@ pub fn apply(base: &[u8], delta: &[u8]) -> io::Result<Vec<u8>> {
             return Err(io::Error::new(io::ErrorKind::Other, msg));
         }
 
-        let mut buf: Vec<u8> = Vec::with_capacity(size);
-        buf.set_len(size);
+        let mut buf = vec![0u8; size];
 
         let outsize = ZSTD_decompress_usingDict(
             dctx,
