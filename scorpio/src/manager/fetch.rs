@@ -13,7 +13,7 @@ use async_recursion::async_recursion;
 use crate::manager::store::store_trees;
 use crate::scolfs;
 use crate::util::GPath;
-use crate::util::scorpio_config;
+use crate::util::config;
 
 use super::{ScorpioManager, WorkDir};
 
@@ -39,7 +39,7 @@ impl CheckHash for ScorpioManager{
                 let tree = fetch_tree(&p).await.unwrap();
                 work.hash = tree.id.to_string();
                 // the lower path is store file path for remote code version .
-                let store_path = scorpio_config::store_path();
+                let store_path = config::store_path();
                 let _lower = PathBuf::from(store_path).join(&work.hash).join("lower");
                 handlers.push(tokio::spawn(async move { fetch_code(&p, _lower).await }));
             }
@@ -50,7 +50,7 @@ impl CheckHash for ScorpioManager{
                 let _ = handle.await;
             }
             //Get config file path from scorpio_config.rs
-            let config_file = scorpio_config::config_file();
+            let config_file = config::config_file();
             let _ = self.to_toml(config_file);
 
         }
@@ -69,11 +69,11 @@ impl CheckHash for ScorpioManager{
         };
         //work.hash = tree.id.to_string();
         // the lower path is store file path for remote code version . 
-        let store_path = scorpio_config::store_path();
+        let store_path = config::store_path();
         let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
         fetch_code(&p, _lower).await;
         self.works.push(workdir.clone());
-        let config_file = scorpio_config::config_file();
+        let config_file = config::config_file();
         let _ = self.to_toml(config_file);
 
         workdir
@@ -92,16 +92,14 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
     };
     //work.hash = tree.id.to_string();
     // the lower path is store file path for remote code version . 
-    let store_path = scorpio_config::store_path();
+    let store_path = config::store_path();
     let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
     fetch_code(&p, _lower).await;
     manager.works.push(workdir.clone());
-    let config_file = scorpio_config::config_file();
+    let config_file = config::config_file();
     let _ = manager.to_toml(config_file);
     workdir
 }
-
-const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
 
 #[allow(unused)]
 #[allow(clippy::blocks_in_conditions)]
@@ -136,7 +134,7 @@ async fn worker_thread(
             }
         };
         // deal with  path .
-        let url = format!("{}{}", BASE_URL, path);
+        let url = format!("{}{}", config::tree_file_endpoint(), path);
         match client.get(&url).send().await {
             Ok(response) => {
                 if response.status().is_success() {
@@ -316,7 +314,7 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-    let file_blob_endpoint = scorpio_config::file_blob_endpoint();
+    let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{}/{}",file_blob_endpoint,url);
     // Send GET request
     let response = client.get(url).send().await?;
@@ -341,7 +339,7 @@ async fn fetch_and_save_file(url: &SHA1, save_path: impl AsRef<Path>) -> Result<
 
 #[allow(unused)]
 pub async fn fetch_tree(path: &GPath) -> Result<Tree, Box<dyn std::error::Error>> {
-    let url = format!("{}{}", BASE_URL, path);
+    let url = format!("{}{}", config::tree_file_endpoint(), path);
     let response = reqwest::get(&url).await?;
     
     if response.status().is_success() {
