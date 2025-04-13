@@ -24,10 +24,11 @@ use crate::errors::GitError;
 /// the object's content.
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ObjectType {
-    Commit,
+    Commit = 1,
     Tree,
     Blob,
     Tag,
+    OffsetZstdelta, // Private extension for Zstandard-compressed delta objects
     OffsetDelta,
     HashDelta,
 }
@@ -45,6 +46,7 @@ impl Display for ObjectType {
             ObjectType::Tree => write!(f, "tree"),
             ObjectType::Commit => write!(f, "commit"),
             ObjectType::Tag => write!(f, "tag"),
+            ObjectType::OffsetZstdelta => write!(f, "OffsetZstdelta"),
             ObjectType::OffsetDelta => write!(f, "OffsetDelta"),
             ObjectType::HashDelta => write!(f, "HashDelta"),
         }
@@ -92,6 +94,7 @@ impl ObjectType {
             ObjectType::Tree => 2,
             ObjectType::Blob => 3,
             ObjectType::Tag => 4,
+            ObjectType::OffsetZstdelta => 5, // Type 5 is reserved in standard Git packs; we use it for Zstd delta objects.a
             ObjectType::OffsetDelta => 6,
             ObjectType::HashDelta => 7,
         }
@@ -104,6 +107,7 @@ impl ObjectType {
             2 => Ok(ObjectType::Tree),
             3 => Ok(ObjectType::Blob),
             4 => Ok(ObjectType::Tag),
+            5 => Ok(ObjectType::OffsetZstdelta),
             6 => Ok(ObjectType::OffsetDelta),
             7 => Ok(ObjectType::HashDelta),
             _ => Err(GitError::InvalidObjectType(format!(
@@ -120,6 +124,7 @@ impl ObjectType {
             ObjectType::Blob => true,
             ObjectType::Tag => true,
             ObjectType::HashDelta => false,
+            ObjectType::OffsetZstdelta => false,
             ObjectType::OffsetDelta => false,
         }
     }
