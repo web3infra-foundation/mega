@@ -11,6 +11,8 @@ use crate::utils::client_storage::ClientStorage;
 use crate::utils::path;
 use crate::utils::path_ext::PathExt;
 
+use ignore::{gitignore::Gitignore, Match};
+
 pub const ROOT_DIR: &str = ".libra";
 pub const DATABASE: &str = "libra.db";
 pub const ATTRIBUTES: &str = ".libra_attributes";
@@ -343,6 +345,35 @@ pub fn default_progress_bar(len: u64) -> ProgressBar {
     progress_bar
 }
 
+/// Check each directory level from `work_dir` to `target_file` to see if there is a `.gitignore` file that matches `target_file`.
+///
+/// Assume `target_file` is `in work_dir`.
+pub fn check_gitignore(work_dir: &PathBuf, target_file: &PathBuf) -> bool {
+    assert!(target_file.starts_with(work_dir));
+    let mut dir = target_file.clone();
+    dir.pop();
+
+    while dir.starts_with(work_dir) {
+        let mut cur_file = dir.clone();
+        cur_file.push(".libraignore");
+        if cur_file.exists() {
+            let (ignore, err) = Gitignore::new(&cur_file);
+            if let Some(e) = err {
+                println!(
+                    "warning: There are some invalid globs in libraignore file {:#?}:\n{}\n",
+                    cur_file, e
+                );
+            }
+            if let Match::Ignore(_) = ignore.matched(target_file, false) {
+                return true;
+            }
+        }
+        dir.pop();
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -383,5 +414,55 @@ mod test {
         assert_eq!(to_workdir_path("."), PathBuf::from("."));
         assert_eq!(to_workdir_path("./"), PathBuf::from("."));
         assert_eq!(to_workdir_path(""), PathBuf::from("."));
+    }
+
+    #[test]
+    #[serial]
+    fn test_check_gitignore_ignore() {
+        let mut gitignore_file = fs::File::create(".libraignore").unwrap();
+        gitignore_file.write_all(b"*.bar").unwrap();
+        let workdir = env::current_dir().unwrap();
+        let target = workdir.join("tmp/foo.bar");
+        assert!(check_gitignore(&workdir, &target));
+        fs::remove_file(workdir.join(".libraignore")).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_check_gitignore_ignore_subdirectory() {
+        fs::create_dir_all("tmp").unwrap();
+        fs::create_dir_all("tmp/tmp1").unwrap();
+        fs::create_dir_all("tmp/tmp1/tmp2").unwrap();
+        let mut gitignore_file1 = fs::File::create("tmp/.libraignore").unwrap();
+        gitignore_file1.write_all(b"*.bar").unwrap();
+        let workdir = env::current_dir().unwrap();
+        let target = workdir.join("tmp/tmp1/tmp2/foo.bar");
+        assert!(check_gitignore(&workdir, &target));
+        fs::remove_dir_all(workdir.join("tmp")).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_check_gitignore_not_ignore() {
+        let mut gitignore_file = fs::File::create(".libraignore").unwrap();
+        gitignore_file.write_all(b"*.bar").unwrap();
+        let workdir = env::current_dir().unwrap();
+        let target = workdir.join("tmp/bar.foo");
+        assert!(!check_gitignore(&workdir, &target));
+        fs::remove_file(workdir.join(".libraignore")).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_check_gitignore_not_ignore_subdirectory() {
+        fs::create_dir_all("tmp").unwrap();
+        fs::create_dir_all("tmp/tmp1").unwrap();
+        fs::create_dir_all("tmp/tmp1/tmp2").unwrap();
+        let mut gitignore_file1 = fs::File::create("tmp/.libraignore").unwrap();
+        gitignore_file1.write_all(b"tmp/tmp1/tmp2/*.bar").unwrap();
+        let workdir = env::current_dir().unwrap();
+        let target = workdir.join("tmp/tmp1/tmp2/foo.bar");
+        assert!(!check_gitignore(&workdir, &target));
+        fs::remove_dir_all(workdir.join("tmp")).unwrap();
     }
 }

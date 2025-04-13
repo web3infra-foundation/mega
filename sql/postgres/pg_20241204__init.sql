@@ -224,13 +224,9 @@ CREATE TABLE IF NOT EXISTS "lfs_split_relations" (
 
 CREATE TABLE IF NOT EXISTS "relay_node" (
   "peer_id" VARCHAR(64) PRIMARY KEY,
-  "hub" VARCHAR(64),
-  "agent_name" VARCHAR(64),
-  "service_name" VARCHAR(64),
   "type" VARCHAR(64),
   "online" BOOLEAN NOT NULL,
-  "last_online_time" BIGINT NOT NULL,
-  "service_port" INT NOT NULL
+  "last_online_time" BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "relay_repo_info" (
@@ -318,10 +314,11 @@ CREATE INDEX "idx_token" ON "access_token" ((left(token, 8)));
 
 CREATE TABLE IF NOT EXISTS "builds" (
   "build_id" uuid NOT NULL PRIMARY KEY,
-  "output" varchar NOT NULL,
+  "output_file" varchar NOT NULL,
   "exit_code" integer,
   "start_at" timestamp with time zone NOT NULL,
   "end_at" timestamp with time zone NOT NULL,
   "repo_name" varchar NOT NULL,
-  "target" varchar NOT NULL
+  "target" varchar NOT NULL,
+  "arguments" varchar NOT NULL
 );

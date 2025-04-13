@@ -5,12 +5,13 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub build_id: Uuid,
-    pub output: String,
+    pub output_file: String,
     pub exit_code: Option<i32>, // On Unix, return `None` if the process was terminated by a signal.
     pub start_at: DateTimeUtc,
     pub end_at: DateTimeUtc,
     pub repo_name: String,
     pub target: String, // build target, e.g. "//:main"
+    pub arguments: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

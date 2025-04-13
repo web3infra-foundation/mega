@@ -30,7 +30,7 @@ cargo build --bin monobean
 ### For macOS Users
 Install GTK 4 by executing the following in your terminal, then build:
 ```bash
-brew install gtk4
+brew install gtk4 gtksourceview5 libadwaita
 cargo build --bin monobean
 ```
 

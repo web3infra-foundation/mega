@@ -259,7 +259,10 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
     let _ = handle.await;
 
     //get lfs file
-    let _ = scolfs::lfs::lfs_restore(save_path.as_ref().to_str().unwrap()).await.unwrap();
+    scolfs::lfs::lfs_restore(
+        &path.to_string(),
+        save_path.as_ref().to_str().unwrap()
+    ).await.unwrap();
 
     print!("finish code for {}...", path);
 }
