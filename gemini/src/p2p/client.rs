@@ -118,10 +118,6 @@ impl BootstrapNode {
 }
 
 pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
-
     let connection = get_client_connection(bootstrap_node.clone()).await?;
 
     let connection = Arc::new(connection);
