@@ -1,5 +1,4 @@
 use super::Action;
-use crate::ca;
 use crate::nostr::client_message::{ClientMessage, SubscriptionId};
 use crate::nostr::event::{EventId, NostrEvent};
 use crate::nostr::relay_message::RelayMessage;
@@ -8,9 +7,11 @@ use crate::nostr::Req;
 use crate::p2p::ALPN_QUIC_HTTP;
 use crate::p2p::{GitCloneHeader, RequestData};
 use crate::p2p::{LFSHeader, ResponseData};
+use crate::util::{get_peer_id_from_identifier, get_utc_timestamp};
+use crate::{ca, Node, RepoInfo};
 use anyhow::anyhow;
 use anyhow::Result;
-use callisto::{relay_nostr_event, relay_nostr_req};
+use callisto::{relay_node, relay_nostr_event, relay_nostr_req, relay_repo_info};
 use dashmap::DashMap;
 use jupiter::context::Context;
 use jupiter::storage::relay_storage::RelayStorage;
@@ -54,11 +55,20 @@ pub async fn run(content: Context, host: String, port: u16) -> Result<()> {
         }
     });
 
+    let storage_clone = content.services.relay_storage.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            check_node_status(Arc::from(storage_clone.clone())).await;
+        }
+    });
+
     while let Some(conn) = endpoint.accept().await {
+        let storage_clone = content.services.relay_storage.clone();
         {
             info!("accepting connection");
-            let storage = content.services.relay_storage.clone();
-            let fut = handle_connection(conn, Arc::new(storage));
+
+            let fut = handle_connection(conn, Arc::new(storage_clone));
             tokio::spawn(async move {
                 if let Err(e) = fut.await {
                     error!("connection failed: {reason}", reason = e.to_string());
@@ -152,6 +162,20 @@ fn _remove_close_connection() {
     REQ_ID_MAP.retain(|_, v| v.close_reason().is_some());
 }
 
+async fn check_node_status(relay_storage: Arc<RelayStorage>) {
+    let nodes = relay_storage.get_all_node().await.unwrap();
+    for n in nodes {
+        let now = get_utc_timestamp();
+        if now - n.last_online_time > 60_000 {
+            let mut node = n.clone();
+            node.online = false;
+            if let Err(e) = relay_storage.update_node(node).await {
+                error!("Failed to update node: {:?}", e);
+            }
+        }
+    }
+}
+
 async fn msg_handle_receive(
     connection: Arc<Connection>,
     relay_storage: Arc<RelayStorage>,
@@ -190,18 +214,20 @@ async fn msg_handle_receive(
         );
         match data.action {
             Action::Ping => {
-                let sender_data = ResponseData {
-                    from: "relay".to_string(),
-                    data: "ok".as_bytes().to_vec(),
-                    func: data.func.clone(),
-                    err: "".to_string(),
-                    to: data.from.to_string(),
-                    req_id: data.req_id,
+                let storage = relay_storage.clone();
+
+                let node = relay_node::Model {
+                    peer_id: data.from.clone(),
+                    r#type: "mega_server".to_string(),
+                    online: true,
+                    last_online_time: get_utc_timestamp(),
                 };
-                let json = serde_json::to_string(&sender_data)?;
-                let (mut quic_send, _) = connection_clone.clone().open_bi().await?;
-                quic_send.write_all(json.as_bytes()).await?;
-                quic_send.finish()?;
+                match storage.insert_or_update_node(node).await {
+                    Ok(_) => send_back(data, "ok".as_bytes().to_vec(), connection_clone).await?,
+                    Err(_) => {
+                        send_back_err(data, "Ping with error".to_string(), connection_clone).await?
+                    }
+                }
             }
             Action::Send => {
                 let connection = match MSG_CONNECTION_MAP.get(data.to.as_str()) {
@@ -276,7 +302,19 @@ async fn msg_handle_receive(
             }
 
             Action::RepoShare => {
-                send_back(data, "ok".as_bytes().to_vec(), connection.clone()).await?
+                let repo_info: RepoInfo = serde_json::from_slice(data.data.as_slice())?;
+                let repo_info_model: relay_repo_info::Model = repo_info.clone().into();
+                let storage = relay_storage.clone();
+                match storage.insert_or_update_repo_info(repo_info_model).await {
+                    Ok(_) => {
+                        send_back(data, repo_info.identifier.into_bytes(), connection.clone())
+                            .await?
+                    }
+                    Err(_) => {
+                        send_back_err(data, "Repo share failed".to_string(), connection.clone())
+                            .await?
+                    }
+                }
             }
 
             Action::Nostr => {
@@ -304,6 +342,45 @@ async fn msg_handle_receive(
                     connection.clone(),
                 )
                 .await?;
+            }
+            Action::Peers => {
+                match relay_storage.get_all_node().await {
+                    Ok(peers) => {
+                        let peers: Vec<Node> = peers.iter().map(|p| p.clone().into()).collect();
+                        let res = serde_json::to_string(&peers)?;
+                        send_back(data, res.into_bytes(), connection.clone()).await?
+                    }
+                    Err(_) => {
+                        send_back_err(data, "Get peers failed".to_string(), connection.clone())
+                            .await?
+                    }
+                };
+            }
+
+            Action::Repos => {
+                match relay_storage.get_all_repo_info().await {
+                    Ok(repo_list) => {
+                        let mut repo_list: Vec<RepoInfo> =
+                            repo_list.iter().map(|p| p.clone().into()).collect();
+                        for r in repo_list.iter_mut() {
+                            if let Ok(peer_id) = get_peer_id_from_identifier(r.identifier.clone()) {
+                                let node = relay_storage
+                                    .get_node_by_id(peer_id.as_str())
+                                    .await
+                                    .unwrap();
+                                if let Some(node) = node {
+                                    r.peer_online = node.online;
+                                }
+                            }
+                        }
+                        let res = serde_json::to_string(&repo_list.clone())?;
+                        send_back(data, res.into_bytes(), connection.clone()).await?
+                    }
+                    Err(_) => {
+                        send_back_err(data, "Get repos failed".to_string(), connection.clone())
+                            .await?
+                    }
+                };
             }
         }
 
@@ -399,6 +476,27 @@ async fn send_back(
         data,
         func: request_data.func.clone(),
         err: "".to_string(),
+        to: request_data.from.to_string(),
+        req_id: request_data.req_id.clone(),
+    };
+
+    let json = serde_json::to_string(&response)?;
+    let (mut send, _) = connection.open_bi().await?;
+    send.write_all(json.as_bytes()).await?;
+    send.finish()?;
+    Ok(())
+}
+
+async fn send_back_err(
+    request_data: RequestData,
+    err: String,
+    connection: Arc<Connection>,
+) -> Result<()> {
+    let response = ResponseData {
+        from: request_data.to.to_string(),
+        data: vec![],
+        func: request_data.func.clone(),
+        err,
         to: request_data.from.to_string(),
         req_id: request_data.req_id.clone(),
     };

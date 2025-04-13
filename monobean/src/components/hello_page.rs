@@ -4,6 +4,7 @@ use crate::CONTEXT;
 use adw::glib::{clone, GString, Regex, RegexCompileFlags, RegexMatchFlags};
 use adw::prelude::*;
 use async_channel::Sender;
+use gtk::glib::random_int_range;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
@@ -21,17 +22,13 @@ mod imp {
     #[template(resource = "/org/Web3Infrastructure/Monobean/gtk/hello_page.ui")]
     pub struct HelloPage {
         #[template_child]
-        pub header_bar: TemplateChild<adw::HeaderBar>,
-        #[template_child]
-        pub back_button: TemplateChild<gtk::Button>,
-        #[template_child]
-        pub primary_menu_button: TemplateChild<gtk::MenuButton>,
-        #[template_child]
         pub name_entry: TemplateChild<adw::EntryRow>,
         #[template_child]
         pub email_entry: TemplateChild<adw::EntryRow>,
         #[template_child]
         pub continue_button: TemplateChild<gtk::Button>,
+        #[template_child]
+        pub logo: TemplateChild<gtk::Image>,
         #[template_child]
         pub pgp_row: TemplateChild<adw::PreferencesRow>,
         #[template_child]
@@ -85,7 +82,25 @@ impl HelloPage {
             .sender
             .set(sender)
             .expect("Hello Page sender can only be set once");
+        self.setup_logo();
         self.setup_action();
+    }
+
+    fn setup_logo(&self) {
+        let logo = self.imp().logo.clone();
+        let id = random_int_range(1, 6);
+        logo.set_icon_name(Some(format!("walrus-{}", id).as_str()));
+
+        let gesture = gtk::GestureClick::new();
+        gesture.connect_pressed(clone!(
+            #[weak]
+            logo,
+            move |_, _, _, _| {
+                let id = random_int_range(1, 6);
+                logo.set_icon_name(Some(format!("walrus-{}", id).as_str()));
+            }
+        ));
+        logo.add_controller(gesture);
     }
 
     fn setup_action(&self) {
@@ -96,23 +111,9 @@ impl HelloPage {
         let pgp_row = self.imp().pgp_row.clone();
         let pgp_button = self.imp().pgp_button.clone();
 
-        let should_continue = move |name: GString, email: GString, btn_sensitive| -> bool {
-            let re = Regex::new(
-                r"^\w+(-+.\w+)*@\w+(-.\w+)*.\w+(-.\w+)*$",
-                RegexCompileFlags::DEFAULT,
-                RegexMatchFlags::DEFAULT,
-            )
-            .unwrap()
-            .unwrap();
-
-            if name.trim().is_empty() || email.trim().is_empty() || btn_sensitive {
-                return false;
-            }
-            re.match_full(email.as_gstr(), 0, RegexMatchFlags::DEFAULT)
-                .is_ok()
-        };
-
         email_entry.connect_changed(clone!(
+            #[weak(rename_to=page)]
+            self,
             #[weak]
             continue_button,
             #[weak]
@@ -125,15 +126,17 @@ impl HelloPage {
                 let email = email_entry.text();
                 let name = name_entry.text();
 
-                continue_button.set_sensitive(should_continue(
-                    name,
-                    email,
+                continue_button.set_sensitive(page.should_continue(
+                    &name,
+                    &email,
                     pgp_button.is_sensitive(),
                 ));
             }
         ));
 
         name_entry.connect_changed(clone!(
+            #[weak(rename_to=page)]
+            self,
             #[weak]
             continue_button,
             #[weak]
@@ -146,15 +149,17 @@ impl HelloPage {
                 let email = email_entry.text();
                 let name = name_entry.text();
 
-                continue_button.set_sensitive(should_continue(
-                    name,
-                    email,
+                continue_button.set_sensitive(page.should_continue(
+                    &name,
+                    &email,
                     pgp_button.is_sensitive(),
                 ));
             }
         ));
 
         pgp_button.connect_clicked(clone!(
+            #[weak(rename_to=page)]
+            self,
             #[weak]
             pgp_row,
             #[weak]
@@ -202,9 +207,9 @@ impl HelloPage {
                         let email = email_entry.text();
                         let name = name_entry.text();
                         pgp_row.set_title("PGP key already generated");
-                        continue_button.set_sensitive(should_continue(
-                            name,
-                            email,
+                        continue_button.set_sensitive(page.should_continue(
+                            &name,
+                            &email,
                             pgp_button.is_sensitive(),
                         ));
 
@@ -234,6 +239,28 @@ impl HelloPage {
         ));
     }
 
+    fn should_continue(&self, name: &GString, email: &GString, btn_sensitive: bool) -> bool {
+        let re = Regex::new(
+            r"^\w+(-+.\w+)*@\w+(-.\w+)*.\w+(-.\w+)*$",
+            RegexCompileFlags::DEFAULT,
+            RegexMatchFlags::DEFAULT,
+        )
+        .unwrap()
+        .unwrap();
+
+        // Glib Regex asserts the input string doesn't have a suffix '\0' or it will panic.
+        let email = email.trim();
+        let email = GString::from(email);
+
+        let result = !name.trim().is_empty()
+            && !email.is_empty()
+            && !btn_sensitive
+            && re
+                .match_full(email.as_gstr(), 0, RegexMatchFlags::DEFAULT)
+                .is_ok();
+        result
+    }
+
     pub fn fill_entries(&self, name: Option<String>, email: Option<String>, pgp_generated: bool) {
         if let Some(name) = name {
             self.imp().name_entry.set_text(&name);
@@ -245,6 +272,13 @@ impl HelloPage {
             self.imp().pgp_button.set_sensitive(false);
             self.imp().pgp_row.set_title("PGP key already generated");
         }
+        self.imp()
+            .continue_button
+            .set_sensitive(self.should_continue(
+                &self.imp().name_entry.text(),
+                &self.imp().email_entry.text(),
+                self.imp().pgp_button.is_sensitive(),
+            ));
     }
 }
 

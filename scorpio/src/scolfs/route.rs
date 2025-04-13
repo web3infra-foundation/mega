@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use ceres::lfs::lfs_structs::{LockListQuery, Lock};
 use crate::util::{scorpio_config, GPath};
 
-use super::{lfs, utils};
+use super::{lfs, utils::{self, current_refspec}};
 
 #[derive(Debug, Deserialize)]
 struct TrackRequest {
@@ -58,6 +58,7 @@ async fn track(Json(payload): Json<TrackRequest>) -> Result<Json<TrackResponse>,
     let converted_patterns = convert_patterns_to_workdir(payload.patterns);
     let pat_size = converted_patterns.len();
     lfs::add_lfs_patterns(attr_path.to_str().unwrap(), converted_patterns)
+        .await
         .map_err(|e| ErrorResponse { error: e.to_string() })?;
 
     Ok(Json(TrackResponse {
@@ -69,7 +70,7 @@ async fn untrack(Json(payload): Json<UntrackRequest>) -> Result<Json<TrackRespon
     let attr_path = utils::lfs_attribate();
     let converted_paths = convert_patterns_to_workdir(payload.paths);
 
-    let re = lfs::untrack_lfs_patterns(attr_path.to_str().unwrap(), converted_paths);
+    let re = lfs::untrack_lfs_patterns(attr_path.to_str().unwrap(), converted_paths).await;
     match re {
         Ok(_) => Ok(Json(TrackResponse {
             tracked_patterns: 0,
@@ -97,7 +98,6 @@ async fn list_locks(
     Query(query): Query<ListLocksQuery>
 ) -> Result<Json<LockResponse>, ErrorResponse> {
     let refspec = current_refspec()
-        .await
         .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
 
     let locks = LFSClient::get()
@@ -124,7 +124,6 @@ async fn create_lock(
     }
 
     let refspec = current_refspec()
-        .await
         .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
 
     let status = LFSClient::get()
@@ -150,7 +149,6 @@ async fn remove_lock(
     Query(query): Query<UnlockQuery>
 ) -> Result<StatusCode, ErrorResponse> {
     let refspec = current_refspec()
-        .await
         .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
 
     let id = match query.id {
@@ -187,10 +185,6 @@ async fn remove_lock(
 }
 
 
-// ==== Helper Functions ====
-async fn current_refspec() -> Option<String> {
-    Some("refs/heads/main".to_string())
-}
 
 
 /// [different from `libra`].

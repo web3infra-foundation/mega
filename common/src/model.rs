@@ -7,7 +7,7 @@ pub struct CommonOptions {
     pub host: String,
 }
 
-#[derive(Args, Clone, Debug)]
+#[derive(Args, Clone, Debug, Default)]
 pub struct P2pOptions {
     #[arg(long)]
     pub bootstrap_node: Option<String>,

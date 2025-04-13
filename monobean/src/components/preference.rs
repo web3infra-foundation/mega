@@ -85,12 +85,6 @@ mod imp {
         // LFS Settings
         #[template_child]
         pub lfs_url_entry: TemplateChild<Entry>,
-        #[template_child]
-        pub lfs_obj_local_path_entry: TemplateChild<Entry>,
-        #[template_child]
-        pub enable_split_switch: TemplateChild<Switch>,
-        #[template_child]
-        pub split_size_entry: TemplateChild<Entry>,
 
         // OAuth Settings
         #[template_child]
@@ -102,9 +96,9 @@ mod imp {
         #[template_child]
         pub cookie_domain_entry: TemplateChild<Entry>,
 
-        // Relay Settings
+        // P2P Settings
         #[template_child]
-        pub relay_url: TemplateChild<Entry>,
+        pub bootstrap_node: TemplateChild<Entry>,
     }
 
     #[glib::object_subclass]
@@ -139,7 +133,7 @@ mod imp {
 
 glib::wrapper! {
     pub struct MonobeanPreferences(ObjectSubclass<imp::MonobeanPreferences>)
-        @extends gtk::Widget, gtk::Window, adw::Dialog, adw::PreferencesDialog,
+        @extends gtk::Widget, gtk::Window, adw::Window, adw::PreferencesWindow,
         @implements Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager;
 }
 
@@ -342,22 +336,6 @@ impl MonobeanPreferences {
             .bind("lfs-url", &imp.lfs_url_entry.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
-        settings
-            .bind(
-                "lfs-obj-local-path",
-                &imp.lfs_obj_local_path_entry.get(),
-                "text",
-            )
-            .flags(adw::gio::SettingsBindFlags::DEFAULT)
-            .build();
-        settings
-            .bind("enable-split", &imp.enable_split_switch.get(), "active")
-            .flags(adw::gio::SettingsBindFlags::DEFAULT)
-            .build();
-        settings
-            .bind("split-size", &imp.split_size_entry.get(), "text")
-            .flags(adw::gio::SettingsBindFlags::DEFAULT)
-            .build();
 
         // OAuth Settings
         settings
@@ -385,9 +363,9 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // Relay Settings
+        // P2P Settings
         settings
-            .bind("relay-url", &imp.relay_url.get(), "text")
+            .bind("bootstrap-node", &imp.bootstrap_node.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
     }

@@ -2,9 +2,10 @@ use crate::config::{MEGA_HTTPS_CERT, MEGA_HTTPS_KEY};
 use crate::error::MonoBeanResult;
 use axum_server::tls_rustls::RustlsConfig;
 use bytes::BytesMut;
+use common::model::P2pOptions;
+use gateway::https_server::{app, check_run_with_p2p};
 use jupiter::context::Context as MegaContext;
 use mono::git_protocol::ssh::SshServer;
-use mono::server::https_server::app;
 use russh::server::Server;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
@@ -21,26 +22,35 @@ pub(crate) struct SshOptions {
 pub(crate) struct HttpOptions {
     addr: SocketAddr,
     handle: axum_server::Handle,
+    p2p: P2pOptions,
 }
 
 impl HttpOptions {
-    pub fn new(addr: SocketAddr) -> Self {
+    pub fn new(addr: SocketAddr, p2p: P2pOptions) -> Self {
         let handle = axum_server::Handle::default();
-        Self { addr, handle }
+        Self { addr, handle, p2p }
     }
 
     pub async fn run_server(&self, mega_ctx: MegaContext) -> MonoBeanResult<()> {
-        let app = app(mega_ctx, self.addr.ip().to_string(), self.addr.port()).await;
+        let app = app(
+            mega_ctx.clone(),
+            self.addr.ip().to_string(),
+            self.addr.port(),
+            self.p2p.clone(),
+        )
+        .await;
         let cert = crate::core::load_mega_resource(MEGA_HTTPS_CERT);
         let key = crate::core::load_mega_resource(MEGA_HTTPS_KEY);
 
         // I don't know why I must manually install it, or it will panic on the next line...
         rustls::crypto::ring::default_provider()
             .install_default()
-            .unwrap();
-        let tls_config = RustlsConfig::from_pem(cert, key).await;
+            .expect("Failed to install rustls crypto provider");
+
+        check_run_with_p2p(mega_ctx, self.p2p.clone());
 
         tracing::info!("Starting HTTPS server on: {}", self.addr);
+        let tls_config = RustlsConfig::from_pem(cert, key).await;
         if let Ok(tls_config) = tls_config {
             axum_server::bind_rustls(self.addr, tls_config)
                 .handle(self.handle.clone())
@@ -65,7 +75,10 @@ impl HttpOptions {
 
 impl Default for HttpOptions {
     fn default() -> Self {
-        Self::new(SocketAddr::new(IpAddr::V4([0, 0, 0, 0].into()), 8080))
+        Self::new(
+            SocketAddr::new(IpAddr::V4([0, 0, 0, 0].into()), 8080),
+            P2pOptions::default(),
+        )
     }
 }
 
