@@ -11,7 +11,7 @@ use libra::internal::protocol::lfs_client::LFSClient;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use ceres::lfs::lfs_structs::{LockListQuery, Lock};
-use crate::util::{scorpio_config, GPath};
+use crate::util::{config, GPath};
 
 use super::{lfs, utils::{self, current_refspec}};
 
@@ -190,7 +190,7 @@ async fn remove_lock(
 /// [different from `libra`].
 /// Convert patterns to workdir.
 fn convert_patterns_to_workdir(patterns: Vec<String>) -> Vec<String> {
-    let mount_path = scorpio_config::workspace();
+    let mount_path = config::workspace();
     let work_path = GPath::from(String::from(mount_path));
     patterns.into_iter().map(|p| {
         let mut w =work_path.clone();

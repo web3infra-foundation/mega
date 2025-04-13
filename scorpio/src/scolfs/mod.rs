@@ -11,7 +11,7 @@ use libra::internal::protocol::{https_client::BasicAuth, lfs_client::{LFSClient,
 use mercury::internal::{object::types::ObjectType, pack::entry::Entry};
 use libra::utils::lfs as lfsutils;
 use reqwest::StatusCode;
-use crate::util::scorpio_config;
+use crate::util::config;
 
 #[allow(unused)]
 trait ScorpioLFS {
@@ -25,7 +25,7 @@ trait ScorpioLFS {
 impl ScorpioLFS for LFSClient{
     
     fn scorpio_new(mono_path:&str) -> Self {
-        let url = format!("{}/{}", scorpio_config::lfs_url(), mono_path);
+        let url = format!("{}/{}", config::lfs_url(), mono_path);
         let url = url::Url::parse(&url).unwrap();
         LFSClient::from_url(&url)
     }
