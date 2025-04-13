@@ -51,9 +51,6 @@ pub enum CoreConfigChanged {
     GithubClientSecret(String),
     UiDomain(String),
     CookieDomain(String),
-
-    // P2P Options
-    P2POption(String),
 }
 
 /// For running mega core, we have to set up tokio runtime.
