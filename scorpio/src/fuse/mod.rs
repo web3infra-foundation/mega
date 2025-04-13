@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 
 use std::{collections::HashMap, io::Error, path::{Path, PathBuf}, sync::Arc};
 use crate::{dicfuse::Dicfuse, manager::ScorpioManager};
-use crate::util::scorpio_config;
+use crate::util::config as sconfig;
 
 mod inode_alloc;
 mod async_io;
@@ -66,7 +66,7 @@ impl MegaFuse{
     pub async fn new_from_manager(manager: &ScorpioManager) -> MegaFuse {
 
         let megafuse = MegaFuse::new().await;
-        let store_path = scorpio_config::store_path();
+        let store_path = sconfig::store_path();
 
         // mount user works.
         for dir in &manager.works {

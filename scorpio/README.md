@@ -44,13 +44,22 @@ VFS For Git is a preliminary attempt by Microsoft on the Monorepo client, which 
 #### [Sapling](https://sapling-scm.com/) from Meta 
 The structure of Sapling is achieved through a multi-layered architecture, with each checkout corresponding to a mount point, followed by an Overlay layer. At the same time, it provides third-party interfaces for other programs to use, so that some heavy IO and computational parts do not need to be consumed by the performance of the virtual layer.
 
+
 ### How to Use?
 
 1. run the mono server in `localhost:8000`.
 2. config the `mount_path` and `store_path` in the `config.toml`
 3. `cargo run ` in the `scorpio` dictionary.
+```bash
+Command line arguments for the application
 
+Usage: scorpio [OPTIONS]
 
+Options:
+  -c, --config-path <CONFIG_PATH>  Path to the configuration file [default: scorpio.toml]
+```
+
+### How to Interact?
 The following interfaces are currently available:
 ```bash
 curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/scorpio"}'
@@ -58,6 +67,39 @@ curl -X GET http://localhost:2725/api/fs/mpoint
 curl -X POST http://localhost:2725/api/fs/umount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/scorpio"}'
 curl -X POST http://localhost:2725/api/fs/mount      -H "Content-Type: application/json"      -d '{"path": "third-part/mega/ts"}'
 ```
+
+### How to Configure?
+There is a example of `scorpio.toml` in the `scorpio` dictionary.
+```toml
+base_url = "http://localhost:8000"
+lfs_url = "http://localhost:8000"
+store_path = "/home/luxian/megadir/store"
+workspace = "/home/luxian/megadir/mount"
+config_file = "config.toml"
+git_author = "MEGA"
+git_email = "admin@mega.org"
+```
+### `scorpio.toml` Configuration Guide:  
+
+- **`base_url`**  
+  Base URL for service APIs (e.g., `http://localhost:8000` for local development).  
+
+- **`lfs_url`**  
+  Dedicated URL for Large File Storage (LFS), typically matching `base_url`.  
+
+- **`store_path`**  
+  Physical path for storing files (ensure write permissions).  
+
+- **`workspace`**  
+  User-visible workspace mount path (i.e., the FUSE filesystem mount point)
+
+- **`config_file`**  
+  Extended configuration filename (default: `config.toml`).  
+
+- **`git_author`** / **`git_email`**  
+  Default Git author metadata (for version tracking).  
+
+
 ### How to Contribute?
 
 

@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
 use crate::manager::{ScorpioManager, WorkDir};
-use crate::util::{scorpio_config, GPath};
+use crate::util::{config, GPath};
 mod git;
 const SUCCESS: &str   = "Success";
 const FAIL : &str   = "Fail";
@@ -139,7 +139,7 @@ async fn mount_handler(
             message: format!("The {} is already check-out ",mounted_path),
         })
     }
-    let store_path = scorpio_config::store_path();
+    let store_path = config::store_path();
     // if it is a temp mount , mount it & return the hash and path.
     if temp_mount{
         let temp_hash = {
@@ -245,9 +245,9 @@ async fn umount_handler(
 }
 
 async fn config_handler() -> axum::Json<ConfigResponse> {
-    let base_url = scorpio_config::base_url();
-    let workspace = scorpio_config::workspace();
-    let store_path = scorpio_config::store_path();
+    let base_url = config::base_url();
+    let workspace = config::workspace();
+    let store_path = config::store_path();
     let config_info = ConfigInfo {
         mega_url:base_url.to_string(),
         mount_path: workspace.to_string(),

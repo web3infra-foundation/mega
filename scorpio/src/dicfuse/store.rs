@@ -20,8 +20,7 @@ use std::sync::atomic::AtomicU64;
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::tree_store::{StorageItem, TreeStorage};
-use crate::util::GPath;
-const MEGA_TREE_URL: &str = "localhost:8000";//TODO: make it configable
+use crate::util::{config, GPath};
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE :&str ="file";
 const INODE_DICTIONARY :&str ="directory";
@@ -125,7 +124,7 @@ impl Iterator for ApiResponse{
 async fn fetch_tree(path: &str) -> Result<ApiResponse, Box<dyn Error>> {
     static CLIENT: Lazy<Client> = Lazy::new(Client::new);
     let client = CLIENT.clone();
-    let url = format!("http://{}/api/v1/tree?path=/{}", MEGA_TREE_URL, path);
+    let url = format!("{}/api/v1/tree?path=/{}", config::base_url(), path);
     let  resp:ApiResponse = client.get(&url).send().await?.json().await?;
     if resp.req_result {   
         Ok(resp)
@@ -140,7 +139,7 @@ pub struct DictionaryStore {
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
     next_inode: AtomicU64,
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
-    persistent_path_store :Arc<Mutex<TreeStorage>>,// persistent path store for saving and retrieving file paths
+    persistent_path_store :Arc<TreeStorage>,// persistent path store for saving and retrieving file paths
 }
 
 #[allow(unused)]
@@ -157,7 +156,7 @@ impl DictionaryStore {
             next_inode: AtomicU64::new(2),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
-            persistent_path_store:  Arc::new(Mutex::new(tree_store))
+            persistent_path_store:  Arc::new(tree_store)
         };
         let root_item = DicItem{
             inode: 1,
@@ -171,13 +170,13 @@ impl DictionaryStore {
         init
     }
     async fn update_inode(&self,parent: u64,item:Item) ->std::io::Result<u64> {
-        self.next_inode.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.next_inode.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         
         let alloc_inode = self.next_inode.load(std::sync::atomic::Ordering::SeqCst);
         
         assert!(alloc_inode < READONLY_INODE );
         
-        let prw = self.persistent_path_store.lock().await;
+        let prw = self.persistent_path_store.clone();
         if let Ok(pinode) = prw.get_item(parent){
             // insert info to a radix_trie for path match.
             self.radix_trie.lock().await.insert(GPath::from(item.path.clone()).to_string(), alloc_inode);
@@ -212,7 +211,7 @@ impl DictionaryStore {
         
         let items =  fetch_tree("").await.unwrap().data;
         
-        let root_inode = self.inodes.lock().await.get(&1).unwrap().clone();
+        //let root_inode = self.inodes.lock().await.get(&1).unwrap().clone();
         // deque for bus.
         let mut queue= VecDeque::<u64>::new(); 
         for it in items{
@@ -230,7 +229,7 @@ impl DictionaryStore {
             let one_inode = queue.pop_front().unwrap();
             let mut new_items = Vec::new();
             
-            let it = self.persistent_path_store.lock().await.get_all_path(one_inode).unwrap();
+            let it = self.persistent_path_store.get_all_path(one_inode).unwrap();
             let path = it.to_string();
             println!("fetch path :{}",path);
             // get tree by parent inode.
@@ -238,7 +237,7 @@ impl DictionaryStore {
             
             // Insert all new inode.
             for newit in new_items {
-                println!("import item :{:?}",newit);
+                //println!("import item :{:?}",newit);
                 let is_dir = newit.is_dir();
                 let new_inode = self.update_inode(one_inode,newit).await.unwrap(); // Await the update_inode call
                 // push to queue to BFS.
@@ -253,11 +252,11 @@ impl DictionaryStore {
     
     pub async fn find_path(&self,inode :u64)-> Option<GPath>{
 
-        self.persistent_path_store.lock().await.get_all_path(inode).ok()
+        self.persistent_path_store.get_all_path(inode).ok()
 
     }
     pub async fn get_inode(&self,inode: u64) -> Result<StorageItem, io::Error> {
-        self.persistent_path_store.lock().await.get_item(inode)
+        self.persistent_path_store.get_item(inode)
     }
     
     pub async fn get_by_path(&self, path: &str) -> Result<StorageItem, io::Error> {
@@ -290,7 +289,7 @@ impl DictionaryStore {
          if item.is_dir(){
              // 3. Get the children of the directory
              
-             let children = self.persistent_path_store.lock().await.get_children(parent)?;
+             let children = self.persistent_path_store.get_children(parent)?;
              let mut total_bytes_written = 0;
              let mut current_offset = 0;
 
