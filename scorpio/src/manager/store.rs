@@ -240,7 +240,7 @@ impl<T: kv::KvStore<PathBuf, Tree>> TreesStore<T> {
         TreesStore { db }
     }
     fn insert_tree(&self, path: PathBuf, tree: Tree) -> Result<()> {
-        self.db._set(path, tree).unwrap();
+        self.db._set(path, tree)?;
         Ok(())
     }
 
@@ -359,6 +359,14 @@ impl From<fjall::Error> for KvError {
     }
 }
 
+impl From<KvError> for std::io::Error {
+    fn from(e: KvError) -> Self {
+        match e {
+            KvError::IoError(e) => e,
+            _ => std::io::Error::new(std::io::ErrorKind::Other, e),
+        }
+    }
+}
 
 
 impl<K, V> KvStore<K, V> for sled::Db

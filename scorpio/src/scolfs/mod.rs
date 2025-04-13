@@ -2,7 +2,7 @@
 pub mod lfs;
 mod utils;
 pub mod route;
-mod ext;
+pub mod ext;
 
 use std::collections::HashSet;
 

@@ -58,6 +58,7 @@ async fn track(Json(payload): Json<TrackRequest>) -> Result<Json<TrackResponse>,
     let converted_patterns = convert_patterns_to_workdir(payload.patterns);
     let pat_size = converted_patterns.len();
     lfs::add_lfs_patterns(attr_path.to_str().unwrap(), converted_patterns)
+        .await
         .map_err(|e| ErrorResponse { error: e.to_string() })?;
 
     Ok(Json(TrackResponse {
@@ -69,7 +70,7 @@ async fn untrack(Json(payload): Json<UntrackRequest>) -> Result<Json<TrackRespon
     let attr_path = utils::lfs_attribate();
     let converted_paths = convert_patterns_to_workdir(payload.paths);
 
-    let re = lfs::untrack_lfs_patterns(attr_path.to_str().unwrap(), converted_paths);
+    let re = lfs::untrack_lfs_patterns(attr_path.to_str().unwrap(), converted_paths).await;
     match re {
         Ok(_) => Ok(Json(TrackResponse {
             tracked_patterns: 0,
