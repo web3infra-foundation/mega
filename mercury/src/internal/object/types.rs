@@ -94,7 +94,7 @@ impl ObjectType {
             ObjectType::Tree => 2,
             ObjectType::Blob => 3,
             ObjectType::Tag => 4,
-            ObjectType::OffsetZstdelta => 5, // Type 5 is reserved in standard Git packs; we use it for Zstd delta objects.a
+            ObjectType::OffsetZstdelta => 5, // Type 5 is reserved in standard Git packs; we use it for Zstd delta objects.
             ObjectType::OffsetDelta => 6,
             ObjectType::HashDelta => 7,
         }
