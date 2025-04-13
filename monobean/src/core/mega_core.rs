@@ -35,9 +35,9 @@ pub struct MegaCore {
 /// Mega Backend Related Actions
 #[derive(Debug)]
 pub enum MegaCommands {
-    MegaStart(Option<SocketAddr>, Option<SocketAddr>),
+    MegaStart(Option<SocketAddr>, Option<SocketAddr>, P2pOptions),
     MegaShutdown,
-    MegaRestart(Option<SocketAddr>, Option<SocketAddr>),
+    MegaRestart(Option<SocketAddr>, Option<SocketAddr>, P2pOptions),
     CoreStatus(
         oneshot::Sender<(
             /* core_running: */ bool,
@@ -112,18 +112,18 @@ impl MegaCore {
         // FIXME: for command with callback channel, detect if `send` success.
         tracing::debug!("Processing command: {:?}", cmd);
         match cmd {
-            MegaCommands::MegaStart(http_addr, ssh_addr) => {
+            MegaCommands::MegaStart(http_addr, ssh_addr, p2p_opt) => {
                 tracing::info!("Starting Mega Core");
-                self.launch(http_addr, ssh_addr).await.unwrap();
+                self.launch(http_addr, ssh_addr, p2p_opt).await.unwrap();
             }
             MegaCommands::MegaShutdown => {
                 tracing::info!("Shutting down Mega Core");
                 self.shutdown().await;
             }
-            MegaCommands::MegaRestart(http_addr, ssh_addr) => {
+            MegaCommands::MegaRestart(http_addr, ssh_addr, p2p_opt) => {
                 tracing::info!("Restarting Mega Core");
                 self.shutdown().await;
-                self.launch(http_addr, ssh_addr).await.unwrap();
+                self.launch(http_addr, ssh_addr, p2p_opt).await.unwrap();
             }
             MegaCommands::CoreStatus(sender) => {
                 let core_running = self.is_core_running().await;
@@ -200,6 +200,7 @@ impl MegaCore {
         &self,
         http_addr: Option<SocketAddr>,
         ssh_addr: Option<SocketAddr>,
+        p2p_opt: P2pOptions,
     ) -> MonoBeanResult<()> {
         if self.is_core_running().await {
             let err = "Mega core is already running";
@@ -216,7 +217,9 @@ impl MegaCore {
             .await;
 
         let http_ctx = inner.clone();
-        *self.http_options.write().await = http_addr.map(HttpOptions::new).or(None);
+        *self.http_options.write().await = http_addr
+            .map(|addr| HttpOptions::new(addr, p2p_opt))
+            .or(None);
         let http_opt = self.http_options.clone();
         tokio::spawn(async move {
             let opt = &*http_opt.read().await;
@@ -339,14 +342,6 @@ impl MegaCore {
                     }
                     if let Some(oauth) = &mut base.oauth {
                         oauth.cookie_domain = domain;
-                    }
-                }
-                CoreConfigChanged::P2POption(option) => {
-                    let http_opt = self.http_options.read().await;
-                    if let Some(http_opt) = &*http_opt {
-                        http_opt.set_p2p(P2pOptions { bootstrap_node: Some(option)});
-                    } else {
-                        tracing::error!("P2P options not initialized, cannot update");
                     }
                 }
             }

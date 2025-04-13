@@ -4,7 +4,7 @@ use crate::CONTEXT;
 use adw::glib::{clone, GString, Regex, RegexCompileFlags, RegexMatchFlags};
 use adw::prelude::*;
 use async_channel::Sender;
-use gtk::glib::{random_int_range, GStr};
+use gtk::glib::random_int_range;
 use gtk::prelude::{ButtonExt, EditableExt, WidgetExt};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
@@ -272,11 +272,13 @@ impl HelloPage {
             self.imp().pgp_button.set_sensitive(false);
             self.imp().pgp_row.set_title("PGP key already generated");
         }
-        self.imp().continue_button.set_sensitive(self.should_continue(
-            &self.imp().name_entry.text(),
-            &self.imp().email_entry.text(),
-            self.imp().pgp_button.is_sensitive(),
-        ));
+        self.imp()
+            .continue_button
+            .set_sensitive(self.should_continue(
+                &self.imp().name_entry.text(),
+                &self.imp().email_entry.text(),
+                self.imp().pgp_button.is_sensitive(),
+            ));
     }
 }
 

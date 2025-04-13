@@ -240,10 +240,5 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
         update.push(CoreConfigChanged::CookieDomain(cookie_domain));
     }
 
-    let bootstrap_node: String = get_setting!(setting, "bootstrap-node", String);
-    if !bootstrap_node.is_empty() {
-        update.push(CoreConfigChanged::P2POption(bootstrap_node));
-    }
-
     update
 }
