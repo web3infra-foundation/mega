@@ -10,6 +10,7 @@ use fuse3::{Errno, Inode, Result};
 use futures::stream::{iter, Iter};
 use std::vec::IntoIter;
 
+
 use super::Dicfuse;
 
 impl Filesystem for Dicfuse {
@@ -41,8 +42,8 @@ impl Filesystem for Dicfuse {
    /// initialize filesystem. Called before any other filesystem method.
     async fn init(&self, _req: Request) -> Result<ReplyInit>{
               
-       let s = self.store.clone();
-       s.import().await;
+        let s = self.store.clone();
+        super::store::import_arc(s).await;// This task can be spawned
         Ok(ReplyInit {
            max_write: NonZeroU32::new(128 * 1024).unwrap(),
        })
