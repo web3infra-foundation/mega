@@ -51,7 +51,7 @@ jobs:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
 
     name: Setup and cache ${{ matrix.os }}
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'self-hosted' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && ['self-hosted', 'ubuntu-latest'] || matrix.os }}
 
     env:
       CARGO_TERM_COLOR: always
@@ -94,7 +94,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
 
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'self-hosted' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && ['self-hosted', 'ubuntu-latest'] || matrix.os }}
     needs: setup
     env:
       CARGO_TERM_COLOR: always
@@ -124,7 +124,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
 
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'self-hosted' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && ['self-hosted', 'ubuntu-latest'] || matrix.os }}
     needs: setup
     env:
       CARGO_TERM_COLOR: always
@@ -162,7 +162,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
 
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'self-hosted' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && ['self-hosted', 'ubuntu-latest'] || matrix.os }}
     needs: setup
     env:
       CARGO_TERM_COLOR: always
