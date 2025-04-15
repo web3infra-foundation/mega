@@ -28,3 +28,4 @@ reqwest = { workspace = true }
 ring = { workspace = true }
 tokio = { workspace = true }
 hex = { workspace = true }
+utoipa = { workspace = true }
