@@ -213,6 +213,10 @@ impl TreeItem {
 
         bytes
     }
+
+    pub fn is_tree(&self) -> bool {
+        self.mode == TreeItemMode::Tree
+    }
 }
 
 /// A tree object is a Git object that represents a directory. It contains a list of entries, one

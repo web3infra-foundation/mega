@@ -96,9 +96,9 @@ mod imp {
         #[template_child]
         pub cookie_domain_entry: TemplateChild<Entry>,
 
-        // Relay Settings
+        // P2P Settings
         #[template_child]
-        pub relay_url: TemplateChild<Entry>,
+        pub bootstrap_node: TemplateChild<Entry>,
     }
 
     #[glib::object_subclass]
@@ -363,9 +363,9 @@ impl MonobeanPreferences {
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
 
-        // Relay Settings
+        // P2P Settings
         settings
-            .bind("relay-url", &imp.relay_url.get(), "text")
+            .bind("bootstrap-node", &imp.bootstrap_node.get(), "text")
             .flags(adw::gio::SettingsBindFlags::DEFAULT)
             .build();
     }

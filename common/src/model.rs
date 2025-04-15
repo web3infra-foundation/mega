@@ -1,5 +1,6 @@
 use clap::Args;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[derive(Args, Clone, Debug)]
 pub struct CommonOptions {
@@ -7,7 +8,7 @@ pub struct CommonOptions {
     pub host: String,
 }
 
-#[derive(Args, Clone, Debug)]
+#[derive(Args, Clone, Debug, Default)]
 pub struct P2pOptions {
     #[arg(long)]
     pub bootstrap_node: Option<String>,
@@ -19,7 +20,7 @@ pub struct InfoRefsParams {
     pub refspec: Option<String>,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CommonResult<T> {
     pub req_result: bool,
     pub data: Option<T>,

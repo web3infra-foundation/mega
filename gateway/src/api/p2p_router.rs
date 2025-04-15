@@ -8,7 +8,6 @@ use axum::{
     Json, Router,
 };
 use common::model::CommonResult;
-use gemini::util::{get_path_from_identifier, get_peer_id_from_identifier};
 
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
@@ -30,40 +29,9 @@ async fn repo_fork(
             ));
         }
     };
-    let remote_peer_id = match get_peer_id_from_identifier(identifier.clone()) {
-        Ok(p) => p,
-        Err(_e) => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                String::from("Identifier invalid\n"),
-            ))
-        }
-    };
-    let path = match get_path_from_identifier(identifier.clone()) {
-        Ok(p) => p,
-        Err(_e) => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                String::from("Identifier invalid\n"),
-            ))
-        }
-    };
-    let bootstrap_node = match state.p2p.bootstrap_node.clone() {
-        Some(b) => b,
-        None => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                String::from("bootstrap node not provide\n"),
-            ))
-        }
-    };
-    let res = gemini::p2p::client::request_git_clone(
-        state.inner.context.clone(),
-        bootstrap_node,
-        path,
-        remote_peer_id,
-    )
-    .await;
+
+    let res =
+        gemini::p2p::client::repo_clone(state.inner.context.clone(), identifier.to_string()).await;
     let res = match res {
         Ok(_) => CommonResult::success(Some("ok".to_string())),
         Err(err) => CommonResult::failed(&err.to_string()),
@@ -80,16 +48,6 @@ async fn repo_share(
         Some(i) => i,
         None => {
             return Err((StatusCode::BAD_REQUEST, String::from("path not provide\n")));
-        }
-    };
-
-    let _bootstrap_node = match state.p2p.bootstrap_node.clone() {
-        Some(b) => b,
-        None => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                String::from("bootstrap node not provide\n"),
-            ))
         }
     };
 

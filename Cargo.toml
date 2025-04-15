@@ -66,7 +66,7 @@ axum-server = "0.7.1"
 tower-http = "0.6.1"
 tower = "0.5.2"
 hex = "0.4.3"
-sea-orm = "1.1.4"
+sea-orm = "1.1.10"
 flate2 = "1.0.35"
 bstr = "1.11.3"
 colored = "3.0.0"
@@ -90,6 +90,9 @@ base64 = "0.22.1"
 encoding_rs = "0.8.31"
 aws-config = "1.6.0"
 aws-sdk-s3 = "1.79.0"
+quinn = "0.11"
+utoipa = "5.3"
+
 
 [profile.release]
 debug = true
