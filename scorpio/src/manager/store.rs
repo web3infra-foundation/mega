@@ -1,25 +1,24 @@
 use mercury::internal::object::{commit::Commit, tree::Tree};
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::Receiver;
 
 use crate::util::GPath;
 
 pub trait TreeStore {
-    fn insert_tree(&self, path: PathBuf, tree: Tree) -> Result<()>;
-    fn get_bypath(&self, path: PathBuf) -> Result<Tree>;
+    fn insert_tree(&self, path: PathBuf, tree: Tree);
+    fn get_bypath(&self, path: &Path) -> Result<Tree>;
 }
 
 impl TreeStore for sled::Db {
-    fn insert_tree(&self, path: PathBuf, tree: Tree) -> Result<()> {
+    fn insert_tree(&self, path: PathBuf, tree: Tree) {
         let value = bincode::serialize(&tree).unwrap();
         let key = path.to_str().unwrap();
         self.insert(key, value).unwrap();
-        Ok(())
     }
 
-    fn get_bypath(&self, path: PathBuf) -> Result<Tree> {
+    fn get_bypath(&self, path: &Path) -> Result<Tree> {
         let key = path.to_str().unwrap();
         match self.get(key)? {
             Some(encoded_value) => {
@@ -60,17 +59,16 @@ impl CommitStore for sled::Db {
         decoded
     }
 }
-pub async fn store_trees(storepath: &str, mut tree_channel: Receiver<(GPath, Tree)>) {
-    let db = sled::open(storepath).unwrap();
+pub async fn store_trees(storepath: &str, mut tree_channel: Receiver<(GPath, Tree)>) -> Result<()> {
+    let db = sled::open(storepath)?;
     while let Some((path, tree)) = tree_channel.recv().await {
         println!("new tree:{}", tree.id);
-        let re = db.insert_tree(path.into(), tree);
-        if re.is_err() {
-            print!("{}", re.err().unwrap());
-        }
+        db.insert_tree(path.into(), tree);
     }
 
     println!("finish store....");
+
+    Ok(())
 }
 
 // This function is used to format the data to Git Blob format.

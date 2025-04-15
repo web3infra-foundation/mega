@@ -71,7 +71,7 @@ impl CheckHash for ScorpioManager{
         // the lower path is store file path for remote code version . 
         let store_path = scorpio_config::store_path();
         let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
-        fetch_code(&p, _lower).await;
+        fetch_code(&p, _lower).await.unwrap();
         self.works.push(workdir.clone());
         let config_file = scorpio_config::config_file();
         let _ = self.to_toml(config_file);
@@ -80,7 +80,7 @@ impl CheckHash for ScorpioManager{
     }
 }
 
-pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopath :P) -> WorkDir {
+pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopath :P) -> std::io::Result<WorkDir> {
     let path = monopath.as_ref().to_str().unwrap().to_string();
     let p = GPath::from(path);
     // Get the tree and its hash value, for name dictionary .
@@ -94,11 +94,12 @@ pub async fn fetch<P: AsRef<Path>>(manager:&mut ScorpioManager,inode:u64,monopat
     // the lower path is store file path for remote code version . 
     let store_path = scorpio_config::store_path();
     let _lower = PathBuf::from(store_path).join(&workdir.hash).join("lower");
-    fetch_code(&p, _lower).await;
+    fetch_code(&p, _lower).await?;
     manager.works.push(workdir.clone());
     let config_file = scorpio_config::config_file();
     let _ = manager.to_toml(config_file);
-    workdir
+    
+    Ok(workdir)
 }
 
 const BASE_URL : &str = "http://localhost:8000/api/v1/file/tree?path=/";
@@ -231,12 +232,12 @@ async fn worker_ro_thread(
 /// the tree info is store in k-v database.
 ///     monorepo path  -> Tree
 /// 
-async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
+async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>) -> std::io::Result<()> {
 
     let target_path: Arc<PathBuf> = Arc::new(save_path.as_ref().to_path_buf());
     
     // Create the save_path directory if it doesn't exist
-    tokio::fs::create_dir_all(&save_path).await.unwrap();
+    tokio::fs::create_dir_all(&save_path).await?;
     let rece;
     let handle;
     {
@@ -253,15 +254,17 @@ async fn fetch_code(path:&GPath, save_path : impl AsRef<Path>){
 
 
     let storepath = save_path.as_ref().parent().unwrap().join("tree.db");
-    store_trees(storepath.to_str().unwrap(), rece).await;
+    store_trees(storepath.to_str().unwrap(), rece).await?;
     
     // Clean up workers (depends on how you implement worker_thread termination)
     let _ = handle.await;
 
     //get lfs file
-    scolfs::lfs::lfs_restore(save_path.as_ref().to_str().unwrap()).await.unwrap();
+    scolfs::lfs::lfs_restore(save_path.as_ref().to_str().unwrap()).await?;
 
     print!("finish code for {}...", path);
+
+    Ok(())
 }
 
 

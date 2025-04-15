@@ -66,7 +66,7 @@ impl TreeStorage {
             .map_err(Error::other)?;
         let store_path = scorpio_config::store_path();
         let path = format!("{}/path.db", store_path);
-        let db = sled::open(path).unwrap();
+        let db = sled::open(path)?;
         Ok(TreeStorage { db })
     }
     /// Insert an item and update the parent item's children list.
@@ -179,16 +179,16 @@ mod tests {
 
     use super::*;
 
-    fn setup(path:&str ) -> TreeStorage {
-        let db = sled::open(path).unwrap();
-        TreeStorage::new_from_db(db)
+    fn setup(path:&str ) -> io::Result<TreeStorage> {
+        let db = sled::open(path)?;
+        Ok(TreeStorage::new_from_db(db))
     }
     fn unset(path:&str ){
         std::fs::remove_dir_all(path).ok();
     }
     #[test]
     fn test_insert_and_get_item() {
-        let storage = setup("test_insert_and_get_item");
+        let storage = setup("test_insert_and_get_item").unwrap();
         let item = Item {
             name: String::from("Test Item"),
             path: String::from("/path/to/item"),
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_remove_item() {
-        let storage = setup("test_remove_item");
+        let storage = setup("test_remove_item").unwrap();
         let item = Item {
             name: String::from("Test Item"),
             path: String::from("/path/to/item"),
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_list_items() {
-        let storage = setup("test_list_items");
+        let storage = setup("test_list_items").unwrap();
         let item1 = Item {
             name: String::from("Test Item 1"),
             path: String::from("/path/to/item1"),
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_get_nonexistent_item() {
-        let storage = setup("test_get_nonexistent_item");
+        let storage = setup("test_get_nonexistent_item").unwrap();
         let result = storage.get_item(999);
         assert!(result.is_err());
         unset("test_get_nonexistent_item");
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_remove_nonexistent_item() {
-        let storage = setup("test_remove_nonexistent_item");
+        let storage = setup("test_remove_nonexistent_item").unwrap();
         let result = storage.remove_item(999);
         if result.is_ok(){
             panic!("should error");
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_traverse_directory_structure() {
-        let storage = setup("/home/luxian/megadir/store/path.db");
+        let storage = setup("/home/luxian/megadir/store/path.db").unwrap();
         println!("test begin...");
         // Function to traverse and collect directory structure
         fn traverse(storage: &TreeStorage, inode: u64, depth: usize) {

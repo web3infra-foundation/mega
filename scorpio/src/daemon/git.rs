@@ -33,8 +33,22 @@ pub(super) async fn git_status_handler(
         if works.path.eq(&params.path) {
             let work_path = PathBuf::from(store_path).join(works.hash.clone());
             let modified_path = work_path.join("modifiedstore");
-            let index_db = sled::open(modified_path.join("index.db")).unwrap();
-            let rm_db = sled::open(modified_path.join("removedfile.db")).unwrap();
+            let index_db = match sled::open(modified_path.join("index.db")) {
+                Ok(res) => res,
+                Err(err) => {
+                    status.status = FAIL.to_string();
+                    status.message = err.to_string();
+                    return status;
+                }
+            };
+            let rm_db = match sled::open(modified_path.join("removedfile.db")) {
+                Ok(res) => res,
+                Err(err) => {
+                    status.status = FAIL.to_string();
+                    status.message = err.to_string();
+                    return status;
+                }
+            };
             return match status_core(&work_path, &index_db, &rm_db) {
                 Ok(res) => axum::Json(GitStatus {
                     status: SUCCESS.to_string(),

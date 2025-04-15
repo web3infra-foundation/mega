@@ -1,7 +1,8 @@
-use crate::manager::add::add_and_del;
 use crate::util::scorpio_config;
+use add::add_and_del;
 use bytes::{Bytes, BytesMut};
 use ceres::protocol::smart::add_pkt_line_string;
+use commit::commit_core;
 use diff::change;
 use mercury::{
     hash::SHA1,
@@ -16,7 +17,7 @@ use std::{fs, path::PathBuf, str::FromStr};
 use tokio::{fs::File, io::AsyncWriteExt};
 
 pub mod add;
-mod commit;
+pub mod commit;
 pub mod diff;
 pub mod fetch;
 pub mod push;
@@ -59,16 +60,19 @@ impl ScorpioManager {
     ) -> Result<Commit, Box<dyn std::error::Error>> {
         let store_path = scorpio_config::store_path();
         let work_dir = self.select_work(&mono_path)?;
-        let path = PathBuf::from(store_path);
-        let path = path.join(work_dir.hash.clone());
-        let mut lower = path.clone();
-        lower.push("lower");
-        let mut upper = path.clone();
-        upper.push("upper");
-        let mut dbpath = path.clone();
-        dbpath.push("tree.db");
+        let path = PathBuf::from(store_path).join(work_dir.hash.clone());
+        let mut lower = path.join("lower");
+        let mut upper = path.join("upper");
+        let mut old_dbpath = path.join("tree.db");
+        let mut new_dbpath = path.join("new_tree.db");
 
-        let db = sled::open(dbpath).unwrap();
+        
+
+        let old_db = sled::open(old_dbpath)?;
+        let new_db = sled::open(new_dbpath)?;
+
+
+
         let mut trees = Vec::new();
         let mut blobs = Vec::new();
         let root_tree = change(upper, path.clone(), &mut trees, &mut blobs, &db);
@@ -133,7 +137,7 @@ impl ScorpioManager {
         &self,
         mono_path: &str,
     ) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
-        let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
+        let work_dir = self.select_work(mono_path)?; // TODO : deal with error.
         let store_path = scorpio_config::store_path();
         let mut path = store_path.to_string();
         path.push_str(&work_dir.hash);
@@ -212,8 +216,8 @@ impl ScorpioManager {
             // Preventing Directory Traversal Vulnerabilities
             Ok(format_path) => match format_path.starts_with(upper_path) {
                 true => {
-                    let index_db = sled::open(modified_path.join("index.db")).unwrap();
-                    let rm_db = sled::open(modified_path.join("removedfile.db")).unwrap();
+                    let index_db = sled::open(modified_path.join("index.db"))?;
+                    let rm_db = sled::open(modified_path.join("removedfile.db"))?;
                     println!("\x1b[32m[START]\x1b[0m");
                     add_and_del(&format_path, &work_path, &index_db, &rm_db)?;
                     println!("\x1b[32m[OK]\x1b[0m");
