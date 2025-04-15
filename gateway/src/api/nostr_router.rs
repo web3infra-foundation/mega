@@ -6,20 +6,20 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use serde::{Deserialize, Serialize};
 
 use common::model::CommonResult;
 use gemini::nostr::{event::NostrEvent, relay_message::RelayMessage, GitEvent};
-use serde::{Deserialize, Serialize};
 
 use crate::api::MegaApiServiceState;
 
 pub fn routers() -> Router<MegaApiServiceState> {
     Router::new()
-        .route("/nostr", post(recieve))
+        .route("/nostr", post(receive))
         .route("/nostr/event_list", get(event_list))
 }
 
-async fn recieve(
+async fn receive(
     state: State<MegaApiServiceState>,
     body: String,
 ) -> Result<Json<CommonResult<String>>, (StatusCode, String)> {
@@ -28,7 +28,7 @@ async fn recieve(
     // ["EOSE", <subscription_id>], used to indicate the end of stored events and the beginning of events newly received in real-time.
     // ["CLOSED", <subscription_id>, <message>], used to indicate that a subscription was ended on the server side.
     // ["NOTICE", <message>], used to send human-readable error messages or other things to clients.
-    tracing::info!("nostr recieve:{}", body);
+    tracing::info!("nostr receive:{}", body);
     let relay_msg: RelayMessage = match serde_json::from_str(&body) {
         Ok(r) => r,
         Err(e) => {
