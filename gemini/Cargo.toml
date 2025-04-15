@@ -26,7 +26,7 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["net"] }
 chrono = { workspace = true }
 secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
-quinn = "0.11"
+quinn = { workspace = true }
 anyhow = { workspace = true }
 lazy_static = { workspace = true }
 rcgen = { version = "0.13", features = ["x509-parser", "pem", "crypto"] }

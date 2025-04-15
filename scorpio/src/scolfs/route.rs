@@ -11,7 +11,7 @@ use libra::internal::protocol::lfs_client::LFSClient;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use ceres::lfs::lfs_structs::{LockListQuery, Lock};
-use crate::util::{scorpio_config, GPath};
+use crate::util::{config, GPath};
 
 use super::{lfs, utils::{self, current_refspec}};
 
@@ -58,6 +58,7 @@ async fn track(Json(payload): Json<TrackRequest>) -> Result<Json<TrackResponse>,
     let converted_patterns = convert_patterns_to_workdir(payload.patterns);
     let pat_size = converted_patterns.len();
     lfs::add_lfs_patterns(attr_path.to_str().unwrap(), converted_patterns)
+        .await
         .map_err(|e| ErrorResponse { error: e.to_string() })?;
 
     Ok(Json(TrackResponse {
@@ -69,7 +70,7 @@ async fn untrack(Json(payload): Json<UntrackRequest>) -> Result<Json<TrackRespon
     let attr_path = utils::lfs_attribate();
     let converted_paths = convert_patterns_to_workdir(payload.paths);
 
-    let re = lfs::untrack_lfs_patterns(attr_path.to_str().unwrap(), converted_paths);
+    let re = lfs::untrack_lfs_patterns(attr_path.to_str().unwrap(), converted_paths).await;
     match re {
         Ok(_) => Ok(Json(TrackResponse {
             tracked_patterns: 0,
@@ -189,7 +190,7 @@ async fn remove_lock(
 /// [different from `libra`].
 /// Convert patterns to workdir.
 fn convert_patterns_to_workdir(patterns: Vec<String>) -> Vec<String> {
-    let mount_path = scorpio_config::workspace();
+    let mount_path = config::workspace();
     let work_path = GPath::from(String::from(mount_path));
     patterns.into_iter().map(|p| {
         let mut w =work_path.clone();

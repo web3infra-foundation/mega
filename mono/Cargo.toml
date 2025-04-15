@@ -19,6 +19,7 @@ ceres = { workspace = true }
 taurus = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
+migration = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -54,6 +55,7 @@ base64 = { workspace = true }
 async-session = "3.0.0"
 http = "1.1.0"
 cedar-policy = { workspace = true }
+utoipa = { workspace = true, features = ["axum_extras"] }
 
 [target.'cfg(not(windows))'.dependencies]
 jemallocator = "0.5.4"
@@ -63,9 +65,6 @@ mimalloc = "0.1.43"
 
 [dev-dependencies]
 
-
-# [target.'cfg(not(target_env = "msvc"))'.dependencies]
-# tikv-jemallocator = "0.6"
 
 # [target.'cfg(not(target_env = "msvc"))'.dependencies]
 # jemallocator = {version = "0.5.4", features = ["debug", "profiling"]}

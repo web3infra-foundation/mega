@@ -42,7 +42,10 @@ wax = "0.6.0"
 ignore = "0.4.23"
 url = "2.5.4"
 walkdir = "2.5.0"
-
+fjall = "2.8.0"
+thiserror = "2.0.12"
+clap = { version = "4.0", features = ["derive"] }
+crossbeam = "0.8.4"
 
 [features] 
 async-io = []

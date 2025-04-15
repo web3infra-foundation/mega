@@ -202,7 +202,7 @@ mod test {
         command::{self, add::AddArgs},
         utils::test::{self, TEST_DIR},
     };
-    use clap::builder::OsStr;
+
     use serial_test::serial;
 
     #[tokio::test]
@@ -231,19 +231,19 @@ mod test {
         assert!(!change
             .new
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.0")));
+            .any(|x| x.file_name().unwrap() == "should_ignore.0"));
         assert!(!change
             .new
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.1")));
+            .any(|x| x.file_name().unwrap() == "should_ignore.1"));
         assert!(change
             .new
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.0")));
+            .any(|x| x.file_name().unwrap() == "not_ignore.0"));
         assert!(change
             .new
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.1")));
+            .any(|x| x.file_name().unwrap() == "not_ignore.1"));
 
         command::add::execute(AddArgs {
             pathspec: vec![String::from(".")],
@@ -262,19 +262,19 @@ mod test {
         assert!(!change
             .modified
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.0")));
+            .any(|x| x.file_name().unwrap() == "should_ignore.0"));
         assert!(!change
             .modified
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.1")));
+            .any(|x| x.file_name().unwrap() == "should_ignore.1"));
         assert!(change
             .modified
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.0")));
+            .any(|x| x.file_name().unwrap() == "not_ignore.0"));
         assert!(change
             .modified
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.1")));
+            .any(|x| x.file_name().unwrap() == "not_ignore.1"));
 
         fs::remove_dir_all("ignore_dir").unwrap();
         fs::remove_dir_all("not_ignore_dir").unwrap();
@@ -287,18 +287,18 @@ mod test {
         assert!(!change
             .deleted
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.0")));
+            .any(|x| x.file_name().unwrap() == "should_ignore.0"));
         assert!(!change
             .deleted
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("should_ignore.1")));
+            .any(|x| x.file_name().unwrap() == "should_ignore.1"));
         assert!(change
             .deleted
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.0")));
+            .any(|x| x.file_name().unwrap() == "not_ignore.0"));
         assert!(change
             .deleted
             .iter()
-            .any(|x| x.file_name().unwrap() == OsStr::from("not_ignore.1")));
+            .any(|x| x.file_name().unwrap() == "not_ignore.1"));
     }
 }

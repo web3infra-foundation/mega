@@ -195,10 +195,7 @@ impl _Cache for Caches {
                     if self.mem_size.is_none() {
                         panic!("should not be here when mem_size is not set")
                     }
-                    match self.get_fallback(hash) {
-                        Ok(x) => Some(x),
-                        Err(_) => None,
-                    }
+                    self.get_fallback(hash).ok()
                 }
             }
         } else {

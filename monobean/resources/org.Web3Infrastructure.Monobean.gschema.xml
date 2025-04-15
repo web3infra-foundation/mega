@@ -43,7 +43,7 @@
             <summary>SSH Port</summary>
             <description>Port the ssh service listening</description>
         </key>
-        
+
         <!-- Base Settings -->
         <key name="base-dir" type="s">
             <default>'/tmp/.mono'</default>
@@ -208,9 +208,9 @@
         </key>
 
         <!-- Relay Settings -->
-        <key name="relay-url" type="s">
+        <key name="bootstrap-node" type="s">
             <default>'http://localhost:1234'</default>
-            <summary>Relay Url</summary>
+            <summary>Bootstrap Node</summary>
         </key>
     </schema>
 </schemalist>

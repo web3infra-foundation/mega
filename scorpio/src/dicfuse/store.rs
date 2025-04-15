@@ -1,27 +1,23 @@
+/// Read only file system for obtaining and displaying monorepo directory information
+use core::panic;
+use std::io;
+use std::collections::{VecDeque,HashMap};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use fuse3::raw::reply::ReplyEntry;
 use fuse3::FileType;
-
-/// Read only file system for obtaining and displaying monorepo directory information
+use crossbeam::queue::SegQueue;
 use reqwest::Client;
-// Import Response explicitly
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-
-use core::panic;
-use std::io;
-use std::{collections::HashMap, error::Error};
-use std::collections::VecDeque;
 use once_cell::sync::Lazy;
-use std::sync::Arc;
 
 use crate::READONLY_INODE;
-use std::sync::atomic::AtomicU64;
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::tree_store::{StorageItem, TreeStorage};
-use crate::util::GPath;
-const MEGA_TREE_URL: &str = "localhost:8000";//TODO: make it configable
+use crate::util::{config, GPath};
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
 const INODE_FILE :&str ="file";
 const INODE_DICTIONARY :&str ="directory";
@@ -121,16 +117,42 @@ impl Iterator for ApiResponse{
         self.data.pop()
     }
 }
+#[derive(Debug)]
+pub struct DictionaryError {
+    pub message: String,
+}
+
+impl std::fmt::Display for DictionaryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DictionaryError: {}", self.message)
+    }
+}
+
+impl std::error::Error for DictionaryError {}
+impl From<reqwest::Error> for DictionaryError {
+    fn from(err: reqwest::Error) -> Self {
+        DictionaryError {
+            message: err.to_string(),
+        }
+    }
+}
+
 // Get Mega dictionary tree from server
-async fn fetch_tree(path: &str) -> Result<ApiResponse, Box<dyn Error>> {
+async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
     static CLIENT: Lazy<Client> = Lazy::new(Client::new);
     let client = CLIENT.clone();
-    let url = format!("http://{}/api/v1/tree?path=/{}", MEGA_TREE_URL, path);
-    let  resp:ApiResponse = client.get(&url).send().await?.json().await?;
-    if resp.req_result {   
-        Ok(resp)
-    }else{
-        todo!();
+    let url = format!("{}/api/v1/tree?path=/{}", config::base_url(), path);
+    let kk = client.get(&url).send().await;
+    if kk.is_err() {
+        return Err(DictionaryError {
+            message: "Failed to fetch tree".to_string(),
+        });
+    }
+    let  resp: Result<ApiResponse, reqwest::Error> = kk.unwrap().json().await;
+    
+    match resp {
+        Ok(resp) =>  Ok(resp),
+        Err(e) =>  Err(e.into()),
     }
 }
 
@@ -140,7 +162,7 @@ pub struct DictionaryStore {
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
     next_inode: AtomicU64,
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
-    persistent_path_store :Arc<Mutex<TreeStorage>>,// persistent path store for saving and retrieving file paths
+    persistent_path_store :Arc<TreeStorage>,// persistent path store for saving and retrieving file paths
 }
 
 #[allow(unused)]
@@ -157,7 +179,7 @@ impl DictionaryStore {
             next_inode: AtomicU64::new(2),
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
-            persistent_path_store:  Arc::new(Mutex::new(tree_store))
+            persistent_path_store:  Arc::new(tree_store)
         };
         let root_item = DicItem{
             inode: 1,
@@ -171,13 +193,13 @@ impl DictionaryStore {
         init
     }
     async fn update_inode(&self,parent: u64,item:Item) ->std::io::Result<u64> {
-        self.next_inode.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+       
         
-        let alloc_inode = self.next_inode.load(std::sync::atomic::Ordering::SeqCst);
+        let alloc_inode = self.next_inode.fetch_add(1, std::sync::atomic::Ordering::Relaxed)+1;
         
         assert!(alloc_inode < READONLY_INODE );
         
-        let prw = self.persistent_path_store.lock().await;
+        let prw = self.persistent_path_store.clone();
         if let Ok(pinode) = prw.get_item(parent){
             // insert info to a radix_trie for path match.
             self.radix_trie.lock().await.insert(GPath::from(item.path.clone()).to_string(), alloc_inode);
@@ -212,7 +234,7 @@ impl DictionaryStore {
         
         let items =  fetch_tree("").await.unwrap().data;
         
-        let root_inode = self.inodes.lock().await.get(&1).unwrap().clone();
+        //let root_inode = self.inodes.lock().await.get(&1).unwrap().clone();
         // deque for bus.
         let mut queue= VecDeque::<u64>::new(); 
         for it in items{
@@ -230,7 +252,7 @@ impl DictionaryStore {
             let one_inode = queue.pop_front().unwrap();
             let mut new_items = Vec::new();
             
-            let it = self.persistent_path_store.lock().await.get_all_path(one_inode).unwrap();
+            let it = self.persistent_path_store.get_all_path(one_inode).unwrap();
             let path = it.to_string();
             println!("fetch path :{}",path);
             // get tree by parent inode.
@@ -238,7 +260,7 @@ impl DictionaryStore {
             
             // Insert all new inode.
             for newit in new_items {
-                println!("import item :{:?}",newit);
+                //println!("import item :{:?}",newit);
                 let is_dir = newit.is_dir();
                 let new_inode = self.update_inode(one_inode,newit).await.unwrap(); // Await the update_inode call
                 // push to queue to BFS.
@@ -253,11 +275,11 @@ impl DictionaryStore {
     
     pub async fn find_path(&self,inode :u64)-> Option<GPath>{
 
-        self.persistent_path_store.lock().await.get_all_path(inode).ok()
+        self.persistent_path_store.get_all_path(inode).ok()
 
     }
     pub async fn get_inode(&self,inode: u64) -> Result<StorageItem, io::Error> {
-        self.persistent_path_store.lock().await.get_item(inode)
+        self.persistent_path_store.get_item(inode)
     }
     
     pub async fn get_by_path(&self, path: &str) -> Result<StorageItem, io::Error> {
@@ -290,7 +312,7 @@ impl DictionaryStore {
          if item.is_dir(){
              // 3. Get the children of the directory
              
-             let children = self.persistent_path_store.lock().await.get_children(parent)?;
+             let children = self.persistent_path_store.get_children(parent)?;
              let mut total_bytes_written = 0;
              let mut current_offset = 0;
 
@@ -305,6 +327,93 @@ impl DictionaryStore {
          }
     }
 }
+
+
+pub async fn import_arc(store: Arc<DictionaryStore>) {
+    // use the unlock queue instead of mpsc + Mutex
+    let queue = Arc::new(SegQueue::new());
+    
+
+    // init root path  
+    let items = fetch_tree("").await.unwrap().data;
+    let active_producers = Arc::new(AtomicUsize::new(items.len()));
+    for it in items {
+        let is_dir = it.content_type == INODE_DICTIONARY;
+        let it_inode = store.update_inode(1, it).await.unwrap();
+        if is_dir {
+            queue.push(it_inode);
+        }
+    }
+    
+
+    let worker_count = 10;
+    let mut workers = Vec::with_capacity(worker_count);
+
+     // clone shared resource.
+    let queue = Arc::clone(&queue);
+    let persistent_path_store = store.persistent_path_store.clone();
+
+    // Init mulity work thraed
+    for _ in 0..worker_count {
+        let queue = Arc::clone(&queue);
+        let path_store = persistent_path_store.clone();
+        let store = store.clone();
+        let producers = Arc::clone(&active_producers);
+
+        workers.push(tokio::spawn(async move {
+            while {
+                
+                // If there are active producers or the queue is not empty, continue
+                producers.load(Ordering::Acquire) > 0 || !queue.is_empty()
+            } {
+                    if let Some(inode) = queue.pop() {
+                        
+                        // get path from path store.
+                        let path = path_store
+                        .get_all_path(inode)
+                        .unwrap()
+                        .to_string();
+                        println!("Worker processing path: {}", path);
+
+                        // get all children inode
+                        match fetch_tree(&path).await {
+                            Ok(new_items) => {
+                                let new_items = new_items.data;
+                                
+                                for newit in new_items {
+                                    let is_dir = newit.is_dir();
+                                    let new_inode = store.update_inode(inode, newit).await.unwrap();
+                                    if is_dir {
+                                        // If it's a directory, push it to the queue and add the producer count
+                                        producers.fetch_add(1, Ordering::Relaxed);
+                                        queue.push(new_inode);
+                                    } 
+                                }
+                            },
+                            Err(_) => {
+                                // Continue to the next iteration if there was an error
+                            },
+                        };
+                        
+                        producers.fetch_sub(1, Ordering::Release);
+                } else {
+                    // If there are no active producers and the queue is empty, exit the loop
+                    if producers.load(Ordering::Acquire) == 0 {
+                        return;
+                    }
+                    // yield to wait unfinished tasks
+                    tokio::task::yield_now().await;
+                }
+            }
+        }));
+    }
+
+    // wait for all workers to complete
+    while let Some(worker) = workers.pop() {
+        worker.await.expect("Worker panicked");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use radix_trie::TrieCommon;

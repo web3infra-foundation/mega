@@ -60,6 +60,8 @@ pub(crate) enum CacheObjectInfo {
     /// The object is an offset delta with a specified offset delta [`usize`],
     /// and the size of the expanded object (previously `delta_final_size`).
     OffsetDelta(usize, usize),
+    /// Similar to [`OffsetDelta`], but delta algorithm is `zstd`.
+    OffsetZstdelta(usize, usize),
     /// The object is a hash delta with a specified [`SHA1`] hash,
     /// and the size of the expanded object (previously `delta_final_size`).
     HashDelta(SHA1, usize),
@@ -71,6 +73,7 @@ impl CacheObjectInfo {
         match self {
             CacheObjectInfo::BaseObject(obj_type, _) => *obj_type,
             CacheObjectInfo::OffsetDelta(_, _) => ObjectType::OffsetDelta,
+            CacheObjectInfo::OffsetZstdelta(_, _) => ObjectType::OffsetZstdelta,
             CacheObjectInfo::HashDelta(_, _) => ObjectType::HashDelta,
         }
     }
@@ -114,6 +117,7 @@ impl HeapSize for CacheObject {
         match &self.info {
             CacheObjectInfo::BaseObject(_, _) => self.data_decompressed.heap_size(),
             CacheObjectInfo::OffsetDelta(_, delta_final_size)
+            | CacheObjectInfo::OffsetZstdelta(_, delta_final_size)
             | CacheObjectInfo::HashDelta(_, delta_final_size) => {
                 // To those who are concerned about why these two values are added,
                 // let's consider the lifetime of two `CacheObject`s, say `delta_obj`

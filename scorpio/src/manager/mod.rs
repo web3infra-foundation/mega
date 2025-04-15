@@ -1,4 +1,4 @@
-use crate::util::scorpio_config;
+use crate::util::config;
 use add::add_and_del;
 use bytes::{Bytes, BytesMut};
 use ceres::protocol::smart::add_pkt_line_string;
@@ -58,7 +58,7 @@ impl ScorpioManager {
         mono_path: String,
         commit_msg: String,
     ) -> Result<Commit, Box<dyn std::error::Error>> {
-        let store_path = scorpio_config::store_path();
+        let store_path = config::store_path();
         let work_dir = self.select_work(&mono_path)?;
         let path = PathBuf::from(store_path).join(work_dir.hash.clone());
         let mut lower = path.join("lower");
@@ -77,8 +77,8 @@ impl ScorpioManager {
         let mut blobs = Vec::new();
         let root_tree = change(upper, path.clone(), &mut trees, &mut blobs, &db);
         trees.push(root_tree.clone());
-        let git_author = scorpio_config::git_author();
-        let git_email = scorpio_config::git_email();
+        let git_author = config::git_author();
+        let git_email = config::git_email();
         let sign = Signature::new(
             SignatureType::Author,
             git_author.to_string(),
@@ -155,7 +155,7 @@ impl ScorpioManager {
         let commit_data = tokio::fs::read(&path).await?;
 
         // Send Commit data to remote mono.
-        let base_url = scorpio_config::base_url();
+        let base_url = config::base_url();
         let url = format!("{}/{}/git-receive-pack", base_url, mono_path);
         let client = reqwest::Client::new();
         client
@@ -200,7 +200,7 @@ impl ScorpioManager {
         let mono_path = PathBuf::from(mono_path)
             .strip_prefix(&work_dir.path)?
             .to_path_buf();
-        let store_path = scorpio_config::store_path();
+        let store_path = config::store_path();
         let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
 
         // Since index.db is the private space of the sled database,

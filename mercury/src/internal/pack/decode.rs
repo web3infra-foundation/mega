@@ -51,7 +51,7 @@ impl Pack {
     ///   It can't be zero, or panic <br>
     /// - `mem_limit`: The maximum size of the memory cache in bytes, or None for unlimited.
     ///   The 80% of it will be used for [Caches]  <br>
-    ///     **Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
+    ///   ​**Not very accurate, because of memory alignment and other reasons, overuse about 15%** <br>
     /// - `temp_path`: The path to a directory for temporary files, default is "./.cache_temp" <br>
     ///   For example, thread_num = 4 will use up to 8 threads (4 for decoding and 4 for cache) <br>
     /// - `clean_tmp`: whether to remove temp directory when Pack is dropped
@@ -94,8 +94,8 @@ impl Pack {
     /// It also collects these header bytes for later use, such as for hashing the entire pack file.
     ///
     /// # Parameters
-    /// * `pack`: A mutable reference to an object implementing the `Read` trait,
-    ///           representing the source of the pack file data (e.g., file, memory stream).
+    /// * `pack` - A mutable reference to an object implementing the `Read` trait,
+    ///   representing the source of the pack file data (e.g., file, memory stream).
     ///
     /// # Returns
     /// A `Result` which is:
@@ -274,7 +274,7 @@ impl Pack {
                 *offset += raw_size;
                 Ok(CacheObject::new_for_undeltified(t, data, init_offset))
             }
-            ObjectType::OffsetDelta => {
+            ObjectType::OffsetDelta | ObjectType::OffsetZstdelta => {
                 let (delta_offset, bytes) = utils::read_offset_encoding(pack).unwrap();
                 *offset += bytes;
 
@@ -292,8 +292,17 @@ impl Pack {
                 let mut reader = Cursor::new(&data);
                 let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
+                let obj_info = match t {
+                    ObjectType::OffsetDelta => {
+                        CacheObjectInfo::OffsetDelta(base_offset, final_size)
+                    }
+                    ObjectType::OffsetZstdelta => {
+                        CacheObjectInfo::OffsetZstdelta(base_offset, final_size)
+                    }
+                    _ => unreachable!(),
+                };
                 Ok(CacheObject {
-                    info: CacheObjectInfo::OffsetDelta(base_offset, final_size),
+                    info: obj_info,
                     offset: init_offset,
                     data_decompressed: data,
                     mem_recorder: None,
@@ -398,7 +407,8 @@ impl Pack {
                             CacheObjectInfo::BaseObject(_, _) => {
                                 Self::cache_obj_and_process_waitlist(params, obj);
                             }
-                            CacheObjectInfo::OffsetDelta(base_offset, _) => {
+                            CacheObjectInfo::OffsetDelta(base_offset, _)
+                            | CacheObjectInfo::OffsetZstdelta(base_offset, _) => {
                                 if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
@@ -538,7 +548,16 @@ impl Pack {
         base_obj: Arc<CacheObject>,
     ) {
         shared_params.pool.clone().execute(move || {
-            let mut new_obj = Pack::rebuild_delta(delta_obj, base_obj);
+            let mut new_obj = match delta_obj.info {
+                CacheObjectInfo::OffsetDelta(_, _) | CacheObjectInfo::HashDelta(_, _) => {
+                    Pack::rebuild_delta(delta_obj, base_obj)
+                }
+                CacheObjectInfo::OffsetZstdelta(_, _) => {
+                    Pack::rebuild_zstdelta(delta_obj, base_obj)
+                }
+                _ => unreachable!(),
+            };
+
             new_obj.set_mem_recorder(shared_params.cache_objs_mem_size.clone());
             new_obj.record_mem_size();
             Self::cache_obj_and_process_waitlist(shared_params, new_obj); //Indirect Recursion
@@ -644,6 +663,18 @@ impl Pack {
 
         let hash = utils::calculate_object_hash(base_obj.object_type(), &result);
         // create new obj from `delta_obj` & `result` instead of modifying `delta_obj` for heap-size recording
+        CacheObject {
+            info: CacheObjectInfo::BaseObject(base_obj.object_type(), hash),
+            offset: delta_obj.offset,
+            data_decompressed: result,
+            mem_recorder: None,
+        } // Canonical form (Complete Object)
+          // Memory recording will happen after this function returns. See `process_delta`
+    }
+    pub fn rebuild_zstdelta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
+        let result = zstdelta::apply(&base_obj.data_decompressed, &delta_obj.data_decompressed)
+            .expect("Failed to apply zstdelta");
+        let hash = utils::calculate_object_hash(base_obj.object_type(), &result);
         CacheObject {
             info: CacheObjectInfo::BaseObject(base_obj.object_type(), hash),
             offset: delta_obj.offset,

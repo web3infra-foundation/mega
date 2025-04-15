@@ -19,7 +19,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 use crate::api_service::ApiHandler;
-use crate::model::create_file::CreateFileInfo;
+use crate::model::git::CreateFileInfo;
 use crate::protocol::mr::MergeRequest;
 
 #[derive(Clone)]
