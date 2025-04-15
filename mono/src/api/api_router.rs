@@ -11,13 +11,12 @@ use http::StatusCode;
 
 use ceres::{
     api_service::ApiHandler,
-    model::{
-        create_file::CreateFileInfo,
-        query::{BlobContentQuery, CodePreviewQuery},
-        tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem},
+    model::git::{
+        BlobContentQuery, CodePreviewQuery, CreateFileInfo, LatestCommitInfo, TreeBriefItem,
+        TreeCommitItem, TreeQuery,
     },
 };
-use common::{errors::ProtocolError, model::CommonResult};
+use common::model::CommonResult;
 use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::error::ApiError;
@@ -49,17 +48,12 @@ async fn get_blob_string(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     ApiRequestEvent::notify(ApiType::Blob, &state.0.context.config);
-    let res = state
+    let data = state
         .api_handler(query.path.clone().into())
         .await?
         .get_blob_as_string(query.path.into())
-        .await;
-
-    let res = match res {
-        Ok(data) => CommonResult::success(data),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+        .await?;
+    Ok(Json(CommonResult::success(data)))
 }
 
 async fn life_cycle_check() -> Result<impl IntoResponse, ApiError> {
@@ -71,16 +65,12 @@ async fn create_file(
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     ApiRequestEvent::notify(ApiType::CreateFile, &state.0.context.config);
-    let res = state
+    state
         .api_handler(json.path.clone().into())
         .await?
         .create_monorepo_file(json.clone())
-        .await;
-    let res = match res {
-        Ok(_) => CommonResult::success(None),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+        .await?;
+    Ok(Json(CommonResult::success(None)))
 }
 
 async fn get_latest_commit(
@@ -101,33 +91,37 @@ async fn get_tree_info(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeBriefItem>>>, ApiError> {
     ApiRequestEvent::notify(ApiType::TreeInfo, &state.0.context.config);
-    let res = state
+    let data = state
         .api_handler(query.path.clone().into())
         .await?
         .get_tree_info(query.path.into())
-        .await;
-    let res = match res {
-        Ok(data) => CommonResult::success(Some(data)),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+        .await?;
+    Ok(Json(CommonResult::success(Some(data))))
 }
 
+#[utoipa::path(
+    get,
+    path = "api/v1/tree/commit-info",
+    params(
+        CodePreviewQuery
+    ),
+    responses(
+        (status = 200, description = "List matching trees by query", 
+        body = CommonResult<Vec<TreeBriefItem>>,
+        content_type = "application/json")
+    )
+)]
 async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ProtocolError> {
+) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
     ApiRequestEvent::notify(ApiType::CommitInfo, &state.0.context.config);
-    let res = state
+    let data = state
         .api_handler(query.path.clone().into())
         .await?
         .get_tree_commit_info(query.path.into())
-        .await;
-    let res = match res {
-        Ok(data) => CommonResult::success(Some(data)),
-        Err(err) => CommonResult::failed(&err.to_string()),
-    };
-    Ok(Json(res))
+        .await?;
+    Ok(Json(CommonResult::success(Some(data))))
 }
 
 pub async fn get_blob_file(
@@ -155,28 +149,20 @@ pub async fn get_blob_file(
 
 pub async fn get_tree_file(
     state: State<MonoApiServiceState>,
-    Query(query): Query<CodePreviewQuery>,
+    Query(query): Query<TreeQuery>,
 ) -> Result<Response, ApiError> {
-    let res = state
+    let data = state
         .api_handler(query.path.clone().into())
         .await?
-        .get_tree_as_data(std::path::Path::new(&query.path))
-        .await;
+        .get_binary_tree_by_path(std::path::Path::new(&query.path), query.oid)
+        .await?;
 
     let file_name = format!("inline; filename=\"{}\"", "");
-    match res {
-        Ok(data) => Ok(Response::builder()
-            .header("Content-Type", "application/octet-stream")
-            .header("Content-Disposition", file_name)
-            .body(Body::from(data))
-            .unwrap()),
-        Err(_) => Ok({
-            Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::empty())
-                .unwrap()
-        }),
-    }
+    Ok(Response::builder()
+        .header("Content-Type", "application/octet-stream")
+        .header("Content-Disposition", file_name)
+        .body(Body::from(data))
+        .unwrap())
 }
 
 async fn path_can_be_cloned(
@@ -199,4 +185,17 @@ async fn path_can_be_cloned(
         true
     };
     Ok(Json(CommonResult::success(Some(res))))
+}
+
+#[cfg(test)]
+mod test {
+    use utoipa::OpenApi;
+
+    #[test]
+    fn generate_swagger_json() {
+        #[derive(OpenApi)]
+        #[openapi(paths(crate::api::api_router::get_tree_commit_info))]
+        struct ApiDoc;
+        println!("{}", ApiDoc::openapi().to_pretty_json().unwrap());
+    }
 }
