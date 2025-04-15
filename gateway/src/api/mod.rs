@@ -3,8 +3,6 @@ use mono::api::MonoApiServiceState;
 
 pub mod github_router;
 mod model;
-pub mod nostr_router;
-pub mod p2p_router;
 
 #[derive(Clone)]
 pub struct MegaApiServiceState {
