@@ -15,26 +15,33 @@ use super::{
 pub struct MergeArgs {
     /// The branch to merge into the current branch, could be remote branch
     pub branch: String,
+
+    /// The commit message for the merge commit
+    #[arg(short,long)]
+    pub message: Option<String>,
 }
 
 pub async fn execute(args: MergeArgs) {
     let target_commit_hash = get_target_commit(&args.branch).await;
+    let merge_message=args.message.unwrap_or_else(||{
+        format!("Merge branch '{}' into current", args.branch)});
+    // Get the merge commit message. 
+    // And if the message is not provided, the default message is used
     if target_commit_hash.is_err() {
         eprintln!("{}", target_commit_hash.err().unwrap());
         return;
     }
     let commit_hash = target_commit_hash.unwrap();
-
     let target_commit: Commit = load_object(&commit_hash).unwrap();
     let current_commit: Commit = load_object(&Head::current_commit().await.unwrap()).unwrap();
     let lca = lca_commit(&current_commit, &target_commit).await;
-
+    
     if lca.is_none() {
         eprintln!("fatal: fatal: refusing to merge unrelated histories");
         return;
     }
-    let lca = lca.unwrap();
-
+    let mut lca = lca.unwrap();
+    lca.message=merge_message;
     if lca.id == target_commit.id {
         // no need to merge
         println!("Already up to date.");
@@ -93,6 +100,7 @@ async fn merge_ff(commit: Commit) {
             Head::update(Head::Detached(commit.id), None).await;
         }
     }
+    
     // change the working directory to the commit
     // restore all files to worktree from HEAD
     restore::execute(RestoreArgs {
@@ -102,4 +110,33 @@ async fn merge_ff(commit: Commit) {
         pathspec: vec![util::working_dir_string()],
     })
     .await;
+}
+
+#[tokio::test]
+async fn test_merge_message() {
+    let args = MergeArgs {
+        branch: "feature-branch".to_string(),
+        message: Some("Custom merge message".to_string()),
+    };
+    execute(args).await;
+
+    let head_commit_hash = Head::current_commit().await.unwrap();
+    let commit: Commit = load_object(&head_commit_hash).unwrap();
+    
+    assert_eq!(commit.message, "Custom merge message");
+}
+
+#[tokio::test]
+async fn test_default_merge_message() {
+    let args = MergeArgs {
+        branch: "feature-branch".to_string(),
+        message: None,
+    };
+    execute(args).await;
+
+    let head_commit_hash = Head::current_commit().await.unwrap();
+    let commit: Commit = load_object(&head_commit_hash).unwrap();
+    
+    let expected = format!("Merge branch '{}' into current", args.branch);
+    assert_eq!(commit.message, expected);
 }
