@@ -17,14 +17,12 @@ done
 
 ( cat << "xEOFx"
 
-
-
-/usr/sbin/grub-install /dev/nbd1
+/usr/sbin/grub-install --target=i386-pc /dev/nbd1
 
 mkdir -p /boot/grub
 
-BOOTUUID=60F7-8A4C
-ROOTPARTUUID=dfd4b6d0-02
+BOOTUUID=55A7-4F9E
+ROOTPARTUUID=939e0e11-02
 
 echo "# Begin /boot/grub/grub.cfg
 set default=0
@@ -33,11 +31,14 @@ set timeout=5
 insmod ext2
 
 # root = /dev/nbd1p1, used to boot kernel
-search --set=root --fs-uuid $BOOTUUID
+# search --set=root --fs-uuid $BOOTUUID
+set root=(hd0,1)
 
 menuentry \"GNU/Linux, Linux 6.10.5-lfs-12.2\" {
     # here, root is /dev/nbd1p2, used to boot the system 
-    linux   /vmlinux-6.10.5-lfs-12.2 root=$ROOTPARTUUID ro
+    # linux   /vmlinux-6.10.5-lfs-12.2 root=$ROOTPARTUUID ro
+    # for unkown reason, the kernel didn't recognize the root partition, use dev/vdb2 instead
+    linux   /vmlinux-6.10.5-lfs-12.2 root=/dev/vdb2 ro
     # initrd  /initrd.img-6.10.5
 }
 ">/boot/grub/grub.cfg

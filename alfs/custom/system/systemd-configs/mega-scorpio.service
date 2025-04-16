@@ -3,7 +3,7 @@ Description=mega-scorpio
 After=network.target
 
 [Service]
-ExecStart=/root/.cargo/bin/scorpio
+ExecStart=/usr/local/bin/start-scorpio.sh
 WorkingDirectory=/root/.cargo/bin
 Restart=always
 User=root

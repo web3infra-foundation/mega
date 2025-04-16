@@ -3,7 +3,7 @@ Description=mega-orion
 After=network.target
 
 [Service]
-ExecStart=/root/.cargo/bin/orion
+ExecStart=/usr/local/bin/start-orion.sh
 WorkingDirectory=/root/.cargo/bin
 Restart=always
 User=root

@@ -5,7 +5,7 @@ PKG="libunwind"
 PKG_VERSION="1.6.2"
 PKG_FILE="libunwind-1.6.2.tar.gz"
 URL="https://download.savannah.nongnu.org/releases/libunwind/libunwind-1.6.2.tar.gz"
-MD5="9d486750569e7025e5d0afdcc509b93c"
+MD5="f625b6a98ac1976116c71708a73dc44a"
 for i in PATCH{1..10}; do
    unset $i
 done
