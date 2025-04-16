@@ -104,11 +104,11 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
+    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
     //             .await
     //             .unwrap();
     //     });
-    //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
     //     let peers = client::get_peers().await.unwrap();
     //     info!("peers: {:?}", peers);
     // }
@@ -120,7 +120,7 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
+    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
     //             .await
     //             .unwrap();
     //     });
@@ -136,7 +136,7 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
+    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
     //             .await
     //             .unwrap();
     //     });
@@ -162,7 +162,7 @@ mod tests {
     //             .await
     //             .unwrap();
     //     });
-    //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
     //     client::repo_clone(
     //         context.clone(),
     //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-part/lfs_test.git"
@@ -223,7 +223,6 @@ mod tests {
     //         .unwrap();
     //     let identifier = repo_path_to_identifier(git_model.repo_path).await;
     //     let git_event = req.to_git_event(identifier, git_ref.ref_git_id).await;
-    //
     //     client::send_git_event(git_event).await.unwrap();
     //     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     // }

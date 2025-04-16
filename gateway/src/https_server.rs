@@ -7,7 +7,6 @@ use axum::{http, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Args;
 
-use quinn::rustls;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
@@ -19,7 +18,7 @@ use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
 use mono::server::https_server::{get_method_router, post_method_router, AppState};
 
-use crate::api::{github_router, nostr_router, p2p_router, MegaApiServiceState};
+use crate::api::{github_router, MegaApiServiceState};
 
 #[derive(Args, Clone, Debug)]
 pub struct HttpOptions {
@@ -60,10 +59,6 @@ pub async fn https_server(context: Context, options: HttpsOptions) {
         p2p,
     } = options.clone();
 
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
-
     check_run_with_p2p(context.clone(), options.p2p.clone());
 
     let app = app(context, host.clone(), https_port, p2p.clone()).await;
@@ -85,10 +80,6 @@ pub async fn http_server(context: Context, options: HttpOptions) {
         http_port,
         p2p,
     } = options.clone();
-
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
 
     check_run_with_p2p(context.clone(), options.p2p.clone());
 
@@ -127,10 +118,7 @@ pub async fn app(context: Context, host: String, port: u16, p2p: P2pOptions) -> 
     };
 
     pub fn mega_routers() -> Router<MegaApiServiceState> {
-        Router::new()
-            .merge(p2p_router::routers())
-            .merge(nostr_router::routers())
-            .merge(github_router::routers())
+        Router::new().merge(github_router::routers())
     }
 
     // add RequestDecompressionLayer for handle gzip encode
