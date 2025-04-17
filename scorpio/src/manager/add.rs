@@ -65,9 +65,7 @@ pub async fn add_and_del(
             rm_batch.insert(key.as_bytes(), b"");
             continue;
         }
-        println!("0001");
         let blob = gen_blob_from_file(entry_path).await;
-        println!("0002");
         let hash = blob.id;
         println!("hash = {}", hash._to_string());
         let content = blob.data;
