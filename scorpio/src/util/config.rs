@@ -128,6 +128,7 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
         "git_email",
         "config_file",
         "lfs_url",
+        "dicfuse_readable",
     ];
 
     for key in required_keys {
@@ -175,7 +176,9 @@ pub fn config_file() -> &'static str {
 pub fn lfs_url() -> &'static str {
     &get_config().config["lfs_url"]
 }
-
+pub fn dicfuse_readable() -> bool{
+    get_config().config["dicfuse_readable"]=="true"
+}
 #[cfg(test)]
 mod tests {
     use super::*;
