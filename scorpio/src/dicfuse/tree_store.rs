@@ -9,7 +9,8 @@ use crate::util::{config, GPath};
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::store::Item;
-#[allow(unused)]
+
+/// inode -> StorageItem{ inode, parent, name, is_dir, children }
 pub struct TreeStorage {
     db: Db,
 }
@@ -22,7 +23,7 @@ pub struct StorageItem{
     is_dir: bool , // True for Directory . 
     children:Vec<u64>
 }
-#[allow(unused)]
+
 impl StorageItem {
     pub fn get_inode(&self) -> u64{
         self.inode
