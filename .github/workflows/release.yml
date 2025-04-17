@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          # (required) GitHub token for creating GitHub Releases.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Install system dependencies
+        uses: ./.github/install-dep
+        with:
+          cache-key: sysdeps
+          platform: ${{ matrix.os }}
+
+      - name: Upload libra binary
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: libra
+          target: ${{ matrix.target }}
+          archive: libra-${{ matrix.target }}
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload monobean binary
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: monobean
+          manifest-path: monobean/Cargo.toml
+          target: ${{ matrix.target }}
+          archive: monobean-${{ matrix.target }}
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}
