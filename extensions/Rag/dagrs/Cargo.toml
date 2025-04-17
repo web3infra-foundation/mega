@@ -1,0 +1,54 @@
+[package]
+name = "dagrs"
+authors = [
+    "Quanyi Ma <eli@patch.sh>",
+    "Xiaolong Fu <njufxl@gmail.com>",
+    "Zhilei Qiu <qzl2503687@gmail.com>",
+]
+version = "0.4.2"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Dagrs follows the concept of Flow-based Programming and is suitable for the execution of multiple tasks with graph-like dependencies. Dagrs has the characteristics of high performance and asynchronous execution. It provides users with a convenient programming interface."
+readme = "README.md"
+repository = "https://github.com/dagrs-dev/dagrs"
+keywords = ["DAG", "task", "async", "fbp", "tokio"]
+
+# [workspace]
+# members = [".", "dagrs-derive", "examples/dagrs-sklearn"]
+# default-members = [".", "dagrs-derive"]
+
+[dependencies]
+dagrs-derive = { path = "dagrs-derive", optional = true, version = "0.4.2" }
+tokio = { version = "1.28", features = ["rt", "sync", "rt-multi-thread"] }
+log = "0.4"
+env_logger = "0.11.6"
+async-trait = "0.1.83"
+proc-macro2 = "1.0"
+futures = "0.3.31"
+
+[dev-dependencies]
+simplelog = "0.12"
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+
+[features]
+default = ["derive"]
+derive = ["dagrs-derive/derive"]
+
+[[example]]
+name = "auto_node"
+required-features = ["derive"]
+
+[[example]]
+name = "auto_relay"
+required-features = ["derive"]
+
+[[example]]
+name = "compute_dag"
+
+[[example]]
+name = "custom_node"
+
+[[example]]
+name = "hello_dagrs"
