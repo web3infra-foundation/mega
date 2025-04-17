@@ -1,4 +1,4 @@
-use libra::utils::lfs::is_lfs_tracked;
+use crate::scolfs::lfs::is_lfs_tracked;
 
 use mercury::internal::object::blob::Blob;
 use std::os::unix::fs::FileTypeExt;
@@ -22,7 +22,7 @@ use crate::manager::store::{BlobFsStore, ModifiedStore};
 ///
 /// sled::Db also provides a get() function, but I am not sure about its
 /// performance and security, and it has too many restrictions.
-pub fn add_and_del(
+pub async fn add_and_del(
     real_path: &PathBuf,
     work_path: &Path,
     index_db: &sled::Db,
@@ -65,8 +65,11 @@ pub fn add_and_del(
             rm_batch.insert(key.as_bytes(), b"");
             continue;
         }
-        let blob = gen_blob_from_file(entry_path);
+        println!("0001");
+        let blob = gen_blob_from_file(entry_path).await;
+        println!("0002");
         let hash = blob.id;
+        println!("hash = {}", hash._to_string());
         let content = blob.data;
         match stored_db.get(&path) {
             Some(old_hash) => {
@@ -107,8 +110,8 @@ pub fn add_and_del(
 use crate::scolfs::ext::BlobExt;
 /// Generate a `Blob` from a file
 /// - if the file is tracked by LFS, generate a `Blob` with pointer file
-fn gen_blob_from_file(path: impl AsRef<Path>) -> Blob {
-     if is_lfs_tracked(&path) {
+async fn gen_blob_from_file(path: impl AsRef<Path>) -> Blob {
+     if is_lfs_tracked(&path).await {
         Blob::from_lfs_file(&path)
     } else {
         Blob::from_file(&path)
