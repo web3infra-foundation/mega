@@ -20,7 +20,6 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/**'
   pull_request:
     paths-ignore:
       - 'alfs/**'
@@ -34,7 +33,6 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/**'
 
 name: Base GitHub Action for Check, Test and Lints
 
