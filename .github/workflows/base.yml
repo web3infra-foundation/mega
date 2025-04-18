@@ -122,9 +122,9 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ self-hosted, macos-latest, windows-latest ]
 
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'self-hosted' || matrix.os }}
+    runs-on: ${{ matrix.os }}
     needs: setup
     env:
       CARGO_TERM_COLOR: always
@@ -160,9 +160,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ self-hosted, macos-latest, windows-latest ]
 
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'self-hosted' || matrix.os }}
+    runs-on: ${{ matrix.os }}
     needs: setup
     env:
       CARGO_TERM_COLOR: always
