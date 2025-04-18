@@ -8,4 +8,4 @@ tokio = { workspace = true, features = ["macros"] }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-async-openai = "0.27.1"
+async-openai = "0.28.1"
