@@ -15,7 +15,10 @@
 use std::path::PathBuf;
 
 use adw::gio::Settings;
-use gtk::prelude::*;
+use gtk::{
+    gio::{self, ResourceLookupFlags},
+    prelude::*,
+};
 
 use crate::core::CoreConfigChanged;
 
@@ -144,7 +147,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     // Base settings
     let base_dir: String = get_setting!(setting, "base-dir", String);
-    if base_dir != "" {
+    if !base_dir.is_empty() {
         update.push(CoreConfigChanged::BaseDir(
             base_dir.parse::<PathBuf>().unwrap(),
         ));
@@ -305,4 +308,9 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     update
+}
+
+pub fn load_mega_resource(path: &str) -> Vec<u8> {
+    let bytes = gio::resources_lookup_data(path, ResourceLookupFlags::all()).unwrap();
+    bytes.as_ref().into()
 }

@@ -6,10 +6,8 @@ use config::{Source, ValueKind};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
