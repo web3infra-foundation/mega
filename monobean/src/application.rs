@@ -1,4 +1,5 @@
-use crate::config::{config_update, WEBSITE};
+use crate::config::{config_update, monobean_base, monobean_cache, WEBSITE};
+use crate::core::CoreConfigChanged;
 use crate::{get_setting, CONTEXT};
 
 use crate::components::preference::MonobeanPreferences;
@@ -120,11 +121,9 @@ mod imp {
                     #[strong]
                     app,
                     async move {
-                        let mut cnt = 0;
                         app.start_mega().await;
                         while let Ok(action) = receiver.recv().await {
-                            cnt += 1;
-                            tracing::debug!("Processing Glib Action {cnt}: {:?}", action);
+                            tracing::debug!("Processing Glib Action {:?}", action);
                             app.process_action(action);
                         }
                     }
@@ -330,8 +329,17 @@ impl MonobeanApplication {
     }
 
     async fn apply_user_config(&self) {
-        let update = config_update(self.settings());
-        self.send_command(MegaCommands::ApplyUserConfig(update))
+        let mut updates = Vec::new();
+
+        // Always ignore the base_dir in config.toml
+        // https://github.com/web3infra-foundation/mega/issues/957
+        updates.push(CoreConfigChanged::BaseDir(monobean_base()));
+        updates.push(CoreConfigChanged::LogPath(monobean_cache().join("logs")));
+        updates.push(CoreConfigChanged::DbPath(monobean_base().join("monobean.db")));
+
+        // However, this behavior can still be overridden from GUI preferences.
+        updates.extend(config_update(self.settings()).into_iter());
+        self.send_command(MegaCommands::ApplyUserConfig(updates))
             .await;
     }
 
