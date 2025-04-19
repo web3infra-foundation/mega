@@ -1,0 +1,31 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "cc",
+    srcs = glob(["src/**/*.rs"]) + [
+        "src/detect_compiler_family.c",
+    ],
+    crate = "cc",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = ["parallel"],
+    platform = {
+        "linux-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "linux-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+    },
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third-party/rust/crates/jobserver/0.1.32:jobserver",
+        "//third-party/rust/crates/shlex/1.3.0:shlex",
+    ],
+)
