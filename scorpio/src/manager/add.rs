@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::manager::diff::is_whiteout_inode;
-use crate::manager::store::{BlobFsStore, ModifiedStore};
+use crate::manager::store::{BlobFsStore, ModifiedStore, TempStoreArea};
 
 /// This function dosn't check the input path, so if you call it outside the
 /// mono_add() function, be careful the directory injection vulnerability.
@@ -25,9 +25,11 @@ use crate::manager::store::{BlobFsStore, ModifiedStore};
 pub async fn add_and_del(
     real_path: &PathBuf,
     work_path: &Path,
-    index_db: &sled::Db,
-    rm_db: &sled::Db,
+    temp_store_area: &TempStoreArea,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let index_db = &temp_store_area.index_db;
+    let rm_db = &temp_store_area.rm_db;
+
     // Using batch processing to simplify I/O operations
     // and reduce disk consumption.
     let mut index_batch = sled::Batch::default();
@@ -76,7 +78,10 @@ pub async fn add_and_del(
                     index_batch.insert(key.as_bytes(), hash._to_string().as_bytes());
                     modified_path.add_blob_to_hash(&hash._to_string(), &content)?;
                 }
-                let index = stored_path.iter().position(|tmp_path| tmp_path == &path).unwrap();
+                let index = stored_path
+                    .iter()
+                    .position(|tmp_path| tmp_path == &path)
+                    .unwrap();
                 stored_path.remove(index);
             }
             None => {
@@ -109,7 +114,7 @@ use crate::scolfs::ext::BlobExt;
 /// Generate a `Blob` from a file
 /// - if the file is tracked by LFS, generate a `Blob` with pointer file
 async fn gen_blob_from_file(path: impl AsRef<Path>) -> Blob {
-     if is_lfs_tracked(&path).await {
+    if is_lfs_tracked(&path).await {
         Blob::from_lfs_file(&path)
     } else {
         Blob::from_file(&path)
