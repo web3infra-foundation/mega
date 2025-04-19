@@ -352,3 +352,56 @@ impl MegaCore {
         self.running_context.read().await.is_some()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::servers::HttpOptions;
+    use crate::error::MonoBeanError;
+    use async_channel::bounded;
+    use std::net::{IpAddr, Ipv4Addr};
+    use tokio::sync::oneshot;
+
+    #[tokio::test]
+    async fn test_launch_http() {
+        let (tx, rx) = bounded(1);
+        let (cmd_tx, cmd_rx) = bounded(1);
+        let core = MegaCore::new(tx, cmd_rx);
+        core.process_command(MegaCommands::MegaStart(
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 2222)),
+            P2pOptions::default(),
+        ));
+        assert_eq!(core.http_options.read().await.is_some(), true);
+        assert_eq!(core.ssh_options.read().await.is_some(), true);
+    }
+
+    #[tokio::test]
+    async fn test_launch_https() {
+        let (tx, rx) = bounded(1);
+        let (cmd_tx, cmd_rx) = bounded(1);
+        let core = MegaCore::new(tx, cmd_rx);
+        core.process_command(MegaCommands::MegaStart(
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 443)),
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 2222)),
+            P2pOptions::default()
+        ));
+        assert_eq!(core.http_options.read().await.is_some(), true);
+        assert_eq!(core.ssh_options.read().await.is_some(), true);
+    }
+
+    #[tokio::test]
+    async fn test_launch_p2p() {
+
+    }
+
+    #[tokio::test]
+    async fn test_launch_ssh() {
+        let (tx, rx) = bounded(1);
+        let (cmd_tx, cmd_rx) = bounded(1);
+        let core = MegaCore::new(tx, cmd_rx);
+        core.shutdown();
+        assert_eq!(core.http_options.read().await.is_none(), true);
+        assert_eq!(core.ssh_options.read().await.is_none(), true);
+    }
+}
