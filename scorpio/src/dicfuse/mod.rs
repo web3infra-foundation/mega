@@ -14,6 +14,7 @@ use tree_store::StorageItem;
 
 
 pub struct Dicfuse{
+    readable: bool,
     pub store: Arc<DictionaryStore>,
     open_buff: Arc<tokio::sync::RwLock<HashMap<u64, Vec<u8>>>>,
 }
@@ -21,6 +22,7 @@ pub struct Dicfuse{
 impl Dicfuse{
     pub async fn new() -> Self {
         Self {
+            readable: config::dicfuse_readable(),
             store: DictionaryStore::new().await.into(), // Assuming DictionaryStore has a new() method
             open_buff: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         }
@@ -34,6 +36,10 @@ impl Dicfuse{
         e
     }
     async fn load_one_file(&self, parent: u64, name: &OsStr) -> std::io::Result<()>{
+        if !self.readable{
+            return Ok(());
+        }
+        
         let mut parent_item = self.store.find_path(parent).await.unwrap();
         let tree = fetch_tree(&parent_item).await.unwrap();
 
@@ -75,6 +81,12 @@ impl Dicfuse{
         Ok(())
     }
     pub async fn load_files(&self, parent_item :StorageItem,items:&Vec<StorageItem>){
+        if !self.readable{
+            return;
+        }
+        if self.open_buff.read().await.contains_key(&parent_item.get_inode()){
+            return;
+        }
         let gpath = self.store.find_path(parent_item.get_inode()).await.unwrap();
         let tree = fetch_tree(&gpath).await.unwrap(); 
         let mut is_first  = true;
@@ -128,6 +140,7 @@ impl Dicfuse{
             }
             
         }
+        self.open_buff.write().await.insert(parent_item.get_inode(), Vec::new());
     }
 
 

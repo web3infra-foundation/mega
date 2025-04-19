@@ -114,6 +114,11 @@ impl Filesystem for Dicfuse {
         offset: u64,
         size: u32,
     ) -> Result<ReplyData> {
+        if !self.readable{
+            return Ok(ReplyData {
+                data: Bytes::from("".as_bytes()),
+            });
+        }
         let read_lock  = self.open_buff.read().await;
         let datas = read_lock.get(&inode).ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
         let _offset = offset as usize;
