@@ -6,8 +6,10 @@ use config::{Source, ValueKind};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
@@ -46,6 +48,20 @@ impl Config {
                     .prefix_separator("_")
                     .separator("__"),
             );
+
+        let config = variable_placeholder_substitute(builder);
+
+        Config::from_config(config)
+    }
+
+    pub fn load_sources<T>(sources: Vec<Box<T>>) -> Result<Self, c::ConfigError>
+    where
+        T: Source + Send + Sync + 'static,
+    {
+        let mut builder = c::Config::builder();
+        for source in sources {
+            builder = builder.add_source(*source);
+        }
 
         let config = variable_placeholder_substitute(builder);
 
@@ -137,7 +153,7 @@ fn variable_placeholder_substitute(mut builder: c::ConfigBuilder<DefaultState>) 
         let mut str = v.clone().into_string().unwrap();
         if envsubst::is_templated(&str) {
             let new_str = envsubst::substitute(&str, &vars).unwrap();
-            println!("{}: {} -> {}", k, str, &new_str);
+            // println!("{}: {} -> {}", k, str, &new_str);
             v.kind = ValueKind::String(new_str.clone());
             builder = builder.set_override(&k, v).unwrap();
             str = new_str;
@@ -186,7 +202,7 @@ impl Default for LogConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DbConfig {
     pub db_type: String,
-    pub db_path: String,
+    pub db_path: PathBuf,
     pub db_url: String,
     pub max_connection: u32,
     pub min_connection: u32,
@@ -197,7 +213,7 @@ impl Default for DbConfig {
     fn default() -> Self {
         Self {
             db_type: String::from("sqlite"),
-            db_path: String::from("/tmp/.mega/mega.db"),
+            db_path: PathBuf::from("/tmp/.mega/mega.db"),
             db_url: String::from("postgres://mega:mega@localhost:5432/mega"),
             max_connection: 32,
             min_connection: 16,
