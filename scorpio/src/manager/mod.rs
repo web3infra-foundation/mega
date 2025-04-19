@@ -1,3 +1,4 @@
+use crate::manager::store::TempStoreArea;
 use crate::util::config;
 use add::add_and_del;
 use bytes::Bytes;
@@ -68,6 +69,7 @@ impl ScorpioManager {
         let modified_path = path.join("modifiedstore");
         let tempstorage_path = modified_path.join("objects");
 
+        let _ = fs::remove_dir_all(&objectspath);
         if tempstorage_path.exists() {
             let mut options = CopyOptions::new();
             options.copy_inside = true;
@@ -81,9 +83,7 @@ impl ScorpioManager {
         }
 
         let new_db = sled::open(new_dbpath)?;
-        let index_db = sled::open(modified_path.join("index.db"))?;
-        let rm_db = sled::open(modified_path.join("removedfile.db"))?;
-
+        let temp_store_area = TempStoreArea::new(&modified_path)?;
         let old_root_path = PathBuf::from(mono_path);
 
         //
@@ -105,17 +105,11 @@ impl ScorpioManager {
         };
 
         println!("\x1b[34m[START]\x1b[0m");
-        let main_tree_hash = commit_core(&new_db, &index_db, &rm_db, &old_root_path)?;
+        let main_tree_hash = commit_core(&new_db, &temp_store_area, &old_root_path)?;
         println!("\x1b[34m[DONE]\x1b[0m");
 
-        println!(
-            "   [\x1b[33mDEBUG\x1b[0m] commit.author = {}",
-            sign.name
-        );
-        println!(
-            "   [\x1b[33mDEBUG\x1b[0m] commit.committer = {}",
-            sign.name
-        );
+        println!("   [\x1b[33mDEBUG\x1b[0m] commit.author = {}", sign.name);
+        println!("   [\x1b[33mDEBUG\x1b[0m] commit.committer = {}", sign.name);
         println!(
             "   [\x1b[33mDEBUG\x1b[0m] commit.tree_id = {}",
             main_tree_hash._to_string()
@@ -240,10 +234,9 @@ impl ScorpioManager {
             // Preventing Directory Traversal Vulnerabilities
             Ok(format_path) => match format_path.starts_with(upper_path) {
                 true => {
-                    let index_db = sled::open(modified_path.join("index.db"))?;
-                    let rm_db = sled::open(modified_path.join("removedfile.db"))?;
+                    let temp_store_area = TempStoreArea::new(&modified_path)?;
                     println!("\x1b[32m[START]\x1b[0m");
-                    add_and_del(&format_path, &work_path, &index_db, &rm_db).await?;
+                    add_and_del(&format_path, &work_path, &temp_store_area).await?;
                     println!("\x1b[32m[OK]\x1b[0m");
                     Ok(())
                 }
