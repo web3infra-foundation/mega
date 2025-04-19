@@ -19,7 +19,7 @@ pub enum CoreConfigChanged {
 
     // Database Config
     DbType(String),
-    DbPath(String),
+    DbPath(PathBuf),
     DbUrl(String),
     MaxConnection(u32),
     MinConnection(u32),

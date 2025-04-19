@@ -1,5 +1,6 @@
 # the directory where the data files is located, such as logs, database, etc.
 # can be overridden by environment variable `MEGA_BASE_DIR`
+# When using monobean, this option will be ignored, you should set it in monobean preference GUI.
 base_dir = "/tmp/.mono"
 
 # Filling the following environment variables with values you set

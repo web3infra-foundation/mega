@@ -74,6 +74,68 @@ macro_rules! get_setting {
     };
 }
 
+/// Retrieves the base directory path for Monobean
+///
+/// The directory is determined in the following priority order:
+/// 1. Uses the `MONOBEAN_BASE_DIR` environment variable if set
+/// 2. Falls back to system default paths when environment variable is not set:
+///     - On Linux: `~/.local/share/monobean`
+///     - On Windows: `C:\ProgramData\monobean`
+///     - On macOS: `~/Library/Application Support/monobean`
+///
+/// # Returns
+/// A PathBuf containing the base directory path
+///
+/// # Panics
+/// Will panic if both conditions occur:
+/// - Environment variable is not set
+/// - System base directories cannot be determined
+///
+pub fn monobean_base() -> PathBuf {
+    // Get the base directory from the environment variable or use the default
+    let base_dir = std::env::var("MONOBEAN_BASE_DIR").unwrap_or_else(|_| {
+        let base_dirs = directories::BaseDirs::new().unwrap();
+        base_dirs
+            .data_local_dir()
+            .join("monobean")
+            .to_str()
+            .unwrap()
+            .to_string()
+    });
+    PathBuf::from(base_dir)
+}
+
+/// Retrieves the cache directory path for Monobean
+///
+/// The directory is determined in the following priority order:
+/// 1. Uses the `MONOBEAN_CACHE_DIR` environment variable if set
+/// 2. Falls back to system default paths when environment variable is not set:
+///     - On Linux: `~/.cache/monobean`
+///     - On Windows: `C:\Users\{username}\AppData\Local\Cache\monobean`
+///     - On macOS: `~/Library/Caches/monobean`
+///
+/// # Returns
+/// A PathBuf containing the cache directory path
+///
+/// # Panics
+/// Will panic if both conditions occur:
+/// - Environment variable is not set
+/// - System cache directories cannot be determined
+///
+pub fn monobean_cache() -> PathBuf {
+    // Get the cache directory from the environment variable or use the default
+    let cache_dir = std::env::var("MONOBEAN_CACHE_DIR").unwrap_or_else(|_| {
+        let base_dirs = directories::BaseDirs::new().unwrap();
+        base_dirs
+            .cache_dir()
+            .join("monobean")
+            .to_str()
+            .unwrap()
+            .to_string()
+    });
+    PathBuf::from(cache_dir)
+}
+
 /// TODO: So ugly...
 /// We should update build.rs and use proc macros to generate this code.
 pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
@@ -82,7 +144,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     // Base settings
     let base_dir: String = get_setting!(setting, "base-dir", String);
-    if base_dir != "/tmp/.mono" {
+    if base_dir != "" {
         update.push(CoreConfigChanged::BaseDir(
             base_dir.parse::<PathBuf>().unwrap(),
         ));
@@ -115,7 +177,9 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     let db_path: String = get_setting!(setting, "db-path", String);
     if !db_path.is_empty() {
-        update.push(CoreConfigChanged::DbPath(db_path));
+        update.push(CoreConfigChanged::DbPath(
+            db_path.parse::<PathBuf>().unwrap(),
+        ));
     }
 
     let db_url: String = get_setting!(setting, "db-url", String);
