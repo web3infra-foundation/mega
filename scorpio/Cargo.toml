@@ -46,6 +46,7 @@ fjall = "2.8.0"
 thiserror = "2.0.12"
 clap = { version = "4.0", features = ["derive"] }
 crossbeam = "0.8.4"
+fs_extra = "1.2"
 
 [features] 
 async-io = []

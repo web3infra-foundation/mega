@@ -34,7 +34,7 @@ pub async fn pack(commit:Commit,trees:Vec<Tree>, blob:Vec<Blob>) -> Vec<u8>{
     
 }
 #[allow(unused)]
-pub async fn push(path:PathBuf,monopath:PathBuf){
+pub async fn push(path:PathBuf,monopath:PathBuf) -> std::io::Result<()> {
     let mut lower  = path.clone();
     lower.push("lower");
     let mut upper  = path.clone();
@@ -43,7 +43,7 @@ pub async fn push(path:PathBuf,monopath:PathBuf){
     dbpath.push("tree.db");
 
 
-    let db = sled::open(dbpath).unwrap();
+    let db = sled::open(dbpath)?;
     let mut trees = Vec::new();
     let mut blobs= Vec::new();
     let root_tree = change(upper, monopath.clone(), &mut trees, &mut blobs, &db);
@@ -52,8 +52,7 @@ pub async fn push(path:PathBuf,monopath:PathBuf){
         "author Quanyi Ma <eli@patch.sh> 1678101573 +0800"
             .to_string()
             .into_bytes(),
-    )
-    .unwrap();
+    ).unwrap();
 
     let remote_hash = SHA1::from_str(path.file_name().unwrap().to_str().unwrap()).unwrap();
 
@@ -86,6 +85,8 @@ pub async fn push(path:PathBuf,monopath:PathBuf){
     }else{
         println!("[scorpio]:push seccess!")
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -100,7 +101,7 @@ mod tests {
         let monopath =  PathBuf::from("third-part/mega/scorpio");
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
-            push(path,monopath).await;
+            push(path,monopath).await.unwrap();
         });
         //Add assertions here to verify the expected behavior of the push function
     }
