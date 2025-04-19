@@ -1,0 +1,4 @@
+dagrs:
+  a:
+    name:"Task a"
+    cmd: sh_script.sh
