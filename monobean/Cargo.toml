@@ -38,6 +38,7 @@ rustls = "0.23.23"
 gix-config = "0.43.0"
 home = "0.5.11"
 smallvec = "1.14.0"
+directories = "6.0.0"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"
