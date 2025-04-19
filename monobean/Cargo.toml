@@ -43,6 +43,9 @@ directories = "6.0.0"
 [build-dependencies]
 glib-build-tools = "0.20.0"
 
+[dev-dependencies]
+tempfile = "3.19.1"
+
 [profile.dev]
 panic = "abort" # glib panics are not human friendly, just leave them alone
 

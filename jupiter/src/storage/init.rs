@@ -77,11 +77,6 @@ async fn setup_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbE
     .await
 }
 
-fn is_file_empty(path: &str) -> bool {
-    let metadata = std::fs::metadata(path).unwrap();
-    metadata.len() == 0
-}
-
 fn setup_option(db_url: impl Into<String>) -> ConnectOptions {
     let mut opt = ConnectOptions::new(db_url);
     opt.max_connections(5)

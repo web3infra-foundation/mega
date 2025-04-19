@@ -149,8 +149,8 @@ impl FileTreeView {
         let mut root_model = ListStore::new::<FileTreeRowData>();
 
         let (root_dirs, root_files) = Self::load_directory(mount_point, 0);
-        root_model.extend(root_dirs.into_iter());
-        root_model.extend(root_files.into_iter());
+        root_model.extend(root_dirs);
+        root_model.extend(root_files);
 
         let model = TreeListModel::new(root_model, false, false, |item| {
             let mut model = ListStore::new::<FileTreeRowData>();
@@ -160,8 +160,8 @@ impl FileTreeView {
                 let path = node.path();
                 let depth = node.depth() + 1;
                 let (dirs, files) = Self::load_directory(path, depth);
-                model.extend(dirs.into_iter());
-                model.extend(files.into_iter());
+                model.extend(dirs);
+                model.extend(files);
                 Some(model.upcast::<ListModel>())
             } else {
                 None
@@ -217,7 +217,10 @@ impl FileTreeView {
         imp.list_view.set_factory(Some(&factory));
     }
 
-    fn load_directory(path: impl AsRef<Path>, depth: u8) -> (Vec<FileTreeRowData>, Vec<FileTreeRowData>) {
+    fn load_directory(
+        path: impl AsRef<Path>,
+        depth: u8,
+    ) -> (Vec<FileTreeRowData>, Vec<FileTreeRowData>) {
         let mut dirs = Vec::new();
         let mut files = Vec::new();
         if let Ok(entries) = path.as_ref().read_dir() {
