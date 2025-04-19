@@ -33,3 +33,4 @@ sea-orm = { workspace = true }
 ring = { workspace = true }
 hex = { workspace = true }
 sysinfo = "0.34.1"
+utoipa = { workspace = true }
