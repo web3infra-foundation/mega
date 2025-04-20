@@ -1,0 +1,11 @@
+error: a default value for this field already exists in the top default attribute.
+ --> tests/compile_fail/enum/top_attribute_conflict.rs:9:11
+  |
+9 |         #[default(10)]
+  |           ^^^^^^^
+
+error: a default value for this field already exists in the top default attribute.
+  --> tests/compile_fail/enum/top_attribute_conflict.rs:23:11
+   |
+23 |         #[default(5)]
+   |           ^^^^^^^
