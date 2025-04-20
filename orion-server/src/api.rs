@@ -12,7 +12,7 @@ use dashmap::DashMap;
 use futures_util::{SinkExt, Stream, StreamExt, stream};
 use once_cell::sync::Lazy;
 use orion::ws::WSMessage;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use scopeguard::defer;
 use sea_orm::ActiveValue::Set;
 use sea_orm::prelude::DateTimeUtc;
@@ -215,7 +215,7 @@ async fn task_handler(
         return json!({"message": "No clients connected"});
     }
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let chosen_id = client_ids.choose(&mut rng).unwrap();
 
     let msg = WSMessage::Task {
@@ -387,4 +387,17 @@ async fn process_message(msg: Message, who: SocketAddr, state: AppState) -> Cont
         }
     }
     ControlFlow::Continue(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_rng() {
+        use rand::seq::IndexedRandom;
+
+        let choices = [1, 2, 4, 8, 16, 32];
+        let mut rng = rand::rng();
+        println!("{:?}", choices.choose(&mut rng));
+        println!("{:?}", choices.choose(&mut rng));
+    }
 }
