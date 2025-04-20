@@ -1,8 +1,9 @@
-use crate::manager::add::add_and_del;
+use crate::manager::store::TempStoreArea;
 use crate::util::config;
-use bytes::{Bytes, BytesMut};
-use ceres::protocol::smart::add_pkt_line_string;
-use diff::change;
+use add::add_and_del;
+use bytes::Bytes;
+use commit::commit_core;
+use fs_extra::dir::{copy, CopyOptions};
 use mercury::{
     hash::SHA1,
     internal::object::{
@@ -10,13 +11,13 @@ use mercury::{
         signature::{Signature, SignatureType},
     },
 };
-use push::pack;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::{fs, path::PathBuf, str::FromStr};
-use tokio::{fs::File, io::AsyncWriteExt};
 
 pub mod add;
-mod commit;
+pub mod commit;
 pub mod diff;
 pub mod fetch;
 pub mod push;
@@ -59,20 +60,33 @@ impl ScorpioManager {
     ) -> Result<Commit, Box<dyn std::error::Error>> {
         let store_path = config::store_path();
         let work_dir = self.select_work(&mono_path)?;
-        let path = PathBuf::from(store_path);
-        let path = path.join(work_dir.hash.clone());
-        let mut lower = path.clone();
-        lower.push("lower");
-        let mut upper = path.clone();
-        upper.push("upper");
-        let mut dbpath = path.clone();
-        dbpath.push("tree.db");
+        let path = PathBuf::from(store_path).join(work_dir.hash.clone());
+        let old_dbpath = path.join("tree.db");
+        let new_dbpath = path.join("new_tree.db");
+        let objectspath = path.join("objects");
+        let commitpath = path.join("commit");
 
-        let db = sled::open(dbpath).unwrap();
-        let mut trees = Vec::new();
-        let mut blobs = Vec::new();
-        let root_tree = change(upper, path.clone(), &mut trees, &mut blobs, &db);
-        trees.push(root_tree.clone());
+        let modified_path = path.join("modifiedstore");
+        let tempstorage_path = modified_path.join("objects");
+
+        let _ = fs::remove_dir_all(&objectspath);
+        if tempstorage_path.exists() {
+            let mut options = CopyOptions::new();
+            options.copy_inside = true;
+            copy(&tempstorage_path, &objectspath, &options)?;
+        }
+
+        if !new_dbpath.exists() {
+            let mut options = CopyOptions::new();
+            options.copy_inside = true;
+            copy(&old_dbpath, &new_dbpath, &options)?;
+        }
+
+        let new_db = sled::open(new_dbpath)?;
+        let temp_store_area = TempStoreArea::new(&modified_path)?;
+        let old_root_path = PathBuf::from(mono_path);
+
+        //
         let git_author = config::git_author();
         let git_email = config::git_email();
         let sign = Signature::new(
@@ -80,29 +94,37 @@ impl ScorpioManager {
             git_author.to_string(),
             git_email.to_string(),
         );
-        let remote_hash = SHA1::from_str(&work_dir.hash)?;
-        let commit = Commit::new(
-            sign.clone(),
-            sign,
-            root_tree.id,
-            vec![remote_hash],
-            &commit_msg,
+
+        // For the sake of logical integrity and emergency response
+        // capabilities, Parent Commit is checked first.
+        let parent_commit = fs::read_to_string(&commitpath)?;
+        let regex_rule = Regex::new(r#"tree: (?<parent_hash>[0-9a-z]{40})"#).unwrap();
+        let parent_hash = match regex_rule.captures(&parent_commit) {
+            Some(parent_info) => vec![SHA1::from_str(&parent_info["parent_hash"])?],
+            None => return Err(Box::from("Parent hash not found in commit file")),
+        };
+
+        println!("\x1b[34m[START]\x1b[0m");
+        let main_tree_hash = commit_core(&new_db, &temp_store_area, &old_root_path)?;
+        println!("\x1b[34m[DONE]\x1b[0m");
+
+        println!("   [\x1b[33mDEBUG\x1b[0m] commit.author = {}", sign.name);
+        println!("   [\x1b[33mDEBUG\x1b[0m] commit.committer = {}", sign.name);
+        println!(
+            "   [\x1b[33mDEBUG\x1b[0m] commit.tree_id = {}",
+            main_tree_hash._to_string()
         );
-        let mut data = BytesMut::new();
-        add_pkt_line_string(
-            &mut data,
-            format!(
-                "{} {} {}\0report-status\n",
-                work_dir.hash, commit.id, "refs/heads/main"
-            ),
-        ); //TODO : configable
-        data.extend_from_slice(b"0000");
-        data.extend(pack(commit.clone(), trees, blobs).await);
-        let mut commit_path = path.clone();
-        commit_path.push("commit");
-        // write back the commit file.
-        let mut file = File::create(commit_path).await?;
-        file.write_all(&data).await?;
+        println!(
+            "   [\x1b[33mDEBUG\x1b[0m] commit.parent_commit_ids = {}",
+            parent_hash[0]
+        );
+        println!("   [\x1b[33mDEBUG\x1b[0m] commit.message = {}", commit_msg);
+
+        let commit = Commit::new(sign.clone(), sign, main_tree_hash, parent_hash, &commit_msg);
+
+        let mut commit_file = std::fs::File::create(&commitpath)?;
+        commit_file.write_all(commit.to_string().as_bytes())?;
+
         Ok(commit)
     }
 
@@ -133,7 +155,7 @@ impl ScorpioManager {
         &self,
         mono_path: &str,
     ) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
-        let work_dir = self.select_work(mono_path).unwrap(); // TODO : deal with error.
+        let work_dir = self.select_work(mono_path)?; // TODO : deal with error.
         let store_path = config::store_path();
         let mut path = store_path.to_string();
         path.push_str(&work_dir.hash);
@@ -212,10 +234,9 @@ impl ScorpioManager {
             // Preventing Directory Traversal Vulnerabilities
             Ok(format_path) => match format_path.starts_with(upper_path) {
                 true => {
-                    let index_db = sled::open(modified_path.join("index.db")).unwrap();
-                    let rm_db = sled::open(modified_path.join("removedfile.db")).unwrap();
+                    let temp_store_area = TempStoreArea::new(&modified_path)?;
                     println!("\x1b[32m[START]\x1b[0m");
-                    add_and_del(&format_path, &work_path, &index_db, &rm_db)?;
+                    add_and_del(&format_path, &work_path, &temp_store_area).await?;
                     println!("\x1b[32m[OK]\x1b[0m");
                     Ok(())
                 }
