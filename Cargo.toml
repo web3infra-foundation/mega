@@ -17,6 +17,7 @@ members = [
     "orion",
     "third-party",
     "orion-server",
+    "third-party",
 ]
 default-members = ["mega", "mono", "libra", "aries"]
 resolver = "1"
