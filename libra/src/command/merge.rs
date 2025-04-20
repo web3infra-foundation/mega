@@ -111,7 +111,7 @@ async fn test_merge_message() {
         branch: "feature-branch".to_string(),
         message: Some("Custom merge message".to_string()),
     };
-    execute(&args).await;
+    execute(args).await;
     let head_commit_hash = Head::current_commit().await.unwrap();
     let commit: Commit = load_object(&head_commit_hash).unwrap();
     assert_eq!(commit.message, "Custom merge message");
@@ -123,9 +123,10 @@ async fn test_default_merge_message() {
         branch: "feature-branch".to_string(),
         message: None,
     };
-    execute(&args).await;
+    let expected = format!("Merge branch '{}' into current", &args.branch);
+    execute(args).await;
     let head_commit_hash = Head::current_commit().await.unwrap();
     let commit: Commit = load_object(&head_commit_hash).unwrap();
-    let expected = format!("Merge branch '{}' into current", args.branch);
+    
     assert_eq!(commit.message, expected);
 }
