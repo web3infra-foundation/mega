@@ -147,32 +147,21 @@ impl FileTreeView {
         imp.sender.set(sender).unwrap();
 
         let mut root_model = ListStore::new::<FileTreeRowData>();
-        let root_items = mount_point
-            .as_ref()
-            .read_dir()
-            .unwrap()
-            .filter_map(|i| {
-                if let Ok(entry) = i {
-                    Some(FileTreeRowData::new(0, entry))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        root_model.extend(root_items);
+
+        let (root_dirs, root_files) = Self::load_directory(mount_point, 0);
+        root_model.extend(root_dirs);
+        root_model.extend(root_files);
 
         let model = TreeListModel::new(root_model, false, false, |item| {
-            let model = ListStore::new::<FileTreeRowData>();
+            let mut model = ListStore::new::<FileTreeRowData>();
             let node = item.downcast_ref::<FileTreeRowData>().unwrap();
 
             if node.file_type() == FileType::Directory {
                 let path = node.path();
                 let depth = node.depth() + 1;
-                if let Ok(entries) = std::fs::read_dir(path) {
-                    for entry in entries.flatten() {
-                        model.append(&FileTreeRowData::new(depth, entry));
-                    }
-                }
+                let (dirs, files) = Self::load_directory(path, depth);
+                model.extend(dirs);
+                model.extend(files);
                 Some(model.upcast::<ListModel>())
             } else {
                 None
@@ -226,6 +215,24 @@ impl FileTreeView {
 
         imp.list_view.set_model(Some(&selection));
         imp.list_view.set_factory(Some(&factory));
+    }
+
+    fn load_directory(
+        path: impl AsRef<Path>,
+        depth: u8,
+    ) -> (Vec<FileTreeRowData>, Vec<FileTreeRowData>) {
+        let mut dirs = Vec::new();
+        let mut files = Vec::new();
+        if let Ok(entries) = path.as_ref().read_dir() {
+            for entry in entries.flatten() {
+                if entry.file_type().unwrap().is_dir() {
+                    dirs.push(FileTreeRowData::new(depth, entry));
+                } else {
+                    files.push(FileTreeRowData::new(depth, entry));
+                }
+            }
+        }
+        (dirs, files)
     }
 }
 
