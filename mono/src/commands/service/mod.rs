@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use common::{config::Config, errors::MegaResult};
 use jupiter::context::Context;
-use taurus::init::init_mq;
 
 pub mod http;
 pub mod https;
@@ -36,7 +35,6 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
         .mono_storage
         .init_monorepo(&config.monorepo)
         .await;
-    init_mq(context.clone()).await;
 
     let (cmd, subcommand_args) = match args.subcommand() {
         Some((cmd, args)) => (cmd, args),
