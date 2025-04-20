@@ -127,6 +127,14 @@ jobs:
         with:
           submodules: recursive
           lfs: true
+      - name: Setup Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy
+          cache-workspaces: |
+            ./
+          cache-directories: |
+            ./target
 
       - name: Set up git lfs
         run: |
