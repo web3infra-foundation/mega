@@ -17,7 +17,7 @@ uuid = { workspace = true, features = ["v7"] }
 dashmap = "6.1.0"
 tower-http = { workspace = true, features = ["trace"] }
 scopeguard = "1.2.0"
-rand = "0.8.5"
+rand = "0.9.1"
 orion = { path = "../orion" }
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
