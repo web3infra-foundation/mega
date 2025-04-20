@@ -1,7 +1,6 @@
 use crate::application::Action;
-use crate::config::MEGA_CONFIG_PATH;
 use crate::core::servers::{HttpOptions, SshOptions};
-use crate::core::{load_mega_resource, CoreConfigChanged};
+use crate::core::CoreConfigChanged;
 use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
 use common::config::Config;
@@ -67,12 +66,7 @@ impl Debug for MegaCore {
 }
 
 impl MegaCore {
-    pub fn new(sender: Sender<Action>, receiver: Receiver<MegaCommands>) -> Self {
-        let bytes = load_mega_resource(MEGA_CONFIG_PATH);
-        let content = String::from_utf8(bytes).expect("Mega core setting must be in utf-8");
-        let config =
-            Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
-
+    pub fn new(sender: Sender<Action>, receiver: Receiver<MegaCommands>, config: Config) -> Self {
         Self {
             config: Arc::from(RwLock::new(config)),
             running_context: Default::default(),
@@ -261,7 +255,7 @@ impl MegaCore {
             ssh_options.shutdown_server();
         }
         *self.http_options.write().await = None;
-        *self.http_options.write().await = None;
+        *self.ssh_options.write().await = None;
         *self.running_context.write().await = None;
     }
 
@@ -351,4 +345,100 @@ impl MegaCore {
     pub async fn is_core_running(&self) -> bool {
         self.running_context.read().await.is_some()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::load_mega_resource;
+    use crate::config::APP_NAME;
+    use crate::config::MEGA_CONFIG_PATH;
+    use async_channel::bounded;
+    use common::config::DbConfig;
+    use common::config::LogConfig;
+    use gtk::gio;
+    use gtk::glib;
+    use std::net::{IpAddr, Ipv4Addr};
+    use tempfile::TempDir;
+
+    async fn test_core(temp_base: &TempDir) -> MegaCore {
+        let (tx, _) = bounded(1);
+        let (_, cmd_rx) = bounded(1);
+        let config = Config {
+            base_dir: temp_base.path().to_path_buf(),
+            log: LogConfig {
+                log_path: temp_base.path().to_path_buf(),
+                level: "debug".to_string(),
+                print_std: true,
+            },
+            database: DbConfig {
+                db_type: "sqlite".to_string(),
+                db_path: temp_base.path().to_path_buf().join("test.db"),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let core = MegaCore::new(tx, cmd_rx, config);
+        core.init().await;
+        core
+    }
+
+    #[tokio::test]
+    async fn test_load_config() {
+        // This unit test should always pass for now.
+        // Later we will use a bit more complex mechanism to load config,
+        // and this test will be able to detect if the loading mechanism is broken.
+        // TODO: use `Config::load_sources` to load glib shcema
+        if let Some(cargo_dir) = std::option_env!("CARGO_MANIFEST_DIR") {
+            std::env::set_current_dir(cargo_dir).expect("Failed to set workspace dir");
+        }
+        let resources =
+            gio::Resource::load("Monobean.gresource").expect("Failed to load resources");
+        gio::resources_register(&resources);
+        glib::set_application_name(APP_NAME);
+
+        let bytes = load_mega_resource(MEGA_CONFIG_PATH);
+        let content = String::from_utf8(bytes).expect("Mega core setting must be in utf-8");
+        let _ = Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
+    }
+
+    #[tokio::test]
+    async fn test_launch_http() {
+        let temp_base = TempDir::new().unwrap();
+        let core = test_core(&temp_base).await;
+        core.process_command(MegaCommands::MegaStart(
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080)),
+            None,
+            P2pOptions::default(),
+        ))
+        .await;
+        assert!(core.http_options.read().await.is_some());
+        assert!(!core.ssh_options.read().await.is_some());
+
+        core.process_command(MegaCommands::MegaShutdown).await;
+        assert!(core.http_options.read().await.is_none());
+        assert!(core.ssh_options.read().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_launch_ssh() {
+        let temp_base = TempDir::new().unwrap();
+        let core = test_core(&temp_base).await;
+        core.process_command(MegaCommands::MegaStart(
+            None,
+            Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 2222)),
+            P2pOptions::default(),
+        ))
+        .await;
+        assert!(core.http_options.read().await.is_none());
+        assert!(core.ssh_options.read().await.is_some());
+
+        core.process_command(MegaCommands::MegaShutdown).await;
+        assert!(core.http_options.read().await.is_none());
+        assert!(core.ssh_options.read().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_run_with_config() {}
 }
