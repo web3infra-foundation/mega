@@ -169,7 +169,7 @@ async fn mount_handler(
          })
     }
     // fetch the dionary node info from mono.
-    let work_dir = fetch(&mut ml,inode, mono_path).await;
+    let work_dir = fetch(&mut ml,inode, mono_path).await.unwrap();
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
     // checkout / mount this dictionary. 
     
