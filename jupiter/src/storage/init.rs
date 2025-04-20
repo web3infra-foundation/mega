@@ -41,18 +41,18 @@ async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection,
 
 async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, MegaError> {
     if !Path::new(&db_config.db_path).exists() {
-        eprintln!("Creating new sqlite database: {}", db_config.db_path);
+        eprintln!("Creating new sqlite database: {:?}", db_config.db_path);
         std::fs::create_dir_all(Path::new(&db_config.db_path).parent().unwrap())?;
         std::fs::File::create(&db_config.db_path)?;
     }
-    let db_url = format!("sqlite://{}", db_config.db_path);
+    let db_url = format!("sqlite://{}", db_config.db_path.to_string_lossy());
     log::info!("Connecting to database: {}", db_url);
 
     let opt = setup_option(db_url);
     let conn = Database::connect(opt).await?;
 
     // setup sqlite database (execute .sql)
-    if is_file_empty(&db_config.db_path) {
+    if db_config.db_path.metadata()?.len() == 0 {
         log::info!("Setting up sqlite database");
         setup_sql(&conn)
             .await
@@ -77,12 +77,7 @@ async fn setup_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbE
     .await
 }
 
-fn is_file_empty(path: &str) -> bool {
-    let metadata = std::fs::metadata(path).unwrap();
-    metadata.len() == 0
-}
-
-fn setup_option(db_url: String) -> ConnectOptions {
+fn setup_option(db_url: impl Into<String>) -> ConnectOptions {
     let mut opt = ConnectOptions::new(db_url);
     opt.max_connections(5)
         .min_connections(1)
