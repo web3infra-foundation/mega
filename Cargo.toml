@@ -12,11 +12,10 @@ members = [
     "vault",
     "aries",
     "saturn",
-    "taurus",
     "atlas",
     "orion",
-    "third-party",
     "orion-server",
+    "third-party",
 ]
 default-members = ["mega", "mono", "libra", "aries"]
 resolver = "1"
@@ -32,7 +31,6 @@ migration = { path = "jupiter/migration" }
 gemini = { path = "gemini" }
 vault = { path = "vault" }
 saturn = { path = "saturn" }
-taurus = { path = "taurus" }
 mega = { path = "mega" }
 mono = { path = "mono" }
 libra = { path = "libra" }
