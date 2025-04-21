@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use common::{config::Config, errors::MegaResult};
 use jupiter::context::Context;
-use taurus::init::init_mq;
 
 mod http;
 mod https;
@@ -31,7 +30,6 @@ pub fn cli() -> Command {
 pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     let config = Arc::new(config);
     let context = Context::new(config.clone()).await;
-    init_mq(context.clone()).await;
 
     context
         .services

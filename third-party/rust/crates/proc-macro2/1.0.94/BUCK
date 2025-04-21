@@ -1,0 +1,50 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "proc-macro2",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "proc_macro2",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "proc-macro",
+    ],
+    rustc_flags = ["@$(location :proc-macro2-build-script-run[rustc_flags])"],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/unicode-ident/1.0.13:unicode-ident"],
+)
+
+cargo.rust_binary(
+    name = "proc-macro2-build-script-build",
+    srcs = glob(["src/**/*.rs"]) + [
+        "build.rs",
+        "build/probe.rs",
+        "tests/comments.rs",
+        "tests/features.rs",
+        "tests/marker.rs",
+        "tests/test.rs",
+        "tests/test_fmt.rs",
+        "tests/test_size.rs",
+    ],
+    crate = "build_script_build",
+    crate_root = "build.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "proc-macro",
+    ],
+    visibility = [],
+)
+
+buildscript_run(
+    name = "proc-macro2-build-script-run",
+    package_name = "proc-macro2",
+    buildscript_rule = ":proc-macro2-build-script-build",
+    features = [
+        "default",
+        "proc-macro",
+    ],
+    version = "1.0.94",
+)
