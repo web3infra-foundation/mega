@@ -437,7 +437,9 @@ mod tests {
 
     async fn get_entries_for_test() -> Arc<Mutex<Vec<Entry>>> {
         let file_map = crate::test_utils::setup_lfs_file().await;
-        let source = file_map.get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack").unwrap();
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
         // decode pack file to get entries
         let mut p = Pack::new(None, None, Some(PathBuf::from("/tmp/.cache_temp")), true);
 
