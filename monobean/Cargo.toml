@@ -21,7 +21,6 @@ scv = { version = "0.9.0", package = "sourceview5", features = ["gtk_v4_12", "v5
 mono = { path = "../mono" }
 common = { path = "../common" }
 jupiter = { path = "../jupiter" }
-taurus = { path = "../taurus" }
 vault = { path = "../vault" }
 gateway = { path = "../gateway" }
 tokio = "1.43.0"
