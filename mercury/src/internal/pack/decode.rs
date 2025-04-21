@@ -789,7 +789,9 @@ mod tests {
     async fn test_pack_decode_with_large_file_with_delta_without_ref() {
         init_logger();
         let file_map = crate::test_utils::setup_lfs_file().await;
-        let source = file_map.get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack").unwrap();
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
@@ -814,7 +816,9 @@ mod tests {
     async fn test_decode_large_file_stream() {
         init_logger();
         let file_map = crate::test_utils::setup_lfs_file().await;
-        let source = file_map.get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack").unwrap();
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = tokio::fs::File::open(source).await.unwrap();
@@ -849,7 +853,9 @@ mod tests {
     #[ignore] // Take too long time, duplicate with `test_decode_large_file_stream`
     async fn test_decode_large_file_async() {
         let file_map = crate::test_utils::setup_lfs_file().await;
-        let source = file_map.get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack").unwrap();
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = fs::File::open(source).unwrap();
