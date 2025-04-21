@@ -134,7 +134,7 @@ async fn update_global_lfs_patterns(file_path: &str) -> std::io::Result<()> {
 }
 
 /// - absolute path
-async fn is_lfs_tracked<P>(path: P) -> bool
+pub async fn is_lfs_tracked<P>(path: P) -> bool
 where
     P: AsRef<Path>,
 {

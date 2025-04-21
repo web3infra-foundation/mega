@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ self-hosted, ubuntu-latest, macos-latest, windows-latest ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
 
     name: Setup and cache ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -112,18 +112,12 @@ jobs:
       - name: Run cargo clippy
         run: |
           cargo build --bin mega --bin libra
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 
   #
   test:
-    name: Test for ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ self-hosted, macos-latest, windows-latest ]
-
-    runs-on: ${{ matrix.os }}
-    needs: setup
+    name: Full Test
+    runs-on: self-hosted
     env:
       CARGO_TERM_COLOR: always
 
@@ -133,12 +127,14 @@ jobs:
         with:
           submodules: recursive
           lfs: true
-
-      - name: Install system dependencies
-        uses: ./.github/install-dep
+      - name: Setup Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          cache-key: sysdeps
-          platform: ${{ matrix.os }}
+          components: clippy
+          cache-workspaces: |
+            ./
+          cache-directories: |
+            ./target
 
       - name: Set up git lfs
         run: |

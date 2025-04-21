@@ -1,6 +1,7 @@
 use super::{ScoState, FAIL, SUCCESS};
 use crate::manager::reset::reset_core;
 use crate::manager::status::status_core;
+use crate::manager::store::TempStoreArea;
 use crate::util::config;
 use axum::{
     extract::{Query, State},
@@ -9,6 +10,7 @@ use axum::{
 use mercury::internal::object::commit::Commit;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
 #[derive(serde::Serialize, Default)]
 pub(super) struct GitStatus {
     status: String,
@@ -33,9 +35,15 @@ pub(super) async fn git_status_handler(
         if works.path.eq(&params.path) {
             let work_path = PathBuf::from(store_path).join(works.hash.clone());
             let modified_path = work_path.join("modifiedstore");
-            let index_db = sled::open(modified_path.join("index.db")).unwrap();
-            let rm_db = sled::open(modified_path.join("removedfile.db")).unwrap();
-            return match status_core(&work_path, &index_db, &rm_db) {
+            let temp_store_area = match TempStoreArea::new(&modified_path) {
+                Ok(res) => res,
+                Err(err) => {
+                    status.status = FAIL.to_string();
+                    status.message = err.to_string();
+                    return status;
+                }
+            };
+            return match status_core(&work_path, &temp_store_area) {
                 Ok(res) => axum::Json(GitStatus {
                     status: SUCCESS.to_string(),
                     mono_path: params.path,
