@@ -12,7 +12,6 @@ members = [
     "vault",
     "aries",
     "saturn",
-    "atlas",
     "orion",
     "orion-server",
     "third-party",
