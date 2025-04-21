@@ -1,0 +1,12 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "pkg-config",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "pkg_config",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    visibility = ["PUBLIC"],
+    deps = [],
+    features = [],
+)
