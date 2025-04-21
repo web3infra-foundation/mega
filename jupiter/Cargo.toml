@@ -37,6 +37,7 @@ hex = { workspace = true }
 ring = { workspace = true }
 aws-config = { workspace = true, features = ["behavior-version-latest"] }
 aws-sdk-s3 = { workspace = true, features = ["rt-tokio"] }
+anyhow = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros"] }
