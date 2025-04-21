@@ -12875,7 +12875,7 @@ cargo.rust_binary(
     visibility = [],
     deps = [
         "//third-party/rust/crates/cc/1.2.1:cc",
-        ":pkg-config-0.3.31",
+        "//third-party/rust/crates/pkg-config/0.3.31:pkg-config",
         ":vcpkg-0.2.15",
     ],
 )
@@ -12924,7 +12924,7 @@ cargo.rust_binary(
     visibility = [],
     deps = [
         "//third-party/rust/crates/cc/1.2.1:cc",
-        ":pkg-config-0.3.31",
+        "//third-party/rust/crates/pkg-config/0.3.31:pkg-config",
         ":vcpkg-0.2.15",
     ],
 )
@@ -18699,7 +18699,7 @@ cargo.rust_binary(
     deps = [
         "//third-party/rust/crates/cc/1.2.1:cc",
         ":openssl-src-300.4.2+3.4.1",
-        ":pkg-config-0.3.31",
+        "//third-party/rust/crates/pkg-config/0.3.31:pkg-config",
         ":vcpkg-0.2.15",
     ],
 )
@@ -19774,15 +19774,6 @@ cargo.rust_library(
         ":rand_core-0.6.4",
         ":spki-0.7.3",
     ],
-)
-
-cargo.rust_library(
-    name = "pkg-config-0.3.31",
-    srcs = ["vendor/pkg-config-0.3.31/src/lib.rs"],
-    crate = "pkg_config",
-    crate_root = "vendor/pkg-config-0.3.31/src/lib.rs",
-    edition = "2018",
-    visibility = [],
 )
 
 cargo.rust_library(
@@ -36139,7 +36130,7 @@ cargo.rust_library(
     ],
     rustc_flags = ["@$(location :zstd-safe-7.2.1-build-script-run[rustc_flags])"],
     visibility = [],
-    deps = [":zstd-sys-2.0.13+zstd.1.5.6"],
+    deps = ["//third-party/rust/crates/zstd-sys/2.0.13+zstd.1.5.6:zstd-sys"],
 )
 
 cargo.rust_binary(
@@ -36174,83 +36165,4 @@ buildscript_run(
         "zdict_builder",
     ],
     version = "7.2.1",
-)
-
-cargo.rust_library(
-    name = "zstd-sys-2.0.13+zstd.1.5.6",
-    srcs = [
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zdict.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zdict_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zdict_std_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zstd.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zstd_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zstd_std_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/lib.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/wasm_shim.rs",
-    ],
-    crate = "zstd_sys",
-    crate_root = "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/lib.rs",
-    edition = "2018",
-    env = {
-        "OUT_DIR": "$(location :zstd-sys-2.0.13+zstd.1.5.6-build-script-run[out_dir])",
-    },
-    features = [
-        "default",
-        "experimental",
-        "legacy",
-        "std",
-        "zdict_builder",
-    ],
-    rustc_flags = [
-        "-Lnative=$(location :zstd-sys-2.0.13+zstd.1.5.6-build-script-run[out_dir])",
-        "-lstatic=zstd",
-    ],
-    visibility = [],
-)
-
-cargo.rust_binary(
-    name = "zstd-sys-2.0.13+zstd.1.5.6-build-script-build",
-    srcs = [
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/build.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zdict.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zdict_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zdict_std_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zstd.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zstd_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/bindings_zstd_std_experimental.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/lib.rs",
-        "vendor/zstd-sys-2.0.13+zstd.1.5.6/src/wasm_shim.rs",
-    ],
-    crate = "build_script_build",
-    crate_root = "vendor/zstd-sys-2.0.13+zstd.1.5.6/build.rs",
-    edition = "2018",
-    features = [
-        "default",
-        "experimental",
-        "legacy",
-        "std",
-        "zdict_builder",
-    ],
-    visibility = [],
-    deps = [
-        "//third-party/rust/crates/cc/1.2.1:cc",
-        ":pkg-config-0.3.31",
-    ],
-)
-
-buildscript_run(
-    name = "zstd-sys-2.0.13+zstd.1.5.6-build-script-run",
-    package_name = "zstd-sys",
-    buildscript_rule = ":zstd-sys-2.0.13+zstd.1.5.6-build-script-build",
-    env = {
-        "OPT_LEVEL": "3",
-    },
-    features = [
-        "default",
-        "experimental",
-        "legacy",
-        "std",
-        "zdict_builder",
-    ],
-    version = "2.0.13+zstd.1.5.6",
 )
