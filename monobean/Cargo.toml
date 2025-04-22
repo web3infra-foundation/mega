@@ -38,6 +38,7 @@ gix-config = "0.43.0"
 home = "0.5.11"
 smallvec = "1.14.0"
 directories = "6.0.0"
+tracing-appender = "0.2.3"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"
@@ -48,5 +49,24 @@ tempfile = "3.19.1"
 [profile.dev]
 panic = "abort" # glib panics are not human friendly, just leave them alone
 
-[profile.release]
-lto = "fat"
+# Configurations for CI release using cargo-packager
+[package.metadata.packager]
+before-packaging-command = "cargo build --release"
+product-name = "Monobean"
+identifier = "org.Web3Infrastructure.Monobean"
+resources = [
+  "Cargo.toml",
+  "../../README.md",
+  "icons/*",
+  "src",
+  { src = "src-ui/assets/tauri.svg", target = "path/to/tauri.svg" },
+  { src = "src-ui", target = "path/to/src-ui" },
+  { src = "src-ui/assets/*", target = "public" },
+]
+icons = [
+  "icons/32x32.png",
+  "icons/128x128.png",
+  "icons/128x128@2x.png",
+  "icons/icon.icns",
+  "icons/icon.ico",
+]
