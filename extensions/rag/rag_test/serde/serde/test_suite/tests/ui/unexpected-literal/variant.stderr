@@ -1,5 +1,0 @@
-error: unexpected literal in nested attribute, expected ident
- --> tests/ui/unexpected-literal/variant.rs:5:13
-  |
-5 |     #[serde("literal")]
-  |             ^^^^^^^^^

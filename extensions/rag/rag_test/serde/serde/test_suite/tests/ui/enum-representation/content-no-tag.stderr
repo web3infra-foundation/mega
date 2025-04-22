@@ -1,5 +1,0 @@
-error: #[serde(tag = "...", content = "...")] must be used together
- --> tests/ui/enum-representation/content-no-tag.rs:4:9
-  |
-4 | #[serde(content = "c")]
-  |         ^^^^^^^

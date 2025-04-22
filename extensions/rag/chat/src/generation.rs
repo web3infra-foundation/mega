@@ -68,7 +68,8 @@ impl Action for GenerationNode {
         {
             log::info!("Received content for generation");
             let context: &String = content.get().unwrap();
-            self.generate(context).await;
+            let _ = self.generate(context).await;
+            //self.generate(context).await;
         }
 
         log::info!("GenerationNode finished processing");

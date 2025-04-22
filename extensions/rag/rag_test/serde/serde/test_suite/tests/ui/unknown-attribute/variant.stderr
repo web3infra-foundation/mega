@@ -1,5 +1,0 @@
-error: unknown serde variant attribute `abc`
- --> tests/ui/unknown-attribute/variant.rs:5:13
-  |
-5 |     #[serde(abc = "xyz")]
-  |             ^^^

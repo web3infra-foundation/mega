@@ -1,5 +1,0 @@
-error: duplicate borrowed lifetime `'a`
- --> tests/ui/borrow/duplicate_lifetime.rs:5:22
-  |
-5 |     #[serde(borrow = "'a + 'a")]
-  |                      ^^^^^^^^^

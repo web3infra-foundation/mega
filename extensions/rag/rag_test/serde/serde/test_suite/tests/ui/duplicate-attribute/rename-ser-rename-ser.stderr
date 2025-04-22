@@ -1,5 +1,0 @@
-error: duplicate serde attribute `rename`
- --> tests/ui/duplicate-attribute/rename-ser-rename-ser.rs:5:38
-  |
-5 |     #[serde(rename(serialize = "x"), rename(serialize = "y"))]
-  |                                      ^^^^^^

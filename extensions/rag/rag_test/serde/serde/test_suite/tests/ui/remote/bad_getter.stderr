@@ -1,5 +1,0 @@
-error: failed to parse path: "~~~"
-  --> tests/ui/remote/bad_getter.rs:12:22
-   |
-12 |     #[serde(getter = "~~~")]
-   |                      ^^^^^

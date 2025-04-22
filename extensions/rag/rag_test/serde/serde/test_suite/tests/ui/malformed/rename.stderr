@@ -1,5 +1,0 @@
-error: malformed rename attribute, expected `rename(serialize = ..., deserialize = ...)`
- --> tests/ui/malformed/rename.rs:5:20
-  |
-5 |     #[serde(rename(unknown))]
-  |                    ^^^^^^^

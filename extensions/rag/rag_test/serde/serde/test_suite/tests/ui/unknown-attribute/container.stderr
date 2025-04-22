@@ -1,5 +1,0 @@
-error: unknown serde container attribute `abc`
- --> tests/ui/unknown-attribute/container.rs:4:9
-  |
-4 | #[serde(abc = "xyz")]
-  |         ^^^
