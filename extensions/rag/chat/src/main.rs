@@ -1,11 +1,7 @@
 use chat::command::{Cli, Commands};
 use chat::generation::GenerationNode;
 use chat::search::SearchNode;
-use chat::vectorization::VectClient;
-use chat::{
-    GENERATION_NODE, LLM_URL, PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, SEARCH_NODE,
-    VECT_CLIENT_NODE, VECT_URL,
-};
+use chat::{GENERATION_NODE, LLM_URL, QDRANT_URL, SEARCH_NODE, VECT_URL};
 use clap::Parser;
 use dagrs::utils::env::EnvVar;
 use dagrs::{DefaultNode, Graph, Node, NodeTable};

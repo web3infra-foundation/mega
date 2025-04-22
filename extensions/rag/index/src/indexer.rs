@@ -62,7 +62,7 @@ impl CodeIndexer {
         if crate_entry.is_dir() {
             println!("re: {:?}", crate_entry);
 
-            let crate_name = crate_entry.file_name().unwrap().to_str().unwrap();
+            //let crate_name = crate_entry.file_name().unwrap().to_str().unwrap();
             let crate_path = crate_entry.join(crate_version);
 
             if !crate_path.exists() {

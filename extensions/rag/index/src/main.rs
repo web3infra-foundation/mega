@@ -1,17 +1,14 @@
 use clap::Parser;
 use dagrs::utils::env::EnvVar;
 use dagrs::{DefaultNode, Graph, Node, NodeTable};
-use index::command::{Cli, Commands};
+use index::command::Cli;
 use index::indexer::CodeIndexer;
 use index::indexer::ProcessItemsAction;
 use index::indexer::WalkDirAction;
 use index::kafka::get_consumer;
 use index::qdrant::QdrantNode;
 use index::vectorization::VectClient;
-use index::{
-    GENERATION_NODE, LLM_URL, PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, SEARCH_NODE,
-    VECT_CLIENT_NODE, VECT_URL,
-};
+use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, VECT_CLIENT_NODE, VECT_URL};
 use rdkafka::consumer::CommitMode;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::Message;
