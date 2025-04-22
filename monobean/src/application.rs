@@ -26,6 +26,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use tokio::sync::oneshot;
 use tracing_subscriber::fmt;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -258,11 +259,28 @@ impl MonobeanApplication {
     fn setup_log(&self) {
         // TODO: Use gtk settings for log level.
         // FIXME: currently not working for glib logs.
+        let file_appender =
+            tracing_appender::rolling::hourly(monobean_cache(), "monobean-logs.txt");
         let filter = tracing_subscriber::EnvFilter::new("info,monobean=debug");
-        tracing_subscriber::registry()
-            .with(fmt::layer())
-            .with(filter)
-            .init();
+        if cfg!(debug_assertions) {
+            tracing_subscriber::fmt()
+                .with_writer(file_appender.and(std::io::stdout))
+                .with_env_filter(filter)
+                .with_target(false)
+                .with_line_number(true)
+                .with_file(true)
+                .without_time()
+                .compact()
+                .init();
+        } else {
+            tracing_subscriber::fmt()
+                .with_writer(file_appender)
+                .with_env_filter(filter)
+                .with_target(false)
+                .without_time()
+                .compact()
+                .init();
+        }
 
         glib::log_set_handler(
             None,
