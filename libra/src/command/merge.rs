@@ -127,6 +127,6 @@ async fn test_default_merge_message() {
     execute(args).await;
     let head_commit_hash = Head::current_commit().await.unwrap();
     let commit: Commit = load_object(&head_commit_hash).unwrap();
-    
+
     assert_eq!(commit.message, expected);
 }
