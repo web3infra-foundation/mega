@@ -22,7 +22,7 @@ impl QdrantNode {
     }
 
     async fn ensure_collection(&self) {
-        if let Err(_) = self
+        if self
             .client
             .create_collection(
                 qdrant_client::qdrant::CreateCollectionBuilder::new(&self.collection_name)
@@ -35,6 +35,7 @@ impl QdrantNode {
                     ),
             )
             .await
+            .is_err()
         {
             println!("Collection already exists or error occurred");
         }
@@ -96,40 +97,3 @@ impl Action for QdrantNode {
         Output::empty()
     }
 }
-
-// async fn create_collection(client: &Qdrant) -> Result<(), Box<dyn std::error::Error>> {
-//     let collection_name = "test";
-
-//     client
-//         .create_collection(
-//             CreateCollectionBuilder::new(collection_name)
-//                 .vectors_config(VectorParamsBuilder::new(1024, Distance::Cosine))
-//                 .quantization_config(ScalarQuantizationBuilder::default()),
-//         )
-//         .await?;
-
-//     println!("Collection created");
-//     Ok(())
-// }
-
-// async fn insert_points(client: &Qdrant) -> Result<(), Box<dyn std::error::Error>> {
-//     let collection_name = "test";
-//     let payload: Payload = serde_json::json!(
-//         {
-//             "foo": "Bar",
-//             "bar": 12,
-//             "baz": {
-//                 "qux": "quux"
-//             }
-//         }
-//     )
-//     .try_into()
-//     .unwrap();
-
-//     let points = vec![PointStruct::new(0, vec![12.; 1024], payload)];
-//     client
-//         .upsert_points(UpsertPointsBuilder::new(collection_name, points))
-//         .await?;
-//     println!("Points inserted");
-//     Ok(())
-// }

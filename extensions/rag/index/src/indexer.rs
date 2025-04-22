@@ -32,27 +32,6 @@ impl CodeIndexer {
         Ok(items)
     }
 
-    // async fn walk_space(&self, dir: &Path, items: &mut Vec<CodeItem>) -> Result<()> {
-    //     for crate_entry in WalkDir::new(dir)
-    //         .min_depth(1)
-    //         .max_depth(1)
-    //         .into_iter()
-    //         .filter_map(|e| e.ok())
-    //     {
-    //         if crate_entry.path().is_dir() {
-    //             let crate_path = crate_entry.path();
-    //             let crate_name = crate_path.file_name().unwrap().to_str().unwrap();
-    //             let repo_path = &crate_path.join(crate_name);
-    //             if !repo_path.exists() {
-    //                 println!("Skipping crate (repo_path does not exist): {:?}", repo_path);
-    //                 continue; // 跳过当前 crate
-    //             } else {
-    //                 self.walk_dir(repo_path, items).await;
-    //             }
-    //         }
-    //     }
-    //     Ok(())
-    // }
     async fn walk_space(
         &self,
         crate_entry: &Path,
