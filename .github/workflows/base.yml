@@ -72,7 +72,13 @@ jobs:
             ./target
             ./scorpio/target
             ./monobean/target
-
+      - name: Setup RDKafka deps for Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install -y msys2
+          echo "RDKAFKA_STATIC_LINKING=1" >> $env:GITHUB_ENV
+          C:\tools\msys64\usr\bin\bash -lc "pacman --noconfirm -Syuu"
+          C:\tools\msys64\usr\bin\bash -lc "pacman --noconfirm -S base-devel mingw-w64-x86_64-toolchain"
   #
   format:
     name: Rustfmt Check
