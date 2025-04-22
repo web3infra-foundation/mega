@@ -15,7 +15,8 @@ members = [
     "orion",
     "orion-server",
     "third-party",
-    "extensions/rag",
+    "extensions/rag/chat",
+    "extensions/rag/index",
 ]
 default-members = ["mega", "mono", "libra", "aries"]
 resolver = "1"
