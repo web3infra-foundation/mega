@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 创建工作目录
-WORKDIR /build
+WORKDIR /index
 
 # 复制整个工作空间
 COPY . .
@@ -24,18 +24,18 @@ FROM debian:latest
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libz-dev \
-    git \
+    git \   
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制构建的二进制文件
-COPY --from=builder /build/target/release/test_rag /usr/local/bin/test_rag
+COPY --from=builder /build/target/release/index /usr/local/bin/index
 
 # 复制环境配置文件
-COPY --from=builder /build /app
+COPY --from=builder /index /test
 
 # 创建工作目录
-WORKDIR /app
+WORKDIR /test
 
 # 设置环境变量
 ENV MEGA_DB_SQLX_LOGGING=false

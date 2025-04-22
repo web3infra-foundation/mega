@@ -28,10 +28,10 @@ impl SearchNode {
         &self,
         query: &str,
     ) -> Result<Option<(String, String)>, Box<dyn std::error::Error>> {
-        // 向量化查询
+        // Vectorized query
         let query_vector = self.vect_client.vectorize(query).await?;
 
-        // 在Qdrant中搜索，只返回最相似的一个结果
+        // Search in Qdrant and only return the most similar result
         let search_result = self
             .client
             .search_points(
@@ -44,11 +44,11 @@ impl SearchNode {
                         .collect::<Vec<f32>>(),
                     1,
                 )
-                .with_payload(true), // 关键：必须显式请求payload
+                .with_payload(true), // Key: Payload must be explicitly requested
             )
             .await?;
         println!("search_result: {:?}", search_result);
-        // 转换结果为 content 和 item_type
+        // Convert the result to content and item_type
         if let Some(point) = search_result.result.into_iter().next() {
             let payload = point.payload;
             let content = payload
@@ -73,31 +73,31 @@ impl Action for SearchNode {
         out_channels: &mut OutChannels,
         env: Arc<EnvVar>,
     ) -> Output {
-        // 从用户输入获取查询
+        // Get query from user input
         let mut input = String::new();
-        println!("\n请输入查询内容:");
+        println!("\nPlease enter the query content:");
         std::io::stdin().read_line(&mut input).unwrap();
         println!("input: {}", input);
         let out_node_id = env.get_ref(GENERATION_NODE).unwrap();
-        // 执行搜索
+        // Execute search
         let result = match self.search(input.trim()).await {
             Ok(Some((content, item_type))) => {
-                println!("\n搜索结果:");
-                println!("\n类型: {}", item_type);
-                println!("内容:\n{}", content);
+                println!("\nSearch result:");
+                println!("\nType: {}", item_type);
+                println!("Content:\n{}", content);
                 format!(
-                    "查询: {}\n类型: {}\n内容: {}",
+                    "Query: {}\nType: {}\nContent: {}",
                     input.trim(),
                     item_type,
                     content
                 )
             }
             Ok(None) => {
-                println!("\n未找到相关结果");
+                println!("\nNo relevant results found");
                 input.trim().to_string()
             }
             Err(e) => {
-                eprintln!("搜索时出错: {}", e);
+                eprintln!("Error during search: {}", e);
                 input.trim().to_string()
             }
         };

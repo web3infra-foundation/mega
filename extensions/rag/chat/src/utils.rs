@@ -27,10 +27,10 @@ pub enum ItemType {
 
 impl CodeItem {
     pub fn to_qdrant_point(&self, id: u64) -> PointStruct {
-        // 将f64向量转换为f32（Qdrant要求）
+        // Convert f64 vector to f32 (Qdrant requires)
         let vector: Vec<f32> = self.vector.iter().map(|&x| x as f32).collect();
 
-        // 构建payload元数据
+        // Build payload metadata
         let payload: HashMap<String, qdrant_client::qdrant::Value> = [
             ("name".to_string(), self.name.clone().into()),
             ("content".to_string(), self.content.clone().into()),

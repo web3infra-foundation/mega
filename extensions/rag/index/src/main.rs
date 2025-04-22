@@ -1,22 +1,22 @@
 use clap::Parser;
 use dagrs::utils::env::EnvVar;
 use dagrs::{DefaultNode, Graph, Node, NodeTable};
+use index::command::{Cli, Commands};
+use index::indexer::CodeIndexer;
+use index::indexer::ProcessItemsAction;
+use index::indexer::WalkDirAction;
+use index::kafka::get_consumer;
+use index::qdrant::QdrantNode;
+use index::vectorization::VectClient;
+use index::{
+    GENERATION_NODE, LLM_URL, PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, SEARCH_NODE,
+    VECT_CLIENT_NODE, VECT_URL,
+};
 use rdkafka::consumer::CommitMode;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::Message;
 use std::env;
 use std::thread;
-use test_rag::command::{Cli, Commands};
-use test_rag::indexer::CodeIndexer;
-use test_rag::indexer::ProcessItemsAction;
-use test_rag::indexer::WalkDirAction;
-use test_rag::kafka::get_consumer;
-use test_rag::qdrant::QdrantNode;
-use test_rag::vectorization::VectClient;
-use test_rag::{
-    GENERATION_NODE, LLM_URL, PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, SEARCH_NODE,
-    VECT_CLIENT_NODE, VECT_URL,
-};
 use tokio::runtime::Runtime;
 use tokio_stream::StreamExt;
 
@@ -53,9 +53,9 @@ async fn consume_messages(consumer: StreamConsumer, args: &Cli) {
 }
 
 fn update_knowledge_base(args: &Cli) {
-    log::info!("开始更新知识库...");
+    log::info!("Start updating knowledge base...");
     let indexer = CodeIndexer::new(&args.workspace);
-    log::info!("开始索引目录: {:?}", indexer.crate_path);
+    log::info!("Start indexing directory: {:?}", indexer.crate_path);
 
     let mut index_node_table = NodeTable::default();
     let crate_version = "0.1.0";
@@ -109,11 +109,11 @@ fn update_knowledge_base(args: &Cli) {
 
     index_graph.set_env(index_env);
 
-    // 使用 std::thread::spawn 来处理阻塞操作
+    // Use std::thread::spawn to handle blocking operations
     let handle = thread::spawn(move || {
         index_graph.start().unwrap();
     });
 
     handle.join().unwrap();
-    log::info!("知识库更新完成！");
+    log::info!("Knowledge base updated!");
 }

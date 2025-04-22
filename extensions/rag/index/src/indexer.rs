@@ -87,7 +87,7 @@ impl CodeIndexer {
             println!("Found path: {:?}", path);
 
             if path.is_dir() {
-                // 跳过 target 和 .git 目录
+                // Skip target and .git directories
                 if path
                     .file_name()
                     .and_then(|n| n.to_str())

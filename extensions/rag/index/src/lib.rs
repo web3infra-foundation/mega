@@ -1,9 +1,7 @@
 pub mod command;
-pub mod generation;
 pub mod indexer;
 pub mod kafka;
 pub mod qdrant;
-pub mod search;
 pub mod utils;
 pub mod vectorization;
 

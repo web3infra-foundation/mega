@@ -36,16 +36,16 @@ impl GenerationNode {
             .send()
             .await?;
 
-        // 解析返回的 JSON
+        // Parse the returned JSON
         let body: Value = response.json().await?;
 
-        // 将 JSON 写入文件
-        let file_path = "output.json"; // 替换为你想保存文件的路径
+        // Write JSON to a file
+        let file_path = "output.json"; // Replace with the path where you want to save the file
         let file = File::create(file_path).unwrap();
 
-        serde_json::to_writer(file, &body).unwrap(); // 将 JSON 数据写入文件
+        serde_json::to_writer(file, &body).unwrap(); // Write JSON data to a file
 
-        // 从返回的 JSON 中提取生成的文本
+        // Extract the generated text from the returned JSON
         let message = body["message"]["content"].as_str().unwrap();
         println!("{}", message);
         Ok(message.to_string())

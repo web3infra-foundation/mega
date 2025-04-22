@@ -60,11 +60,11 @@ impl Action for QdrantNode {
             log::info!("Received item to store in Qdrant");
             let item: &CodeItem = content.get().unwrap();
 
-            // 使用CodeItem的to_qdrant_point方法创建PointStruct
+            // Use the to_qdrant_point method of CodeItem to create PointStruct
             let point = item.to_qdrant_point(id_counter);
             id_counter += 1;
 
-            // 存储到 Qdrant
+            // Store to Qdrant
             if let Err(e) = self
                 .client
                 .upsert_points(qdrant_client::qdrant::UpsertPointsBuilder::new(

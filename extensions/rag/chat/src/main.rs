@@ -20,7 +20,7 @@ fn main() {
 
     match args.command {
         Commands::Chat => {
-            log::info!("开始对话过程...");
+            log::info!("Start the conversation process...");
             let mut search_node_table = NodeTable::default();
 
             let search_node = SearchNode::new(VECT_URL, QDRANT_URL, "code_items");
@@ -52,7 +52,7 @@ fn main() {
 
             search_graph.set_env(search_env);
 
-            // 使用 std::thread::spawn 来处理阻塞操作
+            // Use std: Thread:: spawn to handle blocking operations
             let handle = thread::spawn(move || {
                 search_graph.start().unwrap();
             });
