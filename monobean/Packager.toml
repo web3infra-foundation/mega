@@ -1,19 +1,25 @@
 name = "Monobean"
 before-packaging-command = "cargo build --release"
-out-dir = "./target/build"
-version = "0.0.0"
-product-name = "Wails example"
+out-dir = "target/build"
+version = "0.0.1"
+product-name = "Monobean"
 identifier = "org.Web3Infrastructure.Monobean"
-resources = ["Cargo.toml", "src"]
-icons = ["resources/icons/scalable/apps/mono-white-logo.svg"]
-binaries_dir = "./target/release"
+resources = ["Cargo.toml", "Monobean.gresource", "resources/lib/bin/*.dll", "resources/lib/bin/gdbus.exe"]
+icons = ["resources/icons/scalable/apps/mono-white-logo.ico","resources/icons/scalable/apps/mono-black-logo.ico"]
+binaries_dir = "target/release"
 binaries = [{path = "monobean", main = true}]
+description = "Monobean is a simple and easy-to-use wallet for the Monero blockchain, built with GTK4 and Rust. It provides a user-friendly interface for managing your monorepo code."
 
 [deb]
 depends = ["libgtk-4-dev", "libgtksourceview-5-0", "libadwaita-1-0"]
+section = "rust"
+
+[windows]
+allow_downgrades = true
 
 [nsis]
-appdata-paths = ["$LOCALAPPDATA/$IDENTIFIER"]
+appdata-paths = ["$PROGRAMFILES64/$IDENTIFIER"]
+installer_icon = "resources/icons/scalable/apps/mono-white-logo.ico"
 preinstall-section = """
 ; Setup messages
 ; English
