@@ -1,0 +1,21 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "windows-targets",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "windows_targets",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    platform = {
+        "linux-x86_64": dict(
+            deps = ["//third-partr/rust/crates/windows_x86_64_gnu/0.52.6:windows_x86_64_gnu"],
+        ),
+        "windows-gnu": dict(
+            deps = ["//third-partr/rust/crates/windows_x86_64_gnu/0.52.6:windows_x86_64_gnu"],
+        ),
+        "windows-msvc": dict(
+            deps = ["//third-partr/rust/crates/windows_x86_64_msvc/0.52.6:windows_x86_64_msvc"],
+        ),
+    },
+    visibility = ["PUBLIC"],
+)
