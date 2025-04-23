@@ -7,22 +7,12 @@ cargo.rust_library(
     crate = "windows_x86_64_gnu",
     crate_root = "src/lib.rs",
     edition = "2018",
-    rustc_flags = ["@$(location :windows_x86_64_gnu-build-script-run[rustc_flags])"],
+    # Adding linker search path from build.rs
+    link_style = "static",
+    # Adding the lib directory to the linker search path
+    rustc_flags = [
+        "-L",
+        "native=lib",
+    ],
     visibility = ["PUBLIC"],
-)
-
-cargo.rust_binary(
-    name = "windows_x86_64_gnu-script-build",
-    srcs = glob(["src/**/*.rs" + "build.rs" + "lib/**/*.a"]),
-    crate = "build_script_build",
-    crate_root = "build.rs",
-    edition = "2018",
-    visibility = [],
-)
-
-buildscript_run(
-    name = "windows_x86_64_gnu-build-script-run",
-    package_name = "windows_x86_64_gnu",
-    buildscript_rule = ":windows_x86_64_gnu-build-script-build",
-    version = "0.48.5",
 )
