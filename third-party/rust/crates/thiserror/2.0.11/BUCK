@@ -1,0 +1,41 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "thiserror",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "thiserror",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "std",
+    ],
+    rustc_flags = ["@$(location :thiserror-build-script-run[rustc_flags])"],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/thiserror-impl/2.0.11:thiserror-impl"],
+)
+
+cargo.rust_binary(
+    name = "thiserror-build-script-build",
+    srcs = glob(["src/**/*.rs", "build/**/*.rs", "tests/**/*.rs", "build.rs"]),
+    crate = "build_script_build",
+    crate_root = "build.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+)
+
+buildscript_run(
+    name = "thiserror-build-script-run",
+    package_name = "thiserror",
+    buildscript_rule = ":thiserror-build-script-build",
+    features = [
+        "default",
+        "std",
+    ],
+    version = "2.0.11",
+)

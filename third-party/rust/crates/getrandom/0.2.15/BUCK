@@ -1,0 +1,31 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "getrandom",
+    srcs = glob(["src/**/*.rs"]) + ["README.md"],
+    crate = "getrandom",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = [
+        "js",
+        "js-sys",
+        "std",
+        "wasm-bindgen",
+    ],
+    platform = {
+        "linux-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "linux-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+    },
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/cfg-if/1.0.0:cfg-if"],
+)

@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "lazy_static",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "lazy_static",
+    crate_root = "src/lib.rs",
+    edition = "2015",
+    features = [
+        "spin",
+        "spin_no_std",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/spin/0.9.8:spin"],
+)
