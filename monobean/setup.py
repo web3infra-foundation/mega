@@ -1,5 +1,6 @@
 import os
 import requests
+import argparse
 import zipfile
 from tqdm import tqdm
 
@@ -70,13 +71,17 @@ if __name__ == "__main__":
         print("This script is only for Windows!")
         exit()
 
+    parser = argparse.ArgumentParser(description="Setup GTK4 for Gvsbuild")
+    parser.add_argument("--upgrade", "-u", action="store_true", help="Upgrade GTK4 to the latest version")
+    args = parser.parse_args()
+
     cwd = os.getcwd()
     cur = os.path.dirname(os.path.abspath(__file__))
     os.chdir(cur)
 
     try:
         # Check if the setup is already done
-        if os.path.exists("resources/lib/DONE"):
+        if os.path.exists("resources/lib/DONE") and not args.upgrade:
             print("Setup already done!")
             setup_environmental_variables()
             exit()
@@ -86,7 +91,26 @@ if __name__ == "__main__":
         gtk_ver = get_redirected_url(GTK_PKG).split("/")[-1]
         gtk_url = f"https://github.com/wingtk/gvsbuild/releases/download/{gtk_ver}/GTK4_Gvsbuild_{gtk_ver}_x64.zip"
 
+        if os.path.exists("resources/lib/DONE"):
+            with open ("resources/lib/DONE", "r") as f:
+                try:
+                    installed = f.read().strip().split(".")
+                except:
+                    installed = ["0", "0", "0"]
+                installed = [int(i) for i in installed]
+                remote = [int(i) for i in gtk_ver.strip().split(".")]
+
+                if installed >= remote:
+                    print("Already up to date!")
+                    exit()
+                elif args.upgrade:
+                    print(f"Upgrading GTK4 {installed} -> {remote}...")
+                else:
+                    print("GTK4 is outdated!")
+                    exit()
+
         # download the GTK4 package
+        print(f"Downloading GTK4 package with version {gtk_ver}...")
         download_file_with_resume(gtk_url, "GTK4_Gvsbuild.zip")
 
         with zipfile.ZipFile("GTK4_Gvsbuild.zip", "r") as zip_ref:
@@ -97,7 +121,7 @@ if __name__ == "__main__":
         setup_environmental_variables()
 
         with open("resources/lib/DONE", "w") as f:
-            f.write("Setup complete!")
+            f.write(gtk_ver)
 
         print("Setup complete!")
 
