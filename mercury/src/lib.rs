@@ -17,7 +17,6 @@ pub mod test_utils {
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
     use tokio::sync::OnceCell;
 
-    // static FILE_READY: OnceCell<String> = OnceCell::const_new();
     static FILES_READY: OnceCell<HashMap<String, PathBuf>> = OnceCell::const_new();
 
     pub async fn setup_lfs_file() -> HashMap<String, PathBuf> {
