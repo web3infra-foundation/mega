@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "foreign-types",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "foreign_types",
+    crate_root = "src/lib.rs",
+    edition = "2015",
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/foreign-types-shared/0.1.1:foreign-types-shared"],
+)
