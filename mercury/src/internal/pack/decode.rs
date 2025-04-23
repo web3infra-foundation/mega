@@ -520,7 +520,7 @@ impl Pack {
             self.decode(&mut reader, move |entry: Entry, _| {
                 // as we used unbound channel here, it will never full so can be send with synchronous
                 if let Err(e) = sender.send(entry) {
-                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                    eprintln!("unbound channel Sending Error: {:?}", e);
                 }
             })
             .unwrap();
@@ -835,18 +835,18 @@ mod tests {
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
         // in tests, RUNTIME is single-threaded, so `sync code` will block the tokio runtime
-        tokio::task::spawn_blocking(move || {
+        let consume = tokio::spawn(async move {
             let mut cnt = 0;
-            while let Ok(_entry) = rx.try_recv() {
-                cnt += 1; //use entry here
+            while let Some(_entry) = rx.recv().await {
+                cnt += 1;
             }
             tracing::info!("Received: {}", cnt);
             count_c.store(cnt, Ordering::Release);
-        })
-        .await
-        .unwrap();
+        });
         let p = handle.await.unwrap();
+        consume.await.unwrap();
         assert_eq!(count.load(Ordering::Acquire), p.number);
+        assert_eq!(p.number, 358109);
     }
 
     #[tokio::test]
