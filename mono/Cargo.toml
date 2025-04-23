@@ -16,7 +16,6 @@ common = { workspace = true }
 callisto = { workspace = true }
 jupiter = { workspace = true }
 ceres = { workspace = true }
-taurus = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 migration = { workspace = true }

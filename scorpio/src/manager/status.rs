@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::manager::diff::is_whiteout_inode;
-use crate::manager::store::ModifiedStore;
+use crate::manager::store::{ModifiedStore, TempStoreArea};
 
 // Get the difference between two HashSets
 fn get_difference(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) -> HashSet<PathBuf> {
@@ -15,7 +15,10 @@ fn get_difference(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) ->
 }
 
 // Get the intersection of two HashSets
-fn get_intersection(hashset_a: &HashSet<PathBuf>, hashset_b: &HashSet<PathBuf>) -> HashSet<PathBuf> {
+fn get_intersection(
+    hashset_a: &HashSet<PathBuf>,
+    hashset_b: &HashSet<PathBuf>,
+) -> HashSet<PathBuf> {
     hashset_a
         .intersection(hashset_b)
         .cloned()
@@ -35,9 +38,11 @@ fn walk_paths(root: &PathBuf) -> HashSet<PathBuf> {
 /// The core function of status operation.
 pub fn status_core(
     work_path: &Path,
-    index_db: &sled::Db,
-    rm_db: &sled::Db,
+    temp_store_area: &TempStoreArea,
 ) -> Result<Box<String>, Box<dyn std::error::Error>> {
+    let index_db = &temp_store_area.index_db;
+    let rm_db = &temp_store_area.rm_db;
+
     let added_files = index_db
         .path_list()?
         .into_iter()

@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use aws_config::meta::region::RegionProviderChain;
 use aws_config::Region;
 use aws_sdk_s3::config::Credentials;
+use aws_sdk_s3::error::ProvideErrorMetadata;
 use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::Client;
 use bytes::Bytes;
@@ -45,6 +46,13 @@ impl AwsS3Storage {
     }
 }
 
+fn convert_s3_error<E: ProvideErrorMetadata>(err: &E) -> MegaError {
+    MegaError {
+        error: anyhow::anyhow!("Error Message: {:?}", err.message().map(String::from)).into(),
+        code: err.code().unwrap_or("0").parse::<i32>().unwrap_or(0),
+    }
+}
+
 #[async_trait]
 impl LfsFileStorage for AwsS3Storage {
     async fn get_object(&self, _: &str) -> Result<Bytes, MegaError> {
@@ -70,7 +78,7 @@ impl LfsFileStorage for AwsS3Storage {
             .key(key)
             .presigned(PresigningConfig::expires_in(expires_in).unwrap())
             .await
-            .map_err(MegaError::from_s3_error);
+            .map_err(|e| convert_s3_error(&e));
         Ok(presigned_request.unwrap().uri().to_string())
     }
 
@@ -84,7 +92,7 @@ impl LfsFileStorage for AwsS3Storage {
             .body(body)
             .send()
             .await
-            .map_err(MegaError::from_s3_error)
+            .map_err(|e| convert_s3_error(&e))
             .map(|_| ())
     }
 

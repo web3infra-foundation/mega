@@ -9,11 +9,41 @@ pub mod utils;
 pub mod test_utils {
     use reqwest::Client;
     use ring::digest::{Context, SHA256};
+    use std::collections::HashMap;
     use std::env;
     use std::fs::File;
     use std::io::copy;
     use std::path::PathBuf;
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
+    use tokio::sync::OnceCell;
+
+    // static FILE_READY: OnceCell<String> = OnceCell::const_new();
+    static FILES_READY: OnceCell<HashMap<String, PathBuf>> = OnceCell::const_new();
+
+    pub async fn setup_lfs_file() -> HashMap<String, PathBuf> {
+        FILES_READY
+            .get_or_init(|| async {
+                let files_to_download = vec![(
+                    "git-2d187177923cd618a75da6c6db45bb89d92bd504.pack",
+                    "0d1f01ac02481427e83ba6c110c7a3a75edd4264c5af8014d12d6800699c8409",
+                )];
+
+                let mut map = HashMap::new();
+                let mut base_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                base_dir.pop();
+                base_dir.push("tests/data/packs");
+                for (name, sha256) in files_to_download {
+                    let file_path = base_dir.join(name);
+                    download_lfs_file_if_not_exist(name, &file_path, sha256).await;
+
+                    map.insert(name.to_string(), file_path);
+                }
+
+                map
+            })
+            .await
+            .clone()
+    }
 
     async fn calculate_checksum(file: &mut tokio::fs::File, checksum: &mut Context) {
         file.seek(tokio::io::SeekFrom::Start(0)).await.unwrap();
@@ -27,7 +57,10 @@ pub mod test_utils {
         }
     }
 
-    async fn download_file(url: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    async fn download_file(
+        url: &str,
+        output_path: &PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let response = Client::new().get(url).send().await?;
         let mut file = File::create(output_path)?;
         let content = response.bytes().await?;
@@ -36,9 +69,8 @@ pub mod test_utils {
         Ok(())
     }
 
-    async fn check_file_hash(output_path: &str, sha256: &str) -> bool {
-        let path = PathBuf::from(output_path);
-        if path.exists() {
+    async fn check_file_hash(output_path: &PathBuf, sha256: &str) -> bool {
+        if output_path.exists() {
             let mut ring_context = Context::new(&SHA256);
             let mut file = tokio::fs::File::open(output_path).await.unwrap();
             calculate_checksum(&mut file, &mut ring_context).await;
@@ -49,29 +81,14 @@ pub mod test_utils {
         }
     }
 
-    async fn download_lfs_file_if_not_exist(file_name: &str, sha256: &str) {
+    async fn download_lfs_file_if_not_exist(file_name: &str, output_path: &PathBuf, sha256: &str) {
         let url = format!(
-            "https://gitmono.s3.ap-southeast-2.amazonaws.com/packs/{}",
+            // "https://gitmono.s3.ap-southeast-2.amazonaws.com/packs/{}",
+            "https://gitmono.oss-cn-beijing.aliyuncs.com/{}",
             file_name
         );
-        let mut cargo_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        cargo_path.pop();
-        let output_path = format!(
-            "{}/tests/data/packs/{}",
-            cargo_path.to_str().unwrap(),
-            file_name
-        );
-        if !check_file_hash(&output_path, sha256).await {
-            let result = download_file(&url, &output_path).await;
-            assert!(result.is_ok());
+        if !check_file_hash(output_path, sha256).await {
+            download_file(&url, output_path).await.unwrap();
         }
-    }
-
-    pub async fn setup_lfs_file() {
-        download_lfs_file_if_not_exist(
-            "git-2d187177923cd618a75da6c6db45bb89d92bd504.pack",
-            "0d1f01ac02481427e83ba6c110c7a3a75edd4264c5af8014d12d6800699c8409",
-        )
-        .await;
     }
 }
