@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "daemonize",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "daemonize",
+    crate_root = "src/lib.rs",
+    edition = "2015",
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+)

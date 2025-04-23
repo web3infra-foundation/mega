@@ -405,8 +405,8 @@ mod tests {
                                 ]
                             }
                         ]"#;
-        let value = serde_json::from_str::<Value>(json).unwrap();
-        assert_eq!(client_msg.as_json(), value.to_string());
+        let value: ClientMessage = serde_json::from_str(json).unwrap();
+        assert_eq!(client_msg.as_json(), value.as_json());
     }
 
     #[test]

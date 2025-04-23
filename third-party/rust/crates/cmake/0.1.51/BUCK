@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "cmake",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "cmake",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/cc/1.2.1:cc"],
+)

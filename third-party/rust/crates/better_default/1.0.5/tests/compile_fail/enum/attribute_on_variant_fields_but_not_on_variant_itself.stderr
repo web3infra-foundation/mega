@@ -1,0 +1,11 @@
+error: You can't use the default attribute on variant fields if the variant is not declared as default.
+ --> tests/compile_fail/enum/attribute_on_variant_fields_but_not_on_variant_itself.rs:6:11
+  |
+6 |         #[default(1)]
+  |           ^^^^^^^
+
+error: You can't use the default attribute on variant fields if the variant is not declared as default.
+ --> tests/compile_fail/enum/attribute_on_variant_fields_but_not_on_variant_itself.rs:8:11
+  |
+8 |         #[default("aaaaaa".to_string())]
+  |           ^^^^^^^

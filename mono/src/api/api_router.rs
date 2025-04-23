@@ -17,7 +17,6 @@ use ceres::{
     },
 };
 use common::model::CommonResult;
-use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::error::ApiError;
 use crate::api::issue::issue_router;
@@ -47,7 +46,6 @@ async fn get_blob_string(
     Query(query): Query<BlobContentQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    ApiRequestEvent::notify(ApiType::Blob, &state.0.context.config);
     let data = state
         .api_handler(query.path.clone().into())
         .await?
@@ -64,7 +62,6 @@ async fn create_file(
     state: State<MonoApiServiceState>,
     Json(json): Json<CreateFileInfo>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    ApiRequestEvent::notify(ApiType::CreateFile, &state.0.context.config);
     state
         .api_handler(json.path.clone().into())
         .await?
@@ -77,7 +74,6 @@ async fn get_latest_commit(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<LatestCommitInfo>, ApiError> {
-    ApiRequestEvent::notify(ApiType::LastestCommit, &state.0.context.config);
     let res = state
         .api_handler(query.path.clone().into())
         .await?
@@ -90,7 +86,6 @@ async fn get_tree_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeBriefItem>>>, ApiError> {
-    ApiRequestEvent::notify(ApiType::TreeInfo, &state.0.context.config);
     let data = state
         .api_handler(query.path.clone().into())
         .await?
@@ -115,7 +110,6 @@ async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
-    ApiRequestEvent::notify(ApiType::CommitInfo, &state.0.context.config);
     let data = state
         .api_handler(query.path.clone().into())
         .await?
