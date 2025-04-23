@@ -1,0 +1,28 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "windows_x86_64_gnu",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "windows_x86_64_gnu",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    rustc_flags = ["@$(location :windows_x86_64_gnu-build-script-run[rustc_flags])"],
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_binary(
+    name = "windows_x86_64_gnu-script-build",
+    srcs = glob(["src/**/*.rs" + "build.rs" + "lib/**/*.a"]),
+    crate = "build_script_build",
+    crate_root = "build.rs",
+    edition = "2018",
+    visibility = [],
+)
+
+buildscript_run(
+    name = "windows_x86_64_gnu-build-script-run",
+    package_name = "windows_x86_64_gnu",
+    buildscript_rule = ":windows_x86_64_gnu-build-script-build",
+    version = "0.48.5",
+)

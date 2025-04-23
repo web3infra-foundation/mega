@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "rustc_version",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "rustc_version",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/semver/1.0.25:semver"],
+)
