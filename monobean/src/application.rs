@@ -25,10 +25,7 @@ use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use tokio::sync::oneshot;
-use tracing_subscriber::fmt;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 
 glib::wrapper! {
     pub struct MonobeanApplication(ObjectSubclass<imp::MonobeanApplication>)
