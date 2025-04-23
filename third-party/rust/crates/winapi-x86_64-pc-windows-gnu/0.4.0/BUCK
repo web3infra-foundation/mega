@@ -1,0 +1,10 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "winapi-x86_64-pc-windows-gnu",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "winapi_x86_64_pc_windows_gnu",
+    crate_root = "src/lib.rs",
+    edition = "2015",
+    visibility = ["PUBLIC"],
+)
