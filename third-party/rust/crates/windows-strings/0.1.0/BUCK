@@ -12,7 +12,7 @@ cargo.rust_library(
     ],
     visibility = ["PUBLIC"],
     deps = [
-        "//third-partr/rust/crates/windows-result/0.2.0:windows-result",
-        "//third-partr/rust/crates/windows-targets/0.52.6:windows-targets",
+        "//third-party/rust/crates/windows-result/0.2.0:windows-result",
+        "//third-party/rust/crates/windows-targets/0.52.6:windows-targets",
     ],
 )
