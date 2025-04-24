@@ -3,7 +3,7 @@ product_name = "Monobean"
 version = "0.0.1"
 identifier = "org.Web3Infrastructure.Monobean"
 category = "DeveloperTool"
-formats = ["deb"]
+formats = ["deb", "pacman"]
 before-packaging-command = "cargo build --release"
 out_dir = "../target/build"
 binaries_dir = "../target/release"
@@ -24,3 +24,13 @@ section = "rust"
 
 [deb.files]
 "../Monobean.gresource" = "usr/share/monobean/monobean.gresource"
+"icons/scalable/apps/mono-white-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-white-logo.ico"
+"icons/scalable/apps/mono-black-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-black-logo.ico"
+
+[pacman]
+depends = ["gtk4", "libadwaita", "gtksourceview5"]
+
+[pacman.files]
+"../Monobean.gresource" = "usr/share/monobean/monobean.gresource"
+"icons/scalable/apps/mono-white-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-white-logo.ico"
+"icons/scalable/apps/mono-black-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-black-logo.ico"
