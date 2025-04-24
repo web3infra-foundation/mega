@@ -197,6 +197,7 @@ mod tests {
             message: "An empty initial commit".to_string(),
             allow_empty: true,
             conventional: false,
+            amend: false,
         };
         commit::execute(commit_args).await;
 

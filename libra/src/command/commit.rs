@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::{collections::HashSet, path::PathBuf};
 
+use crate::command::load_object;
 use crate::internal::branch::Branch;
 use crate::internal::head::Head;
 use crate::utils::client_storage::ClientStorage;
@@ -28,6 +29,9 @@ pub struct CommitArgs {
     /// check if commit message follows conventional commits
     #[arg(long, requires("message"))]
     pub conventional: bool,
+
+    #[arg(long)]
+    pub amend: bool,
 }
 
 pub async fn execute(args: CommitArgs) {
@@ -47,6 +51,34 @@ pub async fn execute(args: CommitArgs) {
 
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids().await;
+
+    //add amend commit,only support single parent commit
+    if args.amend {
+        if parents_commit_ids.len() > 1 {
+            panic!("fatal: --amend is not supported for merge commits with multiple parents");
+        }
+        let parent_commit = load_object::<Commit>(&parents_commit_ids[0]).unwrap_or_else(|_| {
+            panic!(
+                "fatal: not a valid object name: '{}'",
+                parents_commit_ids[0]
+            )
+        });
+        let grandpa_commit_id = parent_commit.parent_commit_ids;
+        let commit = Commit::from_tree_id(
+            tree.id,
+            grandpa_commit_id,
+            &format_commit_msg(&args.message, None),
+        );
+
+        storage
+            .put(&commit.id, &commit.to_data().unwrap(), commit.get_type())
+            .unwrap();
+
+        /* update HEAD */
+        update_head(&commit.id.to_string()).await;
+        return;
+    }
+
     // There must be a `blank line`(\n) before `message`, or remote unpack failed
     let commit = Commit::from_tree_id(
         tree.id,
@@ -191,6 +223,12 @@ mod test {
 
         let args = CommitArgs::try_parse_from(["commit"]);
         assert!(args.is_err(), "message is required");
+
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init", "--amend"]);
+        assert!(args.is_ok());
+
+        let args = CommitArgs::try_parse_from(["commit", "-m", "init", "--allow-empty", "--amend"]);
+        assert!(args.is_ok());
     }
 
     #[tokio::test]
@@ -225,6 +263,7 @@ mod test {
             message: "init".to_string(),
             allow_empty: false,
             conventional: false,
+            amend: false,
         };
         execute(args).await;
     }
@@ -239,6 +278,7 @@ mod test {
                 message: "init".to_string(),
                 allow_empty: true,
                 conventional: false,
+                amend: false,
             };
             execute(args).await;
 
@@ -252,6 +292,30 @@ mod test {
             let commit: Commit = load_object(&branch.commit).unwrap();
 
             assert_eq!(commit.message.trim(), "init");
+            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
+            assert_eq!(branch.commit, commit.id);
+        }
+
+        // modify first empty commit
+        {
+            let args = CommitArgs {
+                message: "init commit".to_string(),
+                allow_empty: true,
+                conventional: false,
+                amend: true,
+            };
+            execute(args).await;
+
+            // check head branch exists
+            let head = Head::current().await;
+            let branch_name = match head {
+                Head::Branch(name) => name,
+                _ => panic!("head not in branch"),
+            };
+            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
+            let commit: Commit = load_object(&branch.commit).unwrap();
+
+            assert_eq!(commit.message.trim(), "init commit");
             let branch = Branch::find_branch(&branch_name, None).await.unwrap();
             assert_eq!(branch.commit, commit.id);
         }
@@ -276,6 +340,7 @@ mod test {
                 message: "add some files".to_string(),
                 allow_empty: false,
                 conventional: false,
+                amend: false,
             };
             execute(args).await;
 
@@ -290,7 +355,34 @@ mod test {
 
             let pre_commit_id = commit.parent_commit_ids[0];
             let pre_commit: Commit = load_object(&pre_commit_id).unwrap();
-            assert_eq!(pre_commit.message.trim(), "init");
+            assert_eq!(pre_commit.message.trim(), "init commit");
+
+            let tree_id = commit.tree_id;
+            let tree: Tree = load_object(&tree_id).unwrap();
+            assert_eq!(tree.tree_items.len(), 2); // 2 subtree according to the test data
+        }
+        //modify new commit
+        {
+            let args = CommitArgs {
+                message: "add some txt files".to_string(),
+                allow_empty: true,
+                conventional: false,
+                amend: true,
+            };
+            execute(args).await;
+
+            let commit_id = Head::current_commit().await.unwrap();
+            let commit: Commit = load_object(&commit_id).unwrap();
+            assert_eq!(
+                commit.message.trim(),
+                "add some txt files",
+                "{}",
+                commit.message
+            );
+
+            let pre_commit_id = commit.parent_commit_ids[0];
+            let pre_commit: Commit = load_object(&pre_commit_id).unwrap();
+            assert_eq!(pre_commit.message.trim(), "init commit");
 
             let tree_id = commit.tree_id;
             let tree: Tree = load_object(&tree_id).unwrap();
