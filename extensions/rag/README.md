@@ -22,6 +22,22 @@ The Rag project consists of multiple modules, each responsible for different fun
   - Automatically synchronizes changes in the Mega repository without the need for full retraining, keeping the knowledge base up to date.
 
 ## How to use Rag
+**Install Ollama, Large Models, and Embedding Tools**:
+   - Install Ollama:
+     ```bash
+     curl -sSL https://ollama.com/install.sh | bash
+     ```
+
+   - Install Large Models:
+     ```bash
+     ollama install  deepseek-r1:1.5b
+     ```
+
+   - Install Embedding Tools:
+     ```bash
+     ollama install bge-m3
+     ```
+
 
 **Pull the vector database Qdrant and run the `chat` and `index` modules**:
    - Create a network:

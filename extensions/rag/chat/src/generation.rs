@@ -1,10 +1,22 @@
 use async_trait::async_trait;
 use dagrs::{Action, EnvVar, InChannels, OutChannels, Output};
-use reqwest::{Client, Error};
+use reqwest::Client;
 use serde_json::{json, Value};
 use std::{fs::File, sync::Arc};
 
 use crate::SEARCH_NODE;
+
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum GenError {
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+}
 
 pub struct GenerationNode {
     url: String,
@@ -19,7 +31,7 @@ impl GenerationNode {
         }
     }
 
-    pub async fn generate(&self, context: &str) -> Result<String, Error> {
+    pub async fn generate(&self, context: &str) -> Result<String, GenError> {
         let response = self
             .client
             .post(&self.url)
@@ -34,16 +46,26 @@ impl GenerationNode {
                 "stream": false
             }))
             .send()
-            .await?;
+            .await
+            .map_err(GenError::Http)?;
 
         // Parse the returned JSON
-        let body: Value = response.json().await?;
+        let body: Value = response.json().await.map_err(GenError::Http)?;
 
         // Write JSON to a file
         let file_path = "output.json"; // Replace with the path where you want to save the file
-        let file = File::create(file_path).unwrap();
 
-        serde_json::to_writer(file, &body).unwrap(); // Write JSON data to a file
+        let file = match File::create(file_path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("Failed to create file {}: {}", file_path, e);
+                return Err(GenError::Io(e));
+            }
+        };
+        if let Err(e) = serde_json::to_writer(file, &body) {
+            eprintln!("Failed to write JSON data to file {}: {}", file_path, e);
+            return Err(GenError::Json(e));
+        }
 
         // Extract the generated text from the returned JSON
         let message = body["message"]["content"].as_str().unwrap();

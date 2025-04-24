@@ -14,6 +14,29 @@ use tokio::fs;
 use crate::utils::{CodeItem, ItemType};
 use crate::VECT_CLIENT_NODE;
 
+use flate2::read::GzDecoder;
+use std::fs::File;
+use std::io;
+use tar::Archive;
+
+fn unpack_crate_file_to_current_dir(crate_file_path: &Path) -> io::Result<()> {
+    let target_dir = crate_file_path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            "Cannot get parent directory of the crate file",
+        )
+    })?;
+
+    println!("Unpacking to: {:?}", target_dir);
+
+    let tar_gz = File::open(crate_file_path)?;
+    let decompressed = GzDecoder::new(tar_gz);
+    let mut archive = Archive::new(decompressed);
+
+    archive.unpack(target_dir)?;
+    Ok(())
+}
+
 #[derive(Clone)]
 pub struct CodeIndexer {
     pub crate_path: PathBuf,
@@ -32,35 +55,44 @@ impl CodeIndexer {
         Ok(items)
     }
 
-    async fn walk_space(
-        &self,
-        crate_entry: &Path,
-        items: &mut Vec<CodeItem>,
-        crate_version: &str,
-    ) -> Result<()> {
-        if crate_entry.is_dir() {
-            println!("re: {:?}", crate_entry);
+    async fn walk_space(&self, crate_entry: &Path, items: &mut Vec<CodeItem>) -> Result<()> {
+        // Print the path of the crate file being processed
+        println!("Processing crate file: {:?}", crate_entry);
 
-            //let crate_name = crate_entry.file_name().unwrap().to_str().unwrap();
-            let crate_path = crate_entry.join(crate_version);
+        // Verify the crate file exists before proceeding
+        assert!(crate_entry.exists());
 
-            if !crate_path.exists() {
-                println!(
-                    "Skipping crate (crate_path does not exist): {:?}",
-                    crate_path
-                );
-                return Ok(());
-            }
+        // Step 1: Unpack the .crate file to current directory
+        unpack_crate_file_to_current_dir(&crate_entry)?;
 
-            self.walk_dir(&crate_path, items).await?;
-        }
+        // Step 2: Extract directory name from crate filename (without .crate extension)
+        let dir_name = crate_entry
+            .file_stem()
+            .ok_or_else(|| anyhow::anyhow!("Invalid crate file name"))?
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("Non-UTF8 crate file name"))?;
+
+        // Step 3: Get parent directory of the crate file
+        let parent_dir = crate_entry
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("Cannot get parent directory"))?;
+
+        // Step 4: Construct full path to the unpacked directory
+        let unpacked_dir = parent_dir.join(dir_name);
+
+        // Print the path of the unpacked directory we'll process
+        println!("Processing unpacked directory: {:?}", unpacked_dir);
+
+        // Step 5: Recursively walk through the unpacked directory to process files
+        self.walk_dir(&unpacked_dir, items).await?;
+
+        // Step 6: Clean up by removing the unpacked directory after processing
+        fs::remove_dir_all(&unpacked_dir).await?;
         Ok(())
     }
 
-    async fn walk_dir(&self, dir: &Path, items: &mut Vec<CodeItem>) -> Result<()> {
-        println!("Walking directory: {:?}", dir);
-        log::info!("Current directory: {:?}", std::env::current_dir().unwrap());
-        let mut entries = fs::read_dir(dir).await?;
+    async fn walk_dir(&self, crate_path: &Path, items: &mut Vec<CodeItem>) -> Result<()> {
+        let mut entries = fs::read_dir(&crate_path).await?;
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             println!("Found path: {:?}", path);
@@ -238,7 +270,6 @@ impl CodeIndexer {
 
 pub struct WalkDirAction {
     pub indexer: CodeIndexer,
-    pub crate_version: String,
 }
 
 #[async_trait]
@@ -252,7 +283,7 @@ impl Action for WalkDirAction {
         let mut items = Vec::new();
         match self
             .indexer
-            .walk_space(&self.indexer.crate_path, &mut items, &self.crate_version)
+            .walk_space(&self.indexer.crate_path, &mut items)
             .await
         {
             Ok(_) => {

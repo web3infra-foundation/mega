@@ -31,15 +31,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 复制构建的二进制文件
 COPY --from=builder /chat/target/release/chat /usr/local/bin/chat
 
-# 复制环境配置文件
-COPY --from=builder /chat /second_brain
-
-# 创建工作目录
-WORKDIR /second_brain
-
-# 设置环境变量
-ENV MEGA_DB_SQLX_LOGGING=false
-ENV MEGA_DB_POSTGRESQL_URL="postgres://mega:mega@172.17.0.1:5432/repo_sync_status"
-
 # 设置默认命令
-CMD ["/bin/bash"]
+CMD ["chat"]

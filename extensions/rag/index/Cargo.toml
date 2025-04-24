@@ -20,3 +20,6 @@ walkdir = "2.4"
 rdkafka = { version = "0.36", features = ["ssl", "cmake-build"] }
 tokio-stream = { version = "0.1", features = ["full"] }
 dagrs = "0.4.4"
+observatory = { workspace = true }
+flate2 = "1.0"
+tar = "0.4"

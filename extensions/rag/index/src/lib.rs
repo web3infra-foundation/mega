@@ -1,6 +1,5 @@
 pub mod command;
 pub mod indexer;
-pub mod kafka;
 pub mod qdrant;
 pub mod utils;
 pub mod vectorization;
@@ -13,3 +12,8 @@ pub const VECT_CLIENT_NODE: &str = "vect_client";
 pub const QDRANT_NODE: &str = "qdrant";
 pub const SEARCH_NODE: &str = "search";
 pub const GENERATION_NODE: &str = "generation";
+
+
+pub const CONSUMER_GROUP: &str = "mega-test-group";
+pub const BROKER: &str = "localhost:9092";
+pub const TOPIC: &str = "mega-crate-downloads-test";

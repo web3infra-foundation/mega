@@ -53,11 +53,18 @@ impl Action for VectClient {
             log::info!("Received items to vectorize");
             let items: &Vec<CodeItem> = content.get().unwrap();
             for item in items {
-                let vector = self.vectorize(&item.content).await.unwrap();
-                let mut item = item.clone();
-                item.vector = vector;
-                out_channels.broadcast(Content::new(item)).await;
-                log::info!("VectClient has processed an item");
+                match self.vectorize(&item.content).await {
+                    Ok(vector) => {
+                        let mut item = item.clone();
+                        item.vector = vector;
+                        out_channels.broadcast(Content::new(item)).await;
+                        log::info!("VectClient has processed an item");
+                    }
+                    Err(e) => {
+                        log::error!("Failed to vectorize content: {}", e);
+                        continue;
+                    }
+                }
             }
         }
 

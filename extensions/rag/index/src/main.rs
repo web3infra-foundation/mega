@@ -1,64 +1,64 @@
-use clap::Parser;
 use dagrs::utils::env::EnvVar;
 use dagrs::{DefaultNode, Graph, Node, NodeTable};
-use index::command::Cli;
 use index::indexer::CodeIndexer;
 use index::indexer::ProcessItemsAction;
 use index::indexer::WalkDirAction;
-use index::kafka::get_consumer;
 use index::qdrant::QdrantNode;
 use index::vectorization::VectClient;
 use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, VECT_CLIENT_NODE, VECT_URL};
-use rdkafka::consumer::CommitMode;
-use rdkafka::consumer::{Consumer, StreamConsumer};
-use rdkafka::Message;
+use observatory::facilities::Telescope;
+use observatory::model::crates::CrateMessage;
 use std::env;
+use std::path::Path;
+use std::path::PathBuf;
 use std::thread;
 use tokio::runtime::Runtime;
-use tokio_stream::StreamExt;
+
+fn get_file_path(crates_path: &Path, c_name: &str, c_version: &str) -> PathBuf {
+    crates_path
+        .join(c_name)
+        .join(format!("{}-{}.crate", c_name, c_version))
+}
 
 fn main() {
     env::set_var("RUST_LOG", "INFO");
     env_logger::init();
 
-    let args = Cli::parse();
-
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-        let consumer = get_consumer();
-        consume_messages(consumer, &args).await;
+        let telescope = Telescope::new(BROKER, CONSUMER_GROUP, TOPIC);
+        telescope
+            .consume_loop(|payload: String| async move {
+                println!("✅ Received: {}", payload);
+
+                let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
+                let file_path = get_file_path(
+                    &PathBuf::from("/mnt/r2cn/freighter/crates"),
+                    &crate_msg.crate_name,
+                    &crate_msg.crate_version,
+                );
+                println!("📦 File path: {:?}", file_path);
+
+                tokio::spawn(async move {
+                    tokio::task::spawn_blocking(move || {
+                        update_knowledge_base(&file_path);
+                    })
+                    .await
+                    .unwrap();
+                });
+            })
+            .await;
     });
 }
 
-async fn consume_messages(consumer: StreamConsumer, args: &Cli) {
-    let mut message_stream = consumer.stream();
-
-    while let Some(message) = message_stream.next().await {
-        match message {
-            Ok(m) => match m.payload_view::<str>() {
-                Some(Ok(payload)) => {
-                    println!("Received: {}", payload);
-                    update_knowledge_base(args);
-                    consumer.commit_message(&m, CommitMode::Async).unwrap();
-                }
-                Some(Err(e)) => eprintln!("UTF-8 error: {}", e),
-                None => println!("Empty message"),
-            },
-            Err(e) => eprintln!("Kafka error: {}", e),
-        }
-    }
-}
-
-fn update_knowledge_base(args: &Cli) {
+fn update_knowledge_base(file_path: &PathBuf) {
     log::info!("Start updating knowledge base...");
-    let indexer = CodeIndexer::new(&args.workspace);
+    let indexer = CodeIndexer::new(file_path);
     log::info!("Start indexing directory: {:?}", indexer.crate_path);
 
     let mut index_node_table = NodeTable::default();
-    let crate_version = "0.1.0";
     let walk_dir_action = WalkDirAction {
         indexer: indexer.clone(),
-        crate_version: crate_version.to_owned(),
     };
     let process_items_action = ProcessItemsAction;
 
@@ -113,4 +113,41 @@ fn update_knowledge_base(args: &Cli) {
 
     handle.join().unwrap();
     log::info!("Knowledge base updated!");
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::{Path, PathBuf};
+
+    use observatory::facilities::Telescope;
+    use observatory::model::crates::CrateMessage;
+    use tokio::time::Duration;
+
+    //use crate::handler::utils;
+
+    const BROKER: &str = "127.0.0.1:9092";
+    const TOPIC: &str = "mega-crate-downloads-test";
+
+    pub fn get_file_path(crates_path: &Path, c_name: &str, c_version: &str) -> PathBuf {
+        crates_path
+            .join(c_name)
+            .join(format!("{}-{}.crate", c_name, c_version))
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_consume_down_crates_msg() {
+        let telescope = Telescope::new(BROKER, "rag_crates", TOPIC);
+        tokio::select! {
+            _ = telescope.consume_loop(|payload:String| async move {
+                println!("✅ test_loop_consume: Received: {}", payload);
+                let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
+                let file_path = get_file_path(&PathBuf::from("/mnt/r2cn/freighter/crates"), &crate_msg.crate_name, &crate_msg.crate_version);
+                assert!(file_path.exists());
+            }) => {},
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                println!("⏰ Timeout");
+            }
+        }
+    }
 }

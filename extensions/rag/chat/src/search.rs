@@ -53,11 +53,14 @@ impl SearchNode {
             let payload = point.payload;
             let content = payload
                 .get("content")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string();
-            let item_type = payload.get("type").unwrap().as_str().unwrap().to_string();
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or("Missing or invalid 'content' in payload")?;
+            let item_type = payload
+                .get("type")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or("Missing or invalid 'type' in payload")?;
             Ok(Some((content, item_type)))
         } else {
             Ok(None)
