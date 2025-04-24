@@ -17,6 +17,7 @@ members = [
     "third-party",
     "extensions/rag/chat",
     "extensions/rag/index",
+    "observatory",
 ]
 default-members = ["mega", "mono", "libra", "aries"]
 resolver = "1"
@@ -35,6 +36,7 @@ saturn = { path = "saturn" }
 mega = { path = "mega" }
 mono = { path = "mono" }
 libra = { path = "libra" }
+observatory = { path = "observatory" }
 
 anyhow = "1.0.93"
 serde = "1.0.215"
@@ -99,6 +101,7 @@ rayon = "1.10.0"
 byteorder = "1.5.0"
 bincode = "2.0"
 once_cell = "1.21"
+testcontainers = "0.23"
 
 [profile.release]
 debug = true

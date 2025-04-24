@@ -1,0 +1,21 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "windows-core,
+    srcs = glob(["src/**/*.rs"]),
+    crate = "windows_core",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third-party/rust/crates/windows-implement/0.58.0:windows-implement",
+        "//third-party/rust/crates/windows-interface/0.58.0:windows-interface",
+        "//third-partr/rust/crates/windows-result/0.2.0:windows-result",
+        "//third-partr/rust/crates/windows-strings/0.1.0:windows-strings",
+        "//third-partr/rust/crates/windows-targets/0.52.6:windows-targets",
+    ],
+)

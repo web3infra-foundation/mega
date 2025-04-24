@@ -1,0 +1,16 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "bs58",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "bs58",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "default",
+        "std",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/tinyvec/1.8.0:tinyvec"],
+)
