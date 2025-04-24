@@ -83,7 +83,7 @@ tower-http = { version = "0.6.1", features = [
     "trace",
     "decompression-full",
 ] }
-russh = "0.51.1"
+russh = "0.52.0"
 tracing-appender = "0.2"
 axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 tower = "0.5.2"
