@@ -1,0 +1,17 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "smallvec",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "smallvec",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = [
+        "const_generics",
+        "const_new",
+        "serde",
+        "write",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/serde/1.0.217:serde"],
+)
