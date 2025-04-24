@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "yansi",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "yansi",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "default",
+        "std",
+    ],
+    visibility = ["PUBLIC"],
+)
