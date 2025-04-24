@@ -1,0 +1,17 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "windows_x86_64_msvc",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "windows_x86_64_msvc",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    # Adding linker search path from build.rs
+    link_style = "static",
+    # Adding the lib directory to the linker search path
+    rustc_flags = [
+        "-L",
+        "native=lib",
+    ],
+    visibility = ["PUBLIC"],
+)
