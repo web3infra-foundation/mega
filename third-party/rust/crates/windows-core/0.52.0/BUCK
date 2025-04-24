@@ -8,5 +8,5 @@ cargo.rust_library(
     edition = "2021",
     features = ["default"],
     visibility = [],
-    deps = ["//third-partr/rust/crates/windows-targets/0.52.6:windows-targets"],
+    deps = ["//third-party/rust/crates/windows-targets/0.52.6:windows-targets"],
 )
