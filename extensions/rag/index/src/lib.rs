@@ -13,7 +13,6 @@ pub const QDRANT_NODE: &str = "qdrant";
 pub const SEARCH_NODE: &str = "search";
 pub const GENERATION_NODE: &str = "generation";
 
-
 pub const CONSUMER_GROUP: &str = "mega-test-group";
 pub const BROKER: &str = "localhost:9092";
 pub const TOPIC: &str = "mega-crate-downloads-test";

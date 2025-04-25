@@ -6,8 +6,8 @@ use std::{fs::File, sync::Arc};
 
 use crate::SEARCH_NODE;
 
-use thiserror::Error;
 use serde::de::Error;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum GenError {
@@ -69,11 +69,16 @@ impl GenerationNode {
         }
 
         // Extract the generated text from the returned JSON
-        let message = match body.get("message").and_then(|m| m.get("content").and_then(|c| c.as_str())) {
+        let message = match body
+            .get("message")
+            .and_then(|m| m.get("content").and_then(|c| c.as_str()))
+        {
             Some(content) => content,
             None => {
                 eprintln!("Failed to extract 'content' from JSON response: {:?}", body);
-                return Err(GenError::Json(serde_json::Error::custom("Missing or invalid 'content' in JSON response")));
+                return Err(GenError::Json(serde_json::Error::custom(
+                    "Missing or invalid 'content' in JSON response",
+                )));
             }
         };
         println!("{}", message);

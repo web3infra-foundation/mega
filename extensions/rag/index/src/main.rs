@@ -5,6 +5,7 @@ use index::indexer::ProcessItemsAction;
 use index::indexer::WalkDirAction;
 use index::qdrant::QdrantNode;
 use index::vectorization::VectClient;
+use index::{BROKER, CONSUMER_GROUP, TOPIC};
 use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, VECT_CLIENT_NODE, VECT_URL};
 use observatory::facilities::Telescope;
 use observatory::model::crates::CrateMessage;

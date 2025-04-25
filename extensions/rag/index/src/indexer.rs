@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syn::{parse_file, Item};
 use tokio::fs;
-//use walkdir::WalkDir;
 
 use crate::utils::{CodeItem, ItemType};
 use crate::VECT_CLIENT_NODE;
@@ -63,7 +62,7 @@ impl CodeIndexer {
         assert!(crate_entry.exists());
 
         // Step 1: Unpack the .crate file to current directory
-        unpack_crate_file_to_current_dir(&crate_entry)?;
+        unpack_crate_file_to_current_dir(crate_entry)?;
 
         // Step 2: Extract directory name from crate filename (without .crate extension)
         let dir_name = crate_entry
