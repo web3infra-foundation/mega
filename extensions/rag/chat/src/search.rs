@@ -79,7 +79,10 @@ impl Action for SearchNode {
         // Get query from user input
         let mut input = String::new();
         println!("\nPlease enter the query content:");
-        std::io::stdin().read_line(&mut input).unwrap();
+        if let Err(e) = std::io::stdin().read_line(&mut input) {
+            eprintln!("Failed to read input: {}", e);
+            return Output::empty();
+        }
         println!("input: {}", input);
         let out_node_id = env.get_ref(GENERATION_NODE).unwrap();
         // Execute search

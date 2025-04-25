@@ -19,3 +19,4 @@ qdrant-client = "1.7"
 walkdir = "2.4"
 dagrs = "0.4.4"
 thiserror = "1.0"
+serde = { workspace = true }
