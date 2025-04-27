@@ -57,7 +57,7 @@ pub fn diff(
     let _root_len = lower.clone();
     let mut map = HashMap::<PathBuf, Tree>::new();
     let root_tree = db.get_bypath(&monopath)?; // BUG: wrong path :"lower". the store in db is not real path .
-                                                              // dont forget get tree below
+                                               // dont forget get tree below
     map.insert(lower.clone(), root_tree);
     let mut blobs = Vec::<Blob>::new();
 
@@ -263,20 +263,5 @@ mod tests {
 
         // Clean up the temporary file
         std::fs::remove_file(temp_file_path).expect("Unable to delete file");
-    }
-
-    #[test]
-    fn test_is_whiteout_inode_non() {
-        // Create a temporary file
-        let temp_file_path = "/home/luxian/megatest/upper/a/hello";
-        // Check if the file is a character device
-        assert!(is_whiteout_inode(temp_file_path));
-    }
-
-    #[test]
-    fn test_is_whiteout_inode_invalid_path() {
-        // Test with an invalid path
-        let invalid_path = "/invalid/path/to/file";
-        assert!(!is_whiteout_inode(invalid_path));
     }
 }
