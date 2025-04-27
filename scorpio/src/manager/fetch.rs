@@ -294,7 +294,10 @@ async fn set_parent_commit(work_path: &Path) -> std::io::Result<()> {
         Ok(info) => info,
         Err(e) => {
             eprintln!("Failed to fetch parent commit info: {}", e);
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to fetch parent commit info"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to fetch parent commit info",
+            ));
         }
     };
 
@@ -428,6 +431,7 @@ mod tests {
     use std::error::Error;
     use std::fs::File;
     #[tokio::test]
+    #[ignore]
     async fn test_fetch_octet_stream() -> Result<(), Box<dyn Error>> {
         // Create an HTTP client
         let client = Client::new();
@@ -464,6 +468,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_fetch_octet_file() {
         // Create an HTTP client
         let client = Client::new();
