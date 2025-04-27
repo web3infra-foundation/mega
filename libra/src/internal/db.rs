@@ -8,6 +8,7 @@ use std::io;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 use std::path::Path;
+#[cfg(not(test))]
 use tokio::sync::OnceCell;
 
 /// Establish a connection to the database.
@@ -31,13 +32,57 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
         )
     })
 }
-
+#[cfg(not(test))]
 static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
 /// Get global database connection instance (singleton)
+#[cfg(not(test))]
 pub async fn get_db_conn_instance() -> &'static DbConn {
     DB_CONN
         .get_or_init(|| async { get_db_conn().await.unwrap() })
         .await
+}
+
+#[cfg(test)]
+use once_cell::sync::Lazy;
+#[cfg(test)]
+use std::collections::HashMap;
+#[cfg(test)]
+use std::ops::Deref;
+#[cfg(test)]
+use std::path::PathBuf;
+#[cfg(test)]
+use tokio::sync::Mutex;
+
+// In the test environment, use a `HashMap` to store database connections
+// mapped by their working directories.
+#[cfg(test)]
+static TEST_DB_CONNECTIONS: Lazy<Mutex<HashMap<PathBuf, Box<DbConn>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+#[cfg(test)]
+fn leak_conn(conn: DbConn) -> &'static DbConn {
+    let boxed = Box::new(conn);
+    let static_ref = Box::leak(boxed);
+    static_ref
+}
+
+/// In the test environment, each working directory should have its own database connection.
+/// A global `HashMap` is used to store and manage these connections separately.
+#[cfg(test)]
+pub async fn get_db_conn_instance() -> &'static DbConn {
+    let current_dir = std::env::current_dir().unwrap();
+
+    let mut connections = TEST_DB_CONNECTIONS.lock().await;
+
+    if !connections.contains_key(&current_dir) {
+        //
+        let conn = get_db_conn().await.unwrap();
+        let boxed_conn = Box::new(conn);
+        connections.insert(current_dir.clone(), boxed_conn);
+    }
+
+    let boxed_conn = connections.get(&current_dir).unwrap();
+    leak_conn(boxed_conn.deref().clone())
 }
 
 /// Create a connection to the database of current repo: `.libra/libra.db`
