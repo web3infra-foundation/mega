@@ -1,0 +1,10 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "go-defer",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "go_defer",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    visibility = ["PUBLIC"],
+)

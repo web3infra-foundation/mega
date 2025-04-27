@@ -1,4 +1,5 @@
 use common::errors::MegaError;
+use migration::{Migrator, MigratorTrait};
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement,
     TransactionError, TransactionTrait,
@@ -17,7 +18,10 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
 
     if db_config.db_type == "postgres" {
         match postgres_connection(db_config).await {
-            Ok(conn) => conn,
+            Ok(conn) => {
+                Migrator::up(&conn, None).await.unwrap();
+                conn
+            }
             Err(e) => {
                 log::error!("Failed to connect to postgres: {}", e);
                 log::info!("Falling back to sqlite");
