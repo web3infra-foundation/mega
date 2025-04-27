@@ -148,7 +148,7 @@ cargo.rust_library(
         ":tokio-1.43.0",
         ":tokio-util-0.7.13",
         ":tracing-0.1.41",
-        ":zstd-0.13.2",
+        "//third-party/rust/crates/zstd/0.13.2:zstd",
     ],
 )
 
@@ -780,54 +780,6 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "aho-corasick-1.1.3",
-    srcs = [
-        "vendor/aho-corasick-1.1.3/src/ahocorasick.rs",
-        "vendor/aho-corasick-1.1.3/src/automaton.rs",
-        "vendor/aho-corasick-1.1.3/src/dfa.rs",
-        "vendor/aho-corasick-1.1.3/src/lib.rs",
-        "vendor/aho-corasick-1.1.3/src/macros.rs",
-        "vendor/aho-corasick-1.1.3/src/nfa/contiguous.rs",
-        "vendor/aho-corasick-1.1.3/src/nfa/mod.rs",
-        "vendor/aho-corasick-1.1.3/src/nfa/noncontiguous.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/api.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/ext.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/mod.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/pattern.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/rabinkarp.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/teddy/builder.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/teddy/generic.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/teddy/mod.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/tests.rs",
-        "vendor/aho-corasick-1.1.3/src/packed/vector.rs",
-        "vendor/aho-corasick-1.1.3/src/tests.rs",
-        "vendor/aho-corasick-1.1.3/src/transducer.rs",
-        "vendor/aho-corasick-1.1.3/src/util/alphabet.rs",
-        "vendor/aho-corasick-1.1.3/src/util/buffer.rs",
-        "vendor/aho-corasick-1.1.3/src/util/byte_frequencies.rs",
-        "vendor/aho-corasick-1.1.3/src/util/debug.rs",
-        "vendor/aho-corasick-1.1.3/src/util/error.rs",
-        "vendor/aho-corasick-1.1.3/src/util/int.rs",
-        "vendor/aho-corasick-1.1.3/src/util/mod.rs",
-        "vendor/aho-corasick-1.1.3/src/util/prefilter.rs",
-        "vendor/aho-corasick-1.1.3/src/util/primitives.rs",
-        "vendor/aho-corasick-1.1.3/src/util/remapper.rs",
-        "vendor/aho-corasick-1.1.3/src/util/search.rs",
-        "vendor/aho-corasick-1.1.3/src/util/special.rs",
-    ],
-    crate = "aho_corasick",
-    crate_root = "vendor/aho-corasick-1.1.3/src/lib.rs",
-    edition = "2021",
-    features = [
-        "default",
-        "perf-literal",
-        "std",
-    ],
-    visibility = [],
-    deps = ["//third-party/rust/crates/memchr/2.7.4:memchr"],
-)
-
-cargo.rust_library(
     name = "aliasable-0.1.3",
     srcs = [
         "vendor/aliasable-0.1.3/src/boxed.rs",
@@ -1406,7 +1358,7 @@ cargo.rust_library(
         "zstd-safe",
     ],
     named_deps = {
-        "libzstd": ":zstd-0.13.2",
+        "libzstd": "//third-party/rust/crates/zstd/0.13.2:zstd",
     },
     visibility = [],
     deps = [
@@ -1512,7 +1464,7 @@ cargo.rust_library(
         ":rustix-0.37.27",
         "//third-party/rust/crates/slab/0.4.9:slab",
         ":socket2-0.4.10",
-        ":waker-fn-1.2.0",
+        "//third-party/rust/crates/waker-fn/1.2.0:waker-fn",
     ],
 )
 
@@ -2747,7 +2699,7 @@ cargo.rust_library(
         ":pin-project-lite-0.2.15",
         ":rustls-0.23.16",
         ":rustls-pemfile-2.2.0",
-        ":rustls-pki-types-1.11.0",
+        "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
         ":tokio-1.43.0",
         ":tokio-rustls-0.26.0",
         ":tower-0.4.13",
@@ -5504,7 +5456,7 @@ cargo.rust_library(
         "//third-party/rust/crates/serde/1.0.217:serde",
         ":serde_json-1.0.138",
         ":toml-0.8.19",
-        ":winnow-0.7.2",
+        "//third-party/rust/crates/winnow/0.7.2:winnow",
         ":yaml-rust2-0.9.0",
     ],
 )
@@ -6217,7 +6169,7 @@ cargo.rust_library(
     deps = [
         ":generic-array-0.14.7",
         ":rand_core-0.6.4",
-        ":typenum-1.17.0",
+        "//third-party/rust/crates/typenum/1.17.0:typenum",
     ],
 )
 
@@ -6313,48 +6265,6 @@ cargo.rust_library(
     edition = "2021",
     visibility = [],
     deps = [":cipher-0.4.4"],
-)
-
-alias(
-    name = "ctrlc",
-    actual = ":ctrlc-3.4.5",
-    visibility = ["PUBLIC"],
-)
-
-cargo.rust_library(
-    name = "ctrlc-3.4.5",
-    srcs = [
-        "vendor/ctrlc-3.4.5/src/error.rs",
-        "vendor/ctrlc-3.4.5/src/lib.rs",
-        "vendor/ctrlc-3.4.5/src/platform/mod.rs",
-        "vendor/ctrlc-3.4.5/src/platform/unix/mod.rs",
-        "vendor/ctrlc-3.4.5/src/platform/windows/mod.rs",
-        "vendor/ctrlc-3.4.5/src/signal.rs",
-    ],
-    crate = "ctrlc",
-    crate_root = "vendor/ctrlc-3.4.5/src/lib.rs",
-    edition = "2021",
-    platform = {
-        "linux-arm64": dict(
-            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
-        ),
-        "linux-x86_64": dict(
-            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
-        ),
-        "macos-arm64": dict(
-            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
-        ),
-        "macos-x86_64": dict(
-            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
-        ),
-        "windows-gnu": dict(
-            deps = ["//third-party/rust/crates/windows-sys/0.59.0:windows-sys"],
-        ),
-        "windows-msvc": dict(
-            deps = ["//third-party/rust/crates/windows-sys/0.59.0:windows-sys"],
-        ),
-    },
-    visibility = [],
 )
 
 cargo.rust_library(
@@ -8658,7 +8568,7 @@ cargo.rust_library(
         "//third-party/rust/crates/memchr/2.7.4:memchr",
         ":parking-2.2.1",
         ":pin-project-lite-0.2.15",
-        ":waker-fn-1.2.0",
+        "//third-party/rust/crates/waker-fn/1.2.0:waker-fn",
     ],
 )
 
@@ -8997,7 +8907,7 @@ cargo.rust_library(
     rustc_flags = ["@$(location :generic-array-0.14.7-build-script-run[rustc_flags])"],
     visibility = [],
     deps = [
-        ":typenum-1.17.0",
+        "//third-party/rust/crates/typenum/1.17.0:typenum",
         "//third-party/rust/crates/zeroize/1.8.1:zeroize",
     ],
 )
@@ -9490,7 +9400,7 @@ cargo.rust_library(
         ":fnv-1.0.7",
         ":hcl-primitives-0.1.7",
         ":vecmap-rs-0.2.2",
-        ":winnow-0.6.20",
+        "//third-party/rust/crates/winnow/0.6.20:winnow",
     ],
 )
 
@@ -10071,7 +9981,7 @@ cargo.rust_library(
         "webpki-tokio",
     ],
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
     visibility = [],
     deps = [
@@ -10376,7 +10286,7 @@ cargo.rust_library(
         "//third-party/rust/crates/smallvec/1.13.2:smallvec",
         ":utf16_iter-1.0.5",
         ":utf8_iter-1.0.4",
-        ":write16-1.0.0",
+        "//third-party/rust/crates/write16/1.0.0:write16",
         ":zerovec-0.10.4",
     ],
 )
@@ -11673,7 +11583,7 @@ cargo.rust_library(
         ":petgraph-0.6.5",
         ":pico-args-0.5.0",
         ":regex-1.11.1",
-        ":regex-syntax-0.8.5",
+        "//third-party/rust/crates/regex-syntax/0.8.5:regex-syntax",
         ":sha3-0.10.8",
         ":string_cache-0.8.7",
         ":term-1.0.0",
@@ -12529,7 +12439,7 @@ cargo.rust_library(
         "//third-party/rust/crates/lazy_static/1.5.0:lazy_static",
         "//third-party/rust/crates/proc-macro2/1.0.94:proc-macro2",
         "//third-party/rust/crates/quote/1.0.40:quote",
-        ":regex-syntax-0.8.5",
+        "//third-party/rust/crates/regex-syntax/0.8.5:regex-syntax",
         "//third-party/rust/crates/syn/2.0.100:syn",
     ],
 )
@@ -15703,10 +15613,10 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [
-        ":aho-corasick-1.1.3",
+        "//third-party/rust/crates/aho-corasick/1.1.3:aho-corasick",
         "//third-party/rust/crates/memchr/2.7.4:memchr",
         ":regex-automata-0.4.9",
-        ":regex-syntax-0.8.5",
+        "//third-party/rust/crates/regex-syntax/0.8.5:regex-syntax",
     ],
 )
 
@@ -15850,9 +15760,9 @@ cargo.rust_library(
     ],
     visibility = [],
     deps = [
-        ":aho-corasick-1.1.3",
+        "//third-party/rust/crates/aho-corasick/1.1.3:aho-corasick",
         "//third-party/rust/crates/memchr/2.7.4:memchr",
-        ":regex-syntax-0.8.5",
+        "//third-party/rust/crates/regex-syntax/0.8.5:regex-syntax",
     ],
 )
 
@@ -15922,61 +15832,6 @@ cargo.rust_library(
     edition = "2018",
     features = [
         "default",
-        "unicode",
-        "unicode-age",
-        "unicode-bool",
-        "unicode-case",
-        "unicode-gencat",
-        "unicode-perl",
-        "unicode-script",
-        "unicode-segment",
-    ],
-    visibility = [],
-)
-
-cargo.rust_library(
-    name = "regex-syntax-0.8.5",
-    srcs = [
-        "vendor/regex-syntax-0.8.5/src/ast/mod.rs",
-        "vendor/regex-syntax-0.8.5/src/ast/parse.rs",
-        "vendor/regex-syntax-0.8.5/src/ast/print.rs",
-        "vendor/regex-syntax-0.8.5/src/ast/visitor.rs",
-        "vendor/regex-syntax-0.8.5/src/debug.rs",
-        "vendor/regex-syntax-0.8.5/src/either.rs",
-        "vendor/regex-syntax-0.8.5/src/error.rs",
-        "vendor/regex-syntax-0.8.5/src/hir/interval.rs",
-        "vendor/regex-syntax-0.8.5/src/hir/literal.rs",
-        "vendor/regex-syntax-0.8.5/src/hir/mod.rs",
-        "vendor/regex-syntax-0.8.5/src/hir/print.rs",
-        "vendor/regex-syntax-0.8.5/src/hir/translate.rs",
-        "vendor/regex-syntax-0.8.5/src/hir/visitor.rs",
-        "vendor/regex-syntax-0.8.5/src/lib.rs",
-        "vendor/regex-syntax-0.8.5/src/parser.rs",
-        "vendor/regex-syntax-0.8.5/src/rank.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/age.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/case_folding_simple.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/general_category.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/grapheme_cluster_break.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/mod.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/perl_decimal.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/perl_space.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/perl_word.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/property_bool.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/property_names.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/property_values.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/script.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/script_extension.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/sentence_break.rs",
-        "vendor/regex-syntax-0.8.5/src/unicode_tables/word_break.rs",
-        "vendor/regex-syntax-0.8.5/src/utf8.rs",
-    ],
-    crate = "regex_syntax",
-    crate_root = "vendor/regex-syntax-0.8.5/src/lib.rs",
-    edition = "2021",
-    features = [
-        "default",
-        "std",
         "unicode",
         "unicode-age",
         "unicode-bool",
@@ -16104,7 +15959,7 @@ cargo.rust_library(
                 ":rustls-0.23.16",
                 ":rustls-native-certs-0.8.1",
                 ":rustls-pemfile-2.2.0",
-                ":rustls-pki-types-1.11.0",
+                "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
                 ":tokio-1.43.0",
                 ":tokio-native-tls-0.3.1",
                 ":tokio-rustls-0.26.0",
@@ -16136,7 +15991,7 @@ cargo.rust_library(
                 ":rustls-0.23.16",
                 ":rustls-native-certs-0.8.1",
                 ":rustls-pemfile-2.2.0",
-                ":rustls-pki-types-1.11.0",
+                "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
                 ":tokio-1.43.0",
                 ":tokio-native-tls-0.3.1",
                 ":tokio-rustls-0.26.0",
@@ -16168,7 +16023,7 @@ cargo.rust_library(
                 ":rustls-0.23.16",
                 ":rustls-native-certs-0.8.1",
                 ":rustls-pemfile-2.2.0",
-                ":rustls-pki-types-1.11.0",
+                "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
                 ":system-configuration-0.6.1",
                 ":tokio-1.43.0",
                 ":tokio-native-tls-0.3.1",
@@ -16201,7 +16056,7 @@ cargo.rust_library(
                 ":rustls-0.23.16",
                 ":rustls-native-certs-0.8.1",
                 ":rustls-pemfile-2.2.0",
-                ":rustls-pki-types-1.11.0",
+                "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
                 ":system-configuration-0.6.1",
                 ":tokio-1.43.0",
                 ":tokio-native-tls-0.3.1",
@@ -16234,7 +16089,7 @@ cargo.rust_library(
                 ":rustls-0.23.16",
                 ":rustls-native-certs-0.8.1",
                 ":rustls-pemfile-2.2.0",
-                ":rustls-pki-types-1.11.0",
+                "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
                 ":tokio-1.43.0",
                 ":tokio-native-tls-0.3.1",
                 ":tokio-rustls-0.26.0",
@@ -16267,7 +16122,7 @@ cargo.rust_library(
                 ":rustls-0.23.16",
                 ":rustls-native-certs-0.8.1",
                 ":rustls-pemfile-2.2.0",
-                ":rustls-pki-types-1.11.0",
+                "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
                 ":tokio-1.43.0",
                 ":tokio-native-tls-0.3.1",
                 ":tokio-rustls-0.26.0",
@@ -16827,7 +16682,7 @@ cargo.rust_library(
         "//third-party/rust/crates/subtle/2.6.1:subtle",
         "//third-party/rust/crates/thiserror/1.0.69:thiserror",
         ":tokio-1.43.0",
-        ":typenum-1.17.0",
+        "//third-party/rust/crates/typenum/1.17.0:typenum",
         "//third-party/rust/crates/zeroize/1.8.1:zeroize",
     ],
 )
@@ -18516,7 +18371,7 @@ cargo.rust_library(
         "tls12",
     ],
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
     visibility = [],
     deps = [
@@ -18542,7 +18397,7 @@ cargo.rust_library(
     crate_root = "vendor/rustls-native-certs-0.7.3/src/lib.rs",
     edition = "2021",
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
     platform = {
         "linux-arm64": dict(
@@ -18580,7 +18435,7 @@ cargo.rust_library(
     crate_root = "vendor/rustls-native-certs-0.8.1/src/lib.rs",
     edition = "2021",
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
     platform = {
         "linux-arm64": dict(
@@ -18620,44 +18475,8 @@ cargo.rust_library(
         "std",
     ],
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
-    visibility = [],
-)
-
-cargo.rust_library(
-    name = "rustls-pki-types-1.11.0",
-    srcs = [
-        "vendor/rustls-pki-types-1.11.0/src/alg_id.rs",
-        "vendor/rustls-pki-types-1.11.0/src/base64.rs",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-ecdsa-p256.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-ecdsa-p384.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-ecdsa-p521.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-ecdsa-sha256.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-ecdsa-sha384.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-ecdsa-sha512.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-ed25519.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-rsa-encryption.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-rsa-pkcs1-sha256.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-rsa-pkcs1-sha384.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-rsa-pkcs1-sha512.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-rsa-pss-sha256.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-rsa-pss-sha384.der",
-        "vendor/rustls-pki-types-1.11.0/src/data/alg-rsa-pss-sha512.der",
-        "vendor/rustls-pki-types-1.11.0/src/lib.rs",
-        "vendor/rustls-pki-types-1.11.0/src/pem.rs",
-        "vendor/rustls-pki-types-1.11.0/src/server_name.rs",
-    ],
-    crate = "rustls_pki_types",
-    crate_root = "vendor/rustls-pki-types-1.11.0/src/lib.rs",
-    edition = "2021",
-    features = [
-        "alloc",
-        "default",
-        "std",
-        "web",
-        "web-time",
-    ],
     visibility = [],
 )
 
@@ -18774,7 +18593,7 @@ cargo.rust_library(
         "std",
     ],
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
     visibility = [],
     deps = [
@@ -21356,7 +21175,7 @@ cargo.rust_library(
         ":time-0.3.36",
         ":tracing-0.1.41",
         ":uuid-1.13.1",
-        ":whoami-1.5.2",
+        "//third-party/rust/crates/whoami/1.5.2:whoami",
     ],
 )
 
@@ -23006,7 +22825,7 @@ cargo.rust_library(
         "tls12",
     ],
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
     visibility = [],
     deps = [
@@ -23302,7 +23121,7 @@ cargo.rust_library(
         "//third-party/rust/crates/serde/1.0.217:serde",
         ":serde_spanned-0.6.8",
         ":toml_datetime-0.6.8",
-        ":winnow-0.6.20",
+        "//third-party/rust/crates/winnow/0.6.20:winnow",
     ],
 )
 
@@ -24085,52 +23904,6 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "typenum-1.17.0",
-    srcs = [
-        "vendor/typenum-1.17.0/src/array.rs",
-        "vendor/typenum-1.17.0/src/bit.rs",
-        "vendor/typenum-1.17.0/src/int.rs",
-        "vendor/typenum-1.17.0/src/lib.rs",
-        "vendor/typenum-1.17.0/src/marker_traits.rs",
-        "vendor/typenum-1.17.0/src/operator_aliases.rs",
-        "vendor/typenum-1.17.0/src/private.rs",
-        "vendor/typenum-1.17.0/src/type_operators.rs",
-        "vendor/typenum-1.17.0/src/uint.rs",
-    ],
-    crate = "typenum",
-    crate_root = "vendor/typenum-1.17.0/src/lib.rs",
-    edition = "2018",
-    env = {
-        "OUT_DIR": "$(location :typenum-1.17.0-build-script-main-run[out_dir])",
-    },
-    features = ["force_unix_path_separator"],
-    visibility = [],
-)
-
-cargo.rust_binary(
-    name = "typenum-1.17.0-build-script-main",
-    srcs = [
-        "vendor/typenum-1.17.0/build/generic_const_mappings.rs",
-        "vendor/typenum-1.17.0/build/main.rs",
-        "vendor/typenum-1.17.0/build/op.rs",
-        "vendor/typenum-1.17.0/build/tests.rs",
-    ],
-    crate = "build_script_main",
-    crate_root = "vendor/typenum-1.17.0/build/main.rs",
-    edition = "2018",
-    features = ["force_unix_path_separator"],
-    visibility = [],
-)
-
-buildscript_run(
-    name = "typenum-1.17.0-build-script-main-run",
-    package_name = "typenum",
-    buildscript_rule = ":typenum-1.17.0-build-script-main",
-    features = ["force_unix_path_separator"],
-    version = "1.17.0",
-)
-
-cargo.rust_library(
     name = "ucd-trie-0.1.7",
     srcs = [
         "vendor/ucd-trie-0.1.7/src/general_category.rs",
@@ -24417,7 +24190,7 @@ cargo.rust_library(
         "//third-party/rust/crates/log/0.4.22:log",
         "//third-party/rust/crates/once_cell/1.20.2:once_cell",
         ":rustls-0.23.16",
-        ":rustls-pki-types-1.11.0",
+        "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
         "//third-party/rust/crates/serde/1.0.217:serde",
         ":serde_json-1.0.138",
         ":url-2.5.4",
@@ -24675,15 +24448,6 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "waker-fn-1.2.0",
-    srcs = ["vendor/waker-fn-1.2.0/src/lib.rs"],
-    crate = "waker_fn",
-    crate_root = "vendor/waker-fn-1.2.0/src/lib.rs",
-    edition = "2018",
-    visibility = [],
-)
-
-cargo.rust_library(
     name = "want-0.3.1",
     srcs = ["vendor/want-0.3.1/src/lib.rs"],
     crate = "want",
@@ -24700,7 +24464,7 @@ cargo.rust_library(
     crate_root = "vendor/webpki-roots-0.26.6/src/lib.rs",
     edition = "2018",
     named_deps = {
-        "pki_types": ":rustls-pki-types-1.11.0",
+        "pki_types": "//third-party/rust/crates/rustls-pki-types/1.11.0:rustls-pki-types",
     },
     visibility = [],
 )
@@ -24748,186 +24512,6 @@ cargo.rust_library(
         ":either-1.13.0",
         ":rustix-0.38.40",
     ],
-)
-
-cargo.rust_library(
-    name = "whoami-1.5.2",
-    srcs = [
-        "vendor/whoami-1.5.2/src/api.rs",
-        "vendor/whoami-1.5.2/src/arch.rs",
-        "vendor/whoami-1.5.2/src/conversions.rs",
-        "vendor/whoami-1.5.2/src/desktop_env.rs",
-        "vendor/whoami-1.5.2/src/fallible.rs",
-        "vendor/whoami-1.5.2/src/language.rs",
-        "vendor/whoami-1.5.2/src/lib.rs",
-        "vendor/whoami-1.5.2/src/os.rs",
-        "vendor/whoami-1.5.2/src/os/daku.rs",
-        "vendor/whoami-1.5.2/src/os/redox.rs",
-        "vendor/whoami-1.5.2/src/os/target.rs",
-        "vendor/whoami-1.5.2/src/os/unix.rs",
-        "vendor/whoami-1.5.2/src/os/wasi.rs",
-        "vendor/whoami-1.5.2/src/os/web.rs",
-        "vendor/whoami-1.5.2/src/os/windows.rs",
-        "vendor/whoami-1.5.2/src/platform.rs",
-        "vendor/whoami-1.5.2/src/result.rs",
-    ],
-    crate = "whoami",
-    crate_root = "vendor/whoami-1.5.2/src/lib.rs",
-    edition = "2018",
-    visibility = [],
-)
-
-cargo.rust_library(
-    name = "winnow-0.6.20",
-    srcs = [
-        "vendor/winnow-0.6.20/examples/css/parser.rs",
-        "vendor/winnow-0.6.20/src/_topic/arithmetic.rs",
-        "vendor/winnow-0.6.20/src/_topic/error.rs",
-        "vendor/winnow-0.6.20/src/_topic/fromstr.rs",
-        "vendor/winnow-0.6.20/src/_topic/http.rs",
-        "vendor/winnow-0.6.20/src/_topic/ini.rs",
-        "vendor/winnow-0.6.20/src/_topic/json.rs",
-        "vendor/winnow-0.6.20/src/_topic/language.rs",
-        "vendor/winnow-0.6.20/src/_topic/mod.rs",
-        "vendor/winnow-0.6.20/src/_topic/nom.rs",
-        "vendor/winnow-0.6.20/src/_topic/partial.rs",
-        "vendor/winnow-0.6.20/src/_topic/performance.rs",
-        "vendor/winnow-0.6.20/src/_topic/s_expression.rs",
-        "vendor/winnow-0.6.20/src/_topic/stream.rs",
-        "vendor/winnow-0.6.20/src/_topic/why.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_0.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_1.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_2.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_3.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_4.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_5.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_6.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_7.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/chapter_8.rs",
-        "vendor/winnow-0.6.20/src/_tutorial/mod.rs",
-        "vendor/winnow-0.6.20/src/ascii/mod.rs",
-        "vendor/winnow-0.6.20/src/ascii/tests.rs",
-        "vendor/winnow-0.6.20/src/binary/bits/mod.rs",
-        "vendor/winnow-0.6.20/src/binary/bits/tests.rs",
-        "vendor/winnow-0.6.20/src/binary/mod.rs",
-        "vendor/winnow-0.6.20/src/binary/tests.rs",
-        "vendor/winnow-0.6.20/src/combinator/branch.rs",
-        "vendor/winnow-0.6.20/src/combinator/core.rs",
-        "vendor/winnow-0.6.20/src/combinator/debug/internals.rs",
-        "vendor/winnow-0.6.20/src/combinator/debug/mod.rs",
-        "vendor/winnow-0.6.20/src/combinator/mod.rs",
-        "vendor/winnow-0.6.20/src/combinator/multi.rs",
-        "vendor/winnow-0.6.20/src/combinator/parser.rs",
-        "vendor/winnow-0.6.20/src/combinator/sequence.rs",
-        "vendor/winnow-0.6.20/src/combinator/tests.rs",
-        "vendor/winnow-0.6.20/src/error.rs",
-        "vendor/winnow-0.6.20/src/lib.rs",
-        "vendor/winnow-0.6.20/src/macros/dispatch.rs",
-        "vendor/winnow-0.6.20/src/macros/mod.rs",
-        "vendor/winnow-0.6.20/src/macros/seq.rs",
-        "vendor/winnow-0.6.20/src/macros/test.rs",
-        "vendor/winnow-0.6.20/src/parser.rs",
-        "vendor/winnow-0.6.20/src/stream/impls.rs",
-        "vendor/winnow-0.6.20/src/stream/mod.rs",
-        "vendor/winnow-0.6.20/src/stream/tests.rs",
-        "vendor/winnow-0.6.20/src/token/mod.rs",
-        "vendor/winnow-0.6.20/src/token/tests.rs",
-    ],
-    crate = "winnow",
-    crate_root = "vendor/winnow-0.6.20/src/lib.rs",
-    edition = "2021",
-    features = [
-        "alloc",
-        "default",
-        "std",
-    ],
-    visibility = [],
-    deps = ["//third-party/rust/crates/memchr/2.7.4:memchr"],
-)
-
-cargo.rust_library(
-    name = "winnow-0.7.2",
-    srcs = [
-        "vendor/winnow-0.7.2/examples/css/parser.rs",
-        "vendor/winnow-0.7.2/src/_topic/arithmetic.rs",
-        "vendor/winnow-0.7.2/src/_topic/error.rs",
-        "vendor/winnow-0.7.2/src/_topic/fromstr.rs",
-        "vendor/winnow-0.7.2/src/_topic/http.rs",
-        "vendor/winnow-0.7.2/src/_topic/ini.rs",
-        "vendor/winnow-0.7.2/src/_topic/json.rs",
-        "vendor/winnow-0.7.2/src/_topic/language.rs",
-        "vendor/winnow-0.7.2/src/_topic/mod.rs",
-        "vendor/winnow-0.7.2/src/_topic/nom.rs",
-        "vendor/winnow-0.7.2/src/_topic/partial.rs",
-        "vendor/winnow-0.7.2/src/_topic/performance.rs",
-        "vendor/winnow-0.7.2/src/_topic/s_expression.rs",
-        "vendor/winnow-0.7.2/src/_topic/stream.rs",
-        "vendor/winnow-0.7.2/src/_topic/why.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_0.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_1.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_2.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_3.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_4.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_5.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_6.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_7.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/chapter_8.rs",
-        "vendor/winnow-0.7.2/src/_tutorial/mod.rs",
-        "vendor/winnow-0.7.2/src/ascii/mod.rs",
-        "vendor/winnow-0.7.2/src/ascii/tests.rs",
-        "vendor/winnow-0.7.2/src/binary/bits/mod.rs",
-        "vendor/winnow-0.7.2/src/binary/bits/tests.rs",
-        "vendor/winnow-0.7.2/src/binary/mod.rs",
-        "vendor/winnow-0.7.2/src/binary/tests.rs",
-        "vendor/winnow-0.7.2/src/combinator/branch.rs",
-        "vendor/winnow-0.7.2/src/combinator/core.rs",
-        "vendor/winnow-0.7.2/src/combinator/debug/internals.rs",
-        "vendor/winnow-0.7.2/src/combinator/debug/mod.rs",
-        "vendor/winnow-0.7.2/src/combinator/impls.rs",
-        "vendor/winnow-0.7.2/src/combinator/mod.rs",
-        "vendor/winnow-0.7.2/src/combinator/multi.rs",
-        "vendor/winnow-0.7.2/src/combinator/sequence.rs",
-        "vendor/winnow-0.7.2/src/combinator/tests.rs",
-        "vendor/winnow-0.7.2/src/error.rs",
-        "vendor/winnow-0.7.2/src/lib.rs",
-        "vendor/winnow-0.7.2/src/macros/dispatch.rs",
-        "vendor/winnow-0.7.2/src/macros/mod.rs",
-        "vendor/winnow-0.7.2/src/macros/seq.rs",
-        "vendor/winnow-0.7.2/src/macros/tests.rs",
-        "vendor/winnow-0.7.2/src/parser.rs",
-        "vendor/winnow-0.7.2/src/stream/bstr.rs",
-        "vendor/winnow-0.7.2/src/stream/bytes.rs",
-        "vendor/winnow-0.7.2/src/stream/locating.rs",
-        "vendor/winnow-0.7.2/src/stream/mod.rs",
-        "vendor/winnow-0.7.2/src/stream/partial.rs",
-        "vendor/winnow-0.7.2/src/stream/range.rs",
-        "vendor/winnow-0.7.2/src/stream/recoverable.rs",
-        "vendor/winnow-0.7.2/src/stream/stateful.rs",
-        "vendor/winnow-0.7.2/src/stream/tests.rs",
-        "vendor/winnow-0.7.2/src/stream/token.rs",
-        "vendor/winnow-0.7.2/src/token/mod.rs",
-        "vendor/winnow-0.7.2/src/token/tests.rs",
-    ],
-    crate = "winnow",
-    crate_root = "vendor/winnow-0.7.2/src/lib.rs",
-    edition = "2021",
-    features = [
-        "alloc",
-        "default",
-        "std",
-    ],
-    visibility = [],
-    deps = ["//third-party/rust/crates/memchr/2.7.4:memchr"],
-)
-
-cargo.rust_library(
-    name = "write16-1.0.0",
-    srcs = ["vendor/write16-1.0.0/src/lib.rs"],
-    crate = "write16",
-    crate_root = "vendor/write16-1.0.0/src/lib.rs",
-    edition = "2021",
-    features = ["alloc"],
-    visibility = [],
 )
 
 cargo.rust_library(
@@ -25196,96 +24780,6 @@ cargo.rust_library(
         ":zerofrom-0.1.4",
         "//third-party/rust/crates/zerovec-derive/0.10.3:zerovec-derive",
     ],
-)
-
-cargo.rust_library(
-    name = "zstd-0.13.2",
-    srcs = [
-        "vendor/zstd-0.13.2/src/bulk/compressor.rs",
-        "vendor/zstd-0.13.2/src/bulk/decompressor.rs",
-        "vendor/zstd-0.13.2/src/bulk/mod.rs",
-        "vendor/zstd-0.13.2/src/bulk/tests.rs",
-        "vendor/zstd-0.13.2/src/dict.rs",
-        "vendor/zstd-0.13.2/src/lib.rs",
-        "vendor/zstd-0.13.2/src/stream/functions.rs",
-        "vendor/zstd-0.13.2/src/stream/mod.rs",
-        "vendor/zstd-0.13.2/src/stream/raw.rs",
-        "vendor/zstd-0.13.2/src/stream/read/mod.rs",
-        "vendor/zstd-0.13.2/src/stream/read/tests.rs",
-        "vendor/zstd-0.13.2/src/stream/tests.rs",
-        "vendor/zstd-0.13.2/src/stream/write/mod.rs",
-        "vendor/zstd-0.13.2/src/stream/write/tests.rs",
-        "vendor/zstd-0.13.2/src/stream/zio/mod.rs",
-        "vendor/zstd-0.13.2/src/stream/zio/reader.rs",
-        "vendor/zstd-0.13.2/src/stream/zio/writer.rs",
-    ],
-    crate = "zstd",
-    crate_root = "vendor/zstd-0.13.2/src/lib.rs",
-    edition = "2018",
-    features = [
-        "arrays",
-        "default",
-        "legacy",
-        "zdict_builder",
-    ],
-    visibility = [],
-    deps = [":zstd-safe-7.2.1"],
-)
-
-cargo.rust_library(
-    name = "zstd-safe-7.2.1",
-    srcs = [
-        "vendor/zstd-safe-7.2.1/src/constants.rs",
-        "vendor/zstd-safe-7.2.1/src/constants_experimental.rs",
-        "vendor/zstd-safe-7.2.1/src/lib.rs",
-        "vendor/zstd-safe-7.2.1/src/tests.rs",
-    ],
-    crate = "zstd_safe",
-    crate_root = "vendor/zstd-safe-7.2.1/src/lib.rs",
-    edition = "2018",
-    features = [
-        "arrays",
-        "legacy",
-        "std",
-        "zdict_builder",
-    ],
-    rustc_flags = ["@$(location :zstd-safe-7.2.1-build-script-run[rustc_flags])"],
-    visibility = [],
-    deps = ["//third-party/rust/crates/zstd-sys/2.0.13+zstd.1.5.6:zstd-sys"],
-)
-
-cargo.rust_binary(
-    name = "zstd-safe-7.2.1-build-script-build",
-    srcs = [
-        "vendor/zstd-safe-7.2.1/build.rs",
-        "vendor/zstd-safe-7.2.1/src/constants.rs",
-        "vendor/zstd-safe-7.2.1/src/constants_experimental.rs",
-        "vendor/zstd-safe-7.2.1/src/lib.rs",
-        "vendor/zstd-safe-7.2.1/src/tests.rs",
-    ],
-    crate = "build_script_build",
-    crate_root = "vendor/zstd-safe-7.2.1/build.rs",
-    edition = "2018",
-    features = [
-        "arrays",
-        "legacy",
-        "std",
-        "zdict_builder",
-    ],
-    visibility = [],
-)
-
-buildscript_run(
-    name = "zstd-safe-7.2.1-build-script-run",
-    package_name = "zstd-safe",
-    buildscript_rule = ":zstd-safe-7.2.1-build-script-build",
-    features = [
-        "arrays",
-        "legacy",
-        "std",
-        "zdict_builder",
-    ],
-    version = "7.2.1",
 )
 
 alias(
