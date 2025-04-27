@@ -334,7 +334,7 @@ impl PackEncoder {
             let offset = self.inner_offset - best_base_offset;
             entry.obj_type = ObjectType::OffsetZstdelta;
             entry.data = best_delta_data;
-            tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
+            // tracing::debug!("use base {:?} to delta, rate {:?}", offset, best_rate);
             offset
         })
     }

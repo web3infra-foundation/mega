@@ -83,8 +83,8 @@ pub mod test_utils {
 
     async fn download_lfs_file_if_not_exist(file_name: &str, output_path: &PathBuf, sha256: &str) {
         let url = format!(
-            // "https://gitmono.s3.ap-southeast-2.amazonaws.com/packs/{}",
-            "https://gitmono.oss-cn-beijing.aliyuncs.com/{}",
+            "https://gitmono.s3.ap-southeast-2.amazonaws.com/packs/{}",
+            // "https://gitmono.oss-cn-beijing.aliyuncs.com/{}",
             file_name
         );
         if !check_file_hash(output_path, sha256).await {
