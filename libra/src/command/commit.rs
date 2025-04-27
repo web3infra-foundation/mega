@@ -256,6 +256,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial]
     #[should_panic]
     async fn test_execute_commit_with_empty_index_fail() {
         test::setup_with_new_libra().await;
