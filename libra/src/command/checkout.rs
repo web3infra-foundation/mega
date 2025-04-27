@@ -123,6 +123,7 @@ mod tests {
     use super::*;
     use crate::command::{commit, init};
     use colored::Colorize;
+    use serial_test::serial;
     use std::{env, fs};
     use tempfile::tempdir;
 
@@ -166,6 +167,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_checkout_module_functions() {
         println!("\n\x1b[1mTest checkout module functions.\x1b[0m");
 

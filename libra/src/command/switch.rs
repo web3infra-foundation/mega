@@ -122,6 +122,7 @@ mod tests {
     use crate::command::add;
     use crate::command::init;
     use crate::command::restore::RestoreArgs;
+    use serial_test::serial;
     use std::str::FromStr;
     use std::{env, fs};
     use tempfile::tempdir;
@@ -165,6 +166,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_parts_of_switch_module_function() {
         println!("\n\x1b[1mTest some functions of the switch module.\x1b[0m");
 
