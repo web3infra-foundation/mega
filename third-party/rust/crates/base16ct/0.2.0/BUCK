@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "base16ct",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "base16ct",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = ["alloc"],
+    visibility = ["PUBLIC"],
+)
