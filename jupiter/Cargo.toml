@@ -15,6 +15,7 @@ callisto = { workspace = true }
 common = { workspace = true }
 mercury = { workspace = true }
 saturn = { workspace = true }
+migration = { workspace = true }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
