@@ -345,8 +345,8 @@ fn imara_diff_result(old: &str, new: &str, w: &mut dyn io::Write) {
 mod test {
     use crate::utils::test;
     use serial_test::serial;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     use super::*;
     #[test]
@@ -401,6 +401,7 @@ mod test {
     async fn test_get_files_blob_gitignore() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
 
         let mut gitignore_file = fs::File::create(".libraignore").unwrap();
         gitignore_file.write_all(b"should_ignore").unwrap();

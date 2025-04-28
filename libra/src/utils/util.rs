@@ -34,7 +34,7 @@ pub fn cur_dir() -> PathBuf {
 /// Try to get the storage path of the repository, which is the path of the `.libra` directory
 /// - if the current directory or given path is not a repository, return an error
 pub fn try_get_storage_path(path: Option<PathBuf>) -> Result<PathBuf, io::Error> {
-    let mut path = path.clone().unwrap_or_else(|| cur_dir());
+    let mut path = path.clone().unwrap_or_else(cur_dir);
     let orig = path.clone();
     loop {
         let libra = path.join(ROOT_DIR);
@@ -379,9 +379,9 @@ mod test {
     use super::*;
     use crate::utils::test;
     use serial_test::serial;
-    use tempfile::tempdir;
     use std::env;
     use std::path::PathBuf;
+    use tempfile::tempdir;
 
     #[test]
     fn cur_dir_returns_current_directory() {

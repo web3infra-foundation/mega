@@ -138,6 +138,8 @@ mod tests {
     async fn test_get_reachable_commits() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         let commit_id = create_test_commit_tree().await;
 
         let reachable_commits = get_reachable_commits(commit_id).await;

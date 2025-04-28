@@ -377,7 +377,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use crate::utils::{test, util};
+    use crate::utils::test;
 
     use super::ClientStorage;
 

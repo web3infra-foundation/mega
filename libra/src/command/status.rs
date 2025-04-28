@@ -208,6 +208,7 @@ mod test {
     async fn test_changes_to_be_staged() {
         let test_dir = tempdir().unwrap();
         test::setup_with_new_libra_in(test_dir.path()).await;
+        let _guard = test::ChangeDirGuard::new(test_dir.path());
 
         let mut gitignore_file = fs::File::create(".libraignore").unwrap();
         gitignore_file
