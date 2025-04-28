@@ -420,13 +420,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_list_objs() {
-        test::reset_working_dir();
-        let source = PathBuf::from(test::TEST_DIR)
-            .join(util::ROOT_DIR)
-            .join("objects");
-        if !source.exists() {
-            return;
-        }
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
+        source.push("tests/objects");
         let client_storage = ClientStorage::init(source);
         let objs = client_storage.list_objects_loose();
         for obj in objs {
