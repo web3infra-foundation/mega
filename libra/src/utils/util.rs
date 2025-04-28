@@ -391,7 +391,10 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_is_sub_path() {
+        let _guard = test::ChangeDirGuard::new(Path::new(env!("CARGO_MANIFEST_DIR")));
+
         assert!(is_sub_path("src/main.rs", "src"));
         assert!(is_sub_path("src/main.rs", "src/"));
         assert!(is_sub_path("src/main.rs", "src/main.rs"));
