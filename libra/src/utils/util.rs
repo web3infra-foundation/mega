@@ -32,32 +32,32 @@ pub fn cur_dir() -> PathBuf {
 }
 
 /// Try to get the storage path of the repository, which is the path of the `.libra` directory
-/// - if the current directory is not a repository, return an error
-pub fn try_get_storage_path() -> Result<PathBuf, io::Error> {
-    let mut cur_dir = env::current_dir()?;
+/// - if the current directory or given path is not a repository, return an error
+pub fn try_get_storage_path(path: Option<PathBuf>) -> Result<PathBuf, io::Error> {
+    let mut path = path.clone().unwrap_or_else(cur_dir);
+    let orig = path.clone();
     loop {
-        let mut libra = cur_dir.clone();
-        libra.push(ROOT_DIR);
+        let libra = path.join(ROOT_DIR);
         if libra.exists() {
             return Ok(libra);
         }
-        if !cur_dir.pop() {
+        if !path.pop() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("{:?} is not a git repository", env::current_dir()?),
+                format!("{:?} is not a git repository", orig),
             ));
         }
     }
 }
 
-/// Get the storage path of the repository, aka `.libra`
-/// - panics if the current directory is not a repository
+/// Load the storage path with optional given repository
 pub fn storage_path() -> PathBuf {
-    try_get_storage_path().unwrap()
+    try_get_storage_path(None).unwrap()
 }
+
 /// Check if libra repo exists
 pub fn check_repo_exist() -> bool {
-    if try_get_storage_path().is_err() {
+    if try_get_storage_path(None).is_err() {
         eprintln!("fatal: not a libra repository (or any of the parent directories): .libra");
         return false;
     }
@@ -381,6 +381,7 @@ mod test {
     use serial_test::serial;
     use std::env;
     use std::path::PathBuf;
+    use tempfile::tempdir;
 
     #[test]
     fn cur_dir_returns_current_directory() {
@@ -390,7 +391,10 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_is_sub_path() {
+        let _guard = test::ChangeDirGuard::new(Path::new(env!("CARGO_MANIFEST_DIR")));
+
         assert!(is_sub_path("src/main.rs", "src"));
         assert!(is_sub_path("src/main.rs", "src/"));
         assert!(is_sub_path("src/main.rs", "src/main.rs"));
@@ -406,7 +410,10 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_to_workdir_path() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         assert_eq!(
             to_workdir_path("./src/abc/../main.rs"),
             PathBuf::from("src/main.rs")
@@ -419,17 +426,22 @@ mod test {
     #[test]
     #[serial]
     fn test_check_gitignore_ignore() {
+        let temp_path = tempdir().unwrap();
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         let mut gitignore_file = fs::File::create(".libraignore").unwrap();
         gitignore_file.write_all(b"*.bar").unwrap();
-        let workdir = env::current_dir().unwrap();
-        let target = workdir.join("tmp/foo.bar");
-        assert!(check_gitignore(&workdir, &target));
-        fs::remove_file(workdir.join(".libraignore")).unwrap();
+
+        let target = temp_path.path().join("tmp/foo.bar");
+        assert!(check_gitignore(&temp_path.into_path(), &target));
     }
 
     #[test]
     #[serial]
     fn test_check_gitignore_ignore_subdirectory() {
+        let temp_path = tempdir().unwrap();
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         fs::create_dir_all("tmp").unwrap();
         fs::create_dir_all("tmp/tmp1").unwrap();
         fs::create_dir_all("tmp/tmp1/tmp2").unwrap();
@@ -444,6 +456,9 @@ mod test {
     #[test]
     #[serial]
     fn test_check_gitignore_not_ignore() {
+        let temp_path = tempdir().unwrap();
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         let mut gitignore_file = fs::File::create(".libraignore").unwrap();
         gitignore_file.write_all(b"*.bar").unwrap();
         let workdir = env::current_dir().unwrap();
@@ -455,6 +470,9 @@ mod test {
     #[test]
     #[serial]
     fn test_check_gitignore_not_ignore_subdirectory() {
+        let temp_path = tempdir().unwrap();
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         fs::create_dir_all("tmp").unwrap();
         fs::create_dir_all("tmp/tmp1").unwrap();
         fs::create_dir_all("tmp/tmp1/tmp2").unwrap();
