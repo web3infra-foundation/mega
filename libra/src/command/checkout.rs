@@ -121,9 +121,12 @@ async fn restore_to_commit(commit_id: SHA1) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::{commit, init};
+    use crate::{
+        command::{commit, init},
+        utils::test,
+    };
     use colored::Colorize;
-    use std::{env, fs};
+    use serial_test::serial;
     use tempfile::tempdir;
 
     async fn test_check_branch() {
@@ -166,31 +169,24 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_checkout_module_functions() {
         println!("\n\x1b[1mTest checkout module functions.\x1b[0m");
 
-        let target_dir = tempdir().unwrap().into_path();
-
-        // Create a test directory and set args
-        let test_dir = target_dir.join("test_checkout_module_functions");
-        fs::create_dir(&test_dir).unwrap();
+        let temp_path = tempdir().unwrap();
+        test::setup_clean_testing_env_in(temp_path.path());
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
 
         let init_args = init::InitArgs {
             bare: false,
             initial_branch: Some("main".to_string()),
-            repo_directory: test_dir.to_str().unwrap().to_owned(),
+            repo_directory: temp_path.path().to_str().unwrap().to_string(),
             quiet: false,
         };
 
-        // Run the init function and change the current directory
-        // to the test directory.
-        let raw_dir = env::current_dir().unwrap();
-        let result = init::init(init_args).await;
-        if let Err(e) = result {
-            eprintln!("Error initializing repository: {}", e);
-            return;
-        }
-        assert!(env::set_current_dir(&test_dir).is_ok());
+        init::init(init_args)
+            .await
+            .expect("Error initializing repository");
 
         // Initialize the main branch by creating an empty commit
         let commit_args = commit::CommitArgs {
@@ -208,11 +204,5 @@ mod tests {
         // Test the checkout module funsctions
         test_check_branch().await;
         test_switch_branch().await;
-
-        // Clean the test data
-        assert!(env::set_current_dir(&raw_dir).is_ok());
-        if let Err(e) = fs::remove_dir_all(&target_dir) {
-            eprintln!("Error removing test directory: {}", e);
-        }
     }
 }
