@@ -27,7 +27,6 @@ pub async fn exec_async(mut args: Vec<&str>) -> Result<(), GitError> {
 mod tests {
     use crate::utils::test;
 
-    use super::*;
     use serial_test::serial;
     use tempfile::TempDir;
 
