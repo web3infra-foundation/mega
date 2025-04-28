@@ -25,9 +25,9 @@ chrono = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 threadpool = { workspace = true }
-num_cpus.workspace = true
+num_cpus = { workspace = true }
 dashmap = { workspace = true }
-tokio.workspace = true
+tokio = {workspace = true }
 lru-mem = { workspace = true }
 bincode = { workspace = true , features = ["serde"] }
 byteorder = { workspace = true }
