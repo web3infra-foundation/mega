@@ -18,17 +18,17 @@ pub struct ChangeDirGuard {
 impl ChangeDirGuard {
     /// Creates a new `ChangeDirGuard` that changes the current directory to `new_dir`.
     /// This will automatically change the directory back to the original one when the guard is dropped.
-    /// 
+    ///
     /// However, it **MUST** be used in a single-threaded context.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `new_dir` - The new directory to change to.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * A `ChangeDirGuard` instance that will change the directory back to the original one when dropped.
-    /// 
+    ///
     pub fn new(new_dir: impl AsRef<Path>) -> Self {
         let old_dir = env::current_dir().unwrap();
         env::set_current_dir(new_dir).unwrap();
@@ -77,7 +77,10 @@ pub fn find_cargo_dir() -> PathBuf {
 pub fn setup_clean_testing_env_in(temp_path: impl AsRef<Path>) {
     assert!(temp_path.as_ref().exists(), "temp_path does not exist");
     assert!(temp_path.as_ref().is_dir(), "temp_path is not a directory");
-    assert!(temp_path.as_ref().read_dir().unwrap().count() == 0, "temp_path is not empty");
+    assert!(
+        temp_path.as_ref().read_dir().unwrap().count() == 0,
+        "temp_path is not empty"
+    );
 
     tracing::info!("Using libra testing path: {:?}", temp_path.as_ref());
 

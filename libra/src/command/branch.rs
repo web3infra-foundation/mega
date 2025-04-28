@@ -231,7 +231,7 @@ pub fn is_valid_git_branch_name(name: &str) -> bool {
 mod tests {
     use crate::{
         command::commit::{self, CommitArgs},
-        utils::{test::{self, ChangeDirGuard}, util::cur_dir},
+        utils::test::{self, ChangeDirGuard},
     };
     use serial_test::serial;
     use tempfile::tempdir;
