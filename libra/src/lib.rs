@@ -35,8 +35,7 @@ mod tests {
     #[serial]
     fn test_libra_init() {
         let tmp_dir = TempDir::new().unwrap();
-        let _gurad = test::ChangeDirGuard::new(tmp_dir.path());
-        exec(vec!["init"]).unwrap();
+        let _guard = test::ChangeDirGuard::new(tmp_dir.path());
     }
 
     #[tokio::test]
