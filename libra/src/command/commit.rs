@@ -206,7 +206,7 @@ mod test {
 
     use crate::{
         command::{add::AddArgs, load_object},
-        utils::test::{self, reset_working_dir, ChangeDirGuard},
+        utils::test::{self, ChangeDirGuard},
     };
 
     use super::*;
@@ -239,6 +239,7 @@ mod test {
     async fn test_create_tree() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
 
         let crate_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let index = Index::from_file(crate_path.join("../tests/data/index/index-760")).unwrap();

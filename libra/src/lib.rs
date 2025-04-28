@@ -25,6 +25,8 @@ pub async fn exec_async(mut args: Vec<&str>) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::test;
+
     use super::*;
     use serial_test::serial;
     use tempfile::TempDir;
@@ -33,7 +35,7 @@ mod tests {
     #[serial]
     fn test_libra_init() {
         let tmp_dir = TempDir::new().unwrap();
-        std::env::set_current_dir(tmp_dir.path()).unwrap();
+        let _gurad = test::ChangeDirGuard::new(tmp_dir.path());
         exec(vec!["init"]).unwrap();
     }
 
