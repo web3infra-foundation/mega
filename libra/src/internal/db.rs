@@ -33,8 +33,10 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
     })
 }
 #[cfg(not(test))]
+#[cfg(not(test))]
 static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
 /// Get global database connection instance (singleton)
+#[cfg(not(test))]
 #[cfg(not(test))]
 pub async fn get_db_conn_instance() -> &'static DbConn {
     DB_CONN
@@ -46,8 +48,8 @@ pub async fn get_db_conn_instance() -> &'static DbConn {
 use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::collections::HashMap;
-#[cfg(test)]
-use std::ops::Deref;
+//#[cfg(test)]
+//use std::ops::Deref;
 #[cfg(test)]
 use std::path::PathBuf;
 #[cfg(test)]
@@ -55,11 +57,13 @@ use tokio::sync::Mutex;
 
 // In the test environment, use a `HashMap` to store database connections
 // mapped by their working directories.
+// change the value type from Box<DbConn> to &'static DbConn
 #[cfg(test)]
-static TEST_DB_CONNECTIONS: Lazy<Mutex<HashMap<PathBuf, Box<DbConn>>>> =
+static TEST_DB_CONNECTIONS: Lazy<Mutex<HashMap<PathBuf, &'static DbConn>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[cfg(test)]
+#[allow(dead_code)]
 fn leak_conn(conn: DbConn) -> &'static DbConn {
     let boxed = Box::new(conn);
     let static_ref = Box::leak(boxed);
@@ -75,14 +79,15 @@ pub async fn get_db_conn_instance() -> &'static DbConn {
     let mut connections = TEST_DB_CONNECTIONS.lock().await;
 
     if !connections.contains_key(&current_dir) {
-        //
         let conn = get_db_conn().await.unwrap();
         let boxed_conn = Box::new(conn);
-        connections.insert(current_dir.clone(), boxed_conn);
+        //connections.insert(current_dir.clone(), boxed_conn);
+        connections.insert(current_dir.clone(), Box::leak(boxed_conn));
     }
 
     let boxed_conn = connections.get(&current_dir).unwrap();
-    leak_conn(boxed_conn.deref().clone())
+    boxed_conn
+    // leak_conn(boxed_conn.deref().clone())
 }
 
 /// Create a connection to the database of current repo: `.libra/libra.db`
