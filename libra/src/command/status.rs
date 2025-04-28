@@ -192,25 +192,23 @@ pub fn changes_to_be_staged() -> Changes {
 
 #[cfg(test)]
 mod test {
-    use std::{fs, io::Write, path::Path};
+    use std::{fs, io::Write};
 
     use super::*;
     use crate::{
         command::{self, add::AddArgs},
-        utils::test::{self, TEST_DIR},
+        utils::test,
     };
 
     use serial_test::serial;
+    use tempfile::tempdir;
 
     #[tokio::test]
     #[serial]
     async fn test_changes_to_be_staged() {
-        let test_dir = Path::new(TEST_DIR);
-        if test_dir.exists() {
-            fs::remove_dir_all(test_dir).unwrap();
-        }
-
-        test::setup_with_new_libra().await;
+        let test_dir = tempdir().unwrap();
+        test::setup_with_new_libra_in(test_dir.path()).await;
+        let _guard = test::ChangeDirGuard::new(test_dir.path());
 
         let mut gitignore_file = fs::File::create(".libraignore").unwrap();
         gitignore_file

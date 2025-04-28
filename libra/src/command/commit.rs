@@ -198,12 +198,15 @@ async fn update_head(commit_id: &str) {
 
 #[cfg(test)]
 mod test {
+    use std::env;
+
     use mercury::internal::object::ObjectTrait;
     use serial_test::serial;
+    use tempfile::tempdir;
 
     use crate::{
         command::{add::AddArgs, load_object},
-        utils::test,
+        utils::test::{self, ChangeDirGuard},
     };
 
     use super::*;
@@ -234,12 +237,15 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_create_tree() {
-        test::reset_working_dir();
-        let index = Index::from_file("../tests/data/index/index-760").unwrap();
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
+
+        let crate_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let index = Index::from_file(crate_path.join("../tests/data/index/index-760")).unwrap();
         println!("{:?}", index.tracked_entries(0).len());
-        test::setup_with_new_libra().await;
         let storage = ClientStorage::init(path::objects());
-        let tree = create_tree(&index, &storage, "".into()).await;
+        let tree = create_tree(&index, &storage, temp_path.into_path()).await;
 
         assert!(storage.get(&tree.id).is_ok());
         for item in tree.tree_items.iter() {
@@ -259,7 +265,10 @@ mod test {
     #[serial]
     #[should_panic]
     async fn test_execute_commit_with_empty_index_fail() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
+
         let args = CommitArgs {
             message: "init".to_string(),
             allow_empty: false,
@@ -272,7 +281,9 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_execute_commit() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
         // create first empty commit
         {
             let args = CommitArgs {
