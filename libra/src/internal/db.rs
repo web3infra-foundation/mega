@@ -33,10 +33,8 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
     })
 }
 #[cfg(not(test))]
-#[cfg(not(test))]
 static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
 /// Get global database connection instance (singleton)
-#[cfg(not(test))]
 #[cfg(not(test))]
 pub async fn get_db_conn_instance() -> &'static DbConn {
     DB_CONN
