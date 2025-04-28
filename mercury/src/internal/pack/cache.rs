@@ -243,24 +243,23 @@ mod test {
     fn test_cache_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
         let tmp_path = source.clone().join("tests/.cache_tmp");
-        
-        // 确保测试开始前临时目录不存在
+
         if tmp_path.exists() {
             fs::remove_dir_all(&tmp_path).unwrap();
         }
-        
+
         let cache = Caches::new(Some(2048), tmp_path, 1);
         let a_hash = SHA1::new(String::from("a").as_bytes());
         let b_hash = SHA1::new(String::from("b").as_bytes());
         let a = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, a_hash),
-            data_decompressed: vec![0; 800], // 减小大小
+            data_decompressed: vec![0; 800],
             mem_recorder: None,
             offset: 0,
         };
         let b = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, b_hash),
-            data_decompressed: vec![0; 800], // 减小大小
+            data_decompressed: vec![0; 800],
             mem_recorder: None,
             offset: 0,
         };
@@ -273,20 +272,20 @@ mod test {
         cache.insert(b.offset, b_hash, b.clone());
         assert!(cache.hash_set.contains(&b_hash));
         assert!(cache.try_get(b_hash).is_some());
-        assert!(cache.try_get(a_hash).is_some()); // a应该仍在缓存中
+        assert!(cache.try_get(a_hash).is_some());
 
         let c_hash = SHA1::new(String::from("c").as_bytes());
         // insert c which will evict both a and b
         let c = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, c_hash),
-            data_decompressed: vec![0; 1700], // 修改为1700，足以驱逐a和b，但不会太大
+            data_decompressed: vec![0; 1700],
             mem_recorder: None,
             offset: 0,
         };
         cache.insert(c.offset, c_hash, c.clone());
-        assert!(cache.try_get(a_hash).is_none()); // a应该被驱逐
-        assert!(cache.try_get(b_hash).is_none()); // b应该被驱逐
-        assert!(cache.try_get(c_hash).is_some()); // c应该在缓存中
-        assert!(cache.get_by_hash(c_hash).is_some()); // 可以从缓存获取c
+        assert!(cache.try_get(a_hash).is_none());
+        assert!(cache.try_get(b_hash).is_none());
+        assert!(cache.try_get(c_hash).is_some());
+        assert!(cache.get_by_hash(c_hash).is_some());
     }
 }
