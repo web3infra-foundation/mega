@@ -231,16 +231,19 @@ pub fn is_valid_git_branch_name(name: &str) -> bool {
 mod tests {
     use crate::{
         command::commit::{self, CommitArgs},
-        utils::test,
+        utils::{test::{self, ChangeDirGuard}, util::cur_dir},
     };
     use serial_test::serial;
+    use tempfile::tempdir;
 
     use super::*;
 
     #[tokio::test]
     #[serial]
     async fn test_branch() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
 
         let commit_args = CommitArgs {
             message: "first".to_string(),
@@ -328,7 +331,9 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_create_branch_from_remote() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
         test::init_debug_logger();
 
         let args = CommitArgs {
@@ -362,7 +367,9 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_invalid_branch_name() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
         test::init_debug_logger();
 
         let args = CommitArgs {
