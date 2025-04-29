@@ -61,7 +61,6 @@ go-defer = "0.1.0"
 russh = "0.52"
 axum = "0.8.1"
 axum-extra = "0.10.0"
-axum-server = "0.7.1"
 tower-http = "0.6.1"
 tower = "0.5.2"
 hex = "0.4.3"
@@ -103,6 +102,8 @@ byteorder = "1.5.0"
 bincode = "2.0"
 once_cell = "1.21"
 testcontainers = "0.23"
+scopeguard = "1.2.0"
+serial_test = "3.2.0"
 
 [profile.release]
 debug = true

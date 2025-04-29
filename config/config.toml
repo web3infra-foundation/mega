@@ -80,11 +80,12 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 [lfs]
-# LFS Server url
-url = "http://localhost:8000"
-
 # lfs file storage type, support values can be "local_fs" or "aws_s3"
 storage_type = "local_fs"
+
+[lfs.ssh]
+# The lfs ssh transport protocol still relies on http to send files
+http_url = "http://localhost:8000"
 
 [lfs.local]
 # set the local path of the lfs storage

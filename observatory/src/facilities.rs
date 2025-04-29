@@ -251,7 +251,6 @@ mod test {
     }
 
     #[tokio::test]
-    // #[serial]
     pub async fn test_loop_consume() {
         let topic = "test-topic-test_loop_consume".to_owned();
         init_tracing();
@@ -276,7 +275,6 @@ mod test {
     }
 
     #[tokio::test]
-    // #[serial]
     pub async fn test_consume_once() {
         let topic = "test-topic-test_consume_once".to_owned();
         init_tracing();
