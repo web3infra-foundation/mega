@@ -177,6 +177,7 @@ pub async fn lfs_delete_lock(
 pub async fn lfs_process_batch(
     context: &Context,
     request: BatchRequest,
+    listen_addr: &str,
 ) -> Result<BatchResponse, GitLFSError> {
     let objects = request.objects;
 
@@ -211,12 +212,14 @@ pub async fn lfs_process_batch(
         };
         let enable_split = meta.splited && config.local.enable_split;
         let file_exist = file_storage.exist_object(&meta.oid, enable_split).await;
-        let hostname = &config.url;
         let download_url = file_storage
-            .download_url(&meta.oid, hostname)
+            .download_url(&meta.oid, listen_addr)
             .await
             .unwrap();
-        let upload_url = file_storage.upload_url(&meta.oid, hostname).await.unwrap();
+        let upload_url = file_storage
+            .upload_url(&meta.oid, listen_addr)
+            .await
+            .unwrap();
 
         response_objects.push(ResponseObject::new(
             &meta,
@@ -242,6 +245,7 @@ pub async fn lfs_process_batch(
 pub async fn lfs_fetch_chunk_ids(
     context: &Context,
     oid: &str,
+    listen_addr: &str,
 ) -> Result<Vec<ChunkDownloadObject>, GitLFSError> {
     let config = context.config.lfs.clone();
 
@@ -269,7 +273,6 @@ pub async fn lfs_fetch_chunk_ids(
         ));
     }
     let mut response_objects = Vec::<ChunkDownloadObject>::new();
-    let hostname = context.config.lfs.url.clone();
 
     for relation in relations {
         // Reuse RequestArgs to create a link
@@ -280,7 +283,7 @@ pub async fn lfs_fetch_chunk_ids(
         };
         let download_url = context
             .lfs_file_stg()
-            .download_url(&req_obj.oid, &hostname)
+            .download_url(&req_obj.oid, listen_addr)
             .await
             .unwrap();
         response_objects.push(ChunkDownloadObject {
