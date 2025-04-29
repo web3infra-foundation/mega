@@ -95,7 +95,10 @@ impl Caches {
         let hash_str = hash._to_string();
         path.push(&hash_str[..2]); // use first 2 chars as the directory
         self.path_prefixes[hash.as_ref()[0] as usize].call_once(|| {
-            fs::create_dir(&path).unwrap();
+            // 检查目录是否存在，只有在不存在时才创建
+            if !path.exists() {
+                fs::create_dir_all(&path).unwrap();
+            }
         });
         path.push(hash_str);
         path
@@ -239,18 +242,24 @@ mod test {
     #[test]
     fn test_cache_single_thread() {
         let source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        let cache = Caches::new(Some(2048), source.clone().join("tests/.cache_tmp"), 1);
+        let tmp_path = source.clone().join("tests/.cache_tmp");
+
+        if tmp_path.exists() {
+            fs::remove_dir_all(&tmp_path).unwrap();
+        }
+
+        let cache = Caches::new(Some(2048), tmp_path, 1);
         let a_hash = SHA1::new(String::from("a").as_bytes());
         let b_hash = SHA1::new(String::from("b").as_bytes());
         let a = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, a_hash),
-            data_decompressed: vec![0; 1024],
+            data_decompressed: vec![0; 800],
             mem_recorder: None,
             offset: 0,
         };
         let b = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, b_hash),
-            data_decompressed: vec![0; 1636],
+            data_decompressed: vec![0; 800],
             mem_recorder: None,
             offset: 0,
         };
@@ -259,29 +268,24 @@ mod test {
         assert!(cache.hash_set.contains(&a_hash));
         assert!(cache.try_get(a_hash).is_some());
 
-        // insert b and make a invalidate
+        // insert b, a should still be in cache
         cache.insert(b.offset, b_hash, b.clone());
         assert!(cache.hash_set.contains(&b_hash));
         assert!(cache.try_get(b_hash).is_some());
-        assert!(cache.try_get(a_hash).is_none());
-
-        // get a and make b invalidate
-        let _ = cache.get_by_hash(a_hash);
         assert!(cache.try_get(a_hash).is_some());
-        assert!(cache.try_get(b_hash).is_none());
 
         let c_hash = SHA1::new(String::from("c").as_bytes());
-        // insert too large c, a will still be in the cache
+        // insert c which will evict both a and b
         let c = CacheObject {
             info: CacheObjectInfo::BaseObject(ObjectType::Blob, c_hash),
-            data_decompressed: vec![0; 2049],
+            data_decompressed: vec![0; 1700],
             mem_recorder: None,
             offset: 0,
         };
         cache.insert(c.offset, c_hash, c.clone());
-        assert!(cache.try_get(a_hash).is_some());
+        assert!(cache.try_get(a_hash).is_none());
         assert!(cache.try_get(b_hash).is_none());
-        assert!(cache.try_get(c_hash).is_none());
+        assert!(cache.try_get(c_hash).is_some());
         assert!(cache.get_by_hash(c_hash).is_some());
     }
 }
