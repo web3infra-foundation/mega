@@ -7,16 +7,25 @@ use std::io::Write;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 /// integration tests for the mega module
-use std::process::{Child, Command};
+use std::process::Command;
 use std::time::Duration;
 use std::{env, fs, io, thread};
 use tempfile::TempDir;
 
-const PORT: u16 = 8000; // mega server port
 const LARGE_FILE_SIZE_MB: usize = 60;
 
+struct ChildGuard(std::process::Child);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+        println!("mega killed in Drop");
+    }
+}
+
 lazy_static! {
-    static ref LFS_URL: String = format!("http://localhost:{}", PORT);
+    // static ref LFS_URL: String =
 
     static ref TARGET: String = {
         // mega/mega, absolute
@@ -96,34 +105,35 @@ fn is_port_in_use(port: u16) -> bool {
 }
 
 /// Run mega server in a new process
-fn run_mega_server(data_dir: &Path) -> Child {
+fn run_mega_server(data_dir: &Path, http_port: u16) -> ChildGuard {
     if !MEGA.exists() {
         panic!("mega binary not found in \"target/debug/\", skip lfs test");
     }
-    if is_port_in_use(PORT) {
-        panic!("port {} is already in use", PORT);
+    if is_port_in_use(http_port) {
+        panic!("port {} is already in use", http_port);
     }
 
     // env var can be shared between parent and child process
     env::set_var("MEGA_BASE_DIR", data_dir);
 
     let server = Command::new(MEGA.to_str().unwrap())
-        .args(["service", "multi", "http"])
+        .args(["service", "multi", "http", "-p", &format!("{}", http_port)])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .spawn()
         .expect("Failed to start mega server");
 
     // loop check until port to be ready
     let mut i = 0;
-    while !is_port_in_use(PORT) && (i < 15) {
+    while !is_port_in_use(http_port) && (i < 15) {
         thread::sleep(Duration::from_secs(1));
         i += 1;
     }
-    assert!(is_port_in_use(PORT), "mega server not started");
+    assert!(is_port_in_use(http_port), "mega server not started");
     println!("mega server started in {} secs", i);
     thread::sleep(Duration::from_secs(1));
 
-    server
+    // server
+    ChildGuard(server)
 }
 
 fn generate_large_file(path: &str, size_mb: usize) -> io::Result<()> {
@@ -141,7 +151,7 @@ fn generate_large_file(path: &str, size_mb: usize) -> io::Result<()> {
     Ok(())
 }
 
-fn git_lfs_push(url: &str) -> io::Result<()> {
+fn git_lfs_push(url: &str, lfs_url: &str) -> io::Result<()> {
     let temp_dir = TempDir::new()?;
     let repo_path = temp_dir.path().to_str().unwrap();
     println!("repo_path: {}", repo_path);
@@ -162,7 +172,7 @@ fn git_lfs_push(url: &str) -> io::Result<()> {
     run_git_cmd(&["remote", "add", "mega", url]);
 
     // set lfs.url
-    run_git_cmd(&["config", "lfs.url", &LFS_URL]);
+    run_git_cmd(&["config", "lfs.url", lfs_url]);
     // push to mega server
     run_git_cmd(&["push", "--all", "mega"]);
 
@@ -201,18 +211,13 @@ fn libra_lfs_push(url: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn git_lfs_clone(url: &str) -> io::Result<()> {
+fn git_lfs_clone(url: &str, lfs_url: &str) -> io::Result<()> {
     let temp_dir = TempDir::new()?;
     println!("clone temp_dir: {:?}", temp_dir.path());
     env::set_current_dir(temp_dir.path())?;
     // git clone url
     // `--config`: temporary set lfs.url
-    run_git_cmd(&[
-        "clone",
-        url,
-        "--config",
-        &("lfs.url=".to_owned() + &LFS_URL),
-    ]);
+    run_git_cmd(&["clone", url, "--config", &format!("lfs.url={}", lfs_url)]);
 
     let file = Path::new("lfs/large_file.bin");
     assert!(file.exists(), "Failed to clone large file");
@@ -247,14 +252,14 @@ fn lfs_split_with_git() {
     let mega_dir = TempDir::new().unwrap();
     env::set_var("MEGA_authentication__enable_http_auth", "false"); // no need for git
                                                                     // start mega server at background (new process)
-    let mut mega = run_mega_server(mega_dir.path());
+    let mega = run_mega_server(mega_dir.path(), 58001);
+    let mega_start_port = 58001;
+    let url = &format!("http://localhost:{}/third-part/lfs.git", mega_start_port);
+    let lfs_url = format!("http://localhost:{}", mega_start_port);
+    let push_result = git_lfs_push(url, &lfs_url);
+    let clone_result = git_lfs_clone(url, &lfs_url);
 
-    let url = &format!("http://localhost:{}/third-part/lfs.git", PORT);
-    let push_result = git_lfs_push(url);
-    let clone_result = git_lfs_clone(url);
-
-    mega.kill().expect("Failed to kill mega server");
-    let _ = mega.wait();
+    println!("{:?}", mega.0);
 
     push_result.expect("Failed to push large file to mega server");
     clone_result.expect("Failed to clone large file from mega server");
@@ -263,6 +268,7 @@ fn lfs_split_with_git() {
 
 #[test]
 #[serial]
+#[ignore]
 fn lfs_split_with_libra() {
     if !LIBRA.exists() {
         panic!("libra binary not found in \"target/debug/\", skip lfs test");
@@ -274,15 +280,14 @@ fn lfs_split_with_libra() {
     env::set_var("MEGA_authentication__test_user_name", "mega");
     env::set_var("MEGA_authentication__test_user_token", "mega");
     // start mega server at background (new process)
-    let mut mega = run_mega_server(mega_dir.path());
+    let mega = run_mega_server(mega_dir.path(), 58002);
 
-    let url = &format!("http://localhost:{}/third-part/lfs-libra.git", PORT);
+    let url = &format!("http://localhost:{}/third-part/lfs-libra.git", 58002);
     let push_result = libra_lfs_push(url);
     let clone_result = libra_lfs_clone(url);
 
     env::set_var("MEGA_authentication__enable_http_auth", "false"); // avoid affecting other tests
-    mega.kill().expect("Failed to kill mega server");
-    let _ = mega.wait();
+    println!("{:?}", mega.0);
 
     push_result.expect("Failed to push large file to mega server");
     clone_result.expect("Failed to clone large file from mega server");

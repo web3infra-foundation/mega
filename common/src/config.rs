@@ -38,6 +38,19 @@ impl Config {
         Config::from_config(config)
     }
 
+    pub fn mock() -> Self {
+        Self {
+            base_dir: PathBuf::new(),
+            log: LogConfig::default(),
+            database: DbConfig::default(),
+            monorepo: MonoConfig::default(),
+            pack: PackConfig::default(),
+            authentication: AuthConfig::default(),
+            lfs: LFSConfig::default(),
+            oauth: None,
+        }
+    }
+
     pub fn load_str(content: &str) -> Result<Self, c::ConfigError> {
         let builder = c::Config::builder()
             .add_source(c::File::from_str(content, FileFormat::Toml))
@@ -399,19 +412,19 @@ impl PackConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
-    pub url: String,
     pub storage_type: StorageTypeEnum,
     pub local: LFSLocalConfig,
     pub aws: LFSAwsConfig,
+    pub ssh: LFSSshConfig,
 }
 
 impl Default for LFSConfig {
     fn default() -> Self {
         Self {
-            url: "http://localhost:8000".to_string(),
             storage_type: StorageTypeEnum::LocalFs,
             local: LFSLocalConfig::default(),
             aws: LFSAwsConfig::default(),
+            ssh: LFSSshConfig::default(),
         }
     }
 }
@@ -441,6 +454,19 @@ pub struct LFSAwsConfig {
     pub s3_access_key_id: String,
     pub s3_secret_access_key: String,
 }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LFSSshConfig {
+    pub http_url: String,
+}
+
+impl Default for LFSSshConfig {
+    fn default() -> Self {
+        Self {
+            http_url: "http://localhost:8000".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OauthConfig {
     pub github_client_id: String,
