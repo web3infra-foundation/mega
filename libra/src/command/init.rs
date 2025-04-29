@@ -347,23 +347,21 @@ mod tests {
     #[serial]
     async fn test_init_with_initial_branch() {
         // Set up the test environment without a Libra repository
-        test::setup_clean_testing_env();
-        let cur_dir = std::env::current_dir().unwrap();
+        let temp_path = tempdir().unwrap();
+        test::setup_clean_testing_env_in(temp_path.path());
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         let args = InitArgs {
             bare: false,
             initial_branch: Some("main".to_string()),
-            repo_directory: cur_dir.to_str().unwrap().to_string(),
+            repo_directory: temp_path.path().to_str().unwrap().to_string(),
             quiet: false,
         };
         // Run the init function
         init(args).await.unwrap();
 
-        // Verify that the `.libra` directory exists
-        let libra_dir = Path::new(".libra");
-        assert!(libra_dir.exists(), ".libra directory does not exist");
-
         // Verify the contents of the other directory
-        verify_init(libra_dir);
+        verify_init(temp_path.path().join(".libra").as_path());
 
         // Verify the HEAD reference
         match Head::current().await {
@@ -519,10 +517,10 @@ mod tests {
         init(args).await.unwrap();
 
         // Verify that the `.libra` directory exists
-        let libra_dir = Path::new(".libra");
+        let libra_dir = target_dir.join(".libra");
         assert!(libra_dir.exists(), ".libra directory does not exist");
 
         // Verify the contents of the other directory
-        verify_init(libra_dir);
+        verify_init(libra_dir.as_path());
     }
 }

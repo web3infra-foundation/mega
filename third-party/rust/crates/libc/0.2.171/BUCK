@@ -1,0 +1,46 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "libc",
+    crate = "libc",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "extra_traits",
+        "std",
+    ],
+    rustc_flags = ["@$(location :libc-build-script-run[rustc_flags])"],
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_binary(
+    name = "libc-build-script-build",
+    srcs = glob(["src/**/*.rs"]) + [
+        "build.rs",
+        "tests/const_fn.rs",
+    ],
+    crate = "build_script_build",
+    crate_root = "build.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "extra_traits",
+        "std",
+    ],
+    visibility = [],
+)
+
+buildscript_run(
+    name = "libc-build-script-run",
+    package_name = "libc",
+    buildscript_rule = ":libc-build-script-build",
+    features = [
+        "default",
+        "extra_traits",
+        "std",
+    ],
+    version = "0.2.171",
+)

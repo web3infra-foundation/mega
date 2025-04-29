@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "heck",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "heck",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = ["default"],
+    visibility = ["PUBLIC"],
+)

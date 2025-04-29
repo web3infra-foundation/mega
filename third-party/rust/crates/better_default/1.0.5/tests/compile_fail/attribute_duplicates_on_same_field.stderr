@@ -1,0 +1,11 @@
+error: this attribute is already declared.
+ --> tests/compile_fail/attribute_duplicates_on_same_field.rs:8:7
+  |
+8 |     #[default]
+  |       ^^^^^^^
+
+error: this attribute is already declared.
+  --> tests/compile_fail/attribute_duplicates_on_same_field.rs:22:7
+   |
+22 |     #[default(1)]
+   |       ^^^^^^^

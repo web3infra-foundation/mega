@@ -231,21 +231,25 @@ pub fn is_valid_git_branch_name(name: &str) -> bool {
 mod tests {
     use crate::{
         command::commit::{self, CommitArgs},
-        utils::test,
+        utils::test::{self, ChangeDirGuard},
     };
     use serial_test::serial;
+    use tempfile::tempdir;
 
     use super::*;
 
     #[tokio::test]
     #[serial]
     async fn test_branch() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
 
         let commit_args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
             conventional: false,
+            amend: false,
         };
         commit::execute(commit_args).await;
         let first_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -254,6 +258,7 @@ mod tests {
             message: "second".to_string(),
             allow_empty: true,
             conventional: false,
+            amend: false,
         };
         commit::execute(commit_args).await;
         let second_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
@@ -326,13 +331,16 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_create_branch_from_remote() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
         test::init_debug_logger();
 
         let args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
             conventional: false,
+            amend: false,
         };
         commit::execute(args).await;
         let hash = Head::current_commit().await.unwrap();
@@ -359,13 +367,16 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_invalid_branch_name() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
         test::init_debug_logger();
 
         let args = CommitArgs {
             message: "first".to_string(),
             allow_empty: true,
             conventional: false,
+            amend: false,
         };
         commit::execute(args).await;
 

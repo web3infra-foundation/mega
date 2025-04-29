@@ -16,10 +16,8 @@ jupiter = { workspace = true }
 callisto = { workspace = true }
 gemini = { workspace = true }
 vault = { workspace = true }
-taurus = { workspace = true }
 
 axum = { workspace = true }
-axum-server = { workspace = true, features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }

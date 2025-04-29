@@ -320,7 +320,6 @@ mod tests {
         rand::{self, rngs::OsRng},
         Keypair, Message, Secp256k1,
     };
-    use serde_json::Value;
 
     use crate::nostr::{
         event::{sign_without_rng, EventId, NostrEvent},
@@ -361,10 +360,21 @@ mod tests {
         let tags: Vec<Tag> = vec![tag];
         let content = "123".to_string();
         let event = NostrEvent::new_with_timestamp(keypair, 1111, NostrKind::Mega, tags, content);
-        assert_eq!(
-            event.as_json(),
-            r#"{"content":"123","created_at":1111,"id":"bc3cc3a1499ea0c618df6dc5a300e8ad05f4d3a9a96e40e8a237cec11cc78667","kind":111,"pubkey":"385c3a6ec0b9d57a4330dbd6284989be5bd00e41c535f9ca39b6ae7c521b81cd","sig":"1285a0697eb44bf41f7a1bb063646ac47de8f6664335b791fe4982b1c9cdae1f56d0f1dd0564aeb053fd3cab16c4a0508cef70ac0bec9d79db3f2a2c28426f20","tags":[["p"]]}"#
-        );
+        let s = r#"{
+                "content": "123",
+                "created_at": 1111,
+                "id": "bc3cc3a1499ea0c618df6dc5a300e8ad05f4d3a9a96e40e8a237cec11cc78667",
+                "kind": 111,
+                "pubkey": "385c3a6ec0b9d57a4330dbd6284989be5bd00e41c535f9ca39b6ae7c521b81cd",
+                "sig": "1285a0697eb44bf41f7a1bb063646ac47de8f6664335b791fe4982b1c9cdae1f56d0f1dd0564aeb053fd3cab16c4a0508cef70ac0bec9d79db3f2a2c28426f20",
+                "tags": [
+                    [
+                        "p"
+                    ]
+                ]
+            }"#;
+        let value: NostrEvent = serde_json::from_str(s).unwrap();
+        assert_eq!(event.as_json(), value.as_json());
     }
 
     #[test]
@@ -442,7 +452,7 @@ mod tests {
                     ]
                 ]
             } "#;
-        let value = serde_json::from_str::<Value>(json).unwrap();
-        assert_eq!(event.as_json(), value.to_string());
+        let value: NostrEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(event.as_json(), value.as_json());
     }
 }

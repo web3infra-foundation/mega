@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS "mega_refs" (
   "ref_tree_hash" TEXT NOT NULL,
   "created_at" TEXT NOT NULL,
   "updated_at" TEXT NOT NULL,
+  "is_mr" BOOLEAN NOT NULL DEFAULT false,
   CONSTRAINT uniq_mref_path UNIQUE (path, ref_name)
 );
 CREATE TABLE IF NOT EXISTS "import_refs" (

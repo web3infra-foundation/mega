@@ -1,9 +1,7 @@
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
-pub fn reset_core(
-    work_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn reset_core(work_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let modified_path = work_path.join("modifiedstore");
     let upper_path = work_path.join("upper");
 

@@ -154,28 +154,30 @@ async fn setup_branch(branch_name: String) {
 /// Unit tests for the clone module
 #[cfg(test)]
 mod tests {
+    use crate::utils::test;
+
     use super::*;
     use serial_test::serial;
-    use std::path::Path;
+
     use tempfile::tempdir;
 
     #[tokio::test]
     #[serial]
     async fn test_clone_branch() {
-        let local_dir = tempdir().unwrap().into_path();
-        let local_repo = local_dir.to_str().unwrap().to_string();
+        let temp_path = tempdir().unwrap();
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
 
         let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
 
         command::clone::execute(CloneArgs {
             remote_repo: remote_url,
-            local_path: Some(local_repo.clone()),
+            local_path: Some(temp_path.path().to_str().unwrap().to_string()),
             branch: Some("dev".to_string()),
         })
         .await;
 
         // Verify that the `.libra` directory exists
-        let libra_dir = Path::new(&local_repo).join(".libra");
+        let libra_dir = temp_path.path().join(".libra");
         assert!(libra_dir.exists());
 
         // Verify the Head reference
@@ -190,20 +192,20 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_clone_default_branch() {
-        let local_dir = tempdir().unwrap().into_path();
-        let local_repo = local_dir.to_str().unwrap().to_string();
+        let temp_path = tempdir().unwrap();
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
 
         let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
 
         command::clone::execute(CloneArgs {
             remote_repo: remote_url,
-            local_path: Some(local_repo.clone()),
+            local_path: Some(temp_path.path().to_str().unwrap().to_string()),
             branch: None,
         })
         .await;
 
         // Verify that the `.libra` directory exists
-        let libra_dir = Path::new(&local_repo).join(".libra");
+        let libra_dir = temp_path.path().join(".libra");
         assert!(libra_dir.exists());
 
         // Verify the Head reference
@@ -218,20 +220,20 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_clone_empty_repo() {
-        let local_dir = tempdir().unwrap().into_path();
-        let local_repo = local_dir.to_str().unwrap().to_string();
+        let temp_path = tempdir().unwrap();
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
 
         let remote_url = "https://gitee.com/pikady/mega-libra-empty-repo.git".to_string();
 
         command::clone::execute(CloneArgs {
             remote_repo: remote_url,
-            local_path: Some(local_repo.clone()),
+            local_path: Some(temp_path.path().to_str().unwrap().to_string()),
             branch: None,
         })
         .await;
 
         // Verify that the `.libra` directory exists
-        let libra_dir = Path::new(&local_repo).join(".libra");
+        let libra_dir = temp_path.path().join(".libra");
         assert!(libra_dir.exists());
 
         // Verify the Head reference

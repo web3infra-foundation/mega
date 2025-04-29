@@ -11,7 +11,36 @@ use std::{env, fs, path::PathBuf};
 use crate::command;
 use crate::utils::util;
 
-pub const TEST_DIR: &str = "libra_test_repo";
+pub struct ChangeDirGuard {
+    old_dir: PathBuf,
+}
+
+impl ChangeDirGuard {
+    /// Creates a new `ChangeDirGuard` that changes the current directory to `new_dir`.
+    /// This will automatically change the directory back to the original one when the guard is dropped.
+    ///
+    /// However, it **MUST** be used in a single-threaded context.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_dir` - The new directory to change to.
+    ///
+    /// # Returns
+    ///
+    /// * A `ChangeDirGuard` instance that will change the directory back to the original one when dropped.
+    ///
+    pub fn new(new_dir: impl AsRef<Path>) -> Self {
+        let old_dir = env::current_dir().unwrap();
+        env::set_current_dir(new_dir).unwrap();
+        Self { old_dir }
+    }
+}
+
+impl Drop for ChangeDirGuard {
+    fn drop(&mut self) {
+        env::set_current_dir(&self.old_dir).unwrap();
+    }
+}
 
 pub fn find_cargo_dir() -> PathBuf {
     let cargo_path = env::var("CARGO_MANIFEST_DIR");
@@ -40,59 +69,28 @@ pub fn find_cargo_dir() -> PathBuf {
     }
 }
 
-/// Sets up the environment for testing.
-///
-/// This function performs the following steps:
-/// 1. Installs the color_backtrace crate to provide colored backtraces.
-/// 2. Finds the directory where the Cargo.toml file is located.
-/// 3. Appends the test directory to the Cargo directory.
-/// 4. If the test directory does not exist, it creates it.
-/// 5. Sets the current directory to the test directory.
-fn setup_env() {
-    // Install the color_backtrace crate to provide colored backtraces
-    color_backtrace::install();
-
-    // Find the directory where the Cargo.toml file is located
-    let mut path = find_cargo_dir();
-
-    // Append the test directory to the Cargo directory
-    path.push(TEST_DIR);
-
-    // If the test directory does not exist, create it
-    if !path.exists() {
-        fs::create_dir(&path).unwrap();
-    }
-
-    // Set the current directory to the test directory
-    env::set_current_dir(&path).unwrap();
-}
-
 /// Sets up a clean environment for testing.
 ///
 /// This function first calls `setup_env()` to switch the current directory to the test directory.
 /// Then, it checks if the Libra root directory (`.libra`) exists in the current directory.
 /// If it does, the function removes the entire `.libra` directory.
-pub fn setup_clean_testing_env() {
-    // Switch the current directory to the test directory
-    setup_env();
+pub fn setup_clean_testing_env_in(temp_path: impl AsRef<Path>) {
+    assert!(temp_path.as_ref().exists(), "temp_path does not exist");
+    assert!(temp_path.as_ref().is_dir(), "temp_path is not a directory");
+    assert!(
+        temp_path.as_ref().read_dir().unwrap().count() == 0,
+        "temp_path is not empty"
+    );
 
-    // Get the current directory
-    let cur_path = util::cur_dir();
-
-    // Append the Libra root directory to the current directory
-    let root_path = cur_path.join(util::ROOT_DIR);
-
-    // If the Libra root directory exists, remove it
-    if root_path.exists() {
-        fs::remove_dir_all(&root_path).unwrap();
-    }
+    tracing::info!("Using libra testing path: {:?}", temp_path.as_ref());
 
     // Define the directories that are present in a bare repository
+    let owned = temp_path.as_ref().to_path_buf();
     let bare_repo_dirs = ["objects", "info", "description", "libra.db"];
 
     // Remove the directories that are present in a bare repository if they exist
     for dir in bare_repo_dirs.iter() {
-        let bare_repo_path = cur_path.join(dir);
+        let bare_repo_path = owned.join(dir);
         if bare_repo_path.exists() && bare_repo_path.is_dir() {
             fs::remove_dir_all(&bare_repo_path).unwrap();
         } else if bare_repo_path.exists() && !bare_repo_path.is_dir() {
@@ -103,12 +101,12 @@ pub fn setup_clean_testing_env() {
 }
 
 /// switch to test dir and create a new .libra
-pub async fn setup_with_new_libra() {
-    setup_clean_testing_env();
+pub async fn setup_with_new_libra_in(temp_path: impl AsRef<Path>) {
+    setup_clean_testing_env_in(temp_path.as_ref());
     let args = command::init::InitArgs {
         bare: false,
         initial_branch: None,
-        repo_directory: util::cur_dir().to_str().unwrap().to_string(),
+        repo_directory: temp_path.as_ref().to_str().unwrap().to_string(),
         quiet: false,
     };
     command::init::init(args).await.unwrap();

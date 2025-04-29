@@ -520,7 +520,7 @@ impl Pack {
             self.decode(&mut reader, move |entry: Entry, _| {
                 // as we used unbound channel here, it will never full so can be send with synchronous
                 if let Err(e) = sender.send(entry) {
-                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                    eprintln!("unbound channel Sending Error: {:?}", e);
                 }
             })
             .unwrap();
@@ -705,9 +705,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_pack_check_header() {
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let res = crate::test_utils::setup_lfs_file().await;
+        println!("{:?}", res);
+        let source = res
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let f = fs::File::open(source).unwrap();
         let mut buf_reader = BufReader::new(f);
@@ -786,9 +788,10 @@ mod tests {
     #[ignore] // Take too long time
     async fn test_pack_decode_with_large_file_with_delta_without_ref() {
         init_logger();
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let file_map = crate::test_utils::setup_lfs_file().await;
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
@@ -812,9 +815,10 @@ mod tests {
     #[tokio::test]
     async fn test_decode_large_file_stream() {
         init_logger();
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let file_map = crate::test_utils::setup_lfs_file().await;
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = tokio::fs::File::open(source).await.unwrap();
@@ -831,26 +835,27 @@ mod tests {
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
         // in tests, RUNTIME is single-threaded, so `sync code` will block the tokio runtime
-        tokio::task::spawn_blocking(move || {
+        let consume = tokio::spawn(async move {
             let mut cnt = 0;
-            while let Ok(_entry) = rx.try_recv() {
-                cnt += 1; //use entry here
+            while let Some(_entry) = rx.recv().await {
+                cnt += 1;
             }
             tracing::info!("Received: {}", cnt);
             count_c.store(cnt, Ordering::Release);
-        })
-        .await
-        .unwrap();
+        });
         let p = handle.await.unwrap();
+        consume.await.unwrap();
         assert_eq!(count.load(Ordering::Acquire), p.number);
+        assert_eq!(p.number, 358109);
     }
 
     #[tokio::test]
     #[ignore] // Take too long time, duplicate with `test_decode_large_file_stream`
     async fn test_decode_large_file_async() {
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let file_map = crate::test_utils::setup_lfs_file().await;
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = fs::File::open(source).unwrap();

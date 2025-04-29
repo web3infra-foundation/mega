@@ -51,20 +51,20 @@ pub fn diff(
     upper: PathBuf,
     dbpath: &str,
     monopath: PathBuf,
-) -> (HashMap<PathBuf, Tree>, Vec<Blob>) {
-    let db = sled::open(dbpath).unwrap();
+) -> std::io::Result<(HashMap<PathBuf, Tree>, Vec<Blob>)> {
+    let db = sled::open(dbpath)?;
     let upper_changes = collect_paths(&lower);
     let _root_len = lower.clone();
     let mut map = HashMap::<PathBuf, Tree>::new();
-    let root_tree = db.get_bypath(monopath.clone()).unwrap(); // BUG: wrong path :"lower". the store in db is not real path .
-                                                              // dont forget get tree below
+    let root_tree = db.get_bypath(&monopath)?; // BUG: wrong path :"lower". the store in db is not real path .
+                                               // dont forget get tree below
     map.insert(lower.clone(), root_tree);
     let mut blobs = Vec::<Blob>::new();
 
     for node in upper_changes {
         if node.is_dir() {
             let new_path = monopath.clone().join(node.strip_prefix(&lower).unwrap());
-            let node_tree = db.get_bypath(new_path).unwrap();
+            let node_tree = db.get_bypath(&new_path)?;
             map.insert(node.clone(), node_tree);
             //db.get_bypath(path);
             //ap.insert(node.clone(), node_tree);
@@ -91,7 +91,7 @@ pub fn diff(
                     // changed
                     // node is a changed ()blob.
                     // just compute the NEW hash first.
-                    let content = std::fs::read(&node).unwrap();
+                    let content = std::fs::read(&node)?;
                     item.id = SHA1::from_type_and_data(ObjectType::Blob, &content);
                     blobs.push(Blob {
                         id: item.id,
@@ -120,7 +120,7 @@ pub fn diff(
                 });
             } else {
                 //is a file.
-                let content = std::fs::read(&node).unwrap();
+                let content = std::fs::read(&node)?;
                 let hash = SHA1::from_type_and_data(ObjectType::Blob, &content);
                 blobs.push(Blob {
                     id: hash,
@@ -134,7 +134,7 @@ pub fn diff(
             }
         }
     }
-    (map, blobs)
+    Ok((map, blobs))
 }
 
 pub fn change(
@@ -145,7 +145,7 @@ pub fn change(
     db: &sled::Db,
 ) -> Tree {
     let mut tree;
-    let root_tree = db.get_bypath(tree_path.clone());
+    let root_tree = db.get_bypath(&tree_path);
     if let Ok(root_tree) = root_tree {
         // exit dictionry
         println!("exit tree:{:?}", tree_path);
@@ -263,20 +263,5 @@ mod tests {
 
         // Clean up the temporary file
         std::fs::remove_file(temp_file_path).expect("Unable to delete file");
-    }
-
-    #[test]
-    fn test_is_whiteout_inode_non() {
-        // Create a temporary file
-        let temp_file_path = "/home/luxian/megatest/upper/a/hello";
-        // Check if the file is a character device
-        assert!(is_whiteout_inode(temp_file_path));
-    }
-
-    #[test]
-    fn test_is_whiteout_inode_invalid_path() {
-        // Test with an invalid path
-        let invalid_path = "/invalid/path/to/file";
-        assert!(!is_whiteout_inode(invalid_path));
     }
 }

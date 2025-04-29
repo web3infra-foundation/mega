@@ -1,0 +1,31 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "rustversion",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "rustversion",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    env = {
+        "OUT_DIR": "$(location :rustversion-build-script-run[out_dir])",
+    },
+    proc_macro = True,
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_binary(
+    name = "rustversion-build-script-build",
+    srcs = glob(["build/**/*.rs"]),
+    crate = "build_script_build",
+    crate_root = "build/build.rs",
+    edition = "2018",
+    visibility = [],
+)
+
+buildscript_run(
+    name = "rustversion-build-script-run",
+    package_name = "rustversion",
+    buildscript_rule = ":rustversion-build-script-build",
+    version = "1.0.18",
+)

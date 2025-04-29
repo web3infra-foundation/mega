@@ -1,4 +1,8 @@
-use crate::config::{config_update, WEBSITE};
+use crate::config::{
+    config_update, load_mega_resource, monobean_base, monobean_cache, MEGA_CONFIG_PATH, WEBSITE,
+};
+use crate::core::delegate::MegaDelegate;
+use crate::core::CoreConfigChanged;
 use crate::{get_setting, CONTEXT};
 
 use crate::components::preference::MonobeanPreferences;
@@ -11,6 +15,7 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use async_channel::unbounded;
 use async_channel::{Receiver, Sender};
+use common::config::Config;
 use common::model::P2pOptions;
 use gtk::glib::Priority;
 use gtk::glib::{clone, WeakRef};
@@ -45,13 +50,15 @@ pub enum Action {
 }
 
 mod imp {
+
     use super::*;
+
     use crate::core::delegate::MegaDelegate;
 
     use crate::window::MonobeanWindow;
 
     pub struct MonobeanApplication {
-        pub mega_delegate: &'static MegaDelegate,
+        pub mega_delegate: OnceCell<MegaDelegate>,
         pub window: OnceCell<WeakRef<MonobeanWindow>>,
         pub sender: Sender<Action>,
         pub receiver: RefCell<Option<Receiver<Action>>>,
@@ -68,8 +75,8 @@ mod imp {
             let (sender, r) = unbounded();
             let receiver = RefCell::new(Some(r));
             let window = OnceCell::new();
-            let mega_delegate = MegaDelegate::new(sender.clone());
             let settings = OnceCell::new();
+            let mega_delegate = OnceCell::new();
 
             Self {
                 mega_delegate,
@@ -87,6 +94,7 @@ mod imp {
             self.parent_constructed();
 
             obj.setup_settings();
+            obj.setup_mega();
             // obj.bind_settings();
             obj.setup_gactions();
         }
@@ -120,11 +128,9 @@ mod imp {
                     #[strong]
                     app,
                     async move {
-                        let mut cnt = 0;
                         app.start_mega().await;
                         while let Ok(action) = receiver.recv().await {
-                            cnt += 1;
-                            tracing::debug!("Processing Glib Action {cnt}: {:?}", action);
+                            tracing::debug!("Processing Glib Action {:?}", action);
                             app.process_action(action);
                         }
                     }
@@ -212,8 +218,31 @@ impl MonobeanApplication {
             .expect("Could not set `Settings`.");
     }
 
+    fn setup_mega(&self) {
+        // TODO: use `Config::load_sources` to load glib shcema
+        let bytes = load_mega_resource(MEGA_CONFIG_PATH);
+        let content = String::from_utf8(bytes).expect("Mega core setting must be in utf-8");
+        let config =
+            Config::load_str(content.as_str()).expect("Failed to parse mega core settings");
+
+        let delegate = MegaDelegate::new(self.sender(), config);
+        self.imp()
+            .mega_delegate
+            .set(delegate)
+            .expect("Could not set `MegaDelegate`.");
+
+        self.apply_user_config();
+    }
+
     pub fn settings(&self) -> &Settings {
         self.imp().settings.get().expect("Could not get settings.")
+    }
+
+    pub fn delegate(&self) -> &MegaDelegate {
+        self.imp()
+            .mega_delegate
+            .get()
+            .expect("Could not get `MegaDelegate`.")
     }
 
     pub fn git_config(&self) -> gix_config::File<'static> {
@@ -282,17 +311,16 @@ impl MonobeanApplication {
     }
 
     pub async fn send_command(&self, cmd: MegaCommands) {
-        self.imp().mega_delegate.send_command(cmd).await;
+        self.delegate().send_command(cmd).await;
     }
 
     pub fn blocking_send_command(&self, cmd: MegaCommands) {
-        self.imp().mega_delegate.blocking_send_command(cmd);
+        self.delegate().blocking_send_command(cmd);
     }
 
     pub async fn start_mega(&self) {
         let settings = self.settings();
 
-        self.apply_user_config().await;
         let bootstrap_node = get_setting!(settings, "bootstrap-node", String);
         let http_addr = get_setting!(settings, "http-address", String);
         let http_port = get_setting!(settings, "http-port", u32);
@@ -329,10 +357,20 @@ impl MonobeanApplication {
         rx
     }
 
-    async fn apply_user_config(&self) {
-        let update = config_update(self.settings());
-        self.send_command(MegaCommands::ApplyUserConfig(update))
-            .await;
+    fn apply_user_config(&self) {
+        let mut updates = Vec::new();
+
+        // Always ignore the base_dir in config.toml
+        // https://github.com/web3infra-foundation/mega/issues/957
+        updates.push(CoreConfigChanged::BaseDir(monobean_base()));
+        updates.push(CoreConfigChanged::LogPath(monobean_cache().join("logs")));
+        updates.push(CoreConfigChanged::DbPath(
+            monobean_base().join("monobean.db"),
+        ));
+
+        // However, this behavior can still be overridden from GUI preferences.
+        updates.extend(config_update(self.settings()));
+        self.blocking_send_command(MegaCommands::ApplyUserConfig(updates));
     }
 
     fn process_action(&self, action: Action) {
@@ -343,7 +381,7 @@ impl MonobeanApplication {
         let window = self.imp().window.get().unwrap().upgrade().unwrap();
         match action {
             Action::MegaCore(cmd) => {
-                let delegate = self.imp().mega_delegate;
+                let delegate = self.delegate().clone();
                 CONTEXT.spawn(async move {
                     tracing::debug!("Sending {:?}", cmd);
                     delegate.send_command(cmd).await;

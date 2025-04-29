@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "subtle",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "subtle",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "i128",
+        "std",
+    ],
+    visibility = ["PUBLIC"],
+)

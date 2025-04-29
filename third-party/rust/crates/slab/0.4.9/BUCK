@@ -1,0 +1,42 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+
+cargo.rust_library(
+    name = "slab",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "slab",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "std",
+    ],
+    rustc_flags = ["@$(location :slab-build-script-run[rustc_flags])"],
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_binary(
+    name = "slab-build-script-build",
+    srcs = ["build.rs"],
+    crate = "build_script_build",
+    crate_root = "build.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "std",
+    ],
+    visibility = [],
+    deps = ["//third-party/rust/crates/autocfg/1.4.0:autocfg"],
+)
+
+buildscript_run(
+    name = "slab-build-script-run",
+    package_name = "slab",
+    buildscript_rule = ":slab-build-script-build",
+    features = [
+        "default",
+        "std",
+    ],
+    version = "0.4.9",
+)

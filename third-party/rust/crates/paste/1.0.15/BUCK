@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "paste",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "paste",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    proc_macro = True,
+    visibility = ["PUBLIC"],
+)

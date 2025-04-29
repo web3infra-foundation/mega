@@ -1,0 +1,47 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "zstd-safe",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "zstd_safe",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = [
+        "arrays",
+        "legacy",
+        "std",
+        "zdict_builder",
+    ],
+    rustc_flags = ["@$(location :zstd-safe-build-script-run[rustc_flags])"],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/zstd-sys/2.0.13+zstd.1.5.6:zstd-sys"],
+)
+
+cargo.rust_binary(
+    name = "zstd-safe-build-script-build",
+    srcs = ["build.rs"] + glob(["src/**/*.rs"]),
+    crate = "build_script_build",
+    crate_root = "build.rs",
+    edition = "2018",
+    features = [
+        "arrays",
+        "legacy",
+        "std",
+        "zdict_builder",
+    ],
+    visibility = [],
+)
+
+buildscript_run(
+    name = "zstd-safe-build-script-run",
+    package_name = "zstd-safe",
+    buildscript_rule = ":zstd-safe-build-script-build",
+    features = [
+        "arrays",
+        "legacy",
+        "std",
+        "zdict_builder",
+    ],
+    version = "7.2.1",
+)

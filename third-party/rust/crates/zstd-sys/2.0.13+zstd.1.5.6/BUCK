@@ -1,0 +1,67 @@
+load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "zstd-sys",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "zstd_sys",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    env = {
+        "OUT_DIR": "$(location :zstd-sys-build-script-run[out_dir])",
+    },
+    features = [
+        "default",
+        "experimental",
+        "legacy",
+        "std",
+        "zdict_builder",
+    ],
+    rustc_flags = [
+        "-Lnative=$(location :zstd-sys-build-script-run[out_dir])",
+        "-lstatic=zstd",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+cargo.rust_binary(
+    name = "zstd-sys-build-script-build",
+    srcs = ["build.rs", "zdict.h", "zstd.h"] + glob([
+        "src/**/*.rs",
+        "zstd/lib/**/*.c", 
+        "zstd/lib/**/*.h",
+        "zstd/lib/**/*.S",
+    ]) + glob(["wasm-shim/**/*.h"]),
+    crate = "build_script_build",
+    crate_root = "build.rs",
+    edition = "2018",
+    features = [
+        "default",
+        "experimental",
+        "legacy",
+        "std",
+        "zdict_builder",
+    ],
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third-party/rust/crates/cc/1.2.1:cc",
+        "//third-party/rust/crates/pkg-config/0.3.31:pkg-config",
+    ],
+)
+
+buildscript_run(
+    name = "zstd-sys-build-script-run",
+    package_name = "zstd-sys",
+    buildscript_rule = ":zstd-sys-build-script-build",
+    env = {
+        "OPT_LEVEL": "3",
+    },
+    features = [
+        "default",
+        "experimental",
+        "legacy",
+        "std",
+        "zdict_builder",
+    ],
+    version = "2.0.13+zstd.1.5.6",
+)

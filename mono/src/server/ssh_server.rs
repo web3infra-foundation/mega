@@ -12,7 +12,7 @@ use russh::{
     Preferred,
 };
 
-use common::model::CommonOptions;
+use common::model::CommonHttpOptions;
 use jupiter::context::Context;
 use tokio::sync::Mutex;
 use vault::vault::{read_secret, write_secret};
@@ -22,7 +22,7 @@ use crate::git_protocol::ssh::SshServer;
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {
     #[clap(flatten)]
-    pub common: CommonOptions,
+    pub common: CommonHttpOptions,
 
     #[clap(flatten)]
     pub custom: SshCustom,
@@ -52,7 +52,7 @@ pub async fn start_server(context: Context, command: &SshOptions) {
     let ru_config = Arc::new(ru_config);
 
     let SshOptions {
-        common: CommonOptions { host, .. },
+        common: CommonHttpOptions { host, .. },
         custom: SshCustom { ssh_port },
     } = command;
     let mut ssh_server = SshServer {

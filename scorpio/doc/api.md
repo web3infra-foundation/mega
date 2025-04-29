@@ -1,4 +1,4 @@
-# API Documentation for Axum-based File System Management Server
+# API Documentation for Fuse-based File System Management Server
 
 ## Overview
 This server provides endpoints to manage file system mounting and configuration operations, as well as Git-related actions. Below is the detailed documentation of each endpoint, including request parameters and response structures.

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use async_channel::Sender;
 use gtk::prelude::*;
@@ -7,6 +7,7 @@ use gtk::{glib, CompositeTemplate};
 use scv::{prelude::*, Buffer};
 
 use crate::application::Action;
+use crate::config::monobean_base;
 
 mod imp {
     use adw::subclass::prelude::BinImpl;
@@ -85,9 +86,11 @@ impl CodePage {
             .expect("Code Page sender can only be set once");
         // self.setup_action();
 
+        let mount_point = monobean_base().join("mounts");
+
         self.setup_paned();
         self.setup_source_view(opened_file);
-        self.setup_file_tree();
+        self.setup_file_tree(mount_point);
     }
 
     fn setup_paned(&self) {
@@ -103,14 +106,11 @@ impl CodePage {
         code_stack.set_size_request(50, -1);
     }
 
-    fn setup_file_tree(&self) {
+    fn setup_file_tree(&self, mount_point: impl AsRef<Path>) {
         let imp = self.imp();
 
         let file_tree_view = self.imp().file_tree_view.get();
-        file_tree_view.setup_file_tree(
-            imp.sender.get().unwrap().clone(),
-            PathBuf::from("E:/Projects/mega/"),
-        );
+        file_tree_view.setup_file_tree(imp.sender.get().unwrap().clone(), mount_point);
     }
 
     fn setup_source_view(&self, opened_file: Option<&Path>) {

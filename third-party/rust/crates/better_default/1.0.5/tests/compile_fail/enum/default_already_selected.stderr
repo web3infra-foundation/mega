@@ -1,0 +1,11 @@
+error: the default value is already assigned to `Variant`
+  --> tests/compile_fail/enum/default_already_selected.rs:13:7
+   |
+13 |     #[default]
+   |       ^^^^^^^
+
+error: the default value is already assigned to `Variant`
+  --> tests/compile_fail/enum/default_already_selected.rs:27:7
+   |
+27 |     #[default(0: -1)]
+   |       ^^^^^^^

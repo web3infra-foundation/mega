@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "ctor",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "ctor",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    proc_macro = True,
+    visibility = ["PUBLIC"],
+    deps = [
+        "//third-party/rust/crates/quote/1.0.40:quote",
+        "//third-party/rust/crates/syn/2.0.100:syn",
+    ],
+)

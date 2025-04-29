@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "lock_api",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "lock_api",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "atomic_usize",
+        "default",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/scopeguard/1.2.0:scopeguard"],
+)

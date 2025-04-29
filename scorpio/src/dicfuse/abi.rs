@@ -1,12 +1,14 @@
 use std::time::Duration;
 
-use fuse3::{raw::reply::{FileAttr, ReplyEntry}, FileType, Timestamp};
+use fuse3::{
+    raw::reply::{FileAttr, ReplyEntry},
+    FileType, Timestamp,
+};
 
-
-pub fn default_file_entry(inode:u64) -> ReplyEntry {
-    ReplyEntry{
+pub fn default_file_entry(inode: u64) -> ReplyEntry {
+    ReplyEntry {
         ttl: Duration::new(500, 0),
-        attr: FileAttr{
+        attr: FileAttr {
             ino: inode,
             size: 0,
             blocks: 0,
@@ -25,10 +27,10 @@ pub fn default_file_entry(inode:u64) -> ReplyEntry {
     }
 }
 
-pub fn default_dic_entry(inode:u64) -> ReplyEntry {
-    ReplyEntry{
+pub fn default_dic_entry(inode: u64) -> ReplyEntry {
+    ReplyEntry {
         ttl: Duration::new(500, 0),
-        attr: FileAttr{
+        attr: FileAttr {
             ino: inode,
             size: 0,
             blocks: 0,
