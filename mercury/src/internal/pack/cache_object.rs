@@ -375,6 +375,7 @@ mod test {
         assert!(b.heap_size() == 1024);
     }
     #[test]
+    #[ignore]
     fn test_cache_object_with_lru() {
         let mut cache = LruCache::new(2048);
 

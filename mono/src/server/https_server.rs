@@ -10,8 +10,6 @@ use axum::http::{self, Request, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
-use axum_server::tls_rustls::RustlsConfig;
-use clap::Args;
 use lazy_static::lazy_static;
 use regex::Regex;
 use tower::ServiceBuilder;
@@ -21,37 +19,13 @@ use tower_http::trace::TraceLayer;
 
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
-use common::model::{CommonOptions, InfoRefsParams};
+use common::model::{CommonHttpOptions, InfoRefsParams};
 use jupiter::context::Context;
 
 use crate::api::api_router::{self};
 use crate::api::lfs::lfs_router;
 use crate::api::oauth::{self, oauth_client};
 use crate::api::MonoApiServiceState;
-
-#[derive(Args, Clone, Debug)]
-pub struct HttpOptions {
-    #[clap(flatten)]
-    pub common: CommonOptions,
-
-    #[arg(long, default_value_t = 8000)]
-    pub http_port: u16,
-}
-
-#[derive(Args, Clone, Debug)]
-pub struct HttpsOptions {
-    #[clap(flatten)]
-    pub common: CommonOptions,
-
-    #[arg(long, default_value_t = 443)]
-    pub https_port: u16,
-
-    #[arg(long, value_name = "FILE")]
-    pub https_key_path: PathBuf,
-
-    #[arg(long, value_name = "FILE")]
-    pub https_cert_path: PathBuf,
-}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -64,36 +38,12 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn start_https(context: Context, options: HttpsOptions) {
-    let HttpsOptions {
-        common: CommonOptions { host, .. },
-        https_key_path,
-        https_cert_path,
-        https_port,
-    } = options.clone();
+pub async fn start_http(context: Context, options: CommonHttpOptions) {
+    let CommonHttpOptions { host, port } = options.clone();
 
-    let app = app(context, host.clone(), https_port).await;
+    let app = app(context, host.clone(), port).await;
 
-    let server_url = format!("{}:{}", host, https_port);
-    let addr = SocketAddr::from_str(&server_url).unwrap();
-    let config = RustlsConfig::from_pem_file(https_cert_path.to_owned(), https_key_path.to_owned())
-        .await
-        .unwrap();
-    axum_server::bind_rustls(addr, config)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
-}
-
-pub async fn start_http(context: Context, options: HttpOptions) {
-    let HttpOptions {
-        common: CommonOptions { host, .. },
-        http_port,
-    } = options.clone();
-
-    let app = app(context, host.clone(), http_port).await;
-
-    let server_url = format!("{}:{}", host, http_port);
+    let server_url = format!("{}:{}", host, port);
 
     let addr = SocketAddr::from_str(&server_url).unwrap();
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -133,7 +83,7 @@ pub async fn start_http(context: Context, options: HttpOptions) {
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
 pub async fn app(context: Context, host: String, port: u16) -> Router {
     let state = AppState {
-        host,
+        host: host.clone(),
         port,
         context: context.clone(),
     };
@@ -142,6 +92,7 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
         context: context.clone(),
         oauth_client: Some(oauth_client(context.config.oauth.clone().unwrap()).unwrap()),
         store: Some(MemoryStore::new()),
+        listen_addr: format!("http://{}:{}", host, port),
     };
 
     // add RequestDecompressionLayer for handle gzip encode

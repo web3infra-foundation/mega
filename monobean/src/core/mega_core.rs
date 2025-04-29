@@ -305,7 +305,7 @@ impl MegaCore {
                 CoreConfigChanged::ChannelMessageSize(size) => {
                     base.pack.channel_message_size = size
                 }
-                CoreConfigChanged::LfsUrl(url) => base.lfs.url = url,
+                CoreConfigChanged::LfsUrl(url) => base.lfs.ssh.http_url = url,
                 CoreConfigChanged::GithubClientId(id) => {
                     if base.oauth.is_none() {
                         base.oauth = Some(common::config::OauthConfig::default());
