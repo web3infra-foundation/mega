@@ -412,8 +412,9 @@ mod test {
             } else {
                 panic!("Expected WouldEjectLru error");
             }
+            // 使用不同的键插入b，这样a会被驱逐
             let r = cache.insert(
-                hash_a.to_string(),
+                hash_b.to_string(),
                 ArcWrapper::new(Arc::new(b.clone()), Arc::new(AtomicBool::new(true)), None),
             );
             assert!(r.is_ok());
