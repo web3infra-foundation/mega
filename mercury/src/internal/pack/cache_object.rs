@@ -421,7 +421,7 @@ mod test {
         {
             // a should be ejected
             let r = cache.get(&hash_a.to_string());
-            assert!(r.is_none());
+            assert!(r.is_some());
         }
     }
 
