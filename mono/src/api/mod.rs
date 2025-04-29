@@ -54,6 +54,7 @@ pub struct MonoApiServiceState {
     pub oauth_client: Option<GithubClient>,
     // TODO: Replace MemoryStore
     pub store: Option<MemoryStore>,
+    pub listen_addr: String,
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
