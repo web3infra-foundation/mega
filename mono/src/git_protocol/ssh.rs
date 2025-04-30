@@ -109,7 +109,7 @@ impl server::Handler for SshServer {
                 let config = smart_protocol.context.config.clone();
                 header.insert("Accept".to_string(), "application/vnd.git-lfs".to_string());
                 let link = Link {
-                    href: config.lfs.url.clone(),
+                    href: config.lfs.ssh.http_url.clone(),
                     header,
                     expires_at: {
                         let expire_time: DateTime<Utc> =

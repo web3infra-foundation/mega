@@ -19,9 +19,12 @@ cargo.rust_library(
         "default",
         "std",
     ],
+    env = {
+        "CARGO_MANIFEST_DIR": ".",
+    },
     visibility = ["PUBLIC"],
     deps = [
-        "//third-partr/rust/crates/windows-core/0.58.0:windows-core",
-        "//third-partr/rust/crates/windows-targets/0.52.6:windows-targets",
+        "//third-party/rust/crates/windows-core/0.58.0:windows-core",
+        "//third-party/rust/crates/windows-targets/0.52.6:windows-targets",
     ],
 )

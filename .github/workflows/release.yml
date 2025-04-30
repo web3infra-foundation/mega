@@ -39,15 +39,12 @@ jobs:
 
       - name: Build libra
         run: |
-          cargo build --release --target ${{ matrix.target }} --manifest-path libra/Cargo.toml
-
-      - name: Package monobean
-        shell: bash
-        run: |
-          cargo packager --release --manifest-path monobean/Cargo.toml --target ${{ matrix.target }} --config monobean/resources/packager_${{ matrix.target}}.toml
+          cargo install --locked cargo-packager
+          cargo build --release --manifest-path libra/Cargo.toml
+          cargo packager --release --manifest-path monobean/Cargo.toml --config monobean/resources/packager_${{ matrix.target}}.toml
 
       - name: Prepare Linux
-        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'ubuntu')
+        if: contains(matrix.os, 'ubuntu')
         run: |
           makepkg target/build/
           mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
@@ -55,19 +52,19 @@ jobs:
           mv target/build/Monobean__${{ matrix.arch }}.deb ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
       
       - name: Prepare Windows
-        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'windows')
+        if: contains(matrix.os, 'windows')
         run: |
           mv target/release/libra.exe ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}.exe
           mv target/build/Monobean__${{ matrix.arch }}.exe ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.exe
 
       - name: Prepare MacOS
-        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'macos')
+        if: contains(matrix.os, 'macos')
         run: |
           mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
           mv target/build/Monobean__${{ matrix.arch }}.dmg ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.dmg
       
       - name: Release Linux
-        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'ubuntu')
+        if: contains(matrix.os, 'ubuntu')
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -77,7 +74,7 @@ jobs:
             Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
 
       - name: Release Windows
-        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'windows')
+        if: contains(matrix.os, 'windows')
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -86,7 +83,7 @@ jobs:
             Monobean-${{ github.ref_name }}-${{ matrix.target }}.exe
 
       - name: Release MacOS
-        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'macos')
+        if: contains(matrix.os, 'macos')
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
