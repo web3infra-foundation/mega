@@ -46,7 +46,7 @@ runs:
 
     # ================ Platform-specific Initialization (Linux) ================
     - name: Install dependencies (Ubuntu)
-      if: inputs.platform == 'ubuntu-latest'
+      if: contains(inputs.platform, 'ubuntu')
       shell: bash
       run: |
         echo "deb http://gb.archive.ubuntu.com/ubuntu jammy main" | sudo tee -a /etc/apt/sources.list
@@ -67,16 +67,17 @@ runs:
           libgtksourceview-5-dev \
           fuse3 \
           libfuse3-dev \
+          makepkg \
 
     # ================ Platform-specific Initialization (macOS) ================
     - name: Set up Homebrew
-      if: inputs.platform == 'macos-latest'
+      if: contains(inputs.platform, 'macos')
       id: set-up-homebrew
       uses: Homebrew/actions/setup-homebrew@master
 
     # fuse not available on macOS
     - name: Install dependencies (macOS)
-      if: inputs.platform == 'macos-latest'
+      if: contains(inputs.platform, 'macos')
       shell: bash
       run: |
         export HOMEBREW_NO_AUTO_UPDATE=1
@@ -90,7 +91,7 @@ runs:
     # According to https://github.com/actions/runner-images/blob/main/images/windows/toolsets/toolset-2025.json
     # OpenSSL, cmake and some other build tools have been embedded into the windows-latest image.
     - name: Install dependencies (Windows)
-      if: inputs.platform == 'windows-latest'
+      if: contains(inputs.platform, 'windows')
       shell: pwsh
       run: |
         choco config set cacheLocation ./.choco-cache
@@ -100,12 +101,12 @@ runs:
     # Required by monobean, performing this step would take about 5s.
     # Won't caching it, for compression and decompression are MUCH slower than downloading it directly.
     - name: Load GTK and libadwaita
-      if: inputs.platform == 'windows-latest' && inputs.use-gtk == 'true'
+      if: contains(inputs.platform, 'windows') && inputs.use-gtk == 'true'
       shell: pwsh
       run: python ./monobean/setup.py
 
     - name: Manually set env vars and export
-      if: inputs.platform == 'windows-latest'
+      if: contains(inputs.platform, 'windows')
       shell: pwsh
       run: |
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
@@ -124,7 +125,7 @@ runs:
 
     # =============== Save cache for speeding up ===============
     - name: Cache dependencies
-      if: inputs.platform != 'windows-latest' || steps.cache-restore.outputs.cache-hit == 'false'
+      if: contains(inputs.platform, 'windows') || steps.cache-restore.outputs.cache-hit == 'false'
       uses: actions/cache/save@v4
       with:
         path: |
