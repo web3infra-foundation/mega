@@ -7,6 +7,5 @@ mod model;
 #[derive(Clone)]
 pub struct MegaApiServiceState {
     pub inner: MonoApiServiceState,
-    pub port: u16,
     pub p2p: P2pOptions,
 }

@@ -11,14 +11,13 @@ use common::{config::Config, errors::MegaResult};
 use jupiter::context::Context;
 
 pub mod http;
-pub mod https;
 pub mod multi;
 pub mod ssh;
 
 // This function generates the CLI for the 'service' command.
 // It includes subcommands for each server type.
 pub fn cli() -> Command {
-    let subcommands = vec![http::cli(), https::cli(), ssh::cli(), multi::cli()];
+    let subcommands = vec![http::cli(), ssh::cli(), multi::cli()];
     Command::new("service")
         .about("Start different kinds of server: for example https or ssh")
         .subcommands(subcommands)
@@ -45,7 +44,6 @@ pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     };
     match cmd {
         "http" => http::exec(context.clone(), subcommand_args).await,
-        "https" => https::exec(context.clone(), subcommand_args).await,
         "ssh" => ssh::exec(context.clone(), subcommand_args).await,
         "multi" => multi::exec(context.clone(), subcommand_args).await,
         _ => Ok(()),

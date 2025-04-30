@@ -31,8 +31,6 @@ pub const APP_ID: &str = "org.Web3Infrastructure.Monobean";
 pub const APP_NAME: &str = "Monobean";
 pub const PREFIX: &str = "/org/Web3Infrastructure/Monobean";
 pub const MEGA_CONFIG_PATH: &str = "/org/Web3Infrastructure/Monobean/mega/config.toml";
-pub const MEGA_HTTPS_KEY: &str = "/org/Web3Infrastructure/Monobean/mega/key.pem";
-pub const MEGA_HTTPS_CERT: &str = "/org/Web3Infrastructure/Monobean/mega/cert.pem";
 
 /* Helper functions for mega configs */
 

@@ -24,7 +24,7 @@ jupiter = { path = "../jupiter" }
 vault = { path = "../vault" }
 gateway = { path = "../gateway" }
 tokio = "1.43.0"
-russh = "0.51.1"
+russh = "0.52"
 axum = "0.8.1"
 axum-server = "0.7.1"
 bytes = "1.10.0"
