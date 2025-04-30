@@ -37,31 +37,31 @@ jobs:
           cache-key: sysdeps
           platform: ${{ matrix.os }}
 
-      - name: Build libra
+      - name: Building
         run: |
           cargo install --locked cargo-packager
-          cargo build --release --manifest-path libra/Cargo.toml
+          # cargo build --release --manifest-path libra/Cargo.toml
           cargo packager --release --manifest-path monobean/Cargo.toml --config monobean/resources/packager_${{ matrix.target}}.toml
 
       - name: Prepare Linux
         if: contains(matrix.os, 'ubuntu')
         run: |
-          makepkg target/build/
-          mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
-          mv target/build/Monobean__${{ matrix.arch }}.tar.gz.zst ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
-          mv target/build/Monobean__${{ matrix.arch }}.deb ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
+          makepkg monobean/target/build/
+          mv monobean/target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
+          mv monobean/target/build/Monobean__${{ matrix.arch }}.tar.gz.zst ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
+          mv monobean/target/build/Monobean__${{ matrix.arch }}.deb ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
       
       - name: Prepare Windows
         if: contains(matrix.os, 'windows')
         run: |
-          mv target/release/libra.exe ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}.exe
-          mv target/build/Monobean__${{ matrix.arch }}.exe ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.exe
+          mv monobean/target/release/libra.exe ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}.exe
+          mv monobean/target/build/Monobean__${{ matrix.arch }}.exe ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.exe
 
       - name: Prepare MacOS
         if: contains(matrix.os, 'macos')
         run: |
-          mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
-          mv target/build/Monobean__${{ matrix.arch }}.dmg ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.dmg
+          mv monobean/target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
+          mv monobean/target/build/Monobean__${{ matrix.arch }}.dmg ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.dmg
       
       - name: Release Linux
         if: contains(matrix.os, 'ubuntu')
