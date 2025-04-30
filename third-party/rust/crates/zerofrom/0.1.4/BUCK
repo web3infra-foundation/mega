@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "zerofrom",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "zerofrom",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "derive",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/zerofrom-derive/0.1.4:zerofrom-derive"],
+)
