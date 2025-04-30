@@ -1,18 +1,18 @@
-use std::{fmt::Display, path::{Path, PathBuf}};
 use serde::{Deserialize, Serialize};
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+};
 pub mod config;
 
-#[derive(Debug,Deserialize, Serialize,Clone,Default)]
-pub struct GPath{
-   pub path:Vec<String>
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct GPath {
+    pub path: Vec<String>,
 }
 
-
-impl GPath{
-    pub fn new() -> GPath{
-        GPath{
-            path:Vec::new()        
-        }
+impl GPath {
+    pub fn new() -> GPath {
+        GPath { path: Vec::new() }
     }
     pub fn push(&mut self, path: String) {
         if path.contains('/') {
@@ -25,20 +25,20 @@ impl GPath{
             self.path.push(path);
         }
     }
-    pub fn pop(&mut self)->Option<String>  {
+    pub fn pop(&mut self) -> Option<String> {
         self.path.pop()
     }
-    pub fn name(&self) -> String{
+    pub fn name(&self) -> String {
         self.path.last().unwrap().clone()
     }
-    pub fn part(&self,i:usize,j :usize) ->String{
+    pub fn part(&self, i: usize, j: usize) -> String {
         self.path[i..j].join("/")
     }
 }
 
-impl From<String> for GPath{
+impl From<String> for GPath {
     fn from(mut s: String) -> GPath {
-        if s.starts_with('/'){
+        if s.starts_with('/') {
             s.remove(0);
         }
         GPath {
@@ -47,13 +47,13 @@ impl From<String> for GPath{
     }
 }
 
-impl  From<GPath> for PathBuf {
+impl From<GPath> for PathBuf {
     fn from(val: GPath) -> Self {
         let path_str = val.path.join("/");
         PathBuf::from(path_str)
     }
 }
-impl Display for GPath{
+impl Display for GPath {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.path.join("/"))
     }
@@ -83,16 +83,14 @@ pub fn from_store_path_to_workdir(path: impl AsRef<Path>) -> PathBuf {
     }
 }
 
-
-
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::GPath;
 
     #[test]
-    fn test_from_string(){
-        let path  = String::from("/release");
-        let gapth  = GPath::from(path);
-        assert_eq!(gapth.to_string(),String::from("release"))
+    fn test_from_string() {
+        let path = String::from("/release");
+        let gapth = GPath::from(path);
+        assert_eq!(gapth.to_string(), String::from("release"))
     }
 }

@@ -46,11 +46,8 @@ pub async fn execute() {
         return;
     }
     match Head::current().await {
-        Head::Detached(commit) => {
-            println!(
-                "HEAD detached at {}",
-                String::from_utf8_lossy(&commit.0[0..7])
-            );
+        Head::Detached(commit_hash) => {
+            println!("HEAD detached at {}", &commit_hash.to_string()[..8]);
         }
         Head::Branch(branch) => {
             println!("On branch {}", branch);
