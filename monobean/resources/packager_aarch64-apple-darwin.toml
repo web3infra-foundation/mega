@@ -1,6 +1,5 @@
 name = "Monobean"
 product_name = "Monobean"
-version = "0.0.1"
 identifier = "org.Web3Infrastructure.Monobean"
 category = "DeveloperTool"
 formats = ["dmg"]
@@ -23,3 +22,4 @@ description = "Monobean is a simple and easy-to-use wallet for the Monero blockc
 [macos]
 
 [dmg]
+background = "icons/scalable/apps/mono-white-logo.ico"
