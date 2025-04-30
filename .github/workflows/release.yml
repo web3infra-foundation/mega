@@ -4,31 +4,24 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
 
 permissions:
   contents: write
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/create-gh-release-action@v1
-        with:
-          # (required) GitHub token for creating GitHub Releases.
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   upload-assets:
-    needs: create-release
     strategy:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
+            arch: x86_64
             os: ubuntu-latest
           - target: aarch64-apple-darwin
+            arch: aarch64
             os: macos-latest
           - target: x86_64-pc-windows-msvc
+            arch: x86_64
             os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
@@ -44,19 +37,59 @@ jobs:
           cache-key: sysdeps
           platform: ${{ matrix.os }}
 
-      - name: Upload libra binary
-        uses: taiki-e/upload-rust-binary-action@v1
-        with:
-          bin: libra
-          target: ${{ matrix.target }}
-          archive: libra-${{ matrix.target }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build libra
+        run: |
+          cargo build --release --target ${{ matrix.target }} --manifest-path libra/Cargo.toml
 
-      - name: Upload monobean binary
-        uses: taiki-e/upload-rust-binary-action@v1
+      - name: Package monobean
+        shell: bash
+        run: |
+          cargo packager --release --manifest-path monobean/Cargo.toml --target ${{ matrix.target }} --config monobean/resources/packager_${{ matrix.target}}.toml
+
+      - name: Prepare Linux
+        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'ubuntu')
+        run: |
+          makepkg target/build/
+          mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
+          mv target/build/Monobean__${{ matrix.arch }}.tar.gz.zst ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
+          mv target/build/Monobean__${{ matrix.arch }}.deb ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
+      
+      - name: Prepare Windows
+        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'windows')
+        run: |
+          mv target/release/libra.exe ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}.exe
+          mv target/build/Monobean__${{ matrix.arch }}.exe ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.exe
+
+      - name: Prepare MacOS
+        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'macos')
+        run: |
+          mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
+          mv target/build/Monobean__${{ matrix.arch }}.dmg ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.dmg
+      
+      - name: Release Linux
+        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'ubuntu')
+        uses: softprops/action-gh-release@v2
         with:
-          bin: monobean
-          manifest-path: monobean/Cargo.toml
-          target: ${{ matrix.target }}
-          archive: monobean-${{ matrix.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            libra_${{ github.ref_name }}_${{ matrix.target }}
+            Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
+            Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
+
+      - name: Release Windows
+        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'windows')
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            libra_${{ github.ref_name }}_${{ matrix.target }}.exe
+            Monobean-${{ github.ref_name }}-${{ matrix.target }}.exe
+
+      - name: Release MacOS
+        if: startsWith(github.ref, 'refs/tags/v') && contains(matrix.os, 'macos')
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            libra_${{ github.ref_name }}_${{ matrix.target }}
+            Monobean_${{ github.ref_name }}_${{ matrix.target }}.dmg
