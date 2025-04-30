@@ -15,13 +15,13 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            arch: x86_64
+            arch: amd64
             os: ubuntu-latest
           - target: aarch64-apple-darwin
             arch: aarch64
             os: macos-latest
           - target: x86_64-pc-windows-msvc
-            arch: x86_64
+            arch: x64
             os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
@@ -40,27 +40,27 @@ jobs:
       - name: Building
         run: |
           cargo install --locked cargo-packager
-          # cargo build --release --manifest-path libra/Cargo.toml
+          cargo build --release --manifest-path libra/Cargo.toml
           cargo packager --release --manifest-path monobean/Cargo.toml --config monobean/resources/packager_${{ matrix.target}}.toml
 
       - name: Prepare Linux
         if: contains(matrix.os, 'ubuntu')
         run: |
-          makepkg monobean/target/build/
-          mv monobean/target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
-          mv monobean/target/build/Monobean__${{ matrix.arch }}.tar.gz.zst ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
-          mv monobean/target/build/Monobean__${{ matrix.arch }}.deb ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
+          # makepkg monobean/target/build/
+          mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
+          # mv monobean/target/build/Monobean__${{ matrix.arch }}.tar.gz.zst ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
+          mv monobean/target/build/monobean__${{ matrix.arch }}.deb ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
       
       - name: Prepare Windows
         if: contains(matrix.os, 'windows')
         run: |
-          mv monobean/target/release/libra.exe ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}.exe
-          mv monobean/target/build/Monobean__${{ matrix.arch }}.exe ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.exe
+          mv target/release/libra.exe ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}.exe
+          mv monobean/target/build/monobean_0.0.1_${{ matrix.arch }}-setup.exe ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.exe
 
       - name: Prepare MacOS
         if: contains(matrix.os, 'macos')
         run: |
-          mv monobean/target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
+          mv target/release/libra ${{ github.workspace }}/libra_${{ github.ref_name }}_${{ matrix.target }}
           mv monobean/target/build/Monobean__${{ matrix.arch }}.dmg ${{ github.workspace }}/Monobean_${{ github.ref_name }}_${{ matrix.target }}.dmg
       
       - name: Release Linux
@@ -68,9 +68,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
           files: |
             libra_${{ github.ref_name }}_${{ matrix.target }}
-            Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
+            # Monobean_${{ github.ref_name }}_${{ matrix.target }}.tar.gz.zst
             Monobean_${{ github.ref_name }}_${{ matrix.target }}.deb
 
       - name: Release Windows
@@ -78,15 +79,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
           files: |
             libra_${{ github.ref_name }}_${{ matrix.target }}.exe
-            Monobean-${{ github.ref_name }}-${{ matrix.target }}.exe
+            Monobean_${{ github.ref_name }}_${{ matrix.target }}.exe
 
       - name: Release MacOS
         if: contains(matrix.os, 'macos')
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
           files: |
             libra_${{ github.ref_name }}_${{ matrix.target }}
             Monobean_${{ github.ref_name }}_${{ matrix.target }}.dmg
