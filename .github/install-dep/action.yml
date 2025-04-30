@@ -67,7 +67,6 @@ runs:
           libgtksourceview-5-dev \
           fuse3 \
           libfuse3-dev \
-          makepkg \
 
     # ================ Platform-specific Initialization (macOS) ================
     - name: Set up Homebrew
