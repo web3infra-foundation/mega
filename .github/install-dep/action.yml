@@ -125,7 +125,7 @@ runs:
 
     # =============== Save cache for speeding up ===============
     - name: Cache dependencies
-      if: contains(inputs.platform, 'windows') || steps.cache-restore.outputs.cache-hit == 'false'
+      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }}
       uses: actions/cache/save@v4
       with:
         path: |

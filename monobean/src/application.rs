@@ -261,9 +261,23 @@ impl MonobeanApplication {
         let filter = tracing_subscriber::EnvFilter::new("info,monobean=debug");
 
         if cfg!(debug_assertions) {
-            self.initialize_logging(file_appender.and(std::io::stdout), filter, true);
+            tracing_subscriber::fmt()
+                .with_writer(file_appender.and(std::io::stdout))
+                .with_env_filter(filter)
+                .with_target(false)
+                .with_line_number(true)
+                .with_file(true)
+                .without_time()
+                .compact()
+                .init();
         } else {
-            self.initialize_logging(file_appender, filter, false);
+            tracing_subscriber::fmt()
+                .with_writer(file_appender)
+                .with_env_filter(filter)
+                .with_target(false)
+                .without_time()
+                .compact()
+                .init();
         }
 
         glib::log_set_handler(
