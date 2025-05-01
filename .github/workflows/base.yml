@@ -20,6 +20,7 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
+      - '.github/workflows/release.yml'
   pull_request:
     paths-ignore:
       - 'alfs/**'

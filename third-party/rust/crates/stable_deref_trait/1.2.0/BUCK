@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "stable_deref_trait",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "stable_deref_trait",
+    crate_root = "src/lib.rs",
+    edition = "2015",
+    features = ["alloc"],
+    visibility = ["PUBLIC"],
+)
