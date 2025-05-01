@@ -1,0 +1,35 @@
+name = "Monobean"
+product_name = "Monobean"
+identifier = "org.Web3Infrastructure.Monobean"
+category = "DeveloperTool"
+formats = ["deb", "pacman"]
+before-packaging-command = "cargo build --release"
+out_dir = "../target/build"
+binaries_dir = "../target/release"
+binaries = [{ path = "monobean", main = true }]
+icons = [
+  "icons/scalable/apps/mono-white-logo.ico",
+  "icons/scalable/apps/mono-black-logo.ico",
+]
+authors = ["Neon <neonkk@qq.com>"]
+description = "Monobean is a simple and easy-to-use wallet for the Monero blockchain, built with GTK4 and Rust. It provides a user-friendly interface for managing your monorepo code."
+
+[linux]
+generate_desktop_entry = true
+
+[deb]
+depends = ["libgtk-4-dev", "libgtksourceview-5-0", "libadwaita-1-0"]
+section = "rust"
+
+[deb.files]
+"../Monobean.gresource" = "usr/share/monobean/monobean.gresource"
+"icons/scalable/apps/mono-white-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-white-logo.ico"
+"icons/scalable/apps/mono-black-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-black-logo.ico"
+
+# [pacman]
+# depends = ["gtk4", "libadwaita", "gtksourceview5"]
+
+# [pacman.files]
+# "../Monobean.gresource" = "usr/share/monobean/monobean.gresource"
+# "icons/scalable/apps/mono-white-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-white-logo.ico"
+# "icons/scalable/apps/mono-black-logo.ico" = "usr/share/icons/hicolor/scalable/apps/mono-black-logo.ico"
