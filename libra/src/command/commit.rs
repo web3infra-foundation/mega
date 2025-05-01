@@ -30,6 +30,7 @@ pub struct CommitArgs {
     #[arg(long, requires("message"))]
     pub conventional: bool,
 
+    /// amend the last commit
     #[arg(long)]
     pub amend: bool,
 }
@@ -211,6 +212,7 @@ mod test {
 
     use super::*;
     #[test]
+    ///testing basic parameter parsing functionality.
     fn test_parse_args() {
         let args = CommitArgs::try_parse_from(["commit", "-m", "init"]);
         assert!(args.is_ok());
@@ -236,6 +238,8 @@ mod test {
 
     #[tokio::test]
     #[serial]
+    /// Tests the recursive tree creation from index entries.
+    /// Verifies that tree objects are correctly created, saved to storage, and properly organized in a hierarchical structure.
     async fn test_create_tree() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
@@ -264,6 +268,9 @@ mod test {
     #[tokio::test]
     #[serial]
     #[should_panic]
+    /// A commit with no file changes should fail if `allow_empty` is false.
+    /// This test verifies that the commit command rejects empty changesets
+    /// when not explicitly permitted.
     async fn test_execute_commit_with_empty_index_fail() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
@@ -280,6 +287,10 @@ mod test {
 
     #[tokio::test]
     #[serial]
+    /// Tests normal commit functionality with both `--amend` and `--allow_empty` flags.
+    /// Verifies that:
+    /// 1. Amending works correctly when allowed
+    /// 2. Empty commits are permitted when explicitly enabled
     async fn test_execute_commit() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
