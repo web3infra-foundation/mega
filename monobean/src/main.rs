@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 extern crate gtk;
 
 use std::sync::LazyLock;
@@ -23,7 +24,11 @@ fn main() -> glib::ExitCode {
         std::env::set_current_dir(cargo_dir).expect("Failed to set workspace dir");
     }
 
-    let resources = gio::Resource::load("Monobean.gresource").expect("Failed to load resources");
+    let resources = {
+        gio::Resource::load("Monobean.gresource").unwrap_or_else(|_| {
+            gio::Resource::load("/usr/share/monobean/monobean.gresource").expect("Failed to load resources")
+        })
+    };
     gio::resources_register(&resources);
     glib::set_application_name(APP_NAME);
 
