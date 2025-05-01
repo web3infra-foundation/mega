@@ -38,6 +38,7 @@ gix-config = "0.43.0"
 home = "0.5.11"
 smallvec = "1.14.0"
 directories = "6.0.0"
+tracing-appender = "0.2.3"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"
@@ -47,6 +48,3 @@ tempfile = "3.19.1"
 
 [profile.dev]
 panic = "abort" # glib panics are not human friendly, just leave them alone
-
-[profile.release]
-lto = "fat"
