@@ -1,0 +1,109 @@
+/**
+Basic Table Styles
+ */
+.table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    -ms-overflow-style: -ms-autohiding-scrollbar;
+}
+
+table.simple {
+    width: 100%;
+    border: none;
+    border-spacing: 0;
+    text-align: left;
+}
+
+table.simple thead tr th {
+    padding: 16px 8px;
+    font-weight: 500;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    white-space: nowrap;
+}
+
+table.simple thead tr th:first-child {
+    padding-left: 24px;
+}
+
+table.simple thead tr th:last-child {
+    padding-right: 24px;
+}
+
+table.simple tbody tr td {
+    padding: 12px 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+table.simple tbody tr td:first-child {
+    padding-left: 24px;
+}
+
+table.simple tbody tr td:last-child {
+    padding-right: 24px;
+}
+
+table.simple tbody tr:last-child td {
+    border-bottom: none;
+}
+
+table.simple.clickable tbody tr {
+    cursor: pointer;
+}
+
+table.simple.clickable tbody tr:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+table.simple.borderless {
+    border: none;
+}
+
+table.simple.borderless tbody tr td{
+    border: none;
+}
+
+table.simple.borderless thead tr th{
+    border: none;
+}
+
+/* Dense Table Styles */
+table.dense {
+    width: 100%;
+    border: none;
+    border-spacing: 0;
+    text-align: left;
+}
+
+table.dense thead tr th {
+    padding: 8px 4px;
+    font-weight: 500;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    white-space: nowrap;
+}
+
+table.dense thead tr th:first-child {
+    padding-left: 12px;
+}
+
+table.dense thead tr th:last-child {
+    padding-right: 12px;
+}
+
+table.dense tbody tr td {
+    padding: 6px 4px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+table.dense tbody tr td:first-child {
+    padding-left: 12px;
+}
+
+table.dense tbody tr td:last-child {
+    padding-right: 12px;
+}
+
+table.dense tbody tr:last-child td {
+    border-bottom: none;
+}
