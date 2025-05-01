@@ -331,6 +331,8 @@ fn diff_tree_objs(old_tree: Option<&SHA1>, new_tree: &SHA1) -> HashSet<Entry> {
 mod test {
     use super::*;
     #[test]
+    /// Tests successful parsing of push command arguments with different parameter combinations.
+    /// Verifies repository, refspec and upstream flag settings are correctly interpreted.
     fn test_parse_args_success() {
         let args = vec!["push"];
         let args = PushArgs::parse_from(args);
@@ -352,6 +354,8 @@ mod test {
     }
 
     #[test]
+    /// Tests failure cases for push command argument parsing with invalid parameter combinations.
+    /// Verifies that missing required parameters are properly detected as errors.
     fn test_parse_args_fail() {
         let args = vec!["push", "-u"];
         let args = PushArgs::try_parse_from(args);

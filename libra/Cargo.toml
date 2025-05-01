@@ -8,6 +8,7 @@ default = []
 p2p = ["gemini"]
 
 [dependencies]
+http = "1.3.1"
 anyhow = { workspace = true }
 byte-unit = "5.1.4"
 byteorder = "1.5.0"
@@ -61,3 +62,5 @@ tempfile = { workspace = true }
 serial_test = { workspace = true }
 tokio = { workspace = true, features = ["macros", "process"] }
 tracing-test = "0.2.4"
+testcontainers = { version = "0.23.0", features = ["http_wait","reusable-containers"] }
+reqwest = { version = "0.11", features = ["blocking"] }

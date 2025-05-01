@@ -11,7 +11,13 @@ use std::process::Command;
 use std::time::Duration;
 use std::{env, fs, io, thread};
 use tempfile::TempDir;
-
+use http::Method;
+use testcontainers::core::wait::HttpWaitStrategy;
+use testcontainers::{
+    core::{IntoContainerPort, ReuseDirective, WaitFor},
+    runners::AsyncRunner,
+    ContainerAsync, GenericImage, ImageExt,
+};
 const LARGE_FILE_SIZE_MB: usize = 60;
 
 struct ChildGuard(std::process::Child);
@@ -30,25 +36,30 @@ lazy_static! {
     static ref TARGET: String = {
         // mega/mega, absolute
         let mut manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // Get env at compile time
-        manifest.pop(); // remove "mega" from path
-        manifest.join("target").to_str().unwrap().to_string()
+        manifest.pop();
+        manifest.to_str().unwrap().to_string()
     };
 
     static ref LIBRA: PathBuf = {
         let path = if cfg!(target_os = "windows") {
-            format!("{}/debug/libra.exe", TARGET.as_str())
+            format!("{}/target/debug/libra.exe", TARGET.as_str())
         } else {
-            format!("{}/debug/libra", TARGET.as_str())
+            format!("{}/target/debug/libra", TARGET.as_str())
         };
         PathBuf::from(path)
     };
 
     static ref MEGA: PathBuf = {
         let path = if cfg!(target_os = "windows") {
-            format!("{}/debug/mega.exe", TARGET.as_str())
+            format!("{}/target/debug/mega.exe", TARGET.as_str())
         } else {
-            format!("{}/debug/mega", TARGET.as_str())
+            format!("{}/target/debug/mega", TARGET.as_str())
         };
+        PathBuf::from(path)
+    };
+
+    static ref CONFIG: PathBuf = {
+        let path =  format!("{}/mega/config.toml",TARGET.as_str());
         PathBuf::from(path)
     };
 }
@@ -245,7 +256,9 @@ fn libra_lfs_clone(url: &str) -> io::Result<()> {
 }
 
 #[test]
+#[ignore]
 #[serial]
+//Use containes insted.
 fn lfs_split_with_git() {
     assert!(check_git_lfs(), "git lfs is not installed");
 
@@ -293,3 +306,68 @@ fn lfs_split_with_libra() {
     clone_result.expect("Failed to clone large file from mega server");
     thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
 }
+
+async fn mega_container(mapping_port: u16) -> ContainerAsync<GenericImage> {
+    println!("MEGA {:?} ", MEGA.to_str().unwrap());
+    println!("CONFIG {:?} ", CONFIG.to_str().unwrap());
+    if !MEGA.exists() {
+        panic!("mega binary not found in \"target/debug/\", skip lfs test");
+    }
+    if is_port_in_use(mapping_port) {
+        panic!("port {} is already in use", mapping_port);
+    }
+    let port_str = mapping_port.to_string();
+    let cmd = vec![
+        "/root/mega",
+        "service",
+        "multi",
+        "http",
+        "-p",
+        &port_str,
+        "--host",
+        "0.0.0.0",
+    ];
+
+    GenericImage::new("ubuntu", "latest")
+        .with_exposed_port(mapping_port.tcp())
+        .with_wait_for(WaitFor::Http(
+            HttpWaitStrategy::new("/")
+                .with_method(Method::GET)
+                .with_expected_status_code(404_u16),
+        ))
+        .with_mapped_port(mapping_port, mapping_port.tcp())
+        .with_copy_to("/root/mega", MEGA.clone())
+        .with_copy_to("/root/config.toml", CONFIG.clone())
+        .with_env_var("MEGA_authentication__enable_http_auth", "false")
+        .with_working_dir("/root")
+        .with_reuse(ReuseDirective::Never)
+        .with_cmd(cmd)
+        .start()
+        .await
+        .expect("Failed to start mega_server")
+}
+
+pub async fn mega_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<GenericImage>, String) {
+    let container = mega_container(mapping_port).await;
+    let mega_ip = container.get_bridge_ip_address().await.unwrap();
+    let mega_port: u16 = container.get_host_port_ipv4(mapping_port).await.unwrap();
+    (container, format!("http://{}:{}", mega_ip, mega_port))
+}
+
+#[tokio::test]
+///Use container to run mega server and test lfs_split
+async fn test_lfs_split_with_containers() {
+    let (_container, mega_server_url) = mega_bootstrap_servers(9000).await;
+    println!("container: {}", mega_server_url);
+
+    let url = &format!("{}/third-part/lfs.git", mega_server_url);
+    let lfs_url = mega_server_url;
+    let push_result = git_lfs_push(url, &lfs_url);
+    let clone_result = git_lfs_clone(url, &lfs_url);
+
+    push_result.expect("Failed to push large file to mega server");
+    clone_result.expect("Failed to clone large file from mega server");
+    thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
+}
+
+
