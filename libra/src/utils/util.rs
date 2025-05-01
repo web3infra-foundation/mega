@@ -384,6 +384,7 @@ mod test {
     use tempfile::tempdir;
 
     #[test]
+    ///Test get current directory success.
     fn cur_dir_returns_current_directory() {
         let expected = env::current_dir().unwrap();
         let actual = cur_dir();
@@ -392,6 +393,7 @@ mod test {
 
     #[test]
     #[serial]
+    ///Test the function of is_sub_path.
     fn test_is_sub_path() {
         let _guard = test::ChangeDirGuard::new(Path::new(env!("CARGO_MANIFEST_DIR")));
 
@@ -402,6 +404,7 @@ mod test {
     }
 
     #[test]
+    ///Test the function of to_relative.
     fn test_to_relative() {
         assert_eq!(to_relative("src/main.rs", "src"), PathBuf::from("main.rs"));
         assert_eq!(to_relative(".", "src"), PathBuf::from(".."));
@@ -409,6 +412,7 @@ mod test {
 
     #[tokio::test]
     #[serial]
+    ///Test the function of to_workdir_path.
     async fn test_to_workdir_path() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
@@ -425,6 +429,7 @@ mod test {
 
     #[test]
     #[serial]
+    /// Tests that files matching patterns in .libraignore are correctly identified as ignored.
     fn test_check_gitignore_ignore() {
         let temp_path = tempdir().unwrap();
         let _guard = test::ChangeDirGuard::new(temp_path.path());
@@ -438,6 +443,7 @@ mod test {
 
     #[test]
     #[serial]
+    /// Tests ignore pattern matching in subdirectories with .libraignore files at different directory levels.
     fn test_check_gitignore_ignore_subdirectory() {
         let temp_path = tempdir().unwrap();
         let _guard = test::ChangeDirGuard::new(temp_path.path());
@@ -455,6 +461,7 @@ mod test {
 
     #[test]
     #[serial]
+    /// Tests that files not matching patterns in .libraignore are correctly identified as not ignored.
     fn test_check_gitignore_not_ignore() {
         let temp_path = tempdir().unwrap();
         let _guard = test::ChangeDirGuard::new(temp_path.path());
@@ -469,6 +476,7 @@ mod test {
 
     #[test]
     #[serial]
+    /// Tests that files not matching subdirectory-specific patterns in .libraignore are correctly identified as not ignored.
     fn test_check_gitignore_not_ignore_subdirectory() {
         let temp_path = tempdir().unwrap();
         let _guard = test::ChangeDirGuard::new(temp_path.path());
