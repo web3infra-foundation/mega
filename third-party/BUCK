@@ -10150,7 +10150,7 @@ cargo.rust_library(
     deps = [
         ":displaydoc-0.2.5",
         ":yoke-0.7.4",
-        ":zerofrom-0.1.4",
+        "//third-party/rust/crates/zerofrom/0.1.4:zerofrom",
         ":zerovec-0.10.4",
     ],
 )
@@ -10513,11 +10513,11 @@ cargo.rust_library(
         ":displaydoc-0.2.5",
         ":icu_locid-1.5.0",
         ":icu_provider_macros-1.5.0",
-        ":stable_deref_trait-1.2.0",
+        "//third-party/rust/crates/stable_deref_trait/1.2.0:stable_deref_trait",
         ":tinystr-0.7.6",
         "//third-party/rust/crates/writeable/0.5.5:writeable",
         ":yoke-0.7.4",
-        ":zerofrom-0.1.4",
+        "//third-party/rust/crates/zerofrom/0.1.4:zerofrom",
         ":zerovec-0.10.4",
     ],
 )
@@ -21340,16 +21340,6 @@ cargo.rust_library(
 )
 
 cargo.rust_library(
-    name = "stable_deref_trait-1.2.0",
-    srcs = ["vendor/stable_deref_trait-1.2.0/src/lib.rs"],
-    crate = "stable_deref_trait",
-    crate_root = "vendor/stable_deref_trait-1.2.0/src/lib.rs",
-    edition = "2015",
-    features = ["alloc"],
-    visibility = [],
-)
-
-cargo.rust_library(
     name = "stacker-0.1.17",
     srcs = ["vendor/stacker-0.1.17/src/lib.rs"],
     crate = "stacker",
@@ -21485,26 +21475,7 @@ cargo.rust_library(
     deps = [":futures-core-0.3.31"],
 )
 
-cargo.rust_library(
-    name = "synstructure-0.13.1",
-    srcs = [
-        "vendor/synstructure-0.13.1/src/lib.rs",
-        "vendor/synstructure-0.13.1/src/macros.rs",
-    ],
-    crate = "synstructure",
-    crate_root = "vendor/synstructure-0.13.1/src/lib.rs",
-    edition = "2018",
-    features = [
-        "default",
-        "proc-macro",
-    ],
-    visibility = [],
-    deps = [
-        "//third-party/rust/crates/proc-macro2/1.0.94:proc-macro2",
-        "//third-party/rust/crates/quote/1.0.40:quote",
-        "//third-party/rust/crates/syn/2.0.100:syn",
-    ],
-)
+
 
 cargo.rust_library(
     name = "sysexits-0.7.14",
@@ -24609,9 +24580,9 @@ cargo.rust_library(
     visibility = [],
     deps = [
         "//third-party/rust/crates/serde/1.0.217:serde",
-        ":stable_deref_trait-1.2.0",
+        "//third-party/rust/crates/stable_deref_trait/1.2.0:stable_deref_trait",
         ":yoke-derive-0.7.4",
-        ":zerofrom-0.1.4",
+        "//third-party/rust/crates/zerofrom/0.1.4:zerofrom",
     ],
 )
 
@@ -24630,7 +24601,7 @@ cargo.rust_library(
         "//third-party/rust/crates/proc-macro2/1.0.94:proc-macro2",
         "//third-party/rust/crates/quote/1.0.40:quote",
         "//third-party/rust/crates/syn/2.0.100:syn",
-        ":synstructure-0.13.1",
+        "//third-party/rust/crates/synstructure/0.13.1:synstructure",
     ],
 )
 
@@ -24672,43 +24643,6 @@ cargo.rust_library(
     deps = [
         ":byteorder-1.5.0",
         "//third-party/rust/crates/zerocopy-derive/0.7.35:zerocopy-derive",
-    ],
-)
-
-cargo.rust_library(
-    name = "zerofrom-0.1.4",
-    srcs = [
-        "vendor/zerofrom-0.1.4/src/lib.rs",
-        "vendor/zerofrom-0.1.4/src/macro_impls.rs",
-        "vendor/zerofrom-0.1.4/src/zero_from.rs",
-    ],
-    crate = "zerofrom",
-    crate_root = "vendor/zerofrom-0.1.4/src/lib.rs",
-    edition = "2021",
-    features = [
-        "alloc",
-        "derive",
-    ],
-    visibility = [],
-    deps = [":zerofrom-derive-0.1.4"],
-)
-
-cargo.rust_library(
-    name = "zerofrom-derive-0.1.4",
-    srcs = [
-        "vendor/zerofrom-derive-0.1.4/src/lib.rs",
-        "vendor/zerofrom-derive-0.1.4/src/visitor.rs",
-    ],
-    crate = "zerofrom_derive",
-    crate_root = "vendor/zerofrom-derive-0.1.4/src/lib.rs",
-    edition = "2021",
-    proc_macro = True,
-    visibility = [],
-    deps = [
-        "//third-party/rust/crates/proc-macro2/1.0.94:proc-macro2",
-        "//third-party/rust/crates/quote/1.0.40:quote",
-        "//third-party/rust/crates/syn/2.0.100:syn",
-        ":synstructure-0.13.1",
     ],
 )
 
@@ -24777,7 +24711,7 @@ cargo.rust_library(
     visibility = [],
     deps = [
         ":yoke-0.7.4",
-        ":zerofrom-0.1.4",
+        "//third-party/rust/crates/zerofrom/0.1.4:zerofrom",
         "//third-party/rust/crates/zerovec-derive/0.10.3:zerovec-derive",
     ],
 )

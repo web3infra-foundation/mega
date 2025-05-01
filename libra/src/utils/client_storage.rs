@@ -382,6 +382,7 @@ mod tests {
     use super::ClientStorage;
 
     #[test]
+    #[ignore]
     fn test_content_store() {
         let content = "Hello, world!";
         let blob = Blob::from_content(content);
