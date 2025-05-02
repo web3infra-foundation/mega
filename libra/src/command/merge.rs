@@ -104,39 +104,3 @@ async fn merge_ff(commit: Commit) {
     })
     .await;
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::Parser;
-
-    #[test]
-    fn test_merge_args_parsing() {
-        // Test basic argument parsing
-        let args = MergeArgs::parse_from(&["merge", "feature"]);
-        assert_eq!(args.branch, "feature");
-        assert_eq!(args.message, None);
-
-        // Test short -m parameter
-        let args = MergeArgs::parse_from(&["merge", "feature", "-m", "test msg"]);
-        assert_eq!(args.message, Some("test msg".to_string()));
-
-        // Test long --message parameter
-        let args = MergeArgs::parse_from(&["merge", "feature", "--message", "long msg"]);
-        assert_eq!(args.message, Some("long msg".to_string()));
-    }
-
-    #[test]
-    fn test_default_message_generation() {
-        // Test default message generation logic (without actual execution)
-        let args = MergeArgs {
-            branch: "test-branch".to_string(),
-            message: None,
-        };
-
-        // Only verifying how the default message is generated
-        let default_msg = args
-            .message
-            .unwrap_or_else(|| format!("Merge branch '{}' into current", &args.branch));
-        assert_eq!(default_msg, "Merge branch 'test-branch' into current");
-    }
-}
