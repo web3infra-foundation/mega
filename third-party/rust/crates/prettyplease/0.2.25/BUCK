@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "prettyplease",
+    crate = "prettyplease",
+    edition = "2021",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    visibility = ["PUBLIC"],
+    features = ["verbatim"],
+    deps = [
+        "//third-party/rust/crates/proc-macro2/1.0.94:proc-macro2",
+        "//third-party/rust/crates/syn/2.0.100:syn",
+    ],
+)

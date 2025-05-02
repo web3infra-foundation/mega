@@ -1,0 +1,10 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "itoa",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "itoa",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    visibility = ["PUBLIC"],
+)

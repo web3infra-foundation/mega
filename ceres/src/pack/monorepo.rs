@@ -104,6 +104,7 @@ impl PackHandler for MonoRepo {
                     None,
                     &c.id.to_string(),
                     &c.tree_id.to_string(),
+                    false,
                 )
                 .await
                 .unwrap();
@@ -348,6 +349,48 @@ impl PackHandler for MonoRepo {
             .await
     }
 
+    async fn update_refs(&self, commit: Option<Commit>, refs: &RefCommand) -> Result<(), GitError> {
+        let storage = self.context.services.mono_storage.clone();
+
+        if let Some(c) = commit {
+            let mr_link = self.handle_mr(&c.format_message()).await?;
+            let ref_name = utils::mr_ref_name(&mr_link);
+            if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
+                mr_ref.ref_commit_hash = refs.new_id.clone();
+                mr_ref.ref_tree_hash = c.tree_id.to_string();
+                storage.update_ref(mr_ref).await.unwrap();
+            } else {
+                storage
+                    .save_ref(
+                        self.path.to_str().unwrap(),
+                        Some(ref_name),
+                        &refs.new_id,
+                        &c.tree_id.to_string(),
+                        true,
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
+        Ok(())
+    }
+
+    async fn check_commit_exist(&self, hash: &str) -> bool {
+        self.context
+            .services
+            .mono_storage
+            .get_commit_by_hash(hash)
+            .await
+            .unwrap()
+            .is_some()
+    }
+
+    async fn check_default_branch(&self) -> bool {
+        true
+    }
+}
+
+impl MonoRepo {
     async fn handle_mr(&self, title: &str) -> Result<String, GitError> {
         let storage = self.context.mr_stg();
         let path_str = self.path.to_str().unwrap();
@@ -378,49 +421,6 @@ impl PackHandler for MonoRepo {
         }
     }
 
-    async fn update_refs(
-        &self,
-        mr_link: Option<String>,
-        commit: Option<Commit>,
-        refs: &RefCommand,
-    ) -> Result<(), GitError> {
-        let ref_name = utils::mr_ref_name(&mr_link.unwrap());
-
-        let storage = self.context.services.mono_storage.clone();
-        if let Some(mut mr_ref) = storage.get_mr_ref(&ref_name).await.unwrap() {
-            mr_ref.ref_commit_hash = refs.new_id.clone();
-            mr_ref.ref_tree_hash = commit.unwrap().tree_id.to_string();
-            storage.update_ref(mr_ref).await.unwrap();
-        } else {
-            storage
-                .save_ref(
-                    self.path.to_str().unwrap(),
-                    Some(ref_name),
-                    &refs.new_id,
-                    &commit.unwrap().tree_id.to_string(),
-                )
-                .await
-                .unwrap();
-        }
-        Ok(())
-    }
-
-    async fn check_commit_exist(&self, hash: &str) -> bool {
-        self.context
-            .services
-            .mono_storage
-            .get_commit_by_hash(hash)
-            .await
-            .unwrap()
-            .is_some()
-    }
-
-    async fn check_default_branch(&self) -> bool {
-        true
-    }
-}
-
-impl MonoRepo {
     async fn handle_existing_mr(
         &self,
         mr: &mut MergeRequest,

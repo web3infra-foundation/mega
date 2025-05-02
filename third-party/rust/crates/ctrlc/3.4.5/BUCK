@@ -1,0 +1,30 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "ctrlc",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "ctrlc",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    platform = {
+        "linux-arm64": dict(
+            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
+        ),
+        "linux-x86_64": dict(
+            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
+        ),
+        "macos-arm64": dict(
+            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
+        ),
+        "macos-x86_64": dict(
+            deps = ["//third-party/rust/crates/nix/0.29.0:nix"],
+        ),
+        "windows-gnu": dict(
+            deps = ["//third-party/rust/crates/windows-sys/0.59.0:windows-sys"],
+        ),
+        "windows-msvc": dict(
+            deps = ["//third-party/rust/crates/windows-sys/0.59.0:windows-sys"],
+        ),
+    },
+    visibility = ["PUBLIC"],
+)

@@ -1,0 +1,24 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "spin",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "spin",
+    crate_root = "src/lib.rs",
+    edition = "2015",
+    features = [
+        "barrier",
+        "default",
+        "lazy",
+        "lock_api",
+        "lock_api_crate",
+        "mutex",
+        "once",
+        "rwlock",
+        "spin_mutex",
+    ],
+    named_deps = {
+        "lock_api_crate": "//third-party/rust/crates/lock_api/0.4.12:lock_api",
+    },
+    visibility = ["PUBLIC"],
+)

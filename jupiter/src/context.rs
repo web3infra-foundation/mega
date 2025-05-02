@@ -49,7 +49,7 @@ impl Context {
     pub fn mock() -> Self {
         Context {
             services: Service::mock(),
-            config: Arc::new(Config::default()),
+            config: Arc::new(Config::mock()),
         }
     }
 }

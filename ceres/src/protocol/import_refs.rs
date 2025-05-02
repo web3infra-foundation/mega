@@ -133,6 +133,7 @@ impl From<RefCommand> for mega_refs::Model {
             ref_tree_hash: String::new(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
+            is_mr: false,
         }
     }
 }

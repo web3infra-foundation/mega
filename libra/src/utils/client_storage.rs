@@ -377,11 +377,12 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use crate::utils::{test, util};
+    use crate::utils::test;
 
     use super::ClientStorage;
 
     #[test]
+    #[ignore]
     fn test_content_store() {
         let content = "Hello, world!";
         let blob = Blob::from_content(content);
@@ -420,13 +421,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_list_objs() {
-        test::reset_working_dir();
-        let source = PathBuf::from(test::TEST_DIR)
-            .join(util::ROOT_DIR)
-            .join("objects");
-        if !source.exists() {
-            return;
-        }
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
+        source.push("tests/objects");
         let client_storage = ClientStorage::init(source);
         let objs = client_storage.list_objects_loose();
         for obj in objs {

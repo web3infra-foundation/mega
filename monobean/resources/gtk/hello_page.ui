@@ -42,7 +42,7 @@
 
                     <child>
                       <object class="GtkLabel">
-                        <property name="label" translatable="yes">Welcome to MonoBean</property>
+                        <property name="label" translatable="yes">Welcome to Monobean</property>
                         <property name="wrap">True</property>
                         <property name="wrap-mode">word-char</property>
                         <property name="justify">center</property>
@@ -297,7 +297,7 @@
                             <property name="orientation">vertical</property>
                             <child>
                               <object class="GtkLabel">
-                                <property name="label" translatable="yes">&lt;a href="https://os.gnome.org/">MonoBean Docs&lt;/a&gt;</property>
+                                <property name="label" translatable="yes">&lt;a href="https://os.gnome.org/">Monobean Docs&lt;/a&gt;</property>
                                 <property name="wrap">True</property>
                                 <property name="wrap-mode">word-char</property>
                                 <property name="use-markup">True</property>
@@ -325,7 +325,7 @@
                     <property name="margin-end">24</property>
                     <property name="child">
                       <object class="GtkLabel">
-                        <property name="label" translatable="yes">MonoBean</property>
+                        <property name="label" translatable="yes">Monobean</property>
                         <property name="wrap">True</property>
                         <property name="wrap-mode">word-char</property>
                         <property name="xalign">1.0</property>

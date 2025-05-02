@@ -1,66 +1,59 @@
-## exmaple: https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile
+# 基础镜像
 FROM node:22-alpine AS base
 
-# Install dependencies only when needed
+# 安装依赖阶段
 FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+# 添加 libc6-compat 以解决 Alpine 中的兼容性问题
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# set mirror for npm
-# RUN npm config set registry https://registry.npmmirror.com
+# 复制 package.json 和 lock 文件
+COPY ./leo/package.json ./leo/package-lock.json* ./
 
-# Install dependencies based on the preferred package manager
-COPY ./moon/package*.json ./moon/pnpm-lock.yaml* ./
+# 安装依赖
+RUN npm ci
 
-RUN corepack enable pnpm && pnpm i --frozen-lockfile
-
-# Rebuild the source code only when needed
+# 构建阶段
 FROM base AS builder
 WORKDIR /app
+# 从 deps 阶段复制 node_modules
 COPY --from=deps /app/node_modules ./node_modules
-COPY ./moon .
+# 复制所有源代码
+COPY ./leo .
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-ENV NEXT_TELEMETRY_DISABLED=1
+# 构建应用
+RUN npm run build
 
-RUN corepack enable pnpm && pnpm run build
-
-# Production image, copy all the files and run next
+# 生产阶段
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-# Uncomment the following line in case you want to disable telemetry during runtime.
+# 禁用 Next.js 遥测
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# 添加非 root 用户
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# 复制公共资源
 COPY --from=builder /app/public ./public
 
-COPY ./docker/start-moon.sh /app/start-moon.sh
-
-RUN chmod +x /app/start-moon.sh
-
-# Set the correct permission for prerender cache
+# 设置 .next 目录权限
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
+# 复制构建产物
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# 切换到非 root 用户
 USER nextjs
 
 EXPOSE 3000
 
+# 设置环境变量
 ENV PORT=3000
-
-# server.js is created by next build from the standalone output
-# https://nextjs.org/docs/pages/api-reference/next-config-js/output
 ENV HOSTNAME="0.0.0.0"
-ENTRYPOINT ["/bin/sh", "/app/start-moon.sh"]
+
+CMD ["node", "server.js"]

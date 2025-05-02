@@ -131,11 +131,15 @@ mod tests {
     use common::utils::format_commit_msg;
     use mercury::{hash::SHA1, internal::object::commit::Commit};
     use serial_test::serial;
+    use tempfile::tempdir;
 
     #[tokio::test]
     #[serial]
     async fn test_get_reachable_commits() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         let commit_id = create_test_commit_tree().await;
 
         let reachable_commits = get_reachable_commits(commit_id).await;
@@ -145,7 +149,8 @@ mod tests {
     #[tokio::test]
     #[ignore] // ignore this test because it will open less and block the test
     async fn test_execute_log() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
         let _ = create_test_commit_tree().await;
 
         let args = LogArgs { number: Some(6) };

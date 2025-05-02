@@ -1,0 +1,15 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "bitflags",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "bitflags",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "serde",
+        "std",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/serde/1.0.217:serde"],
+)

@@ -46,7 +46,7 @@
 
         <!-- Base Settings -->
         <key name="base-dir" type="s">
-            <default>'/tmp/.mono'</default>
+            <default>''</default>
             <summary>Base Directory</summary>
             <description>The directory where data files are located</description>
         </key>

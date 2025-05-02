@@ -23,9 +23,4 @@ rand = { workspace = true }
 serde_json = { workspace = true }
 regex.workspace = true
 sea-orm = { workspace = true, features = ["macros"] }
-aws-sdk-s3 = { workspace = true, features = ["default-https-client"] }
-reqwest = { workspace = true }
-ring = { workspace = true }
-tokio = { workspace = true }
-hex = { workspace = true }
 utoipa = { workspace = true }

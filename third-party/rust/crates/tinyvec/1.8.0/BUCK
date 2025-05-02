@@ -1,0 +1,18 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "tinyvec",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "tinyvec",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = [
+        "alloc",
+        "default",
+        "grab_spare_slice",
+        "std",
+        "tinyvec_macros",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/tinyvec_macros/0.1.1:tinyvec_macros"],
+)

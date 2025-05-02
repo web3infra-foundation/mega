@@ -285,16 +285,7 @@ impl PackHandler for ImportRepo {
             .await
     }
 
-    async fn handle_mr(&self, _: &str) -> Result<String, GitError> {
-        unreachable!()
-    }
-
-    async fn update_refs(
-        &self,
-        _: Option<String>,
-        _: Option<Commit>,
-        refs: &RefCommand,
-    ) -> Result<(), GitError> {
+    async fn update_refs(&self, _: Option<Commit>, refs: &RefCommand) -> Result<(), GitError> {
         let storage = self.context.services.git_db_storage.clone();
         match refs.command_type {
             CommandType::Create => {

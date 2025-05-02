@@ -138,13 +138,16 @@ impl Branch {
 mod tests {
     use crate::utils::test;
     use serial_test::serial;
+    use tempfile::tempdir;
 
     use super::*;
 
     #[tokio::test]
     #[serial]
     async fn test_search_branch() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
 
         let commit_hash = SHA1::default().to_string();
         Branch::update_branch("upstream/origin/master", &commit_hash, None).await; // should match

@@ -1,0 +1,38 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "mio",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "mio",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "log",
+        "net",
+        "os-ext",
+        "os-poll",
+    ],
+    platform = {
+        "linux-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "linux-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "windows-gnu": dict(
+            deps = ["//third-party/rust/crates/windows-sys/0.52.0:windows-sys"],
+        ),
+        "windows-msvc": dict(
+            deps = ["//third-party/rust/crates/windows-sys/0.52.0:windows-sys"],
+        ),
+    },
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/log/0.4.22:log"],
+)

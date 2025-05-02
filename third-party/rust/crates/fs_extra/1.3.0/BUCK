@@ -1,0 +1,12 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "fs_extra",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "fs_extra",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    visibility = ["PUBLIC"],
+    features = [],
+    deps = [],
+)

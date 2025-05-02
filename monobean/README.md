@@ -18,12 +18,14 @@ As this module uses Gtk4 and libadwaita to construct the GUI, you should additio
 - libgtk-4-dev
 - libadwaita-1-0
 - libadwaita-1-dev
+- libgtksourceview-5-dev
 
-### For Ubuntu 24.04 (Noble) Users
+### For Ubuntu Users
+Tested on Ubuntu 24.04 (Noble), other Ubuntu versions should work as well.
 Simply type the following commands to build:
 ```bash
 sudo apt update
-sudo apt install -y libgtk-4-dev libadwaita-1-0 libadwaita-1-dev
+sudo apt install -y libgtk-4-dev libadwaita-1-0 libadwaita-1-dev libgtksourceview-5-dev
 cargo build --bin monobean
 ```
 

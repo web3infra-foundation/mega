@@ -4,22 +4,22 @@
 # cd root of the project
 
 # build postgres image
-docker buildx build -t mega:mono-pg-0.1-pre-release -f ./docker/mono-pg-dockerfile .
+docker buildx build -t mega:mono-pg-0.0.1-release -f ./docker/mono-pg-dockerfile .
 
 # build backend mono engine image (default in release mode)
-docker buildx build -t mega:mono-engine-0.1-pre-release -f ./docker/mono-engine-dockerfile .
+docker buildx build -t mega:mono-engine-0.0.1-release -f ./docker/mono-engine-dockerfile .
 
 # build backend mono engine in debug mode
-# docker buildx build -t mono-engine:0.1-pre-debug -f ./docker/mono-engine-dockerfile --build-arg BUILD_TYPE=debug .
+# docker buildx build -t mega:mono-engine-0.0.1-debug -f ./docker/mono-engine-dockerfile --build-arg BUILD_TYPE=debug .
 
 # build frontend mono ui image
-docker buildx build -t mega:mono-ui-0.1-pre-release -f ./docker/mono-ui-dockerfile .
+docker buildx build -t mega:leo-ui-0.0.1-release -f ./docker/mono-ui-dockerfile .
 
 # build aries engine image
-docker buildx build -t mega:aries-engine-0.1-pre-release -f ./docker/aries-engine-dockerfile .
+docker buildx build -t mega:aries-engine-0.0.1-release -f ./docker/aries-engine-dockerfile .
 
 # build mega engine image
-docker buildx build -t mega:mega-engine-0.1-pre-release -f ./docker/mega-engine-dockerfile .
+# docker buildx build -t mega:mega-engine-0.0.1-release -f ./docker/mega-engine-dockerfile .
 ```
 
 ## Test Mono Engine

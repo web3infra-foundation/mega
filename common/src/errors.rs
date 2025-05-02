@@ -1,5 +1,4 @@
 use anyhow::Result;
-use aws_sdk_s3::error::ProvideErrorMetadata;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -40,13 +39,6 @@ impl MegaError {
         MegaError {
             error: anyhow::anyhow!("Error Message: {}", msg).into(),
             code: 0,
-        }
-    }
-
-    pub fn from_s3_error<T: ProvideErrorMetadata>(value: T) -> Self {
-        MegaError {
-            error: anyhow::anyhow!("Error Message: {:?}", value.message().map(String::from)).into(),
-            code: value.code().unwrap_or("0").parse::<i32>().unwrap_or(0),
         }
     }
 }

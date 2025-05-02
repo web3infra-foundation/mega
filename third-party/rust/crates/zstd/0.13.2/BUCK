@@ -1,0 +1,17 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "zstd",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "zstd",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    features = [
+        "arrays",
+        "default",
+        "legacy",
+        "zdict_builder",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/zstd-safe/7.2.1:zstd-safe"],
+)
