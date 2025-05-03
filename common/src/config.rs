@@ -93,7 +93,7 @@ impl Default for Config {
         std::fs::create_dir_all(&base_dir).unwrap();
 
         // use mega/config.toml because mega use sqlite as default db
-        let default_config = include_str!("../config.toml");
+        let default_config = include_str!("../../mega/config.toml");
         let default_config = default_config
             .lines()
             .map(|line| {
