@@ -243,10 +243,10 @@ pub struct MonoConfig {
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
-            import_dir: PathBuf::from("/third-part"),
+            import_dir: PathBuf::from("/third-party"),
             admin: String::from("admin"),
             root_dirs: vec![
-                "third-part".to_string(),
+                "third-party".to_string(),
                 "project".to_string(),
                 "doc".to_string(),
                 "release".to_string(),

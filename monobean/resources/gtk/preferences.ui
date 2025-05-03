@@ -294,7 +294,7 @@
                     <property name="valign">center</property>
                     <property name="halign">fill</property>
                     <property name="hexpand">true</property>
-                    <property name="placeholder-text">/third-part</property>
+                    <property name="placeholder-text">/third-party</property>
                   </object>
                 </child>
               </object>
@@ -322,7 +322,7 @@
                     <property name="valign">center</property>
                     <property name="halign">fill</property>
                     <property name="hexpand">true</property>
-                    <property name="placeholder-text">third-part, project, doc, release</property>
+                    <property name="placeholder-text">third-party, project, doc, release</property>
                   </object>
                 </child>
               </object>
