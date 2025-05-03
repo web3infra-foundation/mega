@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rusty_vault = "0.2.1"
+rusty_vault = { workspace = true }
 serde_json = { workspace = true }
 go-defer = { workspace = true }
 openssl = { workspace = true }
 hex = { workspace = true }
 lazy_static = { workspace = true }
-bs58 = "0.5.1"
+bs58 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 tokio = { workspace = true, features = ["full"] }

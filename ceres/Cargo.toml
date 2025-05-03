@@ -32,5 +32,5 @@ rand = { workspace = true }
 sea-orm = { workspace = true }
 ring = { workspace = true }
 hex = { workspace = true }
-sysinfo = "0.35.0"
+sysinfo = { workspace = true }
 utoipa = { workspace = true }
