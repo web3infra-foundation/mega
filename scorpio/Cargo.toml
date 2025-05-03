@@ -50,6 +50,8 @@ arc-swap = "1.7.1"
 [features] 
 async-io = []
 
+[workspace]
+
 [package.metadata.docs.rs]
 all-features = true
 targets = [
