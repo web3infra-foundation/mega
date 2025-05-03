@@ -302,6 +302,8 @@ mod tests {
     /// Test the init function with the --bare flag
     async fn test_init_bare() {
         let target_dir = tempdir().unwrap().into_path();
+        // let _guard = ChangeDirGuard::new(target_dir.clone());
+
         // Run the init function with --bare flag
         let args = InitArgs {
             bare: true,

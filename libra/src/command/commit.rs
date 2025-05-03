@@ -212,7 +212,7 @@ mod test {
 
     use super::*;
     #[test]
-    ///testing basic parameter parsing functionality.
+    ///Testing basic parameter parsing functionality.
     fn test_parse_args() {
         let args = CommitArgs::try_parse_from(["commit", "-m", "init"]);
         assert!(args.is_ok());

@@ -389,7 +389,8 @@ mod test {
     }
 
     #[test]
-    ///test the function of similar_diff_result.
+    /// Tests the functionality of the `similar_diff_result` function.
+    /// Verifies that it correctly generates a diff between two text inputs.
     fn test_similar_diff_result() {
         let old = "Hello World\nThis is the second line.\nThis is the third.";
         let new = "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more";
