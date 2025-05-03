@@ -170,6 +170,8 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Tests branch creation, switching and validation functionality in the checkout module.
+    /// Verifies proper branch management and HEAD reference updates when switching between branches.
     async fn test_checkout_module_functions() {
         println!("\n\x1b[1mTest checkout module functions.\x1b[0m");
 
