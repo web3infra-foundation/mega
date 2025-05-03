@@ -411,7 +411,7 @@ mod tests {
 
         let git_event = GitEvent {
             peer: "yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c".to_string(),
-            uri: "p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-part/test.git"
+            uri: "p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-party/test.git"
                 .to_string(),
             action: "repo_update".to_string(),
             r#ref: "".to_string(),
@@ -436,7 +436,7 @@ mod tests {
                     ],
                     [
                         "uri",
-                        "p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-part/test.git"
+                        "p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-party/test.git"
                     ],
                     [
                         "action",

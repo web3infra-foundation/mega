@@ -17,7 +17,7 @@ members = [
     "third-party",
     "observatory",
 ]
-default-members = ["mega", "mono", "libra", "aries", "orion-server"]
+default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
 resolver = "1"
 
 [workspace.dependencies]

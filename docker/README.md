@@ -21,7 +21,7 @@ docker buildx build -t mega:mono-ui-latest-release -f ./docker/mono-ui-dockerfil
 
 ```bash
 # Linux or MacOS
-sudo ./docker/init-volume.sh /mnt/data ./docker/config.toml
+sudo ./docker/init-volume.sh /mnt/data ./config/config.toml
 
 # Windows
 # Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
