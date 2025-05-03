@@ -157,6 +157,8 @@ mod tests {
         let _guard = ChangeDirGuard::new(temp_path.path());
         let _ = create_test_commit_tree().await;
 
+        // let args = LogArgs { number: Some(1) };
+        // execute(args).await;
         let head = Head::current().await;
         // check if the current branch has any commits
         if let Head::Branch(branch_name) = head.to_owned() {
@@ -170,6 +172,7 @@ mod tests {
         }
 
         let commit_hash = Head::current_commit().await.unwrap().to_string();
+
         let mut reachable_commits = get_reachable_commits(commit_hash.clone()).await;
         // default sort with signature time
         reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));

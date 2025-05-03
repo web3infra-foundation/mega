@@ -384,7 +384,7 @@ mod test {
     use tempfile::tempdir;
 
     #[test]
-    ///test get current directory success.
+    ///Test get current directory success.
     fn cur_dir_returns_current_directory() {
         let expected = env::current_dir().unwrap();
         let actual = cur_dir();
@@ -393,7 +393,7 @@ mod test {
 
     #[test]
     #[serial]
-    ///test the function of is_sub_path.
+    ///Test the function of is_sub_path.
     fn test_is_sub_path() {
         let _guard = test::ChangeDirGuard::new(Path::new(env!("CARGO_MANIFEST_DIR")));
 
@@ -404,7 +404,7 @@ mod test {
     }
 
     #[test]
-    ///test the function of to_relative.
+    ///Test the function of to_relative.
     fn test_to_relative() {
         assert_eq!(to_relative("src/main.rs", "src"), PathBuf::from("main.rs"));
         assert_eq!(to_relative(".", "src"), PathBuf::from(".."));
@@ -412,7 +412,7 @@ mod test {
 
     #[tokio::test]
     #[serial]
-    ///test the function of to_workdir_path.
+    ///Test the function of to_workdir_path.
     async fn test_to_workdir_path() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
