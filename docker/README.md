@@ -25,7 +25,7 @@ sudo ./docker/init-volume.sh /mnt/data ./config/config.toml
 
 # Windows
 # Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-# .\init-volume.ps1 -baseDir "D:\" -configFile ".\config.toml"
+# .\init-volume.ps1 -baseDir "D:\" -configFile ".\config\config.toml"
 ```
 
 [2] Start whole mono engine stack on server with domain
