@@ -205,6 +205,8 @@ mod test {
 
     #[tokio::test]
     #[serial]
+    /// Tests the file status detection functionality with respect to ignore patterns.
+    /// Verifies that files matching patterns in .libraignore are properly excluded from status reports.
     async fn test_changes_to_be_staged() {
         let test_dir = tempdir().unwrap();
         test::setup_with_new_libra_in(test_dir.path()).await;

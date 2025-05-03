@@ -240,6 +240,8 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Tests core branch management functionality including creation and listing.
+    /// Verifies branches can be created from specific commits.
     async fn test_branch() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
@@ -330,6 +332,8 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Tests branch creation using remote branches as starting points.
+    /// Verifies that local branches can be created from remote branch references.
     async fn test_create_branch_from_remote() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
@@ -366,6 +370,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Tests the behavior of creating a branch with an invalid name.
     async fn test_invalid_branch_name() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
@@ -391,7 +396,7 @@ mod tests {
         };
         execute(args).await;
 
-        let branch = Branch::find_branch("new", None).await;
+        let branch = Branch::find_branch("@{mega}", None).await;
         assert!(branch.is_none(), "invalid branch should not be created");
     }
 }

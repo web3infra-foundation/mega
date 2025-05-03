@@ -120,13 +120,20 @@ async fn restore_to_commit(commit_id: SHA1) {
 mod tests {
     use super::*;
     use crate::command::add;
-    use crate::command::init;
+    use crate::command::commit;
+    use crate::command::commit::CommitArgs;
     use crate::command::restore::RestoreArgs;
+    use crate::{
+        command::load_object,
+        utils::test::{self, ChangeDirGuard},
+    };
+    use mercury::internal::object::commit::Commit;
     use serial_test::serial;
+    use std::fs;
     use std::str::FromStr;
-    use std::{env, fs};
     use tempfile::tempdir;
     #[test]
+    /// Test parsing RestoreArgs from command-line style arguments
     fn test_parse_from() {
         let commit_id = SHA1::from_str("0cb5eb6281e1c0df48a70716869686c694706189").unwrap();
         let restore_args = RestoreArgs::parse_from([
@@ -165,40 +172,111 @@ mod tests {
         assert!(check_status().await);
     }
 
+    async fn test_switch_function() {
+        println!("\n\x1b[1mTest switch function.\x1b[0m");
+
+        // create first empty commit
+        {
+            let args = CommitArgs {
+                message: "first".to_string(),
+                allow_empty: true,
+                conventional: false,
+                amend: false,
+            };
+            commit::execute(args).await;
+        }
+
+        // create a new branch and switch to it
+        {
+            let args = SwitchArgs {
+                branch: None,
+                create: Some("test_branch".to_string()),
+                detach: false,
+            };
+            execute(args).await;
+            let head = Head::current().await;
+            let ref_name = match head {
+                Head::Branch(name) => name,
+                _ => panic!("head not in branch,unreachable"),
+                // Head::Detached(name) => name.to_string(),
+            };
+            assert_eq!(
+                ref_name, "test_branch",
+                "create a new branch and switch to it failed!"
+            );
+        }
+
+        //detach the head to a commit
+        {
+            let head = Head::current().await;
+            let ref_name = match head {
+                Head::Branch(name) => name,
+                _ => panic!("head not in branch,unreachable"),
+                // Head::Detached(name) => name.to_string(),
+            };
+            let branch = Branch::find_branch(&ref_name, None).await.unwrap();
+            let commit: Commit = load_object(&branch.commit).unwrap();
+            let commit_id_str = commit.id.to_string();
+
+            let args = CommitArgs {
+                message: "second".to_string(),
+                allow_empty: true,
+                conventional: false,
+                amend: false,
+            };
+            commit::execute(args).await;
+
+            let args = SwitchArgs {
+                branch: Some(commit_id_str.clone()),
+                create: None,
+                detach: true,
+            };
+            execute(args).await;
+            let head = Head::current().await;
+            let ref_name = match head {
+                Head::Detached(name) => name.to_string(),
+                _ => panic!("head not detached,unreachable"),
+                // Head::Detached(name) => name.to_string(),
+            };
+            println!("detach {:?}", ref_name);
+            assert_eq!(
+                ref_name, commit_id_str,
+                "detach the head to a commit failed!"
+            );
+        }
+
+        //switch branch back to the master
+        {
+            let args = SwitchArgs {
+                branch: Some("master".to_string()),
+                create: None,
+                detach: false,
+            };
+            execute(args).await;
+            let head = Head::current().await;
+            let ref_name = match head {
+                Head::Branch(name) => name,
+                _ => panic!("head not in branch,unreachable"),
+                // Head::Detached(name) => name.to_string(),
+            };
+            assert_eq!(ref_name, "master", "switch bach to the master failed!");
+        }
+    }
     #[tokio::test]
     #[serial]
+    /// Tests the core functionality of the switch command module.
+    /// Validates branch switching operations and working directory status checks.
     async fn test_parts_of_switch_module_function() {
         println!("\n\x1b[1mTest some functions of the switch module.\x1b[0m");
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
+        println!("temp_path {:?}", temp_path);
 
-        let target_dir = tempdir().unwrap().into_path();
-
-        // Create a test directory and set args
-        let test_dir = target_dir.join("test_check_status");
-        fs::create_dir(&test_dir).unwrap();
-
-        let init_args = init::InitArgs {
-            bare: false,
-            initial_branch: None,
-            repo_directory: test_dir.to_str().unwrap().to_owned(),
-            quiet: false,
-        };
-
-        // Run the init function and change the current directory to the test directory
-        let raw_dir = env::current_dir().unwrap();
-        let result = init::init(init_args).await;
-        if let Err(e) = result {
-            eprintln!("Error initializing repository: {}", e);
-            return;
-        }
-        assert!(env::set_current_dir(&test_dir).is_ok());
+        //Test check the branch
+        test_switch_function().await;
 
         // Test the switch module funsctions
         test_check_status().await;
-
-        // Clean the test data
-        assert!(env::set_current_dir(&raw_dir).is_ok());
-        if let Err(e) = fs::remove_dir_all(&target_dir) {
-            eprintln!("Error removing test directory: {}", e);
-        }
     }
 }

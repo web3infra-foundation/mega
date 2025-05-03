@@ -7,20 +7,6 @@
 #
 
 on:
-  push:
-    paths-ignore:
-      - 'alfs/**'
-      - 'archived/**'
-      - 'aries/**'
-      - 'congig/**'
-      - 'docker/**'
-      - 'docs/**'
-      - 'moon/**'
-      - 'rust/**'
-      - 'scripts/**'
-      - 'third-party/**'
-      - 'toolchains/**'
-      - '.github/workflows/release.yml'
   pull_request:
     paths-ignore:
       - 'alfs/**'
