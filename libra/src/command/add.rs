@@ -158,6 +158,7 @@ mod test {
 
     #[test]
     #[should_panic]
+    /// Test that `-A` and `-u` cannot be used together
     fn test_args_parse_update_conflict_with_all() {
         AddArgs::try_parse_from(["test", "-A", "-u"]).unwrap();
     }
