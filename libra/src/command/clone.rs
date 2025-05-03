@@ -163,6 +163,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Test the clone command with a specific branch
     async fn test_clone_branch() {
         let temp_path = tempdir().unwrap();
         let _guard = test::ChangeDirGuard::new(temp_path.path());
@@ -191,6 +192,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Test the clone command with the default branch
     async fn test_clone_default_branch() {
         let temp_path = tempdir().unwrap();
         let _guard = test::ChangeDirGuard::new(temp_path.path());
@@ -219,6 +221,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    /// Test the clone command with an empty repository
     async fn test_clone_empty_repo() {
         let temp_path = tempdir().unwrap();
         let _guard = test::ChangeDirGuard::new(temp_path.path());
