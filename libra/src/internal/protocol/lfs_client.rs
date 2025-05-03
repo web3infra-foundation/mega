@@ -652,7 +652,7 @@ impl LFSClient {
         }
     }
 
-    async fn download_chunk(
+    pub async fn download_chunk(
         &self,
         url: &str,
         hash: &str,

@@ -138,6 +138,7 @@ mod tests {
     use crate::utils::test;
     #[tokio::test]
     #[serial]
+    /// Test objects can be correctly saved to and loaded from storage.
     async fn test_save_load_object() {
         let temp_path = tempdir().unwrap();
         test::setup_with_new_libra_in(temp_path.path()).await;
@@ -148,6 +149,8 @@ mod tests {
     }
 
     #[test]
+    /// Tests commit message formatting and parsing with signatures.
+    /// Verifies correct handling of GPG/SSH signatures and proper message extraction.
     fn test_format_and_parse_commit_msg() {
         {
             let msg = "commit message";
