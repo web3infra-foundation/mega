@@ -17,7 +17,6 @@ env_logger = "0.11.7"
 clap = { version = "4.5", features = ["derive"] }
 qdrant-client = "1.7"
 walkdir = "2.4"
-rdkafka = { version = "0.36", features = ["ssl", "cmake-build"] }
 tokio-stream = { version = "0.1", features = ["full"] }
 dagrs = "0.4.4"
 observatory = { workspace = true }
