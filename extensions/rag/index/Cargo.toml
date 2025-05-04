@@ -4,21 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-syn = { version = "2.0", features = ["full"] }
-anyhow = "1.0"
-quote = "1.0"
-proc-macro2 = "1.0"
-async-trait = "0.1"
-tokio = { version = "1.0", features = ["full"] } 
-reqwest = { version = "0.12.15", features = ["json"] } 
-serde_json = "1.0.140"
-log = "0.4.27"
-env_logger = "0.11.7"
-clap = { version = "4.5", features = ["derive"] }
-qdrant-client = "1.7"
-walkdir = "2.4"
+syn = { workspace = true, features = ["full"] }
+anyhow = { workspace = true }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+reqwest = { workspace = true, features = ["json"] }
+serde_json = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+qdrant-client = { workspace = true }
+walkdir = { workspace = true }
 tokio-stream = { version = "0.1", features = ["full"] }
-dagrs = "0.4.4"
+dagrs = { workspace = true }
 observatory = { workspace = true }
-flate2 = "1.0"
-tar = "0.4"
+flate2 = { workspace = true }
+tar = { workspace = true }
