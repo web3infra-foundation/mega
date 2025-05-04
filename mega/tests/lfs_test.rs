@@ -258,7 +258,7 @@ fn libra_lfs_clone(url: &str) -> io::Result<()> {
 #[test]
 #[ignore]
 #[serial]
-//Use container insted.
+//Use container instead.
 fn lfs_split_with_git() {
     assert!(check_git_lfs(), "git lfs is not installed");
 
@@ -282,7 +282,7 @@ fn lfs_split_with_git() {
 #[test]
 #[serial]
 #[ignore]
-//Use container insted.
+//Use container instead.
 fn lfs_split_with_libra() {
     if !LIBRA.exists() {
         panic!("libra binary not found in \"target/debug/\", skip lfs test");
@@ -367,7 +367,6 @@ async fn test_lfs_split_with_containers() {
     println!("container: {}", mega_server_url);
     test_git_lfs_split(&mega_server_url);
     test_libra_lfs_split(&mega_server_url);
-    thread::sleep(Duration::from_secs(1)); // wait for server to stop, avoiding affecting other tests
 }
 
 fn test_git_lfs_split(mega_server_url: &str) {

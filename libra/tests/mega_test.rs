@@ -1,4 +1,3 @@
-mod common;
 use http::Method;
 use lazy_static::lazy_static;
 use libra::internal::protocol::lfs_client::LFSClient;

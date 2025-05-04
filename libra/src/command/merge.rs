@@ -24,9 +24,18 @@ pub async fn execute(args: MergeArgs) {
         return;
     }
     let commit_hash = target_commit_hash.unwrap();
-
     let target_commit: Commit = load_object(&commit_hash).unwrap();
-    let current_commit: Commit = load_object(&Head::current_commit().await.unwrap()).unwrap();
+
+    // Handle the case where merging into an empty branch or merging with remote when no local commits exist
+    // If the current HEAD doesn't point to any commit, perform a fast-forward merge directly
+    let current_commit_id = Head::current_commit().await;
+    if current_commit_id.is_none() {
+        merge_ff(target_commit).await;
+        return;
+    }
+
+    let current_commit: Commit = load_object(&current_commit_id.unwrap()).unwrap();
+
     let lca = lca_commit(&current_commit, &target_commit).await;
 
     if lca.is_none() {
