@@ -426,7 +426,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_fetch_tree_success() {
-        let path: &str = "/third-part/mega";
+        let path: &str = "/third-party/mega";
 
         let result = fetch_tree(path).await.unwrap();
         println!("result: {:?}", result);
