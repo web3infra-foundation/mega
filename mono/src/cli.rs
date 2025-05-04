@@ -32,7 +32,7 @@ pub fn parse(args: Option<Vec<&str>>) -> MegaResult {
     // Get the current directory
     let current_dir = env::current_dir()?;
     // Get the path to the config file in the current directory
-    let config_path = current_dir.join("config.toml");
+    let config_path = current_dir.join("../../config/config.toml");
 
     let config = if let Some(path) = matches.get_one::<PathBuf>("config").cloned() {
         Config::new(path.to_str().unwrap()).unwrap()

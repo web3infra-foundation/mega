@@ -402,6 +402,8 @@ mod tests {
     }
 
     #[test]
+    /// Tests object search functionality by partial hash prefix.
+    /// Verifies that objects can be correctly found when searching with a partial SHA1 hash.
     fn test_search() {
         let blob = Blob::from_content("Hello, world!");
 
@@ -420,6 +422,7 @@ mod tests {
 
     #[test]
     #[serial]
+    /// Prints all object hashes found in the test objects directory.
     fn test_list_objs() {
         let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
         source.push("tests/objects");
@@ -431,6 +434,7 @@ mod tests {
     }
 
     #[test]
+    ///tests the function of get_object_type can get the object's type right.
     fn test_get_obj_type() {
         let blob = Blob::from_content("Hello, world!");
 
@@ -447,6 +451,7 @@ mod tests {
     }
 
     #[test]
+    ///Tests confirm that the compression and decompression features are functioning as expected.
     fn test_decompress() {
         let data = b"blob 13\0Hello, world!";
         let compressed_data = ClientStorage::compress_zlib(data).unwrap();
@@ -456,6 +461,7 @@ mod tests {
 
     #[test]
     #[serial]
+    /// Tests decompression of a specific git object file from test data to verify zlib implementation.
     fn test_decompress_2() {
         test::reset_working_dir();
         let pack_file = "../tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa";
