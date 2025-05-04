@@ -108,6 +108,11 @@ async fn setup(remote_repo: String, specified_branch: Option<String>) {
     // look for remote head and set local HEAD&branch
     let remote_head = Head::remote_current(ORIGIN).await;
 
+    // set config: remote.origin.url,it's essential for git
+    Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
+    // set config: remote.origin.fetch
+    // todo: temporary ignore fetch option
+
     if let Some(specified_branch) = specified_branch {
         setup_branch(specified_branch).await;
     } else if let Some(Head::Branch(name)) = remote_head {
@@ -116,11 +121,6 @@ async fn setup(remote_repo: String, specified_branch: Option<String>) {
         eprintln!("fatal: remote HEAD points to a detached commit");
     } else {
         println!("warning: You appear to have cloned an empty repository.");
-
-        // set config: remote.origin.url
-        Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
-        // set config: remote.origin.fetch
-        // todo: temporary ignore fetch option
 
         // set config: branch.$name.merge, e.g.
         let merge = "refs/heads/master".to_owned();
