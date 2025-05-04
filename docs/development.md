@@ -184,11 +184,11 @@
    $ cd /tmp
    $ git clone https://github.com/Rust-for-Linux/linux.git
    $ cd linux
-   $ git remote add mega http://localhost:8000/third-part/linux.git
+   $ git remote add mega http://localhost:8000/third-party/linux.git
    $ git push --all mega
    $ sudo rm -r /tmp/linux
    $ cd /tmp
-   $ git clone http://localhost:8000/third-part/linux.git
+   $ git clone http://localhost:8000/third-party/linux.git
    ```
 
 ### GitHub Codespace

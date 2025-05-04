@@ -267,7 +267,7 @@ fn lfs_split_with_git() {
                                                                     // start mega server at background (new process)
     let mega = run_mega_server(mega_dir.path(), 58001);
     let mega_start_port = 58001;
-    let url = &format!("http://localhost:{}/third-part/lfs.git", mega_start_port);
+    let url = &format!("http://localhost:{}/third-party/lfs.git", mega_start_port);
     let lfs_url = format!("http://localhost:{}", mega_start_port);
     let push_result = git_lfs_push(url, &lfs_url);
     let clone_result = git_lfs_clone(url, &lfs_url);
@@ -295,7 +295,7 @@ fn lfs_split_with_libra() {
     // start mega server at background (new process)
     let mega = run_mega_server(mega_dir.path(), 58002);
 
-    let url = &format!("http://localhost:{}/third-part/lfs-libra.git", 58002);
+    let url = &format!("http://localhost:{}/third-party/lfs-libra.git", 58002);
     let push_result = libra_lfs_push(url);
     let clone_result = libra_lfs_clone(url);
 
@@ -360,7 +360,7 @@ async fn test_lfs_split_with_containers() {
     let (_container, mega_server_url) = mega_bootstrap_servers(10000).await;
     println!("container: {}", mega_server_url);
 
-    let url = &format!("{}/third-part/lfs.git", mega_server_url);
+    let url = &format!("{}/third-party/lfs.git", mega_server_url);
     let lfs_url = mega_server_url;
     let push_result = git_lfs_push(url, &lfs_url);
     let clone_result = git_lfs_clone(url, &lfs_url);

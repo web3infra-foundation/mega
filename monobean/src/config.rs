@@ -206,7 +206,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     // Monorepo settings
     let import_dir: String = get_setting!(setting, "import-dir", String);
-    if import_dir != "/third-part" {
+    if import_dir != "/third-party" {
         update.push(CoreConfigChanged::ImportDir(
             import_dir.parse::<PathBuf>().unwrap(),
         ));
@@ -218,7 +218,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     let root_dirs: String = get_setting!(setting, "root-dirs", String);
-    if root_dirs != "third-part, project, doc, release" {
+    if root_dirs != "third-party, project, doc, release" {
         // Convert comma-separated string to Vec<String>
         let dirs: Vec<String> = root_dirs.split(',').map(|s| s.trim().to_string()).collect();
         update.push(CoreConfigChanged::RootDirs(dirs));

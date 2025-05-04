@@ -30,10 +30,10 @@ quinn = { workspace = true }
 anyhow = { workspace = true }
 lazy_static = { workspace = true }
 rcgen = { version = "0.13", features = ["x509-parser", "pem", "crypto"] }
-dashmap = "6.0.1"
+dashmap = { workspace = true }
 uuid = { workspace = true }
 futures-util = { workspace = true }
-tokio-util = "0.7.13"
+tokio-util = { workspace = true }
 futures = { workspace = true }
 
 [dev-dependencies]

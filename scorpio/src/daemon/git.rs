@@ -136,8 +136,8 @@ pub(super) async fn git_reset_handler(
     for works in manager_lock.works.iter() {
         if works.path.eq(&req.path) {
             // e.g.
-            // works.path.eq("third-part/mega/scorpio")
-            // ! works.path.eq("third-part/mega/scorpio/")
+            // works.path.eq("third-party/mega/scorpio")
+            // ! works.path.eq("third-party/mega/scorpio/")
             let work_path = PathBuf::from(store_path).join(works.hash.clone());
             return match reset_core(&work_path) {
                 Ok(_) => (axum::http::StatusCode::OK).into_response(),

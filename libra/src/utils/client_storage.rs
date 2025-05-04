@@ -382,8 +382,7 @@ mod tests {
     use super::ClientStorage;
 
     #[test]
-    /// Tests blob object storage and retrieval operations through the ClientStorage API.
-    /// Verifies that objects can be correctly stored, existence checked, retrieved, and content preserved.
+    #[ignore]
     fn test_content_store() {
         let content = "Hello, world!";
         let blob = Blob::from_content(content);

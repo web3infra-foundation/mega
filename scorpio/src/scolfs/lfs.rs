@@ -278,7 +278,7 @@ mod tests {
     async fn test_lfs_push() {
         {
             let temp_dir = Path::new("/tmp/mega");
-            let url = url::Url::parse("http://47.79.35.136:8000/third-part/mega.git").unwrap();
+            let url = url::Url::parse("http://47.79.35.136:8000/third-party/mega.git").unwrap();
             let client = LFSClient::from_url(&url);
             let bin_blob = Blob::from_lfs_file(temp_dir.join("test.bin"));
             print!("{}", bin_blob);

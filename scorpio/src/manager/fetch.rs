@@ -437,7 +437,7 @@ mod tests {
         let client = Client::new();
 
         // Use the URL from environment variables or local test URL
-        let url = "http://localhost:8000/api/v1/file/tree?path=/third-part/mega";
+        let url = "http://localhost:8000/api/v1/file/tree?path=/third-party/mega";
 
         // Send GET request
         let response = client.get(url).send().await?;
