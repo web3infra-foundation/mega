@@ -412,7 +412,7 @@ mod tests {
     #[test]
     fn test_client_message_git_req() {
         let filters = vec![Filter::new().repo_uri(
-            "p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-part/test.git"
+            "p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-party/test.git"
                 .to_string(),
         )];
 
@@ -423,7 +423,7 @@ mod tests {
         // println!("{}", client_req.as_json());
         assert_eq!(
             client_req.as_json(),
-            r##"["REQ","yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c",{"#uri":["p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-part/test.git"]}]"##
+            r##"["REQ","yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c",{"#uri":["p2p://yfeunFhgJGD83pcB4nXjif9eePeLEmQXP17XjQjFXN4c/8000/third-party/test.git"]}]"##
         );
     }
 }

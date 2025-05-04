@@ -144,7 +144,7 @@ mod tests {
     //     let context_clone = context.clone();
     //     let i = client::repo_share(
     //         context_clone.clone(),
-    //         "/third-part/git_inner_net".to_string(),
+    //         "/third-party/git_inner_net".to_string(),
     //     )
     //     .await
     //     .unwrap();
@@ -165,7 +165,7 @@ mod tests {
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
     //     client::repo_clone(
     //         context.clone(),
-    //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-part/lfs_test.git"
+    //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-party/lfs_test.git"
     //             .to_string(),
     //     )
     //     .await
@@ -185,7 +185,7 @@ mod tests {
     //     });
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     //     client::repo_subscribe(
-    //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-part/lfs_test.git"
+    //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-party/lfs_test.git"
     //             .to_string(),
     //     )
     //     .await
@@ -205,7 +205,7 @@ mod tests {
     //     });
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     //     let req = GitEventReq {
-    //         path: "/third-part/git_inner_net".to_string(),
+    //         path: "/third-party/git_inner_net".to_string(),
     //         action: "update".to_string(),
     //         title: "Feature:Nostr Test".to_string(),
     //         content: "Feature:Nostr Test".to_string(),

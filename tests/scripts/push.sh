@@ -39,7 +39,7 @@ for subdir in "$parent_directory"/*; do
       NAMESPACE=$(basename "$subdir")
 
       git remote remove mega
-      git remote add mega "http://127.0.0.1:8000/third-part/rust/$NAMESPACE/$REPONAME"
+      git remote add mega "http://127.0.0.1:8000/third-party/rust/$NAMESPACE/$REPONAME"
 
       git push --all mega
 

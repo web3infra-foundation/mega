@@ -390,7 +390,7 @@ mod test {
     use std::path::PathBuf;
     #[test]
     pub fn test_recurse_tree() {
-        let path = PathBuf::from("/third-part/crates/tokio/tokio-console");
+        let path = PathBuf::from("/third-party/crates/tokio/tokio-console");
         let ancestors: Vec<_> = path.ancestors().collect();
         for path in ancestors.into_iter() {
             println!("{:?}", path);

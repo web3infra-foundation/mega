@@ -93,7 +93,7 @@ impl Default for Config {
         std::fs::create_dir_all(&base_dir).unwrap();
 
         // use mega/config.toml because mega use sqlite as default db
-        let default_config = include_str!("../config.toml");
+        let default_config = include_str!("../../mega/config.toml");
         let default_config = default_config
             .lines()
             .map(|line| {
@@ -243,10 +243,10 @@ pub struct MonoConfig {
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
-            import_dir: PathBuf::from("/third-part"),
+            import_dir: PathBuf::from("/third-party"),
             admin: String::from("admin"),
             root_dirs: vec![
-                "third-part".to_string(),
+                "third-party".to_string(),
                 "project".to_string(),
                 "doc".to_string(),
                 "release".to_string(),
