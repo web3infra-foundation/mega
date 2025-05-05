@@ -1,7 +1,7 @@
-pub(crate) mod client_storage;
+pub mod client_storage;
 pub mod lfs;
-pub(crate) mod object_ext;
-pub(crate) mod path;
-pub(crate) mod path_ext;
-pub(crate) mod test;
-pub(crate) mod util;
+pub mod object_ext;
+pub mod path;
+pub mod path_ext;
+pub mod test;
+pub mod util;
