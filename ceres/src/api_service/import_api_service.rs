@@ -13,7 +13,7 @@ use mercury::internal::object::tree::Tree;
 use mercury::internal::object::tree::TreeItem;
 
 use crate::api_service::ApiHandler;
-use crate::model::create_file::CreateFileInfo;
+use crate::model::git::CreateFileInfo;
 use crate::protocol::repo::Repo;
 
 #[derive(Clone)]

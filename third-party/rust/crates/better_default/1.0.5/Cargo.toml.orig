@@ -1,0 +1,25 @@
+[package]
+name = "better_default"
+version = "1.0.5"
+edition = "2021"
+authors = ["NovaliX-Dev <novalix@protonmail.com>"]
+license = "Apache-2.0"
+keywords = ["default", "derive", "no_std"]
+description = "The std Default derive, but it allows to constomize the default fields values and has some upgrades."
+exclude = ["/scripts/"]
+readme = "./README.md"
+repository = "https://github.com/NovaliX-Dev/better_default"
+documentation = "https://docs.rs/better_default/"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.79"
+quote = "1.0.36"
+syn = { version = "2.0.58", features = ["full"] }
+
+[dev-dependencies]
+trybuild = "1.0.91"

@@ -1,10 +1,14 @@
 use clap::Args;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[derive(Args, Clone, Debug)]
-pub struct CommonOptions {
+pub struct CommonHttpOptions {
     #[arg(long, default_value_t = String::from("127.0.0.1"))]
     pub host: String,
+
+    #[arg(short = 'p', long, default_value_t = 8000)]
+    pub port: u16,
 }
 
 #[derive(Args, Clone, Debug, Default)]
@@ -19,7 +23,7 @@ pub struct InfoRefsParams {
     pub refspec: Option<String>,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CommonResult<T> {
     pub req_result: bool,
     pub data: Option<T>,

@@ -1,22 +1,22 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::Router;
-use axum::routing::{post, get};
-use mercury::hash::SHA1;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use crate::fuse::MegaFuse;
 use crate::manager::fetch::fetch;
 use crate::manager::{ScorpioManager, WorkDir};
-use crate::util::{scorpio_config, GPath};
+use crate::util::{config, GPath};
+use axum::extract::State;
+use axum::routing::{get, post};
+use axum::Router;
+use mercury::hash::SHA1;
+use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 mod git;
-const SUCCESS: &str   = "Success";
-const FAIL : &str   = "Fail";
+const SUCCESS: &str = "Success";
+const FAIL: &str = "Fail";
 
 #[derive(Debug, Deserialize, Serialize)]
-struct MountRequest{
+struct MountRequest {
     path: String,
 }
 
@@ -26,7 +26,7 @@ struct MountResponse {
     mount: MountInfo,
     message: String,
 }
-#[derive(Debug, Deserialize, Serialize,Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 struct MountInfo {
     hash: String,
     path: String,
@@ -71,13 +71,13 @@ struct ConfigRequest {
     store_path: Option<String>,
 }
 #[derive(Clone)]
-struct ScoState{
-    fuse:Arc<MegaFuse>,
-    manager:Arc<Mutex<ScorpioManager>>,
+struct ScoState {
+    fuse: Arc<MegaFuse>,
+    manager: Arc<Mutex<ScorpioManager>>,
 }
 #[allow(unused)]
-pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
-    let inner = ScoState{
+pub async fn daemon_main(fuse: Arc<MegaFuse>, manager: ScorpioManager) {
+    let inner = ScoState {
         fuse,
         manager: Arc::new(Mutex::new(manager)),
     };
@@ -104,44 +104,49 @@ pub async fn daemon_main(fuse:Arc<MegaFuse>,manager:ScorpioManager) {
 
 /// Mount a dictionary by path , like "/path/to/dic" or "path/to/dic"
 async fn mount_handler(
-    State(state): State<ScoState>, 
+    State(state): State<ScoState>,
     req: axum::Json<MountRequest>,
 ) -> axum::Json<MountResponse> {
-
     // transform by GPath , is case of wrong format.
     let mono_path = GPath::from(req.path.clone()).to_string();
 
     // bool to indicate if it is a temp path for buck2.
     let mut temp_mount = false;
     // get inode by this path .
-    let inode = match state.fuse.get_inode(&mono_path).await{
+    let inode = match state.fuse.get_inode(&mono_path).await {
         Ok(a) => a,
         Err(_) => {
             temp_mount = true;
-            state.fuse.dic.store.add_temp_point(&mono_path).await.unwrap()
-        },
+            state
+                .fuse
+                .dic
+                .store
+                .add_temp_point(&mono_path)
+                .await
+                .unwrap()
+        }
     };
 
     // return fail if this inode is mounted.
-    if state.fuse.is_mount(inode).await{
+    if state.fuse.is_mount(inode).await {
         return axum::Json(MountResponse {
             status: FAIL.into(),
             mount: MountInfo::default(),
             message: "The target is mounted.".to_string(),
-        })
+        });
     }
 
     let mut ml = state.manager.lock().await;
-    if let Err(mounted_path) = ml.check_before_mount(&mono_path){
+    if let Err(mounted_path) = ml.check_before_mount(&mono_path) {
         return axum::Json(MountResponse {
             status: FAIL.into(),
             mount: MountInfo::default(),
-            message: format!("The {} is already check-out ",mounted_path),
-        })
+            message: format!("The {} is already check-out ", mounted_path),
+        });
     }
-    let store_path = scorpio_config::store_path();
+    let store_path = config::store_path();
     // if it is a temp mount , mount it & return the hash and path.
-    if temp_mount{
+    if temp_mount {
         let temp_hash = {
             let hasher = SHA1::new(mono_path.as_bytes());
             hasher.to_string()
@@ -149,34 +154,32 @@ async fn mount_handler(
 
         let store_path = PathBuf::from(store_path).join(&temp_hash);
         let _ = state.fuse.overlay_mount(inode, store_path).await;
-        let mount_info = MountInfo{
+        let mount_info = MountInfo {
             hash: temp_hash.clone(),
             path: mono_path.clone(),
             inode,
         };
-        ml.works.push(
-            WorkDir{
-                path: mono_path,
-                node: inode,
-                hash: temp_hash,
-            }
-        );
-        let _ =  ml.to_toml("config.toml");
-        return  axum::Json(MountResponse {
-             status: SUCCESS.into(),
-             mount: mount_info,
-             message: "Directory mounted successfully".to_string(),
-         })
+        ml.works.push(WorkDir {
+            path: mono_path,
+            node: inode,
+            hash: temp_hash,
+        });
+        let _ = ml.to_toml("config.toml");
+        return axum::Json(MountResponse {
+            status: SUCCESS.into(),
+            mount: mount_info,
+            message: "Directory mounted successfully".to_string(),
+        });
     }
     // fetch the dionary node info from mono.
-    let work_dir = fetch(&mut ml,inode, mono_path).await;
+    let work_dir = fetch(&mut ml, inode, mono_path).await.unwrap();
     let store_path = PathBuf::from(store_path).join(&work_dir.hash);
-    // checkout / mount this dictionary. 
-    
+    // checkout / mount this dictionary.
+
     let _ = state.fuse.overlay_mount(inode, store_path).await;
-    
-    let mount_info = MountInfo{
-        hash:work_dir.hash,
+
+    let mount_info = MountInfo {
+        hash: work_dir.hash,
         path: work_dir.path,
         inode,
     };
@@ -186,15 +189,18 @@ async fn mount_handler(
         message: "Directory mounted successfully".to_string(),
     })
 }
-/// Get all mounted dictionary . 
+/// Get all mounted dictionary .
 async fn mounts_handler(State(state): State<ScoState>) -> axum::Json<MountsResponse> {
     let manager = state.manager.lock().await;
-    let re = manager.works.iter().map(|word_dir| MountInfo{
-        hash: word_dir.hash.clone(),
-        path: word_dir.path.clone(),
-        inode: word_dir.node,
-    }).collect();
-
+    let re = manager
+        .works
+        .iter()
+        .map(|word_dir| MountInfo {
+            hash: word_dir.hash.clone(),
+            path: word_dir.path.clone(),
+            inode: word_dir.node,
+        })
+        .collect();
 
     axum::Json(MountsResponse {
         status: SUCCESS.into(),
@@ -206,50 +212,57 @@ async fn umount_handler(
     State(state): State<ScoState>,
     req: axum::Json<UmountRequest>,
 ) -> axum::Json<UmountResponse> {
-
-
     let handle;
-    if let Some(inode) = req.inode{
-        handle= state.fuse.overlay_umount_byinode(inode).await;
-    }else if let Some(path) = &req.path{
+    if let Some(inode) = req.inode {
+        handle = state.fuse.overlay_umount_byinode(inode).await;
+    } else if let Some(path) = &req.path {
         handle = state.fuse.overlay_umount_bypath(path).await;
-    }else{
-        return  axum::Json(UmountResponse {
+    } else {
+        return axum::Json(UmountResponse {
             status: FAIL.into(),
             message: "Need a inode or path.".to_string(),
-        })
+        });
     }
     match handle {
         Ok(_) => {
-            if let Some(path) = &req.path{
+            if let Some(path) = &req.path {
                 let _ = state.manager.lock().await.remove_workspace(path).await;
-            }else{
-                //todo be path by inode . 
-                let path = state.fuse.dic.store.find_path(req.inode.unwrap()).await.unwrap();
-                
-                let _ = state.manager.lock().await.remove_workspace(&path.to_string()).await;
+            } else {
+                //todo be path by inode .
+                let path = state
+                    .fuse
+                    .dic
+                    .store
+                    .find_path(req.inode.unwrap())
+                    .await
+                    .unwrap();
 
+                let _ = state
+                    .manager
+                    .lock()
+                    .await
+                    .remove_workspace(&path.to_string())
+                    .await;
             }
-           
+
             axum::Json(UmountResponse {
                 status: SUCCESS.into(),
                 message: "Directory unmounted successfully".to_string(),
             })
-        },
+        }
         Err(err) => axum::Json(UmountResponse {
             status: FAIL.into(),
-            message:format!("Umount process error :{}.",err),
+            message: format!("Umount process error :{}.", err),
         }),
     }
-    
 }
 
 async fn config_handler() -> axum::Json<ConfigResponse> {
-    let base_url = scorpio_config::base_url();
-    let workspace = scorpio_config::workspace();
-    let store_path = scorpio_config::store_path();
+    let base_url = config::base_url();
+    let workspace = config::workspace();
+    let store_path = config::store_path();
     let config_info = ConfigInfo {
-        mega_url:base_url.to_string(),
+        mega_url: base_url.to_string(),
         mount_path: workspace.to_string(),
         store_path: store_path.to_string(),
     };
@@ -276,4 +289,3 @@ async fn update_config_handler(
         config: config_info,
     })
 }
-

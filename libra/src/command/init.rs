@@ -249,11 +249,11 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 /// Unit tests for the init module
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::internal::head::Head;
+    use crate::utils::test;
     use serial_test::serial;
     use tempfile::tempdir;
-
-    use super::*;
-    use crate::{internal::head::Head, utils::test};
 
     pub fn verify_init(base_dir: &Path) {
         // List of subdirectories to verify
@@ -273,10 +273,13 @@ mod tests {
             assert!(file_path.exists(), "File {} does not exist", file);
         }
     }
-    /// Test the init function with no parameters
     #[tokio::test]
+    #[serial]
+    /// Test the init function with no parameters
     async fn test_init() {
         let target_dir = tempdir().unwrap().into_path();
+        // let _guard = ChangeDirGuard::new(target_dir.clone());
+
         let args = InitArgs {
             bare: false,
             initial_branch: None,
@@ -294,10 +297,13 @@ mod tests {
         verify_init(libra_dir.as_path());
     }
 
-    /// Test the init function with the --bare flag
     #[tokio::test]
+    #[serial]
+    /// Test the init function with the --bare flag
     async fn test_init_bare() {
         let target_dir = tempdir().unwrap().into_path();
+        // let _guard = ChangeDirGuard::new(target_dir.clone());
+
         // Run the init function with --bare flag
         let args = InitArgs {
             bare: true,
@@ -311,8 +317,9 @@ mod tests {
         // Verify the contents of the other directory
         verify_init(target_dir.as_path());
     }
-    /// Test the init function with the --bare flag and an existing repository
     #[tokio::test]
+    #[serial]
+    /// Test the init function with the --bare flag and an existing repository
     async fn test_init_bare_with_existing_repo() {
         let target_dir = tempdir().unwrap().into_path();
 
@@ -342,28 +349,26 @@ mod tests {
         assert!(err.to_string().contains("Initialization failed")); // Check error message contains "Already initialized"
     }
 
-    /// Test the init function with an initial branch name
     #[tokio::test]
     #[serial]
+    /// Test the init function with an initial branch name
     async fn test_init_with_initial_branch() {
         // Set up the test environment without a Libra repository
-        test::setup_clean_testing_env();
-        let cur_dir = std::env::current_dir().unwrap();
+        let temp_path = tempdir().unwrap();
+        test::setup_clean_testing_env_in(temp_path.path());
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         let args = InitArgs {
             bare: false,
             initial_branch: Some("main".to_string()),
-            repo_directory: cur_dir.to_str().unwrap().to_string(),
+            repo_directory: temp_path.path().to_str().unwrap().to_string(),
             quiet: false,
         };
         // Run the init function
         init(args).await.unwrap();
 
-        // Verify that the `.libra` directory exists
-        let libra_dir = Path::new(".libra");
-        assert!(libra_dir.exists(), ".libra directory does not exist");
-
         // Verify the contents of the other directory
-        verify_init(libra_dir);
+        verify_init(temp_path.path().join(".libra").as_path());
 
         // Verify the HEAD reference
         match Head::current().await {
@@ -374,8 +379,9 @@ mod tests {
         };
     }
 
-    /// Test the init function with an invalid branch name
     #[tokio::test]
+    #[serial]
+    /// Test the init function with an invalid branch name
     async fn test_init_with_invalid_branch() {
         // Cover all invalid branch name cases
         test_invalid_branch_name("master ").await;
@@ -413,8 +419,9 @@ mod tests {
         assert!(err.to_string().contains("invalid branch name")); // Check error message contains "invalid branch name"
     }
 
-    /// Test the init function with [directory] parameter
     #[tokio::test]
+    #[serial]
+    /// Test the init function with [directory] parameter
     async fn test_init_with_directory() {
         let target_dir = tempdir().unwrap().into_path();
 
@@ -438,8 +445,9 @@ mod tests {
         verify_init(&libra_dir);
     }
 
-    /// Test the init function with invalid [directory] parameter
     #[tokio::test]
+    #[serial]
+    /// Test the init function with invalid [directory] parameter
     async fn test_init_with_invalid_directory() {
         let target_dir = tempdir().unwrap().into_path();
 
@@ -467,6 +475,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
+    /// Tests that repository initialization fails when lacking write permissions in the target directory
     async fn test_init_with_unauthorized_directory() {
         let target_dir = tempdir().unwrap().into_path();
 
@@ -505,6 +515,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     /// Test the init function with the --quiet flag by using --show-output
     async fn test_init_quiet() {
         let target_dir = tempdir().unwrap().into_path();
@@ -519,10 +530,10 @@ mod tests {
         init(args).await.unwrap();
 
         // Verify that the `.libra` directory exists
-        let libra_dir = Path::new(".libra");
+        let libra_dir = target_dir.join(".libra");
         assert!(libra_dir.exists(), ".libra directory does not exist");
 
         // Verify the contents of the other directory
-        verify_init(libra_dir);
+        verify_init(libra_dir.as_path());
     }
 }

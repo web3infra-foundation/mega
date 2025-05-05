@@ -8,12 +8,15 @@ use axum::{
 };
 use libra::internal::protocol::lfs_client::LFSClient;
 
+use crate::util::{config, GPath};
+use ceres::lfs::lfs_structs::{Lock, LockListQuery};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use ceres::lfs::lfs_structs::{LockListQuery, Lock};
-use crate::util::{scorpio_config, GPath};
 
-use super::{lfs, utils::{self, current_refspec}};
+use super::{
+    lfs,
+    utils::{self, current_refspec},
+};
 
 #[derive(Debug, Deserialize)]
 struct TrackRequest {
@@ -27,7 +30,7 @@ struct UntrackRequest {
 
 #[derive(Debug, Serialize)]
 struct TrackResponse {
-    tracked_patterns: usize
+    tracked_patterns: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,10 +40,7 @@ struct ErrorResponse {
 
 impl IntoResponse for ErrorResponse {
     fn into_response(self) -> axum::response::Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(self),
-        ).into_response()
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(self)).into_response()
     }
 }
 
@@ -49,7 +49,7 @@ pub fn router() -> Router {
         .route("/lfs/attributes", post(track).delete(untrack))
         .route("/lfs/locks", get(list_locks))
         .route("/lfs/locks/:path", post(create_lock).delete(remove_lock))
-        //.route("/lfs/files", get(list_files))
+    //.route("/lfs/files", get(list_files))
 }
 
 // ==== Track/Untrack Endpoints ====
@@ -59,14 +59,18 @@ async fn track(Json(payload): Json<TrackRequest>) -> Result<Json<TrackResponse>,
     let pat_size = converted_patterns.len();
     lfs::add_lfs_patterns(attr_path.to_str().unwrap(), converted_patterns)
         .await
-        .map_err(|e| ErrorResponse { error: e.to_string() })?;
+        .map_err(|e| ErrorResponse {
+            error: e.to_string(),
+        })?;
 
     Ok(Json(TrackResponse {
         tracked_patterns: pat_size,
     }))
 }
 
-async fn untrack(Json(payload): Json<UntrackRequest>) -> Result<Json<TrackResponse>, ErrorResponse> {
+async fn untrack(
+    Json(payload): Json<UntrackRequest>,
+) -> Result<Json<TrackResponse>, ErrorResponse> {
     let attr_path = utils::lfs_attribate();
     let converted_paths = convert_patterns_to_workdir(payload.paths);
 
@@ -75,7 +79,7 @@ async fn untrack(Json(payload): Json<UntrackRequest>) -> Result<Json<TrackRespon
         Ok(_) => Ok(Json(TrackResponse {
             tracked_patterns: 0,
         })),
-        Err(_) => Err(ErrorResponse{
+        Err(_) => Err(ErrorResponse {
             error: "untrace error".to_owned(),
         }),
     }
@@ -95,10 +99,11 @@ struct LockResponse {
 }
 
 async fn list_locks(
-    Query(query): Query<ListLocksQuery>
+    Query(query): Query<ListLocksQuery>,
 ) -> Result<Json<LockResponse>, ErrorResponse> {
-    let refspec = current_refspec()
-        .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
+    let refspec = current_refspec().ok_or_else(|| ErrorResponse {
+        error: "Could not determine current ref".to_string(),
+    })?;
 
     let locks = LFSClient::get()
         .await
@@ -115,26 +120,27 @@ async fn list_locks(
     Ok(Json(LockResponse { locks }))
 }
 
-
-async fn create_lock(
-    Path(path): Path<String>
-) -> Result<StatusCode, ErrorResponse> {
+async fn create_lock(Path(path): Path<String>) -> Result<StatusCode, ErrorResponse> {
     if !PathBuf::from(&path).exists() {
-        return Err(ErrorResponse { error: format!("Path '{}' not found", path) });
+        return Err(ErrorResponse {
+            error: format!("Path '{}' not found", path),
+        });
     }
 
-    let refspec = current_refspec()
-        .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
+    let refspec = current_refspec().ok_or_else(|| ErrorResponse {
+        error: "Could not determine current ref".to_string(),
+    })?;
 
-    let status = LFSClient::get()
-        .await
-        .lock(path.clone(), refspec)
-        .await;
+    let status = LFSClient::get().await.lock(path.clone(), refspec).await;
 
     match status {
         StatusCode::CREATED => Ok(StatusCode::CREATED),
-        StatusCode::CONFLICT => Err(ErrorResponse { error: "Lock already exists".to_string() }),
-        _ => Err(ErrorResponse { error: "Failed to create lock".to_string() }),
+        StatusCode::CONFLICT => Err(ErrorResponse {
+            error: "Lock already exists".to_string(),
+        }),
+        _ => Err(ErrorResponse {
+            error: "Failed to create lock".to_string(),
+        }),
     }
 }
 
@@ -146,10 +152,11 @@ struct UnlockQuery {
 
 async fn remove_lock(
     Path(path): Path<String>,
-    Query(query): Query<UnlockQuery>
+    Query(query): Query<UnlockQuery>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let refspec = current_refspec()
-        .ok_or_else(|| ErrorResponse { error: "Could not determine current ref".to_string() })?;
+    let refspec = current_refspec().ok_or_else(|| ErrorResponse {
+        error: "Could not determine current ref".to_string(),
+    })?;
 
     let id = match query.id {
         Some(id) => id,
@@ -166,9 +173,13 @@ async fn remove_lock(
                 .await
                 .locks;
 
-            locks.first()
-                .ok_or_else(|| ErrorResponse { error: "No lock found".to_string() })?
-                .id.clone()
+            locks
+                .first()
+                .ok_or_else(|| ErrorResponse {
+                    error: "No lock found".to_string(),
+                })?
+                .id
+                .clone()
         }
     };
 
@@ -179,23 +190,26 @@ async fn remove_lock(
 
     match status {
         StatusCode::OK => Ok(StatusCode::NO_CONTENT),
-        StatusCode::FORBIDDEN => Err(ErrorResponse { error: "Permission denied".to_string() }),
-        _ => Err(ErrorResponse { error: "Failed to unlock".to_string() }),
+        StatusCode::FORBIDDEN => Err(ErrorResponse {
+            error: "Permission denied".to_string(),
+        }),
+        _ => Err(ErrorResponse {
+            error: "Failed to unlock".to_string(),
+        }),
     }
 }
-
-
-
 
 /// [different from `libra`].
 /// Convert patterns to workdir.
 fn convert_patterns_to_workdir(patterns: Vec<String>) -> Vec<String> {
-    let mount_path = scorpio_config::workspace();
+    let mount_path = config::workspace();
     let work_path = GPath::from(String::from(mount_path));
-    patterns.into_iter().map(|p| {
-        let mut w =work_path.clone();
-        w.push(p);
-        w.to_string()
-    }).collect()
+    patterns
+        .into_iter()
+        .map(|p| {
+            let mut w = work_path.clone();
+            w.push(p);
+            w.to_string()
+        })
+        .collect()
 }
-

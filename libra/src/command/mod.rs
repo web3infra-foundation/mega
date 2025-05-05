@@ -132,19 +132,25 @@ mod tests {
     use common::utils::{format_commit_msg, parse_commit_msg};
     use mercury::internal::object::commit::Commit;
     use serial_test::serial;
+    use tempfile::tempdir;
 
     use super::*;
     use crate::utils::test;
     #[tokio::test]
     #[serial]
+    /// Test objects can be correctly saved to and loaded from storage.
     async fn test_save_load_object() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
         let object = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "\nCommit_1");
         save_object(&object, &object.id).unwrap();
         let _ = load_object::<Commit>(&object.id).unwrap();
     }
 
     #[test]
+    /// Tests commit message formatting and parsing with signatures.
+    /// Verifies correct handling of GPG/SSH signatures and proper message extraction.
     fn test_format_and_parse_commit_msg() {
         {
             let msg = "commit message";

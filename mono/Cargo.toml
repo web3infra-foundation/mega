@@ -16,13 +16,12 @@ common = { workspace = true }
 callisto = { workspace = true }
 jupiter = { workspace = true }
 ceres = { workspace = true }
-taurus = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
+migration = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
-axum-server = { workspace = true, features = ["tls-rustls"] }
 tower = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -51,21 +50,15 @@ lazy_static = { workspace = true }
 ctrlc = { workspace = true }
 oauth2 = { workspace = true }
 base64 = { workspace = true }
-async-session = "3.0.0"
-http = "1.1.0"
+async-session = { workspace = true }
+http = { workspace = true }
 cedar-policy = { workspace = true }
+utoipa = { workspace = true, features = ["axum_extras"] }
 
 [target.'cfg(not(windows))'.dependencies]
-jemallocator = "0.5.4"
+jemallocator = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-mimalloc = "0.1.43"
+mimalloc = { workspace = true }
 
 [dev-dependencies]
-
-
-# [target.'cfg(not(target_env = "msvc"))'.dependencies]
-# tikv-jemallocator = "0.6"
-
-# [target.'cfg(not(target_env = "msvc"))'.dependencies]
-# jemallocator = {version = "0.5.4", features = ["debug", "profiling"]}

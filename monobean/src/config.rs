@@ -15,7 +15,10 @@
 use std::path::PathBuf;
 
 use adw::gio::Settings;
-use gtk::prelude::*;
+use gtk::{
+    gio::{self, ResourceLookupFlags},
+    prelude::*,
+};
 
 use crate::core::CoreConfigChanged;
 
@@ -28,8 +31,6 @@ pub const APP_ID: &str = "org.Web3Infrastructure.Monobean";
 pub const APP_NAME: &str = "Monobean";
 pub const PREFIX: &str = "/org/Web3Infrastructure/Monobean";
 pub const MEGA_CONFIG_PATH: &str = "/org/Web3Infrastructure/Monobean/mega/config.toml";
-pub const MEGA_HTTPS_KEY: &str = "/org/Web3Infrastructure/Monobean/mega/key.pem";
-pub const MEGA_HTTPS_CERT: &str = "/org/Web3Infrastructure/Monobean/mega/cert.pem";
 
 /* Helper functions for mega configs */
 
@@ -74,6 +75,68 @@ macro_rules! get_setting {
     };
 }
 
+/// Retrieves the base directory path for Monobean
+///
+/// The directory is determined in the following priority order:
+/// 1. Uses the `MONOBEAN_BASE_DIR` environment variable if set
+/// 2. Falls back to system default paths when environment variable is not set:
+///     - On Linux: `~/.local/share/monobean`
+///     - On Windows: `C:\ProgramData\monobean`
+///     - On macOS: `~/Library/Application Support/monobean`
+///
+/// # Returns
+/// A PathBuf containing the base directory path
+///
+/// # Panics
+/// Will panic if both conditions occur:
+/// - Environment variable is not set
+/// - System base directories cannot be determined
+///
+pub fn monobean_base() -> PathBuf {
+    // Get the base directory from the environment variable or use the default
+    let base_dir = std::env::var("MONOBEAN_BASE_DIR").unwrap_or_else(|_| {
+        let base_dirs = directories::BaseDirs::new().unwrap();
+        base_dirs
+            .data_local_dir()
+            .join("monobean")
+            .to_str()
+            .unwrap()
+            .to_string()
+    });
+    PathBuf::from(base_dir)
+}
+
+/// Retrieves the cache directory path for Monobean
+///
+/// The directory is determined in the following priority order:
+/// 1. Uses the `MONOBEAN_CACHE_DIR` environment variable if set
+/// 2. Falls back to system default paths when environment variable is not set:
+///     - On Linux: `~/.cache/monobean`
+///     - On Windows: `C:\Users\{username}\AppData\Local\Cache\monobean`
+///     - On macOS: `~/Library/Caches/monobean`
+///
+/// # Returns
+/// A PathBuf containing the cache directory path
+///
+/// # Panics
+/// Will panic if both conditions occur:
+/// - Environment variable is not set
+/// - System cache directories cannot be determined
+///
+pub fn monobean_cache() -> PathBuf {
+    // Get the cache directory from the environment variable or use the default
+    let cache_dir = std::env::var("MONOBEAN_CACHE_DIR").unwrap_or_else(|_| {
+        let base_dirs = directories::BaseDirs::new().unwrap();
+        base_dirs
+            .cache_dir()
+            .join("monobean")
+            .to_str()
+            .unwrap()
+            .to_string()
+    });
+    PathBuf::from(cache_dir)
+}
+
 /// TODO: So ugly...
 /// We should update build.rs and use proc macros to generate this code.
 pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
@@ -82,7 +145,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     // Base settings
     let base_dir: String = get_setting!(setting, "base-dir", String);
-    if base_dir != "/tmp/.mono" {
+    if !base_dir.is_empty() {
         update.push(CoreConfigChanged::BaseDir(
             base_dir.parse::<PathBuf>().unwrap(),
         ));
@@ -115,7 +178,9 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     let db_path: String = get_setting!(setting, "db-path", String);
     if !db_path.is_empty() {
-        update.push(CoreConfigChanged::DbPath(db_path));
+        update.push(CoreConfigChanged::DbPath(
+            db_path.parse::<PathBuf>().unwrap(),
+        ));
     }
 
     let db_url: String = get_setting!(setting, "db-url", String);
@@ -141,7 +206,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     // Monorepo settings
     let import_dir: String = get_setting!(setting, "import-dir", String);
-    if import_dir != "/third-part" {
+    if import_dir != "/third-party" {
         update.push(CoreConfigChanged::ImportDir(
             import_dir.parse::<PathBuf>().unwrap(),
         ));
@@ -153,7 +218,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     let root_dirs: String = get_setting!(setting, "root-dirs", String);
-    if root_dirs != "third-part, project, doc, release" {
+    if root_dirs != "third-party, project, doc, release" {
         // Convert comma-separated string to Vec<String>
         let dirs: Vec<String> = root_dirs.split(',').map(|s| s.trim().to_string()).collect();
         update.push(CoreConfigChanged::RootDirs(dirs));
@@ -241,4 +306,9 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     update
+}
+
+pub fn load_mega_resource(path: &str) -> Vec<u8> {
+    let bytes = gio::resources_lookup_data(path, ResourceLookupFlags::all()).unwrap();
+    bytes.as_ref().into()
 }

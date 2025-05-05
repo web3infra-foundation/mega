@@ -274,7 +274,7 @@ impl Pack {
                 *offset += raw_size;
                 Ok(CacheObject::new_for_undeltified(t, data, init_offset))
             }
-            ObjectType::OffsetDelta => {
+            ObjectType::OffsetDelta | ObjectType::OffsetZstdelta => {
                 let (delta_offset, bytes) = utils::read_offset_encoding(pack).unwrap();
                 *offset += bytes;
 
@@ -292,8 +292,17 @@ impl Pack {
                 let mut reader = Cursor::new(&data);
                 let (_, final_size) = utils::read_delta_object_size(&mut reader)?;
 
+                let obj_info = match t {
+                    ObjectType::OffsetDelta => {
+                        CacheObjectInfo::OffsetDelta(base_offset, final_size)
+                    }
+                    ObjectType::OffsetZstdelta => {
+                        CacheObjectInfo::OffsetZstdelta(base_offset, final_size)
+                    }
+                    _ => unreachable!(),
+                };
                 Ok(CacheObject {
-                    info: CacheObjectInfo::OffsetDelta(base_offset, final_size),
+                    info: obj_info,
                     offset: init_offset,
                     data_decompressed: data,
                     mem_recorder: None,
@@ -398,7 +407,8 @@ impl Pack {
                             CacheObjectInfo::BaseObject(_, _) => {
                                 Self::cache_obj_and_process_waitlist(params, obj);
                             }
-                            CacheObjectInfo::OffsetDelta(base_offset, _) => {
+                            CacheObjectInfo::OffsetDelta(base_offset, _)
+                            | CacheObjectInfo::OffsetZstdelta(base_offset, _) => {
                                 if let Some(base_obj) = caches.get_by_offset(base_offset) {
                                     Self::process_delta(params, obj, base_obj);
                                 } else {
@@ -510,7 +520,7 @@ impl Pack {
             self.decode(&mut reader, move |entry: Entry, _| {
                 // as we used unbound channel here, it will never full so can be send with synchronous
                 if let Err(e) = sender.send(entry) {
-                    eprintln!("Channel full, failed to send entry: {:?}", e);
+                    eprintln!("unbound channel Sending Error: {:?}", e);
                 }
             })
             .unwrap();
@@ -538,7 +548,16 @@ impl Pack {
         base_obj: Arc<CacheObject>,
     ) {
         shared_params.pool.clone().execute(move || {
-            let mut new_obj = Pack::rebuild_delta(delta_obj, base_obj);
+            let mut new_obj = match delta_obj.info {
+                CacheObjectInfo::OffsetDelta(_, _) | CacheObjectInfo::HashDelta(_, _) => {
+                    Pack::rebuild_delta(delta_obj, base_obj)
+                }
+                CacheObjectInfo::OffsetZstdelta(_, _) => {
+                    Pack::rebuild_zstdelta(delta_obj, base_obj)
+                }
+                _ => unreachable!(),
+            };
+
             new_obj.set_mem_recorder(shared_params.cache_objs_mem_size.clone());
             new_obj.record_mem_size();
             Self::cache_obj_and_process_waitlist(shared_params, new_obj); //Indirect Recursion
@@ -652,6 +671,18 @@ impl Pack {
         } // Canonical form (Complete Object)
           // Memory recording will happen after this function returns. See `process_delta`
     }
+    pub fn rebuild_zstdelta(delta_obj: CacheObject, base_obj: Arc<CacheObject>) -> CacheObject {
+        let result = zstdelta::apply(&base_obj.data_decompressed, &delta_obj.data_decompressed)
+            .expect("Failed to apply zstdelta");
+        let hash = utils::calculate_object_hash(base_obj.object_type(), &result);
+        CacheObject {
+            info: CacheObjectInfo::BaseObject(base_obj.object_type(), hash),
+            offset: delta_obj.offset,
+            data_decompressed: result,
+            mem_recorder: None,
+        } // Canonical form (Complete Object)
+          // Memory recording will happen after this function returns. See `process_delta`
+    }
 }
 
 #[cfg(test)]
@@ -674,9 +705,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_pack_check_header() {
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let res = crate::test_utils::setup_lfs_file().await;
+        println!("{:?}", res);
+        let source = res
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let f = fs::File::open(source).unwrap();
         let mut buf_reader = BufReader::new(f);
@@ -755,9 +788,10 @@ mod tests {
     #[ignore] // Take too long time
     async fn test_pack_decode_with_large_file_with_delta_without_ref() {
         init_logger();
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let file_map = crate::test_utils::setup_lfs_file().await;
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
 
@@ -781,9 +815,10 @@ mod tests {
     #[tokio::test]
     async fn test_decode_large_file_stream() {
         init_logger();
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let file_map = crate::test_utils::setup_lfs_file().await;
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = tokio::fs::File::open(source).await.unwrap();
@@ -800,26 +835,27 @@ mod tests {
         let count = Arc::new(AtomicUsize::new(0));
         let count_c = count.clone();
         // in tests, RUNTIME is single-threaded, so `sync code` will block the tokio runtime
-        tokio::task::spawn_blocking(move || {
+        let consume = tokio::spawn(async move {
             let mut cnt = 0;
-            while let Ok(_entry) = rx.try_recv() {
-                cnt += 1; //use entry here
+            while let Some(_entry) = rx.recv().await {
+                cnt += 1;
             }
             tracing::info!("Received: {}", cnt);
             count_c.store(cnt, Ordering::Release);
-        })
-        .await
-        .unwrap();
+        });
         let p = handle.await.unwrap();
+        consume.await.unwrap();
         assert_eq!(count.load(Ordering::Acquire), p.number);
+        assert_eq!(p.number, 358109);
     }
 
     #[tokio::test]
     #[ignore] // Take too long time, duplicate with `test_decode_large_file_stream`
     async fn test_decode_large_file_async() {
-        crate::test_utils::setup_lfs_file().await;
-        let mut source = PathBuf::from(env::current_dir().unwrap().parent().unwrap());
-        source.push("tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
+        let file_map = crate::test_utils::setup_lfs_file().await;
+        let source = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
 
         let tmp = PathBuf::from("/tmp/.cache_temp");
         let f = fs::File::open(source).unwrap();

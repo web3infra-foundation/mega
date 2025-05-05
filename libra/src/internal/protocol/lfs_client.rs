@@ -652,7 +652,7 @@ impl LFSClient {
         }
     }
 
-    async fn download_chunk(
+    pub async fn download_chunk(
         &self,
         url: &str,
         hash: &str,
@@ -807,8 +807,6 @@ impl LFSClient {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use crate::utils;
 
     use super::*;
@@ -852,13 +850,14 @@ mod tests {
     #[tokio::test]
     #[ignore] // need to start local mega server
     async fn test_push_object() {
-        mercury::test_utils::setup_lfs_file().await;
+        let file_map = mercury::test_utils::setup_lfs_file().await;
+        let file = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
-        let file =
-            PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
-        let oid = utils::lfs::calc_lfs_file_hash(&file).unwrap();
+        let oid = utils::lfs::calc_lfs_file_hash(file).unwrap();
 
-        match client.push_object(&oid, &file).await {
+        match client.push_object(&oid, file).await {
             Ok(_) => println!("Pushed successfully."),
             Err(err) => eprintln!("Push failed: {:?}", err),
         }
@@ -868,11 +867,12 @@ mod tests {
     #[cfg(feature = "p2p")]
     #[ignore] // need to start local mega server
     async fn test_download_chunk() {
-        mercury::test_utils::setup_lfs_file().await;
+        let file_map = mercury::test_utils::setup_lfs_file().await;
+        let file = file_map
+            .get("git-2d187177923cd618a75da6c6db45bb89d92bd504.pack")
+            .unwrap();
         let client = LFSClient::from_url(&Url::parse("http://localhost:8000").unwrap());
-        let file =
-            PathBuf::from("../tests/data/packs/git-2d187177923cd618a75da6c6db45bb89d92bd504.pack");
-        let oid = utils::lfs::calc_lfs_file_hash(&file).unwrap();
+        let oid = utils::lfs::calc_lfs_file_hash(file).unwrap();
         let sub_oid =
             "ee225720cc31599c749fbe9b18f6c8346fa3246839f0dea7ffd3224dbb067952".to_string(); // offset 83886080 size 20971520
         let url = format!("http://localhost:8000/objects/{}/{}", oid, sub_oid);

@@ -346,9 +346,12 @@ mod test {
     use crate::utils::test;
     use serial_test::serial;
     use std::fs;
+    use tempfile::tempdir;
 
     use super::*;
     #[test]
+    /// Tests command line argument parsing for the diff command with various parameter combinations.
+    /// Verifies parameter requirements, conflicts and default values are handled correctly.
     fn test_args() {
         {
             let args = DiffArgs::try_parse_from(["diff", "--old", "old", "--new", "new", "paths"]);
@@ -386,6 +389,8 @@ mod test {
     }
 
     #[test]
+    /// Tests the functionality of the `similar_diff_result` function.
+    /// Verifies that it correctly generates a diff between two text inputs.
     fn test_similar_diff_result() {
         let old = "Hello World\nThis is the second line.\nThis is the third.";
         let new = "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more";
@@ -397,8 +402,12 @@ mod test {
 
     #[tokio::test]
     #[serial]
+    /// Tests that the get_files_blobs function properly respects .libraignore patterns.
+    /// Verifies ignored files are correctly excluded from the blob collection process.
     async fn test_get_files_blob_gitignore() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
 
         let mut gitignore_file = fs::File::create(".libraignore").unwrap();
         gitignore_file.write_all(b"should_ignore").unwrap();

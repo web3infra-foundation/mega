@@ -1,0 +1,24 @@
+name = "Monobean"
+product_name = "Monobean"
+version = "0.0.1"
+identifier = "org.Web3Infrastructure.Monobean"
+category = "DeveloperTool"
+formats = ["nsis"]
+before-packaging-command = "cargo build --release"
+out_dir = "../target/build"
+binaries_dir = "../target/release"
+binaries = [{ path = "monobean", main = true }]
+resources = [
+  "../Monobean.gresource",
+  "lib/bin/*.dll",
+  "lib/bin/gdbus.exe",
+]
+authors = ["Neon <neonkk@qq.com>"]
+description = "Monobean is a simple and easy-to-use wallet for the Monero blockchain, built with GTK4 and Rust. It provides a user-friendly interface for managing your monorepo code."
+
+[windows]
+allow_downgrades = true
+
+[nsis]
+appdata_paths = ["$PROGRAMFILES64/$IDENTIFIER"]
+installer_icon = "icons/scalable/apps/mono-white-logo.ico"

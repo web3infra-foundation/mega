@@ -152,7 +152,7 @@ def process_crate_version(num, crate_name, version, crate_path, git_repos_dir, g
     run_git_command(repo_path, ['git', 'commit', '-a', '-s', '-S', '-m', commit_message])
 
     # Add remote and push
-    remote_url = f"{git_base_url}/third-part/rust/crates/{crate_name}/{version}.git"
+    remote_url = f"{git_base_url}/third-party/rust/crates/{crate_name}/{version}.git"
     run_git_command(repo_path, ['git', 'remote', 'add', 'mega', remote_url])
 
     # Push to remote

@@ -234,7 +234,7 @@ impl SmartProtocol {
         for command in &mut self.command_list {
             if command.ref_type == RefTypeEnum::Tag {
                 // just update if refs type is tag
-                pack_handler.update_refs(None, None, command).await.unwrap();
+                pack_handler.update_refs(None, command).await.unwrap();
             } else {
                 // Updates can be unsuccessful for a number of reasons.
                 // a.The reference can have changed since the reference discovery phase was originally sent, meaning someone pushed in the meantime.
@@ -242,22 +242,12 @@ impl SmartProtocol {
                 // c.Also, some references can be updated while others can be rejected.
                 match unpack_result {
                     Ok(ref commit) => {
-                        if let Some(c) = commit {
-                            let mr_title = c.format_message();
-                            if let Ok(mr_link) = pack_handler.handle_mr(&mr_title).await {
-                                pack_handler
-                                    .update_refs(Some(mr_link), Some(c.clone()), command)
-                                    .await
-                                    .unwrap();
-                            } else if let Err(e) = pack_handler.handle_mr(&mr_title).await {
-                                command.failed(e.to_string());
-                            }
-                        } else {
-                            if !default_exist {
-                                command.default_branch = true;
-                                default_exist = true;
-                            }
-                            pack_handler.update_refs(None, None, command).await.unwrap();
+                        if !default_exist {
+                            command.default_branch = true;
+                            default_exist = true;
+                        }
+                        if let Err(e) = pack_handler.update_refs(commit.clone(), command).await {
+                            command.failed(e.to_string());
                         }
                     }
                     Err(ref err) => {

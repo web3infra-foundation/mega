@@ -1,0 +1,16 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "zeroize",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "zeroize",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "alloc",
+        "default",
+        "zeroize_derive",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/zeroize_derive/1.4.2:zeroize_derive"],
+)

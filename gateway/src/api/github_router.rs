@@ -6,7 +6,6 @@ use axum::{Json, Router};
 use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::Value;
-use taurus::event::github_webhook::{GithubWebhookEvent, WebhookType};
 
 lazy_static! {
     static ref CLIENT: Client = Client::builder()
@@ -31,36 +30,7 @@ async fn webhook(
         .expect("Missing X-GitHub-Event header");
     payload["event_type"] = event_type.into();
 
-    let event_type = WebhookType::from(event_type);
-    match event_type {
-        WebhookType::PullRequest => {
-            let action = payload["action"].as_str().unwrap();
-            tracing::debug!("PR action: {}", action);
-
-            if ["opened", "reopened", "synchronize"].contains(&action) {
-                // contents changed
-                let url = payload["pull_request"]["url"].as_str().unwrap();
-                let files = get_pr_files(url).await;
-                let commits = get_pr_commits(url).await;
-                // Add details to the payload
-                payload["files"] = files;
-                payload["commits"] = commits;
-            } else if action == "edited" {
-                // PR title or body edited
-                let _ = payload["pull_request"]["title"].as_str().unwrap();
-                let _ = payload["pull_request"]["body"].as_str().unwrap();
-            }
-
-            GithubWebhookEvent::notify(WebhookType::PullRequest, payload);
-        }
-        WebhookType::Issues => {
-            GithubWebhookEvent::notify(WebhookType::Issues, payload);
-        }
-        WebhookType::Unknown(_type) => {
-            tracing::warn!("Unknown event type: {}", _type);
-            GithubWebhookEvent::notify(WebhookType::Unknown(_type), payload);
-        }
-    }
+    // TODO: Handle the webhook event.
 
     Ok("WebHook OK")
 }
