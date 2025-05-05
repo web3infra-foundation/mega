@@ -44,6 +44,6 @@ serial_test = { workspace = true }
 lazy_static = { workspace = true }
 assert_cmd = { workspace = true }
 scopeguard = { workspace = true }
-testcontainers = { version = "0.23.0", features = ["http_wait","reusable-containers"] }
+testcontainers = { version = "0.24.0", features = ["http_wait","reusable-containers"] }
 reqwest = { version = "0.12.12", features = ["blocking"] }
 http = { workspace = true }
