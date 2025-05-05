@@ -1,0 +1,10 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "dtoa",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "dtoa",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    visibility = ["PUBLIC"],
+)

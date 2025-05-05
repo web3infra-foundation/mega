@@ -53,12 +53,14 @@
 // }
 
 use fuse3::raw::{Filesystem, MountHandle};
-use std::ffi::{OsStr, OsString};
 use fuse3::{raw::Session, MountOptions};
-
+use std::ffi::{OsStr, OsString};
 
 #[allow(unused)]
-pub async fn mount_filesystem<F: Filesystem+ std::marker::Sync + Send +'static >(fs:F,mountpoint:&OsStr) -> MountHandle {
+pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static>(
+    fs: F,
+    mountpoint: &OsStr,
+) -> MountHandle {
     env_logger::init();
     //let logfs = LoggingFileSystem::new(fs);
 
@@ -69,15 +71,10 @@ pub async fn mount_filesystem<F: Filesystem+ std::marker::Sync + Send +'static >
 
     let mut mount_options = MountOptions::default();
     // .allow_other(true)
-    mount_options
-        .force_readdir_plus(true)
-        .uid(uid)
-        .gid(gid);
-
+    mount_options.force_readdir_plus(true).uid(uid).gid(gid);
 
     Session::<F>::new(mount_options)
-    .mount_with_unprivileged(fs, mount_path)
-    .await
-    .unwrap()
-
+        .mount_with_unprivileged(fs, mount_path)
+        .await
+        .unwrap()
 }

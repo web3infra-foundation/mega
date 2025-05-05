@@ -1,0 +1,16 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "aho-corasick",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "aho_corasick",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    features = [
+        "default",
+        "perf-literal",
+        "std",
+    ],
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/memchr/2.7.4:memchr"],
+)

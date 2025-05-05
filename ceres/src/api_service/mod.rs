@@ -17,9 +17,8 @@ use mercury::{
     },
 };
 
-use crate::model::{
-    create_file::CreateFileInfo,
-    tree::{LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo},
+use crate::model::git::{
+    CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem, UserInfo,
 };
 
 pub mod import_api_service;
@@ -46,12 +45,20 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_root_tree(&self) -> Tree;
 
-    async fn get_tree_as_data(&self, path: &Path) -> Result<Vec<u8>, GitError> {
-        let res = self.search_tree_by_path(path).await.unwrap();
-        if let Some(tree) = res {
-            return tree.to_data();
+    async fn get_binary_tree_by_path(
+        &self,
+        path: &Path,
+        oid: Option<String>,
+    ) -> Result<Vec<u8>, GitError> {
+        let Some(tree) = self.search_tree_by_path(path).await.unwrap() else {
+            return Ok(vec![]);
+        };
+        if let Some(oid) = oid {
+            if oid != tree.id._to_string() {
+                return Ok(vec![]);
+            }
         }
-        Ok(vec![])
+        tree.to_data()
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree;
@@ -287,6 +294,9 @@ pub trait ApiHandler: Send + Sync {
                     .iter()
                     .find(|x| x.name == target_name);
                 if let Some(search_res) = search_res {
+                    if !search_res.is_tree() {
+                        return Ok(None);
+                    }
                     let res = self.get_tree_by_hash(&search_res.id.to_string()).await;
                     search_tree = res.clone();
                 } else {

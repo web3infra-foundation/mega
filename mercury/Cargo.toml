@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 delta = { path = "delta" }
+sapling-zstdelta = { path = "zstdelta" }
 common = { workspace = true }
 callisto = { workspace = true }
 
@@ -23,23 +24,23 @@ colored = { workspace = true }
 chrono = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
-threadpool = "1.8.1"
-num_cpus.workspace = true
-dashmap = "6.0.1"
-tokio.workspace = true
-lru-mem = "0.3.0"
-bincode = { version = "2.0.0", features = ["serde"] }
-byteorder = "1.5.0"
+threadpool = { workspace = true }
+num_cpus = { workspace = true }
+dashmap = { workspace = true }
+tokio = {workspace = true }
+lru-mem = { workspace = true }
+bincode = { workspace = true , features = ["serde"] }
+byteorder = { workspace = true }
 futures-util = { workspace = true }
 bytes = { workspace = true }
 axum = { workspace = true }
 memchr = { workspace = true }
 encoding_rs = { workspace = true }
-rayon = "1.10.0"
+rayon = { workspace = true }
 reqwest = { workspace = true }
 ring = { workspace = true }
 
 [dev-dependencies]
-tracing-test = "0.2.4"
+tracing-test = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { version = "0.7.11", features = ["io"] }

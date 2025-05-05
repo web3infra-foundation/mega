@@ -1,0 +1,11 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "sharded-slab",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "sharded_slab",
+    crate_root = "src/lib.rs",
+    edition = "2018",
+    visibility = ["PUBLIC"],
+    deps = ["//third-party/rust/crates/lazy_static/1.5.0:lazy_static"],
+)

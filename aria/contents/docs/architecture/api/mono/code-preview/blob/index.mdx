@@ -27,7 +27,7 @@ description:
 **Request Example:**
 
 ```json
-GET /api/v1/blob?path=/third-part/.mega_cedar.json
+GET /api/v1/blob?path=/third-party/.mega_cedar.json
 Content-Type: application/json
 ```
 
@@ -35,7 +35,7 @@ Content-Type: application/json
 ```json
 {
     "req_result": true,
-    "data": "{\n  \"users\": {\n    \"User::\\\"admin\\\"\": {\n      \"euid\": \"User::\\\"admin\\\"\",\n      \"parents\": [\n        \"UserGroup::\\\"admin\\\"\"\n      ]\n    }\n  },\n  \"repos\": {\n    \"Repository::\\\"/third-part\\\"\": {\n      \"euid\": \"Repository::\\\"/third-part\\\"\",\n      \"is_private\": true,\n      \"admins\": \"UserGroup::\\\"admin\\\"\",\n      \"maintainers\": \"UserGroup::\\\"matainer\\\"\",\n      \"readers\": \"UserGroup::\\\"reader\\\"\",\n      \"parents\": []\n    }\n  },\n  \"user_groups\": {\n    \"UserGroup::\\\"admin\\\"\": {\n      \"euid\": \"UserGroup::\\\"admin\\\"\",\n      \"parents\": [\n        \"UserGroup::\\\"matainer\\\"\"\n      ]\n    },\n    \"UserGroup::\\\"matainer\\\"\": {\n      \"euid\": \"UserGroup::\\\"matainer\\\"\",\n      \"parents\": [\n        \"UserGroup::\\\"reader\\\"\"\n      ]\n    },\n    \"UserGroup::\\\"reader\\\"\": {\n      \"euid\": \"UserGroup::\\\"reader\\\"\",\n      \"parents\": []\n    }\n  },\n  \"merge_requests\": {},\n  \"issues\": {}\n}",
+    "data": "{\n  \"users\": {\n    \"User::\\\"admin\\\"\": {\n      \"euid\": \"User::\\\"admin\\\"\",\n      \"parents\": [\n        \"UserGroup::\\\"admin\\\"\"\n      ]\n    }\n  },\n  \"repos\": {\n    \"Repository::\\\"/third-party\\\"\": {\n      \"euid\": \"Repository::\\\"/third-party\\\"\",\n      \"is_private\": true,\n      \"admins\": \"UserGroup::\\\"admin\\\"\",\n      \"maintainers\": \"UserGroup::\\\"matainer\\\"\",\n      \"readers\": \"UserGroup::\\\"reader\\\"\",\n      \"parents\": []\n    }\n  },\n  \"user_groups\": {\n    \"UserGroup::\\\"admin\\\"\": {\n      \"euid\": \"UserGroup::\\\"admin\\\"\",\n      \"parents\": [\n        \"UserGroup::\\\"matainer\\\"\"\n      ]\n    },\n    \"UserGroup::\\\"matainer\\\"\": {\n      \"euid\": \"UserGroup::\\\"matainer\\\"\",\n      \"parents\": [\n        \"UserGroup::\\\"reader\\\"\"\n      ]\n    },\n    \"UserGroup::\\\"reader\\\"\": {\n      \"euid\": \"UserGroup::\\\"reader\\\"\",\n      \"parents\": []\n    }\n  },\n  \"merge_requests\": {},\n  \"issues\": {}\n}",
     "err_message": ""
 }
 ```

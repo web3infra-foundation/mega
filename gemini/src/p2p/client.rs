@@ -11,19 +11,15 @@ use callisto::{git_repo, import_refs, lfs_objects};
 use ceres::lfs::handler;
 use ceres::lfs::handler::lfs_download_object;
 use ceres::lfs::lfs_structs::RequestObject;
+use ceres::pack::import_repo::ImportRepo;
+use ceres::pack::PackHandler;
 use ceres::protocol::repo::Repo;
 use common::utils::generate_id;
 use dashmap::DashMap;
 use futures_util::{StreamExt, TryStreamExt};
 use jupiter::context::Context;
 use lazy_static::lazy_static;
-use mercury::internal::object::blob::Blob;
-use mercury::internal::object::commit::Commit;
-use mercury::internal::object::tag::Tag;
-use mercury::internal::object::tree::Tree;
 use mercury::internal::object::types::ObjectType;
-use mercury::internal::pack::encode::PackEncoder;
-use mercury::internal::pack::entry::Entry;
 use mercury::internal::pack::Pack;
 use quinn::crypto::rustls::QuicClientConfig;
 use quinn::rustls::pki_types::pem::PemObject;
@@ -86,9 +82,9 @@ impl MsgSingletonConnection {
     }
 
     pub fn instance() -> &'static Self {
-        INSTANCE
-            .get()
-            .expect("Singleton not initialized. Call Singleton::init() first.")
+        INSTANCE.get().expect(
+            "MsgSingletonConnection not initialized. Connecting to bootstrap node may have failed.",
+        )
     }
 
     pub fn get_connection() -> Arc<Connection> {
@@ -109,7 +105,7 @@ impl BootstrapNode {
     pub fn instance() -> &'static Self {
         BOOTSTRAP_NODE_INSTANCE
             .get()
-            .expect("Singleton not initialized. Call Singleton::init() first.")
+            .expect("Connecting to bootstrap node may have failed.")
     }
 
     pub fn get() -> String {
@@ -362,7 +358,7 @@ pub async fn repo_clone(context: Context, identifier: String) -> Result<String> 
             bail!("Identifier invalid");
         }
     };
-
+    let path = get_repo_path(path);
     request_git_clone(context, path, remote_peer_id).await?;
     Ok(identifier.clone())
 }
@@ -832,77 +828,13 @@ async fn wait_rx_with_timeout(rx: tokio::sync::oneshot::Receiver<Vec<u8>>) -> Re
 }
 
 async fn get_encode_git_objects_by_repo(context: Context, repo: Repo) -> Receiver<Vec<u8>> {
-    let storage = context.services.git_db_storage.clone();
-    let raw_storage = context.services.raw_db_storage.clone();
-    let (entry_tx, entry_rx) = mpsc::channel(32);
-    let (stream_tx, stream_rx) = mpsc::channel(32);
-    let total = storage.get_obj_count_by_repo_id(repo.repo_id).await;
-    let encoder = PackEncoder::new(total, 0, stream_tx);
-    encoder.encode_async(entry_rx).await.unwrap();
-    let repo_id = repo.repo_id;
-
-    let mut commit_stream = storage.get_commits_by_repo_id(repo_id).await.unwrap();
-
-    while let Some(model) = commit_stream.next().await {
-        match model {
-            Ok(m) => {
-                let c: Commit = m.into();
-                let entry = c.into();
-                entry_tx.send(entry).await.unwrap();
-            }
-            Err(err) => eprintln!("Error: {:?}", err),
-        }
-    }
-
-    let mut tree_stream = storage.get_trees_by_repo_id(repo_id).await.unwrap();
-    while let Some(model) = tree_stream.next().await {
-        match model {
-            Ok(m) => {
-                let t: Tree = m.into();
-                let entry = t.into();
-                entry_tx.send(entry).await.unwrap();
-            }
-            Err(err) => eprintln!("Error: {:?}", err),
-        }
-    }
-    let mut bid_stream = storage.get_blobs_by_repo_id(repo_id).await.unwrap();
-    let mut bids = vec![];
-    while let Some(model) = bid_stream.next().await {
-        match model {
-            Ok(m) => bids.push(m.blob_id),
-            Err(err) => eprintln!("Error: {:?}", err),
-        }
-    }
-
-    let mut blob_handler = vec![];
-    for chunk in bids.chunks(10000) {
-        let raw_storage = raw_storage.clone();
-        let sender_clone = entry_tx.clone();
-        let chunk_clone = chunk.to_vec();
-        let handler = tokio::spawn(async move {
-            let mut blob_stream = raw_storage.get_raw_blobs_stream(chunk_clone).await.unwrap();
-            while let Some(model) = blob_stream.next().await {
-                match model {
-                    Ok(m) => {
-                        let b: Blob = m.into();
-                        let entry: Entry = b.into();
-                        sender_clone.send(entry).await.unwrap();
-                    }
-                    Err(err) => eprintln!("Error: {:?}", err),
-                }
-            }
-        });
-        blob_handler.push(handler);
-    }
-
-    let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
-    for m in tags.into_iter() {
-        let c: Tag = m.into();
-        let entry: Entry = c.into();
-        entry_tx.send(entry).await.unwrap();
-    }
-    drop(entry_tx);
-    stream_rx
+    let import_repo = ImportRepo {
+        context: context.clone(),
+        repo,
+        command_list: vec![],
+    };
+    let s = import_repo.full_pack(vec![]).await.unwrap();
+    s.into_inner()
 }
 
 async fn get_user_cert_from_ca(

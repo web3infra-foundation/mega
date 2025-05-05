@@ -1,17 +1,22 @@
-
-
 use fuse3::raw::{Filesystem, Request};
 use inode_alloc::InodeAlloc;
-use libfuse_fs::{overlayfs::{config, OverlayFs}, passthrough::new_passthroughfs_layer};
+use libfuse_fs::{
+    overlayfs::{config, OverlayFs},
+    passthrough::new_passthroughfs_layer,
+};
 use tokio::sync::Mutex;
 
-
-use std::{collections::HashMap, io::Error, path::{Path, PathBuf}, sync::Arc};
+use crate::util::config as sconfig;
 use crate::{dicfuse::Dicfuse, manager::ScorpioManager};
-use crate::util::scorpio_config;
+use std::{
+    collections::HashMap,
+    io::Error,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-mod inode_alloc;
 mod async_io;
+mod inode_alloc;
 
 /// A struct representing the MegaFuse system, which handles the creation
 /// and management of overlay filesystems (OverlayFs). This includes
@@ -24,16 +29,14 @@ mod async_io;
 /// - `inodes_alloc`: A struct responsible for allocating inodes.
 #[allow(unused)]
 #[derive(Clone)]
-pub struct MegaFuse{
+pub struct MegaFuse {
     pub dic: Arc<Dicfuse>,
-    overlayfs:Arc<Mutex<HashMap<u64,Arc<OverlayFs>>>>, // Inode -> overlayyfs 
+    overlayfs: Arc<Mutex<HashMap<u64, Arc<OverlayFs>>>>, // Inode -> overlayyfs
     inodes_alloc: InodeAlloc,
-   
 }
 
 #[allow(unused)]
-impl MegaFuse{
-
+impl MegaFuse {
     /// Creates a new instance of `MegaFuse` asynchronously.
     ///
     /// This function initializes the `dic`, `overlayfs`, and `inodes_alloc` fields
@@ -42,20 +45,17 @@ impl MegaFuse{
     ///
     /// # Returns
     /// A new `MegaFuse` instance.
-    pub async fn new() -> Self{
-        
-        Self{
-            
+    pub async fn new() -> Self {
+        Self {
             dic: Arc::new(Dicfuse::new().await),
             overlayfs: Arc::new(Mutex::new(HashMap::new())),
             inodes_alloc: InodeAlloc::new(),
-            
         }
     }
     /// Creates a new instance of `MegaFuse` from a given manager asynchronously.
     ///
     /// This function creates a new `MegaFuse` instance and then performs mount operations
-    /// for directories based on the provided `ScorpioManager`. It mounts the user's work 
+    /// for directories based on the provided `ScorpioManager`. It mounts the user's work
     /// directories by using information from the manager and sets up the necessary overlay filesystems.
     ///
     /// # Parameters
@@ -64,9 +64,8 @@ impl MegaFuse{
     /// # Returns
     /// A new `MegaFuse` instance with mounted overlay filesystems based on the manager's configuration.
     pub async fn new_from_manager(manager: &ScorpioManager) -> MegaFuse {
-
         let megafuse = MegaFuse::new().await;
-        let store_path = scorpio_config::store_path();
+        let store_path = sconfig::store_path();
 
         // mount user works.
         for dir in &manager.works {
@@ -89,8 +88,11 @@ impl MegaFuse{
     ///
     /// # Returns
     /// A result indicating whether the mounting operation was successful.
-    pub async  fn overlay_mount<P: AsRef<Path>>(&self, inode: u64, store_path: P) -> std::io::Result<()>{
-        
+    pub async fn overlay_mount<P: AsRef<Path>>(
+        &self,
+        inode: u64,
+        store_path: P,
+    ) -> std::io::Result<()> {
         let lower = store_path.as_ref().join("lower");
         let upper = store_path.as_ref().join("upper");
         let lowerdir = vec![lower];
@@ -106,8 +108,7 @@ impl MegaFuse{
         for lower in &lowerdir {
             let lower_path = Path::new(lower);
             if lower_path.exists() {
-                let layer =
-                    new_passthroughfs_layer(lower.to_str().unwrap()).await?;
+                let layer = new_passthroughfs_layer(lower.to_str().unwrap()).await?;
                 lower_layers.push(Arc::new(layer));
                 // Rest of the code...
             } else {
@@ -136,7 +137,10 @@ impl MegaFuse{
         // Create upper layer
         let upper_layer = Arc::new(new_passthroughfs_layer(upperdir.to_str().unwrap()).await?);
         let overlayfs = OverlayFs::new(Some(upper_layer), lower_layers, config, inode)?;
-        self.overlayfs.lock().await.insert(inode, Arc::new(overlayfs));
+        self.overlayfs
+            .lock()
+            .await
+            .insert(inode, Arc::new(overlayfs));
         self.after_mount_new().await;
         Ok(())
     }
@@ -151,14 +155,17 @@ impl MegaFuse{
     ///
     /// # Returns
     /// A result indicating whether the unmounting operation was successful.
-    pub async fn overlay_umount_byinode(&self, inode:u64)  -> std::io::Result<()>{
-        if !self.is_mount(inode).await{
-            return Err( Error::new(std::io::ErrorKind::NotFound, "Overlay filesystem not mounted"))
+    pub async fn overlay_umount_byinode(&self, inode: u64) -> std::io::Result<()> {
+        if !self.is_mount(inode).await {
+            return Err(Error::new(
+                std::io::ErrorKind::NotFound,
+                "Overlay filesystem not mounted",
+            ));
         }
         self.overlayfs.lock().await.remove(&inode);
         Ok(())
     }
-    
+
     /// Unmounts the overlay filesystem associated with a given path asynchronously.
     ///
     /// This function retrieves the inode from the dictionary using the provided `path`
@@ -169,12 +176,11 @@ impl MegaFuse{
     ///
     /// # Returns
     /// A result indicating whether the unmounting operation was successful.
-    pub async fn overlay_umount_bypath(&self, path:&str)-> std::io::Result<()>{
+    pub async fn overlay_umount_bypath(&self, path: &str) -> std::io::Result<()> {
         let item = self.dic.store.get_by_path(path).await?;
         let inode = item.get_inode();
         self.overlay_umount_byinode(inode).await
     }
-
 
     /// Retrieves the inode associated with a given path asynchronously.
     ///
@@ -186,7 +192,7 @@ impl MegaFuse{
     ///
     /// # Returns
     /// A result containing the inode associated with the given path.
-    pub async fn get_inode(&self,path:&str) ->std::io::Result<u64>{
+    pub async fn get_inode(&self, path: &str) -> std::io::Result<u64> {
         let item = self.dic.store.get_by_path(path).await?;
         Ok(item.get_inode())
     }
@@ -201,10 +207,10 @@ impl MegaFuse{
     ///
     /// # Returns
     /// `true` if the overlay filesystem is mounted for the given inode, `false` otherwise.
-    pub async fn is_mount(&self,inode:u64) -> bool{
+    pub async fn is_mount(&self, inode: u64) -> bool {
         self.overlayfs.lock().await.get(&inode).is_some()
     }
-    
+
     /// Allocates inode batches for every overlay filesystem asynchronously.
     ///
     /// This function clears the current inode allocation and then allocates new
@@ -217,7 +223,7 @@ impl MegaFuse{
         self.inodes_alloc.clear().await;
         // lock  overlayfs map
         let map_lock = &self.overlayfs.lock().await;
-        
+
         for (inode, ovl_fs) in map_lock.iter() {
             // alloc new  inode batch.
             let inode_batch = self.inodes_alloc.alloc_inode(*inode).await;
@@ -226,6 +232,5 @@ impl MegaFuse{
             // init overlay filesystem
             let _ = ovl_fs.init(Request::default()).await;
         }
-    
     }
 }

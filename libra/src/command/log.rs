@@ -127,15 +127,21 @@ pub async fn execute(args: LogArgs) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test::ChangeDirGuard;
     use crate::{command::save_object, utils::test};
     use common::utils::format_commit_msg;
     use mercury::{hash::SHA1, internal::object::commit::Commit};
     use serial_test::serial;
+    use tempfile::tempdir;
 
     #[tokio::test]
     #[serial]
+    /// Tests retrieval of commits reachable from a specific commit hash
     async fn test_get_reachable_commits() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
+
         let commit_id = create_test_commit_tree().await;
 
         let reachable_commits = get_reachable_commits(commit_id).await;
@@ -143,13 +149,40 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // ignore this test because it will open less and block the test
+    #[serial]
+    /// Tests log command execution functionality
     async fn test_execute_log() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
         let _ = create_test_commit_tree().await;
 
-        let args = LogArgs { number: Some(6) };
-        execute(args).await;
+        // let args = LogArgs { number: Some(1) };
+        // execute(args).await;
+        let head = Head::current().await;
+        // check if the current branch has any commits
+        if let Head::Branch(branch_name) = head.to_owned() {
+            let branch = Branch::find_branch(&branch_name, None).await;
+            if branch.is_none() {
+                panic!(
+                    "fatal: your current branch '{}' does not have any commits yet ",
+                    branch_name
+                );
+            }
+        }
+
+        let commit_hash = Head::current_commit().await.unwrap().to_string();
+
+        let mut reachable_commits = get_reachable_commits(commit_hash.clone()).await;
+        // default sort with signature time
+        reachable_commits.sort_by(|a, b| b.committer.timestamp.cmp(&a.committer.timestamp));
+        //the last seven commits
+        let max_output_number = min(6, reachable_commits.len());
+        let mut output_number = 6;
+        for commit in reachable_commits.iter().take(max_output_number) {
+            assert_eq!(commit.message, format!("\nCommit_{}", output_number));
+            output_number -= 1;
+        }
     }
 
     /// create a test commit tree structure as graph and create branch (master) head to commit 6

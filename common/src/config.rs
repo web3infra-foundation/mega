@@ -38,6 +38,19 @@ impl Config {
         Config::from_config(config)
     }
 
+    pub fn mock() -> Self {
+        Self {
+            base_dir: PathBuf::new(),
+            log: LogConfig::default(),
+            database: DbConfig::default(),
+            monorepo: MonoConfig::default(),
+            pack: PackConfig::default(),
+            authentication: AuthConfig::default(),
+            lfs: LFSConfig::default(),
+            oauth: None,
+        }
+    }
+
     pub fn load_str(content: &str) -> Result<Self, c::ConfigError> {
         let builder = c::Config::builder()
             .add_source(c::File::from_str(content, FileFormat::Toml))
@@ -46,6 +59,20 @@ impl Config {
                     .prefix_separator("_")
                     .separator("__"),
             );
+
+        let config = variable_placeholder_substitute(builder);
+
+        Config::from_config(config)
+    }
+
+    pub fn load_sources<T>(sources: Vec<Box<T>>) -> Result<Self, c::ConfigError>
+    where
+        T: Source + Send + Sync + 'static,
+    {
+        let mut builder = c::Config::builder();
+        for source in sources {
+            builder = builder.add_source(*source);
+        }
 
         let config = variable_placeholder_substitute(builder);
 
@@ -66,7 +93,7 @@ impl Default for Config {
         std::fs::create_dir_all(&base_dir).unwrap();
 
         // use mega/config.toml because mega use sqlite as default db
-        let default_config = include_str!("../config.toml");
+        let default_config = include_str!("../../mega/config.toml");
         let default_config = default_config
             .lines()
             .map(|line| {
@@ -137,7 +164,7 @@ fn variable_placeholder_substitute(mut builder: c::ConfigBuilder<DefaultState>) 
         let mut str = v.clone().into_string().unwrap();
         if envsubst::is_templated(&str) {
             let new_str = envsubst::substitute(&str, &vars).unwrap();
-            println!("{}: {} -> {}", k, str, &new_str);
+            // println!("{}: {} -> {}", k, str, &new_str);
             v.kind = ValueKind::String(new_str.clone());
             builder = builder.set_override(&k, v).unwrap();
             str = new_str;
@@ -186,7 +213,7 @@ impl Default for LogConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DbConfig {
     pub db_type: String,
-    pub db_path: String,
+    pub db_path: PathBuf,
     pub db_url: String,
     pub max_connection: u32,
     pub min_connection: u32,
@@ -197,7 +224,7 @@ impl Default for DbConfig {
     fn default() -> Self {
         Self {
             db_type: String::from("sqlite"),
-            db_path: String::from("/tmp/.mega/mega.db"),
+            db_path: PathBuf::from("/tmp/.mega/mega.db"),
             db_url: String::from("postgres://mega:mega@localhost:5432/mega"),
             max_connection: 32,
             min_connection: 16,
@@ -216,10 +243,10 @@ pub struct MonoConfig {
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
-            import_dir: PathBuf::from("/third-part"),
+            import_dir: PathBuf::from("/third-party"),
             admin: String::from("admin"),
             root_dirs: vec![
-                "third-part".to_string(),
+                "third-party".to_string(),
                 "project".to_string(),
                 "doc".to_string(),
                 "release".to_string(),
@@ -385,19 +412,19 @@ impl PackConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LFSConfig {
-    pub url: String,
     pub storage_type: StorageTypeEnum,
     pub local: LFSLocalConfig,
     pub aws: LFSAwsConfig,
+    pub ssh: LFSSshConfig,
 }
 
 impl Default for LFSConfig {
     fn default() -> Self {
         Self {
-            url: "http://localhost:8000".to_string(),
             storage_type: StorageTypeEnum::LocalFs,
             local: LFSLocalConfig::default(),
             aws: LFSAwsConfig::default(),
+            ssh: LFSSshConfig::default(),
         }
     }
 }
@@ -427,6 +454,19 @@ pub struct LFSAwsConfig {
     pub s3_access_key_id: String,
     pub s3_secret_access_key: String,
 }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LFSSshConfig {
+    pub http_url: String,
+}
+
+impl Default for LFSSshConfig {
+    fn default() -> Self {
+        Self {
+            http_url: "http://localhost:8000".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OauthConfig {
     pub github_client_id: String,

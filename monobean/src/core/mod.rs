@@ -1,5 +1,3 @@
-use adw::gio;
-use adw::gio::ResourceLookupFlags;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::runtime::Runtime;
@@ -19,7 +17,7 @@ pub enum CoreConfigChanged {
 
     // Database Config
     DbType(String),
-    DbPath(String),
+    DbPath(PathBuf),
     DbUrl(String),
     MaxConnection(u32),
     MinConnection(u32),
@@ -62,9 +60,4 @@ pub fn runtime() -> &'static Runtime {
             .build()
             .expect("Setting up tokio runtime must succeed.")
     })
-}
-
-pub fn load_mega_resource(path: &str) -> Vec<u8> {
-    let bytes = gio::resources_lookup_data(path, ResourceLookupFlags::all()).unwrap();
-    bytes.as_ref().into()
 }

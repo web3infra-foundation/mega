@@ -12,7 +12,6 @@ use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::protocol::mr::MergeRequest;
 use common::model::{CommonPage, CommonResult, PageParams};
 use saturn::ActionEnum;
-use taurus::event::api_request::{ApiRequestEvent, ApiType};
 
 use crate::api::error::ApiError;
 use crate::api::mr::{FilesChangedItem, FilesChangedList, MRDetail, MRStatusParams, MrInfoItem};
@@ -113,13 +112,11 @@ async fn merge(
             )
             .await
             .unwrap();
-            ApiRequestEvent::notify(ApiType::MergeRequest, &state.0.context.config);
             let res = state.monorepo().merge_mr(&mut model.into()).await;
             let res = match res {
                 Ok(_) => CommonResult::success(None),
                 Err(err) => CommonResult::failed(&err.to_string()),
             };
-            ApiRequestEvent::notify(ApiType::MergeDone, &state.0.context.config);
             return Ok(Json(res));
         }
     }
@@ -130,7 +127,6 @@ async fn fetch_mr_list(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<MRStatusParams>>,
 ) -> Result<Json<CommonResult<CommonPage<MrInfoItem>>>, ApiError> {
-    ApiRequestEvent::notify(ApiType::MergeList, &state.0.context.config);
     let status = json.additional.status;
     let status = if status == "open" {
         vec![MergeStatusEnum::Open]
@@ -161,7 +157,6 @@ async fn mr_detail(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<MRDetail>>, ApiError> {
-    ApiRequestEvent::notify(ApiType::MergeDetail, &state.0.context.config);
     let res = match state.mr_stg().get_mr(&link).await {
         Ok(data) => {
             if let Some(model) = data {

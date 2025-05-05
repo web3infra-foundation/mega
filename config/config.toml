@@ -1,5 +1,6 @@
 # the directory where the data files is located, such as logs, database, etc.
 # can be overridden by environment variable `MEGA_BASE_DIR`
+# When using monobean, this option will be ignored, you should set it in monobean preference GUI.
 base_dir = "/tmp/.mono"
 
 # Filling the following environment variables with values you set
@@ -54,13 +55,13 @@ test_user_token = "mega"
 [monorepo]
 ## Only import directory support multi-branch commit and tag, monorepo only support main branch
 ## Mega treats files under this directory as import repo and other directories as monorepo
-import_dir = "/third-part"
+import_dir = "/third-party"
 
 # Set System Admin in directory init, replace the admin's github username here
 admin = "admin"
 
 # Set serveral root dirs in directory init
-root_dirs = ["third-part", "project", "doc", "release"]
+root_dirs = ["third-party", "project", "doc", "release"]
 
 [pack]
 # The maximum memory used by decode
@@ -79,11 +80,12 @@ clean_cache_after_decode = true
 channel_message_size = 1_000_000
 
 [lfs]
-# LFS Server url
-url = "http://localhost:8000"
-
 # lfs file storage type, support values can be "local_fs" or "aws_s3"
 storage_type = "local_fs"
+
+[lfs.ssh]
+# The lfs ssh transport protocol still relies on http to send files
+http_url = "http://localhost:8000"
 
 [lfs.local]
 # set the local path of the lfs storage

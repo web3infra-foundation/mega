@@ -1,0 +1,18 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "winapi-util",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "winapi_util",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    platform = {
+        "windows-gnu": dict(
+            deps = ["//third-party/rust/crates/windows-sys/0.59.0:windows-sys"],
+        ),
+        "windows-msvc": dict(
+            deps = ["//third-party/rust/crates/windows-sys/0.59.0:windows-sys"],
+        ),
+    },
+    visibility = ["PUBLIC"],
+)

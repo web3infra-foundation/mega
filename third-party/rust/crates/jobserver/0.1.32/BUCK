@@ -1,0 +1,24 @@
+load("@prelude//rust:cargo_package.bzl", "cargo")
+
+cargo.rust_library(
+    name = "jobserver",
+    srcs = glob(["src/**/*.rs"]),
+    crate = "jobserver",
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    platform = {
+        "linux-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "linux-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-arm64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+        "macos-x86_64": dict(
+            deps = ["//third-party/rust/crates/libc/0.2.171:libc"],
+        ),
+    },
+    visibility = ["PUBLIC"],
+)
