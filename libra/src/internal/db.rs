@@ -8,8 +8,9 @@ use std::io;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 use std::path::Path;
-#[cfg(not(test))]
-use tokio::sync::OnceCell;
+
+// #[cfg(not(test))]
+// use tokio::sync::OnceCell;
 
 /// Establish a connection to the database.
 ///  - `db_path` is the path to the SQLite database file.
@@ -32,35 +33,36 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
         )
     })
 }
-#[cfg(not(test))]
-static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
-/// Get global database connection instance (singleton)
-#[cfg(not(test))]
-pub async fn get_db_conn_instance() -> &'static DbConn {
-    DB_CONN
-        .get_or_init(|| async { get_db_conn().await.unwrap() })
-        .await
-}
+// #[cfg(not(test))]
+// static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
 
-#[cfg(test)]
+// /// Get global database connection instance (singleton)
+// #[cfg(not(test))]
+// pub async fn get_db_conn_instance() -> &'static DbConn {
+//     DB_CONN
+//         .get_or_init(|| async { get_db_conn().await.unwrap() })
+//         .await
+// }
+
+// #[cfg(test)]
 use once_cell::sync::Lazy;
-#[cfg(test)]
+// #[cfg(test)]
 use std::collections::HashMap;
 //#[cfg(test)]
 //use std::ops::Deref;
-#[cfg(test)]
+// #[cfg(test)]
 use std::path::PathBuf;
-#[cfg(test)]
+// #[cfg(test)]
 use tokio::sync::Mutex;
 
 // In the test environment, use a `HashMap` to store database connections
 // mapped by their working directories.
 // change the value type from Box<DbConn> to &'static DbConn
-#[cfg(test)]
+// #[cfg(test)]
 static TEST_DB_CONNECTIONS: Lazy<Mutex<HashMap<PathBuf, &'static DbConn>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-#[cfg(test)]
+// #[cfg(test)]
 #[allow(dead_code)]
 fn leak_conn(conn: DbConn) -> &'static DbConn {
     let boxed = Box::new(conn);
@@ -70,7 +72,7 @@ fn leak_conn(conn: DbConn) -> &'static DbConn {
 
 /// In the test environment, each working directory should have its own database connection.
 /// A global `HashMap` is used to store and manage these connections separately.
-#[cfg(test)]
+// #[cfg(test)]
 pub async fn get_db_conn_instance() -> &'static DbConn {
     let current_dir = std::env::current_dir().unwrap();
 

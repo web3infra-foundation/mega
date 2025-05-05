@@ -2,8 +2,6 @@
 //!
 //!
 //!
-#![cfg(test)]
-
 use std::io::Write;
 use std::path::Path;
 use std::{env, fs, path::PathBuf};
