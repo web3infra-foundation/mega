@@ -1,0 +1,27 @@
+# Any comments you wish to add
+#
+
+PKG="libuv"
+PKG_VERSION="1.48.0"
+PKG_FILE="libuv-v1.48.0.tar.gz"
+URL="https://dist.libuv.org/dist/v1.48.0/libuv-v1.48.0.tar.gz"
+MD5="a808517c32ebd07c561bf21a4e30aeab"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+sh autogen.sh                              &&
+./configure --prefix=/usr --disable-static &&
+make 
+
+make install
+
+xEOFx
+) > tmp
