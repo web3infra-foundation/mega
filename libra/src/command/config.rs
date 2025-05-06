@@ -6,28 +6,28 @@ use crate::internal::config;
 pub struct ConfigArgs {
     /// Add a configuration entry to database
     #[clap(long, group("mode"), requires("valuepattern"))]
-    add: bool,
+    pub add: bool,
     /// Get a single configuration entry that satisfied key and value pattern from database
     #[clap(long, group("mode"))]
-    get: bool,
+    pub get: bool,
     /// Get all configuration entries that satisfied key and value pattern from database
     #[clap(long("get-all"), group("mode"))]
-    get_all: bool,
+    pub get_all: bool,
     /// Remove a single configuration entry from database
     #[clap(long, group("mode"))]
-    unset: bool,
+    pub unset: bool,
     /// Remove all the configuration entries that satisfied key and valuepattern from database
     #[clap(long("unset-all"), group("mode"))]
-    unset_all: bool,
+    pub unset_all: bool,
     /// List all the configuration entries from database
     #[clap(long, short, group("mode"))]
-    list: bool,
+    pub list: bool,
     /// The key string of the configuration entry, should be like configuration.[name].key
     #[clap(value_name("key"), required_unless_present("list"))]
-    key: Option<String>,
+    pub key: Option<String>,
     /// the value or the possible value pattern of the configuration entry
     #[clap(value_name("value_pattern"), required_unless_present("mode"))]
-    valuepattern: Option<String>,
+    pub valuepattern: Option<String>,
 }
 
 pub struct Key {

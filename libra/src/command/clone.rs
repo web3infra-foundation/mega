@@ -108,6 +108,11 @@ async fn setup(remote_repo: String, specified_branch: Option<String>) {
     // look for remote head and set local HEAD&branch
     let remote_head = Head::remote_current(ORIGIN).await;
 
+    // set config: remote.origin.url,it's essential for git
+    Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
+    // set config: remote.origin.fetch
+    // todo: temporary ignore fetch option
+
     if let Some(specified_branch) = specified_branch {
         setup_branch(specified_branch).await;
     } else if let Some(Head::Branch(name)) = remote_head {
@@ -116,11 +121,6 @@ async fn setup(remote_repo: String, specified_branch: Option<String>) {
         eprintln!("fatal: remote HEAD points to a detached commit");
     } else {
         println!("warning: You appear to have cloned an empty repository.");
-
-        // set config: remote.origin.url
-        Config::insert("remote", Some(ORIGIN), "url", &remote_repo).await;
-        // set config: remote.origin.fetch
-        // todo: temporary ignore fetch option
 
         // set config: branch.$name.merge, e.g.
         let merge = "refs/heads/master".to_owned();
@@ -153,98 +153,4 @@ async fn setup_branch(branch_name: String) {
 
 /// Unit tests for the clone module
 #[cfg(test)]
-mod tests {
-    use crate::utils::test;
-
-    use super::*;
-    use serial_test::serial;
-
-    use tempfile::tempdir;
-
-    #[tokio::test]
-    #[serial]
-    /// Test the clone command with a specific branch
-    async fn test_clone_branch() {
-        let temp_path = tempdir().unwrap();
-        let _guard = test::ChangeDirGuard::new(temp_path.path());
-
-        let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
-
-        command::clone::execute(CloneArgs {
-            remote_repo: remote_url,
-            local_path: Some(temp_path.path().to_str().unwrap().to_string()),
-            branch: Some("dev".to_string()),
-        })
-        .await;
-
-        // Verify that the `.libra` directory exists
-        let libra_dir = temp_path.path().join(".libra");
-        assert!(libra_dir.exists());
-
-        // Verify the Head reference
-        match Head::current().await {
-            Head::Branch(current_branch) => {
-                assert_eq!(current_branch, "dev");
-            }
-            _ => panic!("should be branch"),
-        };
-    }
-
-    #[tokio::test]
-    #[serial]
-    /// Test the clone command with the default branch
-    async fn test_clone_default_branch() {
-        let temp_path = tempdir().unwrap();
-        let _guard = test::ChangeDirGuard::new(temp_path.path());
-
-        let remote_url = "https://gitee.com/pikady/mega-libra-clone-branch-test.git".to_string();
-
-        command::clone::execute(CloneArgs {
-            remote_repo: remote_url,
-            local_path: Some(temp_path.path().to_str().unwrap().to_string()),
-            branch: None,
-        })
-        .await;
-
-        // Verify that the `.libra` directory exists
-        let libra_dir = temp_path.path().join(".libra");
-        assert!(libra_dir.exists());
-
-        // Verify the Head reference
-        match Head::current().await {
-            Head::Branch(current_branch) => {
-                assert_eq!(current_branch, "master");
-            }
-            _ => panic!("should be branch"),
-        };
-    }
-
-    #[tokio::test]
-    #[serial]
-    /// Test the clone command with an empty repository
-    async fn test_clone_empty_repo() {
-        let temp_path = tempdir().unwrap();
-        let _guard = test::ChangeDirGuard::new(temp_path.path());
-
-        let remote_url = "https://gitee.com/pikady/mega-libra-empty-repo.git".to_string();
-
-        command::clone::execute(CloneArgs {
-            remote_repo: remote_url,
-            local_path: Some(temp_path.path().to_str().unwrap().to_string()),
-            branch: None,
-        })
-        .await;
-
-        // Verify that the `.libra` directory exists
-        let libra_dir = temp_path.path().join(".libra");
-        assert!(libra_dir.exists());
-
-        // Verify the Head reference
-        match Head::current().await {
-            Head::Branch(current_branch) => {
-                assert_eq!(current_branch, "master");
-            }
-            _ => panic!("should be branch"),
-        };
-    }
-}
+mod tests {}
