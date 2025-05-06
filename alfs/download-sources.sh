@@ -17,6 +17,7 @@ fi
 if [[ ! -d "$target_dir" ]]; then
     echo "warning: Target directory '$target_dir' does not exist. Creating it."
     mkdir -pv "$target_dir"
+    chown -Rv $(whoami):$(whoami) "$target_dir"
 fi
 
 while IFS= read -r file; do

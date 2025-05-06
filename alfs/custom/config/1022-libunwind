@@ -1,11 +1,11 @@
 # Any comments you wish to add
-# If an error occurs when executing make-ca -g, the certificate version may be updated, and make-ca needs to be updated to the latest version.
+# lldb depends on libunwind
 
-PKG="make-ca"
-PKG_VERSION="1.16"
-PKG_FILE="make-ca-1.16.tar.gz"
-URL="https://github.com/lfs-book/make-ca/archive/v1.16/make-ca-1.16.tar.gz"
-MD5="bf1497691f72ec79d5e0456e3ac3eadc"
+PKG="libunwind"
+PKG_VERSION="1.6.2"
+PKG_FILE="libunwind-1.6.2.tar.gz"
+URL="https://download.savannah.nongnu.org/releases/libunwind/libunwind-1.6.2.tar.gz"
+MD5="f625b6a98ac1976116c71708a73dc44a"
 for i in PATCH{1..10}; do
    unset $i
 done
@@ -22,11 +22,10 @@ done
 # If you want to use ${PKG_VERSION}, you have to
 # redefine it here.
 
-make install &&
-install -vdm755 /etc/ssl/local
+./configure --prefix=/usr --disable-static &&
+make
 
-# setup
-/usr/sbin/make-ca -g
+make install
 
 xEOFx
 ) > tmp

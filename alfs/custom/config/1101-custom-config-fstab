@@ -18,8 +18,8 @@ done
 ( cat << "xEOFx"
 
 # use blkid to get the uuid
-uuid1=41686c57-192d-4ed8-87a2-7399482c0261
-uuid2=60F7-8A4C
+uuid1=5efa0d7d-02fc-402b-9781-359e12acb34d
+uuid2=55A7-4F9E
 
 # fstab
 #cat > /etc/fstab << "EOF"

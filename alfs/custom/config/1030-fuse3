@@ -1,0 +1,36 @@
+# Any comments you wish to add
+#
+
+PKG="fuse3"
+PKG_VERSION="3.16.2"
+PKG_FILE="fuse-3.16.2.tar.gz"
+URL="https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz"
+MD5="b00bf08b27ead4a9411578777e94a1cc"
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+sed -i '/^udev/,$ s/^/#/' util/meson.build &&
+
+mkdir build &&
+cd    build &&
+
+meson setup --prefix=/usr --buildtype=release .. &&
+ninja
+ninja install                  &&
+chmod u+s /usr/bin/fusermount3 &&
+
+cd ..                          &&
+cp -Rv doc/html -T /usr/share/doc/fuse-3.16.2 &&
+install -v -m644   doc/{README.NFS,kernel.txt} \
+                   /usr/share/doc/fuse-3.16.2
+
+xEOFx
+) > tmp
