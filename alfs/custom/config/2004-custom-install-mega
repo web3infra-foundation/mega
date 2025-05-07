@@ -1,0 +1,47 @@
+# install rust
+
+
+PKG=""
+PKG_VERSION=""
+PKG_FILE=""
+URL=""
+MD5=""
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+echo "pwd: $(pwd)"
+
+if [ ! -d "mega" ]; then
+    git clone https://github.com/web3infra-foundation/mega.git
+    cd mega
+else
+    cd mega
+    git pull --force
+fi
+
+cargo build -p orion
+cargo install --path orion
+
+cd scorpio
+cargo install --path .
+
+cp /mega-configs/start-scorpio.sh /usr/local/bin/
+cp /mega-configs/start-orion.sh /usr/local/bin/
+chmod +x /usr/local/bin/start-scorpio.sh
+chmod +x /usr/local/bin/start-orion.sh
+
+cp /systemd-configs/mega-scorpio.service /etc/systemd/system/
+cp /systemd-configs/mega-orion.service /etc/systemd/system/
+systemctl enable mega-scorpio
+systemctl enable mega-orion
+
+xEOFx
+) > tmp

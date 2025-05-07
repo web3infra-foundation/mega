@@ -35,7 +35,7 @@ use std::path::Path;
 const HEAD: &str = "HEAD";
 
 // impl load for all objects
-fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
+pub fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
 where
     T: ObjectTrait,
 {
@@ -45,7 +45,7 @@ where
 }
 
 // impl save for all objects
-fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), GitError>
+pub fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), GitError>
 where
     T: ObjectTrait,
 {

@@ -1,0 +1,23 @@
+# install
+
+
+PKG=""
+PKG_VERSION=""
+PKG_FILE=""
+URL=""
+MD5=""
+for i in PATCH{1..10}; do
+   unset $i
+done
+# PATCH1=""
+# Up to 10 patches can be added. The PATCH variable must be numbered
+# even if there is only one. If the patch md5 checksum is known, add
+# it after the name as in (quotes are required):
+# PATCHx="patch-url md5"
+
+( cat << "xEOFx"
+
+echo -e "\n" | passwd --stdin root
+
+xEOFx
+) > tmp

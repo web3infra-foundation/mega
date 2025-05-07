@@ -1,7 +1,7 @@
 use mercury::errors::GitError;
 
 pub mod cli;
-mod command;
+pub mod command;
 pub mod internal;
 pub mod utils;
 

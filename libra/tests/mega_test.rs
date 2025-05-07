@@ -1,4 +1,3 @@
-mod common;
 use http::Method;
 use lazy_static::lazy_static;
 use libra::internal::protocol::lfs_client::LFSClient;
@@ -11,7 +10,7 @@ use std::net::TcpStream;
 use std::path::PathBuf;
 use testcontainers::core::wait::HttpWaitStrategy;
 use testcontainers::{
-    core::{IntoContainerPort, ReuseDirective, WaitFor},
+    core::{IntoContainerPort, Mount, ReuseDirective, WaitFor},
     runners::AsyncRunner,
     ContainerAsync, GenericImage, ImageExt,
 };
@@ -87,8 +86,13 @@ async fn mega_container(mapping_port: u16) -> ContainerAsync<GenericImage> {
                 .with_expected_status_code(404_u16),
         ))
         .with_mapped_port(mapping_port, mapping_port.tcp())
-        .with_copy_to("/root/mega", MEGA.clone())
-        .with_copy_to("/root/config.toml", CONFIG.clone())
+        // .with_copy_to("/root/mega", MEGA.clone())
+        // .with_copy_to("/root/config.toml", CONFIG.clone())
+        .with_mount(Mount::bind_mount(MEGA.to_str().unwrap(), "/root/mega"))
+        .with_mount(Mount::bind_mount(
+            CONFIG.to_str().unwrap(),
+            "/root/config.toml",
+        ))
         .with_env_var("MEGA_authentication__enable_http_auth", "false")
         .with_working_dir("/root")
         .with_reuse(ReuseDirective::Never)
