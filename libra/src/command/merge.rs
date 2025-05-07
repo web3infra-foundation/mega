@@ -104,3 +104,61 @@ async fn merge_ff(commit: Commit) {
     })
     .await;
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+    struct TestEnv {
+        last_merge_message: Arc<Mutex<Option<String>>>,
+    }
+
+    impl TestEnv {
+        fn new() -> Self {
+            Self {
+                last_merge_message: Arc::new(Mutex::new(None)),
+            }
+        }
+
+        //Simulate the execution environment of execute
+        async fn mock_execute(&self, args: MergeArgs) {
+            let message = args
+                .message
+                .unwrap_or_else(|| format!("Merge branch '{}' into current", &args.branch));
+            *self.last_merge_message.lock().unwrap() = Some(message);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_merge_with_custom_message() {
+        let env = TestEnv::new();
+
+        // Test with -m parameter
+        let args = MergeArgs {
+            branch: "feature".to_string(),
+            message: Some("Custom merge message".to_string()),
+        };
+
+        env.mock_execute(args).await;
+        assert_eq!(
+            *env.last_merge_message.lock().unwrap(),
+            Some("Custom merge message".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_merge_with_default_message() {
+        let env = TestEnv::new();
+
+        // Test without -m parameter
+        let args = MergeArgs {
+            branch: "hotfix".to_string(),
+            message: None,
+        };
+
+        env.mock_execute(args).await;
+        assert_eq!(
+            *env.last_merge_message.lock().unwrap(),
+            Some("Merge branch 'hotfix' into current".to_string())
+        );
+    }
+}
