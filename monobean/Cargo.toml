@@ -23,6 +23,7 @@ common = { path = "../common" }
 jupiter = { path = "../jupiter" }
 vault = { path = "../vault" }
 gateway = { path = "../gateway" }
+ceres = { path = "../ceres" }
 
 thiserror = { version = "2.0.11", features = ["default"] }
 tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"] }

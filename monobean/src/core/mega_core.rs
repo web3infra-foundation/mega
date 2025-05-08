@@ -18,7 +18,6 @@ use vault::pgp::{SignedPublicKey, SignedSecretKey};
 pub struct MegaCore {
     config: Arc<RwLock<Config>>,
     running_context: Arc<RwLock<Option<MegaContext>>>,
-    mount_point: Arc<RwLock<Option<PathBuf>>>,
     ssh_options: Arc<RwLock<Option<SshOptions>>>,
     http_options: Arc<RwLock<Option<HttpOptions>>>,
     pgp: OnceCell<(SignedPublicKey, SignedSecretKey)>,
@@ -43,8 +42,6 @@ pub enum MegaCommands {
             /* pgp_initialized: */ bool,
         )>,
     ),
-    FuseMount(PathBuf),
-    FuseUnmount,
     SaveFileChange(PathBuf),
     LoadOrInitPgp(
         oneshot::Sender<MonoBeanResult<()>>,
@@ -53,13 +50,13 @@ pub enum MegaCommands {
         Option<String>, // Passwd
     ),
     ApplyUserConfig(Vec<CoreConfigChanged>),
+
 }
 
 impl Debug for MegaCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("MegaCore")
             .field("config", &self.config)
-            .field("mount_point", &self.mount_point)
             .field("mounted", &self.mounted)
             .finish()
     }
@@ -70,7 +67,6 @@ impl MegaCore {
         Self {
             config: Arc::from(RwLock::new(config)),
             running_context: Default::default(),
-            mount_point: Default::default(),
             ssh_options: Default::default(),
             http_options: Default::default(),
             pgp: Default::default(),
@@ -123,18 +119,6 @@ impl MegaCore {
                 let core_running = self.is_core_running().await;
                 let pgp_initialized = self.pgp.initialized();
                 sender.send((core_running, pgp_initialized)).unwrap();
-            }
-            MegaCommands::FuseMount(path) => {
-                tracing::info!("Mounting fuse at {:?}", path);
-                let mut mp_lock = self.mount_point.write().await;
-                *mp_lock = Some(path);
-                self.mounted.store(true, Ordering::Relaxed);
-            }
-            MegaCommands::FuseUnmount => {
-                tracing::info!("Unmounting fuse");
-                let mut mp_lock = self.mount_point.write().await;
-                *mp_lock = None;
-                self.mounted.store(false, Ordering::Relaxed);
             }
             MegaCommands::SaveFileChange(path) => {
                 tracing::info!("Saving file change at {:?}", path);
