@@ -1,6 +1,6 @@
 name: Test Web UI
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
