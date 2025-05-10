@@ -110,7 +110,7 @@ Sentry.init({
     /metrics\.itunes\.apple\.com\.edgesuite\.net\//i
   ],
   // Control for which URLs distributed tracing should be enabled
-  tracePropagationTargets: ['api.gitmono.test', 'api.gitmono.com'],
+  tracePropagationTargets: ['api.gitmega.com', 'api.gitmono.com'],
   // Adjust this value in production, or use tracesSampler for greater control
   // NOTE that a sampled trace is considered live for the duration of a route and may result in many server traces being logged.
   // https://github.com/getsentry/sentry-ruby/issues/2318
