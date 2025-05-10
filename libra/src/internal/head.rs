@@ -83,7 +83,6 @@ impl Head {
             Some(remote) => Self::query_remote_head(remote).await,
             None => Some(Self::query_local_head().await),
         };
-
         match head {
             Some(head) => {
                 // update

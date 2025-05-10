@@ -98,7 +98,7 @@ pub async fn execute(args: CommitArgs) {
 }
 
 /// recursively create tree from index's tracked entries
-async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathBuf) -> Tree {
+pub async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathBuf) -> Tree {
     // blob created when add file to index
     let get_blob_entry = |path: &PathBuf| {
         let name = util::path_to_string(path);

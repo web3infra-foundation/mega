@@ -114,7 +114,7 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
 
     if possible_branches.is_empty() {
         let storage = util::objects_storage();
-        let possible_commits = storage.search(branch_or_commit);
+        let possible_commits = storage.search(branch_or_commit).await;
         if possible_commits.len() > 1 {
             return Err(format!("Ambiguous commit hash '{}'", branch_or_commit).into());
         }

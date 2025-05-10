@@ -293,10 +293,10 @@ pub fn path_to_string(path: &Path) -> String {
 }
 
 /// extend hash, panic if not valid or ambiguous
-pub fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
+pub async fn get_commit_base(commit_base: &str) -> Result<SHA1, String> {
     let storage = objects_storage();
 
-    let commits = storage.search(commit_base);
+    let commits = storage.search(commit_base).await;
     if commits.is_empty() {
         return Err(format!("fatal: invalid reference: {}", commit_base));
     } else if commits.len() > 1 {

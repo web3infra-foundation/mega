@@ -4,7 +4,6 @@ use libra::internal::protocol::lfs_client::LFSClient;
 use libra::internal::protocol::ProtocolClient;
 use libra::utils::lfs;
 use reqwest::Url;
-/// integration tests for the mega module
 use std::env;
 use std::net::TcpStream;
 use std::path::PathBuf;
