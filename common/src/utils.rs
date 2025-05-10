@@ -126,6 +126,15 @@ pub fn check_conventional_commits_message(msg: &str) -> bool {
     false
 }
 
+pub fn get_current_bin_name() -> String {
+    let bin_path = std::env::args().next().unwrap_or_default();
+    std::path::Path::new(&bin_path)
+        .file_name()
+        .and_then(|os_str| os_str.to_str())
+        .unwrap_or("unknown")
+        .to_owned()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
