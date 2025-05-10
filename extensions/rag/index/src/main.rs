@@ -8,7 +8,7 @@ use index::vectorization::VectClient;
 use index::{BROKER, CONSUMER_GROUP, TOPIC};
 use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, VECT_CLIENT_NODE, VECT_URL};
 use observatory::facilities::Telescope;
-use observatory::model::crates::CrateMessage;
+use observatory::kafka_model::message_model::MessageModel;
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
@@ -32,11 +32,11 @@ fn main() {
             .consume_loop(|payload: String| async move {
                 println!("✅ Received: {}", payload);
 
-                let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
+                let crate_msg = serde_json::from_str::<MessageModel>(&payload).unwrap();
                 let file_path = get_file_path(
-                    &PathBuf::from("/mnt/r2cn/freighter/crates"),
+                    &PathBuf::from(env::var("FREIGHTER_CRATES_PATH").unwrap()),
                     &crate_msg.crate_name,
-                    &crate_msg.crate_version,
+                    &crate_msg.version,
                 );
                 println!("📦 File path: {:?}", file_path);
 
@@ -114,41 +114,4 @@ fn update_knowledge_base(file_path: &PathBuf) {
 
     handle.join().unwrap();
     log::info!("Knowledge base updated!");
-}
-
-#[cfg(test)]
-mod test {
-    use std::path::{Path, PathBuf};
-
-    use observatory::facilities::Telescope;
-    use observatory::model::crates::CrateMessage;
-    use tokio::time::Duration;
-
-    //use crate::handler::utils;
-
-    const BROKER: &str = "127.0.0.1:9092";
-    const TOPIC: &str = "mega-crate-downloads-test";
-
-    pub fn get_file_path(crates_path: &Path, c_name: &str, c_version: &str) -> PathBuf {
-        crates_path
-            .join(c_name)
-            .join(format!("{}-{}.crate", c_name, c_version))
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_consume_down_crates_msg() {
-        let telescope = Telescope::new(BROKER, "rag_crates", TOPIC);
-        tokio::select! {
-            _ = telescope.consume_loop(|payload:String| async move {
-                println!("✅ test_loop_consume: Received: {}", payload);
-                let crate_msg = serde_json::from_str::<CrateMessage>(&payload).unwrap();
-                let file_path = get_file_path(&PathBuf::from("/mnt/r2cn/freighter/crates"), &crate_msg.crate_name, &crate_msg.crate_version);
-                assert!(file_path.exists());
-            }) => {},
-            _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                println!("⏰ Timeout");
-            }
-        }
-    }
 }

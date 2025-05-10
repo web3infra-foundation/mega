@@ -1,0 +1,42 @@
+[package]
+name = "sync_tool"
+version = "0.0.1-alpha"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+callisto = { workspace = true }
+observatory = { workspace = true }
+
+# third-party (第三方依赖, 不写具体版本号, 具体版本只在根目录 Cargo.toml 中出现)
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+csv = { workspace = true }
+dotenvy = { workspace = true }
+flate2 = { workspace = true }
+git2 = { workspace = true }
+rdkafka = { workspace = true, features = ["cmake-build"] }
+regex = { workspace = true }
+sea-orm = { workspace = true, features = [
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+] }
+semver = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tar = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+walkdir = { workspace = true }
+reqwest = { workspace = true, features = ["json"]}
+
+[[bin]]
+name = "sync_tool"   # 设置编译后的二进制文件名称
+path = "src/main.rs" # 可选，默认情况下，Cargo 会查找 src/main.rs 文件
