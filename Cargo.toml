@@ -17,7 +17,8 @@ members = [
     "third-party",
     "extensions/rag/chat",
     "extensions/rag/index",
-    "observatory",
+    "extensions/observatory",
+    "extensions/sync_tool",
 ]
 default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
 resolver = "1"
@@ -36,10 +37,11 @@ saturn = { path = "saturn" }
 mega = { path = "mega" }
 mono = { path = "mono" }
 libra = { path = "libra" }
-observatory = { path = "observatory" }
+observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
 orion-server = { path = "orion-server" }
 third-party = { path = "third-party" }
+sync_tool = { path = "extensions/sync_tool" }
 
 anyhow = "1.0.93"
 serde = "1.0.215"
@@ -145,6 +147,9 @@ qdrant-client = "1.7"
 walkdir = "2.4"
 dagrs = "0.4.4"
 tar = "0.4"
+
+csv = "1.3"
+semver = "1.0"
 
 [profile.release]
 debug = true
