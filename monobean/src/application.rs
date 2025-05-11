@@ -1,3 +1,4 @@
+use crate::components::file_tree::FileTreeRowData;
 use crate::config::{
     config_update, load_mega_resource, monobean_base, monobean_cache, MEGA_CONFIG_PATH, WEBSITE,
 };
@@ -44,7 +45,10 @@ pub enum Action {
     ShowHelloPage,
     ShowMainPage,
     MountRepo,
-    OpenEditorOn(PathBuf),
+    OpenEditorOn{
+        hash: String,
+        name: String,
+    },
 }
 
 mod imp {
@@ -443,11 +447,11 @@ impl MonobeanApplication {
                 window.show_main_page();
             }
             Action::MountRepo => todo!(),
-            Action::OpenEditorOn(path) => {
+            Action::OpenEditorOn{hash, name} => {
                 CONTEXT.spawn_local(async move {
                     let window = window.imp();
                     let code_page = window.code_page.get();
-                    code_page.show_editor_on(path);
+                    code_page.show_editor_on(hash, name);
                 });
             }
         }
