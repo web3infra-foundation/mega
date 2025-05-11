@@ -1,19 +1,25 @@
 use crate::application::Action;
+use crate::CONTEXT;
 use adw::prelude::*;
 use adw::subclass::prelude::BinImpl;
 use async_channel::Sender;
+use ceres::model::git::TreeBriefItem;
 use gtk::gio::{ListModel, ListStore};
-use gtk::glib::Enum;
-use gtk::glib::{clone, Properties};
+use gtk::glib::{clone, Priority, Properties};
+use gtk::glib::{Enum, Object};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate, SignalListItemFactory, SingleSelection, TreeListModel};
+use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 use smallvec::SmallVec;
 use std::cell::{Cell, RefCell};
 use std::fs::DirEntry;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::{cell::OnceCell, path::Path};
 
 mod imp {
+    use std::rc::Rc;
+
     use super::*;
 
     #[derive(Debug, Default, Properties)]
@@ -29,6 +35,8 @@ mod imp {
         pub file_type: Cell<FileType>,
         #[property(name = "expanded", get, set)]
         pub expanded: Cell<bool>,
+        #[property(name = "hash", get, set)]
+        pub hash: RefCell<String>,
     }
 
     #[derive(CompositeTemplate, Default)]
@@ -38,6 +46,7 @@ mod imp {
         pub list_view: TemplateChild<gtk::ListView>,
 
         pub sender: OnceCell<Sender<Action>>,
+        pub root_store: Rc<RefCell<Option<ListStore>>>,
     }
 
     #[derive(CompositeTemplate, Default)]
@@ -142,26 +151,31 @@ impl FileTreeView {
         self.imp().sender.get().unwrap().clone()
     }
 
-    pub fn setup_file_tree(&self, sender: Sender<Action>, mount_point: impl AsRef<Path>) {
+    pub fn setup_file_tree(&self, sender: Sender<Action>) {
         let imp = self.imp();
-        imp.sender.set(sender).unwrap();
+        imp.sender.set(sender.clone()).unwrap();
 
-        let mut root_model = ListStore::new::<FileTreeRowData>();
+        // At this time, mega core is not initialized,
+        // we can not get the root directory from mega core.
+        let root = ListStore::new::<FileTreeRowData>();
 
-        let (root_dirs, root_files) = Self::load_directory(mount_point, 0);
-        root_model.extend(root_dirs);
-        root_model.extend(root_files);
+        *self.imp().root_store.borrow_mut() = Some(root.clone());
 
-        let model = TreeListModel::new(root_model, false, false, |item| {
-            let mut model = ListStore::new::<FileTreeRowData>();
+        let model = TreeListModel::new(root, false, false, move |item| {
+            let model = ListStore::new::<FileTreeRowData>();
             let node = item.downcast_ref::<FileTreeRowData>().unwrap();
 
             if node.file_type() == FileType::Directory {
                 let path = node.path();
                 let depth = node.depth() + 1;
-                let (dirs, files) = Self::load_directory(path, depth);
-                model.extend(dirs);
-                model.extend(files);
+                let sender = sender.clone();
+                println!("Blokcing on directory: {:?}, depth: {}", path, depth);
+                let mut ref_model = model.clone();
+                CONTEXT.spawn_local(async move {
+                    let (dirs, files) = Self::load_directory(sender, Some(path), depth).await;
+                    ref_model.extend(dirs);
+                    ref_model.extend(files);
+                });
                 Some(model.upcast::<ListModel>())
             } else {
                 None
@@ -217,22 +231,57 @@ impl FileTreeView {
         imp.list_view.set_factory(Some(&factory));
     }
 
-    fn load_directory(
-        path: impl AsRef<Path>,
+    pub async fn refresh_root(&self) {
+        let imp = self.imp();
+        let sender = imp.sender.get().unwrap().clone();
+        let mount_point = Some(PathBuf::from("/"));
+
+        if let Some(ref mut root_store) = *imp.root_store.borrow_mut() {
+            println!("Refresh root: {:?}", mount_point);
+            let (root_dirs, root_files) = Self::load_directory(sender, mount_point, 0).await;
+            root_store.remove_all();
+            root_store.extend(root_dirs);
+            root_store.extend(root_files);
+        }
+    }
+
+    async fn load_directory(
+        sender: Sender<Action>,
+        path: Option<impl AsRef<Path>>,
         depth: u8,
     ) -> (Vec<FileTreeRowData>, Vec<FileTreeRowData>) {
+        let path = path.map(|inner| inner.as_ref().to_path_buf());
+        let (tx, rx) = tokio::sync::oneshot::channel();
         let mut dirs = Vec::new();
         let mut files = Vec::new();
-        if let Ok(entries) = path.as_ref().read_dir() {
-            for entry in entries.flatten() {
-                if entry.file_type().unwrap().is_dir() {
-                    dirs.push(FileTreeRowData::new(depth, entry));
-                } else {
-                    files.push(FileTreeRowData::new(depth, entry));
+
+        sender
+            .send(Action::MegaCore(
+                crate::core::mega_core::MegaCommands::LoadFileTree {
+                    chan: tx,
+                    path: path.clone(),
+                },
+            ))
+            .await
+            .unwrap();
+
+         if let Ok(Ok(tree)) = rx.await {
+                let path = path.unwrap_or(PathBuf::from("/"));
+                for entry in tree.tree_items {
+                    match entry.mode {
+                        TreeItemMode::Blob | TreeItemMode::BlobExecutable => {
+                            files.push(FileTreeRowData::new(depth, &path, entry));
+                        }
+                        TreeItemMode::Tree => {
+                            dirs.push(FileTreeRowData::new(depth, &path, entry));
+                        }
+                        _ => {}
+                    }
                 }
+            } else {
+                tracing::error!("Failed to load directory: {:?}", path);
             }
-        }
-        (dirs, files)
+            (dirs, files)
     }
 }
 
@@ -326,25 +375,20 @@ impl FileTreeRow {
 }
 
 impl FileTreeRowData {
-    pub fn new(depth: u8, entry: DirEntry) -> Self {
-        let name = entry
-            .path()
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        let file_type = if entry.file_type().unwrap().is_dir() {
-            FileType::Directory
-        } else {
-            FileType::File
+    pub fn new(depth: u8, parent: impl AsRef<Path>, entry: TreeItem) -> Self {
+        let name = entry.name;
+        let file_type = match entry.mode {
+            TreeItemMode::Tree => FileType::Directory,
+            _ => FileType::File,
         };
 
         glib::Object::builder()
+            .property("path", parent.as_ref().join(&name))
             .property("label", name)
-            .property("path", entry.path())
             .property("depth", depth)
             .property("file-type", file_type)
             .property("expanded", false)
+            .property("hash", entry.id.to_string())
             .build()
     }
 }

@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use async_channel::Sender;
+use gtk::glib::Priority;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
@@ -8,6 +9,7 @@ use scv::{prelude::*, Buffer};
 
 use crate::application::Action;
 use crate::config::monobean_base;
+use crate::CONTEXT;
 
 mod imp {
     use adw::subclass::prelude::BinImpl;
@@ -86,11 +88,9 @@ impl CodePage {
             .expect("Code Page sender can only be set once");
         // self.setup_action();
 
-        let mount_point = monobean_base().join("mounts");
-
         self.setup_paned();
         self.setup_source_view(opened_file);
-        self.setup_file_tree(mount_point);
+        self.setup_file_tree();
     }
 
     fn setup_paned(&self) {
@@ -106,11 +106,12 @@ impl CodePage {
         code_stack.set_size_request(50, -1);
     }
 
-    fn setup_file_tree(&self, mount_point: impl AsRef<Path>) {
+    fn setup_file_tree(&self) {
         let imp = self.imp();
+        let sender  = imp.sender.get().unwrap().clone();
+        let file_tree_view = imp.file_tree_view.get();
 
-        let file_tree_view = self.imp().file_tree_view.get();
-        file_tree_view.setup_file_tree(imp.sender.get().unwrap().clone(), mount_point);
+        file_tree_view.setup_file_tree(sender);
     }
 
     fn setup_source_view(&self, opened_file: Option<&Path>) {
@@ -121,7 +122,7 @@ impl CodePage {
 
         match opened_file {
             Some(path) => {
-                self.show_editor(path);
+                self.show_editor_on(path);
             }
             None => {
                 self.hide_editor();
@@ -129,7 +130,7 @@ impl CodePage {
         }
     }
 
-    pub fn show_editor(&self, path: impl AsRef<Path>) {
+    pub fn show_editor_on(&self, path: impl AsRef<Path>) {
         let imp = self.imp();
         let path = path.as_ref();
         if !path.exists() || !path.is_file() {
