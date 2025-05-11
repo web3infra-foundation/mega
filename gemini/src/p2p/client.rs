@@ -113,8 +113,14 @@ impl BootstrapNode {
     }
 }
 
-pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
-    let connection = get_client_connection(bootstrap_node.clone()).await?;
+pub async fn run(context: Context, bootstrap_node: String) {
+    let connection = match get_client_connection(bootstrap_node.clone()).await {
+        Ok(connection) => connection,
+        Err(e) => {
+            error!("P2P: Connect to {} failed, {}", bootstrap_node, e);
+            return;
+        }
+    };
 
     let connection = Arc::new(connection);
     MsgSingletonConnection::init(connection.clone());
@@ -125,84 +131,95 @@ pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
     let peer_id = get_peerid().await;
 
     tokio::spawn(async move {
-        // Register msg connection to relay
-        let connection_clone = MsgSingletonConnection::get_connection();
-        let (mut send, _) = connection_clone.open_bi().await.unwrap();
-        send.write_all(format!("{}|{}", peer_id.clone(), "MSG").as_bytes())
-            .await
-            .unwrap();
-
-        loop {
-            let connection_clone = MsgSingletonConnection::get_connection();
-            let (mut quic_send, _) = connection_clone.open_bi().await.unwrap();
-
-            let ping = RequestData {
-                from: peer_id.clone(),
-                data: vec![],
-                func: "".to_string(),
-                action: Action::Ping,
-                to: "relay".to_string(),
-                req_id: Uuid::new_v4().into(),
-            };
-            let json = serde_json::to_string(&ping).unwrap();
-            quic_send.write_all(json.as_ref()).await.unwrap();
-            quic_send.finish().unwrap();
-            tokio::time::sleep(Duration::from_secs(60)).await;
+        if let Err(e) = run_ping_task(peer_id.clone()).await {
+            error!("P2P: Ping Task Error, {}", e);
         }
     });
 
     let connection_clone = connection.clone();
     tokio::spawn(async move {
-        loop {
-            let (_, mut quic_recv) = connection_clone.accept_bi().await.unwrap();
-            let buffer = quic_recv.read_to_end(1024 * 1024).await.unwrap();
-            info!("QUIC Received:\n{}", String::from_utf8_lossy(&buffer));
-            if tx.send(buffer).await.is_err() {
-                info!("Receiver closed");
-                return;
-            }
+        if let Err(e) = receive_quic_msg_task(connection_clone, tx.clone()).await {
+            error!("P2P: Receive quic msg Error, {}", e);
         }
     });
 
     while let Some(message) = rx.recv().await {
         let context = context.clone();
         tokio::spawn(async move {
-            let data: ResponseData = match serde_json::from_slice(&message) {
-                Ok(data) => data,
-                Err(e) => {
-                    error!("QUIC Received Error:\n{:?}", e);
-                    return;
-                }
-            };
-            match data.func.as_str() {
-                "request_git_clone" => {
-                    let path = String::from_utf8(data.data).unwrap();
-                    response_git_clone(context.clone(), path, data.from)
-                        .await
-                        .unwrap();
-                }
-                "request_lfs" => {
-                    let oid = String::from_utf8(data.data).unwrap();
-                    response_lfs(context.clone(), oid, data.from).await.unwrap();
-                }
-                "nostr" => {
-                    receive_nostr(data.data).await.unwrap();
-                }
-                "" => {
-                    if let Some(sender) = REQ_SENDER_MAP.get(data.req_id.as_str()) {
-                        let mut guard = sender.lock().await;
-                        if let Some(tx) = guard.take() {
-                            tx.send(data.data).expect("Sender error");
-                        }
-                    }
-                }
-                _ => {
-                    error!("Unsupported function");
-                }
+            if let Err(e) = handle_quic_msg_task(context, message).await {
+                error!("P2P: Handle quic msg Error, {}", e);
             }
         });
     }
+}
 
+async fn run_ping_task(peer_id: String) -> Result<()> {
+    // Register msg connection to relay
+    let connection_clone = MsgSingletonConnection::get_connection();
+    let (mut send, _) = connection_clone.open_bi().await?;
+    send.write_all(format!("{}|{}", peer_id.clone(), "MSG").as_bytes())
+        .await?;
+
+    loop {
+        let connection_clone = MsgSingletonConnection::get_connection();
+        let (mut quic_send, _) = connection_clone.open_bi().await?;
+
+        let ping = RequestData {
+            from: peer_id.clone(),
+            data: vec![],
+            func: "".to_string(),
+            action: Action::Ping,
+            to: "relay".to_string(),
+            req_id: Uuid::new_v4().into(),
+        };
+        let json = serde_json::to_string(&ping)?;
+        quic_send.write_all(json.as_ref()).await?;
+        quic_send.finish()?;
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+}
+
+async fn receive_quic_msg_task(
+    connection: Arc<Connection>,
+    tx: mpsc::Sender<Vec<u8>>,
+) -> Result<()> {
+    loop {
+        let (_, mut quic_recv) = connection.accept_bi().await?;
+        let buffer = quic_recv.read_to_end(1024 * 1024).await?;
+        info!("QUIC Received:\n{}", String::from_utf8_lossy(&buffer));
+        if tx.send(buffer).await.is_err() {
+            info!("Receiver closed");
+        }
+    }
+}
+
+async fn handle_quic_msg_task(context: Context, message: Vec<u8>) -> Result<()> {
+    let data: ResponseData = serde_json::from_slice(&message)?;
+    match data.func.as_str() {
+        "request_git_clone" => {
+            let path = String::from_utf8(data.data)?;
+            response_git_clone(context.clone(), path, data.from)
+                .await?;
+        }
+        "request_lfs" => {
+            let oid = String::from_utf8(data.data)?;
+            response_lfs(context.clone(), oid, data.from).await?;
+        }
+        "nostr" => {
+            receive_nostr(data.data).await?;
+        }
+        "" => {
+            if let Some(sender) = REQ_SENDER_MAP.get(data.req_id.as_str()) {
+                let mut guard = sender.lock().await;
+                if let Some(tx) = guard.take() {
+                    tx.send(data.data).expect("Sender error");
+                }
+            }
+        }
+        _ => {
+            error!("Unsupported function");
+        }
+    }
     Ok(())
 }
 
