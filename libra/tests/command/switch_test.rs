@@ -313,8 +313,8 @@ async fn create_commit_tree() {
 #[serial]
 // Comprehensive tests for HEAD reference navigation using Git-style paths
 // Validates support for ^ (parent selection), ~ (ancestry traversal), and their combinations
-async fn test_detach_head_extraly() {
-    println!("\n\x1b[1mTest detach use the head's ref extraly.\x1b[0m");
+async fn test_detach_head_extra() {
+    println!("\n\x1b[1mTest detach use the head's ref extra.\x1b[0m");
     let temp_path = tempdir().unwrap();
     test::setup_with_new_libra_in(temp_path.path()).await;
     let _guard = ChangeDirGuard::new(temp_path.path());
