@@ -1,14 +1,16 @@
 use std::path::Path;
 
 use async_channel::Sender;
-use gtk::glib::Priority;
+use gtk::glib::{clone, Priority};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
 use scv::{prelude::*, Buffer};
+use tokio::sync::oneshot;
 
 use crate::application::Action;
 use crate::config::monobean_base;
+use crate::core::mega_core::MegaCommands;
 use crate::CONTEXT;
 
 mod imp {
@@ -108,7 +110,7 @@ impl CodePage {
 
     fn setup_file_tree(&self) {
         let imp = self.imp();
-        let sender  = imp.sender.get().unwrap().clone();
+        let sender = imp.sender.get().unwrap().clone();
         let file_tree_view = imp.file_tree_view.get();
 
         file_tree_view.setup_file_tree(sender);
@@ -121,8 +123,8 @@ impl CodePage {
         source_view.set_editable(false);
 
         match opened_file {
-            Some(path) => {
-                self.show_editor_on(path);
+            Some(_path) => {
+                // self.show_editor_on(path);
             }
             None => {
                 self.hide_editor();
@@ -130,46 +132,50 @@ impl CodePage {
         }
     }
 
-    pub fn show_editor_on(&self, path: impl AsRef<Path>) {
+    pub fn show_editor_on(&self, hash: String, name: String) {
         let imp = self.imp();
-        let path = path.as_ref();
-        if !path.exists() || !path.is_file() {
-            tracing::warn!("file not exists: {:?}", path);
-            return;
-        }
+        let sender = imp.sender.get().unwrap().clone();
 
-        let buf = Buffer::new(None);
-        let file_name = path.file_name().unwrap().to_str();
-        let language_manager = scv::LanguageManager::new();
-        let file = adw::gio::File::for_path(path);
-        let file = scv::File::builder().location(&file).build();
-        let loader = scv::FileLoader::new(&buf, &file);
+        CONTEXT.spawn_local(clone!(
+            #[weak(rename_to=page)]
+            self,
+            async move {
+                let buf = Buffer::new(None);
+                let language_manager = scv::LanguageManager::new();
+                let (tx, rx) = oneshot::channel();
 
-        buf.set_highlight_syntax(true);
-        if let Some(ref language) = language_manager.guess_language(file_name, None) {
-            tracing::debug!("Guessed language: {:?}", language);
-            buf.set_language(Some(language));
-        }
-        if let Some(ref scheme) = scv::StyleSchemeManager::new().scheme("Adwaita-dark") {
-            buf.set_style_scheme(Some(scheme));
-        }
+                sender
+                    .send(Action::MegaCore(MegaCommands::LoadFileContent {
+                        chan: tx,
+                        id: hash,
+                    }))
+                    .await
+                    .unwrap();
 
-        loader.load_async_with_callback(
-            glib::Priority::default(),
-            adw::gio::Cancellable::NONE,
-            move |current_num_bytes, total_num_bytes| {
-                tracing::debug!(
-                    "loading: {:?}",
-                    (current_num_bytes as f32 / total_num_bytes as f32) * 100f32,
-                );
-            },
-            |res| {
-                tracing::debug!("loaded: {}", res.is_ok());
-            },
-        );
+                match rx.await.unwrap() {
+                    Ok(content) => {
+                        buf.set_text(content.as_str());
+                    }
+                    Err(e) => {
+                        tracing::error!("load file content error: {:?}", e);
+                        return;
+                    }
+                }
 
-        imp.source_view.set_buffer(Some(&buf));
-        imp.code_stack.set_visible_child_name("source_view");
+                buf.set_highlight_syntax(true);
+                if let Some(ref language) = language_manager.guess_language(Some(name), None) {
+                    tracing::debug!("Guessed language: {:?}", language);
+                    buf.set_language(Some(language));
+                }
+                if let Some(ref scheme) = scv::StyleSchemeManager::new().scheme("Adwaita-dark") {
+                    buf.set_style_scheme(Some(scheme));
+                }
+
+                let imp = page.imp();
+                imp.source_view.set_buffer(Some(&buf));
+                imp.code_stack.set_visible_child_name("source_view");
+            }
+        ));
     }
 
     pub fn hide_editor(&self) {

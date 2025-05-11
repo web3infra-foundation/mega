@@ -169,7 +169,6 @@ impl FileTreeView {
                 let path = node.path();
                 let depth = node.depth() + 1;
                 let sender = sender.clone();
-                println!("Blokcing on directory: {:?}, depth: {}", path, depth);
                 let mut ref_model = model.clone();
                 CONTEXT.spawn_local(async move {
                     let (dirs, files) = Self::load_directory(sender, Some(path), depth).await;
@@ -357,8 +356,9 @@ impl FileTreeRow {
                     }
                 } else {
                     // Handle file click - could send an action to open the file
-                    let path = data.path();
-                    let _ = sender.try_send(Action::OpenEditorOn(path.to_path_buf()));
+                    let hash = data.hash();
+                    let name = data.label();
+                    let _ = sender.try_send(Action::OpenEditorOn{hash, name});
                 }
                 gesture.set_state(gtk::EventSequenceState::Claimed);
             }
