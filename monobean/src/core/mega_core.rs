@@ -3,9 +3,14 @@ use crate::core::servers::{HttpOptions, SshOptions};
 use crate::core::CoreConfigChanged;
 use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
+use ceres::api_service::mono_api_service::MonoApiService;
+use ceres::api_service::ApiHandler;
+use ceres::model::git::TreeBriefItem;
 use common::config::Config;
 use common::model::P2pOptions;
 use jupiter::context::Context as MegaContext;
+use mercury::hash::SHA1;
+use mercury::internal::object::tree::Tree;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::net::SocketAddr;
@@ -43,14 +48,21 @@ pub enum MegaCommands {
         )>,
     ),
     SaveFileChange(PathBuf),
-    LoadOrInitPgp(
-        oneshot::Sender<MonoBeanResult<()>>,
-        String,         // User Name
-        String,         // User Email
-        Option<String>, // Passwd
-    ),
+    LoadOrInitPgp {
+        chan: oneshot::Sender<MonoBeanResult<()>>,
+        user_name: String,
+        user_email: String,
+        passwd: Option<String>,
+    },
     ApplyUserConfig(Vec<CoreConfigChanged>),
-
+    LoadFileTree {
+        chan: oneshot::Sender<MonoBeanResult<Tree>>,
+        path: Option<PathBuf>,
+    },
+    LoadFileContent {
+        chan: oneshot::Sender<MonoBeanResult<String>>,
+        id: String,
+    },
 }
 
 impl Debug for MegaCore {
@@ -123,18 +135,23 @@ impl MegaCore {
             MegaCommands::SaveFileChange(path) => {
                 tracing::info!("Saving file change at {:?}", path);
             }
-            MegaCommands::LoadOrInitPgp(back_chan, name, email, passwd) => {
+            MegaCommands::LoadOrInitPgp {
+                chan,
+                user_name,
+                user_email,
+                passwd,
+            } => {
                 if self.pgp.initialized() {
-                    back_chan.send(Err(MonoBeanError::ReinitError)).unwrap();
+                    chan.send(Err(MonoBeanError::ReinitError)).unwrap();
                     return;
                 }
 
                 if let Some(pk) = vault::pgp::load_pub_key().await {
                     let sk = vault::pgp::load_sec_key().await.unwrap();
-                    back_chan.send(Ok(())).unwrap();
+                    chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 } else {
-                    let uid = format!("{} <{}>", name, email);
+                    let uid = format!("{} <{}>", user_name, user_email);
                     let params = vault::pgp::params(
                         vault::pgp::KeyType::Rsa(2048),
                         passwd.clone(),
@@ -142,12 +159,21 @@ impl MegaCore {
                     );
                     let (pk, sk) = vault::pgp::gen_pgp_keypair(params, passwd);
                     vault::pgp::save_keys(pk.clone(), sk.clone()).await;
-                    back_chan.send(Ok(())).unwrap();
+                    chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 }
             }
             MegaCommands::ApplyUserConfig(update) => {
                 self.merge_config(update).await;
+            }
+            MegaCommands::LoadFileTree { chan, path } => {
+                println!("Loading file tree at {:?}", path);
+                let tree = self.load_tree(path).await;
+                chan.send(tree).unwrap();
+            }
+            MegaCommands::LoadFileContent { chan, id: path } => {
+                let content = self.load_blob(path).await;
+                chan.send(content).unwrap();
             }
         }
     }
@@ -241,6 +267,36 @@ impl MegaCore {
         *self.http_options.write().await = None;
         *self.ssh_options.write().await = None;
         *self.running_context.write().await = None;
+    }
+
+    async fn load_tree(&self, path: Option<PathBuf>) -> MonoBeanResult<Tree> {
+        let ctx = self.running_context.read().await.clone().unwrap();
+        let mono = MonoApiService { context: ctx };
+
+        let path = path.unwrap_or(PathBuf::from("/"));
+        let tree = mono.search_tree_by_path(&path).await;
+        println!("{:?}", tree); // FIXME: remove this line
+        match tree {
+            Ok(Some(tree)) => Ok(tree),
+            _ => {
+                let err_msg = format!("Failed to load tree: {:?}", path);
+                tracing::error!(err_msg);
+                Err(MonoBeanError::MegaCoreError(err_msg))
+            }
+        }
+    }
+
+    async fn load_blob(&self, id: impl AsRef<str>) -> MonoBeanResult<String> {
+        let ctx = self.running_context.read().await.clone().unwrap();
+        let mono = MonoApiService { context: ctx };
+        let raw = mono
+            .get_raw_blob_by_hash(id.as_ref())
+            .await
+            .map_err(|err| MonoBeanError::MegaCoreError(err.to_string()))?;
+        match raw {
+            Some(model) => return Ok(String::from_utf8(model.data.unwrap()).unwrap()),
+            _ => return Ok(String::default()),
+        };
     }
 
     async fn merge_config(&self, update: Vec<CoreConfigChanged>) {

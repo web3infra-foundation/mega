@@ -107,16 +107,16 @@ mod imp {
             let obj = self.obj();
 
             let app = obj.downcast_ref::<super::MonobeanApplication>().unwrap();
+            app.setup_log();
 
             if let Some(weak_window) = self.window.get() {
                 weak_window.upgrade().unwrap().present();
+                tracing::error!("Window already exists.");
                 return;
             }
 
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
-
-            app.setup_log();
 
             // Setup action channel
             let receiver = self.receiver.borrow_mut().take().unwrap();
@@ -447,7 +447,7 @@ impl MonobeanApplication {
                 CONTEXT.spawn_local(async move {
                     let window = window.imp();
                     let code_page = window.code_page.get();
-                    code_page.show_editor(path);
+                    code_page.show_editor_on(path);
                 });
             }
         }
