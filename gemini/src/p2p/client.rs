@@ -198,8 +198,7 @@ async fn handle_quic_msg_task(context: Context, message: Vec<u8>) -> Result<()> 
     match data.func.as_str() {
         "request_git_clone" => {
             let path = String::from_utf8(data.data)?;
-            response_git_clone(context.clone(), path, data.from)
-                .await?;
+            response_git_clone(context.clone(), path, data.from).await?;
         }
         "request_lfs" => {
             let oid = String::from_utf8(data.data)?;
