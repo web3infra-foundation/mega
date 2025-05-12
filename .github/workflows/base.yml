@@ -126,7 +126,7 @@ jobs:
 
       - name: Set up git lfs
         run: |
-          echo "GPG_TTY=$(tty)" >> "$GITHUB_ENV
+          echo "GPG_TTY=`tty`" >> $GITHUB_ENV
           git lfs install
           git config --global user.email "mega@github.com"
           git config --global user.name "Mega"
