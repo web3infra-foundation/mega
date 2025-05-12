@@ -3,18 +3,15 @@ use crate::CONTEXT;
 use adw::prelude::*;
 use adw::subclass::prelude::BinImpl;
 use async_channel::Sender;
-use ceres::model::git::TreeBriefItem;
 use gtk::gio::{ListModel, ListStore};
-use gtk::glib::{clone, Priority, Properties};
-use gtk::glib::{Enum, Object};
+use gtk::glib::Enum;
+use gtk::glib::{clone, Properties};
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate, SignalListItemFactory, SingleSelection, TreeListModel};
-use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
+use mercury::internal::object::tree::{TreeItem, TreeItemMode};
 use smallvec::SmallVec;
 use std::cell::{Cell, RefCell};
-use std::fs::DirEntry;
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::{cell::OnceCell, path::Path};
 
 mod imp {
@@ -234,10 +231,9 @@ impl FileTreeView {
         let imp = self.imp();
         let sender = imp.sender.get().unwrap().clone();
         let mount_point = Some(PathBuf::from("/"));
+        let (root_dirs, root_files) = Self::load_directory(sender, mount_point, 0).await;
 
         if let Some(ref mut root_store) = *imp.root_store.borrow_mut() {
-            println!("Refresh root: {:?}", mount_point);
-            let (root_dirs, root_files) = Self::load_directory(sender, mount_point, 0).await;
             root_store.remove_all();
             root_store.extend(root_dirs);
             root_store.extend(root_files);
@@ -264,23 +260,23 @@ impl FileTreeView {
             .await
             .unwrap();
 
-         if let Ok(Ok(tree)) = rx.await {
-                let path = path.unwrap_or(PathBuf::from("/"));
-                for entry in tree.tree_items {
-                    match entry.mode {
-                        TreeItemMode::Blob | TreeItemMode::BlobExecutable => {
-                            files.push(FileTreeRowData::new(depth, &path, entry));
-                        }
-                        TreeItemMode::Tree => {
-                            dirs.push(FileTreeRowData::new(depth, &path, entry));
-                        }
-                        _ => {}
+        if let Ok(Ok(tree)) = rx.await {
+            let path = path.unwrap_or(PathBuf::from("/"));
+            for entry in tree.tree_items {
+                match entry.mode {
+                    TreeItemMode::Blob | TreeItemMode::BlobExecutable => {
+                        files.push(FileTreeRowData::new(depth, &path, entry));
                     }
+                    TreeItemMode::Tree => {
+                        dirs.push(FileTreeRowData::new(depth, &path, entry));
+                    }
+                    _ => {}
                 }
-            } else {
-                tracing::error!("Failed to load directory: {:?}", path);
             }
-            (dirs, files)
+        } else {
+            tracing::error!("Failed to load directory: {:?}", path);
+        }
+        (dirs, files)
     }
 }
 
@@ -358,7 +354,7 @@ impl FileTreeRow {
                     // Handle file click - could send an action to open the file
                     let hash = data.hash();
                     let name = data.label();
-                    let _ = sender.try_send(Action::OpenEditorOn{hash, name});
+                    let _ = sender.try_send(Action::OpenEditorOn { hash, name });
                 }
                 gesture.set_state(gtk::EventSequenceState::Claimed);
             }

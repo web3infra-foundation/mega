@@ -1,4 +1,3 @@
-use crate::components::file_tree::FileTreeRowData;
 use crate::config::{
     config_update, load_mega_resource, monobean_base, monobean_cache, MEGA_CONFIG_PATH, WEBSITE,
 };
@@ -24,7 +23,6 @@ use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
 use tokio::sync::oneshot;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 

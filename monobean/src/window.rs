@@ -13,7 +13,7 @@ use adw::subclass::prelude::*;
 use adw::{gio, ColorScheme, StyleManager, Toast};
 use gtk::gio::Settings;
 use gtk::glib;
-use gtk::prelude::{AccessibleExt, GtkWindowExt, WidgetExt};
+use gtk::prelude::{GtkWindowExt, WidgetExt};
 use gtk::CompositeTemplate;
 use std::cell::OnceCell;
 
@@ -159,7 +159,6 @@ impl MonobeanWindow {
         code_page.setup_code_page(self.sender(), None);
 
         imp.content_stack.connect_visible_child_name_notify(move |stk| {
-            println!("visible child name: {:?}", stk.visible_child_name());
             if stk.visible_child_name().is_some_and(|name| name == "code"){
                 let file_tree = code_page.imp().file_tree_view.get();
                 CONTEXT.spawn_local_with_priority(Priority::LOW, async move {
