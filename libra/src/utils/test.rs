@@ -109,10 +109,10 @@ pub async fn setup_with_new_libra_in(temp_path: impl AsRef<Path>) {
     };
     command::init::init(args).await.unwrap();
 }
-
+/// change the log level to reduce verbose output.
 pub fn init_debug_logger() {
     let _ = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .try_init(); // avoid multi-init
 }
 
