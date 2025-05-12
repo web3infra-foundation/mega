@@ -290,7 +290,23 @@ impl MegaCore {
             .await
             .map_err(|err| MonoBeanError::MegaCoreError(err.to_string()))?;
         match raw {
-            Some(model) => Ok(String::from_utf8(model.data.unwrap()).unwrap()),
+            Some(model) => {
+                match model.data {
+                    Some(data) => match String::from_utf8(data) {
+                        Ok(string) => Ok(string),
+                        Err(err) => {
+                            let err_msg = format!("Invalid UTF-8 data: {}", err);
+                            tracing::error!(err_msg);
+                            Err(MonoBeanError::MegaCoreError(err_msg))
+                        }
+                    },
+                    None => {
+                        let err_msg = "Blob data is missing".to_string();
+                        tracing::error!(err_msg);
+                        Err(MonoBeanError::MegaCoreError(err_msg))
+                    }
+                }
+            },
             _ => Ok(String::default()),
         }
     }
