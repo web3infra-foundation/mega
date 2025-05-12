@@ -60,3 +60,26 @@ pub enum StorageTypeEnum {
     #[serde(rename = "aws_s3")]
     AwsS3,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "crate_type_enum")]
+pub enum CrateTypeEnum {
+    #[sea_orm(string_value = "lib")]
+    Lib,
+    #[sea_orm(string_value = "application")]
+    Application,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "sync_status_enum")]
+pub enum SyncStatusEnum {
+    #[sea_orm(string_value = "syncing")]
+    Syncing,
+    #[sea_orm(string_value = "succeed")]
+    Succeed,
+    #[sea_orm(string_value = "failed")]
+    Failed,
+    #[sea_orm(string_value = "analysing")]
+    Analysing,
+    #[sea_orm(string_value = "analysed")]
+    Analysed,
+}
