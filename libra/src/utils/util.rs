@@ -438,7 +438,7 @@ mod test {
         gitignore_file.write_all(b"*.bar").unwrap();
 
         let target = temp_path.path().join("tmp/foo.bar");
-        assert!(check_gitignore(&temp_path.into_path(), &target));
+        assert!(check_gitignore(&temp_path.keep(), &target));
     }
 
     #[test]
