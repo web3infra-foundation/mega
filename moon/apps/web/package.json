@@ -7,7 +7,7 @@
     "build": "next build",
     "build-storybook": "storybook build",
     "clean": "rm -rf .next .turbo .vercel node_modules",
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 80",
     "lint": "next lint",
     "playwright": "playwright test",
     "start": "next start",
