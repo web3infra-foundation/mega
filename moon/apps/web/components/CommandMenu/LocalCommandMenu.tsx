@@ -238,7 +238,7 @@ function Home({ navigate }: { navigate: NavigateFn }) {
   const hasSidebarChat = useCurrentUserOrOrganizationHasFeature('sidebar_dms')
   const ffUrl =
     !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
-      ? 'http://admin.gitmono.test:3001/admin/features/'
+      ? 'http://admin.gitmega.com/admin/features/'
       : 'https://admin.gitmono.com/admin/features'
   const { data: organization } = useGetCurrentOrganization()
 
