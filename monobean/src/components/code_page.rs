@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use async_channel::Sender;
-use gtk::glib::{clone, Priority};
+use gtk::glib::clone;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{glib, CompositeTemplate};
@@ -9,7 +9,6 @@ use scv::{prelude::*, Buffer};
 use tokio::sync::oneshot;
 
 use crate::application::Action;
-use crate::config::monobean_base;
 use crate::core::mega_core::MegaCommands;
 use crate::CONTEXT;
 

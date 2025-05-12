@@ -5,11 +5,9 @@ use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
 use ceres::api_service::mono_api_service::MonoApiService;
 use ceres::api_service::ApiHandler;
-use ceres::model::git::TreeBriefItem;
 use common::config::Config;
 use common::model::P2pOptions;
 use jupiter::context::Context as MegaContext;
-use mercury::hash::SHA1;
 use mercury::internal::object::tree::Tree;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -167,7 +165,6 @@ impl MegaCore {
                 self.merge_config(update).await;
             }
             MegaCommands::LoadFileTree { chan, path } => {
-                println!("Loading file tree at {:?}", path);
                 let tree = self.load_tree(path).await;
                 chan.send(tree).unwrap();
             }
@@ -275,7 +272,6 @@ impl MegaCore {
 
         let path = path.unwrap_or(PathBuf::from("/"));
         let tree = mono.search_tree_by_path(&path).await;
-        println!("{:?}", tree); // FIXME: remove this line
         match tree {
             Ok(Some(tree)) => Ok(tree),
             _ => {
@@ -294,9 +290,9 @@ impl MegaCore {
             .await
             .map_err(|err| MonoBeanError::MegaCoreError(err.to_string()))?;
         match raw {
-            Some(model) => return Ok(String::from_utf8(model.data.unwrap()).unwrap()),
-            _ => return Ok(String::default()),
-        };
+            Some(model) => Ok(String::from_utf8(model.data.unwrap()).unwrap()),
+            _ => Ok(String::default()),
+        }
     }
 
     async fn merge_config(&self, update: Vec<CoreConfigChanged>) {
