@@ -126,6 +126,7 @@ jobs:
 
       - name: Set up git lfs
         run: |
+          export GPG_TTY=$(tty)
           git lfs install
           git config --global user.email "mega@github.com"
           git config --global user.name "Mega"
