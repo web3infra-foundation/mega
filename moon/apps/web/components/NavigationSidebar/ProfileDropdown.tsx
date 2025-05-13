@@ -172,7 +172,7 @@ export function ProfileDropdown({
       external: true,
       url:
         !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
-          ? 'http://admin.gitmono.test:3001/admin/features/'
+          ? 'http://admin.gitmega.com/admin/features/'
           : 'https://admin.campsite.com/admin/features'
     },
     isStaff && { type: 'separator' },
