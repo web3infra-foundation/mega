@@ -6,6 +6,7 @@ use crate::application::{Action, MonobeanApplication};
 use crate::components::theme_selector::ThemeSelector;
 use crate::components::{mega_tab::MegaTab, repo_tab::RepoTab};
 use crate::config::PREFIX;
+use crate::CONTEXT;
 use adw::glib::Priority;
 use adw::prelude::{Cast, ObjectExt, SettingsExtManual, ToValue};
 use adw::subclass::prelude::*;
@@ -38,6 +39,8 @@ mod imp {
         pub header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
         pub base_stack: TemplateChild<gtk::Stack>,
+        #[template_child]
+        pub content_stack: TemplateChild<adw::ViewStack>,
         #[template_child]
         pub back_button: TemplateChild<gtk::Button>,
         #[template_child]
@@ -150,10 +153,19 @@ impl MonobeanWindow {
 
     fn setup_page(&self) {
         let imp = self.imp();
-        // let setting = self.settings();
+        let code_page= imp.code_page.get();
 
         imp.hello_page.setup_hello_page(self.sender());
-        imp.code_page.setup_code_page(self.sender(), None);
+        code_page.setup_code_page(self.sender(), None);
+
+        imp.content_stack.connect_visible_child_name_notify(move |stk| {
+            if stk.visible_child_name().is_some_and(|name| name == "code"){
+                let file_tree = code_page.imp().file_tree_view.get();
+                CONTEXT.spawn_local_with_priority(Priority::LOW, async move {
+                    file_tree.refresh_root().await;
+                });
+            }
+        });
 
         // We are developing, so always show hello_page for debug
         let stack = imp.base_stack.clone();

@@ -85,7 +85,7 @@ impl From<TreeItem> for TreeCommitItem {
     }
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TreeBriefItem {
     pub name: String,
     pub path: String,
