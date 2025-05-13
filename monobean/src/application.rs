@@ -23,7 +23,6 @@ use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
 use tokio::sync::oneshot;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
@@ -44,7 +43,10 @@ pub enum Action {
     ShowHelloPage,
     ShowMainPage,
     MountRepo,
-    OpenEditorOn(PathBuf),
+    OpenEditorOn{
+        hash: String,
+        name: String,
+    },
 }
 
 mod imp {
@@ -107,16 +109,16 @@ mod imp {
             let obj = self.obj();
 
             let app = obj.downcast_ref::<super::MonobeanApplication>().unwrap();
+            app.setup_log();
 
             if let Some(weak_window) = self.window.get() {
                 weak_window.upgrade().unwrap().present();
+                tracing::error!("Window already exists.");
                 return;
             }
 
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
-
-            app.setup_log();
 
             // Setup action channel
             let receiver = self.receiver.borrow_mut().take().unwrap();
@@ -443,11 +445,11 @@ impl MonobeanApplication {
                 window.show_main_page();
             }
             Action::MountRepo => todo!(),
-            Action::OpenEditorOn(path) => {
+            Action::OpenEditorOn{hash, name} => {
                 CONTEXT.spawn_local(async move {
                     let window = window.imp();
                     let code_page = window.code_page.get();
-                    code_page.show_editor(path);
+                    code_page.show_editor_on(hash, name);
                 });
             }
         }

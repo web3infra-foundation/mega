@@ -246,7 +246,7 @@ mod test {
         let index = Index::from_file(crate_path.join("../tests/data/index/index-760")).unwrap();
         println!("{:?}", index.tracked_entries(0).len());
         let storage = ClientStorage::init(path::objects());
-        let tree = create_tree(&index, &storage, temp_path.into_path()).await;
+        let tree = create_tree(&index, &storage, temp_path.keep()).await;
 
         assert!(storage.get(&tree.id).is_ok());
         for item in tree.tree_items.iter() {
