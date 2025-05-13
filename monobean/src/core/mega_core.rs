@@ -3,9 +3,12 @@ use crate::core::servers::{HttpOptions, SshOptions};
 use crate::core::CoreConfigChanged;
 use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
+use ceres::api_service::mono_api_service::MonoApiService;
+use ceres::api_service::ApiHandler;
 use common::config::Config;
 use common::model::P2pOptions;
 use jupiter::context::Context as MegaContext;
+use mercury::internal::object::tree::Tree;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::net::SocketAddr;
@@ -18,7 +21,6 @@ use vault::pgp::{SignedPublicKey, SignedSecretKey};
 pub struct MegaCore {
     config: Arc<RwLock<Config>>,
     running_context: Arc<RwLock<Option<MegaContext>>>,
-    mount_point: Arc<RwLock<Option<PathBuf>>>,
     ssh_options: Arc<RwLock<Option<SshOptions>>>,
     http_options: Arc<RwLock<Option<HttpOptions>>>,
     pgp: OnceCell<(SignedPublicKey, SignedSecretKey)>,
@@ -43,23 +45,28 @@ pub enum MegaCommands {
             /* pgp_initialized: */ bool,
         )>,
     ),
-    FuseMount(PathBuf),
-    FuseUnmount,
     SaveFileChange(PathBuf),
-    LoadOrInitPgp(
-        oneshot::Sender<MonoBeanResult<()>>,
-        String,         // User Name
-        String,         // User Email
-        Option<String>, // Passwd
-    ),
+    LoadOrInitPgp {
+        chan: oneshot::Sender<MonoBeanResult<()>>,
+        user_name: String,
+        user_email: String,
+        passwd: Option<String>,
+    },
     ApplyUserConfig(Vec<CoreConfigChanged>),
+    LoadFileTree {
+        chan: oneshot::Sender<MonoBeanResult<Tree>>,
+        path: Option<PathBuf>,
+    },
+    LoadFileContent {
+        chan: oneshot::Sender<MonoBeanResult<String>>,
+        id: String,
+    },
 }
 
 impl Debug for MegaCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("MegaCore")
             .field("config", &self.config)
-            .field("mount_point", &self.mount_point)
             .field("mounted", &self.mounted)
             .finish()
     }
@@ -70,7 +77,6 @@ impl MegaCore {
         Self {
             config: Arc::from(RwLock::new(config)),
             running_context: Default::default(),
-            mount_point: Default::default(),
             ssh_options: Default::default(),
             http_options: Default::default(),
             pgp: Default::default(),
@@ -124,33 +130,26 @@ impl MegaCore {
                 let pgp_initialized = self.pgp.initialized();
                 sender.send((core_running, pgp_initialized)).unwrap();
             }
-            MegaCommands::FuseMount(path) => {
-                tracing::info!("Mounting fuse at {:?}", path);
-                let mut mp_lock = self.mount_point.write().await;
-                *mp_lock = Some(path);
-                self.mounted.store(true, Ordering::Relaxed);
-            }
-            MegaCommands::FuseUnmount => {
-                tracing::info!("Unmounting fuse");
-                let mut mp_lock = self.mount_point.write().await;
-                *mp_lock = None;
-                self.mounted.store(false, Ordering::Relaxed);
-            }
             MegaCommands::SaveFileChange(path) => {
                 tracing::info!("Saving file change at {:?}", path);
             }
-            MegaCommands::LoadOrInitPgp(back_chan, name, email, passwd) => {
+            MegaCommands::LoadOrInitPgp {
+                chan,
+                user_name,
+                user_email,
+                passwd,
+            } => {
                 if self.pgp.initialized() {
-                    back_chan.send(Err(MonoBeanError::ReinitError)).unwrap();
+                    chan.send(Err(MonoBeanError::ReinitError)).unwrap();
                     return;
                 }
 
                 if let Some(pk) = vault::pgp::load_pub_key().await {
                     let sk = vault::pgp::load_sec_key().await.unwrap();
-                    back_chan.send(Ok(())).unwrap();
+                    chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 } else {
-                    let uid = format!("{} <{}>", name, email);
+                    let uid = format!("{} <{}>", user_name, user_email);
                     let params = vault::pgp::params(
                         vault::pgp::KeyType::Rsa(2048),
                         passwd.clone(),
@@ -158,12 +157,20 @@ impl MegaCore {
                     );
                     let (pk, sk) = vault::pgp::gen_pgp_keypair(params, passwd);
                     vault::pgp::save_keys(pk.clone(), sk.clone()).await;
-                    back_chan.send(Ok(())).unwrap();
+                    chan.send(Ok(())).unwrap();
                     self.pgp.set((pk, sk)).unwrap();
                 }
             }
             MegaCommands::ApplyUserConfig(update) => {
                 self.merge_config(update).await;
+            }
+            MegaCommands::LoadFileTree { chan, path } => {
+                let tree = self.load_tree(path).await;
+                chan.send(tree).unwrap();
+            }
+            MegaCommands::LoadFileContent { chan, id: path } => {
+                let content = self.load_blob(path).await;
+                chan.send(content).unwrap();
             }
         }
     }
@@ -257,6 +264,51 @@ impl MegaCore {
         *self.http_options.write().await = None;
         *self.ssh_options.write().await = None;
         *self.running_context.write().await = None;
+    }
+
+    async fn load_tree(&self, path: Option<PathBuf>) -> MonoBeanResult<Tree> {
+        let ctx = self.running_context.read().await.clone().unwrap();
+        let mono = MonoApiService { context: ctx };
+
+        let path = path.unwrap_or(PathBuf::from("/"));
+        let tree = mono.search_tree_by_path(&path).await;
+        match tree {
+            Ok(Some(tree)) => Ok(tree),
+            _ => {
+                let err_msg = format!("Failed to load tree: {:?}", path);
+                tracing::error!(err_msg);
+                Err(MonoBeanError::MegaCoreError(err_msg))
+            }
+        }
+    }
+
+    async fn load_blob(&self, id: impl AsRef<str>) -> MonoBeanResult<String> {
+        let ctx = self.running_context.read().await.clone().unwrap();
+        let mono = MonoApiService { context: ctx };
+        let raw = mono
+            .get_raw_blob_by_hash(id.as_ref())
+            .await
+            .map_err(|err| MonoBeanError::MegaCoreError(err.to_string()))?;
+        match raw {
+            Some(model) => {
+                match model.data {
+                    Some(data) => match String::from_utf8(data) {
+                        Ok(string) => Ok(string),
+                        Err(err) => {
+                            let err_msg = format!("Invalid UTF-8 data: {}", err);
+                            tracing::error!(err_msg);
+                            Err(MonoBeanError::MegaCoreError(err_msg))
+                        }
+                    },
+                    None => {
+                        let err_msg = "Blob data is missing".to_string();
+                        tracing::error!(err_msg);
+                        Err(MonoBeanError::MegaCoreError(err_msg))
+                    }
+                }
+            },
+            _ => Ok(String::default()),
+        }
     }
 
     async fn merge_config(&self, update: Vec<CoreConfigChanged>) {
