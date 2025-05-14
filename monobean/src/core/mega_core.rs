@@ -283,7 +283,7 @@ impl MegaCore {
             if let Some(model) = ctx
                 .services
                 .git_db_storage
-                .find_git_repo_like_path(path.as_ref().to_str().unwrap())
+                .find_git_repo_like_path(path.as_ref().to_string_lossy().as_ref())
                 .await
                 .unwrap()
             {
@@ -310,7 +310,7 @@ impl MegaCore {
             .components()
             .filter(|c| !matches!(c, Component::RootDir))
             .fold("/".to_owned(), |acc, e| {
-                acc + e.as_os_str().to_str().unwrap() + "/"
+                acc + &e.as_os_str().to_string_lossy() + "/"
             });
         let path = PathBuf::from(path);
 
