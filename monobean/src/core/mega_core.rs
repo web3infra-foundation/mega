@@ -297,7 +297,11 @@ impl MegaCore {
         let ret: Box<dyn ApiHandler> = Box::new(MonoApiService {
             context: ctx.clone(),
         });
-        Ok(ret.into()) // Stop R-A barking error.
+
+        // Rust-analyzer cannot infer the type of `ret` correctly and always reports an error.
+        // Use `.into()` to workaround this issue.
+        #[allow(clippy::useless_conversion)]
+        Ok(ret.into())
     }
 
     async fn load_tree(&self, path: Option<PathBuf>) -> MonoBeanResult<Tree> {
@@ -305,7 +309,7 @@ impl MegaCore {
         let path = path
             .components()
             .filter(|c| !matches!(c, Component::RootDir))
-            .fold("/".to_owned(), |acc , e| {
+            .fold("/".to_owned(), |acc, e| {
                 acc + e.as_os_str().to_str().unwrap() + "/"
             });
         let path = PathBuf::from(path);
