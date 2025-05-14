@@ -3,8 +3,10 @@ use crate::core::servers::{HttpOptions, SshOptions};
 use crate::core::CoreConfigChanged;
 use crate::error::{MonoBeanError, MonoBeanResult};
 use async_channel::{Receiver, Sender};
+use ceres::api_service::import_api_service::ImportApiService;
 use ceres::api_service::mono_api_service::MonoApiService;
 use ceres::api_service::ApiHandler;
+use ceres::protocol::repo::Repo;
 use common::config::Config;
 use common::model::P2pOptions;
 use jupiter::context::Context as MegaContext;
@@ -12,7 +14,7 @@ use mercury::internal::object::tree::Tree;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{oneshot, OnceCell, RwLock};
@@ -266,12 +268,50 @@ impl MegaCore {
         *self.running_context.write().await = None;
     }
 
-    async fn load_tree(&self, path: Option<PathBuf>) -> MonoBeanResult<Tree> {
-        let ctx = self.running_context.read().await.clone().unwrap();
-        let mono = MonoApiService { context: ctx };
+    async fn api_handler(&self, path: impl AsRef<Path>) -> MonoBeanResult<Box<dyn ApiHandler>> {
+        let ctx = self.running_context.read().await.clone();
+        if ctx.is_none() {
+            let err_msg = "Mega core is not running";
+            tracing::error!(err_msg);
+            return Err(MonoBeanError::MegaCoreError(err_msg.to_string()));
+        }
 
+        let ctx = ctx.unwrap();
+        let import_dir = ctx.config.monorepo.import_dir.clone();
+
+        if path.as_ref().starts_with(&import_dir) && path.as_ref() != import_dir {
+            if let Some(model) = ctx
+                .services
+                .git_db_storage
+                .find_git_repo_like_path(path.as_ref().to_str().unwrap())
+                .await
+                .unwrap()
+            {
+                let repo: Repo = model.into();
+                return Ok(Box::new(ImportApiService {
+                    context: ctx.clone(),
+                    repo,
+                }));
+            }
+        }
+        let ret: Box<dyn ApiHandler> = Box::new(MonoApiService {
+            context: ctx.clone(),
+        });
+        Ok(ret.into()) // Stop R-A barking error.
+    }
+
+    async fn load_tree(&self, path: Option<PathBuf>) -> MonoBeanResult<Tree> {
         let path = path.unwrap_or(PathBuf::from("/"));
-        let tree = mono.search_tree_by_path(&path).await;
+        let path = path
+            .components()
+            .filter(|c| !matches!(c, Component::RootDir))
+            .fold("/".to_owned(), |acc , e| {
+                acc + e.as_os_str().to_str().unwrap() + "/"
+            });
+        let path = PathBuf::from(path);
+
+        let handler = self.api_handler(&path).await?;
+        let tree = handler.search_tree_by_path(&path).await;
         match tree {
             Ok(Some(tree)) => Ok(tree),
             _ => {
@@ -290,21 +330,19 @@ impl MegaCore {
             .await
             .map_err(|err| MonoBeanError::MegaCoreError(err.to_string()))?;
         match raw {
-            Some(model) => {
-                match model.data {
-                    Some(data) => match String::from_utf8(data) {
-                        Ok(string) => Ok(string),
-                        Err(err) => {
-                            let err_msg = format!("Invalid UTF-8 data: {}", err);
-                            tracing::error!(err_msg);
-                            Err(MonoBeanError::MegaCoreError(err_msg))
-                        }
-                    },
-                    None => {
-                        let err_msg = "Blob data is missing".to_string();
+            Some(model) => match model.data {
+                Some(data) => match String::from_utf8(data) {
+                    Ok(string) => Ok(string),
+                    Err(err) => {
+                        let err_msg = format!("Invalid UTF-8 data: {}", err);
                         tracing::error!(err_msg);
                         Err(MonoBeanError::MegaCoreError(err_msg))
                     }
+                },
+                None => {
+                    let err_msg = "Blob data is missing".to_string();
+                    tracing::error!(err_msg);
+                    Err(MonoBeanError::MegaCoreError(err_msg))
                 }
             },
             _ => Ok(String::default()),
