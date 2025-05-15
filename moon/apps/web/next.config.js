@@ -36,6 +36,7 @@ const cspResourcesByDirective = {
     'https://*.gitmono.com',
     'wss://*.gitmono.com',
     process.env.NODE_ENV !== 'production' && 'http://api.gitmega.com',
+    process.env.NODE_ENV !== 'production' && 'http://git.gitmega.com',
     process.env.NODE_ENV !== 'production' && 'ws://localhost:9000',
     'https://gitmono.s3.ap-southeast-2.amazonaws.com',
     process.env.NODE_ENV !== 'production' && 'https://campsite-media-dev.s3.amazonaws.com',
