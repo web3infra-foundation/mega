@@ -10,6 +10,7 @@ use common::errors::MegaError;
 use jupiter::{context::Context, utils::converter::generate_git_keep_with_timestamp};
 use mercury::{
     errors::GitError,
+    hash::SHA1,
     internal::object::{
         commit::Commit,
         tree::{Tree, TreeItem, TreeItemMode},
@@ -23,6 +24,11 @@ use crate::model::git::{
 
 pub mod import_api_service;
 pub mod mono_api_service;
+
+#[derive(Debug, Default, Clone)]
+pub struct GitObjectCache {
+    trees: HashMap<SHA1, Tree>,
+}
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {
@@ -63,6 +69,15 @@ pub trait ApiHandler: Send + Sync {
 
     async fn get_tree_by_hash(&self, hash: &str) -> Tree;
 
+    async fn get_tree_from_cache(&self, oid: SHA1, cache: &mut GitObjectCache) -> Tree {
+        if let Some(tree) = cache.trees.get(&oid) {
+            return tree.clone();
+        }
+        let tree = self.get_tree_by_hash(&oid.to_string()).await;
+        cache.trees.insert(oid, tree.clone());
+        tree
+    }
+
     async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit;
 
     async fn add_trees_to_map(
@@ -82,8 +97,9 @@ pub trait ApiHandler: Send + Sync {
     async fn traverse_commit_history(
         &self,
         path: &Path,
-        commit: Commit,
+        commit: &Commit,
         target: &TreeItem,
+        cache: &mut GitObjectCache,
     ) -> Commit;
 
     async fn get_blob_as_string(&self, file_path: PathBuf) -> Result<Option<String>, GitError> {
@@ -133,6 +149,7 @@ pub trait ApiHandler: Send + Sync {
     }
 
     async fn get_tree_commit_info(&self, path: PathBuf) -> Result<Vec<TreeCommitItem>, GitError> {
+        let mut cache = GitObjectCache::default();
         match self.search_tree_by_path(&path).await? {
             Some(tree) => {
                 let mut item_to_commit = HashMap::new();
@@ -157,7 +174,6 @@ pub trait ApiHandler: Send + Sync {
                 )
                 .await;
 
-                let mut items = Vec::new();
                 let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
                 let commits = self
                     .get_commits_by_hashes(commit_ids.into_iter().collect())
@@ -166,34 +182,33 @@ pub trait ApiHandler: Send + Sync {
                 let commit_map: HashMap<String, Commit> =
                     commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
 
-                let root_commit: Option<Commit> = None;
+                let mut root_commit: Option<Commit> = None;
+                let mut item_to_commit_map: HashMap<TreeItem, Option<Commit>> = HashMap::new();
                 for item in tree.tree_items {
-                    let mut info: TreeCommitItem = item.clone().into();
                     if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
                         let commit = if let Some(commit) = commit_map.get(commit_id) {
-                            commit
+                            commit.to_owned()
                         } else {
-                            tracing::warn!("failed fecth commit: {}", commit_id);
-                            let root_commit = if let Some(ref root_commit) = root_commit {
-                                root_commit.clone()
-                            } else {
-                                self.get_root_commit().await
-                            };
-                            &self
-                                .traverse_commit_history(&path, root_commit, &item)
+                            tracing::warn!("failed fecth from commit map: {}", commit_id);
+                            if root_commit.is_none() {
+                                root_commit = Some(self.get_root_commit().await);
+                            }
+                            let root_commit = root_commit.as_ref().unwrap().clone();
+                            self.traverse_commit_history(&path, &root_commit, &item, &mut cache)
                                 .await
                         };
-                        info.oid = commit.id.to_string();
-                        info.message = commit.format_message();
-                        info.date = commit.committer.timestamp.to_string();
+                        item_to_commit_map.insert(item, Some(commit));
                     }
-                    items.push(info);
                 }
+                let mut items: Vec<TreeCommitItem> = item_to_commit_map
+                    .into_iter()
+                    .map(TreeCommitItem::from)
+                    .collect();
                 // sort with type and date
                 items.sort_by(|a, b| {
                     a.content_type
                         .cmp(&b.content_type)
-                        .then(b.date.cmp(&a.date))
+                        .then(a.name.cmp(&b.name))
                 });
                 Ok(items)
             }
@@ -403,6 +418,7 @@ pub trait ApiHandler: Send + Sync {
         root_tree: &Tree,
         path: &Path,
         target: &TreeItem,
+        cache: &mut GitObjectCache,
     ) -> Result<bool, GitError> {
         let relative_path = self.strip_relative(path).unwrap();
         let mut search_tree = root_tree.clone();
@@ -416,7 +432,7 @@ pub trait ApiHandler: Send + Sync {
                     .iter()
                     .find(|x| x.name == target_name);
                 if let Some(search_res) = search_res {
-                    search_tree = self.get_tree_by_hash(&search_res.id.to_string()).await;
+                    search_tree = self.get_tree_from_cache(search_res.id, cache).await;
                 } else {
                     return Ok(false);
                 }
