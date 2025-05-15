@@ -153,19 +153,20 @@ impl MonobeanWindow {
 
     fn setup_page(&self) {
         let imp = self.imp();
-        let code_page= imp.code_page.get();
+        let code_page = imp.code_page.get();
 
         imp.hello_page.setup_hello_page(self.sender());
         code_page.setup_code_page(self.sender(), None);
 
-        imp.content_stack.connect_visible_child_name_notify(move |stk| {
-            if stk.visible_child_name().is_some_and(|name| name == "code"){
-                let file_tree = code_page.imp().file_tree_view.get();
-                CONTEXT.spawn_local_with_priority(Priority::LOW, async move {
-                    file_tree.refresh_root().await;
-                });
-            }
-        });
+        imp.content_stack
+            .connect_visible_child_name_notify(move |stk| {
+                if stk.visible_child_name().is_some_and(|name| name == "code") {
+                    let file_tree = code_page.imp().file_tree_view.get();
+                    CONTEXT.spawn_local_with_priority(Priority::LOW, async move {
+                        file_tree.refresh_root().await;
+                    });
+                }
+            });
 
         // We are developing, so always show hello_page for debug
         let stack = imp.base_stack.clone();
