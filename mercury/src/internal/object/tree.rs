@@ -28,7 +28,7 @@ use std::fmt::Display;
 /// that entry. The mode is a three-digit octal number that encodes both the permissions and the
 /// type of the object. The first digit specifies the object type, and the remaining two digits
 /// specify the file mode or permissions.
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum TreeItemMode {
     Blob,
     BlobExecutable,
@@ -129,7 +129,7 @@ impl TreeItemMode {
 /// 100644 hello-world\0<blob object ID>
 /// 040000 data\0<tree object ID>
 /// ```
-#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize, Hash)]
 pub struct TreeItem {
     pub mode: TreeItemMode,
     pub id: SHA1,
