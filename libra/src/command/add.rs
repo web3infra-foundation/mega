@@ -181,7 +181,7 @@ fn check_file_status(file: &Path, index: &Index) -> FileStatus {
         }
     } else if !index.tracked(file_str, 0) {
         FileStatus::New
-    } else if !index.is_modified(file_str, 0, &util::working_dir()) {
+    } else if index.is_modified(file_str, 0, &util::working_dir()) {
         FileStatus::Modified
     } else {
         FileStatus::NotFound
