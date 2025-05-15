@@ -176,7 +176,7 @@ impl HelloPage {
                 // TODO: Ask user to input a passwd for pgp key.
                 let sender = sender.clone();
                 let (tx, rx) = oneshot::channel();
-                let pgp_command = Action::MegaCore(MegaCommands::LoadOrInitPgp{
+                let pgp_command = Action::MegaCore(MegaCommands::LoadOrInitPgp {
                     chan: tx,
                     user_name: name_entry.text().parse().unwrap(),
                     user_email: email_entry.text().parse().unwrap(),

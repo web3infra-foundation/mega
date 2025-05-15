@@ -43,10 +43,7 @@ pub enum Action {
     ShowHelloPage,
     ShowMainPage,
     MountRepo,
-    OpenEditorOn{
-        hash: String,
-        name: String,
-    },
+    OpenEditorOn { hash: String, name: String },
 }
 
 mod imp {
@@ -445,7 +442,7 @@ impl MonobeanApplication {
                 window.show_main_page();
             }
             Action::MountRepo => todo!(),
-            Action::OpenEditorOn{hash, name} => {
+            Action::OpenEditorOn { hash, name } => {
                 CONTEXT.spawn_local(async move {
                     let window = window.imp();
                     let code_page = window.code_page.get();
