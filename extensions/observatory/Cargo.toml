@@ -1,0 +1,30 @@
+[package]
+name = "observatory"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "observatory"
+path = "src/lib.rs"
+
+
+[dependencies]
+common = { workspace = true }
+
+rdkafka = { workspace = true, features = ["cmake-build"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+serde_json = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }
+tokio-stream = { workspace = true }
+callisto = { workspace = true}
+sea-orm = { workspace = true }
+
+
+[dev-dependencies]
+testcontainers = { workspace = true, features = ["blocking"] }
+once_cell = { workspace = true }
+uuid = { workspace = true, features = ["v4", "fast-rng", "macro-diagnostics"] }
