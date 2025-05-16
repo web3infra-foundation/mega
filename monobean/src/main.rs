@@ -26,7 +26,8 @@ fn main() -> glib::ExitCode {
 
     let resources = {
         gio::Resource::load("Monobean.gresource").unwrap_or_else(|_| {
-            gio::Resource::load("/usr/share/monobean/monobean.gresource").expect("Failed to load resources")
+            gio::Resource::load("/usr/share/monobean/monobean.gresource")
+                .expect("Failed to load resources")
         })
     };
     gio::resources_register(&resources);

@@ -24,7 +24,7 @@ pub fn verify_init(base_dir: &Path) {
 #[serial]
 /// Test the init function with no parameters
 async fn test_init() {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
     // let _guard = ChangeDirGuard::new(target_dir.clone());
 
     let args = InitArgs {
@@ -48,7 +48,7 @@ async fn test_init() {
 #[serial]
 /// Test the init function with the --bare flag
 async fn test_init_bare() {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
     // let _guard = ChangeDirGuard::new(target_dir.clone());
 
     // Run the init function with --bare flag
@@ -68,7 +68,7 @@ async fn test_init_bare() {
 #[serial]
 /// Test the init function with the --bare flag and an existing repository
 async fn test_init_bare_with_existing_repo() {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
 
     // Initialize a bare repository
     let init_args = InitArgs {
@@ -151,7 +151,7 @@ async fn test_init_with_invalid_branch() {
 }
 
 async fn test_invalid_branch_name(branch_name: &str) {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
     let args = InitArgs {
         bare: false,
         initial_branch: Some(branch_name.to_string()),
@@ -170,7 +170,7 @@ async fn test_invalid_branch_name(branch_name: &str) {
 #[serial]
 /// Test the init function with [directory] parameter
 async fn test_init_with_directory() {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
 
     // Create a test directory
     let test_dir = target_dir.join("test");
@@ -196,7 +196,7 @@ async fn test_init_with_directory() {
 #[serial]
 /// Test the init function with invalid [directory] parameter
 async fn test_init_with_invalid_directory() {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
 
     // Create a test file instead of a directory
     let test_dir = target_dir.join("test.txt");
@@ -225,7 +225,7 @@ async fn test_init_with_invalid_directory() {
 #[serial]
 /// Tests that repository initialization fails when lacking write permissions in the target directory
 async fn test_init_with_unauthorized_directory() {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
 
     // Create a test directory
     let test_dir = target_dir.join("test");
@@ -265,7 +265,7 @@ async fn test_init_with_unauthorized_directory() {
 #[serial]
 /// Test the init function with the --quiet flag by using --show-output
 async fn test_init_quiet() {
-    let target_dir = tempdir().unwrap().into_path();
+    let target_dir = tempdir().unwrap().keep();
 
     let args = InitArgs {
         bare: false,

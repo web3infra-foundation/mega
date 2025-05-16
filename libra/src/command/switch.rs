@@ -47,9 +47,9 @@ pub async fn execute(args: SwitchArgs) {
         }
         None => match args.detach {
             true => {
-                let commit_base = get_commit_base(&args.branch.unwrap());
+                let commit_base = get_commit_base(&args.branch.unwrap()).await;
                 if commit_base.is_err() {
-                    eprintln!("{}", commit_base.unwrap());
+                    eprintln!("{:?}", commit_base.unwrap_err());
                     return;
                 }
                 switch_to_commit(commit_base.unwrap()).await;

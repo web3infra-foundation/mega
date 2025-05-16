@@ -4,7 +4,6 @@ use libra::internal::protocol::lfs_client::LFSClient;
 use libra::internal::protocol::ProtocolClient;
 use libra::utils::lfs;
 use reqwest::Url;
-/// integration tests for the mega module
 use std::env;
 use std::net::TcpStream;
 use std::path::PathBuf;
@@ -80,11 +79,11 @@ async fn mega_container(mapping_port: u16) -> ContainerAsync<GenericImage> {
 
     GenericImage::new("ubuntu", "latest")
         .with_exposed_port(mapping_port.tcp())
-        .with_wait_for(WaitFor::Http(
+        .with_wait_for(WaitFor::Http(Box::new(
             HttpWaitStrategy::new("/")
                 .with_method(Method::GET)
                 .with_expected_status_code(404_u16),
-        ))
+        )))
         .with_mapped_port(mapping_port, mapping_port.tcp())
         // .with_copy_to("/root/mega", MEGA.clone())
         // .with_copy_to("/root/config.toml", CONFIG.clone())

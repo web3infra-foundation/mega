@@ -18,7 +18,7 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
-use crate::api_service::ApiHandler;
+use crate::api_service::{ApiHandler, GitObjectCache};
 use crate::model::git::CreateFileInfo;
 use crate::protocol::mr::MergeRequest;
 
@@ -190,7 +190,13 @@ impl ApiHandler for MonoApiService {
         Ok(commits.into_iter().map(|x| x.into()).collect())
     }
 
-    async fn traverse_commit_history(&self, _: &Path, _: Commit, _: &TreeItem) -> Commit {
+    async fn traverse_commit_history(
+        &self,
+        _: &Path,
+        _: &Commit,
+        _: &TreeItem,
+        _: &mut GitObjectCache,
+    ) -> Commit {
         unreachable!()
     }
 }
@@ -324,6 +330,7 @@ impl MonoApiService {
                     .await
                     .expect("Failed to execute libra init");
                 // libra remote add origin http://localhost:8000/project
+                // TODO remove hard-code here
                 Command::new("libra")
                     .arg("remote")
                     .arg("add")

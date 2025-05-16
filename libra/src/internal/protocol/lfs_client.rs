@@ -821,6 +821,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
+    // Do not use mega repo in unit test, because mega exceeded its LFS budget. The account responsible for the budget should increase it to restore access
     async fn test_github_batch() {
         let batch_request = BatchRequest {
             operation: Operation::Download,

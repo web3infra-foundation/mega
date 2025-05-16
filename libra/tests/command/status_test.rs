@@ -45,6 +45,8 @@ async fn test_changes_to_be_staged() {
         all: true,
         update: false,
         verbose: false,
+        dry_run: false,
+        ignore_errors: false,
     })
     .await;
 

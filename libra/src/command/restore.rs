@@ -68,7 +68,7 @@ pub async fn execute(args: RestoreArgs) {
                 Some(Branch::find_branch(src, None).await.unwrap().commit)
             } else {
                 // [Commit Hash, e.g. a1b2c3d4] || [Wrong Branch Name]
-                let objs = storage.search(src);
+                let objs = storage.search(src).await;
                 // TODO hash can be `commit` or `tree`
                 if objs.len() != 1 || !storage.is_object_type(&objs[0], ObjectType::Commit) {
                     None // Wrong Commit Hash
@@ -99,7 +99,7 @@ pub async fn execute(args: RestoreArgs) {
                 tree.get_plain_items()
             } else {
                 let src = source.unwrap();
-                if storage.search(&src).len() != 1 {
+                if storage.search(&src).await.len() != 1 {
                     eprintln!("fatal: could not resolve {}", src);
                 } else {
                     eprintln!("fatal: reference is not a commit: {}", src);

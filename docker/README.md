@@ -15,6 +15,9 @@ docker buildx build -t mega:mono-engine-latest -f ./docker/mono-engine-dockerfil
 # build frontend mono ui image
 docker buildx build -t mega:mono-ui-latest-release -f ./docker/mono-ui-dockerfile .
 
+# build backend aries engine image (default in release mode)
+docker buildx build -t mega:aries-engine-latest -f ./docker/aries-engine-dockerfile .
+
 ## Test Mono Engine
 
 [1] Initiate volume for mono data and postgres data
@@ -131,6 +134,12 @@ server {
 
 }
 
+```
+
+[4] Run Aries
+
+```
+docker run --rm -it -d --name aries-engine -p 8001:8001 -p 8001:8001/udp mega:aries-engine-latest
 ```
 
 ## Certbot for SSL Certificate

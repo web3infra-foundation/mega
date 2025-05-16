@@ -53,11 +53,11 @@ async fn test_execute_log() {
 
 /// create a test commit tree structure as graph and create branch (master) head to commit 6
 /// return a commit hash of commit 6
-///            3   6
-///          /  \ /
-///    1 -- 2    5
-//           \  / \
-///            4   7
+///            3 --  6
+///          /      /
+///    1 -- 2  --  5
+//           \   /   \
+///            4     7
 async fn create_test_commit_tree() -> String {
     let mut commit_1 = Commit::from_tree_id(
         SHA1::new(&[1; 20]),

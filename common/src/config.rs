@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use crate::utils;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     pub base_dir: PathBuf,
@@ -92,8 +94,12 @@ impl Default for Config {
         );
         std::fs::create_dir_all(&base_dir).unwrap();
 
-        // use mega/config.toml because mega use sqlite as default db
-        let default_config = include_str!("../../mega/config.toml");
+        let bin_name = utils::get_current_bin_name();
+        let default_config = match bin_name.as_str() {
+            "mono" => include_str!("../../config/config.toml"),
+            "mega" => include_str!("../../mega/config.toml"),
+            _ => include_str!("../../mega/config.toml"),
+        };
         let default_config = default_config
             .lines()
             .map(|line| {

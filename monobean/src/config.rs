@@ -81,7 +81,7 @@ macro_rules! get_setting {
 /// 1. Uses the `MONOBEAN_BASE_DIR` environment variable if set
 /// 2. Falls back to system default paths when environment variable is not set:
 ///     - On Linux: `~/.local/share/monobean`
-///     - On Windows: `C:\ProgramData\monobean`
+///     - On Windows: `C:\Users\{UserName}\AppData\Local\monobean`
 ///     - On macOS: `~/Library/Application Support/monobean`
 ///
 /// # Returns

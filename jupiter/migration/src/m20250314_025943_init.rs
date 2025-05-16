@@ -2,7 +2,7 @@ use extension::postgres::Type;
 use sea_orm_migration::{
     prelude::*,
     schema::*,
-    sea_orm::{EnumIter, Iterable},
+    sea_orm::{DatabaseBackend, EnumIter, Iterable},
 };
 
 use crate::pk_bigint;
@@ -13,41 +13,50 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(MergeStatusEnum)
-                    .values(MergeStatus::iter())
-                    .to_owned(),
-            )
-            .await?;
+        let backend = manager.get_database_backend();
 
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(StorageTypeEnum)
-                    .values(StorageType::iter())
-                    .to_owned(),
-            )
-            .await?;
+        match backend {
+            DatabaseBackend::Postgres => {
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(StorageTypeEnum)
+                            .values(StorageType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
 
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(RefTypeEnum)
-                    .values(RefType::iter())
-                    .to_owned(),
-            )
-            .await?;
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(RefTypeEnum)
+                            .values(RefType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
 
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(ConvTypeEnum)
-                    .values(ConvType::iter())
-                    .to_owned(),
-            )
-            .await?;
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(ConvTypeEnum)
+                            .values(ConvType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(MergeStatusEnum)
+                            .values(MergeStatus::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+            }
+
+            DatabaseBackend::Sqlite | DatabaseBackend::MySql => {
+                // Do not create enum in sqlite
+            }
+        }
 
         manager
             .create_table(

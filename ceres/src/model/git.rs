@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
-use mercury::internal::object::tree::{TreeItem, TreeItemMode};
+use mercury::internal::object::{
+    commit::Commit,
+    tree::{TreeItem, TreeItemMode},
+};
 
 #[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateFileInfo {
@@ -69,23 +72,32 @@ pub struct TreeCommitItem {
     pub date: String,
 }
 
-impl From<TreeItem> for TreeCommitItem {
-    fn from(value: TreeItem) -> Self {
+impl From<(TreeItem, Option<Commit>)> for TreeCommitItem {
+    fn from((item, commit): (TreeItem, Option<Commit>)) -> Self {
         TreeCommitItem {
-            name: value.name,
-            content_type: if value.mode == TreeItemMode::Tree {
+            name: item.name.clone(),
+            content_type: if item.mode == TreeItemMode::Tree {
                 "directory".to_owned()
             } else {
                 "file".to_owned()
             },
-            oid: String::new(),
-            message: String::new(),
-            date: String::new(),
+            oid: commit
+                .as_ref()
+                .map(|x| x.id.to_string())
+                .unwrap_or_default(),
+            message: commit
+                .as_ref()
+                .map(|x| x.format_message())
+                .unwrap_or_default(),
+            date: commit
+                .as_ref()
+                .map(|x| x.committer.timestamp.to_string())
+                .unwrap_or_default(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TreeBriefItem {
     pub name: String,
     pub path: String,

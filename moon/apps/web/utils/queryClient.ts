@@ -1,6 +1,6 @@
 import { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
 
-import { RAILS_API_URL, RAILS_AUTH_URL } from '@gitmono/config'
+import { RAILS_API_URL, RAILS_AUTH_URL, LEGACY_API_URL } from '@gitmono/config'
 import { Api, ApiError, DataTag } from '@gitmono/types'
 
 import { ApiErrorResponse } from './types'
@@ -139,6 +139,15 @@ export const queryClient = () =>
 
 export const apiClient = new Api({
   baseUrl: RAILS_API_URL,
+  baseApiParams: {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    format: 'json'
+  }
+})
+
+export const legacyApiClient = new Api({
+  baseUrl: LEGACY_API_URL,
   baseApiParams: {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

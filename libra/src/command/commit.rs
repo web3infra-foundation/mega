@@ -98,7 +98,7 @@ pub async fn execute(args: CommitArgs) {
 }
 
 /// recursively create tree from index's tracked entries
-async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathBuf) -> Tree {
+pub async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathBuf) -> Tree {
     // blob created when add file to index
     let get_blob_entry = |path: &PathBuf| {
         let name = util::path_to_string(path);
@@ -246,7 +246,7 @@ mod test {
         let index = Index::from_file(crate_path.join("../tests/data/index/index-760")).unwrap();
         println!("{:?}", index.tracked_entries(0).len());
         let storage = ClientStorage::init(path::objects());
-        let tree = create_tree(&index, &storage, temp_path.into_path()).await;
+        let tree = create_tree(&index, &storage, temp_path.keep()).await;
 
         assert!(storage.get(&tree.id).is_ok());
         for item in tree.tree_items.iter() {
