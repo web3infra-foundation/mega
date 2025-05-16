@@ -104,9 +104,9 @@ function OrgSidebarItem({
   const isDesktopApp = useIsDesktopApp()
   const unreadCounts = useGetUnreadNotificationsCount()
 
-  const isSelected = scope === organization.slug
-  const inboxCount = unreadCounts.data?.home_inbox[organization.slug]
-  const messagesCount = unreadCounts.data?.messages[organization.slug]
+  const isSelected = scope === organization?.slug
+  const inboxCount = unreadCounts.data?.home_inbox[organization?.slug]
+  const messagesCount = unreadCounts.data?.messages[organization?.slug]
   const unreadCount = (inboxCount || 0) + (messagesCount || 0)
   const showUnread = unreadCount > 0 && !isSelected
 
@@ -129,22 +129,22 @@ function OrgSidebarItem({
       >
         <span>
           <Link
-            key={organization.id}
+            key={organization?.id}
             className={cn(
               'relative flex gap-2 rounded-[5px] ring-offset-2 ring-offset-gray-50 dark:ring-offset-gray-900',
               {
                 'ring-2 ring-black focus:ring-black dark:ring-white/90 dark:focus:ring-white/90': isSelected
               }
             )}
-            href={`/${organization.slug}`}
+            href={`/${organization?.slug}`}
             draggable={false}
           >
             <Avatar
               rounded='rounded-[5px]'
-              key={organization.id}
+              key={organization?.id}
               size='sm'
-              name={organization.name}
-              urls={organization.avatar_urls}
+              name={organization?.name}
+              urls={organization?.avatar_urls}
             />
 
             {showUnread && (
