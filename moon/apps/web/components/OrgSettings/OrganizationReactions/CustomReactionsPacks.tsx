@@ -46,9 +46,9 @@ function Pack({ pack }: { pack: CustomReactionsPack }) {
           onClick={() => setExpanded(!expanded)}
         />
         <div className='flex items-center gap-3'>
-          <Image src={pack.items[0].file_url} alt={pack.name} width={32} height={32} />
+          <Image src={pack.items[0]?.file_url} alt={pack?.name} width={32} height={32} />
           <div className='flex flex-1 flex-col'>
-            <UIText weight='font-medium'>{pack.name}</UIText>
+            <UIText weight='font-medium'>{pack?.name}</UIText>
             <UIText tertiary>{pack.items.length} emojis</UIText>
           </div>
           <PackButton pack={pack} />

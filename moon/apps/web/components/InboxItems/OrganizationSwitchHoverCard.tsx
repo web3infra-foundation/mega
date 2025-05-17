@@ -38,11 +38,11 @@ export function OrganizationSwitchHoverCard({
   const [prefetchOrg, setPrefetchOrg] = useState<string | undefined>(undefined)
   const [subview, setSubview] = useState<'notifications' | 'chat'>('notifications')
   const unreadCounts = useGetUnreadNotificationsCount()
-  const unreadInbox = unreadCounts.data?.home_inbox[organization.slug] || 0
-  const unreadChats = unreadCounts.data?.messages[organization.slug] || 0
+  const unreadInbox = unreadCounts.data?.home_inbox[organization?.slug] || 0
+  const unreadChats = unreadCounts.data?.messages[organization?.slug] || 0
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom)
   const isViewingInbox = organization
-    ? organization.slug === scope
+    ? organization?.slug === scope
     : router.pathname.startsWith('/[org]/inbox/[inboxView]')
   const isDisabled = sidebarCollapsed || isViewingInbox || disabled
 
@@ -57,7 +57,7 @@ export function OrganizationSwitchHoverCard({
       disabled={isDisabled}
       onOpenChange={(newVal) => {
         setOpen(newVal)
-        setPrefetchOrg(organization.slug)
+        setPrefetchOrg(organization?.slug)
       }}
     >
       <HoverCard.Trigger asChild>{children}</HoverCard.Trigger>
@@ -67,7 +67,7 @@ export function OrganizationSwitchHoverCard({
           <Link href={`/${scope}/inbox/${defaultInboxView}`} onClick={() => setOpen(false)} className='flex flex-1 p-1'>
             <div className='flex items-center gap-1.5'>
               <UIText weight='font-semibold' className='flex-1'>
-                {organization.name}
+                {organization?.name}
               </UIText>
               {shortcut && <KeyboardShortcut shortcut={shortcut} />}
             </div>
