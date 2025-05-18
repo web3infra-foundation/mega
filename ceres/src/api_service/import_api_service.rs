@@ -113,7 +113,7 @@ impl ApiHandler for ImportApiService {
     ) {
         let storage = self.context.services.git_db_storage.clone();
         let trees = storage
-            .get_trees_by_hashes(self.repo.repo_id, &hashes)
+            .get_trees_by_hashes(self.repo.repo_id, hashes)
             .await
             .unwrap();
         for tree in trees {
