@@ -1,4 +1,5 @@
 use async_recursion::async_recursion;
+use dashmap::DashMap;
 /// Read only file system for obtaining and displaying monorepo directory information
 use core::panic;
 use crossbeam::queue::SegQueue;
@@ -266,7 +267,8 @@ pub struct DirItem {
 }
 pub struct DictionaryStore {
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
-    dirs: Arc<Mutex<HashMap<String, DirItem>>>, //save all the dirs.
+    // dirs: Arc<Mutex<HashMap<String, DirItem>>>, //save all the dirs.
+    dirs: Arc<DashMap<String, DirItem>>, // save all the dirs.
     next_inode: AtomicU64,
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
     persistent_path_store: Arc<TreeStorage>, // persistent path store for saving and retrieving file paths
@@ -281,7 +283,7 @@ impl DictionaryStore {
             inodes: Arc::new(Mutex::new(HashMap::new())),
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             persistent_path_store: Arc::new(tree_store),
-            dirs: Arc::new(Mutex::new(HashMap::new())),
+            dirs: Arc::new(DashMap::new()),
         }
     }
 
@@ -337,7 +339,7 @@ impl DictionaryStore {
     #[async_recursion]
     async fn load_dirs(&self, path: PathBuf, parent_inode: u64) -> Result<(), io::Error> {
         let root_item = self.persistent_path_store.get_item(parent_inode)?;
-        self.dirs.lock().await.insert(
+        self.dirs.insert(
             path.to_string_lossy().to_string(),
             DirItem {
                 hash: root_item.hash.to_owned(),
@@ -350,8 +352,6 @@ impl DictionaryStore {
             let child_item = self.persistent_path_store.get_item(child)?;
             let child_path = path.join(child_item.get_name());
             self.dirs
-                .lock()
-                .await
                 .get_mut(&path.to_string_lossy().to_string())
                 .unwrap()
                 .file_list
@@ -457,7 +457,7 @@ impl DictionaryStore {
         let item = self.get_inode(parent).await?; // current_dictionary
         let mut parent_path = self.find_path(parent).await.unwrap();
         parent_path.pop();
-
+        
         let parent_item = self.get_by_path(&parent_path.to_string()).await?;
 
         let mut re = vec![item.clone(), parent_item.clone()];
@@ -487,7 +487,7 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     if store.load_db().await.is_ok() {
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
                 watch_dir(store.clone()).await;
             }
         });
@@ -520,8 +520,6 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
         store.inodes.lock().await.insert(1, root_item.into());
         store
             .dirs
-            .lock()
-            .await
             .insert("/".to_string(), root_dir_item);
     }
     // use the unlock queue instead of mpsc  Mutex
@@ -531,7 +529,7 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     let items = fetch_dir("").await.unwrap().data;
     let active_producers = Arc::new(AtomicUsize::new(items.len()));
     {
-        let mut locks = store.dirs.lock().await;
+        let locks = store.dirs.clone();
         // let dir_item = locks.get_mut("/").unwrap();
         for it in items {
             let is_dir = it.item.is_dir();
@@ -591,8 +589,6 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
                                 let tmp_path = newit.item.path.to_owned();
                                 store
                                     .dirs
-                                    .lock()
-                                    .await
                                     .get_mut(&path)
                                     .unwrap()
                                     .file_list
@@ -603,7 +599,7 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
                                     // If it's a directory, push it to the queue and add the producer count
                                     producers.fetch_add(1, Ordering::Relaxed);
                                     queue.push(new_inode);
-                                    store.dirs.lock().await.insert(
+                                    store.dirs.insert(
                                         tmp_path,
                                         DirItem {
                                             hash: newit.hash,
@@ -638,12 +634,16 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     join_all(workers).await;
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
             watch_dir(store.clone()).await;
         }
     });
 }
 
+/// Load directories of a specified depth under the parent folder.
+pub async fn load_dir_depth(_store: Arc<DictionaryStore>,_parent: &str) {
+
+}
 /// Watch the directory and update the dictionary
 pub async fn watch_dir(store: Arc<DictionaryStore>) {
     //TODO: rename a file or dic
@@ -654,7 +654,7 @@ pub async fn watch_dir(store: Arc<DictionaryStore>) {
 
     let items = fetch_dir("").await.unwrap().data;
     {
-        let mut locks = store.dirs.lock().await;
+        let locks = store.dirs.clone();
         for it in items {
             let is_dir = it.item.is_dir();
             let path = it.item.path.to_owned();
@@ -670,8 +670,12 @@ pub async fn watch_dir(store: Arc<DictionaryStore>) {
                     //when the dir's hash changed,fetch the dir.
                     if locks.get_mut(&path).unwrap().hash != it.hash {
                         // If the path already exists, update the hash
-                        let dir_it = locks.get_mut(&path).unwrap();
-                        dir_it.hash = it.hash;
+                        let mut dir_it = locks.get_mut(&path).unwrap();
+                        dir_it.hash = it.hash.to_owned();
+
+                        //also update the hash in the db.
+                        let inode = store.get_inode_from_path(&path).await.unwrap();
+                        tree_db.update_item_hash(inode, it.hash).unwrap();
                         queue.push(path);
                     }
                 }
@@ -745,7 +749,7 @@ pub async fn watch_dir(store: Arc<DictionaryStore>) {
                         Ok(new_items) => {
                             let new_items = new_items.data;
                             println!("{:?}", new_items.len());
-                            let mut locks = store.dirs.lock().await;
+                            let locks = store.dirs.clone();
                             for newit in new_items {
                                 let is_dir = newit.item.is_dir();
                                 let tmp_path = newit.item.path.to_owned();
@@ -765,9 +769,15 @@ pub async fn watch_dir(store: Arc<DictionaryStore>) {
                                         && locks.get_mut(&tmp_path).unwrap().hash != newit.hash
                                     {
                                         // If the path already exists, update the hash
-                                        let dir_it = locks.get_mut(&tmp_path).unwrap();
-                                        dir_it.hash = newit.hash;
+                                        let mut dir_it = locks.get_mut(&tmp_path).unwrap();
+                                        dir_it.hash = newit.hash.to_owned();
+                                        //also update the hash in the db.
+                                        let inode =
+                                            store.get_inode_from_path(&tmp_path).await.unwrap();
+                                        tree_db.update_item_hash(inode, newit.hash).unwrap();
+
                                         queue.push(tmp_path);
+
                                         producers.fetch_add(1, Ordering::Relaxed);
                                     }
                                 } else {
