@@ -204,7 +204,7 @@ impl PackHandler for ImportRepo {
             }
         }
 
-        let want_tree_ids = &want_commits.iter().map(|c| c.tree_id.to_string()).collect();
+        let want_tree_ids = want_commits.iter().map(|c| c.tree_id.to_string()).collect();
         let want_trees: HashMap<SHA1, Tree> = storage
             .get_trees_by_hashes(self.repo.repo_id, want_tree_ids)
             .await
@@ -222,7 +222,7 @@ impl PackHandler for ImportRepo {
         let have_trees = storage
             .get_trees_by_hashes(
                 self.repo.repo_id,
-                &have_commits.iter().map(|x| x.tree.clone()).collect(),
+                have_commits.iter().map(|x| x.tree.clone()).collect(),
             )
             .await
             .unwrap();
@@ -266,7 +266,7 @@ impl PackHandler for ImportRepo {
             .context
             .services
             .git_db_storage
-            .get_trees_by_hashes(self.repo.repo_id, &hashes)
+            .get_trees_by_hashes(self.repo.repo_id, hashes)
             .await
             .unwrap()
             .into_iter()
