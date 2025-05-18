@@ -294,10 +294,7 @@ async fn set_parent_commit(work_path: &Path) -> std::io::Result<()> {
         Ok(info) => info,
         Err(e) => {
             eprintln!("Failed to fetch parent commit info: {}", e);
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failed to fetch parent commit info",
-            ));
+            return Err(std::io::Error::other("Failed to fetch parent commit info"));
         }
     };
 
