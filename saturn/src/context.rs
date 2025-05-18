@@ -42,6 +42,7 @@ pub enum Error {
     Request(String),
 }
 
+#[allow(clippy::result_large_err)]
 impl CedarContext {
     pub fn new(entities: EntityStore) -> Result<Self, ContextError> {
         let schema_content = include_str!("../mega.cedarschema");

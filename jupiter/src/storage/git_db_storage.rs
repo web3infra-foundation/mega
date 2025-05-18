@@ -296,7 +296,7 @@ impl GitDbStorage {
     pub async fn get_trees_by_hashes(
         &self,
         repo_id: i64,
-        hashes: &Vec<String>,
+        hashes: Vec<String>,
     ) -> Result<Vec<git_tree::Model>, MegaError> {
         Ok(git_tree::Entity::find()
             .filter(git_tree::Column::RepoId.eq(repo_id))
