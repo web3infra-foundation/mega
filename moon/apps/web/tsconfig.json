@@ -15,7 +15,9 @@
       "@gitmono/ui/*": ["../../packages/ui/src/*"],
       "@gitmono/ui": ["../../packages/ui/src/index"],
       "@gitmono/types/*": ["../../packages/types/*"],
-      "@gitmono/types": ["../../packages/types/index"]
+      "@gitmono/types": ["../../packages/types/index"],
+      "@gitmono/regex/*": ["../../packages/regex/*"],
+      "@gitmono/regex": ["../../packages/regex/src/index.ts"]
     },
     "plugins": [
       {

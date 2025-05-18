@@ -39,9 +39,6 @@ ENV PATH=/root/.cargo/bin:$PATH
 COPY . .
 
 # build
-RUN cargo clean
-RUN git submodule deinit --all -f
-RUN git submodule update --init --recursive
 RUN if [ "$BUILD_TYPE" = "release" ]; then \
         cargo build -p aries --release; \
     else \
@@ -59,7 +56,6 @@ COPY --from=builder /opt/mega/target/$BUILD_TYPE/aries /usr/local/bin/aries
 COPY --from=builder /opt/mega/docker/start-aries.sh /usr/local/bin/start-aries.sh
 RUN chmod +x /usr/local/bin/start-aries.sh
 RUN chmod +x /usr/local/bin/aries
-COPY --from=builder /opt/mega/target/$BUILD_TYPE/libpipy.so /usr/local/lib/libpipy.so
 # refresh shared library cache
 RUN ldconfig
 

@@ -73,7 +73,7 @@
                 <child type="title">
                   <object class="AdwViewSwitcher" id="view_switcher">
                     <property name="policy">wide</property>
-                    <property name="stack">stack</property>
+                    <property name="stack">content_stack</property>
                   </object>
                 </child>
 
@@ -100,7 +100,7 @@
                     <property name="name">main_page</property>
                     <property name="title" translatable="true">Main</property>
                     <property name="child">
-                      <object class="AdwViewStack" id="stack">
+                      <object class="AdwViewStack" id="content_stack">
                         <child>
                           <object class="AdwViewStackPage">
                             <property name="name">mega_tab</property>
