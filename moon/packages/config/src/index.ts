@@ -24,6 +24,10 @@ export const RAILS_API_URL = IS_PRODUCTION
   ? 'https://api.gitmono.com'
   : process.env.NEXT_PUBLIC_API_URL || 'http://api.gitmega.com'
 
+export const LEGACY_API_URL = IS_PRODUCTION
+  ? 'https://api.gitmono.com'
+  : process.env.NEXT_PUBLIC_LEGACY_API_URL || 'http://git.gitmega.com'
+
 const RAILS_AUTH_URL_PROD_COM = 'https://auth.gitmono.com'
 
 export const RAILS_AUTH_URL = IS_PRODUCTION
