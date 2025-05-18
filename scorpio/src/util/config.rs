@@ -147,6 +147,7 @@ fn get_config() -> &'static ScorpioConfig {
         config.insert("git_author".to_string(), "MEGA".to_string());
         config.insert("git_email".to_string(), "admin@mega.org".to_string());
         config.insert("config_file".to_string(), "config.toml".to_string());
+        config.insert("load_dir_depth".to_string(), "3".to_string());
         config.insert(
             "lfs_url".to_string(),
             "http://localhost:8000/lfs".to_string(),
@@ -191,6 +192,7 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
         "config_file",
         "lfs_url",
         "dicfuse_readable",
+        "load_dir_depth",
     ];
 
     for key in required_keys {
@@ -239,6 +241,15 @@ pub fn lfs_url() -> &'static str {
 }
 pub fn dicfuse_readable() -> bool {
     get_config().config["dicfuse_readable"] == "true"
+}
+
+///get the depth of directory loading
+pub fn load_dir_depth() -> usize {
+    get_config()
+        .config
+        .get("load_dir_depth")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3)
 }
 #[cfg(test)]
 mod tests {

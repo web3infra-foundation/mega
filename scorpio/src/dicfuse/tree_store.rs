@@ -178,6 +178,18 @@ impl TreeStorage {
         names.reverse(); // reverse the names to get the all path of this item.
         Ok(GPath { path: names })
     }
+    /// when the dir's hash changes,we need to update the hash value in the db.
+    pub fn update_item_hash(&self, inode: u64, hash: String) -> io::Result<()> {
+        let mut item = self.get_storage_item(inode)?;
+        item.hash = hash;
+        self.db
+            .insert(
+                inode.to_be_bytes(),
+                bincode::serialize(&item).map_err(Error::other)?,
+            )
+            .map_err(Error::other)?;
+        Ok(())
+    }
 }
 #[cfg(test)]
 mod tests {
