@@ -351,7 +351,7 @@ mod tests {
         struct BrokenReader;
         impl Read for BrokenReader {
             fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
-                Err(io::Error::new(io::ErrorKind::Other, "error"))
+                Err(io::Error::other("error"))
             }
         }
 

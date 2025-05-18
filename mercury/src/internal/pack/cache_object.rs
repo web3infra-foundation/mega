@@ -27,7 +27,7 @@ impl<T: Serialize + for<'a> Deserialize<'a>> FileLoadStore for T {
     fn f_load(path: &Path) -> Result<T, io::Error> {
         let data = fs::read(path)?;
         let obj: T = bincode::serde::decode_from_slice(&data, bincode::config::standard())
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+            .map_err(io::Error::other)?
             .0;
         Ok(obj)
     }
