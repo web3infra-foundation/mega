@@ -29,7 +29,7 @@ export function OrganizationsTable() {
     <SettingsSection.Section>
       <div className='flex flex-col divide-y'>
         {memberships &&
-          memberships.map(({ organization }) => <OrganizationRow organization={organization} key={organization.id} />)}
+          memberships.map(({ organization }) => <OrganizationRow organization={organization} key={organization?.id} />)}
       </div>
     </SettingsSection.Section>
   )
@@ -44,17 +44,17 @@ function OrganizationRow(props: RowProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div key={organization.id} className='flex items-center gap-4 pr-3'>
-      <Link href={`/${organization.slug}`} className='group flex flex-1 items-center gap-3 p-3'>
-        <Avatar rounded='rounded-md' urls={organization.avatar_urls} name={organization.name} size='base' />
+    <div key={organization?.id} className='flex items-center gap-4 pr-3'>
+      <Link href={`/${organization?.slug}`} className='group flex flex-1 items-center gap-3 p-3'>
+        <Avatar rounded='rounded-md' urls={organization?.avatar_urls} name={organization?.name} size='base' />
 
         <UIText weight='font-medium' className='group-hover:underline'>
-          {organization.name}
+          {organization?.name}
         </UIText>
       </Link>
-      {organization.viewer_is_admin && <Button href={`/${organization.slug}/settings`}>Settings</Button>}
+      {organization?.viewer_is_admin && <Button href={`/${organization?.slug}/settings`}>Settings</Button>}
 
-      {organization.viewer_can_leave && (
+      {organization?.viewer_can_leave && (
         <>
           <LeaveOrganizationDialog organization={organization} open={isOpen} onOpenChange={setIsOpen} />
           <Button onClick={() => setIsOpen(true)}>Leave</Button>
