@@ -25,7 +25,6 @@ import {
   cn,
   CodeIcon,
   Command,
-  ComponentIcon, //test目录
   desktopJoinCall,
   DismissibleLayer,
   GearIcon,
