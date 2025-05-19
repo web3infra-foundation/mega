@@ -202,7 +202,7 @@ impl ModifiedStore for sled::Db {
                         .to_string();
                     Ok((PathBuf::from(path), hash))
                 }
-                Err(e) => Err(Error::new(ErrorKind::Other, e)),
+                Err(e) => Err(Error::other(e)),
             })
             .collect::<Result<HashMap<PathBuf, String>>>()
     }
@@ -255,11 +255,7 @@ impl<T: kv::KvStore<PathBuf, Tree>> TreesStore<T> {
     }
 
     fn get_bypath(&self, path: PathBuf) -> Result<Tree> {
-        match self
-            .db
-            ._get(&path)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
-        {
+        match self.db._get(&path).map_err(std::io::Error::other)? {
             Some(encoded_value) => Ok(encoded_value),
             None => Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -373,7 +369,7 @@ mod kv {
         fn from(e: KvError) -> Self {
             match e {
                 KvError::IoError(e) => e,
-                _ => std::io::Error::new(std::io::ErrorKind::Other, e),
+                _ => std::io::Error::other(e),
             }
         }
     }
