@@ -66,6 +66,9 @@ impl ScorpioManager {
         let objectspath = path.join("objects");
         let commitpath = path.join("commit");
 
+        println!("old_dbpath = {}", old_dbpath.display());
+        println!("new_dbpath = {}", new_dbpath.display());
+
         let modified_path = path.join("modifiedstore");
         let tempstorage_path = modified_path.join("objects");
 
@@ -76,17 +79,12 @@ impl ScorpioManager {
             copy(&tempstorage_path, &objectspath, &options)?;
         }
 
-        if !new_dbpath.exists() {
-            let mut options = CopyOptions::new();
-            options.copy_inside = true;
-            copy(&old_dbpath, &new_dbpath, &options)?;
-        }
-
-        let new_db = sled::open(new_dbpath)?;
+        let _ = fs::remove_dir_all(&objectspath);
+        let old_tree_db = sled::open(old_dbpath)?;
+        let new_tree_db = sled::open(new_dbpath)?;
         let temp_store_area = TempStoreArea::new(&modified_path)?;
         let old_root_path = PathBuf::from(mono_path);
 
-        //
         let git_author = config::git_author();
         let git_email = config::git_email();
         let sign = Signature::new(
@@ -105,7 +103,7 @@ impl ScorpioManager {
         };
 
         println!("\x1b[34m[START]\x1b[0m");
-        let main_tree_hash = commit_core(&new_db, &temp_store_area, &old_root_path)?;
+        let main_tree_hash = commit_core((&old_tree_db, &new_tree_db), &temp_store_area, &old_root_path)?;
         println!("\x1b[34m[DONE]\x1b[0m");
 
         println!("   [\x1b[33mDEBUG\x1b[0m] commit.author = {}", sign.name);
