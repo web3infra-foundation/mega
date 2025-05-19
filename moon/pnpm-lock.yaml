@@ -18,6 +18,9 @@ catalogs:
     '@emoji-mart/data':
       specifier: ^1.1.2
       version: 1.1.2
+    '@heroicons/react':
+      specifier: ^2.2.0
+      version: 2.2.0
     '@hocuspocus/provider':
       specifier: ^2.13.5
       version: 2.13.5
@@ -668,7 +671,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       '@heroicons/react':
-        specifier: ^2.2.0
+        specifier: 'catalog:'
         version: 2.2.0(react@18.2.0)
       '@hocuspocus/provider':
         specifier: 'catalog:'

@@ -23,7 +23,7 @@
     "@gitmono/editor": "workspace:*",
     "@gitmono/regex": "workspace:*",
     "@gitmono/ui": "workspace:*",
-    "@heroicons/react": "^2.2.0",
+    "@heroicons/react": "catalog:",
     "@hocuspocus/provider": "catalog:",
     "@hookform/resolvers": "catalog:",
     "@next/bundle-analyzer": "catalog:",
