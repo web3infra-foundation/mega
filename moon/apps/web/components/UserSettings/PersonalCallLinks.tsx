@@ -45,11 +45,11 @@ export function PersonalCallLinks() {
       {memberships && !isLoading && (
         <div className='-mt-3 divide-y'>
           {memberships.map(({ organization }) => (
-            <div key={organization.id} className='flex flex-col p-3'>
+            <div key={organization?.id} className='flex flex-col p-3'>
               <div className='flex items-center gap-3'>
-                <Avatar urls={organization.avatar_urls} rounded='rounded-md' name={organization.name} />
+                <Avatar urls={organization?.avatar_urls} rounded='rounded-md' name={organization?.name} />
                 <div className='flex flex-1 items-center justify-between gap-4'>
-                  <UIText weight='font-medium line-clamp-1'>{organization.name}</UIText>
+                  <UIText weight='font-medium line-clamp-1'>{organization?.name}</UIText>
                   <PersonalCallLinkButton organization={organization} />
                 </div>
               </div>
@@ -66,7 +66,7 @@ interface Props {
 }
 
 function PersonalCallLinkButton({ organization }: Props) {
-  const { data: personalCallRoom, isLoading } = useGetPersonalCallRoom({ orgSlug: organization.slug })
+  const { data: personalCallRoom, isLoading } = useGetPersonalCallRoom({ orgSlug: organization?.slug })
   const [copy] = useCopyToClipboard()
 
   function onClick() {
