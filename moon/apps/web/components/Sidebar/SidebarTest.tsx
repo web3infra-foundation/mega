@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import router from 'next/router'
 
 import { SidebarLink } from './SidebarLink'

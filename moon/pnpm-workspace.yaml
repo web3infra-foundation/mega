@@ -253,3 +253,6 @@ catalog:
   yjs: ^13.6.8
   zod: ^3.22.3
   zustand: ^4.4.1
+  antd: ^5.25.0
+  github-markdown-css: ^5.8.1
+  '@heroicons/react': ^2.2.0
