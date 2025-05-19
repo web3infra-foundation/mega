@@ -10,7 +10,6 @@ import {
     FolderIcon,
     DocumentIcon,
 } from '@heroicons/react/20/solid'
-import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, AwaitedReactNode } from 'react'
 
 export interface DataType {
     oid: string;
@@ -29,7 +28,7 @@ const CodeTable = ({ directory, readmeContent}:any) => {
             title: 'Name',
             dataIndex: ['name', 'content_type'],
             key: 'name',
-            render: (_: any, record: { content_type: string; name: string | number | boolean | ReactElement<any, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<AwaitedReactNode> | null | undefined }) => {
+            render: (_, record) => {
                 return <>
                     <Space>
                         {record.content_type === "directory" && <FolderIcon className="size-6" />}
@@ -43,20 +42,20 @@ const CodeTable = ({ directory, readmeContent}:any) => {
             title: 'Message',
             dataIndex: 'message',
             key: 'message',
-            render: (text:string) => <a>{text}</a>,
+            render: (text) => <a>{text}</a>,
         },
         {
             title: 'Date',
             dataIndex: 'date',
             key: 'date',
-            render: (_:any, { date }:any) => (
+            render: (_, { date }) => (
                 <>
                     {date && formatDistance(fromUnixTime(date), new Date(), { addSuffix: true })}
                 </>
             )
         }
     ];
-    const handleRowClick = (record: { content_type: string; name: any }) => {
+    const handleRowClick = (record: DataType) => {
         if (record.content_type === "file") {
             const newPath = `/blob/${real_path}/${record.name}`;
 
@@ -75,23 +74,13 @@ const CodeTable = ({ directory, readmeContent}:any) => {
         }
     }
 
-    const handleGoBack = () => {
-        const safePath = real_path?.split('/');
-
-        if (safePath?.length == 1) {
-            router.push('/')
-        } else {
-            router.push(`/tree/${safePath?.slice(0, -1).join('/')}`);
-        }
-    };
-
     return (
         <div>
             <Table style={{ clear: "none" }} rowClassName={styles.dirShowTr}
                 pagination={false} columns={columns}
                 dataSource={directory} 
                 rowKey="name"
-                onRow={(record: { content_type: string; name: any }) => {
+                onRow={(record) => {
                     return {
                         onClick: () => { handleRowClick(record) }
                     };
