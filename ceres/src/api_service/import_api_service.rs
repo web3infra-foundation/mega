@@ -12,7 +12,7 @@ use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::Tree;
 use mercury::internal::object::tree::TreeItem;
 
-use crate::api_service::ApiHandler;
+use crate::api_service::{ApiHandler, GitObjectCache};
 use crate::model::git::CreateFileInfo;
 use crate::protocol::repo::Repo;
 
@@ -148,20 +148,21 @@ impl ApiHandler for ImportApiService {
     async fn traverse_commit_history(
         &self,
         path: &Path,
-        start_commit: Commit,
+        start_commit: &Commit,
         target: &TreeItem,
+        cache: &mut GitObjectCache,
     ) -> Commit {
         let mut target_commit = start_commit.clone();
         let mut visited = HashSet::new();
         let mut p_stack = VecDeque::new();
 
         visited.insert(start_commit.id);
-        p_stack.push_back(start_commit);
+        p_stack.push_back(start_commit.clone());
 
         while let Some(commit) = p_stack.pop_front() {
-            let root_tree = self.get_tree_by_hash(&commit.tree_id.to_string()).await;
+            let root_tree = self.get_tree_from_cache(commit.tree_id, cache).await;
             let reachable = self
-                .reachable_in_tree(&root_tree, path, target)
+                .reachable_in_tree(&root_tree, path, target, cache)
                 .await
                 .unwrap();
             if reachable {
@@ -173,7 +174,7 @@ impl ApiHandler for ImportApiService {
                     }
                 }
                 if target_commit.committer.timestamp > commit.committer.timestamp {
-                    target_commit = commit;
+                    target_commit = commit.clone();
                 }
                 let parent_commits = self.get_commits_by_hashes(p_ids).await.unwrap();
                 p_stack.extend(parent_commits);

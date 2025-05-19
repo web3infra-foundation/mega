@@ -11,7 +11,7 @@ export const useSlackNotificationsAuthorizationUrl = ({
   organization: PublicOrganization
   teamId?: string | null
 }) => {
-  const redirectUri = `${RAILS_API_URL}/v1/organizations/${organization.slug}/integrations/slack/notifications_callback`
+  const redirectUri = `${RAILS_API_URL}/v1/organizations/${organization?.slug}/integrations/slack/notifications_callback`
   const auth_url = useSlackAuthorizationUrl({ scopes: SLACK_NOTIFICATION_SCOPES, redirectUri, teamId })
 
   return useIntegrationAuthUrl({ auth_url })

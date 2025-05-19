@@ -8,13 +8,13 @@ cargo.rust_library(
     edition = "2021",
     platform = {
         "linux-x86_64": dict(
-            deps = ["//third-partr/rust/crates/windows_x86_64_gnu/0.52.6:windows_x86_64_gnu"],
+            deps = ["//third-party/rust/crates/windows_x86_64_gnu/0.52.6:windows_x86_64_gnu"],
         ),
         "windows-gnu": dict(
-            deps = ["//third-partr/rust/crates/windows_x86_64_gnu/0.52.6:windows_x86_64_gnu"],
+            deps = ["//third-party/rust/crates/windows_x86_64_gnu/0.52.6:windows_x86_64_gnu"],
         ),
         "windows-msvc": dict(
-            deps = ["//third-partr/rust/crates/windows_x86_64_msvc/0.52.6:windows_x86_64_msvc"],
+            deps = ["//third-party/rust/crates/windows_x86_64_msvc/0.52.6:windows_x86_64_msvc"],
         ),
     },
     visibility = ["PUBLIC"],

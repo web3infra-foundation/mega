@@ -1,21 +1,23 @@
+use std::{
+    fs::{File, OpenOptions},
+    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use std::{fs::{File, OpenOptions}, io::{BufRead, BufReader, Read, Seek, SeekFrom, Write}, path::{Path, PathBuf}, sync::Arc};
-
+use super::{utils, ScorpioLFS};
+use crate::util;
 use libra::internal::protocol::lfs_client::LFSClient;
+use libra::utils::lfs;
 use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 use wax::Pattern;
-use libra::utils::lfs;
-use crate::util;
-use super::{utils, ScorpioLFS};
-
 
 // 使用 Lazy 和 Mutex 实现单例模式
 pub static LFS_PATTERNSTON: Lazy<Arc<Mutex<Vec<String>>>> = Lazy::new(|| {
-    
     // 在初始化时调用 add_lfs_patterns 函数
     let patterns = extract_lfs_patterns(utils::lfs_attribate().to_str().unwrap()).unwrap();
-    Arc::new(Mutex::new(patterns))  // 确保返回的是 Mutex 类型
+    Arc::new(Mutex::new(patterns)) // 确保返回的是 Mutex 类型
 });
 pub async fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io::Result<()> {
     let mut file = OpenOptions::new()
@@ -55,9 +57,10 @@ pub async fn add_lfs_patterns(file_path: &str, patterns: Vec<String>) -> std::io
     Ok(())
 }
 /// Extract LFS patterns from `.libra_attributes` file
-pub fn extract_lfs_patterns<P>(file_path: P) -> std::io::Result<Vec<String>> 
+pub fn extract_lfs_patterns<P>(file_path: P) -> std::io::Result<Vec<String>>
 where
-    P: AsRef<Path>,{
+    P: AsRef<Path>,
+{
     let path = file_path.as_ref();
     if !path.exists() {
         return Ok(Vec::new());
@@ -138,7 +141,7 @@ pub async fn is_lfs_tracked<P>(path: P) -> bool
 where
     P: AsRef<Path>,
 {
-    let lfs_pattern =LFS_PATTERNSTON.lock().await;
+    let lfs_pattern = LFS_PATTERNSTON.lock().await;
 
     let path = util::to_workdir_path(path);
     let glob = wax::any(lfs_pattern.iter().map(|s| s.as_str()).collect::<Vec<_>>()).unwrap();
@@ -154,38 +157,32 @@ pub fn lfs_object_path(oid: &str) -> PathBuf {
         .join(oid)
 }
 
-pub async fn lfs_restore(mono_path:&str, lower_path: &str)-> std::io::Result<()>{
+pub async fn lfs_restore(mono_path: &str, lower_path: &str) -> std::io::Result<()> {
     let lfs_client = LFSClient::scorpio_new(mono_path);
     for entry in ignore::Walk::new(lower_path).filter_map(|e| e.ok()) {
         if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
             let path_str = entry.path().to_str().unwrap();
             if is_lfs_tracked(path_str).await {
                 let pointer_bytes = std::fs::read(path_str).expect("Failed to read file");
-                let (oid,size) = lfs::parse_pointer_data(&pointer_bytes).unwrap();// parse pointer data
-                 // LFS file
+                let (oid, size) = lfs::parse_pointer_data(&pointer_bytes).unwrap(); // parse pointer data
+                                                                                    // LFS file
                 let lfs_obj_path = lfs_object_path(&oid);
                 if lfs_obj_path.exists() {
                     // found in local cache
                     std::fs::copy(&lfs_obj_path, path_str)?;
                 } else {
-                    
                     // not exist, download from server
-                    if let Err(e) = lfs_client
-                        .download_object(&oid, size, path_str, None)
-                        .await
-                    {
+                    if let Err(e) = lfs_client.download_object(&oid, size, path_str, None).await {
                         eprintln!("LFS Download fatal: {}", e);
                     }
                 }
-    
-                
             }
         }
     }
     Ok(())
 }
 pub fn get_oid_by_path(_path: &str) -> String {
-    todo!()// create a old lfs pointer storage.
+    todo!() // create a old lfs pointer storage.
 }
 
 /// Copy LFS file to `.libra/lfs/objects`
@@ -205,8 +202,7 @@ where
 
 #[cfg(test)]
 mod tests {
- 
-    
+
     use std::path::Path;
 
     use libra::internal::protocol::{lfs_client::LFSClient, ProtocolClient};
@@ -215,71 +211,87 @@ mod tests {
     use crate::scolfs::{ext::BlobExt, ScorpioLFS};
 
     use super::utils;
-   
-    
+
     #[tokio::test]
     async fn test_lfs_patterns() {
-        
-        let temp_dir = Path::new("/tmp/mega");
-        if temp_dir.exists() {
-            std::fs::remove_dir_all(temp_dir).expect("Failed to remove existing /tmp/mega directory");
-        }
-        let _ = std::fs::create_dir_all(temp_dir).is_ok();
-        std::env::set_current_dir(temp_dir).expect("Failed to change working directory");
-        std::fs::create_dir_all(temp_dir).expect("Failed to create /tmp/mega directory");
-        std::fs::write(temp_dir.join("a.txt"), "megaa").expect("Failed to write a.txt");
-        std::fs::write(temp_dir.join("b.txt"), "megab").expect("Failed to write b.txt");
-        let binary_content = vec![0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE];
-        std::fs::write("test.bin", binary_content).expect("Failed to write test.bin");
-        let scorpio_toml = r#"[config]
-        base_url = "http://localhost:8000"
-        workspace = "/home/luxian/megadir/mount"
-        store_path = "/home/luxian/megadir/store"
-        git_author = "MEGA"
-        git_email = "admin@mega.org"
-        file_blob_endpoint = "http://localhost:8000/api/v1/file/blob"
-        config_file = "config.toml"
-        "#;
+        let binding = utils::lfs_attribate();
+        let attr_path = binding.to_str().unwrap();
+        // Clean up before test
+        let _ = std::fs::remove_file(attr_path);
 
-        std::fs::write("scorpio.toml", scorpio_toml).expect("Failed to create scorpio.toml");
-        let _ = super::add_lfs_patterns(utils::lfs_attribate().to_str().unwrap(),
-         vec![ "a.txt".to_string(),
-                        "*.bin".to_string()]
-        ).await.is_ok();
-        
-        assert!(super::is_lfs_tracked("test.bin").await);
-        test_lfs_point_file();
-        
+        // Add patterns
+        super::add_lfs_patterns(attr_path, vec!["a.txt".to_string(), "*.bin".to_string()])
+            .await
+            .expect("Failed to add LFS patterns");
+
+        // Check patterns are tracked
+        assert!(
+            super::is_lfs_tracked("a.txt").await,
+            "a.txt should be tracked"
+        );
+        assert!(
+            super::is_lfs_tracked("test.bin").await,
+            "test.bin should be tracked"
+        );
+
+        // Remove patterns
+        super::untrack_lfs_patterns(attr_path, vec!["a.txt".to_string()])
+            .await
+            .expect("Failed to untrack LFS pattern");
+
+        // Check pattern is untracked
+        assert!(
+            !super::is_lfs_tracked("a.txt").await,
+            "a.txt should not be tracked after untrack"
+        );
+        assert!(
+            super::is_lfs_tracked("test.bin").await,
+            "test.bin should still be tracked"
+        );
     }
-    
-    fn test_lfs_point_file(){
+
+    #[test]
+    fn test_lfs_point_file() {
         let temp_dir = Path::new("/tmp/mega");
-        let _ = std::fs::create_dir_all(temp_dir).is_ok();
-        let (pointer,oid ) = libra::utils::lfs::generate_pointer_file("test.bin");
-        println!("pointer:{}, oid:{}",pointer,oid);
-        super::backup_lfs_file(temp_dir.join("test.bin"), &oid).unwrap();
+        std::fs::create_dir_all(temp_dir).expect("Failed to create temp dir");
+
+        let test_bin_path = temp_dir.join("test.bin");
+        std::fs::write(&test_bin_path, b"dummy content").expect("Failed to create test.bin");
+        // Generate pointer file and oid
+        let (pointer, oid) = libra::utils::lfs::generate_pointer_file(test_bin_path);
+        println!("pointer: {}, oid: {}", pointer, oid);
+
+        // Create a dummy file to backup
+        let test_file = temp_dir.join("test.bin");
+        std::fs::write(&test_file, b"dummy content").expect("Failed to write test file");
+
+        // Backup LFS file
+        super::backup_lfs_file(&test_file, &oid).expect("Failed to backup LFS file");
+
+        // Check backup exists
+        let backup_path = super::lfs_object_path(&oid);
+        assert!(backup_path.exists(), "LFS backup file should exist");
     }
-    
+
     #[tokio::test]
-    async fn test_lfs_push(){
+    #[ignore]
+    async fn test_lfs_push() {
         {
             let temp_dir = Path::new("/tmp/mega");
-            let url = url::Url::parse("http://47.79.35.136:8000/third-part/mega.git").unwrap();
+            let url = url::Url::parse("http://47.79.35.136:8000/third-party/mega.git").unwrap();
             let client = LFSClient::from_url(&url);
             let bin_blob = Blob::from_lfs_file(temp_dir.join("test.bin"));
-            print!("{}",bin_blob);
+            print!("{}", bin_blob);
             let data_string = String::from_utf8(bin_blob.data.clone())
-                .expect("Failed to convert bin_blob data to string"); 
+                .expect("Failed to convert bin_blob data to string");
             println!("bin_blob data as string: {}", data_string);
-            let e  = Entry::from(bin_blob);
+            let e = Entry::from(bin_blob);
             let res = client.scorpio_push([e].iter()).await;
-            
+
             if res.is_err() {
                 eprintln!("fatal: LFS files upload failed, stop pushing");
                 return;
             }
-        
         }
     }
-
 }

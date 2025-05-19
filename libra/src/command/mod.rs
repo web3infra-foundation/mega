@@ -35,7 +35,7 @@ use std::path::Path;
 const HEAD: &str = "HEAD";
 
 // impl load for all objects
-fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
+pub fn load_object<T>(hash: &SHA1) -> Result<T, GitError>
 where
     T: ObjectTrait,
 {
@@ -45,7 +45,7 @@ where
 }
 
 // impl save for all objects
-fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), GitError>
+pub fn save_object<T>(object: &T, ojb_id: &SHA1) -> Result<(), GitError>
 where
     T: ObjectTrait,
 {
@@ -114,7 +114,7 @@ pub async fn get_target_commit(branch_or_commit: &str) -> Result<SHA1, Box<dyn s
 
     if possible_branches.is_empty() {
         let storage = util::objects_storage();
-        let possible_commits = storage.search(branch_or_commit);
+        let possible_commits = storage.search(branch_or_commit).await;
         if possible_commits.len() > 1 {
             return Err(format!("Ambiguous commit hash '{}'", branch_or_commit).into());
         }
@@ -132,19 +132,25 @@ mod tests {
     use common::utils::{format_commit_msg, parse_commit_msg};
     use mercury::internal::object::commit::Commit;
     use serial_test::serial;
+    use tempfile::tempdir;
 
     use super::*;
     use crate::utils::test;
     #[tokio::test]
     #[serial]
+    /// Test objects can be correctly saved to and loaded from storage.
     async fn test_save_load_object() {
-        test::setup_with_new_libra().await;
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = test::ChangeDirGuard::new(temp_path.path());
         let object = Commit::from_tree_id(SHA1::new(&[1; 20]), vec![], "\nCommit_1");
         save_object(&object, &object.id).unwrap();
         let _ = load_object::<Commit>(&object.id).unwrap();
     }
 
     #[test]
+    /// Tests commit message formatting and parsing with signatures.
+    /// Verifies correct handling of GPG/SSH signatures and proper message extraction.
     fn test_format_and_parse_commit_msg() {
         {
             let msg = "commit message";

@@ -26,7 +26,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
       const scope = req.cookies[SCOPE_COOKIE_NAME]
 
       if (scope) {
-        const scopeOrg = organizations.find((o) => o.slug == scope)
+        const scopeOrg = organizations.find((o) => o?.slug == scope)
 
         if (scopeOrg) {
           org = scopeOrg
@@ -38,14 +38,14 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
       if (device.type === 'mobile') {
         return {
           redirect: {
-            destination: `/${org.slug}/${query.path ?? 'home'}`,
+            destination: `/${org?.slug}/${query.path ?? 'home'}`,
             permanent: false
           }
         }
       }
       return {
         redirect: {
-          destination: `/${org.slug}/${query.path ?? ''}`,
+          destination: `/${org?.slug}/${query.path ?? ''}`,
           permanent: false
         }
       }

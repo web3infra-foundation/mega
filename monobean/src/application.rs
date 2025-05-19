@@ -23,11 +23,8 @@ use gtk::{gio, glib};
 use std::cell::{OnceCell, RefCell};
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
 use tokio::sync::oneshot;
-use tracing_subscriber::fmt;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 glib::wrapper! {
     pub struct MonobeanApplication(ObjectSubclass<imp::MonobeanApplication>)
@@ -46,7 +43,7 @@ pub enum Action {
     ShowHelloPage,
     ShowMainPage,
     MountRepo,
-    OpenEditorOn(PathBuf),
+    OpenEditorOn { hash: String, name: String },
 }
 
 mod imp {
@@ -109,16 +106,16 @@ mod imp {
             let obj = self.obj();
 
             let app = obj.downcast_ref::<super::MonobeanApplication>().unwrap();
+            app.setup_log();
 
             if let Some(weak_window) = self.window.get() {
                 weak_window.upgrade().unwrap().present();
+                tracing::error!("Window already exists.");
                 return;
             }
 
             let window = app.create_window();
             self.window.set(window.downgrade()).unwrap();
-
-            app.setup_log();
 
             // Setup action channel
             let receiver = self.receiver.borrow_mut().take().unwrap();
@@ -258,11 +255,29 @@ impl MonobeanApplication {
     fn setup_log(&self) {
         // TODO: Use gtk settings for log level.
         // FIXME: currently not working for glib logs.
+        let file_appender =
+            tracing_appender::rolling::hourly(monobean_cache(), "monobean-logs.txt");
         let filter = tracing_subscriber::EnvFilter::new("info,monobean=debug");
-        tracing_subscriber::registry()
-            .with(fmt::layer())
-            .with(filter)
-            .init();
+
+        if cfg!(debug_assertions) {
+            tracing_subscriber::fmt()
+                .with_writer(file_appender.and(std::io::stdout))
+                .with_env_filter(filter)
+                .with_target(false)
+                .with_line_number(true)
+                .with_file(true)
+                .without_time()
+                .compact()
+                .init();
+        } else {
+            tracing_subscriber::fmt()
+                .with_writer(file_appender)
+                .with_env_filter(filter)
+                .with_target(false)
+                .without_time()
+                .compact()
+                .init();
+        }
 
         glib::log_set_handler(
             None,
@@ -427,11 +442,11 @@ impl MonobeanApplication {
                 window.show_main_page();
             }
             Action::MountRepo => todo!(),
-            Action::OpenEditorOn(path) => {
+            Action::OpenEditorOn { hash, name } => {
                 CONTEXT.spawn_local(async move {
                     let window = window.imp();
                     let code_page = window.code_page.get();
-                    code_page.show_editor(path);
+                    code_page.show_editor_on(hash, name);
                 });
             }
         }

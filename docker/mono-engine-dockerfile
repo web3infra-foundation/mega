@@ -18,8 +18,8 @@ RUN if [ "$BUILD_TYPE" != "release" ] && [ "$BUILD_TYPE" != "debug" ]; then \
 
 RUN apt-get update && apt-get install -y \
     libssl-dev \
-    ca-certificates 
-
+    ca-certificates \
+    clang
 # copy the source code, the context must be the root of the project
 COPY . .
 

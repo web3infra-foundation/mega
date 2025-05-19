@@ -65,14 +65,7 @@ pub trait PackHandler: Send + Sync {
         hashes: Vec<String>,
     ) -> Result<Vec<raw_blob::Model>, MegaError>;
 
-    async fn handle_mr(&self, title: &str) -> Result<String, GitError>;
-
-    async fn update_refs(
-        &self,
-        mr_link: Option<String>,
-        commit: Option<Commit>,
-        refs: &RefCommand,
-    ) -> Result<(), GitError>;
+    async fn update_refs(&self, commit: Option<Commit>, refs: &RefCommand) -> Result<(), GitError>;
 
     async fn check_commit_exist(&self, hash: &str) -> bool;
 

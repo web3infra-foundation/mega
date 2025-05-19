@@ -23,21 +23,24 @@ common = { path = "../common" }
 jupiter = { path = "../jupiter" }
 vault = { path = "../vault" }
 gateway = { path = "../gateway" }
-tokio = "1.43.0"
-russh = "0.51.1"
+ceres = { path = "../ceres" }
+mercury = { path = "../mercury" }
+
+thiserror = { version = "2.0.11", features = ["default"] }
+tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"] }
+tokio = "1.45.0"
+russh = "0.52"
 axum = "0.8.1"
 axum-server = "0.7.1"
 bytes = "1.10.0"
-
 async-channel = "2.3.1"
-thiserror = { version = "2.0.11", features = ["default"] }
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["default", "env-filter"] }
 rustls = "0.23.23"
-gix-config = "0.43.0"
+gix-config = "0.45.1"
 home = "0.5.11"
 smallvec = "1.14.0"
 directories = "6.0.0"
+tracing-appender = "0.2.3"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"
@@ -47,6 +50,3 @@ tempfile = "3.19.1"
 
 [profile.dev]
 panic = "abort" # glib panics are not human friendly, just leave them alone
-
-[profile.release]
-lto = "fat"

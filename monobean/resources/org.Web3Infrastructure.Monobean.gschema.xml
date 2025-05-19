@@ -146,7 +146,7 @@
 
         <!-- Monorepo Settings -->
         <key name="import-dir" type="s">
-            <default>'/third-part'</default>
+            <default>'/third-party'</default>
             <summary>Import Directory</summary>
             <description>Directory that supports multi-branch commits and tags</description>
         </key>
@@ -156,7 +156,7 @@
             <description>System admin GitHub username</description>
         </key>
         <key name="root-dirs" type="s">
-            <default>'third-part, project, doc, release'</default>
+            <default>'third-party, project, doc, release'</default>
             <summary>Root Directories</summary>
             <description>Comma-separated list of root directories</description>
         </key>

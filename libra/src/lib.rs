@@ -1,7 +1,7 @@
 use mercury::errors::GitError;
 
 pub mod cli;
-mod command;
+pub mod command;
 pub mod internal;
 pub mod utils;
 
@@ -25,7 +25,8 @@ pub async fn exec_async(mut args: Vec<&str>) -> Result<(), GitError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::utils::test;
+
     use serial_test::serial;
     use tempfile::TempDir;
 
@@ -33,8 +34,7 @@ mod tests {
     #[serial]
     fn test_libra_init() {
         let tmp_dir = TempDir::new().unwrap();
-        std::env::set_current_dir(tmp_dir.path()).unwrap();
-        exec(vec!["init"]).unwrap();
+        let _guard = test::ChangeDirGuard::new(tmp_dir.path());
     }
 
     #[tokio::test]

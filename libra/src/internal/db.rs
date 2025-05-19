@@ -8,7 +8,9 @@ use std::io;
 use std::io::Error as IOError;
 use std::io::ErrorKind;
 use std::path::Path;
-use tokio::sync::OnceCell;
+
+// #[cfg(not(test))]
+// use tokio::sync::OnceCell;
 
 /// Establish a connection to the database.
 ///  - `db_path` is the path to the SQLite database file.
@@ -24,20 +26,65 @@ pub async fn establish_connection(db_path: &str) -> Result<DatabaseConnection, I
 
     let mut option = ConnectOptions::new(format!("sqlite://{}", db_path));
     option.sqlx_logging(false); // TODO use better option
-    Database::connect(option).await.map_err(|err| {
-        IOError::new(
-            ErrorKind::Other,
-            format!("Database connection error: {:?}", err),
-        )
-    })
+    Database::connect(option)
+        .await
+        .map_err(|err| IOError::other(format!("Database connection error: {:?}", err)))
+}
+// #[cfg(not(test))]
+// static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
+
+// /// Get global database connection instance (singleton)
+// #[cfg(not(test))]
+// pub async fn get_db_conn_instance() -> &'static DbConn {
+//     DB_CONN
+//         .get_or_init(|| async { get_db_conn().await.unwrap() })
+//         .await
+// }
+
+// #[cfg(test)]
+use once_cell::sync::Lazy;
+// #[cfg(test)]
+use std::collections::HashMap;
+//#[cfg(test)]
+//use std::ops::Deref;
+// #[cfg(test)]
+use std::path::PathBuf;
+// #[cfg(test)]
+use tokio::sync::Mutex;
+
+// In the test environment, use a `HashMap` to store database connections
+// mapped by their working directories.
+// change the value type from Box<DbConn> to &'static DbConn
+// #[cfg(test)]
+static TEST_DB_CONNECTIONS: Lazy<Mutex<HashMap<PathBuf, &'static DbConn>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+// #[cfg(test)]
+#[allow(dead_code)]
+fn leak_conn(conn: DbConn) -> &'static DbConn {
+    let boxed = Box::new(conn);
+    let static_ref = Box::leak(boxed);
+    static_ref
 }
 
-static DB_CONN: OnceCell<DbConn> = OnceCell::const_new();
-/// Get global database connection instance (singleton)
+/// In the test environment, each working directory should have its own database connection.
+/// A global `HashMap` is used to store and manage these connections separately.
+// #[cfg(test)]
 pub async fn get_db_conn_instance() -> &'static DbConn {
-    DB_CONN
-        .get_or_init(|| async { get_db_conn().await.unwrap() })
-        .await
+    let current_dir = std::env::current_dir().unwrap();
+
+    let mut connections = TEST_DB_CONNECTIONS.lock().await;
+
+    if !connections.contains_key(&current_dir) {
+        let conn = get_db_conn().await.unwrap();
+        let boxed_conn = Box::new(conn);
+        //connections.insert(current_dir.clone(), boxed_conn);
+        connections.insert(current_dir.clone(), Box::leak(boxed_conn));
+    }
+
+    let boxed_conn = connections.get(&current_dir).unwrap();
+    boxed_conn
+    // leak_conn(boxed_conn.deref().clone())
 }
 
 /// Create a connection to the database of current repo: `.libra/libra.db`
@@ -101,27 +148,17 @@ pub async fn create_database(db_path: &str) -> io::Result<DatabaseConnection> {
         ));
     }
 
-    std::fs::File::create(db_path).map_err(|err| {
-        IOError::new(
-            ErrorKind::Other,
-            format!("Failed to create database file: {:?}", err),
-        )
-    })?;
+    std::fs::File::create(db_path)
+        .map_err(|err| IOError::other(format!("Failed to create database file: {:?}", err)))?;
 
     // Connect to the new database and set up the schema.
     if let Ok(conn) = establish_connection(db_path).await {
-        setup_database_sql(&conn).await.map_err(|err| {
-            IOError::new(
-                ErrorKind::Other,
-                format!("Failed to setup database: {:?}", err),
-            )
-        })?;
+        setup_database_sql(&conn)
+            .await
+            .map_err(|err| IOError::other(format!("Failed to setup database: {:?}", err)))?;
         Ok(conn)
     } else {
-        Err(IOError::new(
-            ErrorKind::Other,
-            "Failed to connect to new database.",
-        ))
+        Err(IOError::other("Failed to connect to new database."))
     }
 }
 

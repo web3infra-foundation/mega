@@ -31,8 +31,6 @@ pub const APP_ID: &str = "org.Web3Infrastructure.Monobean";
 pub const APP_NAME: &str = "Monobean";
 pub const PREFIX: &str = "/org/Web3Infrastructure/Monobean";
 pub const MEGA_CONFIG_PATH: &str = "/org/Web3Infrastructure/Monobean/mega/config.toml";
-pub const MEGA_HTTPS_KEY: &str = "/org/Web3Infrastructure/Monobean/mega/key.pem";
-pub const MEGA_HTTPS_CERT: &str = "/org/Web3Infrastructure/Monobean/mega/cert.pem";
 
 /* Helper functions for mega configs */
 
@@ -83,7 +81,7 @@ macro_rules! get_setting {
 /// 1. Uses the `MONOBEAN_BASE_DIR` environment variable if set
 /// 2. Falls back to system default paths when environment variable is not set:
 ///     - On Linux: `~/.local/share/monobean`
-///     - On Windows: `C:\ProgramData\monobean`
+///     - On Windows: `C:\Users\{UserName}\AppData\Local\monobean`
 ///     - On macOS: `~/Library/Application Support/monobean`
 ///
 /// # Returns
@@ -208,7 +206,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
 
     // Monorepo settings
     let import_dir: String = get_setting!(setting, "import-dir", String);
-    if import_dir != "/third-part" {
+    if import_dir != "/third-party" {
         update.push(CoreConfigChanged::ImportDir(
             import_dir.parse::<PathBuf>().unwrap(),
         ));
@@ -220,7 +218,7 @@ pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     }
 
     let root_dirs: String = get_setting!(setting, "root-dirs", String);
-    if root_dirs != "third-part, project, doc, release" {
+    if root_dirs != "third-party, project, doc, release" {
         // Convert comma-separated string to Vec<String>
         let dirs: Vec<String> = root_dirs.split(',').map(|s| s.trim().to_string()).collect();
         update.push(CoreConfigChanged::RootDirs(dirs));

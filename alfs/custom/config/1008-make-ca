@@ -1,11 +1,11 @@
 # Any comments you wish to add
-#
+# If an error occurs when executing make-ca -g, the certificate version may be updated, and make-ca needs to be updated to the latest version.
 
 PKG="make-ca"
-PKG_VERSION="1.14"
-PKG_FILE="make-ca-1.14.tar.gz"
-URL="https://github.com/lfs-book/make-ca/archive/v1.14/make-ca-1.14.tar.gz"
-MD5="e99d2985ead0037caedb765fd66b33f0"
+PKG_VERSION="1.16"
+PKG_FILE="make-ca-1.16.tar.gz"
+URL="https://github.com/lfs-book/make-ca/archive/v1.16/make-ca-1.16.tar.gz"
+MD5="bf1497691f72ec79d5e0456e3ac3eadc"
 for i in PATCH{1..10}; do
    unset $i
 done

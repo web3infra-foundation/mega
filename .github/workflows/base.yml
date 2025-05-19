@@ -7,19 +7,7 @@
 #
 
 on:
-  push:
-    paths-ignore:
-      - 'alfs/**'
-      - 'archived/**'
-      - 'aries/**'
-      - 'congig/**'
-      - 'docker/**'
-      - 'docs/**'
-      - 'moon/**'
-      - 'rust/**'
-      - 'scripts/**'
-      - 'third-party/**'
-      - 'toolchains/**'
+  workflow_dispatch:
   pull_request:
     paths-ignore:
       - 'alfs/**'
@@ -138,6 +126,7 @@ jobs:
 
       - name: Set up git lfs
         run: |
+          echo "GPG_TTY=`tty`" >> $GITHUB_ENV
           git lfs install
           git config --global user.email "mega@github.com"
           git config --global user.name "Mega"

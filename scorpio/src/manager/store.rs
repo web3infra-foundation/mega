@@ -202,7 +202,7 @@ impl ModifiedStore for sled::Db {
                         .to_string();
                     Ok((PathBuf::from(path), hash))
                 }
-                Err(e) => Err(Error::new(ErrorKind::Other, e)),
+                Err(e) => Err(Error::other(e)),
             })
             .collect::<Result<HashMap<PathBuf, String>>>()
     }
@@ -255,11 +255,7 @@ impl<T: kv::KvStore<PathBuf, Tree>> TreesStore<T> {
     }
 
     fn get_bypath(&self, path: PathBuf) -> Result<Tree> {
-        match self
-            .db
-            ._get(&path)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
-        {
+        match self.db._get(&path).map_err(std::io::Error::other)? {
             Some(encoded_value) => Ok(encoded_value),
             None => Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -373,7 +369,7 @@ mod kv {
         fn from(e: KvError) -> Self {
             match e {
                 KvError::IoError(e) => e,
-                _ => std::io::Error::new(std::io::ErrorKind::Other, e),
+                _ => std::io::Error::other(e),
             }
         }
     }
@@ -535,7 +531,11 @@ mod test {
 
     #[test]
     fn init_test_d() {
-        let db = sled::open("path.db").unwrap();
+        let db_path = "/tmp/init_test_d.db";
+        if std::path::Path::new(db_path).exists() {
+            std::fs::remove_file(db_path).ok();
+        }
+        let db = sled::open(db_path).unwrap();
         let t = Tree::from_tree_items(vec![TreeItem::new(
             TreeItemMode::Blob,
             SHA1::new(&[4u8, 4u8, 4u8, 64u8, 84u8, 84u8]),

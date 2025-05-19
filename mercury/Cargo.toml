@@ -25,9 +25,9 @@ chrono = { workspace = true }
 tracing-subscriber = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 threadpool = { workspace = true }
-num_cpus.workspace = true
+num_cpus = { workspace = true }
 dashmap = { workspace = true }
-tokio.workspace = true
+tokio = {workspace = true }
 lru-mem = { workspace = true }
 bincode = { workspace = true , features = ["serde"] }
 byteorder = { workspace = true }
@@ -41,6 +41,6 @@ reqwest = { workspace = true }
 ring = { workspace = true }
 
 [dev-dependencies]
-tracing-test = "0.2.4"
+tracing-test = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { version = "0.7.11", features = ["io"] }
