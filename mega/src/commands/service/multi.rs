@@ -1,19 +1,16 @@
-use std::path::PathBuf;
-
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 
 use common::{
     errors::MegaResult,
-    model::{CommonOptions, P2pOptions},
+    model::{CommonHttpOptions, P2pOptions},
 };
-use gateway::https_server::{self, HttpOptions, HttpsOptions};
+use gateway::https_server::{self, HttpOptions};
 use jupiter::context::Context;
 use mono::server::ssh_server::{self, SshCustom, SshOptions};
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum StartCommand {
     Http,
-    Https,
     Ssh,
 }
 
@@ -22,22 +19,10 @@ pub struct StartOptions {
     service: Vec<StartCommand>,
 
     #[clap(flatten)]
-    pub common: CommonOptions,
+    pub http: CommonHttpOptions,
 
     #[clap(flatten)]
     pub p2p: P2pOptions,
-
-    #[arg(long, default_value_t = 8000)]
-    pub http_port: u16,
-
-    #[arg(long, default_value_t = 443)]
-    pub https_port: u16,
-
-    #[arg(long, value_name = "FILE")]
-    https_key_path: Option<PathBuf>,
-
-    #[arg(long, value_name = "FILE")]
-    https_cert_path: Option<PathBuf>,
 
     #[clap(flatten)]
     pub ssh: SshCustom,
@@ -61,27 +46,17 @@ pub(crate) async fn exec(context: Context, args: &ArgMatches) -> MegaResult {
     let context_clone = context.clone();
     let http_server = if service_type.contains(&StartCommand::Http) {
         let http = HttpOptions {
-            common: server_matchers.common.clone(),
-            http_port: server_matchers.http_port,
+            common: server_matchers.http.clone(),
             p2p: server_matchers.p2p,
         };
         tokio::spawn(async move { https_server::http_server(context_clone, http).await })
-    } else if service_type.contains(&StartCommand::Https) {
-        let https = HttpsOptions {
-            common: server_matchers.common.clone(),
-            https_port: server_matchers.https_port,
-            https_key_path: server_matchers.https_key_path.unwrap(),
-            https_cert_path: server_matchers.https_cert_path.unwrap(),
-            p2p: server_matchers.p2p,
-        };
-        tokio::spawn(async move { https_server::https_server(context_clone, https).await })
     } else {
         tokio::task::spawn(async {})
     };
 
     let ssh_server = if service_type.contains(&StartCommand::Ssh) {
         let ssh = SshOptions {
-            common: server_matchers.common.clone(),
+            common: server_matchers.http.clone(),
             custom: server_matchers.ssh,
         };
         tokio::spawn(async move { ssh_server::start_server(context, &ssh).await })

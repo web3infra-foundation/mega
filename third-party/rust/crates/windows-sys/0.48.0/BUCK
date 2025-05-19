@@ -28,5 +28,5 @@ cargo.rust_library(
         "default",
     ],
     visibility = ["PUBLIC"],
-    deps = ["//third-partr/rust/crates/windows-targets/0.48.5:windows-targets"],
+    deps = ["//third-party/rust/crates/windows-targets/0.48.5:windows-targets"],
 )

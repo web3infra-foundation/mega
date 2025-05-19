@@ -254,25 +254,29 @@ impl ScorpioManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const TEST_FILE: &str = "test_config.toml";
+    use std::env;
+    use std::fs;
 
     #[test]
     fn test_from_toml() {
+        let tmp_file = format!("{}/test_from_toml_1.toml", env::temp_dir().display(),);
         let toml_content = r#"
             works = [{ path = "/path/to/work1", hash = "hash1", node = 1}]
         "#;
 
-        fs::write(TEST_FILE, toml_content).expect("Unable to write test file");
+        fs::write(&tmp_file, toml_content).expect("Unable to write test file");
 
-        let manager = ScorpioManager::from_toml(TEST_FILE).expect("Failed to parse TOML");
+        let manager = ScorpioManager::from_toml(&tmp_file).expect("Failed to parse TOML");
         assert_eq!(manager.works.len(), 1);
         assert_eq!(manager.works[0].path, "/path/to/work1");
         assert_eq!(manager.works[0].hash, "hash1");
+
+        fs::remove_file(&tmp_file).ok();
     }
 
     #[test]
     fn test_to_toml() {
+        let tmp_file = format!("{}/test_to_toml_2.toml", env::temp_dir().display(),);
         let manager = ScorpioManager {
             works: vec![
                 WorkDir {
@@ -288,10 +292,12 @@ mod tests {
             ],
         };
 
-        manager.to_toml(TEST_FILE).expect("Failed to write TOML");
+        manager.to_toml(&tmp_file).expect("Failed to write TOML");
 
-        let content = fs::read_to_string(TEST_FILE).expect("Unable to read test file");
+        let content = fs::read_to_string(&tmp_file).expect("Unable to read test file");
         assert!(content.contains("path = \"/path/to/work1\""));
         assert!(content.contains("hash = \"hash1\""));
+
+        fs::remove_file(&tmp_file).ok();
     }
 }

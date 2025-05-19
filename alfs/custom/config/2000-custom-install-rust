@@ -16,9 +16,8 @@ done
 # PATCHx="patch-url md5"
 
 ( cat << "xEOFx"
-
 echo "Install for user $(whoami)"
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path || { echo "Curl failed. Exiting."; exit 1; }
 echo 'export PATH="$PATH:$HOME/.cargo/bin"' >> /etc/profile
 source /etc/profile
 xEOFx

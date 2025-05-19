@@ -48,11 +48,11 @@ export function SlackNotificationSettings() {
       {memberships && !isLoading && (
         <div className='-mt-3 divide-y'>
           {memberships.map(({ organization }) => (
-            <div key={organization.id} className='flex flex-col p-3'>
+            <div key={organization?.id} className='flex flex-col p-3'>
               <div className='flex items-center gap-3'>
-                <Avatar urls={organization.avatar_urls} rounded='rounded-md' name={organization.name} />
+                <Avatar urls={organization?.avatar_urls} rounded='rounded-md' name={organization?.name} />
                 <div className='flex flex-1 items-center justify-between gap-4'>
-                  <UIText weight='font-medium flex-1 line-clamp-1'>{organization.name}</UIText>
+                  <UIText weight='font-medium flex-1 line-clamp-1'>{organization?.name}</UIText>
                   <SlackNotificationButton organization={organization} />
                 </div>
               </div>
@@ -73,13 +73,13 @@ function SlackNotificationButton(props: Props) {
   const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false)
 
   const { data: integration, isLoading: slackIntegrationIsLoading } = useGetSlackIntegration({
-    orgSlug: organization.slug
+    orgSlug: organization?.slug
   })
 
   const { data: slackNotificationsEnabled, isLoading: slackNotificationPreferenceIsLoading } =
-    useGetSlackNotificationPreference(organization.slug)
-  const createSlackNotificationPreference = useCreateSlackNotificationPreference(organization.slug)
-  const deleteSlackNotificationPreference = useDeleteSlackNotificationPreference(organization.slug)
+    useGetSlackNotificationPreference(organization?.slug)
+  const createSlackNotificationPreference = useCreateSlackNotificationPreference(organization?.slug)
+  const deleteSlackNotificationPreference = useDeleteSlackNotificationPreference(organization?.slug)
   const slackBroadcastsAuthorizationUrl = useSlackBroadcastsAuthorizationUrl({
     organization,
     enableNotifications: true
@@ -92,7 +92,7 @@ function SlackNotificationButton(props: Props) {
   if (slackIntegrationIsLoading || slackNotificationPreferenceIsLoading) return <LazyLoadingSpinner />
 
   if (!integration) {
-    if (organization.viewer_is_admin) {
+    if (organization?.viewer_is_admin) {
       return <ConnectSlackButton href={slackBroadcastsAuthorizationUrl} />
     } else {
       return (
@@ -133,7 +133,7 @@ function AskAdminDialog({ open, onOpenChange, organization }: DialogProps) {
   const searchOrganizationMembers = useSearchOrganizationMembers({
     roles: ['admin'],
     enabled: open,
-    scope: organization.slug
+    scope: organization?.slug
   })
   const admins = flattenInfiniteData(searchOrganizationMembers.data)
   const { data: currentUser } = useGetCurrentUser()

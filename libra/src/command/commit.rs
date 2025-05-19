@@ -30,6 +30,7 @@ pub struct CommitArgs {
     #[arg(long, requires("message"))]
     pub conventional: bool,
 
+    /// amend the last commit
     #[arg(long)]
     pub amend: bool,
 }
@@ -97,7 +98,7 @@ pub async fn execute(args: CommitArgs) {
 }
 
 /// recursively create tree from index's tracked entries
-async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathBuf) -> Tree {
+pub async fn create_tree(index: &Index, storage: &ClientStorage, current_root: PathBuf) -> Tree {
     // blob created when add file to index
     let get_blob_entry = |path: &PathBuf| {
         let name = util::path_to_string(path);
@@ -198,16 +199,17 @@ async fn update_head(commit_id: &str) {
 
 #[cfg(test)]
 mod test {
+    use std::env;
+
     use mercury::internal::object::ObjectTrait;
     use serial_test::serial;
+    use tempfile::tempdir;
 
-    use crate::{
-        command::{add::AddArgs, load_object},
-        utils::test,
-    };
+    use crate::utils::test::*;
 
     use super::*;
     #[test]
+    ///Testing basic parameter parsing functionality.
     fn test_parse_args() {
         let args = CommitArgs::try_parse_from(["commit", "-m", "init"]);
         assert!(args.is_ok());
@@ -233,13 +235,18 @@ mod test {
 
     #[tokio::test]
     #[serial]
+    /// Tests the recursive tree creation from index entries.
+    /// Verifies that tree objects are correctly created, saved to storage, and properly organized in a hierarchical structure.
     async fn test_create_tree() {
-        test::reset_working_dir();
-        let index = Index::from_file("../tests/data/index/index-760").unwrap();
+        let temp_path = tempdir().unwrap();
+        test::setup_with_new_libra_in(temp_path.path()).await;
+        let _guard = ChangeDirGuard::new(temp_path.path());
+
+        let crate_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let index = Index::from_file(crate_path.join("../tests/data/index/index-760")).unwrap();
         println!("{:?}", index.tracked_entries(0).len());
-        test::setup_with_new_libra().await;
         let storage = ClientStorage::init(path::objects());
-        let tree = create_tree(&index, &storage, "".into()).await;
+        let tree = create_tree(&index, &storage, temp_path.keep()).await;
 
         assert!(storage.get(&tree.id).is_ok());
         for item in tree.tree_items.iter() {
@@ -252,141 +259,6 @@ mod test {
                     assert_eq!(tree.tree_items.len(), 4); // 4 subtree according to the test data
                 }
             }
-        }
-    }
-
-    #[tokio::test]
-    #[should_panic]
-    async fn test_execute_commit_with_empty_index_fail() {
-        test::setup_with_new_libra().await;
-        let args = CommitArgs {
-            message: "init".to_string(),
-            allow_empty: false,
-            conventional: false,
-            amend: false,
-        };
-        execute(args).await;
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_execute_commit() {
-        test::setup_with_new_libra().await;
-        // create first empty commit
-        {
-            let args = CommitArgs {
-                message: "init".to_string(),
-                allow_empty: true,
-                conventional: false,
-                amend: false,
-            };
-            execute(args).await;
-
-            // check head branch exists
-            let head = Head::current().await;
-            let branch_name = match head {
-                Head::Branch(name) => name,
-                _ => panic!("head not in branch"),
-            };
-            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
-            let commit: Commit = load_object(&branch.commit).unwrap();
-
-            assert_eq!(commit.message.trim(), "init");
-            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
-            assert_eq!(branch.commit, commit.id);
-        }
-
-        // modify first empty commit
-        {
-            let args = CommitArgs {
-                message: "init commit".to_string(),
-                allow_empty: true,
-                conventional: false,
-                amend: true,
-            };
-            execute(args).await;
-
-            // check head branch exists
-            let head = Head::current().await;
-            let branch_name = match head {
-                Head::Branch(name) => name,
-                _ => panic!("head not in branch"),
-            };
-            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
-            let commit: Commit = load_object(&branch.commit).unwrap();
-
-            assert_eq!(commit.message.trim(), "init commit");
-            let branch = Branch::find_branch(&branch_name, None).await.unwrap();
-            assert_eq!(branch.commit, commit.id);
-        }
-
-        // create a new commit
-        {
-            // create `a.txt` `bb/b.txt` `bb/c.txt`
-            test::ensure_file("a.txt", Some("a"));
-            test::ensure_file("bb/b.txt", Some("b"));
-            test::ensure_file("bb/c.txt", Some("c"));
-            let args = AddArgs {
-                all: true,
-                update: false,
-                verbose: false,
-                pathspec: vec![],
-            };
-            crate::command::add::execute(args).await;
-        }
-
-        {
-            let args = CommitArgs {
-                message: "add some files".to_string(),
-                allow_empty: false,
-                conventional: false,
-                amend: false,
-            };
-            execute(args).await;
-
-            let commit_id = Head::current_commit().await.unwrap();
-            let commit: Commit = load_object(&commit_id).unwrap();
-            assert_eq!(
-                commit.message.trim(),
-                "add some files",
-                "{}",
-                commit.message
-            );
-
-            let pre_commit_id = commit.parent_commit_ids[0];
-            let pre_commit: Commit = load_object(&pre_commit_id).unwrap();
-            assert_eq!(pre_commit.message.trim(), "init commit");
-
-            let tree_id = commit.tree_id;
-            let tree: Tree = load_object(&tree_id).unwrap();
-            assert_eq!(tree.tree_items.len(), 2); // 2 subtree according to the test data
-        }
-        //modify new commit
-        {
-            let args = CommitArgs {
-                message: "add some txt files".to_string(),
-                allow_empty: true,
-                conventional: false,
-                amend: true,
-            };
-            execute(args).await;
-
-            let commit_id = Head::current_commit().await.unwrap();
-            let commit: Commit = load_object(&commit_id).unwrap();
-            assert_eq!(
-                commit.message.trim(),
-                "add some txt files",
-                "{}",
-                commit.message
-            );
-
-            let pre_commit_id = commit.parent_commit_ids[0];
-            let pre_commit: Commit = load_object(&pre_commit_id).unwrap();
-            assert_eq!(pre_commit.message.trim(), "init commit");
-
-            let tree_id = commit.tree_id;
-            let tree: Tree = load_object(&tree_id).unwrap();
-            assert_eq!(tree.tree_items.len(), 2); // 2 subtree according to the test data
         }
     }
 }

@@ -1,6 +1,4 @@
-use crate::config::{load_mega_resource, MEGA_HTTPS_CERT, MEGA_HTTPS_KEY};
 use crate::error::MonoBeanResult;
-use axum_server::tls_rustls::RustlsConfig;
 use bytes::BytesMut;
 use common::model::P2pOptions;
 use gateway::https_server::{app, check_run_with_p2p};
@@ -39,8 +37,6 @@ impl HttpOptions {
             self.p2p.clone(),
         )
         .await;
-        let cert = load_mega_resource(MEGA_HTTPS_CERT);
-        let key = load_mega_resource(MEGA_HTTPS_KEY);
 
         // I don't know why I must manually install it, or it will panic on the next line...
         rustls::crypto::ring::default_provider()
@@ -49,21 +45,21 @@ impl HttpOptions {
 
         check_run_with_p2p(mega_ctx, self.p2p.clone());
 
-        tracing::info!("Starting HTTPS server on: {}", self.addr);
-        let tls_config = RustlsConfig::from_pem(cert, key).await;
-        if let Ok(tls_config) = tls_config {
-            axum_server::bind_rustls(self.addr, tls_config)
-                .handle(self.handle.clone())
-                .serve(app.into_make_service())
-                .await?;
-        } else {
-            tracing::warn!("Failed to load tls config, falling back to HTTP server...");
-            tracing::debug!("TLS error: {:?}", tls_config.err());
-            axum_server::bind(self.addr)
-                .handle(self.handle.clone())
-                .serve(app.into_make_service())
-                .await?;
-        }
+        tracing::info!("Starting HTTP server on: {}", self.addr);
+        // let tls_config = RustlsConfig::from_pem(cert, key).await;
+        // if let Ok(tls_config) = tls_config {
+        //     axum_server::bind_rustls(self.addr, tls_config)
+        //         .handle(self.handle.clone())
+        //         .serve(app.into_make_service())
+        //         .await?;
+        // } else {
+        // tracing::warn!("Failed to load tls config, falling back to HTTP server...");
+        // tracing::debug!("TLS error: {:?}", tls_config.err());
+        axum_server::bind(self.addr)
+            .handle(self.handle.clone())
+            .serve(app.into_make_service())
+            .await?;
+        // }
         Ok(())
     }
 

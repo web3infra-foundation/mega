@@ -18,8 +18,7 @@ done
 ( cat << "xEOFx"
 
 make install-sshd
-
-
-
+make install-dhcpcd
+systemctl enable dhcpcd@enp1s0 
 xEOFx
 ) > tmp

@@ -2,7 +2,7 @@ use extension::postgres::Type;
 use sea_orm_migration::{
     prelude::*,
     schema::*,
-    sea_orm::{EnumIter, Iterable},
+    sea_orm::{DatabaseBackend, EnumIter, Iterable},
 };
 
 use crate::pk_bigint;
@@ -13,41 +13,50 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(MergeStatusEnum)
-                    .values(MergeStatus::iter())
-                    .to_owned(),
-            )
-            .await?;
+        let backend = manager.get_database_backend();
 
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(StorageTypeEnum)
-                    .values(StorageType::iter())
-                    .to_owned(),
-            )
-            .await?;
+        match backend {
+            DatabaseBackend::Postgres => {
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(StorageTypeEnum)
+                            .values(StorageType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
 
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(RefTypeEnum)
-                    .values(RefType::iter())
-                    .to_owned(),
-            )
-            .await?;
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(RefTypeEnum)
+                            .values(RefType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
 
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(ConvTypeEnum)
-                    .values(ConvType::iter())
-                    .to_owned(),
-            )
-            .await?;
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(ConvTypeEnum)
+                            .values(ConvType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(MergeStatusEnum)
+                            .values(MergeStatus::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+            }
+
+            DatabaseBackend::Sqlite | DatabaseBackend::MySql => {
+                // Do not create enum in sqlite
+            }
+        }
 
         manager
             .create_table(
@@ -215,7 +224,6 @@ impl MigrationTrait for Migration {
                 Index::create()
                     .if_not_exists()
                     .name("idx_conversation")
-                    .unique()
                     .table(MegaConversation::Table)
                     .col(MegaConversation::Link)
                     .to_owned(),
@@ -674,16 +682,12 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(ZtmNode::Table)
+                    .table(RelayNode::Table)
                     .if_not_exists()
-                    .col(string(ZtmNode::PeerId).primary_key())
-                    .col(string(ZtmNode::Hub))
-                    .col(string(ZtmNode::AgentName))
-                    .col(string(ZtmNode::ServiceName))
-                    .col(string(ZtmNode::Type))
-                    .col(boolean(ZtmNode::Online))
-                    .col(big_integer(ZtmNode::LastOnlineTime))
-                    .col(integer(ZtmNode::ServicePort))
+                    .col(string(RelayNode::PeerId).primary_key())
+                    .col(string(RelayNode::Type))
+                    .col(boolean(RelayNode::Online))
+                    .col(big_integer(RelayNode::LastOnlineTime))
                     .to_owned(),
             )
             .await?;
@@ -691,13 +695,13 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(ZtmRepoInfo::Table)
+                    .table(RelayRepoInfo::Table)
                     .if_not_exists()
-                    .col(string(ZtmRepoInfo::Identifier).primary_key())
-                    .col(string(ZtmRepoInfo::Name))
-                    .col(string(ZtmRepoInfo::Origin))
-                    .col(big_integer(ZtmRepoInfo::UpdateTime))
-                    .col(string(ZtmRepoInfo::Commit))
+                    .col(string(RelayRepoInfo::Identifier).primary_key())
+                    .col(string(RelayRepoInfo::Name))
+                    .col(string(RelayRepoInfo::Origin))
+                    .col(big_integer(RelayRepoInfo::UpdateTime))
+                    .col(string(RelayRepoInfo::Commit))
                     .to_owned(),
             )
             .await?;
@@ -705,15 +709,15 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(ZtmLfsInfo::Table)
+                    .table(RelayLfsInfo::Table)
                     .if_not_exists()
-                    .col(pk_bigint(ZtmLfsInfo::Id))
-                    .col(string(ZtmLfsInfo::FileHash))
-                    .col(string(ZtmLfsInfo::HashType))
-                    .col(big_integer(ZtmLfsInfo::FileSize))
-                    .col(big_integer(ZtmLfsInfo::CreationTime))
-                    .col(string(ZtmLfsInfo::PeerId))
-                    .col(string(ZtmLfsInfo::Origin))
+                    .col(pk_bigint(RelayLfsInfo::Id))
+                    .col(string(RelayLfsInfo::FileHash))
+                    .col(string(RelayLfsInfo::HashType))
+                    .col(big_integer(RelayLfsInfo::FileSize))
+                    .col(big_integer(RelayLfsInfo::CreationTime))
+                    .col(string(RelayLfsInfo::PeerId))
+                    .col(string(RelayLfsInfo::Origin))
                     .to_owned(),
             )
             .await?;
@@ -721,15 +725,15 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(ZtmNostrEvent::Table)
+                    .table(RelayNostrEvent::Table)
                     .if_not_exists()
-                    .col(string(ZtmNostrEvent::Id).primary_key())
-                    .col(string(ZtmNostrEvent::Pubkey))
-                    .col(big_integer(ZtmNostrEvent::CreatedAt))
-                    .col(integer(ZtmNostrEvent::Kind))
-                    .col(text(ZtmNostrEvent::Tags))
-                    .col(text(ZtmNostrEvent::Content))
-                    .col(string(ZtmNostrEvent::Sig))
+                    .col(string(RelayNostrEvent::Id).primary_key())
+                    .col(string(RelayNostrEvent::Pubkey))
+                    .col(big_integer(RelayNostrEvent::CreatedAt))
+                    .col(integer(RelayNostrEvent::Kind))
+                    .col(text(RelayNostrEvent::Tags))
+                    .col(text(RelayNostrEvent::Content))
+                    .col(string(RelayNostrEvent::Sig))
                     .to_owned(),
             )
             .await?;
@@ -737,11 +741,11 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(ZtmNostrReq::Table)
+                    .table(RelayNostrReq::Table)
                     .if_not_exists()
-                    .col(string(ZtmNostrReq::Id).primary_key())
-                    .col(string(ZtmNostrReq::SubscriptionId))
-                    .col(text(ZtmNostrReq::Filters))
+                    .col(string(RelayNostrReq::Id).primary_key())
+                    .col(string(RelayNostrReq::SubscriptionId))
+                    .col(text(RelayNostrReq::Filters))
                     .to_owned(),
             )
             .await?;
@@ -762,13 +766,13 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(ZtmPathMapping::Table)
+                    .table(RelayPathMapping::Table)
                     .if_not_exists()
-                    .col(pk_bigint(ZtmPathMapping::Id))
-                    .col(text(ZtmPathMapping::Alias))
-                    .col(text(ZtmPathMapping::RepoPath))
-                    .col(date_time(ZtmPathMapping::CreatedAt))
-                    .col(date_time(ZtmPathMapping::UpdatedAt))
+                    .col(pk_bigint(RelayPathMapping::Id))
+                    .col(text(RelayPathMapping::Alias))
+                    .col(text(RelayPathMapping::RepoPath))
+                    .col(date_time(RelayPathMapping::CreatedAt))
+                    .col(date_time(RelayPathMapping::UpdatedAt))
                     .to_owned(),
             )
             .await?;
@@ -778,8 +782,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .name("uniq_alias")
                     .unique()
-                    .table(ZtmPathMapping::Table)
-                    .col(ZtmPathMapping::Alias)
+                    .table(RelayPathMapping::Table)
+                    .col(RelayPathMapping::Alias)
                     .to_owned(),
             )
             .await?;
@@ -1156,20 +1160,16 @@ enum LfsSplitRelations {
 }
 
 #[derive(DeriveIden)]
-enum ZtmNode {
+enum RelayNode {
     Table,
     PeerId,
-    Hub,
-    AgentName,
-    ServiceName,
     Type,
     Online,
     LastOnlineTime,
-    ServicePort,
 }
 
 #[derive(DeriveIden)]
-enum ZtmRepoInfo {
+enum RelayRepoInfo {
     Table,
     Identifier,
     Name,
@@ -1179,7 +1179,7 @@ enum ZtmRepoInfo {
 }
 
 #[derive(DeriveIden)]
-enum ZtmLfsInfo {
+enum RelayLfsInfo {
     Table,
     Id,
     FileHash,
@@ -1191,7 +1191,7 @@ enum ZtmLfsInfo {
 }
 
 #[derive(DeriveIden)]
-enum ZtmNostrEvent {
+enum RelayNostrEvent {
     Table,
     Id,
     Pubkey,
@@ -1203,7 +1203,7 @@ enum ZtmNostrEvent {
 }
 
 #[derive(DeriveIden)]
-enum ZtmNostrReq {
+enum RelayNostrReq {
     Table,
     Id,
     SubscriptionId,
@@ -1220,7 +1220,7 @@ enum MqStorage {
 }
 
 #[derive(DeriveIden)]
-enum ZtmPathMapping {
+enum RelayPathMapping {
     Table,
     Id,
     Alias,

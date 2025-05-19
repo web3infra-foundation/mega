@@ -22,13 +22,17 @@ export const LAST_CLIENT_JS_BUILD_ID_LS_KEY = 'latest-js-time'
 
 export const RAILS_API_URL = IS_PRODUCTION
   ? 'https://api.gitmono.com'
-  : process.env.NEXT_PUBLIC_API_URL || 'http://api.gitmono.test:3001'
+  : process.env.NEXT_PUBLIC_API_URL || 'http://api.gitmega.com'
+
+export const LEGACY_API_URL = IS_PRODUCTION
+  ? 'https://api.gitmono.com'
+  : process.env.NEXT_PUBLIC_LEGACY_API_URL || 'http://git.gitmega.com'
 
 const RAILS_AUTH_URL_PROD_COM = 'https://auth.gitmono.com'
 
 export const RAILS_AUTH_URL = IS_PRODUCTION
   ? RAILS_AUTH_URL_PROD_COM
-  : process.env.NEXT_PUBLIC_AUTH_URL || 'http://auth.gitmono.test:3001'
+  : process.env.NEXT_PUBLIC_AUTH_URL || 'http://auth.gitmega.com'
 
 /*
   Not using an env variable because we use this variable in the browser, which

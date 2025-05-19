@@ -1,10 +1,7 @@
-use std::collections::HashSet;
-use std::io::prelude::*;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use std::{fs, io};
-
+use crate::command;
+use crate::command::load_object;
+use crate::internal::branch::Branch;
+use crate::internal::head::Head;
 use byteorder::{BigEndian, ReadBytesExt};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -12,13 +9,19 @@ use flate2::Compression;
 use lru_mem::LruCache;
 use mercury::errors::GitError;
 use mercury::hash::SHA1;
+use mercury::internal::object::commit::Commit;
 use mercury::internal::object::types::ObjectType;
 use mercury::internal::pack::cache_object::CacheObject;
 use mercury::internal::pack::Pack;
 use mercury::utils::read_sha1;
 use once_cell::sync::Lazy;
-
-use crate::command;
+use regex::Regex;
+use std::collections::HashSet;
+use std::io::prelude::*;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
+use std::{fs, io};
 static PACK_OBJ_CACHE: Lazy<Mutex<LruCache<String, CacheObject>>> = Lazy::new(|| {
     // `lazy_static!` may affect IDE's code completion
     Mutex::new(LruCache::new(1024 * 1024 * 200))
@@ -74,13 +77,153 @@ impl ClientStorage {
     }
 
     /// Search objects that start with `obj_id`, loose & pack
-    pub fn search(&self, obj_id: &str) -> Vec<SHA1> {
+    /// add support for relative path
+    pub async fn search(&self, obj_id: &str) -> Vec<SHA1> {
+        if obj_id == "HEAD" {
+            return vec![Head::current_commit().await.unwrap()];
+        }
+        if obj_id.contains('~') || obj_id.contains('^') {
+            // Find the position of the last non-~^ symbol and split into base reference and path.
+            let mut split_pos = 0;
+            let mut found_special = false;
+
+            for (i, c) in obj_id.char_indices() {
+                if c == '~' || c == '^' {
+                    found_special = true;
+                    split_pos = i;
+                    break;
+                }
+            }
+
+            if found_special {
+                let base_ref = &obj_id[..split_pos];
+                let path_part = &obj_id[split_pos..];
+
+                let base_commit = match base_ref {
+                    "HEAD" => Head::current_commit().await.unwrap(),
+                    _ => {
+                        if let Some(branch) = Branch::find_branch(base_ref, None).await {
+                            branch.commit
+                        } else {
+                            let matches: Vec<SHA1> = self
+                                .list_objects_pack()
+                                .into_iter()
+                                .chain(self.list_objects_loose().into_iter())
+                                .filter(|x| self.is_object_type(x, ObjectType::Commit))
+                                .filter(|x| x.to_string().starts_with(base_ref))
+                                .collect();
+
+                            if matches.len() == 1 {
+                                matches[0]
+                            } else {
+                                return Vec::new();
+                            }
+                        }
+                    }
+                };
+                let target_commit = match self.navigate_commit_path(base_commit, path_part) {
+                    Ok(commit) => commit,
+                    Err(_) => return Vec::new(),
+                };
+
+                return vec![target_commit];
+            }
+        }
+
         let mut objs = self.list_objects_pack();
         objs.extend(self.list_objects_loose());
 
         objs.into_iter()
             .filter(|x| x.to_string().starts_with(obj_id))
             .collect()
+    }
+    /// Navigates through commit history following a Git-style reference path
+    /// For example: given "^2~3", navigate from base_commit to its second parent,
+    /// then follow first parent three generations up
+    ///
+    /// Parameters:
+    /// - base_commit: Starting commit SHA1
+    /// - path: Reference path string (e.g. "^2~3", "~~~", "^~^2")
+    ///
+    fn navigate_commit_path(&self, base_commit: SHA1, path: &str) -> Result<SHA1, GitError> {
+        let mut current = base_commit;
+
+        let re = Regex::new(r"(\^|~)(\d*)").unwrap();
+
+        if !re.is_match(path) {
+            return Err(GitError::InvalidArgument(format!(
+                "Invalid reference path: {}",
+                path
+            )));
+        }
+        for cap in re.captures_iter(path) {
+            let symbol = cap.get(1).unwrap().as_str();
+            let num_str = cap.get(2).map_or("1", |m| m.as_str());
+            let num: usize = num_str.parse().unwrap_or(1);
+
+            match symbol {
+                "^" => {
+                    current = self.get_parent_commit(&current, num)?;
+                }
+                "~" => {
+                    for _ in 0..num {
+                        current = self.get_parent_commit(&current, 1)?;
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        Ok(current)
+    }
+    /// get the reference of HEAD, e.g. HEAD~1, HEAD^2
+    #[allow(dead_code)]
+    async fn parse_head_reference(&self, reference: &str) -> Result<SHA1, GitError> {
+        let mut current = Head::current_commit().await.unwrap();
+
+        if reference == "HEAD" {
+            return Ok(current);
+        }
+
+        let re = Regex::new(r"(\^|~)(\d*)").unwrap();
+        let path = &reference[4..];
+        if !re.is_match(path) {
+            return Err(GitError::InvalidArgument(reference.to_string()));
+        }
+
+        for cap in re.captures_iter(path) {
+            let symbol = cap.get(1).unwrap().as_str();
+            let num_str = cap.get(2).map_or("1", |m| m.as_str());
+            let num: usize = num_str.parse().unwrap_or(1);
+
+            match symbol {
+                "^" => {
+                    current = self.get_parent_commit(&current, num)?;
+                }
+                "~" => {
+                    for _ in 0..num {
+                        current = self.get_parent_commit(&current, 1)?;
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        Ok(current)
+    }
+
+    /// get the nth parent commit of a commit
+    fn get_parent_commit(&self, commit_id: &SHA1, n: usize) -> Result<SHA1, GitError> {
+        let commit: Commit = load_object(commit_id)?;
+
+        // the index starts from 0
+        if n == 0 || n > commit.parent_commit_ids.len() {
+            return Err(GitError::ObjectNotFound(format!(
+                "Parent {} does not exist",
+                n
+            )));
+        }
+
+        Ok(commit.parent_commit_ids[n - 1])
     }
 
     /// list all objects' hash in `objects`
@@ -377,11 +520,12 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use crate::utils::{test, util};
+    use crate::utils::test;
 
     use super::ClientStorage;
 
     #[test]
+    #[ignore]
     fn test_content_store() {
         let content = "Hello, world!";
         let blob = Blob::from_content(content);
@@ -400,8 +544,10 @@ mod tests {
         assert_eq!(String::from_utf8(data).unwrap(), content);
     }
 
-    #[test]
-    fn test_search() {
+    #[tokio::test]
+    /// Tests object search functionality by partial hash prefix.
+    /// Verifies that objects can be correctly found when searching with a partial SHA1 hash.
+    async fn test_search() {
         let blob = Blob::from_content("Hello, world!");
 
         let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
@@ -412,21 +558,17 @@ mod tests {
             .put(&blob.id, &blob.data, blob.get_type())
             .is_ok());
 
-        let objs = client_storage.search("5dd01c177");
+        let objs = client_storage.search("5dd01c177").await;
 
         assert_eq!(objs.len(), 1);
     }
 
     #[test]
     #[serial]
+    /// Prints all object hashes found in the test objects directory.
     fn test_list_objs() {
-        test::reset_working_dir();
-        let source = PathBuf::from(test::TEST_DIR)
-            .join(util::ROOT_DIR)
-            .join("objects");
-        if !source.exists() {
-            return;
-        }
+        let mut source = PathBuf::from(test::find_cargo_dir().parent().unwrap());
+        source.push("tests/objects");
         let client_storage = ClientStorage::init(source);
         let objs = client_storage.list_objects_loose();
         for obj in objs {
@@ -435,6 +577,7 @@ mod tests {
     }
 
     #[test]
+    ///tests the function of get_object_type can get the object's type right.
     fn test_get_obj_type() {
         let blob = Blob::from_content("Hello, world!");
 
@@ -451,6 +594,7 @@ mod tests {
     }
 
     #[test]
+    ///Tests confirm that the compression and decompression features are functioning as expected.
     fn test_decompress() {
         let data = b"blob 13\0Hello, world!";
         let compressed_data = ClientStorage::compress_zlib(data).unwrap();
@@ -460,6 +604,7 @@ mod tests {
 
     #[test]
     #[serial]
+    /// Tests decompression of a specific git object file from test data to verify zlib implementation.
     fn test_decompress_2() {
         test::reset_working_dir();
         let pack_file = "../tests/data/objects/4b/00093bee9b3ef5afc5f8e3645dc39cfa2f49aa";

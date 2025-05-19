@@ -45,7 +45,7 @@ export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode })
     isLoading: organizationsLoading,
     refetch: refetchOrganizations
   } = useGetOrganizationMemberships()
-  const currentOrganization = memberships?.find((m) => m.organization.slug === scope)?.organization
+  const currentOrganization = memberships?.find((m) => m.organization?.slug === scope)?.organization
   const unreadCounts = useGetUnreadNotificationsCount()
   const otherOrgHasUnread =
     !!unreadCounts.data &&
@@ -143,24 +143,24 @@ export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode })
     memberships
       ?.filter((o) => o.id !== currentOrganization?.id)
       .map(({ organization }) => {
-        const unreadCount = unreadCounts.data?.home_inbox[organization.slug] || 0
+        const unreadCount = unreadCounts.data?.home_inbox[organization?.slug] || 0
 
         return {
           type: 'item',
-          label: organization.name,
-          url: `/${organization.slug}`,
+          label: organization?.name,
+          url: `/${organization?.slug}`,
           leftSlot: (
             <Avatar
               size='xs'
-              key={organization.id}
-              name={organization.name}
-              urls={organization.avatar_urls}
+              key={organization?.id}
+              name={organization?.name}
+              urls={organization?.avatar_urls}
               rounded='rounded'
             />
           ),
           rightSlot: (
             <>
-              {organization.slug === COMMUNITY_SLUG && <GlobeIcon />}
+              {organization?.slug === COMMUNITY_SLUG && <GlobeIcon />}
               {unreadCount > 0 && (
                 <span className='ml-1 flex h-5 items-center justify-center self-center rounded-full bg-blue-500 px-2.5 font-mono text-[10px] font-semibold leading-none text-white'>
                   {unreadCount}
@@ -233,10 +233,10 @@ function OrganizationAvatarAndName({
         {organization ? (
           <Avatar
             rounded='rounded'
-            key={organization.id}
+            key={organization?.id}
             size='xs'
-            name={organization.name}
-            urls={organization.avatar_urls}
+            name={organization?.name}
+            urls={organization?.avatar_urls}
           />
         ) : (
           <ReorderHandlesIcon />

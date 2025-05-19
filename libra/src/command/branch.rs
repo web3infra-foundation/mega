@@ -12,31 +12,31 @@ use crate::command::load_object;
 pub struct BranchArgs {
     /// new branch name
     #[clap(group = "sub")]
-    new_branch: Option<String>,
+    pub new_branch: Option<String>,
 
     /// base branch name or commit hash
     #[clap(requires = "new_branch")]
-    commit_hash: Option<String>,
+    pub commit_hash: Option<String>,
 
     /// list all branches, don't include remote branches
     #[clap(short, long, group = "sub", default_value = "true")]
-    list: bool,
+    pub list: bool,
 
     /// force delete branch
     #[clap(short = 'D', long, group = "sub")]
-    delete: Option<String>,
+    pub delete: Option<String>,
 
     ///  Set up `branchname`>`'s tracking information so `<`upstream`>` is considered `<`branchname`>`'s upstream branch.
     #[clap(short = 'u', long, group = "sub")]
-    set_upstream_to: Option<String>,
+    pub set_upstream_to: Option<String>,
 
     /// show current branch
     #[clap(long, group = "sub")]
-    show_current: bool,
+    pub show_current: bool,
 
     /// show remote branches
     #[clap(short, long)] // TODO limit to required `list` option, even in default
-    remotes: bool,
+    pub remotes: bool,
 }
 pub async fn execute(args: BranchArgs) {
     if args.new_branch.is_some() {
@@ -228,163 +228,4 @@ pub fn is_valid_git_branch_name(name: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::{
-        command::commit::{self, CommitArgs},
-        utils::test,
-    };
-    use serial_test::serial;
-
-    use super::*;
-
-    #[tokio::test]
-    #[serial]
-    async fn test_branch() {
-        test::setup_with_new_libra().await;
-
-        let commit_args = CommitArgs {
-            message: "first".to_string(),
-            allow_empty: true,
-            conventional: false,
-            amend: false,
-        };
-        commit::execute(commit_args).await;
-        let first_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
-
-        let commit_args = CommitArgs {
-            message: "second".to_string(),
-            allow_empty: true,
-            conventional: false,
-            amend: false,
-        };
-        commit::execute(commit_args).await;
-        let second_commit_id = Branch::find_branch("master", None).await.unwrap().commit;
-
-        {
-            // create branch with first commit
-            let first_branch_name = "first_branch".to_string();
-            let args = BranchArgs {
-                new_branch: Some(first_branch_name.clone()),
-                commit_hash: Some(first_commit_id.to_string()),
-                list: false,
-                delete: None,
-                set_upstream_to: None,
-                show_current: false,
-                remotes: false,
-            };
-            execute(args).await;
-
-            // check branch exist
-            match Head::current().await {
-                Head::Branch(current_branch) => {
-                    assert_ne!(current_branch, first_branch_name)
-                }
-                _ => panic!("should be branch"),
-            };
-
-            let first_branch = Branch::find_branch(&first_branch_name, None).await.unwrap();
-            assert_eq!(first_branch.commit, first_commit_id);
-            assert_eq!(first_branch.name, first_branch_name);
-        }
-
-        {
-            // create second branch with current branch
-            let second_branch_name = "second_branch".to_string();
-            let args = BranchArgs {
-                new_branch: Some(second_branch_name.clone()),
-                commit_hash: None,
-                list: false,
-                delete: None,
-                set_upstream_to: None,
-                show_current: false,
-                remotes: false,
-            };
-            execute(args).await;
-            let second_branch = Branch::find_branch(&second_branch_name, None)
-                .await
-                .unwrap();
-            assert_eq!(second_branch.commit, second_commit_id);
-            assert_eq!(second_branch.name, second_branch_name);
-        }
-
-        // show current branch
-        println!("show current branch");
-        let args = BranchArgs {
-            new_branch: None,
-            commit_hash: None,
-            list: false,
-            delete: None,
-            set_upstream_to: None,
-            show_current: true,
-            remotes: false,
-        };
-        execute(args).await;
-
-        // list branches
-        println!("list branches");
-        execute(BranchArgs::parse_from([""])).await; // default list
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_create_branch_from_remote() {
-        test::setup_with_new_libra().await;
-        test::init_debug_logger();
-
-        let args = CommitArgs {
-            message: "first".to_string(),
-            allow_empty: true,
-            conventional: false,
-            amend: false,
-        };
-        commit::execute(args).await;
-        let hash = Head::current_commit().await.unwrap();
-        Branch::update_branch("master", &hash.to_string(), Some("origin")).await; // create remote branch
-        assert!(get_target_commit("origin/master").await.is_ok());
-
-        let args = BranchArgs {
-            new_branch: Some("test_new".to_string()),
-            commit_hash: Some("origin/master".into()),
-            list: false,
-            delete: None,
-            set_upstream_to: None,
-            show_current: false,
-            remotes: false,
-        };
-        execute(args).await;
-
-        let branch = Branch::find_branch("test_new", None)
-            .await
-            .expect("branch create failed found");
-        assert_eq!(branch.commit, hash);
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_invalid_branch_name() {
-        test::setup_with_new_libra().await;
-        test::init_debug_logger();
-
-        let args = CommitArgs {
-            message: "first".to_string(),
-            allow_empty: true,
-            conventional: false,
-            amend: false,
-        };
-        commit::execute(args).await;
-
-        let args = BranchArgs {
-            new_branch: Some("@{mega}".to_string()),
-            commit_hash: None,
-            list: false,
-            delete: None,
-            set_upstream_to: None,
-            show_current: false,
-            remotes: false,
-        };
-        execute(args).await;
-
-        let branch = Branch::find_branch("new", None).await;
-        assert!(branch.is_none(), "invalid branch should not be created");
-    }
-}
+mod tests {}

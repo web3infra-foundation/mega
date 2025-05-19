@@ -1,4 +1,5 @@
 use common::errors::MegaError;
+use migration::{Migrator, MigratorTrait};
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement,
     TransactionError, TransactionTrait,
@@ -15,7 +16,7 @@ use crate::utils::id_generator;
 pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
     id_generator::set_up_options().unwrap();
 
-    if db_config.db_type == "postgres" {
+    let conn = if db_config.db_type == "postgres" {
         match postgres_connection(db_config).await {
             Ok(conn) => conn,
             Err(e) => {
@@ -28,7 +29,10 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
         }
     } else {
         sqlite_connection(db_config).await.unwrap()
-    }
+    };
+    Migrator::up(&conn, None).await.unwrap();
+
+    conn
 }
 
 async fn postgres_connection(db_config: &DbConfig) -> Result<DatabaseConnection, MegaError> {
@@ -52,16 +56,17 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, M
     let conn = Database::connect(opt).await?;
 
     // setup sqlite database (execute .sql)
-    if db_config.db_path.metadata()?.len() == 0 {
-        log::info!("Setting up sqlite database");
-        setup_sql(&conn)
-            .await
-            .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
-    }
+    // if db_config.db_path.metadata()?.len() == 0 {
+    //     log::info!("Setting up sqlite database");
+    //     setup_sql(&conn)
+    //         .await
+    //         .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
+    // }
     Ok(conn)
 }
 
 /// create table from .sql file
+#[allow(unused)]
 async fn setup_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
     conn.transaction::<_, _, DbErr>(|txn| {
         Box::pin(async move {

@@ -1,0 +1,13 @@
+[Unit]
+Description=mega-orion
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/start-orion.sh
+WorkingDirectory=/root/.cargo/bin
+Restart=always
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

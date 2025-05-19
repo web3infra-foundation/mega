@@ -27,6 +27,14 @@ pub struct AddArgs {
     /// more detailed output
     #[clap(short, long)]
     pub verbose: bool,
+
+    /// dry run
+    #[clap(short, long)]
+    pub dry_run: bool,
+
+    /// ignore errors
+    #[clap(long)]
+    pub ignore_errors: bool,
 }
 
 pub async fn execute(args: AddArgs) {
@@ -63,69 +71,66 @@ pub async fn execute(args: AddArgs) {
         files.extend(changes.new);
     }
 
+    if args.dry_run {
+        // dry run
+        for file in &files {
+            println!("add: {}", file.display());
+        }
+        return;
+    }
+
     let index_file = path::index();
     let mut index = Index::load(&index_file).unwrap();
     for file in &files {
-        add_a_file(file, &mut index, args.verbose).await;
+        match add_a_file(file, &mut index, args.verbose).await {
+            Ok(_) => {}
+            Err(e) => {
+                println!("{}", e);
+                if !args.ignore_errors {
+                    // if `--ignore-errors` is not set, stop on first error
+                    return;
+                }
+            }
+        }
     }
     index.save(&index_file).unwrap();
 }
 
 /// `file` path must relative to the working directory
-async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
+async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) -> Result<(), String> {
     let workdir = util::working_dir();
     if !util::is_sub_path(file, &workdir) {
         // file is not in the working directory
         // TODO check this earlier, once fatal occurs, nothing should be done
-        println!(
+        return Err(format!(
             "fatal: '{}' is outside workdir at '{}'",
             file.display(),
             workdir.display()
-        );
-        return;
+        ));
     }
     if util::is_sub_path(file, util::storage_path()) {
         // file is in `.libra`
         // Git won't print this
-        println!(
-            "warning: '{}' is inside '{}' repo, which will be ignored by `add`",
+        return Err(format!(
+            "fatal: '{}' is inside '{}' repo, which will be ignored by `add`",
             file.display(),
             util::ROOT_DIR
-        );
-        return;
+        ));
     }
 
     let file_abs = util::workdir_to_absolute(file);
     let file_str = file.to_str().unwrap();
-    if !file_abs.exists() {
-        if index.tracked(file_str, 0) {
-            // file is removed
-            index.remove(file_str, 0);
-            if verbose {
-                println!("removed: {}", file_str);
-            }
-        } else {
-            // FIXME: unreachable code! This situation is not included in `status::changes_to_be_staged()`
-            // FIXME: should check files in original input paths
-            // TODO do this check earlier, once fatal occurs, nothing should be done
-            // file is not tracked && not exists, which means wrong pathspec
-            println!(
-                "fatal: pathspec '{}' did not match any files",
-                file.display()
-            );
-        }
-    } else {
-        // file exists
-        if !index.tracked(file_str, 0) {
-            // file is not tracked
+    let file_status = check_file_status(file, index);
+    match file_status {
+        FileStatus::New => {
             let blob = gen_blob_from_file(&file_abs);
             blob.save();
             index.add(IndexEntry::new_from_file(file, blob.id, &workdir).unwrap());
             if verbose {
                 println!("add(new): {}", file.display());
             }
-        } else {
-            // file is tracked, maybe modified
+        }
+        FileStatus::Modified => {
             if index.is_modified(file_str, 0, &workdir) {
                 // file is modified(meta), but content may not change
                 let blob = gen_blob_from_file(&file_abs);
@@ -139,6 +144,47 @@ async fn add_a_file(file: &Path, index: &mut Index, verbose: bool) {
                 }
             }
         }
+        FileStatus::Deleted => {
+            index.remove(file_str, 0);
+            if verbose {
+                println!("removed: {}", file_str);
+            }
+        }
+        FileStatus::NotFound => {
+            return Err(format!(
+                "fatal: pathspec '{}' did not match any files",
+                file.display(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+enum FileStatus {
+    /// file is new
+    New,
+    /// file is modified
+    Modified,
+    /// file is deleted
+    Deleted,
+    /// file is not tracked
+    NotFound,
+}
+
+fn check_file_status(file: &Path, index: &Index) -> FileStatus {
+    let file_str = file.to_str().unwrap();
+    if !file.exists() {
+        if index.tracked(file_str, 0) {
+            FileStatus::Deleted
+        } else {
+            FileStatus::NotFound
+        }
+    } else if !index.tracked(file_str, 0) {
+        FileStatus::New
+    } else if index.is_modified(file_str, 0, &util::working_dir()) {
+        FileStatus::Modified
+    } else {
+        FileStatus::NotFound
     }
 }
 
@@ -158,6 +204,7 @@ mod test {
 
     #[test]
     #[should_panic]
+    /// Test that `-A` and `-u` cannot be used together
     fn test_args_parse_update_conflict_with_all() {
         AddArgs::try_parse_from(["test", "-A", "-u"]).unwrap();
     }
