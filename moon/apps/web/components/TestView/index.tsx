@@ -16,7 +16,7 @@ export default function TestView() {
 
       setReadmeContent(readmeContent);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      // console.error('Error fetching data:', error);
     }
   };
 
@@ -38,7 +38,7 @@ async function getDirectory(pathname: string) {
   return directory
 }
 
-async function getReadmeContent(pathname:string, directory:Array) {
+async function getReadmeContent(pathname:string, directory: any) {
   let readmeContent = '';
 
   for (const project of directory || []) {
