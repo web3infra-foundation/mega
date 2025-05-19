@@ -11,7 +11,7 @@ import { useUpdateCalDotComOrganization } from '@/hooks/useUpdateCalDotComOrgani
 export function CalDotComIntegration() {
   const { data: memberships } = useGetOrganizationMemberships()
   const organizations = memberships?.map((m) => m.organization) || []
-  const organizationOptions: SelectOption[] = organizations.map((o) => ({ label: o.name, value: o.id })) || []
+  const organizationOptions: SelectOption[] = organizations.map((o) => ({ label: o?.name, value: o?.id })) || []
   const { data: calDotComIntegration } = useGetCalDotComIntegration()
   const { mutate: updateCalDotComOrganization } = useUpdateCalDotComOrganization()
 
