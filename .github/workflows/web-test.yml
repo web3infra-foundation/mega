@@ -1,6 +1,6 @@
 name: Test Web UI
 on:
-  pull_request_target:
+  pull_request:
   push:
     branches:
       - main
@@ -9,7 +9,7 @@ on:
       - 'moon/**'
 
 env:
-  TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+  TIPTAP_PRIVATE_REGISTRY_KEY: CjqFil0n7z4GGur+RPric21fBBeSB4R4FoNdRYOE1bQEz6AXLCoANCc+o9rLIg6Q
 
 jobs:
   test-web-ui:
@@ -20,7 +20,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          # ref: ${{ github.event.pull_request.base.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -45,11 +46,12 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
-      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ env.TIPTAP_PRIVATE_REGISTRY_KEY }}
+      - run: pnpm -v
 
       - name: Install dependencies
         working-directory: ./moon
-        run: pnpm i --frozen-lockfile
+        run: pnpm i --no-frozen-lockfile
 
       - name: Run ESLint
         working-directory: ./moon
