@@ -1,7 +1,6 @@
-import { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
-
-import { RAILS_API_URL, RAILS_AUTH_URL, LEGACY_API_URL } from '@gitmono/config'
+import { LEGACY_API_URL, RAILS_API_URL, RAILS_AUTH_URL } from '@gitmono/config'
 import { Api, ApiError, DataTag } from '@gitmono/types'
+import { InfiniteData, QueryClient, QueryKey } from '@tanstack/react-query'
 
 import { ApiErrorResponse } from './types'
 
