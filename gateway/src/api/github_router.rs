@@ -2,10 +2,11 @@ use crate::api::MegaApiServiceState;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::post;
-use axum::{Json, Router};
+use axum::Json;
 use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::Value;
+use utoipa_axum::router::OpenApiRouter;
 
 lazy_static! {
     static ref CLIENT: Client = Client::builder()
@@ -14,8 +15,8 @@ lazy_static! {
         .unwrap();
 }
 
-pub fn routers() -> Router<MegaApiServiceState> {
-    Router::new().route("/github/webhook", post(webhook))
+pub fn routers() -> OpenApiRouter<MegaApiServiceState> {
+    OpenApiRouter::new().route("/github/webhook", post(webhook))
 }
 
 /// Handle the GitHub webhook event. <br>

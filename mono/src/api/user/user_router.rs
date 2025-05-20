@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use axum::{
     extract::{Path, Query, State},
     routing::{get, post},
-    Json, Router,
+    Json,
 };
 use russh::keys::{parse_public_key_base64, HashAlg};
+use utoipa_axum::router::OpenApiRouter;
 
 use common::model::CommonResult;
 
@@ -15,10 +16,10 @@ use crate::api::user::model::ListToken;
 use crate::api::MonoApiServiceState;
 use crate::api::{error::ApiError, oauth::model::LoginUser, util};
 
-pub fn routers() -> Router<MonoApiServiceState> {
-    Router::new().nest(
+pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
+    OpenApiRouter::new().nest(
         "/user",
-        Router::new()
+        OpenApiRouter::new()
             .route("/", get(user))
             .route("/ssh", get(list_key))
             .route("/ssh", post(add_key))
