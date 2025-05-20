@@ -65,18 +65,6 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
           throw new Error("postOrganizationError: " + e.message)
         })
 
-      //新建organization时会自动创建第一个channel(General)
-
-      // const defaultChannel = "default channel"
-      //
-      // apiClient.organizations
-      //   .postProjects()
-      //   .request(`my-first-organization`,{ name: defaultChannel }, {headers})
-      //   .catch(e => {
-      //       throw new Error("postProjectError: " + e.message)
-      //     }
-      //   )
-
       if (device.type === 'mobile') {
         return {
           redirect: {
