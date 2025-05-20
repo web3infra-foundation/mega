@@ -223,14 +223,12 @@ impl HttpsClient {
 
         if res.status() != 200 && res.status() != 304 {
             tracing::error!("request failed: {:?}", res);
-            return Err(IoError::new(
-                std::io::ErrorKind::Other,
-                format!("Error Response format, status code: {}", res.status()),
-            ));
+            return Err(IoError::other(format!(
+                "Error Response format, status code: {}",
+                res.status()
+            )));
         }
-        let result = res
-            .bytes_stream()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+        let result = res.bytes_stream().map_err(std::io::Error::other);
 
         Ok(result)
     }

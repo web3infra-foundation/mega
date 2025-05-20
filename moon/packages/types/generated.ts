@@ -3033,6 +3033,22 @@ export type FigmaKeyPair = {
   write_key: string
 }
 
+export type CommonResultVecTreeBriefItem = {
+  data?: {
+    content_type: string
+    name: string
+    path: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type TreeBriefItem = {
+  content_type: string
+  name: string
+  path: string
+}
+
 export type PostActivityViewsData = UserNotificationCounts
 
 export type GetAttachmentsCommentersData = OrganizationMember[]
@@ -4166,6 +4182,13 @@ export type PostThreadsV2Data = V2MessageThread
 
 export type PostSignInFigmaData = FigmaKeyPair
 
+export type GetApiTreeParams = {
+  refs?: string
+  path?: string
+}
+
+export type GetApiTreeData = CommonResultVecTreeBriefItem
+
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
 
@@ -4247,7 +4270,7 @@ export enum ContentType {
 }
 
 export class HttpClient<SecurityDataType = unknown> {
-  public baseUrl: string = 'https://api.gitmono.com'
+  public baseUrl: string = ''
   private securityData: SecurityDataType | null = null
   private securityWorker?: ApiConfig<SecurityDataType>['securityWorker']
   private abortControllers = new Map<CancelToken, AbortController>()
@@ -4445,10 +4468,8 @@ function dataTaggedQueryKey(key: unknown) {
 }
 
 /**
- * @title Campsite API
+ * @title Gitmono API
  * @version 2.0.0
- * @baseUrl https://api.gitmono.com
- * @contact <support@gitmono.com>
  */
 export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
   organizations = {
@@ -12441,6 +12462,30 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           this.request<PostSignInFigmaData>({
             path: `/sign-in/figma`,
             method: 'POST',
+            ...params
+          })
+      }
+    }
+  }
+  v1 = {
+    /**
+     * No description
+     *
+     * @tags crate::api::api_router
+     * @name GetApiTree
+     * @request GET:api/v1/tree/
+     */
+    getApiTree: () => {
+      const base = 'GET:api/v1/tree/' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiTreeData>([base]),
+        requestKey: (params: GetApiTreeParams) => dataTaggedQueryKey<GetApiTreeData>([base, params]),
+        request: (query: GetApiTreeParams, params: RequestParams = {}) =>
+          this.request<GetApiTreeData>({
+            path: `api/v1/tree/`,
+            method: 'GET',
+            query: query,
             ...params
           })
       }
