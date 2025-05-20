@@ -1,6 +1,7 @@
 name: Test Web UI
 on:
-  pull_request:
+  workflow_dispatch:
+  pull_request_target:
   push:
     branches:
       - main
@@ -9,54 +10,81 @@ on:
       - 'moon/**'
 
 env:
-  TIPTAP_PRIVATE_REGISTRY_KEY: CjqFil0n7z4GGur+RPric21fBBeSB4R4FoNdRYOE1bQEz6AXLCoANCc+o9rLIg6Q
+  TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
 
 jobs:
   test-web-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event.pull_request.base.ref }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4.0.0
-        with:
-          version: 9
+      # - name: Setup pnpm
+      #   uses: pnpm/action-setup@v4.0.0
+      #   with:
+      #     version: 9
 
-      - name: Get pnpm store directory
-        shell: bash
+      # - name: Get pnpm store directory
+      #   shell: bash
+      #   run: |
+      #     echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      # - uses: actions/cache@v4
+      #   name: Setup pnpm cache
+      #   with:
+      #     path: ${{ env.STORE_PATH }}
+      #     key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-pnpm-store-
+
+      # - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
+      # - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+
+      # - name: Install dependencies
+      #   working-directory: ./moon
+      #   run: pnpm i --frozen-lockfile
+
+      # - name: Run ESLint
+      #   working-directory: ./moon
+      #   run: pnpm run lint
+
+      # - name: Build Next.js application
+      #   working-directory: ./moon
+      #   run: pnpm run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build, tag, and push docker image to Amazon ECR Public
+        working-directory: moon
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          REGISTRY_ALIAS: m8q5m4u3
+          REPOSITORY: mega-ui
+          IMAGE_TAG: mega-ui-0.1.0-pre-release
         run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
-      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ env.TIPTAP_PRIVATE_REGISTRY_KEY }}
-      - run: pnpm -v
-
-      - name: Install dependencies
-        working-directory: ./moon
-        run: pnpm i --no-frozen-lockfile
-
-      - name: Run ESLint
-        working-directory: ./moon
-        run: pnpm run lint
-
-      - name: Build Next.js application
-        working-directory: ./moon
-        run: pnpm run build
+          docker build \
+            --build-arg TIPTAP_TOKEN=${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }} \
+            -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
+          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+        # run: |
+        #   docker build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG . --build-arg RUBY_VERSION=${{env.RUBY_VERSION}} --build-arg NODE_VERSION=${{env.NODE_VERSION}} --build-arg BUNDLER_VERSION=${{env.BUNDLER_VERSION}}
+        #   docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG

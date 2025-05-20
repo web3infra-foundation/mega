@@ -10,7 +10,7 @@
     "dev": "next dev -p 80",
     "lint": "next lint",
     "playwright": "playwright test",
-    "start": "next start",
+    "start": "next start -p 3000 -H 0.0.0.0",
     "storybook": "storybook dev -p 6006",
     "test": "vitest"
   },
