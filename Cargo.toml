@@ -18,7 +18,6 @@ members = [
     "extensions/rag/chat",
     "extensions/rag/index",
     "extensions/observatory",
-    "extensions/sync_tool",
 ]
 default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
 resolver = "1"
@@ -41,7 +40,6 @@ observatory = { path = "extensions/observatory" }
 orion = { path = "orion" }
 orion-server = { path = "orion-server" }
 third-party = { path = "third-party" }
-sync_tool = { path = "extensions/sync_tool" }
 
 anyhow = "1.0.93"
 serde = "1.0.215"
@@ -148,8 +146,6 @@ walkdir = "2.4"
 dagrs = "0.4.4"
 tar = "0.4"
 
-csv = "1.3"
-semver = "1.0"
 
 [profile.release]
 debug = true
