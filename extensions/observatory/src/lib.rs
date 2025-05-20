@@ -1,2 +1,2 @@
 pub mod facilities;
-pub mod kafka_model;
+pub mod model;

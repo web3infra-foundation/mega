@@ -20,9 +20,6 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 tokio-stream = { workspace = true }
-callisto = { workspace = true}
-sea-orm = { workspace = true }
-
 
 [dev-dependencies]
 testcontainers = { workspace = true, features = ["blocking"] }

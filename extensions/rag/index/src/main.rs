@@ -8,7 +8,7 @@ use index::vectorization::VectClient;
 use index::{BROKER, CONSUMER_GROUP, TOPIC};
 use index::{PROCESS_ITEMS_NODE, QDRANT_NODE, QDRANT_URL, VECT_CLIENT_NODE, VECT_URL};
 use observatory::facilities::Telescope;
-use observatory::kafka_model::message_model::MessageModel;
+use observatory::model::crate_repo::CrateRepoMessage;
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
@@ -32,7 +32,7 @@ fn main() {
             .consume_loop(|payload: String| async move {
                 println!("✅ Received: {}", payload);
 
-                let crate_msg = serde_json::from_str::<MessageModel>(&payload).unwrap();
+                let crate_msg = serde_json::from_str::<CrateRepoMessage>(&payload).unwrap();
                 let file_path = get_file_path(
                     &PathBuf::from(env::var("FREIGHTER_CRATES_PATH").unwrap()),
                     &crate_msg.crate_name,
