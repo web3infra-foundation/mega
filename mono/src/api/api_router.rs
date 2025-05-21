@@ -4,8 +4,8 @@ use axum::{
     body::Body,
     extract::{Path, Query, State},
     response::{IntoResponse, Response},
-    routing::{get, post},
-    Json, Router,
+    routing::get,
+    Json,
 };
 use http::StatusCode;
 
@@ -17,31 +17,42 @@ use ceres::{
     },
 };
 use common::model::CommonResult;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::error::ApiError;
 use crate::api::issue::issue_router;
 use crate::api::mr::mr_router;
 use crate::api::user::user_router;
 use crate::api::MonoApiServiceState;
+use crate::{api::error::ApiError, server::https_server::GIT_TAG};
 
-pub fn routers() -> Router<MonoApiServiceState> {
-    let router = Router::new()
-        .route("/status", get(life_cycle_check))
-        .route("/create-file", post(create_file))
-        .route("/latest-commit", get(get_latest_commit))
-        .route("/tree/commit-info", get(get_tree_commit_info))
-        .route("/tree/path-can-clone", get(path_can_be_cloned))
-        .route("/tree", get(get_tree_info))
-        .route("/blob", get(get_blob_string))
+pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
+    OpenApiRouter::new()
+        .routes(routes!(life_cycle_check))
+        .routes(routes!(create_file))
+        .routes(routes!(get_latest_commit))
+        .routes(routes!(get_tree_commit_info))
+        .routes(routes!(path_can_be_cloned))
+        .routes(routes!(get_tree_info))
+        .routes(routes!(get_blob_string))
         .route("/file/blob/{object_id}", get(get_blob_file))
-        .route("/file/tree", get(get_tree_file));
-    Router::new()
-        .merge(router)
+        .route("/file/tree", get(get_tree_file))
         .merge(mr_router::routers())
         .merge(user_router::routers())
         .merge(issue_router::routers())
 }
 
+/// Get blob file as string
+#[utoipa::path(
+    get,
+    params(
+        BlobContentQuery
+    ),
+    path = "/blob",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
 async fn get_blob_string(
     Query(query): Query<BlobContentQuery>,
     state: State<MonoApiServiceState>,
@@ -54,10 +65,29 @@ async fn get_blob_string(
     Ok(Json(CommonResult::success(data)))
 }
 
+/// Health Check
+#[utoipa::path(
+    get,
+    path = "/status",
+    responses(
+        (status = 200, body = str, content_type = "text/plain")
+    ),
+    tag = GIT_TAG
+)]
 async fn life_cycle_check() -> Result<impl IntoResponse, ApiError> {
     Ok(Json("http ready"))
 }
 
+/// Create file in web UI
+#[utoipa::path(
+    get,
+    path = "/create-file",
+    request_body = CreateFileInfo,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
 async fn create_file(
     state: State<MonoApiServiceState>,
     Json(json): Json<CreateFileInfo>,
@@ -70,6 +100,18 @@ async fn create_file(
     Ok(Json(CommonResult::success(None)))
 }
 
+/// Get latest commit by path
+#[utoipa::path(
+    get,
+    path = "/latest-commit",
+    params(
+        CodePreviewQuery
+    ),
+    responses(
+        (status = 200, body = LatestCommitInfo, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
 async fn get_latest_commit(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
@@ -82,6 +124,18 @@ async fn get_latest_commit(
     Ok(Json(res))
 }
 
+/// Get tree brief info
+#[utoipa::path(
+    get,
+    path = "/tree",
+    params(
+        CodePreviewQuery
+    ),
+    responses(
+        (status = 200, body = CommonResult<Vec<TreeBriefItem>>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
 async fn get_tree_info(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
@@ -94,17 +148,17 @@ async fn get_tree_info(
     Ok(Json(CommonResult::success(Some(data))))
 }
 
+/// List matching trees with commit msg by query
 #[utoipa::path(
     get,
-    path = "api/v1/tree/commit-info",
+    path = "/tree/commit-info",
     params(
         CodePreviewQuery
     ),
     responses(
-        (status = 200, description = "List matching trees by query", 
-        body = CommonResult<Vec<TreeBriefItem>>,
-        content_type = "application/json")
-    )
+        (status = 200, body = CommonResult<Vec<TreeCommitItem>>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
 )]
 async fn get_tree_commit_info(
     Query(query): Query<CodePreviewQuery>,
@@ -159,6 +213,18 @@ pub async fn get_tree_file(
         .unwrap())
 }
 
+/// Check if a path can be cloned
+#[utoipa::path(
+    get,
+    path = "/tree/path-can-clone",
+    params(
+        BlobContentQuery
+    ),
+    responses(
+        (status = 200, body = CommonResult<bool>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
 async fn path_can_be_cloned(
     Query(query): Query<BlobContentQuery>,
     state: State<MonoApiServiceState>,
@@ -179,17 +245,4 @@ async fn path_can_be_cloned(
         true
     };
     Ok(Json(CommonResult::success(Some(res))))
-}
-
-#[cfg(test)]
-mod test {
-    use utoipa::OpenApi;
-
-    #[test]
-    fn generate_swagger_json() {
-        #[derive(OpenApi)]
-        #[openapi(paths(crate::api::api_router::get_tree_commit_info))]
-        struct ApiDoc;
-        println!("{}", ApiDoc::openapi().to_pretty_json().unwrap());
-    }
 }
