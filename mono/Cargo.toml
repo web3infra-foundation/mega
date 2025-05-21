@@ -54,6 +54,8 @@ async-session = { workspace = true }
 http = { workspace = true }
 cedar-policy = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }
+utoipa-axum = { workspace = true }
+utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 
 [target.'cfg(not(windows))'.dependencies]
 jemallocator = { workspace = true }
