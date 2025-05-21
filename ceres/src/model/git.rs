@@ -6,7 +6,7 @@ use mercury::internal::object::{
     tree::{TreeItem, TreeItemMode},
 };
 
-#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CreateFileInfo {
     /// can be a file or directory
     pub is_directory: bool,
@@ -32,13 +32,13 @@ pub struct TreeQuery {
     pub path: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct BlobContentQuery {
     #[serde(default = "default_path")]
     pub path: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct LatestCommitInfo {
     pub oid: String,
     pub date: String,
@@ -48,7 +48,7 @@ pub struct LatestCommitInfo {
     pub status: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct UserInfo {
     pub display_name: String,
     pub avatar_url: String,
@@ -63,7 +63,7 @@ impl Default for UserInfo {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct TreeCommitItem {
     pub oid: String,
     pub name: String,
