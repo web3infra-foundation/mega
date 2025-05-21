@@ -72,14 +72,14 @@ impl ScorpioManager {
         let modified_path = path.join("modifiedstore");
         let tempstorage_path = modified_path.join("objects");
 
-        let _ = fs::remove_dir_all(&objectspath);
+        fs::remove_dir_all(&objectspath)?;
         if tempstorage_path.exists() {
             let mut options = CopyOptions::new();
             options.copy_inside = true;
             copy(&tempstorage_path, &objectspath, &options)?;
         }
 
-        let _ = fs::remove_dir_all(&objectspath);
+        fs::remove_dir_all(&objectspath)?;
         let old_tree_db = sled::open(old_dbpath)?;
         let new_tree_db = sled::open(new_dbpath)?;
         let temp_store_area = TempStoreArea::new(&modified_path)?;
