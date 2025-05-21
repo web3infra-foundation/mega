@@ -3033,6 +3033,12 @@ export type FigmaKeyPair = {
   write_key: string
 }
 
+export type CommonResultString = {
+  data?: string
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultVecTreeBriefItem = {
   data?: {
     content_type: string
@@ -3043,10 +3049,59 @@ export type CommonResultVecTreeBriefItem = {
   req_result: boolean
 }
 
+export type CommonResultVecTreeCommitItem = {
+  data?: {
+    content_type: string
+    date: string
+    message: string
+    name: string
+    oid: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultBool = {
+  data?: boolean
+  err_message: string
+  req_result: boolean
+}
+
+export type CreateFileInfo = {
+  content?: string | null
+  /** can be a file or directory */
+  is_directory: boolean
+  name: string
+  /** leave empty if it's under root */
+  path: string
+}
+
+export type LatestCommitInfo = {
+  author: UserInfo
+  committer: UserInfo
+  date: string
+  oid: string
+  short_message: string
+  status: string
+}
+
 export type TreeBriefItem = {
   content_type: string
   name: string
   path: string
+}
+
+export type TreeCommitItem = {
+  content_type: string
+  date: string
+  message: string
+  name: string
+  oid: string
+}
+
+export type UserInfo = {
+  avatar_url: string
+  display_name: string
 }
 
 export type PostActivityViewsData = UserNotificationCounts
@@ -4182,12 +4237,42 @@ export type PostThreadsV2Data = V2MessageThread
 
 export type PostSignInFigmaData = FigmaKeyPair
 
+export type GetApiBlobParams = {
+  path?: string
+}
+
+export type GetApiBlobData = CommonResultString
+
+export type GetApiCreateFileData = CommonResultString
+
+export type GetApiLatestCommitParams = {
+  refs?: string
+  path?: string
+}
+
+export type GetApiLatestCommitData = LatestCommitInfo
+
+export type GetApiStatusData = string
+
 export type GetApiTreeParams = {
   refs?: string
   path?: string
 }
 
 export type GetApiTreeData = CommonResultVecTreeBriefItem
+
+export type GetApiTreeCommitInfoParams = {
+  refs?: string
+  path?: string
+}
+
+export type GetApiTreeCommitInfoData = CommonResultVecTreeCommitItem
+
+export type GetApiTreePathCanCloneParams = {
+  path?: string
+}
+
+export type GetApiTreePathCanCloneData = CommonResultBool
 
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
@@ -12471,19 +12556,166 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * No description
      *
-     * @tags crate::api::api_router
+     * @tags git
+     * @name GetApiBlob
+     * @summary Get blob file as string
+     * @request GET:/api/v1/blob
+     */
+    getApiBlob: () => {
+      const base = 'GET:/api/v1/blob' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiBlobData>([base]),
+        requestKey: (params: GetApiBlobParams) => dataTaggedQueryKey<GetApiBlobData>([base, params]),
+        request: (query: GetApiBlobParams, params: RequestParams = {}) =>
+          this.request<GetApiBlobData>({
+            path: `/api/v1/blob`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
+     * @name GetApiCreateFile
+     * @summary Create file in web UI
+     * @request GET:/api/v1/create-file
+     */
+    getApiCreateFile: () => {
+      const base = 'GET:/api/v1/create-file' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiCreateFileData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiCreateFileData>([base]),
+        request: (data: CreateFileInfo, params: RequestParams = {}) =>
+          this.request<GetApiCreateFileData>({
+            path: `/api/v1/create-file`,
+            method: 'GET',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
+     * @name GetApiLatestCommit
+     * @summary Get latest commit by path
+     * @request GET:/api/v1/latest-commit
+     */
+    getApiLatestCommit: () => {
+      const base = 'GET:/api/v1/latest-commit' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiLatestCommitData>([base]),
+        requestKey: (params: GetApiLatestCommitParams) => dataTaggedQueryKey<GetApiLatestCommitData>([base, params]),
+        request: (query: GetApiLatestCommitParams, params: RequestParams = {}) =>
+          this.request<GetApiLatestCommitData>({
+            path: `/api/v1/latest-commit`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
+     * @name GetApiStatus
+     * @summary Health Check
+     * @request GET:/api/v1/status
+     */
+    getApiStatus: () => {
+      const base = 'GET:/api/v1/status' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiStatusData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiStatusData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiStatusData>({
+            path: `/api/v1/status`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
      * @name GetApiTree
-     * @request GET:api/v1/tree/
+     * @summary Get tree brief info
+     * @request GET:/api/v1/tree
      */
     getApiTree: () => {
-      const base = 'GET:api/v1/tree/' as const
+      const base = 'GET:/api/v1/tree' as const
 
       return {
         baseKey: dataTaggedQueryKey<GetApiTreeData>([base]),
         requestKey: (params: GetApiTreeParams) => dataTaggedQueryKey<GetApiTreeData>([base, params]),
         request: (query: GetApiTreeParams, params: RequestParams = {}) =>
           this.request<GetApiTreeData>({
-            path: `api/v1/tree/`,
+            path: `/api/v1/tree`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
+     * @name GetApiTreeCommitInfo
+     * @summary List matching trees with commit msg by query
+     * @request GET:/api/v1/tree/commit-info
+     */
+    getApiTreeCommitInfo: () => {
+      const base = 'GET:/api/v1/tree/commit-info' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiTreeCommitInfoData>([base]),
+        requestKey: (params: GetApiTreeCommitInfoParams) =>
+          dataTaggedQueryKey<GetApiTreeCommitInfoData>([base, params]),
+        request: (query: GetApiTreeCommitInfoParams, params: RequestParams = {}) =>
+          this.request<GetApiTreeCommitInfoData>({
+            path: `/api/v1/tree/commit-info`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
+     * @name GetApiTreePathCanClone
+     * @summary Check if a path can be cloned
+     * @request GET:/api/v1/tree/path-can-clone
+     */
+    getApiTreePathCanClone: () => {
+      const base = 'GET:/api/v1/tree/path-can-clone' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiTreePathCanCloneData>([base]),
+        requestKey: (params: GetApiTreePathCanCloneParams) =>
+          dataTaggedQueryKey<GetApiTreePathCanCloneData>([base, params]),
+        request: (query: GetApiTreePathCanCloneParams, params: RequestParams = {}) =>
+          this.request<GetApiTreePathCanCloneData>({
+            path: `/api/v1/tree/path-can-clone`,
             method: 'GET',
             query: query,
             ...params

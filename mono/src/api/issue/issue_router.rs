@@ -1,10 +1,11 @@
 use axum::{
     extract::{Path, State},
     routing::{get, post},
-    Json, Router,
+    Json,
 };
 use bytes::Bytes;
 use serde::Deserialize;
+use utoipa_axum::router::OpenApiRouter;
 
 use common::model::{CommonPage, CommonResult, PageParams};
 
@@ -13,10 +14,10 @@ use crate::api::issue::{IssueDetail, IssueItem, NewIssue};
 use crate::api::oauth::model::LoginUser;
 use crate::api::MonoApiServiceState;
 
-pub fn routers() -> Router<MonoApiServiceState> {
-    Router::new().nest(
+pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
+    OpenApiRouter::new().nest(
         "/issue",
-        Router::new()
+        OpenApiRouter::new()
             .route("/list", post(fetch_issue_list))
             .route("/new", post(new_issue))
             .route("/{link}/close", post(close_issue))

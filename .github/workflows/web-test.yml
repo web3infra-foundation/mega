@@ -1,6 +1,6 @@
 name: Test Web UI
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
@@ -12,7 +12,6 @@ env:
 
 jobs:
   test-web-ui:
-    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,61 +25,35 @@ jobs:
         with:
           node-version: '20'
 
-      # - name: Setup pnpm
-      #   uses: pnpm/action-setup@v4.0.0
-      #   with:
-      #     version: 9
-
-      # - name: Get pnpm store directory
-      #   shell: bash
-      #   run: |
-      #     echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      # - uses: actions/cache@v4
-      #   name: Setup pnpm cache
-      #   with:
-      #     path: ${{ env.STORE_PATH }}
-      #     key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pnpm-store-
-
-      # - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
-      # - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
-
-      # - name: Install dependencies
-      #   working-directory: ./moon
-      #   run: pnpm i --frozen-lockfile
-
-      # - name: Run ESLint
-      #   working-directory: ./moon
-      #   run: pnpm run lint
-
-      # - name: Build Next.js application
-      #   working-directory: ./moon
-      #   run: pnpm run build
-
-      - name: Configure AWS Credential
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4.0.0
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          version: 9
 
-      - name: Login to Amazon ECR Public
-        id: login-ecr-public
-        uses: aws-actions/amazon-ecr-login@v2
-        with:
-          registry-type: public
-
-      - name: Build, tag, and push docker image to Amazon ECR Public
-        working-directory: moon
-        env:
-          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          REGISTRY_ALIAS: m8q5m4u3
-          REPOSITORY: mega-ui
-          IMAGE_TAG: mega-ui-0.1.0-pre-release
+      - name: Get pnpm store directory
+        shell: bash
         run: |
-          docker build \
-            --build-arg TIPTAP_TOKEN=${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }} \
-            -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
-          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
+      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+
+      - name: Install dependencies
+        working-directory: ./moon
+        run: pnpm i --frozen-lockfile
+
+      - name: Run ESLint
+        working-directory: ./moon
+        run: pnpm run lint
+
+      - name: Build Next.js application
+        working-directory: ./moon
+        run: pnpm run build
