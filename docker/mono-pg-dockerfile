@@ -15,8 +15,4 @@ ENV POSTGRES_PASSWORD=mono
 
 EXPOSE 5432
 
-# Add the database initialization script to the container
-# When the container starts, PostgreSQL will automatically execute all .sql files in the docker-entrypoint-initdb.d/ directory
-COPY ./sql/postgres/pg_20241204__init.sql /docker-entrypoint-initdb.d/
-
 CMD ["postgres"]
