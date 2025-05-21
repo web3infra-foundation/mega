@@ -147,7 +147,7 @@ fn del_treeitem(tree: &mut Tree, sub_item_data: (String, Option<SHA1>)) -> Optio
             }
             None => panic!("Unexpected index, the rm TreeItem object not found"),
         },
-        None => tree.tree_items.retain(|name| name.name != sub_item_name),
+        None => tree.tree_items.retain(|item| item.name != sub_item_name),
     }
 
     if tree.tree_items.is_empty() {
@@ -235,9 +235,10 @@ fn show_hashmap(hashmap: &HashMap<PathBuf, Tree>) {
 
 /// This function is the core function of the commit operation.
 ///
-/// It can extract the data in the staging area and the removal
-/// records of the whiteout files, and use them to update the old
-/// version tree.
+/// It can use the data in the temporary storage area and the
+/// deletion records of the whiteout file to update the old
+/// version tree, write it to the new database, and return the
+/// Hash of the main Tree.
 pub fn commit_core(
     // Includes the old tree.db containing
     //the tree structure of the previous
