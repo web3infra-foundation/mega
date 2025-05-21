@@ -5,7 +5,7 @@ use axum::{
     http::{header::SET_COOKIE, HeaderMap},
     response::{IntoResponse, Redirect, Response},
     routing::get,
-    RequestPartsExt, Router,
+    RequestPartsExt,
 };
 use axum_extra::{headers, typed_header::TypedHeaderRejectionReason, TypedHeader};
 use callisto::user;
@@ -19,6 +19,7 @@ use oauth2::{
 use common::config::OauthConfig;
 use jupiter::storage::user_storage::UserStorage;
 use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
+use utoipa_axum::router::OpenApiRouter;
 
 use crate::api::error::ApiError;
 use crate::api::MonoApiServiceState;
@@ -29,8 +30,8 @@ pub mod model;
 
 static COOKIE_NAME: &str = "SESSION";
 
-pub fn routers() -> Router<MonoApiServiceState> {
-    Router::new()
+pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
+    OpenApiRouter::new()
         .route("/github", get(github_auth))
         .route("/authorized", get(login_authorized))
         .route("/logout", get(logout))

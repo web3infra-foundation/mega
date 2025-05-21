@@ -13,6 +13,8 @@ use jupiter::context::Context;
 use mono::api::lfs::lfs_router;
 use mono::api::MonoApiServiceState;
 use mono::server::https_server::{get_method_router, post_method_router, AppState};
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
 
 use crate::api::{github_router, MegaApiServiceState};
 
@@ -66,17 +68,17 @@ pub async fn app(context: Context, host: String, port: u16, p2p: P2pOptions) -> 
         p2p,
     };
 
-    pub fn mega_routers() -> Router<MegaApiServiceState> {
-        Router::new().merge(github_router::routers())
+    pub fn mega_routers() -> OpenApiRouter<MegaApiServiceState> {
+        OpenApiRouter::new().merge(github_router::routers())
     }
 
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
-    Router::new()
+    let (router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .merge(lfs_router::routers().with_state(mono_api_state.clone()))
         .merge(
-            Router::new()
+            OpenApiRouter::new()
                 .nest(
                     "/api/v1/mono",
                     mono::api::api_router::routers().with_state(mono_api_state.clone()),
@@ -97,6 +99,8 @@ pub async fn app(context: Context, host: String, port: u16, p2p: P2pOptions) -> 
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
         .with_state(state)
+        .split_for_parts();
+    router
 }
 
 pub fn check_run_with_p2p(context: Context, p2p: P2pOptions) {
@@ -115,6 +119,9 @@ pub fn check_run_with_p2p(context: Context, p2p: P2pOptions) {
         }
     };
 }
+
+#[derive(OpenApi)]
+struct ApiDoc;
 
 #[cfg(test)]
 mod tests {}

@@ -49,9 +49,10 @@ use axum::{
     http::{Request, StatusCode},
     response::Response,
     routing::{get, post, put},
-    Json, Router,
+    Json,
 };
 use futures::TryStreamExt;
+use utoipa_axum::router::OpenApiRouter;
 
 use ceres::lfs::{
     handler,
@@ -68,8 +69,8 @@ const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 
 /// The [LFS Server Discovery](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md)
 /// document describes the server LFS discovery protocol.
-pub fn routers() -> Router<MonoApiServiceState> {
-    Router::new()
+pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
+    OpenApiRouter::new()
         .route("/objects/{object_id}", get(lfs_download_object))
         .route("/objects/{object_id}/{chunk_id}", get(lfs_download_chunk))
         .route("/objects/{object_id}", put(lfs_upload_object))
