@@ -17,7 +17,10 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
     const organizations = await apiClient.organizationMemberships
       .getOrganizationMemberships()
       .request({ headers })
-      .then((res) => res.map((m) => m.organization))
+      .then((res) =>
+        res.map((m) => m.organization)
+          .filter(o => o !== null)
+      )
 
     // if we have orgs redirect to one of the user orgs,
     // otherwise redirect to the new org page
@@ -60,7 +63,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
 
       apiClient.organizations
         .postOrganizations()
-        .request(defaultOrgData)
+        .request(defaultOrgData,{ headers })
         .catch((e) => {
           throw new Error("postOrganizationError: " + e.message)
         })
