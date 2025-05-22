@@ -21,6 +21,9 @@ use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
 use jupiter::context::Context;
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::api_router::{self};
 use crate::api::lfs::lfs_router;
@@ -98,13 +101,13 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
-    Router::new()
+    let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .merge(lfs_router::routers().with_state(api_state.clone()))
-        .merge(Router::new().nest(
+        .nest(
             "/api/v1",
             api_router::routers().with_state(api_state.clone()),
-        ))
-        .merge(Router::new().nest("/auth", oauth::routers().with_state(api_state.clone())))
+        )
+        .nest("/auth", oauth::routers().with_state(api_state.clone()))
         // Using Regular Expressions for Path Matching in Protocol
         .route("/{*path}", get(get_method_router).post(post_method_router))
         .layer(
@@ -116,6 +119,8 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())
         .with_state(state)
+        .split_for_parts();
+    router.merge(SwaggerUi::new("/swagger-ui").url("/api/openapi.json", api))
 }
 
 lazy_static! {
@@ -172,5 +177,29 @@ pub async fn post_method_router(
     }
 }
 
+pub const GIT_TAG: &str = "git";
+pub const MR_TAG: &str = "merge_request";
+#[derive(OpenApi)]
+#[openapi(
+    tags(
+        (name = GIT_TAG, description = "Git API endpoints"),
+        (name = MR_TAG, description = "Merge Request API endpoints")
+    )
+)]
+struct ApiDoc;
+
 #[cfg(test)]
-mod tests {}
+mod test {
+    use std::{fs, io::Write};
+    use utoipa::OpenApi;
+
+    use crate::server::https_server::ApiDoc;
+
+    #[test]
+    fn generate_swagger_json() {
+        let mut file = fs::File::create("gitmono.json").unwrap();
+        let json = ApiDoc::openapi().to_pretty_json().unwrap();
+        file.write_all(json.as_bytes()).unwrap();
+        println!("{}", json);
+    }
+}
