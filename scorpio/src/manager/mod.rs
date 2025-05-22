@@ -1,7 +1,6 @@
 use crate::manager::store::TempStoreArea;
 use crate::util::config;
 use add::add_and_del;
-use bytes::Bytes;
 use commit::commit_core;
 use fs_extra::dir::{copy, CopyOptions};
 use mercury::{
@@ -60,17 +59,16 @@ impl ScorpioManager {
     ) -> Result<Commit, Box<dyn std::error::Error>> {
         let store_path = config::store_path();
         let work_dir = self.select_work(&mono_path)?;
-        let path = PathBuf::from(store_path).join(work_dir.hash.clone());
-        let old_dbpath = path.join("tree.db");
-        let new_dbpath = path.join("new_tree.db");
-        let objectspath = path.join("objects");
-        let commitpath = path.join("commit");
+        let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
+        let old_dbpath = work_path.join("tree.db");
+        let new_dbpath = work_path.join("new_tree.db");
+        let objectspath = work_path.join("objects");
+        let commitpath = work_path.join("commit");
+        let modified_path = work_path.join("modifiedstore");
+        let tempstorage_path = modified_path.join("objects");
 
         println!("old_dbpath = {}", old_dbpath.display());
         println!("new_dbpath = {}", new_dbpath.display());
-
-        let modified_path = path.join("modifiedstore");
-        let tempstorage_path = modified_path.join("objects");
 
         fs::remove_dir_all(&objectspath)?;
         if tempstorage_path.exists() {
@@ -153,6 +151,22 @@ impl ScorpioManager {
         &self,
         mono_path: &str,
     ) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
+        let store_path = config::store_path();
+        let work_dir = self.select_work(mono_path)?;
+        let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
+        let modified_path = work_path.join("modifiedstore");
+        let temp_store_area = TempStoreArea::new(&modified_path)?;
+        let base_url = config::base_url();
+        let url = format!("{}/{}/git-receive-pack", base_url, mono_path);
+
+        let res= push::push(&work_path, &url, &temp_store_area.index_db).await?;
+        Ok(res)
+    }
+    /*
+    pub async fn push_commit(
+        &self,
+        mono_path: &str,
+    ) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
         let work_dir = self.select_work(mono_path)?; // TODO : deal with error.
         let store_path = config::store_path();
         let mut path = store_path.to_string();
@@ -182,6 +196,7 @@ impl ScorpioManager {
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
+    */
 
     pub fn check_before_mount(&self, mono_path: &str) -> Result<(), String> {
         for work in &self.works {
@@ -213,11 +228,11 @@ impl ScorpioManager {
         // What is needed here is a path relative to Upper, not a path
         // relative to the Workdir.
         let work_dir = self.select_work(mono_path)?;
+        let store_path = config::store_path();
+        let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
         let mono_path = PathBuf::from(mono_path)
             .strip_prefix(&work_dir.path)?
             .to_path_buf();
-        let store_path = config::store_path();
-        let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
 
         // Since index.db is the private space of the sled database,
         // we will combine it with objects to form a new working directory.
