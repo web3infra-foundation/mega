@@ -149,7 +149,6 @@ export const apiClient = new Api({
 export const legacyApiClient = new Api({
   baseUrl: LEGACY_API_URL,
   baseApiParams: {
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     format: 'json'
   }
