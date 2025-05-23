@@ -9,7 +9,7 @@
                 <property name="hexpand">True</property>
                 <property name="title">Not Implemented</property>
                 <property name="description">This feature has not been implemented yet.</property>
-                <property name="icon-name">dialog-warning-symbolic</property>
+                <property name="icon-name">monobean-monitor-stop-symbolic</property>
             </object>
         </child>
     </template>
