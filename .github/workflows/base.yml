@@ -110,7 +110,6 @@ jobs:
     runs-on: [self-hosted, Linux, X86]
     env:
       CARGO_TERM_COLOR: always
-      HOME: /root
 
     steps:
       - name: Checkout repository
@@ -174,8 +173,6 @@ jobs:
   fuse:
     name: Fuse Lints
     runs-on: [self-hosted, Linux, X86]
-    env:
-      HOME: /root
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
