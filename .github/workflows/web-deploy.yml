@@ -1,25 +1,23 @@
-name: Test Web UI
+name: Web UI deploy
 on:
-  pull_request:
+  push:
     branches:
       - main
     paths:
-      - '.github/workflows/web-test.yml'
-      - '.github/workflows/web-deploy.yml'
+      - '.github/workflows/web-*.yml'
       - 'moon/**'
 
 env:
-  TIPTAP_PRIVATE_REGISTRY_KEY: CjqFil0n7z4GGur+RPric21fBBeSB4R4FoNdRYOE1bQEz6AXLCoANCc+o9rLIg6Q
+  TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
 
 jobs:
-  test-web-ui:
+  web-ui-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: ${{ github.event.pull_request.base.ref }}
 
       - uses: actions/setup-node@v4
@@ -45,7 +43,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
-      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ env.TIPTAP_PRIVATE_REGISTRY_KEY }}
+      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
 
       - name: Install dependencies
         working-directory: ./moon
@@ -58,3 +56,28 @@ jobs:
       - name: Build Next.js application
         working-directory: ./moon
         run: pnpm run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build, tag, and push docker image to Amazon ECR Public
+        working-directory: moon
+        env:
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          REGISTRY_ALIAS: m8q5m4u3
+          REPOSITORY: mega-ui
+          IMAGE_TAG: mega-ui-0.1.0-pre-release
+        run: |
+          docker build \
+            -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
+          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
