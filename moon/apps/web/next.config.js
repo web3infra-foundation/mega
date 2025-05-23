@@ -73,7 +73,6 @@ const cspResourcesByDirective = {
     process.env.NODE_ENV !== 'production' && 'https://campsite-dev.imgix.net',
     process.env.NODE_ENV !== 'production' && 'https://campsite-dev.imgix.video',
     process.env.NODE_ENV !== 'production' && 'https://campsite-api-dev.imgix.net',
-    process.env.NODE_ENV !== 'production' && 'http://api.gitmega.com',
     'http://*.gitmega.com',
     'https://media.tenor.com' // used for Tenor gifs,
   ],
