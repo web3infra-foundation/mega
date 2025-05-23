@@ -73,17 +73,3 @@ impl Action for VectClient {
         Output::empty()
     }
 }
-
-#[cfg(test)]
-mod test_vectorization {
-    use super::*;
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_vectorize() {
-        let client = VectClient::new("http://localhost:11434/api/embeddings");
-        let content = "testcontent";
-        let vector = client.vectorize(content).await.unwrap();
-        println!("{:?}", vector);
-    }
-}

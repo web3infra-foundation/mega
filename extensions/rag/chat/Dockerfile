@@ -1,5 +1,8 @@
 FROM rust:latest AS builder
 
+# build args, to specify the build type, release or debug
+ARG BUILD_TYPE=release
+
 # 安装构建依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
@@ -14,8 +17,12 @@ WORKDIR /chat
 # 复制整个工作空间
 COPY . .
 
-# 构建项目
-RUN cargo build --release
+# build
+RUN if [ "$BUILD_TYPE" = "release" ]; then \
+    cargo build -p chat --release; \
+else \
+    cargo build -p chat;\
+fi
 
 # 使用 debian 镜像作为运行时环境
 FROM debian:latest
@@ -32,4 +39,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /chat/target/release/chat /usr/local/bin/chat
 
 # 设置默认命令
-CMD ["chat"]
+CMD ["bash"]

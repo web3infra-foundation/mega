@@ -11,16 +11,18 @@ import tarfile
 from packaging.version import parse as vparse
 from git import Repo, Actor
 import os
-#from kafka import KafkaProducer
+from kafka import KafkaProducer
+import datetime
+import uuid
 
 REPO_URL = "https://github.com/rust-lang/crates.io-index.git"
-CLONE_DIR = "/home/rust/xiyueli/mega/extensions/tmp"
+CLONE_DIR = "/opt/data/tmp"
 #DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "download")
-DOWNLOAD_DIR = "/home/rust/xiyueli/mega/extensions/download"
+DOWNLOAD_DIR = "/opt/data/crates"
 MAX_RETRIES = 3  # 最大重试次数
-PROCESSED_FILE = "processed.json"
+PROCESSED_FILE = "/opt/data/processed.json"
 MEGA_URL = "http://172.17.0.1:8000"  # 替换为实际mega仓库地址
-KAFKA_BROKER = "172.17.0.1:9092"           # 替换为实际kafka broker
+KAFKA_BROKER = "kafka:9092"           # 替换为实际kafka broker
 KAFKA_TOPIC = "REPO_SYNC_STATUS.dev.0902"                  # 替换为实际kafka topic
 
 def clone_or_update_index():
@@ -59,32 +61,51 @@ def save_processed(processed_dict):
         json.dump(processed_dict, f)
 
 def download_all_crates():
-    crates = get_all_files(CLONE_DIR)
+    crates = get_all_files(CLONE_DIR + "/crates.io-index")
     print(f"找到 {len(crates)} 个 crate。")
     downloaded = {}
     for name, versions in crates.items():
         for ver_info in versions:
             version = ver_info["version"]
-            checksum = ver_info["checksum"]
+            checksum = ver_info["checksum"]  # 获取 checksum
             success = download_crate(name, version, checksum)
             if success:
-                downloaded.setdefault(name, []).append(version)
+                downloaded.setdefault(name, []).append((version, checksum))  # 存储 (version, checksum) 元组
 
     processed = load_processed()
-    for name, version_list in downloaded.items():
-        version_list.sort(key=vparse)
+    for name, version_checksum_list in downloaded.items():
+        # 按版本号排序（使用 vparse 解析版本）
+        version_checksum_list.sort(key=lambda x: vparse(x[0]))
+        
         last_processed = processed.get(name)
-        # 只处理大于last_processed的版本
+        # 只处理大于 last_processed 的版本
         if last_processed:
-            new_versions = [v for v in version_list if vparse(v) > vparse(last_processed)]
+            new_versions = [
+                (v, cksum) for v, cksum in version_checksum_list 
+                if vparse(v) > vparse(last_processed)
+            ]
         else:
-            new_versions = version_list
+            new_versions = version_checksum_list
+        
         if not new_versions:
             print(f"跳过已处理: {name} (最新: {last_processed})")
             continue
-        processed[name] = new_versions[-1]
-        for v in new_versions:
-            process_and_upload(name, v, MEGA_URL, KAFKA_BROKER, KAFKA_TOPIC)
+        
+        # 更新 processed 记录最新版本
+        processed[name] = new_versions[-1][0]  # 只存版本号
+        
+        # 处理并上传每个新版本（传入 checksum）
+        print(f"处理并上传 {name} 的 {len(new_versions)} 个新版本")
+        for v, cksum in new_versions:
+            process_and_upload(
+                crate_name=name,
+                version=v,
+                checksum=cksum,  # 新增 checksum 参数
+                mega_url=MEGA_URL,
+                kafka_broker=KAFKA_BROKER,
+                kafka_topic=KAFKA_TOPIC
+            )
+    
     save_processed(processed)
 
 def get_all_files(index_dir):
@@ -301,10 +322,19 @@ def git_push(repo_dir, mega_url, branch="master"):
     设置远程并推送
     """
     subprocess.run(["git", "remote", "remove", "nju"], cwd=repo_dir, check=False)
+    print(f"git remote add nju {mega_url}")
     subprocess.run(["git", "remote", "add", "nju", mega_url], cwd=repo_dir, check=True)
-    subprocess.run(["git", "push", "--set-upstream", "nju", branch], cwd=repo_dir, check=True)
-    subprocess.run(["git", "push", "nju", "--tags"], cwd=repo_dir, check=True)
-"""
+    print(f"git push -f --set-upstream nju {branch}")
+    try:
+        subprocess.run(["git", "push", "-f", "--set-upstream", "nju", branch], cwd=repo_dir, check=False)
+    except subprocess.CalledProcessError as e:
+        print(f"错误输出: {e.stderr}")
+    #subprocess.run(["git", "push", "--set-upstream", "nju", branch], cwd=repo_dir, check=True)
+    try:
+        subprocess.run(["git", "push", "nju", "--tags"], cwd=repo_dir, check=False)
+    except subprocess.CalledProcessError:
+        print("Some tags already exist in remote, continuing...")
+
 def send_kafka_message(broker, topic, message_dict):
     producer = KafkaProducer(
         bootstrap_servers=[broker],
@@ -312,14 +342,13 @@ def send_kafka_message(broker, topic, message_dict):
     )
     producer.send(topic, message_dict)
     producer.flush()
-"""
 
 def remove_extension(path):
     # 去掉扩展名，返回新路径
     base = os.path.splitext(path)[0]
     return base
 
-def process_and_upload(crate_name, version, mega_url, kafka_broker, kafka_topic):
+def process_and_upload(crate_name, version, checksum, mega_url, kafka_broker, kafka_topic):
     crate_file = os.path.join(DOWNLOAD_DIR, crate_name, f"{crate_name}-{version}.crate")
     repo_dir = os.path.join(DOWNLOAD_DIR, crate_name, crate_name)
     crate_entry = os.path.join(DOWNLOAD_DIR, crate_name)
@@ -344,20 +373,24 @@ def process_and_upload(crate_name, version, mega_url, kafka_broker, kafka_topic)
     add_and_commit(repo_dir, version)
 
     # 6. git push
-    #git_push(repo_dir, mega_url)
+    mega_url_crate = f"{mega_url}/third-party/crates/{crate_name}"
+    print(f"git push to {mega_url_crate}")
+    git_push(repo_dir, mega_url_crate)
 
     # 7. 发送 kafka 消息
     message = {
-        "crate": crate_name,
-        "version": version,
-        "status": "succeed"
+        "crate_name": crate_name,
+        "crate_version": version,
+        "cksum": checksum,
+        "data_source": "crates.io",
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "version": "",
+        "uuid": str(uuid.uuid4())
     }
-    #send_kafka_message(kafka_broker, kafka_topic, message)
+    send_kafka_message(kafka_broker, kafka_topic, message)
 
 
 def main():
-    download_all_crates()
-    return 0
     """
     主函数，协调整个下载过程
     """

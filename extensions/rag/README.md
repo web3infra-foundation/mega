@@ -37,7 +37,7 @@ $ docker pull genedna/mega:mono-ui-latest
 $ git clone https://github.com/web3infra-foundation/mega.git
 $ cd mega
 # Linux or MacOS
-$ ./docker/init-volume.sh /tmp/data ./docker/config.toml
+sudo ./docker/init-volume.sh /mnt/data ./config/config.toml
 ```
 
 3. Run the mono-engine and PostgreSQL with docker, and open the mono-ui in your browser with `http://localhost:3000`.
@@ -47,9 +47,9 @@ $ ./docker/init-volume.sh /tmp/data ./docker/config.toml
 $ docker network create mono-network
 
 # run postgres
-$ docker run --rm -it -d --name mono-pg --network mono-network -v /tmp/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 genedna/mega:mono-pg-latest
-$ docker run --rm -it -d --name mono-engine --network mono-network -v /tmp/data/mono/mono-data:/opt/mega -p 8000:8000 genedna/mega:mono-engine-latest
-$ docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=http://localhost:8000 -p 3000:3000 genedna/mega:mono-ui-latest
+docker run --rm -it -d --name mono-pg --network mono-network --memory=4g -v /mnt/data/mono/pg-data:/var/lib/postgresql/data -p 5432:5432 mega:mono-pg-latest
+docker run --rm -it -d --name mono-engine --network mono-network --memory=8g -v /mnt/data/mono/mono-data:/opt/mega -p 8000:8000 -p 22:9000 mega:mono-engine-latest
+docker run --rm -it -d --name mono-ui --network mono-network --memory=1g -e MEGA_INTERNAL_HOST=http://mono-engine:8000 -e MEGA_HOST=https://git.gitmega.net -p 3000:3000 mega:mono-ui-latest
 ```
 
 4. Pull the vector database Qdrant and run the `chat` and `index` modules:
@@ -63,14 +63,14 @@ $ docker run --rm -it -d --name mono-ui --network mono-network -e MEGA_INTERNAL_
 
    - Run the `chat` module:
      ```bash
-     docker build -t rag-chat -f chat/Dockerfile .
+     docker build -t rag-chat -f ./extensions/rag/chat/Dockerfile .
      docker run --rm -it -d --name rag-chat --network mono-network rag-chat
      ```
 
    - Run the `index` module:
      ```bash
-     docker build -t rag-index -f index/Dockerfile .
-     docker run --rm -it -d --name rag-index --network mono-network rag-index
+     docker build -t rag-index -f ./extensions/rag/index/Dockerfile .
+     docker run --rm -it -d --name rag-index --network mono-network  -v /mnt/data:/opt/data rag-index \
      ```
 
 5. Install and configure Ollama in the container:
