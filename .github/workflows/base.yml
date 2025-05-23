@@ -21,7 +21,8 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - 'workflows/web-test*'
+      - '.github/workflows/web-test.yml'
+      - '.github/workflows/web-deploy.yml'
 
 name: Base GitHub Action for Check, Test and Lints
 
@@ -42,7 +43,6 @@ jobs:
 
     env:
       CARGO_TERM_COLOR: always
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -80,12 +80,10 @@ jobs:
       fail-fast: true
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
-
     runs-on: ${{ matrix.os }}
     needs: setup
     env:
       CARGO_TERM_COLOR: always
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -106,10 +104,9 @@ jobs:
   #
   test:
     name: Full Test
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X64]
     env:
       CARGO_TERM_COLOR: always
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -171,7 +168,9 @@ jobs:
   #
   fuse:
     name: Fuse Lints
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X64]
+    env:
+      CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
