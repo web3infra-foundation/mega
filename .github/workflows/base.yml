@@ -107,7 +107,7 @@ jobs:
   #
   test:
     name: Full Test
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X86]
     env:
       CARGO_TERM_COLOR: always
       HOME: /root
@@ -173,7 +173,7 @@ jobs:
   #
   fuse:
     name: Fuse Lints
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X86]
     env:
       HOME: /root
     steps:
