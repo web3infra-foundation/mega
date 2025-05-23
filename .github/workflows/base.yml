@@ -43,7 +43,6 @@ jobs:
 
     env:
       CARGO_TERM_COLOR: always
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -81,12 +80,10 @@ jobs:
       fail-fast: true
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
-
     runs-on: ${{ matrix.os }}
     needs: setup
     env:
       CARGO_TERM_COLOR: always
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -107,11 +104,10 @@ jobs:
   #
   test:
     name: Full Test
-    runs-on: [self-hosted, Linux, X86]
+    runs-on: [self-hosted, Linux, X64]
     env:
       CARGO_TERM_COLOR: always
       HOME: /root
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -173,8 +169,9 @@ jobs:
   #
   fuse:
     name: Fuse Lints
-    runs-on: [self-hosted, Linux, X86]
+    runs-on: [self-hosted, Linux, X64]
     env:
+      CARGO_TERM_COLOR: always
       HOME: /root
     steps:
       - uses: actions/checkout@v4
