@@ -4,11 +4,12 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/web-*.yml'
+      - '.github/workflows/web-test.yml'
+      - '.github/workflows/web-deploy.yml'
       - 'moon/**'
 
 env:
-  TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+  TIPTAP_PRIVATE_REGISTRY_KEY: CjqFil0n7z4GGur+RPric21fBBeSB4R4FoNdRYOE1bQEz6AXLCoANCc+o9rLIg6Q
 
 jobs:
   test-web-ui:
@@ -44,7 +45,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
-      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ env.TIPTAP_PRIVATE_REGISTRY_KEY }}
 
       - name: Install dependencies
         working-directory: ./moon
