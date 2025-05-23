@@ -21,7 +21,8 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/workflows/web-test*'
+      - '.github/workflows/web-test.yml'
+      - '.github/workflows/web-deploy.yml'
 
 name: Base GitHub Action for Check, Test and Lints
 
@@ -109,6 +110,7 @@ jobs:
     runs-on: self-hosted
     env:
       CARGO_TERM_COLOR: always
+      HOME: /root
 
     steps:
       - name: Checkout repository
@@ -172,6 +174,8 @@ jobs:
   fuse:
     name: Fuse Lints
     runs-on: self-hosted
+    env:
+      HOME: /root
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
