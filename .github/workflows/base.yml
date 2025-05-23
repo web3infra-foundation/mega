@@ -107,7 +107,6 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     env:
       CARGO_TERM_COLOR: always
-      HOME: /root
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -172,7 +171,6 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     env:
       CARGO_TERM_COLOR: always
-      HOME: /root
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
