@@ -63,7 +63,7 @@
 																<child>
 																	<object class="GtkButton">
 																		<property name="valign">center</property>
-																		<property name="icon-name">document-save-symbolic</property>
+																		<property name="icon-name">monobean-save-symbolic</property>
 																		<style>
 																			<class name="flat" />
 																		</style>
@@ -96,7 +96,7 @@
 																				<property name="spacing">6</property>
 																				<child>
 																					<object class="GtkImage">
-																						<property name="icon-name">document-open-symbolic</property>
+																						<property name="icon-name">monobean-upload-symbolic</property>
 																					</object>
 																				</child>
 																				<child>
@@ -111,7 +111,7 @@
 																<child>
 																	<object class="GtkButton">
 																		<property name="valign">center</property>
-																		<property name="icon-name">user-trash-symbolic</property>
+																		<property name="icon-name">monobean-trash-symbolic</property>
 																		<style>
 																			<class name="flat" />
 																		</style>
@@ -126,7 +126,7 @@
 																<child>
 																	<object class="GtkButton">
 																		<property name="valign">center</property>
-																		<property name="icon-name">view-restore-symbolic</property>
+																		<property name="icon-name">monobean-archive-store-symbolic</property>
 																		<style>
 																			<class name="flat" />
 																		</style>
@@ -159,7 +159,7 @@
 							<object class="AdwStatusPage">
 								<property name="title">Mega is Running</property>
 								<property name="description">Mega core is running in the backend.</property>
-								<property name="icon-name">dialog-information-symbolic</property>
+								<property name="icon-name">monobean-info-symbolic</property>
 								<property name="vexpand">true</property>
 								<property name="hexpand">true</property>
 								<property name="child">
@@ -180,7 +180,7 @@
 							<object class="AdwStatusPage">
 								<property name="title">Fuse is Running</property>
 								<property name="description">3 repository mounted.</property>
-								<property name="icon-name">media-mount-symbolic</property>
+								<property name="icon-name">monobean-hard-drive-symbolic</property>
 								<property name="vexpand">true</property>
 								<property name="hexpand">true</property>
 								<property name="child">
