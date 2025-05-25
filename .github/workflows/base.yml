@@ -31,37 +31,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # cache files before all jobs
-  setup:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-
-    name: Setup and cache ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Rust Toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: clippy rustfmt
-          cache-workspaces: |
-            ./
-            ./scorpio
-            ./monobean
-          cache-directories: |
-            ./target
-            ./scorpio/target
-            ./monobean/target
-
   #
   format:
     name: Rustfmt Check
@@ -75,13 +44,8 @@ jobs:
 
   #
   clippy:
-    name: Clippy for ${{ matrix.os }}
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-    runs-on: ${{ matrix.os }}
-    needs: setup
+    name: Clippy Check
+    runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -94,7 +58,7 @@ jobs:
         uses: ./.github/install-dep
         with:
           cache-key: sysdeps
-          platform: ${{ matrix.os }}
+          platform: ubuntu
 
       - name: Run cargo clippy
         run: |
@@ -104,7 +68,15 @@ jobs:
   #
   test:
     name: Full Test
-    runs-on: [self-hosted, Linux, X64]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu
+            runs-on: [self-hosted, Linux, X64]
+          - os: macos
+            runs-on: [self-hosted, macOS, ARM64]
+    runs-on: ${{ matrix.runs-on }}
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -113,14 +85,13 @@ jobs:
         with:
           submodules: recursive
           lfs: true
-      - name: Setup Rust Toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install system dependencies
+        uses: ./.github/install-dep
         with:
-          components: clippy
-          cache-workspaces: |
-            ./
-          cache-directories: |
-            ./target
+          cache-key: sysdeps
+          platform: ${{ matrix.os }}
+          self-hosted: true
 
       - name: Set up git lfs
         run: |
@@ -141,10 +112,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        include:
+          - os: ubuntu
+            runs-on: [self-hosted, Linux, X64]
+            self-hosted: true
+          - os: macos
+            runs-on: [self-hosted, macOS, ARM64]
+            self-hosted: true
+          - os: windows
+            runs-on: windows-latest
+            self-hosted: false
 
-    runs-on: ${{ matrix.os }}
-    needs: setup
+    runs-on: ${{ matrix.runs-on }}
     env:
       CARGO_TERM_COLOR: always
 
@@ -159,6 +138,8 @@ jobs:
         with:
           cache-key: sysdeps
           platform: ${{ matrix.os }}
+          use-gtk: true
+          self-hosted: ${{ matrix.self-hosted }}
 
       - name: Run Lints
         run: |
