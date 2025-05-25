@@ -12,6 +12,10 @@ inputs:
     description: 'Whether download and setup GTK libs (true, false)'
     required: false
     default: 'true'
+  self-hosted:
+    description: 'Whether this action is running on a self-hosted runner (true, false)'
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -49,7 +53,7 @@ runs:
       if: contains(inputs.platform, 'ubuntu')
       shell: bash
       run: |
-        echo "deb http://gb.archive.ubuntu.com/ubuntu jammy main" | sudo tee -a /etc/apt/sources.list
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         sudo apt update
         sudo apt install -y \
           git-lfs \
@@ -69,17 +73,12 @@ runs:
           libfuse3-dev \
 
     # ================ Platform-specific Initialization (macOS) ================
-    - name: Set up Homebrew
-      if: contains(inputs.platform, 'macos')
-      id: set-up-homebrew
-      uses: Homebrew/actions/setup-homebrew@master
-
     # fuse not available on macOS
     - name: Install dependencies (macOS)
       if: contains(inputs.platform, 'macos')
       shell: bash
       run: |
-        export HOMEBREW_NO_AUTO_UPDATE=1
+        # export HOMEBREW_NO_AUTO_UPDATE=1
         brew install \
           gtk4 \
           libadwaita \
@@ -124,7 +123,7 @@ runs:
 
     # =============== Save cache for speeding up ===============
     - name: Cache dependencies
-      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }}
+      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }} && inputs.self-hosted = 'false'
       uses: actions/cache/save@v4
       with:
         path: |
