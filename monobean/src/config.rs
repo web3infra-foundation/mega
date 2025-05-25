@@ -138,7 +138,8 @@ pub fn monobean_cache() -> PathBuf {
 }
 
 /// TODO: So ugly...
-/// We should update build.rs and use proc macros to generate this code.
+/// - We should update build.rs and use proc macros to generate this code. - @yyk808 2025-03-12
+/// - Maybe we can use dagrs to orchestrate the generation of this code. - @genedna 2025-05-15
 pub fn config_update(setting: &Settings) -> Vec<CoreConfigChanged> {
     let mut update = Vec::new();
     // First, let's extract all settings and compare with defaults
