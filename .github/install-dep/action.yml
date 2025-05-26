@@ -25,6 +25,7 @@ runs:
     # https://github.com/actions/toolkit/issues/1578#issuecomment-2253355054
     # So we have to manuallly restore and save the cache
     - name: Restore dependencies
+      if: inputs.self-hosted == 'false'
       id: cache-restore
       uses: actions/cache/restore@v4
       with:
@@ -41,6 +42,8 @@ runs:
       shell: bash
       run: |
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        echo "deb http://gb.archive.ubuntu.com/ubuntu noble main" | sudo tee -a /etc/apt/sources.list
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B05F25D762E3157
         sudo apt update
         sudo apt install -y \
           rustup \
@@ -62,11 +65,12 @@ runs:
 
     # ================ Platform-specific Initialization (macOS) ================
     # fuse not available on macOS
+    # Newest cmake version from homebrew is 4.x, which breaks building for rdkafka-sys
     - name: Install dependencies (macOS)
       if: contains(inputs.platform, 'macos')
       shell: bash
       run: |
-        # export HOMEBREW_NO_AUTO_UPDATE=1
+        echo CMAKE_POLICY_VERSION_MINIMUM=3.10 >> $GITHUB_ENV
         brew install \
           gtk4 \
           libadwaita \
