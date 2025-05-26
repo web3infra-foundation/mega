@@ -7,7 +7,7 @@ const SITE_URL_DEV = 'http://gitmono.test:3003'
 const SYNC_URL_PROD = 'wss://sync.gitmono.com'
 const SYNC_URL_DEV = 'ws://localhost:9000'
 
-export const IS_PRODUCTION = process.env.NODE_ENV === 'production'
+export const IS_PRODUCTION = process.env.APP_ENV === 'production'
 export const SCOPE_COOKIE_NAME = 'scope'
 export const POLL_OPTION_DESCRIPTION_LENGTH = 32
 

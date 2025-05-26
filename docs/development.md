@@ -47,10 +47,6 @@
    postgres=# \q
    ```
 
-   ```bash
-   $ cd mega/sql/postgres
-   $ psql mega < pg_YYYYMMDD_init.sql
-   ```
 
    3. Create user and grant privileges.
 
@@ -138,14 +134,7 @@
    postgres=# \q
    ```
 
-   3.Import `mega/sql/postgres/pg_<time>_init.sql` to `mega`.
-
-   ```bash
-   $ cd mega/sql/postgres
-   $ sudo -u postgres psql mega < pg_YYYYMMDD__init.sql
-   ```
-
-   4.Create user and grant privileges.
+   3.Create user and grant privileges.
 
    ```sql
    $ sudo -u postgres psql postgres
@@ -204,7 +193,6 @@ When the codespace is ready, the PostgreSQL will be installed and started automa
 /etc/init.d/postgresql start
 
 sudo -u postgres psql mega -c "CREATE DATABASE mega;"
-sudo -u postgres psql mega < /workspaces/mega/sql/pg_YYYYMMDD__init.sql
 sudo -u postgres psql mega -c "CREATE USER mega WITH ENCRYPTED PASSWORD 'mega';"
 sudo -u postgres psql mega -c "GRANT ALL PRIVILEGES ON DATABASE mega TO mega;"
 sudo -u postgres psql mega -c "GRANT ALL ON ALL TABLES IN SCHEMA public to mega;"
@@ -235,13 +223,8 @@ Currently, the mono bin and mega bin use two different files, each with a differ
   - see codes in [config.rs](/common/src/config.rs)
 
 ---
-## Database maintenance
-Currently, the tables of database are created by `.sql` file. 
-
-If you want to add a new table or modify the existing table, you need to update the `.sql` files which are located in the `sql` directory.
 
 ### Attention
-- Each database corresponds to one `.sql` file, you must modify all of them if you want to update the tables in order to keep the consistency of the database.
 - DO NOT use `Array` Type in PostgreSQL but use `JSON` instead, for compatibility with SQLite & MySQL. (`JSON` <==> `serde_json::Value`)
 ---
 ## Tests

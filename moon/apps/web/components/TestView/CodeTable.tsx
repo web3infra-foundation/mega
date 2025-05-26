@@ -10,6 +10,7 @@ import {
     FolderIcon,
     DocumentIcon,
 } from '@heroicons/react/20/solid'
+import { useMemo } from 'react';
 
 export interface DataType {
     oid: string;
@@ -23,38 +24,38 @@ const CodeTable = ({ directory, readmeContent}:any) => {
     const router = useRouter();
     const pathname = usePathname();
     let real_path = pathname?.replace("/tree", "");
-    var columns: TableProps<DataType>['columns'] = [
+    
+    const columns = useMemo<TableProps<DataType>['columns']>(() => [
         {
-            title: 'Name',
-            dataIndex: ['name', 'content_type'],
-            key: 'name',
-            render: (_, record) => {
-                return <>
-                    <Space>
-                        {record.content_type === "directory" && <FolderIcon className="size-6" />}
-                        {record.content_type === "file" && <DocumentIcon className="size-6" />}
-                        <a>{record.name}</a>
-                    </Space>
-                </>
-            }
+          title: 'Name',
+          dataIndex: ['name', 'content_type'],
+          key: 'name',
+          render: (_, record) => (
+            <Space>
+              {record.content_type === "directory" && <FolderIcon className="size-6" />}
+              {record.content_type === "file" && <DocumentIcon className="size-6" />}
+              <a>{record.name}</a>
+            </Space>
+          )
         },
         {
-            title: 'Message',
-            dataIndex: 'message',
-            key: 'message',
-            render: (text) => <a>{text}</a>,
+          title: 'Message',
+          dataIndex: 'message',
+          key: 'message',
+          render: (text) => <a>{text}</a>,
         },
         {
-            title: 'Date',
-            dataIndex: 'date',
-            key: 'date',
-            render: (_, { date }) => (
-                <>
-                    {date && formatDistance(fromUnixTime(date), new Date(), { addSuffix: true })}
-                </>
-            )
+          title: 'Date',
+          dataIndex: 'date',
+          key: 'date',
+          render: (_, { date }) => (
+            <>
+              {date && formatDistance(fromUnixTime(date), new Date(), { addSuffix: true })}
+            </>
+          )
         }
-    ];
+    ], []);
+    
     const handleRowClick = (record: DataType) => {
         if (record.content_type === "file") {
             const newPath = `/blob/${real_path}/${record.name}`;

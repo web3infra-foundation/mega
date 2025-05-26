@@ -1,5 +1,5 @@
 import { SCOPE_COOKIE_NAME } from '@gitmono/config';
-import { ApiErrorTypes, OrganizationsPostRequest } from '@gitmono/types';
+import { ApiErrorTypes } from '@gitmono/types';
 import { GetServerSideProps } from 'next';
 import { userAgentFromString } from 'next/server';
 import { apiCookieHeaders } from '@/utils/apiCookieHeaders';
@@ -17,7 +17,10 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
     const organizations = await apiClient.organizationMemberships
       .getOrganizationMemberships()
       .request({ headers })
-      .then((res) => res.map((m) => m.organization))
+      .then((res) =>
+        res.map(m => m.organization)
+          .filter(o => o !== null)
+      )
 
     // if we have orgs redirect to one of the user orgs,
     // otherwise redirect to the new org page
@@ -48,34 +51,20 @@ export const getServerSideProps: GetServerSideProps = async ({ req, query }) => 
         }
       }
     } else {
-      const defaultOrgData: OrganizationsPostRequest = {
-        name: "My First Organization",
-        slug: "my-first-organization",
-        avatar_path: null,
-        role: "software-engineer",
-        org_size: "1",
-        source: "google",
-        why: "Please enter your purpose."
-      }
-
-      apiClient.organizations
-        .postOrganizations()
-        .request(defaultOrgData)
-        .catch((e) => {
-          throw new Error("postOrganizationError: " + e.message)
-        })
+      await apiClient.organizations.postJoinByToken()
+        .request("mega", "s3AX1iyAx3sgGNygiM67", { headers })
 
       if (device.type === 'mobile') {
         return {
           redirect: {
-            destination: `/${defaultOrgData.slug}/${query.path ?? 'home'}`,
+            destination: `/mega/${query.path ?? 'home'}`,
             permanent: false
           }
         }
       }
       return {
         redirect: {
-          destination: `/${defaultOrgData.slug}/${query.path ?? ''}`,
+          destination: `/mega/${query.path ?? ''}`,
           permanent: false
         }
       }
