@@ -35,19 +35,6 @@ runs:
           ./.choco-cache
         key: ${{ inputs.platform }}-sysdeps-${{ inputs.cache-key }}
 
-    - name: Setup Rust Toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        components: clippy rustfmt
-        cache-workspaces: |
-          ./
-          ./scorpio
-          ./monobean
-        cache-directories: |
-          ./target
-          ./scorpio/target
-          ./monobean/target
-
     # ================ Platform-specific Initialization (Linux) ================
     - name: Install dependencies (Ubuntu)
       if: contains(inputs.platform, 'ubuntu')
@@ -56,6 +43,7 @@ runs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         sudo apt update
         sudo apt install -y \
+          rustup \
           git-lfs \
           libwebkit2gtk-4.1-dev \
           build-essential \
@@ -121,7 +109,20 @@ runs:
             }
         }
 
-    # =============== Save cache for speeding up ===============
+    # =============== Post Process ===============
+    - name: Setup Rust Toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        components: clippy rustfmt
+        cache-workspaces: |
+          ./
+          ./scorpio
+          ./monobean
+        cache-directories: |
+          ./target
+          ./scorpio/target
+          ./monobean/target
+
     - name: Cache dependencies
       if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }} && inputs.self-hosted = 'false'
       uses: actions/cache/save@v4
