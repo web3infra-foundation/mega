@@ -1,11 +1,11 @@
 name: Test Web UI
 on:
   pull_request:
-  push:
     branches:
       - main
     paths:
-      - '.github/workflows/web-*.yml'
+      - '.github/workflows/web-test.yml'
+      - '.github/workflows/web-deploy.yml'
       - 'moon/**'
 
 env:
@@ -16,12 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event.pull_request.base.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -47,11 +46,10 @@ jobs:
 
       - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
       - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ env.TIPTAP_PRIVATE_REGISTRY_KEY }}
-      - run: pnpm -v
 
       - name: Install dependencies
         working-directory: ./moon
-        run: pnpm i --no-frozen-lockfile
+        run: pnpm i --frozen-lockfile
 
       - name: Run ESLint
         working-directory: ./moon

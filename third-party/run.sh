@@ -13,4 +13,4 @@ reindeer --third-party-dir . vendor
 # Generate BUCK files for third-party dependencies
 #reindeer --third-party-dir . buckify
 
-./buckify.sh
+bash buckify.sh
