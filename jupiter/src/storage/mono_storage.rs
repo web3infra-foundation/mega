@@ -89,7 +89,7 @@ impl MonoStorage {
     pub async fn get_refs(&self, path: &str) -> Result<Vec<mega_refs::Model>, MegaError> {
         let result = mega_refs::Entity::find()
             .filter(mega_refs::Column::Path.eq(path))
-            .filter(mega_refs::Column::IsMr.eq(false))
+            // .filter(mega_refs::Column::IsMr.eq(false))
             .order_by_asc(mega_refs::Column::RefName)
             .all(self.get_connection())
             .await?;

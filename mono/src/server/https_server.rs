@@ -179,6 +179,7 @@ pub async fn post_method_router(
 
 pub const GIT_TAG: &str = "git";
 pub const MR_TAG: &str = "merge_request";
+pub const ISSUE_TAG: &str = "issue";
 #[derive(OpenApi)]
 #[openapi(
     tags(
