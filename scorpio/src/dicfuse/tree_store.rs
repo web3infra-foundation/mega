@@ -51,6 +51,10 @@ impl StorageItem {
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
+
+    pub fn get_parent(&self) -> u64 {
+        self.parent
+    }
 }
 use toml::Value;
 #[allow(unused)]

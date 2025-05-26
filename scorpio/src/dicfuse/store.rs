@@ -1,8 +1,9 @@
+use crate::READONLY_INODE;
 use async_recursion::async_recursion;
-use dashmap::DashMap;
 /// Read only file system for obtaining and displaying monorepo directory information
 use core::panic;
 use crossbeam::queue::SegQueue;
+use dashmap::DashMap;
 use fuse3::raw::reply::ReplyEntry;
 use fuse3::FileType;
 use futures::future::join_all;
@@ -15,8 +16,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
-use crate::READONLY_INODE;
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::tree_store::{StorageItem, TreeStorage};
@@ -42,6 +41,23 @@ pub struct ItemExt {
     pub item: Item,
     pub hash: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+    struct CommitInfoResponse {
+        req_result: bool,
+        data: Vec<CommitInfo>,
+        err_message: String,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Default)]
+    struct CommitInfo {
+        oid: String,
+        name: String,
+        content_type: String,
+        message: String,
+        date: String,
+    }
+
 #[allow(unused)]
 pub struct DicItem {
     inode: u64,
@@ -194,21 +210,75 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         }
     };
 
-    #[derive(Serialize, Deserialize, Debug, Default)]
-    struct CommitInfoResponse {
-        req_result: bool,
-        data: Vec<CommitInfo>,
-        err_message: String,
+    let commit_info: CommitInfoResponse = match response.json().await {
+        Ok(info) => info,
+        Err(e) => {
+            return Err(DictionaryError {
+                message: format!("Failed to parse commit info: {}", e),
+            });
+        }
+    };
+
+    if !commit_info.req_result {
+        return Err(DictionaryError {
+            message: commit_info.err_message,
+        });
     }
 
-    #[derive(Serialize, Deserialize, Debug, Default)]
-    struct CommitInfo {
-        oid: String,
-        name: String,
-        content_type: String,
-        message: String,
-        date: String,
+    let mut data = Vec::with_capacity(commit_info.data.len());
+
+    let base_path = if path.is_empty() || path == "/" {
+        "".to_string()
+    } else if path.ends_with('/') {
+        path.to_string()
+    } else {
+        format!("{}/", path)
+    };
+
+    for info in commit_info.data {
+        let full_path = if base_path.is_empty() {
+            format!("/{}", info.name)
+        } else {
+            format!("/{}{}", base_path.trim_start_matches('/'), info.name)
+        };
+
+        data.push(ItemExt {
+            item: Item {
+                name: info.name,
+                path: full_path,
+                content_type: info.content_type,
+            },
+            hash: info.oid,
+        });
     }
+
+    Ok(ApiResponseExt {
+        _req_result: true,
+        data,
+        _err_message: String::new(),
+    })
+}
+
+///get the directory hash from the server
+async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryError> {
+    static CLIENT: Lazy<Client> = Lazy::new(Client::new);
+    let client = CLIENT.clone();
+
+    let clean_path = path.trim_start_matches('/');
+    let url = format!(
+        "{}/api/v1/tree/dir-hash?path=/{}",
+        config::base_url(),
+        clean_path
+    );
+
+    let response = match client.get(&url).send().await {
+        Ok(resp) => resp,
+        Err(_) => {
+            return Err(DictionaryError {
+                message: "Failed to fetch tree".to_string(),
+            });
+        }
+    };
 
     let commit_info: CommitInfoResponse = match response.json().await {
         Ok(info) => info,
@@ -258,6 +328,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         _err_message: String::new(),
     })
 }
+
 /// Represents a directory with its metadata
 /// - hash: represents the hash of the last commit that modified this directory
 /// - file_list: represents the list of files and subdirectories in this directory, with boolean values indicating if they still exist
@@ -336,6 +407,29 @@ impl DictionaryStore {
         )
         .await
     }
+
+    pub async fn update_ancestors_hash(&self, inode: u64) {
+        let item = self.persistent_path_store.get_item(inode).unwrap();
+        let mut parent_inode = item.get_parent();
+        while parent_inode != 1 {
+            let path = "/".to_string()
+                + &self
+                    .persistent_path_store
+                    .get_all_path(parent_inode)
+                    .unwrap()
+                    .to_string();
+            println!("update hash {:?}", path);
+            let hash = get_dir_hash(&path).await;
+            if hash.is_empty() {
+                return;
+            }
+            self.persistent_path_store
+                .update_item_hash(parent_inode, hash.to_owned())
+                .unwrap();
+            self.dirs.get_mut(&path).unwrap().hash = hash;
+            parent_inode = item.get_parent();
+        }
+    }
     #[async_recursion]
     async fn load_dirs(&self, path: PathBuf, parent_inode: u64) -> Result<(), io::Error> {
         let root_item = self.persistent_path_store.get_item(parent_inode)?;
@@ -372,6 +466,7 @@ impl DictionaryStore {
         self.load_dirs(path, 1).await?;
         Ok(())
     }
+
     pub async fn import(&self) {
         let items = fetch_dir("").await.unwrap().data;
 
@@ -457,7 +552,7 @@ impl DictionaryStore {
         let item = self.get_inode(parent).await?; // current_dictionary
         let mut parent_path = self.find_path(parent).await.unwrap();
         parent_path.pop();
-        
+
         let parent_item = self.get_by_path(&parent_path.to_string()).await?;
 
         let mut re = vec![item.clone(), parent_item.clone()];
@@ -482,65 +577,27 @@ impl DictionaryStore {
     }
 }
 
-pub async fn import_arc(store: Arc<DictionaryStore>) {
-    //first load the db.
-    if store.load_db().await.is_ok() {
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
-                watch_dir(store.clone()).await;
-            }
-        });
-        return;
-    } else {
-        //if the db is null,then init the store and load from mono.
-        let _ = store.persistent_path_store.insert_item(
-            1,
-            UNKNOW_INODE,
-            ItemExt {
-                item: Item {
-                    name: "".to_string(),
-                    path: "/".to_string(),
-                    content_type: INODE_DICTIONARY.to_string(),
-                },
-                hash: String::new(),
-            },
-        );
-        let root_item = DicItem {
-            inode: 1,
-            path_name: GPath::new(),
-            content_type: Arc::new(Mutex::new(ContentType::Directory(false))),
-            children: Mutex::new(HashMap::new()),
-            parent: UNKNOW_INODE, //  root dictory has no parent
-        };
-        let root_dir_item = DirItem {
-            hash: String::new(),
-            file_list: HashMap::new(),
-        };
-        store.inodes.lock().await.insert(1, root_item.into());
-        store
-            .dirs
-            .insert("/".to_string(), root_dir_item);
-    }
-    // use the unlock queue instead of mpsc  Mutex
+/// This function loads subdirectories of a specified directory up to a given depth.
+pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) {
+    println!("load_dir_depth {:?}", parent_path);
     let queue = Arc::new(SegQueue::new());
-
-    // init root path
-    let items = fetch_dir("").await.unwrap().data;
-    let active_producers = Arc::new(AtomicUsize::new(items.len()));
+    let items = fetch_dir(&parent_path).await.unwrap().data;
+    // only count the directories.
+    let dir_count = items.iter().filter(|it| it.item.is_dir()).count();
+    let active_producers = Arc::new(AtomicUsize::new(dir_count));
+    // let active_producers = Arc::new(AtomicUsize::new(items.len()));
     {
         let locks = store.dirs.clone();
-        // let dir_item = locks.get_mut("/").unwrap();
         for it in items {
             let is_dir = it.item.is_dir();
             let path = it.item.path.to_owned();
-            // dir_item.file_list.insert(path.to_owned());
             locks
-                .get_mut("/")
+                .get_mut(&parent_path)
                 .unwrap()
                 .file_list
                 .insert(path.to_owned(), false);
-            let it_inode = store.update_inode(1, it.clone()).await.unwrap();
+            let parent_node = store.get_inode_from_path(&parent_path).await.unwrap();
+            let it_inode = store.update_inode(parent_node, it.clone()).await.unwrap();
             if is_dir {
                 queue.push(it_inode);
                 locks.insert(
@@ -574,7 +631,6 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
                 producers.load(Ordering::Acquire) > 0 || !queue.is_empty()
             } {
                 if let Some(inode) = queue.pop() {
-                    // get path from path store.
                     //get the whole path.
                     let path =
                         "/".to_string() + &path_store.get_all_path(inode).unwrap().to_string();
@@ -583,7 +639,6 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
                     match fetch_dir(&path).await {
                         Ok(new_items) => {
                             let new_items = new_items.data;
-
                             for newit in new_items {
                                 let is_dir = newit.item.is_dir();
                                 let tmp_path = newit.item.path.to_owned();
@@ -597,8 +652,12 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
                                     store.update_inode(inode, newit.clone()).await.unwrap();
                                 if is_dir {
                                     // If it's a directory, push it to the queue and add the producer count
-                                    producers.fetch_add(1, Ordering::Relaxed);
-                                    queue.push(new_inode);
+                                    if tmp_path.matches('/').count() < max_depth {
+                                        producers.fetch_add(1, Ordering::Relaxed);
+                                        queue.push(new_inode);
+                                    } else {
+                                        println!("max_depth reach path = {:?}", tmp_path);
+                                    }
                                     store.dirs.insert(
                                         tmp_path,
                                         DirItem {
@@ -632,219 +691,275 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     //     worker.await.expect("Worker panicked");
     // }
     join_all(workers).await;
+}
+pub async fn import_arc(store: Arc<DictionaryStore>) {
+    //first load the db.
+    if store.load_db().await.is_ok() {
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                watch_dir(store.clone()).await;
+            }
+        });
+        return;
+    } else {
+        //if the db is null,then init the store and load from mono.
+        let _ = store.persistent_path_store.insert_item(
+            1,
+            UNKNOW_INODE,
+            ItemExt {
+                item: Item {
+                    name: "".to_string(),
+                    path: "/".to_string(),
+                    content_type: INODE_DICTIONARY.to_string(),
+                },
+                hash: String::new(),
+            },
+        );
+        let root_item = DicItem {
+            inode: 1,
+            path_name: GPath::new(),
+            content_type: Arc::new(Mutex::new(ContentType::Directory(false))),
+            children: Mutex::new(HashMap::new()),
+            parent: UNKNOW_INODE, //  root dictory has no parent
+        };
+        let root_dir_item = DirItem {
+            hash: String::new(),
+            file_list: HashMap::new(),
+        };
+        store.inodes.lock().await.insert(1, root_item.into());
+        store.dirs.insert("/".to_string(), root_dir_item);
+    }
+
+    let max_depth = config::load_dir_depth() + 2;
+    load_dir_depth(store.clone(), "/".to_string(), max_depth).await;
+
+    // use the unlock queue instead of mpsc  Mutex
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
             watch_dir(store.clone()).await;
         }
     });
 }
 
-/// Load directories of a specified depth under the parent folder.
-pub async fn load_dir_depth(_store: Arc<DictionaryStore>,_parent: &str) {
-
+///get the directory hash from the server
+async fn get_dir_hash(path: &str) -> String {
+    let data = fetch_get_dir_hash(path).await.unwrap().data;
+    // no need to filter by name, just return the first item.the server ensure the name is unique.
+    // data.retain(|item| item.item.name == target_name && item.item.is_dir());
+    if data.len() == 1 {
+        data[0].hash.to_owned()
+    } else {
+        String::new()
+    }
 }
-/// Watch the directory and update the dictionary
-pub async fn watch_dir(store: Arc<DictionaryStore>) {
-    //TODO: rename a file or dic
-    // use the unlock queue instead of mpsc  Mutex
-    //save the dir to be updated.
-    let queue = Arc::new(SegQueue::new());
+#[async_recursion]
+/// This function loads subdirectories of a specified depth when a user accesses a given path.
+pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) -> bool {
+    if parent_path.matches('/').count() >= max_depth {
+        println!("max depth reached for path: {}", parent_path);
+        return false;
+    }
+    if max_depth < config::load_dir_depth() + 2 {
+        println!("max depth is less than config, skipping: {}", parent_path);
+        return false;
+    }
+
+    let parent_inode = store.get_inode_from_path(&parent_path).await.unwrap();
+
     let tree_db = store.persistent_path_store.clone();
+    let dirs = store.dirs.clone();
+    let self_hash = get_dir_hash(&parent_path).await;
 
-    let items = fetch_dir("").await.unwrap().data;
-    {
-        let locks = store.dirs.clone();
-        for it in items {
-            let is_dir = it.item.is_dir();
-            let path = it.item.path.to_owned();
-            //old files care about the update.
-            if locks.get_mut("/").unwrap().file_list.contains_key(&path) {
-                //set true means this file is still in the dir.
-                locks
-                    .get_mut("/")
-                    .unwrap()
-                    .file_list
-                    .insert(path.to_owned(), true);
-                if is_dir {
-                    //when the dir's hash changed,fetch the dir.
-                    if locks.get_mut(&path).unwrap().hash != it.hash {
-                        // If the path already exists, update the hash
-                        let mut dir_it = locks.get_mut(&path).unwrap();
-                        dir_it.hash = it.hash.to_owned();
+    //the dir may be deleted.
+    if self_hash.is_empty() {
+        println!("Directory {} is empty, no items to load.", parent_path);
+        return true;
+    }
+    println!("load_dir parent_path {:?}", parent_path);
+    
+    //empty dir,load the dir to the max_depth.
+    if dirs.get(&parent_path).unwrap().file_list.is_empty() {
+        load_dir_depth(store.clone(), parent_path.to_owned(), max_depth).await;
 
-                        //also update the hash in the db.
-                        let inode = store.get_inode_from_path(&path).await.unwrap();
-                        tree_db.update_item_hash(inode, it.hash).unwrap();
-                        queue.push(path);
-                    }
-                }
-            } else {
-                locks
-                    .get_mut("/")
-                    .unwrap()
-                    .file_list
-                    .insert(path.to_owned(), true);
-                let _ = store.update_inode(1, it.clone()).await.unwrap();
-                //fetch a new dir.
-                if is_dir {
-                    queue.push(path.to_owned());
-                    locks.insert(
-                        path,
-                        DirItem {
-                            hash: it.hash,
-                            file_list: HashMap::new(),
-                        },
-                    );
-                }
+        if dirs.get(&parent_path).unwrap().hash != self_hash {
+            dirs.get_mut(&parent_path).unwrap().hash = self_hash.to_owned();
+            let inode = store.get_inode_from_path(&parent_path).await.unwrap();
+            tree_db.update_item_hash(inode, self_hash).unwrap();
+            return true;
+        }
+        return false;
+    }
+    // if the dir's hash is same as the parent dir's hash, 
+    //then check the subdir from the db,no need to get from the server..
+    if dirs.get(&parent_path).unwrap().hash == self_hash {
+        let item = store.persistent_path_store.get_item(parent_inode).unwrap();
+        let children = item.get_children();
+        for child in children {
+            let child_item = store.persistent_path_store.get_item(child).unwrap();
+            if child_item.is_dir() {
+                println!(
+                    "handle dir /{:?}",
+                    tree_db.get_all_path(child).unwrap().to_string()
+                );
+                load_dir(
+                    store.clone(),
+                    "/".to_string() + &tree_db.get_all_path(child).unwrap().to_string(),
+                    max_depth,
+                )
+                .await;
             }
         }
+        return false;
+    }
+    //last, if the dir's hash is different from the parent dir's hash,
+    //then fetch the dir from the server.
+    let items = fetch_dir(&parent_path).await.unwrap().data;
+    dirs.get_mut(&parent_path).unwrap().hash = self_hash.to_owned();
+    let inode = store.get_inode_from_path(&parent_path).await.unwrap();
+    tree_db.update_item_hash(inode, self_hash).unwrap();
+    for it in items {
+        let is_dir = it.item.is_dir();
+        let path = it.item.path.to_owned();
 
-        let mut remove_items = Vec::new();
-        locks.get_mut("/").unwrap().file_list.retain(|path, v| {
+        // the item already exists in the parent directory.
+        if dirs
+            .get(&parent_path)
+            .unwrap()
+            .file_list
+            .contains_key(&path)
+        {
+            dirs.get_mut(&parent_path)
+                .unwrap()
+                .file_list
+                .insert(path.to_owned(), true);
+            if is_dir {
+                println!("hash changes dir {:?}", path);
+                load_dir(store.clone(), path.to_owned(), max_depth).await;
+            }
+        } else {
+            dirs.get_mut(&parent_path)
+                .unwrap()
+                .file_list
+                .insert(path.to_owned(), true);
+            let _ = store.update_inode(parent_inode, it.clone()).await.unwrap();
+            //fetch a new dir.
+            if is_dir {
+                println!("add dir {:?}", path);
+                dirs.insert(
+                    path.to_owned(),
+                    DirItem {
+                        hash: it.hash,
+                        file_list: HashMap::new(),
+                    },
+                );
+                load_dir_depth(store.clone(), path.to_owned(), max_depth).await;
+            }
+        }
+    }
+    let mut remove_items = Vec::new();
+    dirs.get_mut(&parent_path)
+        .unwrap()
+        .file_list
+        .retain(|path, v| {
             let result = *v;
             if !(*v) {
                 remove_items.push(path.clone());
-                //delete storageItem
-                // let inode = store.get_inode_from_path(&path).await.unwrap();
-                // tree_db.remove_item(inode);
             } else {
                 *v = false;
             }
             result
         });
-        for item in remove_items {
-            let inode = store.get_inode_from_path(&item).await.unwrap();
-            println!("delete {:?} {} ", inode, item);
-            tree_db.remove_item(inode).unwrap();
+    for item in remove_items {
+        let inode = store.get_inode_from_path(&item).await.unwrap();
+        println!("delete {:?} {} ", inode, item);
+        tree_db.remove_item(inode).unwrap();
+    }
+    return true;
+}
+
+#[async_recursion]
+///this function is only used to update the directory which has been loaded.
+/// it will update the directory but do not load the new directory.
+pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
+    let tree_db = store.persistent_path_store.clone();
+    let items = fetch_dir(&parent_path).await.unwrap().data;
+    let dirs = store.dirs.clone();
+
+    for it in items {
+        let is_dir = it.item.is_dir();
+        let path = it.item.path.to_owned();
+
+        // the item already exists in the parent directory.
+        if dirs
+            .get(&parent_path)
+            .unwrap()
+            .file_list
+            .contains_key(&path)
+        {
+            dirs.get_mut(&parent_path)
+                .unwrap()
+                .file_list
+                .insert(path.to_owned(), true);
+            if is_dir && dirs.get(&path).unwrap().hash != it.hash {
+                //when the dir's hash changed,fetch the dir.
+                // If the path already exists, update the hash
+                update_dir(store.clone(), path.to_owned()).await;
+
+                let mut dir_it = dirs.get_mut(&path).unwrap();
+                dir_it.hash = it.hash.to_owned();
+                //also update the hash in the db.
+                let inode = store.get_inode_from_path(&path).await.unwrap();
+                tree_db.update_item_hash(inode, it.hash).unwrap();
+                println!("modify dir {:?}", path);
+            }
+        } else {
+            dirs.get_mut(&parent_path)
+                .unwrap()
+                .file_list
+                .insert(path.to_owned(), true);
+            let parent_inode = store.get_inode_from_path(&parent_path).await.unwrap();
+
+            let _ = store.update_inode(parent_inode, it.clone()).await.unwrap();
+            //fetch a new dir.
+            if is_dir {
+                println!("add dir {:?}", path);
+
+                dirs.insert(
+                    path,
+                    DirItem {
+                        hash: it.hash,
+                        file_list: HashMap::new(),
+                    },
+                );
+            }
         }
     }
 
-    let worker_count = 10;
-    let mut workers = Vec::with_capacity(worker_count);
-
-    // clone shared resource.
-    let queue = Arc::clone(&queue);
-    let active_producers = Arc::new(AtomicUsize::new(queue.len()));
-
-    // Init mulity work thraed
-    for _ in 0..worker_count {
-        let queue = Arc::clone(&queue);
-        // let path_store = persistent_path_store.clone();
-        let store = store.clone();
-        let producers = Arc::clone(&active_producers);
-        let tree_db = store.persistent_path_store.clone();
-        workers.push(tokio::spawn(async move {
-            while {
-                // If there are active producers or the queue is not empty, continue
-                producers.load(Ordering::Acquire) > 0 || !queue.is_empty()
-            } {
-                if let Some(parent) = queue.pop() {
-                    // get path from path store.
-                    //get the whole path.
-                    let parent_inode = store.get_inode_from_path(&parent).await.unwrap();
-                    println!("Worker processing path: {} {}", parent, parent_inode);
-                    // get all children inode
-                    match fetch_dir(&parent).await {
-                        Ok(new_items) => {
-                            let new_items = new_items.data;
-                            println!("{:?}", new_items.len());
-                            let locks = store.dirs.clone();
-                            for newit in new_items {
-                                let is_dir = newit.item.is_dir();
-                                let tmp_path = newit.item.path.to_owned();
-                                if locks
-                                    .get_mut(&parent)
-                                    .unwrap()
-                                    .file_list
-                                    .contains_key(&tmp_path)
-                                {
-                                    locks
-                                        .get_mut(&parent)
-                                        .unwrap()
-                                        .file_list
-                                        .insert(tmp_path.to_owned(), true);
-                                    //should care the file'hash?
-                                    if is_dir
-                                        && locks.get_mut(&tmp_path).unwrap().hash != newit.hash
-                                    {
-                                        // If the path already exists, update the hash
-                                        let mut dir_it = locks.get_mut(&tmp_path).unwrap();
-                                        dir_it.hash = newit.hash.to_owned();
-                                        //also update the hash in the db.
-                                        let inode =
-                                            store.get_inode_from_path(&tmp_path).await.unwrap();
-                                        tree_db.update_item_hash(inode, newit.hash).unwrap();
-
-                                        queue.push(tmp_path);
-
-                                        producers.fetch_add(1, Ordering::Relaxed);
-                                    }
-                                } else {
-                                    locks
-                                        .get_mut(&parent)
-                                        .unwrap()
-                                        .file_list
-                                        .insert(tmp_path.to_owned(), true);
-                                    let _ = store
-                                        .update_inode(parent_inode, newit.clone())
-                                        .await
-                                        .unwrap();
-                                    //insert new dir
-                                    if is_dir {
-                                        producers.fetch_add(1, Ordering::Relaxed);
-                                        queue.push(tmp_path.to_owned());
-                                        locks.insert(
-                                            tmp_path,
-                                            DirItem {
-                                                hash: newit.hash,
-                                                file_list: HashMap::new(),
-                                            },
-                                        );
-                                    }
-                                }
-                            }
-
-                            let mut remove_items = Vec::new();
-                            locks.get_mut(&parent).unwrap().file_list.retain(|path, v| {
-                                let result = *v;
-                                if !(*v) {
-                                    remove_items.push(path.clone());
-                                    // let inode = store.get_inode_from_path(&path).await.unwrap();
-                                    // tree_db.remove_item(inode);
-                                } else {
-                                    *v = false;
-                                }
-                                result
-                            });
-                            for item in remove_items {
-                                let inode = store.get_inode_from_path(&item).await.unwrap();
-                                println!("delete {:?} {}", inode, item);
-
-                                tree_db.remove_item(inode).unwrap();
-                            }
-                        }
-                        Err(_) => {
-                            // Continue to the next iteration if there was an error
-                        }
-                    };
-
-                    producers.fetch_sub(1, Ordering::Release);
-                } else {
-                    // If there are no active producers and the queue is empty, exit the loop
-                    if producers.load(Ordering::Acquire) == 0 {
-                        return;
-                    }
-                    // yield to wait unfinished tasks
-                    tokio::task::yield_now().await;
-                }
+    let mut remove_items = Vec::new();
+    dirs.get_mut(&parent_path)
+        .unwrap()
+        .file_list
+        .retain(|path, v| {
+            let result = *v;
+            if !(*v) {
+                remove_items.push(path.clone());
+            } else {
+                *v = false;
             }
-        }));
+            result
+        });
+    for item in remove_items {
+        let inode = store.get_inode_from_path(&item).await.unwrap();
+        println!("delete {:?} {} ", inode, item);
+        tree_db.remove_item(inode).unwrap();
     }
+}
 
-    // wait for all workers to complete
-    join_all(workers).await;
-    println!("finish");
+/// Watch the directory and update the dictionary has loaded.
+pub async fn watch_dir(store: Arc<DictionaryStore>) {
+    update_dir(store, "/".to_string()).await;
 }
 
 #[cfg(test)]

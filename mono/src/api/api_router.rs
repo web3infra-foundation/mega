@@ -31,6 +31,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .routes(routes!(create_file))
         .routes(routes!(get_latest_commit))
         .routes(routes!(get_tree_commit_info))
+        .routes(routes!(get_tree_dir_hash))
         .routes(routes!(path_can_be_cloned))
         .routes(routes!(get_tree_info))
         .routes(routes!(get_blob_string))
@@ -169,6 +170,39 @@ async fn get_tree_commit_info(
         .await?
         .get_tree_commit_info(query.path.into())
         .await?;
+    Ok(Json(CommonResult::success(Some(data))))
+}
+
+/// return the dir's hash
+#[utoipa::path(
+    get,
+    path = "/tree/dir-hash",
+    params(
+        CodePreviewQuery
+    ),
+    responses(
+        (status = 200, body = CommonResult<Vec<TreeCommitItem>>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
+async fn get_tree_dir_hash(
+    Query(query): Query<CodePreviewQuery>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
+    let path = std::path::Path::new(&query.path);
+    let parent_path = path
+        .parent()
+        .and_then(|p| p.to_str())
+        .unwrap_or("")
+        .to_string();
+    let target_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+    let data = state
+        .api_handler(parent_path.clone().into())
+        .await?
+        .get_tree_dir_hash(parent_path.into(), target_name)
+        .await?;
+
     Ok(Json(CommonResult::success(Some(data))))
 }
 

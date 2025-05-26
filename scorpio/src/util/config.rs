@@ -243,7 +243,7 @@ pub fn dicfuse_readable() -> bool {
     get_config().config["dicfuse_readable"] == "true"
 }
 
-///get the depth of directory loading
+///Get the depth of directory loading
 pub fn load_dir_depth() -> usize {
     get_config()
         .config
