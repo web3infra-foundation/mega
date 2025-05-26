@@ -1,1 +1,0 @@
-../sql/sqlite/sqlite_20241204_init.sql
