@@ -80,7 +80,7 @@ async fn life_cycle_check() -> Result<impl IntoResponse, ApiError> {
 
 /// Create file in web UI
 #[utoipa::path(
-    get,
+    post,
     path = "/create-file",
     request_body = CreateFileInfo,
     responses(

@@ -1,9 +1,6 @@
 use common::errors::MegaError;
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{
-    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement,
-    TransactionError, TransactionTrait,
-};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::{path::Path, time::Duration};
 use tracing::log;
 
@@ -55,31 +52,7 @@ async fn sqlite_connection(db_config: &DbConfig) -> Result<DatabaseConnection, M
     let opt = setup_option(db_url);
     let conn = Database::connect(opt).await?;
 
-    // setup sqlite database (execute .sql)
-    // if db_config.db_path.metadata()?.len() == 0 {
-    //     log::info!("Setting up sqlite database");
-    //     setup_sql(&conn)
-    //         .await
-    //         .map_err(|e| sea_orm::DbErr::Custom(e.to_string()))?;
-    // }
     Ok(conn)
-}
-
-/// create table from .sql file
-#[allow(unused)]
-async fn setup_sql(conn: &DatabaseConnection) -> Result<(), TransactionError<DbErr>> {
-    conn.transaction::<_, _, DbErr>(|txn| {
-        Box::pin(async move {
-            let backend = txn.get_database_backend();
-
-            // `include_str!` will expand the file while compiling, so `.sql` is not needed after that
-            const SETUP_SQL: &str = include_str!("../../sqlite_20241204_init.sql");
-            txn.execute(Statement::from_string(backend, SETUP_SQL))
-                .await?;
-            Ok(())
-        })
-    })
-    .await
 }
 
 fn setup_option(db_url: impl Into<String>) -> ConnectOptions {

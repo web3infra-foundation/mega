@@ -2,8 +2,11 @@
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "conv_type_enum")]
 pub enum ConvTypeEnum {
     #[sea_orm(string_value = "comment")]
@@ -29,7 +32,9 @@ pub enum ConvTypeEnum {
     #[sea_orm(string_value = "reopen")]
     Reopen,
 }
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
+)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "merge_status_enum")]
 pub enum MergeStatusEnum {
     #[sea_orm(string_value = "open")]
