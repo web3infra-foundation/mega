@@ -4,15 +4,16 @@ use callisto::{
     mega_conversation, mega_mr,
     sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum},
 };
+use utoipa::ToSchema;
 
 pub mod mr_router;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct MRStatusParams {
     pub status: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct MrInfoItem {
     pub link: String,
     pub title: String,
@@ -35,7 +36,7 @@ impl From<mega_mr::Model> for MrInfoItem {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct MRDetail {
     pub id: i64,
     pub link: String,
@@ -60,7 +61,7 @@ impl From<mega_mr::Model> for MRDetail {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct MegaConversation {
     pub id: i64,
     pub user_id: i64,
@@ -83,14 +84,19 @@ impl From<mega_conversation::Model> for MegaConversation {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct FilesChangedItem {
     pub path: String,
     pub status: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct FilesChangedList {
     pub files: Vec<FilesChangedItem>,
+    pub content: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct SaveCommentRequest {
     pub content: String,
 }
