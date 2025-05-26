@@ -70,14 +70,14 @@ impl ScorpioManager {
         println!("old_dbpath = {}", old_dbpath.display());
         println!("new_dbpath = {}", new_dbpath.display());
 
-        fs::remove_dir_all(&objectspath)?;
+        let _ = fs::remove_dir_all(&objectspath);
         if tempstorage_path.exists() {
+            println!("tempstorage_path = {}, Copy", tempstorage_path.display());
             let mut options = CopyOptions::new();
             options.copy_inside = true;
             copy(&tempstorage_path, &objectspath, &options)?;
         }
 
-        fs::remove_dir_all(&objectspath)?;
         let old_tree_db = sled::open(old_dbpath)?;
         let new_tree_db = sled::open(new_dbpath)?;
         let temp_store_area = TempStoreArea::new(&modified_path)?;
@@ -156,10 +156,13 @@ impl ScorpioManager {
         let work_path = PathBuf::from(store_path).join(work_dir.hash.clone());
         let modified_path = work_path.join("modifiedstore");
         let temp_store_area = TempStoreArea::new(&modified_path)?;
+        println!("OK1");
         let base_url = config::base_url();
         let url = format!("{}/{}/git-receive-pack", base_url, mono_path);
 
+        println!("START");
         let res= push::push(&work_path, &url, &temp_store_area.index_db).await?;
+        println!("END");
         Ok(res)
     }
     /*
