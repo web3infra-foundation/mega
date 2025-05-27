@@ -2,7 +2,7 @@
 extern crate log;
 
 pub mod daemon;
-mod dicfuse;
+pub mod dicfuse;
 pub mod fuse;
 pub mod manager;
 mod scolfs;

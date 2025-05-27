@@ -1,6 +1,6 @@
 mod abi;
 mod async_io;
-mod store;
+pub mod store;
 mod tree_store;
 use crate::manager::fetch::fetch_tree;
 use crate::util::config;
