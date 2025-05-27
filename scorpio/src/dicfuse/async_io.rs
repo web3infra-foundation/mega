@@ -8,7 +8,6 @@ use fuse3::{Errno, Inode, Result};
 
 use super::Dicfuse;
 use crate::dicfuse::store::load_dir;
-use crate::util::config;
 use futures::stream::{iter, Iter};
 use std::vec::IntoIter;
 
@@ -33,7 +32,6 @@ impl Filesystem for Dicfuse {
             .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
 
         ppath.push(name.to_string_lossy().into_owned());
-        println!("learn lookup {:?}", ppath.clone().to_string());
         let chil = store.get_by_path(&ppath.to_string()).await?;
         if self.open_buff.read().await.get(&chil.get_inode()).is_none() {
             let _ = self.load_one_file(parent, name).await;
@@ -138,8 +136,14 @@ impl Filesystem for Dicfuse {
     }
     async fn access(&self, _req: Request, inode: Inode, _mask: u32) -> Result<()> {
         self.store.get_inode(inode).await?;
-        let load_parent = "/".to_string() + &self.store.find_path(inode).await.unwrap().to_string();
-        let max_depth = config::load_dir_depth() + load_parent.matches('/').count();
+        let load_parent = "/".to_string()
+            + &self
+                .store
+                .find_path(inode)
+                .await
+                .ok_or(libc::ENOENT)?
+                .to_string();
+        let max_depth = self.store.max_depth() + load_parent.matches('/').count();
         let hash_change = load_dir(self.store.clone(), load_parent, max_depth).await;
         if hash_change {
             self.store.update_ancestors_hash(inode).await;

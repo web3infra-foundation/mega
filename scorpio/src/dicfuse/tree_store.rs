@@ -13,7 +13,7 @@ use super::store::ItemExt;
 pub struct TreeStorage {
     db: Db,
 }
-const CONFIG_PATH: &str = "config.toml";
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct StorageItem {
     inode: u64,
@@ -56,15 +56,13 @@ impl StorageItem {
         self.parent
     }
 }
-use toml::Value;
+// use toml::Value;
 #[allow(unused)]
 impl TreeStorage {
     pub fn new_from_db(db: Db) -> Self {
         TreeStorage { db }
     }
     pub fn new() -> io::Result<Self> {
-        let config_content = std::fs::read_to_string(CONFIG_PATH).map_err(Error::other)?;
-        let config: Value = toml::de::from_str(&config_content).map_err(Error::other)?;
         let store_path = config::store_path();
         let path = format!("{}/path.db", store_path);
         let db = sled::open(path)?;

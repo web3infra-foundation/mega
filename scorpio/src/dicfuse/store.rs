@@ -10,12 +10,13 @@ use futures::future::join_all;
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::sync::Notify;
 
 use super::abi::{default_dic_entry, default_file_entry};
 use super::tree_store::{StorageItem, TreeStorage};
@@ -43,20 +44,20 @@ pub struct ItemExt {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-    struct CommitInfoResponse {
-        req_result: bool,
-        data: Vec<CommitInfo>,
-        err_message: String,
-    }
+struct CommitInfoResponse {
+    req_result: bool,
+    data: Vec<CommitInfo>,
+    err_message: String,
+}
 
-    #[derive(Serialize, Deserialize, Debug, Default)]
-    struct CommitInfo {
-        oid: String,
-        name: String,
-        content_type: String,
-        message: String,
-        date: String,
-    }
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct CommitInfo {
+    oid: String,
+    name: String,
+    content_type: String,
+    message: String,
+    date: String,
+}
 
 #[allow(unused)]
 pub struct DicItem {
@@ -144,7 +145,6 @@ impl Iterator for ApiResponse {
         self.data.pop()
     }
 }
-
 struct ApiResponseExt {
     _req_result: bool,
     data: Vec<ItemExt>,
@@ -259,7 +259,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     })
 }
 
-///get the directory hash from the server
+/// Get the directory hash from the server
 async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     static CLIENT: Lazy<Client> = Lazy::new(Client::new);
     let client = CLIENT.clone();
@@ -343,6 +343,8 @@ pub struct DictionaryStore {
     next_inode: AtomicU64,
     radix_trie: Arc<Mutex<radix_trie::Trie<String, u64>>>,
     persistent_path_store: Arc<TreeStorage>, // persistent path store for saving and retrieving file paths
+    max_depth: Arc<usize>,                   // max depth for loading directories
+    init_notify: Arc<Notify>,                // used in dir_test to notify the start of the test..
 }
 
 #[allow(unused)]
@@ -355,9 +357,20 @@ impl DictionaryStore {
             radix_trie: Arc::new(Mutex::new(radix_trie::Trie::new())),
             persistent_path_store: Arc::new(tree_store),
             dirs: Arc::new(DashMap::new()),
+            max_depth: Arc::new(config::load_dir_depth()),
+            init_notify: Arc::new(Notify::new()),
         }
     }
 
+    #[inline(always)]
+    pub fn max_depth(&self) -> usize {
+        *self.max_depth
+    }
+
+    pub async fn wait_for_ready(&self) {
+        // Wait for the store to be initialized
+        self.init_notify.notified().await;
+    }
     async fn update_inode(&self, parent: u64, item: ItemExt) -> std::io::Result<u64> {
         let alloc_inode = self
             .next_inode
@@ -385,6 +398,66 @@ impl DictionaryStore {
         Ok(alloc_inode)
     }
 
+    #[async_recursion]
+    async fn traverse_directory(
+        &self,
+        current_path: &str,
+        base_path: &str,
+        depth_items: &mut HashMap<i32, BTreeSet<String>>,
+    ) -> Result<(), io::Error> {
+        let current_inode = match self.get_inode_from_path(current_path).await {
+            Ok(inode) => inode,
+            Err(_) => return Ok(()),
+        };
+
+        let current_item = self.persistent_path_store.get_item(current_inode)?;
+
+        if !current_item.is_dir() {
+            return Ok(());
+        }
+
+        let children = current_item.get_children();
+
+        for child_inode in children {
+            let child_item = self.persistent_path_store.get_item(child_inode)?;
+            let child_name = child_item.get_name();
+
+            let child_full_path = if current_path == "/" {
+                format!("/{}", child_name)
+            } else {
+                format!("{}/{}", current_path, child_name)
+            };
+
+            let relative_path = if base_path == "/" {
+                child_full_path
+                    .strip_prefix('/')
+                    .unwrap_or(&child_full_path)
+                    .to_string()
+            } else if child_full_path == base_path {
+                ".".to_string()
+            } else if child_full_path.starts_with(&format!("{}/", base_path)) {
+                child_full_path[base_path.len() + 1..].to_string()
+            } else {
+                continue;
+            };
+
+            let depth = if relative_path == "." {
+                0
+            } else {
+                relative_path.chars().filter(|&c| c == '/').count() as i32
+            };
+
+            depth_items.entry(depth).or_default().insert(relative_path);
+
+            if child_item.is_dir() {
+                self.traverse_directory(&child_full_path, base_path, depth_items)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn add_temp_point(&self, path: &str) -> Result<u64, io::Error> {
         let item_path = path.to_string();
         let mut path = GPath::from(path.to_string());
@@ -406,6 +479,37 @@ impl DictionaryStore {
             },
         )
         .await
+    }
+
+    /// Recursively traverses and returns all files and directories under the specified base directory, grouped by depth relative to base_dir
+    /// Returns HashMap<depth_level, relative_paths_set> where depth 0 = direct children, depth 1 = grandchildren, etc.
+    pub async fn get_dir_by_path(&self, base_dir: &str) -> HashMap<i32, BTreeSet<String>> {
+        let mut depth_items: HashMap<i32, BTreeSet<String>> = HashMap::new();
+
+        let normalized_base_dir = if base_dir.is_empty() || base_dir == "." {
+            "/".to_string()
+        } else if !base_dir.starts_with('/') {
+            format!("/{}", base_dir)
+        } else {
+            base_dir.to_string()
+        };
+
+        if (self.get_inode_from_path(&normalized_base_dir).await).is_ok() {
+            if let Err(e) = self
+                .traverse_directory(&normalized_base_dir, &normalized_base_dir, &mut depth_items)
+                .await
+            {
+                println!("Error traversing directory {}: {}", normalized_base_dir, e);
+            }
+
+            if normalized_base_dir != "/" {
+                depth_items.entry(0).or_default();
+            }
+        } else {
+            println!("Base directory {} not found", normalized_base_dir);
+        }
+
+        depth_items
     }
 
     pub async fn update_ancestors_hash(&self, inode: u64) {
@@ -577,7 +681,11 @@ impl DictionaryStore {
     }
 }
 
-/// This function loads subdirectories of a specified directory up to a given depth.
+/// Loads subdirectories from a remote server into an empty parent directory up to a specified depth.
+///
+/// # Arguments
+/// * `parent_path` - The path to an empty directory where subdirectories will be loaded.
+/// * `max_depth` - The maximum absolute depth of subdirectories to load, relative to the root.
 pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) {
     println!("load_dir_depth {:?}", parent_path);
     let queue = Arc::new(SegQueue::new());
@@ -692,9 +800,11 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
     // }
     join_all(workers).await;
 }
+
 pub async fn import_arc(store: Arc<DictionaryStore>) {
     //first load the db.
     if store.load_db().await.is_ok() {
+        store.init_notify.notify_waiters();
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
@@ -731,9 +841,9 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
         store.dirs.insert("/".to_string(), root_dir_item);
     }
 
-    let max_depth = config::load_dir_depth() + 2;
+    let max_depth = store.max_depth() + 2;
     load_dir_depth(store.clone(), "/".to_string(), max_depth).await;
-
+    store.init_notify.notify_waiters();
     // use the unlock queue instead of mpsc  Mutex
     tokio::spawn(async move {
         loop {
@@ -743,25 +853,34 @@ pub async fn import_arc(store: Arc<DictionaryStore>) {
     });
 }
 
-///get the directory hash from the server
+/// Get the directory hash from the server
 async fn get_dir_hash(path: &str) -> String {
     let data = fetch_get_dir_hash(path).await.unwrap().data;
     // no need to filter by name, just return the first item.the server ensure the name is unique.
-    // data.retain(|item| item.item.name == target_name && item.item.is_dir());
     if data.len() == 1 {
         data[0].hash.to_owned()
     } else {
         String::new()
     }
 }
+
 #[async_recursion]
-/// This function loads subdirectories of a specified depth when a user accesses a given path.
+/// Preloads a directory and its subdirectories up to a specified depth from a remote server.
+///
+/// The function fetches the directory's hash to verify its existence. If the directory is empty,
+/// it loads subdirectories up to `max_depth` (absolute depth relative to the root directory).
+/// If non-empty, it compares the hash to detect changes: if unchanged, it processes the local
+/// directory; if changed, it fetches and loads the updated directory from the remote server.
+///
+/// # Arguments
+/// * `parent_path` - The path to the directory to preload (must be a valid, existing path).
+/// * `max_depth` - The maximum absolute depth of subdirectories to load, relative to the root.
 pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_depth: usize) -> bool {
     if parent_path.matches('/').count() >= max_depth {
         println!("max depth reached for path: {}", parent_path);
         return false;
     }
-    if max_depth < config::load_dir_depth() + 2 {
+    if max_depth < store.max_depth() + 2 {
         println!("max depth is less than config, skipping: {}", parent_path);
         return false;
     }
@@ -778,7 +897,7 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
         return true;
     }
     println!("load_dir parent_path {:?}", parent_path);
-    
+
     //empty dir,load the dir to the max_depth.
     if dirs.get(&parent_path).unwrap().file_list.is_empty() {
         load_dir_depth(store.clone(), parent_path.to_owned(), max_depth).await;
@@ -791,7 +910,7 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
         }
         return false;
     }
-    // if the dir's hash is same as the parent dir's hash, 
+    // if the dir's hash is same as the parent dir's hash,
     //then check the subdir from the db,no need to get from the server..
     if dirs.get(&parent_path).unwrap().hash == self_hash {
         let item = store.persistent_path_store.get_item(parent_inode).unwrap();
@@ -880,8 +999,8 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
 }
 
 #[async_recursion]
-///this function is only used to update the directory which has been loaded.
-/// it will update the directory but do not load the new directory.
+/// This function is only used to update the directory which has been loaded.
+/// It will update the directory but do not load the new directory.
 pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
     let tree_db = store.persistent_path_store.clone();
     let items = fetch_dir(&parent_path).await.unwrap().data;
