@@ -1,11 +1,12 @@
 use callisto::mega_issue;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::api::mr::MegaConversation;
 
 pub mod issue_router;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct IssueItem {
     pub link: String,
     pub title: String,
@@ -30,7 +31,7 @@ impl From<mega_issue::Model> for IssueItem {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct NewIssue {
     pub title: String,
     pub description: String,
