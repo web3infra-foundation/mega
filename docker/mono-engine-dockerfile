@@ -25,9 +25,9 @@ COPY . .
 
 # build
 RUN if [ "$BUILD_TYPE" = "release" ]; then \
-    cargo build -p mono --release && cargo build -p libra --release; \
+    cargo build --release -p mono -p libra; \
 else \
-    cargo build -p mono && cargo build -p libra; \
+    cargo build -p mono -p libra; \
 fi
 
 # final image
