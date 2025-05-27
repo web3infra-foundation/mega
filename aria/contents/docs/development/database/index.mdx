@@ -3,12 +3,11 @@ title: Database
 ---
 
 ## Database maintenance
-Currently, the tables of database are created by `.sql` file. 
+Currently, the tables of database are created by [SeaORM migration](https://www.sea-ql.org/SeaORM/docs/migration/setting-up-migration). 
 
-If you want to add a new table or modify the existing table, you need to update the `.sql` files which are located in the `sql` directory.
+If you want to add a new table or modify the existing table, you need to update the `migration` files which are located in the `jupiter/migration/src` directory.
 
 ### Attention
-- Each database corresponds to one `.sql` file, you must modify all of them if you want to update the tables in order to keep the consistency of the database.
 - DO NOT use `Array` Type in PostgreSQL but use `JSON` instead, for compatibility with SQLite & MySQL. (`JSON` &lt;==&gt; `serde_json::Value`)
 
 ---
