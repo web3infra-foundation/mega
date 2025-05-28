@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Card, Tabs, TabsProps,Timeline,} from 'antd';
 // import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { ChevronRightCircleIcon, ChevronSelectIcon,AlarmIcon,ClockIcon} from '@gitmono/ui/Icons'
 import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from '@/components/MrView/rich-editor/RichEditor';
 import MRComment from '@/components/MrView/MRComment';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import * as Diff2Html from 'diff2html';
 import 'diff2html/bundles/css/diff2html.min.css';
 import FilesChanged from '@/components/MrView/files-changed';
@@ -18,13 +18,19 @@ import { cn } from '@gitmono/ui/utils';
 import AuthAppProviders from '@/components/Providers/AuthAppProviders';
 import { AppLayout } from '@/components/Layout/AppLayout';
 import { PageWithLayout } from '@/utils/types';
+import { useGetMrDetail } from '@/hooks/useGetMrDetail'
+import { useGetMrFilesChanged } from '@/hooks/useGetMrFilesChanged';
+import { usePostMrComment } from '@/hooks/usePostMrComment'
+import { usePostMrMerge } from '@/hooks/usePostMrMerge'
+import { usePostMrReopen } from '@/hooks/usePostMrReopen';
+import { usePostMrClose } from '@/hooks/usePostMrClose';
 
 interface MRDetail {
     status: string,
     conversations: Conversation[],
     title: string,
 }
-interface Conversation {
+export interface Conversation {
     id: number,
     user_id: number,
     conv_type: string,
@@ -33,143 +39,71 @@ interface Conversation {
 }
 
 const  MRDetailPage:PageWithLayout<any> = () =>{
-    // const { id } = React.use(params)
     const router = useRouter();
-    const params = useParams();
-
-    const id = params?.id as string;
+    const { id : tempId, title } = router.query;
 
     const [editorState, setEditorState] = useState("");
-    const [login, setLogin] = useState(false);
-    const [mrDetail, setMrDetail] = useState<MRDetail>(
-        {
-            status: "",
-            conversations: [],
-            title: "",
-        }
-    );
-    const [filedata, setFileData] = useState([]);
-    const [loadings, setLoadings] = useState<boolean[]>([]);
+    const [login, _setLogin] = useState(false);
     const [outputHtml, setOutputHtml] = useState('');
 
-    const checkLogin = async () => {
-        const res = await fetch(`/api/auth`);
+    const id = typeof tempId === 'string' ? tempId : '';
+    const { data: MrDetailData } = useGetMrDetail(id)
+    const mrDetail = MrDetailData?.data as MRDetail | undefined
 
-        setLogin(res.ok);
-    };
-
-    const fetchDetail = useCallback(async () => {
-        const detail = await fetch(`/api/mr/${id}/detail`);
-        const detail_json = await detail.json();
-
-        setMrDetail(detail_json.data.data);
-    }, [id]);
-
-    const fetchFileList = useCallback(async () => {
-        set_to_loading(2)
-        try {
-            const res = await fetch(`/api/mr/${id}/files`);
-            const result = await res.json();
-
-            setFileData(result.data.data);
-        } finally {
-            cancel_loading(2)
-        }
-    }, [id]);
-
-    const get_diff_content = useCallback(async () => {
-        const detail = await fetch(`/api/mr/${id}/files-changed`);
-        const res = await detail.json();
-        const diff = Diff2Html.html(res.data.data.content, { drawFileList: true, matching: 'lines' })
-
-        setOutputHtml(diff);
-    }, [id])
-
-    useEffect(() => {
-        fetchDetail()
-        fetchFileList();
-        checkLogin();
-        
-    }, [id, fetchDetail, fetchFileList]);
     
-    useEffect(()=>{
-      // eslint-disable-next-line no-console
-      console.log(filedata);
-    },[filedata])
-
-    const set_to_loading = (index: number) => {
-        setLoadings((prevLoadings) => {
-            const newLoadings = [...prevLoadings];
-
-            newLoadings[index] = true;
-            return newLoadings;
-        });
+    if (mrDetail && typeof mrDetail.status === 'string') {
+      mrDetail.status = mrDetail.status.toLowerCase();
     }
 
-    const cancel_loading = (index: number) => {
-        setLoadings((prevLoadings) => {
-            const newLoadings = [...prevLoadings];
+    const { data: MrFilesChangedData} = useGetMrFilesChanged(id)
+    const get_diff_content = useCallback(() => {
+      const content = MrFilesChangedData?.data?.content;
 
-            newLoadings[index] = false;
-            return newLoadings;
+      if (typeof content !== 'string') return; 
+      const diff = Diff2Html.html(content, {
+          drawFileList: true,
+          matching: 'lines',
         });
+        
+        setOutputHtml(diff);
+    }, [MrFilesChangedData]);
+
+    const { mutate: approveMr, isPending : mrMergeIsPending } = usePostMrMerge(id)
+    const handleMrApprove = () => {
+      approveMr(undefined, {
+        onSuccess: () => {
+          router.push("/mr")
+        },
+      })
     }
 
-    async function approve_mr() {
-        set_to_loading(1);
-        const res = await fetch(`/api/mr/${id}/merge`, {
-            method: 'POST',
-        });
+    const { mutate: closeMr, isPending: mrCloseIsPending } = usePostMrClose(id)
+    const handleMrClose = () => {
+      closeMr(undefined, {
+        onSuccess: () => {
+          router.push("/mr")
+        },
+      })
+    }
 
-        if (res) {
-            cancel_loading(1);
-            router.push(
-                "/mr"
-            );
-        }
-    };
+    const { mutate: reopenMr, isPending: mrReopenIsPending } = usePostMrReopen(id)
+    const handleMrReopen = () => {
+      reopenMr(undefined,{
+        onSuccess: () => {
+            router.push("/mr")
+        },
+      })
+    }
 
-    async function close_mr() {
-        set_to_loading(3);
-        const res = await fetch(`/api/mr/${id}/close`, {
-            method: 'POST',
-        });
-
-        if (res) {
-            cancel_loading(3);
-            router.push(
-                "/mr"
-            );
-        }
-    };
-
-    async function reopen_mr() {
-        set_to_loading(3);
-        const res = await fetch(`/api/mr/${id}/reopen`, {
-            method: 'POST',
-        });
-
-        if (res) {
-            cancel_loading(3);
-            router.push(
-                "/mr"
-            );
-        }
-    };
-
-
-    async function save_comment(comment:any) {
-        set_to_loading(3);
-        const res = await fetch(`/api/mr/${id}/comment`, {
-            method: 'POST',
-            body: comment,
-        });
-
-        if (res) {
-            setEditorState("");
-            fetchDetail();
-            cancel_loading(3);
-        }
+    const { mutate: postMrComment, isPending : mrCommentIsPending } = usePostMrComment(id)
+    const save_comment = () => {
+      postMrComment(
+        { content: editorState },
+        {
+        onSuccess: () => {
+          setEditorState("");
+        },
+      });
     }
 
     let conv_items = mrDetail?.conversations.map(conv => {
@@ -177,7 +111,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
         let children;
 
         switch (conv.conv_type) {
-            case "Comment": icon = <ChevronRightCircleIcon />; children = <MRComment conv={conv} fetchDetail={fetchDetail} />; break
+            case "Comment": icon = <ChevronRightCircleIcon />; children = <MRComment conv={conv} id={id}/>; break
             case "Merged": icon = <ChevronSelectIcon />; children = "Merged via the queue into main " + formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true }); break;
             case "Closed": icon = <AlarmIcon />; children = conv.comment; break;
             case "Reopen": icon = <ClockIcon />; children = conv.comment; break;
@@ -193,8 +127,6 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     });
 
     const onTabsChange = (key: string) => {
-        // eslint-disable-next-line no-console
-        console.log(key);
         if (key === '2') {
             get_diff_content()
         }
@@ -214,33 +146,33 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
             <div className="flex gap-2 justify-end">
               {mrDetail && mrDetail.status === "open" &&
                 <Button
-                  disabled={!login}
-                  onClick={() => close_mr()}
+                  disabled={!login || mrCloseIsPending}
+                  onClick={handleMrClose}
                   aria-label="Close Merge Request"
                   className={cn(buttonClasses)}
                 >
-                  {loadings[3] && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                  {mrCloseIsPending && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
                   Close Merge Request
                 </Button>
               }
               {mrDetail && mrDetail.status === "closed" &&
                 <Button
-                  disabled={!login}
-                  onClick={() => reopen_mr()}
+                  disabled={!login || mrReopenIsPending}
+                  onClick={handleMrReopen}
                   aria-label="Reopen Merge Request"
                   className={cn(buttonClasses)}
                 >
-                  {loadings[3] && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                  {mrReopenIsPending && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
                   Reopen Merge Request
                 </Button>
               }
               <Button
-                disabled={!login}
-                onClick={() => save_comment(editorState)}
+                // disabled={!login}
+                onClick={() => save_comment()}
                 aria-label="Comment"
                 className={cn(buttonClasses)}
               >
-                {loadings[3] && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                {mrCommentIsPending && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
                 Comment
               </Button>
             </div>
@@ -254,15 +186,15 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     ];
 
     return (
-      <Card title={mrDetail.title + " #" + id}>
+      <Card title={title + " #" + id} className="h-screen overflow-auto">
           {mrDetail && mrDetail.status === "open" &&
             <Button
-              disabled={!login}
-              onClick={() => approve_mr()}
+              disabled={!login || mrMergeIsPending}
+              onClick={handleMrApprove}
               aria-label="Merge MR"
               className={cn(buttonClasses)}
             >
-                {loadings[1] && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
+                {mrMergeIsPending && <DownloadIcon className="mr-2 h-4 w-4 animate-spin"/>}
                 Merge MR
             </Button>
           }
