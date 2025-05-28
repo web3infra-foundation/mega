@@ -44,7 +44,7 @@ pub fn generate_rich_text(content: &str) -> String {
 }
 
 pub fn mr_ref_name(mr_link: &str) -> String {
-    format!("refs/heads/{}", mr_link)
+    format!("refs/mr/{}", mr_link)
 }
 
 /// Format commit message with GPG signature<br>
