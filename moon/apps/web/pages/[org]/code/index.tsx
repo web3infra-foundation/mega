@@ -3,17 +3,17 @@ import Head from 'next/head'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { AuthAppProviders } from '@/components/Providers/AuthAppProviders'
 import { PageWithLayout } from '@/utils/types'
-import TestView from '@/components/TestView'
+import CodeView from '@/components/CodeView'
 
 const OrganizationTestPage: PageWithLayout<any> = () => {
 
   return (
     <>
       <Head>
-        <title>Test</title>
+        <title>Code</title>
       </Head>
 
-      <TestView />
+      <CodeView />
     </>
   )
 }
