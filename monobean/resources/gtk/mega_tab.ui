@@ -126,7 +126,7 @@
 																<child>
 																	<object class="GtkButton">
 																		<property name="valign">center</property>
-																		<property name="icon-name">monobean-archive-store-symbolic</property>
+																		<property name="icon-name">monobean-archive-restore-symbolic</property>
 																		<style>
 																			<class name="flat" />
 																		</style>
