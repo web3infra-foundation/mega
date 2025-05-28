@@ -235,7 +235,8 @@ async fn get_mr_files_changed(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<FilesChangedList>>, ApiError> {
-    let res = state.monorepo().content_diff(&link).await;
+    let listen_addr = &state.listen_addr;
+    let res = state.monorepo().content_diff(&link, listen_addr).await;
     let res = match res {
         Ok(data) => {
             let diff_files = extract_files_with_status(&data);

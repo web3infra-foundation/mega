@@ -100,7 +100,7 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     };
     let http_client = HttpsClient::from_url(&url);
 
-    let refs = match http_client.discovery_reference(UploadPack).await {
+    let mut refs = match http_client.discovery_reference(UploadPack).await {
         Ok(refs) => refs,
         Err(e) => {
             eprintln!("fatal: {}", e);
@@ -115,26 +115,28 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
 
     let remote_head = refs.iter().find(|r| r._ref == "HEAD").cloned();
     // remote branches
-    let mut ref_heads = refs // DO NOT use `refs` later
+    let ref_heads = refs
+        .clone()
         .into_iter()
         .filter(|r| r._ref.starts_with("refs/heads"))
         .collect::<Vec<_>>();
 
     // filter by branch
     if let Some(ref branch) = branch {
-        let branch = format!("refs/heads/{}", branch);
-        ref_heads.retain(|r| r._ref == branch);
+        let branch = if !branch.starts_with("refs") {
+            format!("refs/heads/{}", branch)
+        } else {
+            branch.to_owned()
+        };
+        refs.retain(|r| r._ref == branch);
 
-        if ref_heads.is_empty() {
+        if refs.is_empty() {
             eprintln!("fatal: '{}' not found in remote", branch);
             return;
         }
     }
 
-    let want = ref_heads
-        .iter()
-        .map(|r| r._hash.clone())
-        .collect::<Vec<_>>();
+    let want = refs.iter().map(|r| r._hash.clone()).collect::<Vec<_>>();
     let have = current_have().await; // TODO: return `DiscRef` rather than only hash, to compare `have` & `want` more accurately
 
     let mut result_stream = http_client.fetch_objects(&have, &want).await.unwrap();
@@ -223,10 +225,17 @@ pub async fn fetch_repository(remote_config: &RemoteConfig, branch: Option<Strin
     }
 
     /* update reference  */
-    for r in &ref_heads {
-        let branch_name = r._ref.strip_prefix("refs/heads/").unwrap();
+    for r in &refs {
+        let ref_str = &r._ref;
         let remote = Some(remote_config.name.as_str());
-        Branch::update_branch(branch_name, &r._hash, remote).await;
+        if let Some(branch_name) = ref_str.strip_prefix("refs/heads/") {
+            Branch::update_branch(branch_name, &r._hash, remote).await;
+        } else if let Some(mr_name) = ref_str.strip_prefix("refs/mr/") {
+            let branch_name = format!("mr/{}", mr_name);
+            Branch::update_branch(&branch_name, &r._hash, remote).await;
+        } else {
+            tracing::warn!("Unsupported ref type: {}", ref_str);
+        }
     }
     match remote_head {
         Some(remote_head) => {
