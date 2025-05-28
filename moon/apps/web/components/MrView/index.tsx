@@ -1,12 +1,14 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { List, PaginationProps, Tag, Tabs, TabsProps } from 'antd';
 import { formatDistance, fromUnixTime } from 'date-fns';
-// import { MergeOutlined, PullRequestOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { ChevronSelectIcon,AlarmIcon,ClockIcon} from '@gitmono/ui/Icons'
 import { Link } from '@gitmono/ui/Link'
 import { Heading } from './catalyst/heading';
+import { usePostMrList } from '@/hooks/usePostMrList';
+import { apiErrorToast } from '@/utils/apiErrorToast'
+import { useScope } from '@/contexts/scope'
 
 interface MrInfoItem {
     link: string,
@@ -22,63 +24,81 @@ export default function MrView() {
     const [numTotal, setNumTotal] = useState(0);
     const [pageSize] = useState(10);
     const [status, setStatus] = useState('open')
+    const [page, setPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const { scope } = useScope()
+    const { mutate: fetchMrList } = usePostMrList();
 
-    const fetchData = useCallback(async (page: number, per_page: number) => {
-        try {
-            const res = await fetch(`/api/mr/list`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+    const loadMrList = useCallback(() => {
+        setIsLoading(true);
+        fetchMrList(
+            {
+            data: {
+                pagination: {
+                page,
+                per_page: pageSize
                 },
-                body: JSON.stringify({
-                    pagination: {
-                        page: page,
-                        per_page: per_page
-                    },
-                    additional: {
-                        status: status
-                    }
-                }),
-            });
-            const response = await res.json();
-            const data = response.data.data;
+                additional: {
+                status
+                }
+            }
+            },
+            {
+            onSuccess: (response) => {
+                const data = response.data;
 
-            setMrList(data.items);
-            setNumTotal(data.total)
-        } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error('Error fetching data:', error);
-        }
-    }, [status]);
+                setMrList(
+                data?.items?.map(item => ({
+                    ...item,
+                    merge_timestamp: item.merge_timestamp ?? null
+                })) ?? []
+                );
+                setNumTotal(data?.total ?? 0);
+            },
+            onError: apiErrorToast,
+            onSettled: () => setIsLoading(false)
+            }
+        );
+    }, [page, pageSize, status, fetchMrList]);
 
     useEffect(() => {
-        fetchData(1, pageSize);
-    }, [pageSize, status, fetchData]);
+      loadMrList();
+    }, [loadMrList]);
 
     const getStatusTag = (status: string) => {
-        switch (status) {
+        const normalizedStatus = status.toLowerCase();
+
+        switch (normalizedStatus) {
             case 'open':
                 return <Tag color="success">open</Tag>;
             case 'merged':
                 return <Tag color="purple">merged</Tag>;
             case 'closed':
                 return <Tag color="error">closed</Tag>;
+            default:
+                 return null;
         }
     };
 
     const getStatusIcon = (status: string) => {
-        switch (status) {
+        const normalizedStatus = status.toLowerCase();
+
+        switch (normalizedStatus) {
             case 'open':
                 return <ChevronSelectIcon />;
             case 'closed':
                 return <AlarmIcon />;
             case 'merged':
                 return <ClockIcon />;
+            default:
+                 return null;
         }
     };
 
     const getDescription = (item: MrInfoItem) => {
-        switch (item.status) {
+        const normalizedStatus = item.status.toLowerCase();
+
+        switch (normalizedStatus) {
             case 'open':
                 return `MergeRequest opened by Admin ${formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })} `;
             case 'merged':
@@ -88,12 +108,14 @@ export default function MrView() {
                     return "";
                 }
             case 'closed':
-                return (`MR ${item.link} closed by Admin ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}`)
+                return (`MR ${item.link} closed by Admin ${formatDistance(fromUnixTime(item.updated_at), new Date(), { addSuffix: true })}`);
+            default:
+                 return null;
         }
     }
 
-    const onChange: PaginationProps['onChange'] = (current, pageSize) => {
-        fetchData(current, pageSize);
+    const onChange: PaginationProps['onChange'] = (current) => {
+        setPage(current);
     };
 
     const tabsChange = (activeKey: string) => {
@@ -104,7 +126,7 @@ export default function MrView() {
         }
     }
 
-    const tab_items: TabsProps['items'] = [
+    const tab_items = useMemo(() =>  [
         {
             key: '1',
             label: 'Open',
@@ -113,9 +135,7 @@ export default function MrView() {
             key: '2',
             label: 'Closed',
         }
-    ];
-
-    <AlarmIcon />
+    ], []) as TabsProps['items'];
 
     return (
         <div className="m-4">
@@ -127,13 +147,23 @@ export default function MrView() {
                 className="w-full mt-2"
                 pagination={{ align: "center", pageSize: pageSize, total: numTotal, onChange: onChange }}
                 dataSource={mrList}
+                loading={isLoading}
                 renderItem={(item) => (
                     <List.Item>
                         <List.Item.Meta
                             avatar={
                                 getStatusIcon(item.status)
                             }
-                            title={<Link href={`/mr/${item.link}`}>{`${item.title}`} {getStatusTag(item.status)}</Link>}
+                            title={
+                                <Link href={{
+                                pathname: `/${scope}/mr/${item.link}`,
+                                query: {
+                                    title: item.title,
+                                }
+                                }}>
+                                {`${item.title}`} {getStatusTag(item.status)}
+                                </Link>
+                            }
                             description={getDescription(item)}
                         />
                     </List.Item>

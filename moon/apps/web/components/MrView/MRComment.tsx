@@ -4,18 +4,24 @@ import type { MenuProps } from 'antd';
 import { NotePlusIcon} from '@gitmono/ui/Icons'
 import { formatDistance, fromUnixTime } from 'date-fns';
 import LexicalContent from './rich-editor/LexicalContent';
+import { useDeleteMrCommentDelete } from '@/hooks/useDeleteMrCommentDelete';
+import { Conversation } from '@/pages/[org]/mr/[id]';
 
-const Comment = ({ conv, fetchDetail }:any) => {
+interface CommentProps {
+  conv: Conversation  
+  id: string
+}
 
-    const delete_comment = async () => {
-        await fetch(`/api/mr/comment/${conv.id}/delete`, {
-            method: 'POST',
-        });
-    };
+const Comment = ({ conv, id }: CommentProps) => {
+
+  const { mutate: deleteComment } = useDeleteMrCommentDelete(id)
+  const handleDelete = () => {
+    deleteComment(conv.id)
+  }
+
     const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
         if (key === '3') {
-            delete_comment()
-            fetchDetail()
+            handleDelete()
         }
     };
 
