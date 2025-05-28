@@ -57,22 +57,26 @@ const CodeTable = ({ directory, readmeContent}:any) => {
     ], []);
     
     const handleRowClick = (record: DataType) => {
-        if (record.content_type === "file") {
-            const newPath = `/blob/${real_path}/${record.name}`;
+    const normalizedPath = real_path?.replace(/^\/|\/$/g, '');
+    const pathParts = normalizedPath?.split('/') || [];
+  
+    if (record.content_type === "file") {
+      const newPath = `/blob/${normalizedPath}/${encodeURIComponent(record.name)}`;
 
-            router.push(newPath);
-        } else {
-            var newPath = '';
-
-            if (real_path === '/') {
-                newPath = `/tree/${record.name}`;
-            } else {
-                newPath = `/tree/${real_path}/${record.name}`;
-            }
-            router.push(
-                newPath,
-            );
-        }
+      router.push(newPath);
+    } else {
+      let newPath: string;
+      
+      const hasTree = pathParts?.includes('tree');
+      
+      if (!hasTree && pathParts.length >= 2) {
+        pathParts?.splice(2, 0, 'tree'); 
+      }
+      pathParts?.push(encodeURIComponent(record.name));
+      
+      newPath = `/${pathParts?.join('/')}`;
+      router.push(newPath);
+    }
     }
 
     return (
