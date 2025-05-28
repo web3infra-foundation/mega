@@ -128,7 +128,7 @@ runs:
           ./monobean/target
 
     - name: Cache dependencies
-      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }} && inputs.self-hosted = 'false'
+      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }} && inputs.self-hosted == 'false'
       uses: actions/cache/save@v4
       with:
         path: |
