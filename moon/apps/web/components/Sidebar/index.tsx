@@ -38,7 +38,7 @@ import { useShowOrgSwitcherSidebar } from '@/hooks/useShowOrgSwitcherSidebar'
 import { RecentlyViewedPopover } from './RecentlyViewed/RecentlyViewedPopover'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarInbox } from './SidebarInbox'
-import { SidebarTest } from './SidebarTest'
+import { SidebarCode } from './SidebarCode'
 import { SiderbarMergeRequest } from './SiderbarMergeRequest'
 
 export function SidebarContainer() {
@@ -165,7 +165,7 @@ function SidebarContent() {
           <SidebarInbox />
           <SidebarMyWorkItems />
           <SidebarDrafts />
-          <SidebarTest />
+          <SidebarCode />
           <SiderbarMergeRequest />
         </SidebarGroup>
 
