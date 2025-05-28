@@ -1,38 +1,47 @@
 use axum::{
     extract::{Path, State},
-    routing::{get, post},
     Json,
 };
-use bytes::Bytes;
 use serde::Deserialize;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa::ToSchema;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use common::model::{CommonPage, CommonResult, PageParams};
 
-use crate::api::error::ApiError;
 use crate::api::issue::{IssueDetail, IssueItem, NewIssue};
-use crate::api::oauth::model::LoginUser;
+use crate::api::mr::SaveCommentRequest;
 use crate::api::MonoApiServiceState;
+use crate::{api::error::ApiError, server::https_server::ISSUE_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
         "/issue",
         OpenApiRouter::new()
-            .route("/list", post(fetch_issue_list))
-            .route("/new", post(new_issue))
-            .route("/{link}/close", post(close_issue))
-            .route("/{link}/reopen", post(reopen_issue))
-            .route("/{link}/detail", get(issue_detail))
-            .route("/{link}/comment", post(save_comment))
-            .route("/comment/{id}/delete", post(delete_comment)),
+            .routes(routes!(fetch_issue_list))
+            .routes(routes!(new_issue))
+            .routes(routes!(close_issue))
+            .routes(routes!(reopen_issue))
+            .routes(routes!(issue_detail))
+            .routes(routes!(save_comment))
+            .routes(routes!(delete_comment)),
     )
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct StatusParams {
     pub status: String,
 }
 
+/// Fetch Issue list
+#[utoipa::path(
+    post,
+    path = "/list",
+    request_body = PageParams<StatusParams>,
+    responses(
+        (status = 200, body = CommonResult<CommonPage<IssueItem>>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
 async fn fetch_issue_list(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<StatusParams>>,
@@ -52,6 +61,18 @@ async fn fetch_issue_list(
     Ok(Json(res))
 }
 
+/// Get issue details
+#[utoipa::path(
+    get,
+    params(
+        ("link", description = "Issue link"),
+    ),
+    path = "/{link}/detail",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
 async fn issue_detail(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
@@ -72,15 +93,25 @@ async fn issue_detail(
     Ok(Json(res))
 }
 
+/// New Issue
+#[utoipa::path(
+    post,
+    path = "/new",
+    request_body = NewIssue,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
 async fn new_issue(
-    user: LoginUser,
+    // user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let stg = state.issue_stg().clone();
-    let res = stg.save_issue(user.user_id, &json.title).await.unwrap();
+    let res = stg.save_issue(0, &json.title).await.unwrap();
     let res = stg
-        .add_issue_conversation(&res.link, user.user_id, Some(json.description))
+        .add_issue_conversation(&res.link, 0, Some(json.description))
         .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
@@ -89,8 +120,20 @@ async fn new_issue(
     Ok(Json(res))
 }
 
+/// Close an issue
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "Issue link"),
+    ),
+    path = "/{link}/close",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
 async fn close_issue(
-    _: LoginUser,
+    // _: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
@@ -101,8 +144,20 @@ async fn close_issue(
     Ok(Json(res))
 }
 
+/// Reopen an issue
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "Issue link"),
+    ),
+    path = "/{link}/reopen",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
 async fn reopen_issue(
-    _: LoginUser,
+    // _: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
@@ -113,17 +168,28 @@ async fn reopen_issue(
     Ok(Json(res))
 }
 
+/// Add new comment on Issue
+#[utoipa::path(
+    post,
+    params(
+        ("link", description = "Issue link"),
+    ),
+    path = "/{link}/comment",
+    request_body = SaveCommentRequest,
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
 async fn save_comment(
-    user: LoginUser,
+    // user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
-    body: Bytes,
+    Json(payload): Json<SaveCommentRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let json_string =
-        String::from_utf8(body.to_vec()).unwrap_or_else(|_| "Invalid UTF-8".to_string());
     let res = match state
         .issue_stg()
-        .add_issue_conversation(&link, user.user_id, Some(json_string))
+        .add_issue_conversation(&link, 0, Some(payload.content))
         .await
     {
         Ok(_) => CommonResult::success(None),
@@ -132,6 +198,18 @@ async fn save_comment(
     Ok(Json(res))
 }
 
+/// Delete Issue Comment
+#[utoipa::path(
+    delete,
+    params(
+        ("id", description = "Conversation id"),
+    ),
+    path = "/comment/{id}/delete",
+    responses(
+        (status = 200, body = CommonResult<String>, content_type = "application/json")
+    ),
+    tag = ISSUE_TAG
+)]
 async fn delete_comment(
     Path(id): Path<i64>,
     state: State<MonoApiServiceState>,
