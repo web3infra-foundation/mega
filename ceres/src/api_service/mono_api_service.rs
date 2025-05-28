@@ -308,7 +308,7 @@ impl MonoApiService {
         Ok(p_commit_id)
     }
 
-    pub async fn content_diff(&self, mr_link: &str) -> Result<String, GitError> {
+    pub async fn content_diff(&self, mr_link: &str, listen_addr: &str) -> Result<String, GitError> {
         let stg = self.context.mr_stg();
         if let Some(mr) = stg.get_mr(mr_link).await.unwrap() {
             let base_path = self.context.config.base_dir.clone();
@@ -330,32 +330,36 @@ impl MonoApiService {
                     .await
                     .expect("Failed to execute libra init");
                 // libra remote add origin http://localhost:8000/project
-                // TODO remove hard-code here
+                let git_remote = if mr.path.starts_with("/") {
+                    format!("{}{}", listen_addr, mr.path)
+                } else {
+                    format!("{}/{}", listen_addr, mr.path)
+                };
                 Command::new("libra")
                     .arg("remote")
                     .arg("add")
                     .arg("origin")
-                    .arg(format!("http://localhost:8000{}", mr.path))
+                    .arg(git_remote)
                     .output()
                     .await
                     .expect("Failed to execute libra remote add");
-                // libra fetch origin QB0X1X1K
+                // libra fetch origin refs/mr/PC0EPG1L
                 Command::new("libra")
                     .arg("fetch")
                     .arg("origin")
-                    .arg(mr_link)
+                    .arg(format!("refs/mr/{}", mr_link))
                     .output()
                     .await
                     .expect("Failed to execute libra fetch");
-                // libra branch QB0X1X1K origin/QB0X1X1K
+                // libra branch PC0EPG1L origin/mr/PC0EPG1L
                 Command::new("libra")
                     .arg("branch")
                     .arg(mr_link)
-                    .arg(format!("origin/{}", mr_link))
+                    .arg(format!("origin/mr/{}", mr_link))
                     .output()
                     .await
                     .expect("Failed to execute libra branch");
-                // libra switch QB0X1X1K
+                // libra switch PC0EPG1L
                 Command::new("libra")
                     .arg("switch")
                     .arg(mr_link)
