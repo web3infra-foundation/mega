@@ -76,7 +76,7 @@ jobs:
             runs-on: [self-hosted, Linux, X64]
             home: /home/github
           - os: macos
-            runs-on: [self-hosted, macOS, X64, neon]
+            runs-on: [self-hosted, macOS, X64]
             home: /Users/neon
     runs-on: ${{ matrix.runs-on }}
     env:
@@ -120,7 +120,7 @@ jobs:
             runs-on: [self-hosted, Linux, X64]
             self-hosted: true
           - os: macos
-            runs-on: [self-hosted, macOS, X64, neon]
+            runs-on: [self-hosted, macOS, X64]
             self-hosted: true
           - os: windows
             runs-on: windows-latest
