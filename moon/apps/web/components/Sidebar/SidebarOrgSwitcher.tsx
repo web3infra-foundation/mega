@@ -1,13 +1,12 @@
 import { useRef, useState } from 'react'
-import { Reorder } from 'framer-motion'
-import { useAtomValue } from 'jotai'
-import { useRouter } from 'next/router'
-import { isMacOs } from 'react-device-detect'
-
 import { PublicOrganization } from '@gitmono/types'
 import { Avatar, LayeredHotkeys, Link, PlusIcon, Tooltip } from '@gitmono/ui'
 import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
 import { cn } from '@gitmono/ui/src/utils'
+import { Reorder } from 'framer-motion'
+import { useAtomValue } from 'jotai'
+import { useRouter } from 'next/router'
+import { isMacOs } from 'react-device-detect'
 
 import { OrganizationSwitchHoverCard } from '@/components/InboxItems/OrganizationSwitchHoverCard'
 import { sidebarCollapsedAtom } from '@/components/Layout/AppLayout'
@@ -48,28 +47,30 @@ export function SidebarOrgSwitcher() {
           onReorder={onReorder}
           className='flex flex-col gap-3'
         >
-          {memberships?.map(({ id, organization }, index) => (
-            <Reorder.Item
-              key={id}
-              value={id}
-              id={id}
-              drag={!collapsed}
-              layout='position'
-              dragConstraints={containerRef}
-              dragElastic={0.065}
-              onDragStart={() => setDraggingId(id)}
-              onDragEnd={() => {
-                setDraggingId(undefined)
-                reorder.mutate(organizationMembershipIds)
-              }}
-              className={cn('group/reorder-item relative', {
-                'opacity-60': draggingId === id,
-                'pointer-events-none': !!draggingId
-              })}
-            >
-              <OrgSidebarItem organization={organization} index={index} isDragging={draggingId === id} />
-            </Reorder.Item>
-          ))}
+          {memberships
+            ?.filter((m) => m.organization !== null)
+            ?.map(({ id, organization }, index) => (
+              <Reorder.Item
+                key={id}
+                value={id}
+                id={id}
+                drag={!collapsed}
+                layout='position'
+                dragConstraints={containerRef}
+                dragElastic={0.065}
+                onDragStart={() => setDraggingId(id)}
+                onDragEnd={() => {
+                  setDraggingId(undefined)
+                  reorder.mutate(organizationMembershipIds)
+                }}
+                className={cn('group/reorder-item relative', {
+                  'opacity-60': draggingId === id,
+                  'pointer-events-none': !!draggingId
+                })}
+              >
+                <OrgSidebarItem organization={organization} index={index} isDragging={draggingId === id} />
+              </Reorder.Item>
+            ))}
           <Tooltip label='New organization' side='right'>
             <span>
               <Link
