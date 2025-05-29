@@ -260,4 +260,6 @@ catalog:
   '@lexical/utils': ^0.31.2
   lexical: ^0.31.2
   clsx: ^2.1.1
+  copy-to-clipboard: ^3.3.3
+  '@ant-design/icons': ^6.0.0
    

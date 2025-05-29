@@ -4,16 +4,16 @@ import { SidebarLink } from './SidebarLink'
 import { useScope } from '@/contexts/scope'
 import { ComponentIcon } from '@gitmono/ui/Icons'
 
-export function SidebarTest() {
+export function SidebarCode() {
   const { scope } = useScope()
   
   return (
    <>
      <SidebarLink
-        id='test'
-        label='Test'
-        href={`/${scope}/test`}
-        active={router.pathname === '/[org]/test'}
+        id='code'
+        label='Code'
+        href={`/${scope}/code`}
+        active={router.pathname === '/[org]/code'}
         leadingAccessory={<ComponentIcon />}
       />
    </>

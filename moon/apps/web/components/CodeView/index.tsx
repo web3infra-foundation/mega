@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo';
 import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated';
 
-export default function TestView() {
+export default function CodeView() {
   const { data:TreeCommitInfo } = useGetTreeCommitInfo('/')
 
   type DirectoryType = NonNullable<CommonResultVecTreeCommitItem['data']>;
