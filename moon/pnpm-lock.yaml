@@ -700,9 +700,27 @@ importers:
       '@hookform/resolvers':
         specifier: 'catalog:'
         version: 3.3.1(react-hook-form@7.46.1(react@18.2.0))
+      '@lexical/code':
+        specifier: ^0.31.2
+        version: 0.31.2
+      '@lexical/link':
+        specifier: ^0.31.2
+        version: 0.31.2
+      '@lexical/list':
+        specifier: ^0.31.2
+        version: 0.31.2
+      '@lexical/markdown':
+        specifier: ^0.31.2
+        version: 0.31.2
       '@lexical/react':
         specifier: 'catalog:'
         version: 0.31.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(yjs@13.6.8)
+      '@lexical/rich-text':
+        specifier: ^0.31.2
+        version: 0.31.2
+      '@lexical/table':
+        specifier: ^0.31.2
+        version: 0.31.2
       '@lexical/utils':
         specifier: 'catalog:'
         version: 0.31.2
@@ -907,6 +925,9 @@ importers:
       pluralize:
         specifier: 'catalog:'
         version: 8.0.0
+      prism-react-renderer:
+        specifier: ^2.4.1
+        version: 2.4.1(react@18.2.0)
       pusher-js:
         specifier: 'catalog:'
         version: 8.3.0
@@ -9442,6 +9463,11 @@ packages:
   pretty-hrtime@1.0.3:
     resolution: {integrity: sha512-66hKPCr+72mlfiSjlEB1+45IjXSqvVAIy6mocupoww4tBFE9R9IhwwUGoI4G++Tc9Aq+2rxOt0RFU6gPcrte0A==}
     engines: {node: '>= 0.8'}
+
+  prism-react-renderer@2.4.1:
+    resolution: {integrity: sha512-ey8Ls/+Di31eqzUxC46h8MksNuGx/n0AAC8uKpwFau4RPDYLuE3EXTp8N8G2vX2N7UC/+IXeNUnlWBGGcAG+Ig==}
+    peerDependencies:
+      react: '>=16.0.0'
 
   prismjs@1.30.0:
     resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==}
@@ -21821,6 +21847,12 @@ snapshots:
       react-is: 18.2.0
 
   pretty-hrtime@1.0.3: {}
+
+  prism-react-renderer@2.4.1(react@18.2.0):
+    dependencies:
+      '@types/prismjs': 1.26.3
+      clsx: 2.1.1
+      react: 18.2.0
 
   prismjs@1.30.0: {}
 
