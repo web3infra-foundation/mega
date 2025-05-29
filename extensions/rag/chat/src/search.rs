@@ -1,11 +1,12 @@
+use crate::{vectorization, GENERATION_NODE};
 use async_trait::async_trait;
 use dagrs::{Action, Content, EnvVar, InChannels, OutChannels, Output};
+use log::debug;
 use qdrant_client::qdrant::SearchPointsBuilder;
 use qdrant_client::Qdrant;
 use std::sync::Arc;
+use tokio::io::{self, AsyncBufReadExt};
 use vectorization::VectClient;
-
-use crate::{vectorization, GENERATION_NODE};
 
 pub struct SearchNode {
     client: Qdrant,
@@ -14,14 +15,18 @@ pub struct SearchNode {
 }
 
 impl SearchNode {
-    pub fn new(vect_url: &str, qdrant_url: &str, collection_name: &str) -> Self {
-        let client = Qdrant::from_url(qdrant_url).build().unwrap();
+    pub fn new(
+        vect_url: &str,
+        qdrant_url: &str,
+        collection_name: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let client = Qdrant::from_url(qdrant_url).build()?;
         let vect_client = VectClient::new(vect_url);
-        Self {
+        Ok(Self {
             client,
             vect_client,
             collection_name: collection_name.to_string(),
-        }
+        })
     }
 
     pub async fn search(
@@ -47,7 +52,7 @@ impl SearchNode {
                 .with_payload(true), // Key: Payload must be explicitly requested
             )
             .await?;
-        println!("search_result: {:?}", search_result);
+        debug!("search_result: {:?}", search_result);
         // Convert the result to content and item_type
         if let Some(point) = search_result.result.into_iter().next() {
             let payload = point.payload;
@@ -79,10 +84,12 @@ impl Action for SearchNode {
         // Get query from user input
         let mut input = String::new();
         println!("\nPlease enter the query content:");
-        if let Err(e) = std::io::stdin().read_line(&mut input) {
-            eprintln!("Failed to read input: {}", e);
+        let mut stdin = io::BufReader::new(io::stdin());
+        if let Err(e) = stdin.read_line(&mut input).await {
+            log::error!("Failed to read input: {}", e);
             return Output::empty();
         }
+        input = input.trim().to_string();
         println!("input: {}", input);
         let out_node_id = env.get_ref(GENERATION_NODE).unwrap();
         // Execute search

@@ -12,3 +12,5 @@ pub const VECT_CLIENT_NODE: &str = "vect_client";
 pub const QDRANT_NODE: &str = "qdrant";
 pub const SEARCH_NODE: &str = "search";
 pub const GENERATION_NODE: &str = "generation";
+
+pub const RAG_OUTPUT: &str = "output.json";

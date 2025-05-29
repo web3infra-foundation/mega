@@ -4,7 +4,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use std::{fs::File, sync::Arc};
 
-use crate::SEARCH_NODE;
+use crate::{RAG_OUTPUT, SEARCH_NODE};
 
 use serde::de::Error;
 use thiserror::Error;
@@ -54,7 +54,7 @@ impl GenerationNode {
         let body: Value = response.json().await.map_err(GenError::Http)?;
 
         // Write JSON to a file
-        let file_path = "output.json"; // Replace with the path where you want to save the file
+        let file_path = RAG_OUTPUT; // Replace with the path where you want to save the file
 
         let file = match File::create(file_path) {
             Ok(f) => f,
@@ -81,7 +81,6 @@ impl GenerationNode {
                 )));
             }
         };
-        println!("{}", message);
         Ok(message.to_string())
     }
 }
@@ -102,8 +101,11 @@ impl Action for GenerationNode {
         {
             log::info!("Received content for generation");
             let context: &String = content.get().unwrap();
-            let _ = self.generate(context).await;
-            //self.generate(context).await;
+            let message = self.generate(context).await;
+            match message {
+                Ok(msg) => println!("{}", msg),
+                Err(e) => eprintln!("Generation error: {}", e),
+            }
         }
 
         log::info!("GenerationNode finished processing");
