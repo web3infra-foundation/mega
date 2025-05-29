@@ -26,9 +26,3 @@
 .viewChangeTabButton:checked {
     background-color: rgba(0, 0, 0, 0.121);
 }
-
-.fileCodeContainer {
-    border-radius: 0.5rem;
-    margin-top: 10px;
-
-}

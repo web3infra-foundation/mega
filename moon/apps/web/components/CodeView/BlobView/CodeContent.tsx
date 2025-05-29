@@ -9,8 +9,8 @@ import { createRoot } from 'react-dom/client'
 import styles from './CodeContent.module.css'
 
 // @ts-ignore
-const CodeContent = ({ fileContent }: string) => {
-  const [showEditor, setShowEditor] = useState(false)
+const CodeContent = ({ fileContent }) => {
+  const [__showEditor, setShowEditor] = useState(false)
   const [lfs, setLfs] = useState(false)
 
   useEffect(() => {
@@ -22,27 +22,29 @@ const CodeContent = ({ fileContent }: string) => {
   const lineRef = useRef<HTMLDivElement[]>([])
   // @ts-ignore
   const handleLineNumberClick = (lineIndex) => {
-    setShowEditor(!showEditor)
-    const codeLineNumber = lineRef.current[lineIndex]
+    setShowEditor(prev => {
+      const newShowEditor = !prev
+      const codeLineNumber = lineRef.current[lineIndex]
 
-    if (showEditor) {
-      const editorContainer = document.createElement('div')
+      if (newShowEditor) {
+        const editorContainer = document.createElement('div')
 
-      editorContainer.className = 'editor-container'
+        editorContainer.className = 'editor-container'
+        const root = createRoot(editorContainer)
 
-      const root = createRoot(editorContainer)
+        root.render(<Editor />)
+        if (codeLineNumber && codeLineNumber.parentNode) {
+          codeLineNumber.parentNode.insertBefore(editorContainer, codeLineNumber.nextSibling)
+        }
+      } else {
+        const editorContainer = document.querySelector('.editor-container')
 
-      root.render(<Editor />)
-      if (codeLineNumber && codeLineNumber.parentNode) {
-        codeLineNumber.parentNode.insertBefore(editorContainer, codeLineNumber.nextSibling)
+        if (editorContainer && editorContainer.parentNode) {
+          editorContainer.parentNode.removeChild(editorContainer)
+        }
       }
-    } else {
-      const editorContainer = document.querySelector('.editor-container')
-
-      if (editorContainer && editorContainer.parentNode) {
-        editorContainer.parentNode.removeChild(editorContainer)
-      }
-    }
+      return newShowEditor
+    })
   }
 
   function isLfsContent(content: string): boolean {
@@ -86,8 +88,10 @@ const CodeContent = ({ fileContent }: string) => {
             {!lfs &&
               tokens.map((line, i) => (
                 <div
+                  /* eslint-disable-next-line react/no-array-index-key */
                   key={i}
                   {...getLineProps({ line })}
+                  // @ts-ignore
                   ref={(el) => lineRef.current[i] = el as HTMLDivElement}
                 >
                   <button
@@ -108,6 +112,7 @@ const CodeContent = ({ fileContent }: string) => {
                   </button>
                   <span className={styles.codeLineNumber}>{i + 1}</span>
                   {line.map((token, key) => (
+                    // eslint-disable-next-line react/no-array-index-key
                     <span key={key} {...getTokenProps({ token })} />
                   ))}
                 </div>
@@ -120,4 +125,4 @@ const CodeContent = ({ fileContent }: string) => {
   )
 }
 
-export default CodeContent
+export default CodeContent;
