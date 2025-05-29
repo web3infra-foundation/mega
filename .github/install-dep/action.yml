@@ -42,8 +42,9 @@ runs:
       shell: bash
       run: |
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        echo "deb http://gb.archive.ubuntu.com/ubuntu noble main" | sudo tee -a /etc/apt/sources.list
-        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6B05F25D762E3157
+        UBUNTU_CODENAME=$(grep VERSION_CODENAME /etc/os-release | cut -d= -f2)
+        echo "deb http://gb.archive.ubuntu.com/ubuntu $UBUNTU_CODENAME main" | sudo tee -a /etc/apt/sources.list
+        curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x6B05F25D762E3157 | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/ubuntu-archive-keyring.gpg > /dev/null
         sudo apt update
         sudo apt install -y \
           rustup \
