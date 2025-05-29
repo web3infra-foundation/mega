@@ -42,8 +42,6 @@ runs:
       shell: bash
       run: |
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        UBUNTU_CODENAME=$(grep VERSION_CODENAME /etc/os-release | cut -d= -f2)
-        echo "deb http://gb.archive.ubuntu.com/ubuntu $UBUNTU_CODENAME main" | sudo tee -a /etc/apt/sources.list
 
         sudo apt update
         sudo apt install -y \
@@ -88,6 +86,7 @@ runs:
         choco config set cacheLocation ./.choco-cache
         choco install --no-progress git-lfs pkgconfiglite ninja nasm
         pip install requests tqdm
+        rustup update
 
     # Required by monobean, performing this step would take about 5s.
     # Won't caching it, for compression and decompression are MUCH slower than downloading it directly.
@@ -117,16 +116,10 @@ runs:
     # =============== Post Process ===============
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
+      if: ${{ ! contains(inputs.platform, 'windows') }}
       with:
         components: clippy rustfmt
-        cache-workspaces: |
-          ./
-          ./scorpio
-          ./monobean
-        cache-directories: |
-          ./target
-          ./scorpio/target
-          ./monobean/target
+        cache: false
 
     - name: Cache dependencies
       if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }} && inputs.self-hosted == 'false'

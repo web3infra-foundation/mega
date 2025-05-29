@@ -63,7 +63,7 @@ jobs:
       - name: Run cargo clippy
         run: |
           cargo build --bin mega --bin libra
-          cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
+          cargo clippy --all-targets --all-features --no-deps -- -D warnings
 
   #
   test:
@@ -77,14 +77,15 @@ jobs:
             home: /home/github
           - os: macos
             runs-on: [self-hosted, macOS, ARM64]
-            home: ""
+            home: "/Users/eli"
           - os: windows
             runs-on: [self-hosted, X64, Windows]
-            home: ""
+            home: "C:\\Users\\meagl"
 
     runs-on: ${{ matrix.runs-on }}
     env:
       CARGO_TERM_COLOR: always
+      HOME: ${{ matrix.home }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -98,20 +99,20 @@ jobs:
           cache-key: sysdeps
           platform: ${{ matrix.os }}
           self-hosted: true
+          use-gtk: false
 
       - name: Set up git lfs
         run: |
-          echo "GPG_TTY=`tty`" >> $GITHUB_ENV
-          export HOME=${{ matrix.home }}
+          echo "GPG_TTY=${{ matrix.os == 'windows' && 'CON' || '$(tty)' }}" >> $GITHUB_ENV
           git lfs install
-          git config --global user.email "mega@github.com"
-          git config --global user.name "Mega"
-          git config --global lfs.url http://localhost:8000
+          git config user.email "mega@github.com"
+          git config user.name "Mega"
+          git config lfs.url http://localhost:8000
 
       - name: Run cargo test
         run: |
           cargo build --bin mega --bin libra
-          cargo test --workspace --all-features --no-fail-fast
+          cargo test --all-targets --no-fail-fast
 
   #
   monobean:
@@ -123,16 +124,20 @@ jobs:
           - os: ubuntu
             runs-on: [self-hosted, Linux, X64]
             self-hosted: true
+            home: /home/github
           - os: macos
             runs-on: [self-hosted, macOS, ARM64]
             self-hosted: true
+            home: "/Users/eli"
           - os: windows
             runs-on: [self-hosted, X64, Windows]
             self-hosted: true
+            home: "C:\\Users\\meagl"
 
     runs-on: ${{ matrix.runs-on }}
     env:
       CARGO_TERM_COLOR: always
+      HOME: ${{ matrix.home }}
 
     steps:
       - name: Checkout repository
