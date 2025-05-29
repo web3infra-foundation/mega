@@ -44,7 +44,7 @@ runs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         UBUNTU_CODENAME=$(grep VERSION_CODENAME /etc/os-release | cut -d= -f2)
         echo "deb http://gb.archive.ubuntu.com/ubuntu $UBUNTU_CODENAME main" | sudo tee -a /etc/apt/sources.list
-        curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x6B05F25D762E3157 | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/ubuntu-archive-keyring.gpg > /dev/null
+
         sudo apt update
         sudo apt install -y \
           rustup \
@@ -83,7 +83,7 @@ runs:
     # OpenSSL, cmake and some other build tools have been embedded into the windows-latest image.
     - name: Install dependencies (Windows)
       if: contains(inputs.platform, 'windows')
-      shell: pwsh
+      shell: powershell
       run: |
         choco config set cacheLocation ./.choco-cache
         choco install --no-progress git-lfs pkgconfiglite ninja nasm
@@ -93,12 +93,12 @@ runs:
     # Won't caching it, for compression and decompression are MUCH slower than downloading it directly.
     - name: Load GTK and libadwaita
       if: contains(inputs.platform, 'windows') && inputs.use-gtk == 'true'
-      shell: pwsh
+      shell: powershell
       run: python ./monobean/setup.py
 
     - name: Manually set env vars and export
       if: contains(inputs.platform, 'windows')
-      shell: pwsh
+      shell: powershell
       run: |
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"

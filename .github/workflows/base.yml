@@ -76,8 +76,12 @@ jobs:
             runs-on: [self-hosted, Linux, X64]
             home: /home/github
           - os: macos
-            runs-on: [self-hosted, macOS, X64]
-            home: /Users/neon
+            runs-on: [self-hosted, macOS, ARM64]
+            home: ""
+          - os: windows
+            runs-on: [self-hosted, X64, Windows]
+            home: ""
+
     runs-on: ${{ matrix.runs-on }}
     env:
       CARGO_TERM_COLOR: always
@@ -120,11 +124,11 @@ jobs:
             runs-on: [self-hosted, Linux, X64]
             self-hosted: true
           - os: macos
-            runs-on: [self-hosted, macOS, X64]
+            runs-on: [self-hosted, macOS, ARM64]
             self-hosted: true
           - os: windows
-            runs-on: windows-latest
-            self-hosted: false
+            runs-on: [self-hosted, X64, Windows]
+            self-hosted: true
 
     runs-on: ${{ matrix.runs-on }}
     env:
