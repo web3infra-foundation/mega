@@ -83,9 +83,11 @@ function FloatingLinkEditor({ editor }) {
 
     const updateLinkEditor = useCallback(() => {
         const selection = $getSelection();
+
         if ($isRangeSelection(selection)) {
             const node = getSelectedNode(selection);
             const parent = node.getParent();
+
             if ($isLinkNode(parent)) {
                 setLinkUrl(parent.getURL());
             } else if ($isLinkNode(node)) {
@@ -103,6 +105,7 @@ function FloatingLinkEditor({ editor }) {
         }
 
         const rootElement = editor.getRootElement();
+
         if (
             selection !== null &&
             !nativeSelection.isCollapsed &&
@@ -110,9 +113,12 @@ function FloatingLinkEditor({ editor }) {
             rootElement.contains(nativeSelection.anchorNode)
         ) {
             const domRange = nativeSelection.getRangeAt(0);
+
             let rect;
+
             if (nativeSelection.anchorNode === rootElement) {
                 let inner = rootElement;
+
                 while (inner.firstElementChild != null) {
                     inner = inner.firstElementChild;
                 }
@@ -231,10 +237,12 @@ function getSelectedNode(selection) {
     const focus = selection.focus;
     const anchorNode = selection.anchor.getNode();
     const focusNode = selection.focus.getNode();
+
     if (anchorNode === focusNode) {
         return anchorNode;
     }
     const isBackward = selection.isBackward();
+
     if (isBackward) {
         return $isAtNodeEnd(focus) ? anchorNode : focusNode;
     } else {
@@ -256,6 +264,7 @@ function BlockOptionsDropdownList({
 
         if (toolbar !== null && dropDown !== null) {
             const { top, left } = toolbar.getBoundingClientRect();
+
             dropDown.style.top = `${top + 40}px`;
             dropDown.style.left = `${left}px`;
         }
@@ -273,6 +282,7 @@ function BlockOptionsDropdownList({
                     setShowBlockOptionsDropDown(false);
                 }
             };
+
             document.addEventListener("click", handle);
 
             return () => {
@@ -423,6 +433,7 @@ export default function ToolbarPlugin() {
 
     const updateToolbar = useCallback(() => {
         const selection = $getSelection();
+
         if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
             const element =
@@ -431,16 +442,19 @@ export default function ToolbarPlugin() {
                     : anchorNode.getTopLevelElementOrThrow();
             const elementKey = element.getKey();
             const elementDOM = editor.getElementByKey(elementKey);
+
             if (elementDOM !== null) {
                 setSelectedElementKey(elementKey);
                 if ($isListNode(element)) {
                     const parentList = $getNearestNodeOfType(anchorNode, ListNode);
                     const type = parentList ? parentList.getTag() : element.getTag();
+
                     setBlockType(type);
                 } else {
                     const type = $isHeadingNode(element)
                         ? element.getTag()
                         : element.getType();
+
                     setBlockType(type);
                     if ($isCodeNode(element)) {
                         setCodeLanguage(element.getLanguage() || getDefaultCodeLanguage());
@@ -457,6 +471,7 @@ export default function ToolbarPlugin() {
             // Update links
             const node = getSelectedNode(selection);
             const parent = node.getParent();
+
             if ($isLinkNode(parent) || $isLinkNode(node)) {
                 setIsLink(true);
             } else {
@@ -482,13 +497,14 @@ export default function ToolbarPlugin() {
             )
         );
     }, [editor, updateToolbar]);
-
+    // eslint-disable-next-line max-lines
     const codeLanguges = useMemo(() => getCodeLanguages(), []);
     const onCodeLanguageSelect = useCallback(
         (e) => {
             editor.update(() => {
                 if (selectedElementKey !== null) {
                     const node = $getNodeByKey(selectedElementKey);
+
                     if ($isCodeNode(node)) {
                         node.setLanguage(e.target.value);
                     }

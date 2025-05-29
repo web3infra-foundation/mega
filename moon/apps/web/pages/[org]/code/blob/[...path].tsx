@@ -7,33 +7,34 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
 import { useRouter } from 'next/router'
 
+const treeStyle = {
+  borderRadius: 8,
+  overflow: 'hidden',
+  width: 'calc(15% - 8px)',
+  maxWidth: 'calc(15% - 8px)',
+  background: '#fff'
+}
+
+const codeStyle = {
+  borderRadius: 8,
+  overflow: 'hidden',
+  width: 'calc(85% - 8px)',
+  background: '#fff'
+}
+
+const breadStyle = {
+  minHeight: 30,
+  borderRadius: 8,
+  overflow: 'hidden',
+  width: 'calc(100% - 8px)',
+  background: '#fff'
+}
+
 function BlobPage() {
   const { path = [] } = useRouter().query as { path?: string[] }
   const new_path = '/' + path.join('/')
   const fileContent = useGetBlob({ path: new_path }).data?.data?? ""
 
-  const treeStyle = {
-    borderRadius: 8,
-    overflow: 'hidden',
-    width: 'calc(15% - 8px)',
-    maxWidth: 'calc(15% - 8px)',
-    background: '#fff'
-  }
-
-  const codeStyle = {
-    borderRadius: 8,
-    overflow: 'hidden',
-    width: 'calc(85% - 8px)',
-    background: '#fff'
-  }
-
-  const breadStyle = {
-    minHeight: 30,
-    borderRadius: 8,
-    overflow: 'hidden',
-    width: 'calc(100% - 8px)',
-    background: '#fff'
-  }
 
   return (
     <div>
