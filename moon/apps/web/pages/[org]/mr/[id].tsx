@@ -111,7 +111,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
         let children;
 
         switch (conv.conv_type) {
-            case "Comment": icon = <ChevronRightCircleIcon />; children = <MRComment conv={conv} id={id}/>; break
+            case "Comment": icon = <ChevronRightCircleIcon />; children = <MRComment conv={conv} id={id} whoamI='mr'/>; break
             case "Merged": icon = <ChevronSelectIcon />; children = "Merged via the queue into main " + formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true }); break;
             case "Closed": icon = <AlarmIcon />; children = conv.comment; break;
             case "Reopen": icon = <ClockIcon />; children = conv.comment; break;
