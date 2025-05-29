@@ -88,13 +88,13 @@ const RepoTree = ({ directory }:any) => {
                 if (node.path && node.path !== '' && node.path !== undefined) {
                     responseData = await fetch(`/api/tree?path=${node.path}`)
                       .then(response => response.json())
-                      .catch(e => {
+                      .catch(_ => {
                           throw new Error('Failed to fetch tree data');
                       })
                 } else {
                     responseData = await fetch(`/api/tree?path=${reqPath}`)
                       .then(response => response.json())
-                      .catch(e => {
+                      .catch(_ => {
                           throw new Error('Failed to fetch tree data');
                       })
                 }
