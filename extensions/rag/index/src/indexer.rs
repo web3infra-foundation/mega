@@ -19,12 +19,9 @@ use std::io;
 use tar::Archive;
 
 fn unpack_crate_file_to_current_dir(crate_file_path: &Path) -> io::Result<()> {
-    let target_dir = crate_file_path.parent().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            "Cannot get parent directory of the crate file",
-        )
-    })?;
+    let target_dir = crate_file_path
+        .parent()
+        .ok_or_else(|| io::Error::other("Cannot get parent directory of the crate file"))?;
 
     println!("Unpacking to: {:?}", target_dir);
 
