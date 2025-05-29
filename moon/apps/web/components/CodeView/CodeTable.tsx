@@ -61,8 +61,16 @@ const CodeTable = ({ directory, readmeContent}:any) => {
     const pathParts = normalizedPath?.split('/') || [];
   
     if (record.content_type === "file") {
-      const newPath = `/blob/${normalizedPath}/${encodeURIComponent(record.name)}`;
+      let newPath: string;
 
+      const hasBlob = pathParts?.includes('blob');
+
+      if (!hasBlob && pathParts.length >= 2) {
+        pathParts?.splice(2, 0, 'blob');
+      }
+      pathParts?.push(encodeURIComponent(record.name));
+
+      newPath = `/${pathParts?.join('/')}`;
       router.push(newPath);
     } else {
       let newPath: string;
