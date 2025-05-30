@@ -24,6 +24,7 @@ import { usePostMrComment } from '@/hooks/usePostMrComment'
 import { usePostMrMerge } from '@/hooks/usePostMrMerge'
 import { usePostMrReopen } from '@/hooks/usePostMrReopen';
 import { usePostMrClose } from '@/hooks/usePostMrClose';
+import { useScope } from '@/contexts/scope'
 
 interface MRDetail {
     status: string,
@@ -41,9 +42,9 @@ export interface Conversation {
 const  MRDetailPage:PageWithLayout<any> = () =>{
     const router = useRouter();
     const { id : tempId, title } = router.query;
-
+    const { scope } = useScope()
     const [editorState, setEditorState] = useState("");
-    const [login, _setLogin] = useState(false);
+    const [login, _setLogin] = useState(true);
     const [outputHtml, setOutputHtml] = useState('');
 
     const id = typeof tempId === 'string' ? tempId : '';
@@ -72,7 +73,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const handleMrApprove = () => {
       approveMr(undefined, {
         onSuccess: () => {
-          router.push("/mr")
+          router.push(`/${scope}/mr`)
         },
       })
     }
@@ -81,7 +82,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const handleMrClose = () => {
       closeMr(undefined, {
         onSuccess: () => {
-          router.push("/mr")
+          router.push(`/${scope}/mr`)
         },
       })
     }
@@ -90,7 +91,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const handleMrReopen = () => {
       reopenMr(undefined,{
         onSuccess: () => {
-            router.push("/mr")
+          router.push(`/${scope}/mr`)
         },
       })
     }
@@ -111,7 +112,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
         let children;
 
         switch (conv.conv_type) {
-            case "Comment": icon = <ChevronRightCircleIcon />; children = <MRComment conv={conv} id={id}/>; break
+            case "Comment": icon = <ChevronRightCircleIcon />; children = <MRComment conv={conv} id={id} whoamI='mr'/>; break
             case "Merged": icon = <ChevronSelectIcon />; children = "Merged via the queue into main " + formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true }); break;
             case "Closed": icon = <AlarmIcon />; children = conv.comment; break;
             case "Reopen": icon = <ClockIcon />; children = conv.comment; break;
@@ -167,7 +168,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                 </Button>
               }
               <Button
-                // disabled={!login}
+                disabled={!login}
                 onClick={() => save_comment()}
                 aria-label="Comment"
                 className={cn(buttonClasses)}
