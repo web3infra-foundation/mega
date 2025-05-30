@@ -53,6 +53,17 @@ impl From<GPath> for PathBuf {
         PathBuf::from(path_str)
     }
 }
+impl From<GPath> for String {
+    fn from(val: GPath) -> Self {
+        val.path.iter().fold(String::new(), |acc, part| {
+            match (acc.is_empty(), part.is_empty()) {
+                (true, _) => part.clone(),
+                (false, true) => acc,
+                (false, false) => acc + "/" + part,
+            }
+        })
+    }
+}
 impl Display for GPath {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.path.join("/"))
