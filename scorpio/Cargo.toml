@@ -12,7 +12,7 @@ reqwest =  { version = "0.12.7", features = ["json","blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 fuse-backend-rs = { version = "0.12.0", features = ["fusedev","async-io"]}
 tokio = { version = "1.40.0", features = ["full"] }
-vm-memory = { version = "0.15.0", features = ["backend-mmap", "backend-bitmap"] }
+vm-memory = { version = "0.16.2", features = ["backend-mmap", "backend-bitmap"] }
 axum = { version =  "0.7.7",features=["macros"]}
 fuse3 = { version = "0.8.1" ,features = ["tokio-runtime","unprivileged"]}
 futures-util = { version = "0.3.30", features = ["sink"] }
