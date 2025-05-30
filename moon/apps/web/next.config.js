@@ -101,6 +101,7 @@ const ContentSecurityPolicy = Object.keys(cspResourcesByDirective).reduce((prevP
 
 /** @type {import('next').NextConfig} */
 const moduleExports = {
+  output: 'standalone',
   experimental: {
     // https://nextjs.org/docs/messages/import-esm-externals
     esmExternals: 'loose',
