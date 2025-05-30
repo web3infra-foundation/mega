@@ -13,7 +13,7 @@ use super::store::ItemExt;
 pub struct TreeStorage {
     db: Db,
 }
-const CONFIG_PATH: &str = "config.toml";
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct StorageItem {
     inode: u64,
@@ -51,16 +51,18 @@ impl StorageItem {
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
+
+    pub fn get_parent(&self) -> u64 {
+        self.parent
+    }
 }
-use toml::Value;
+// use toml::Value;
 #[allow(unused)]
 impl TreeStorage {
     pub fn new_from_db(db: Db) -> Self {
         TreeStorage { db }
     }
     pub fn new() -> io::Result<Self> {
-        let config_content = std::fs::read_to_string(CONFIG_PATH).map_err(Error::other)?;
-        let config: Value = toml::de::from_str(&config_content).map_err(Error::other)?;
         let store_path = config::store_path();
         let path = format!("{}/path.db", store_path);
         let db = sled::open(path)?;
@@ -177,6 +179,18 @@ impl TreeStorage {
         }
         names.reverse(); // reverse the names to get the all path of this item.
         Ok(GPath { path: names })
+    }
+    /// when the dir's hash changes,we need to update the hash value in the db.
+    pub fn update_item_hash(&self, inode: u64, hash: String) -> io::Result<()> {
+        let mut item = self.get_storage_item(inode)?;
+        item.hash = hash;
+        self.db
+            .insert(
+                inode.to_be_bytes(),
+                bincode::serialize(&item).map_err(Error::other)?,
+            )
+            .map_err(Error::other)?;
+        Ok(())
     }
 }
 #[cfg(test)]
