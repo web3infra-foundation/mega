@@ -47,6 +47,7 @@
     "@radix-ui/react-slider": "catalog:",
     "@radix-ui/react-slot": "catalog:",
     "@radix-ui/react-tabs": "catalog:",
+    "@radix-ui/themes": "^3.2.1",
     "@sentry/nextjs": "catalog:",
     "@shopify/react-shortcuts": "catalog:",
     "@tanstack/react-query": "catalog:",
