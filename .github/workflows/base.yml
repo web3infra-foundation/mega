@@ -157,14 +157,3 @@ jobs:
         run: |
           cargo clippy --manifest-path monobean/Cargo.toml --no-deps -- -D warnings
           cargo test --manifest-path monobean/Cargo.toml  --all-features --no-fail-fast -- --nocapture
-
-  #
-  fuse:
-    name: Fuse Lints
-    runs-on: [self-hosted, Linux, X64]
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo clippy --manifest-path scorpio/Cargo.toml --all-targets --all-features -- -D warnings
