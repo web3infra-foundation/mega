@@ -1,16 +1,11 @@
-import Editor from '@/components/CodeView/BlobView/Editor'
-
 import 'github-markdown-css/github-markdown-light.css'
-
 import { useEffect, useRef, useState } from 'react'
 import { Highlight, themes } from 'prism-react-renderer'
-import { createRoot } from 'react-dom/client'
 
 import styles from './CodeContent.module.css'
 
 // @ts-ignore
 const CodeContent = ({ fileContent }) => {
-  const [__showEditor, setShowEditor] = useState(false)
   const [lfs, setLfs] = useState(false)
 
   useEffect(() => {
@@ -20,32 +15,6 @@ const CodeContent = ({ fileContent }) => {
   }, [fileContent])
 
   const lineRef = useRef<HTMLDivElement[]>([])
-  // @ts-ignore
-  const handleLineNumberClick = (lineIndex) => {
-    setShowEditor(prev => {
-      const newShowEditor = !prev
-      const codeLineNumber = lineRef.current[lineIndex]
-
-      if (newShowEditor) {
-        const editorContainer = document.createElement('div')
-
-        editorContainer.className = 'editor-container'
-        const root = createRoot(editorContainer)
-
-        root.render(<Editor />)
-        if (codeLineNumber && codeLineNumber.parentNode) {
-          codeLineNumber.parentNode.insertBefore(editorContainer, codeLineNumber.nextSibling)
-        }
-      } else {
-        const editorContainer = document.querySelector('.editor-container')
-
-        if (editorContainer && editorContainer.parentNode) {
-          editorContainer.parentNode.removeChild(editorContainer)
-        }
-      }
-      return newShowEditor
-    })
-  }
 
   function isLfsContent(content: string): boolean {
     const lines = content.split('\n')
@@ -70,18 +39,13 @@ const CodeContent = ({ fileContent }) => {
 
   return (
     <div>
-      <div className={styles.viewChangeTab}>
-        <button className={styles.viewChangeTabButton}>Code</button>
-        <button className={styles.viewChangeTabButton}>Blame</button>
-      </div>
-
       <Highlight theme={themes.github} code={fileContent} language='rust'>
         {({ style, tokens, getLineProps, getTokenProps }) => (
           <pre
             style={{
               ...style,
               padding: '16px',
-              paddingTop: '70px'
+              paddingTop: '0px'
             }}
             className='overflow-x-auto whitespace-pre rounded-lg bg-gray-100 p-4 text-sm'
           >
@@ -94,22 +58,6 @@ const CodeContent = ({ fileContent }) => {
                   // @ts-ignore
                   ref={(el) => lineRef.current[i] = el as HTMLDivElement}
                 >
-                  <button
-                    onClick={() => handleLineNumberClick(i)}
-                    className={styles.lineNumberButton}
-                    style={{
-                      marginLeft: '8px',
-                      backgroundColor: 'rgb(247, 237, 224, 0.7)',
-                      width: '25px',
-                      height: '17px',
-                      lineHeight: '17px',
-                      borderRadius: '3px',
-                      marginTop: '5px',
-                      border: 'none'
-                    }}
-                  >
-                    +
-                  </button>
                   <span className={styles.codeLineNumber}>{i + 1}</span>
                   {line.map((token, key) => (
                     // eslint-disable-next-line react/no-array-index-key
