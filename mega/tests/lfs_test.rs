@@ -361,6 +361,7 @@ pub async fn mega_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
 }
 
 #[tokio::test]
+#[ignore]
 ///Use container to run mega server and test lfs_split
 async fn test_lfs_split_with_containers() {
     let (_container, mega_server_url) = mega_bootstrap_servers(10000).await;

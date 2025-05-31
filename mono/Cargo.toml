@@ -18,7 +18,6 @@ jupiter = { workspace = true }
 ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
-migration = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -43,7 +42,6 @@ tokio = { workspace = true, features = ["net", "macros"] }
 tokio-stream = { workspace = true }
 async-stream = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
-uuid = { workspace = true, features = ["v4"] }
 regex = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 lazy_static = { workspace = true }

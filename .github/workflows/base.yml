@@ -65,7 +65,7 @@ jobs:
           cargo build --bin mega --bin libra
           cargo clippy --all-targets --all-features --no-deps -- -D warnings
 
-  #
+
   test:
     name: Full Test
     strategy:
@@ -114,7 +114,6 @@ jobs:
           cargo build --bin mega --bin libra
           cargo test --all-targets --no-fail-fast
 
-  #
   monobean:
     name: Test Monobean for ${{ matrix.os }}
     strategy:
@@ -158,10 +157,9 @@ jobs:
           cargo clippy --manifest-path monobean/Cargo.toml --no-deps -- -D warnings
           cargo test --manifest-path monobean/Cargo.toml  --all-features --no-fail-fast -- --nocapture
 
-  #
   fuse:
     name: Fuse Lints
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [ self-hosted, Linux, X64 ]
     env:
       CARGO_TERM_COLOR: always
     steps:

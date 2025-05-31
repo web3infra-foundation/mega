@@ -51,7 +51,7 @@ fn string_to_sha(hash: &str) -> std::io::Result<SHA1> {
 }
 
 fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
-    let commit_string = std::fs::read_to_string(&commitpath)?;
+    let commit_string = std::fs::read_to_string(commitpath)?;
     // This function uses regular expressions to extract the
     // required data, which may be split later to improve fault
     // tolerance.
@@ -60,7 +60,7 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
     # trees' hash
     tree[^0-9a-z]+(?P<current_hash>[0-9a-z]{40})\n
     parent[^0-9a-z]+(?P<parent_hash>[0-9a-z]{40})\n
-    
+
     # author
     author[[:blank:]]+
     (?P<author>[a-zA-Z0-9_-]+)
@@ -68,7 +68,7 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
     <(?P<author_email>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[[:alpha:]]{2,})>\n
     .*\n
     \n
-    
+
     # committer
     committer[[:blank:]]+
     (?P<committer>[a-zA-Z0-9_-]+)
@@ -76,7 +76,7 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
     <(?P<committer_email>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[[:alpha:]]{2,})>\n
     .*\n
     \n
-    
+
     # commit message
     (?s)(?P<message>.*)
     "####,
@@ -146,7 +146,7 @@ pub async fn push(work_path: &Path, url: &str, index_db: &sled::Db) -> std::io::
     let blobs = work_path
         .to_path_buf()
         .list_blobs(index_db)
-        .unwrap_or(Vec::new());
+        .unwrap_or_default();
 
     let remote_hash = string_to_sha(work_path.file_name().unwrap().to_str().unwrap())?;
 
