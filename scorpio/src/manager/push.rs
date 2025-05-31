@@ -81,7 +81,7 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
     (?s)(?P<message>.*)
     "####,
     )
-        .unwrap();
+    .unwrap();
     match regex_rule.captures(&commit_string) {
         Some(commit_data) => {
             let extract_data = |name: &str| -> String {
