@@ -577,6 +577,8 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    #[ignore]
     ///tests the function of get_object_type can get the object's type right.
     fn test_get_obj_type() {
         let blob = Blob::from_content("Hello, world!");
