@@ -53,7 +53,7 @@ pub async fn execute(args: CommitArgs) {
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids().await;
 
-    //add, amend, commit, only support single parent commit
+    // Amend commits are only supported for a single parent commit.
     if args.amend {
         if parents_commit_ids.len() > 1 {
             panic!("fatal: --amend is not supported for merge commits with multiple parents");
