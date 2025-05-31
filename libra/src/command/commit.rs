@@ -26,7 +26,7 @@ pub struct CommitArgs {
     #[arg(long)]
     pub allow_empty: bool,
 
-    /// check if commit message follows conventional commits
+    /// check if the commit message follows conventional commits
     #[arg(long, requires("message"))]
     pub conventional: bool,
 
@@ -53,7 +53,7 @@ pub async fn execute(args: CommitArgs) {
     /* Create & save commit objects */
     let parents_commit_ids = get_parents_ids().await;
 
-    //add amend commit,only support single parent commit
+    //add, amend, commit, only support single parent commit
     if args.amend {
         if parents_commit_ids.len() > 1 {
             panic!("fatal: --amend is not supported for merge commits with multiple parents");
@@ -239,7 +239,7 @@ mod test {
     /// Verifies that tree objects are correctly created, saved to storage, and properly organized in a hierarchical structure.
     async fn test_create_tree() {
         let temp_path = tempdir().unwrap();
-        test::setup_with_new_libra_in(temp_path.path()).await;
+        setup_with_new_libra_in(temp_path.path()).await;
         let _guard = ChangeDirGuard::new(temp_path.path());
 
         let crate_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

@@ -18,9 +18,9 @@ clap = { workspace = true, features = ["derive"] }
 idgenerator = { workspace = true }
 serde = { workspace = true }
 config = { workspace = true }
-envsubst = "0.2.1"
+envsubst = { workspace = true }
 rand = { workspace = true }
 serde_json = { workspace = true }
-regex.workspace = true
+regex = { workspace = true }
 sea-orm = { workspace = true, features = ["macros"] }
 utoipa = { workspace = true }
