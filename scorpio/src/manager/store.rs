@@ -1,7 +1,10 @@
-use mercury::internal::object::{commit::Commit, tree::Tree};
+use mercury::hash::SHA1;
+use mercury::internal::object::ObjectTrait;
+use mercury::internal::object::{blob::Blob, commit::Commit, tree::Tree};
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Result};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use tokio::sync::mpsc::Receiver;
 
 use crate::util::GPath;
@@ -9,6 +12,7 @@ use crate::util::GPath;
 pub trait TreeStore {
     fn insert_tree(&self, path: PathBuf, tree: Tree);
     fn get_bypath(&self, path: &Path) -> Result<Tree>;
+    fn db_tree_list(&self) -> Result<HashMap<PathBuf, Tree>>;
 }
 
 impl TreeStore for sled::Db {
@@ -36,7 +40,24 @@ impl TreeStore for sled::Db {
             }
         }
     }
+
+    fn db_tree_list(&self) -> Result<HashMap<PathBuf, Tree>> {
+        self.iter()
+            .map(|item| match item {
+                // By returning a HashMap, we avoid using a double pointer loop structure in diff.rs.
+                Ok((path, encoded_value)) => {
+                    // Convert the IVec to a string and then to a PathBuf
+                    let path = std::str::from_utf8(&path).unwrap_or("Invalid UTF8 path");
+                    let decoded_tree: Result<Tree> = bincode::deserialize(&encoded_value)
+                        .map_err(|_| Error::other("Deserialization error"));
+                    Ok((PathBuf::from(path), decoded_tree?))
+                }
+                Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
+            })
+            .collect::<Result<HashMap<PathBuf, Tree>>>()
+    }
 }
+
 #[allow(unused)]
 pub trait CommitStore {
     fn store_commit(&self, commit: Commit) -> Result<()>;
@@ -105,6 +126,7 @@ pub trait BlobFsStore {
 
     fn add_blob_to_hash(&self, hash: &str, blob: &[u8]) -> Result<()>;
     fn get_blob_by_hash(&self, hash: &str) -> Result<Vec<u8>>;
+    fn list_blobs(&self, index_db: &sled::Db) -> Result<Vec<Blob>>;
 }
 impl BlobFsStore for PathBuf {
     /// These functions is used to implement a storage
@@ -155,6 +177,24 @@ impl BlobFsStore for PathBuf {
                 "Hash must be 40 characters long",
             )),
         }
+    }
+
+    fn list_blobs(&self, index_db: &sled::Db) -> Result<Vec<Blob>> {
+        let hashmap = index_db.db_list()?;
+        let object_path = self.join("objects");
+        hashmap
+            .values()
+            .map(|hash| {
+                let hash_path = object_path.join(&hash[0..2]);
+                let sha_hash =
+                    SHA1::from_str(hash).map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+                let data_path = hash_path.join(&hash[2..]);
+                let data = std::fs::read(&data_path)?;
+                let blob = Blob::from_bytes(&data, sha_hash);
+                blob.map_err(|e| Error::new(ErrorKind::InvalidData, e))
+            })
+            .collect::<Result<Vec<Blob>>>()
     }
 }
 

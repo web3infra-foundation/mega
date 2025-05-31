@@ -12,6 +12,10 @@ inputs:
     description: 'Whether download and setup GTK libs (true, false)'
     required: false
     default: 'true'
+  self-hosted:
+    description: 'Whether this action is running on a self-hosted runner (true, false)'
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -21,6 +25,7 @@ runs:
     # https://github.com/actions/toolkit/issues/1578#issuecomment-2253355054
     # So we have to manuallly restore and save the cache
     - name: Restore dependencies
+      if: inputs.self-hosted == 'false'
       id: cache-restore
       uses: actions/cache/restore@v4
       with:
@@ -31,27 +36,16 @@ runs:
           ./.choco-cache
         key: ${{ inputs.platform }}-sysdeps-${{ inputs.cache-key }}
 
-    - name: Setup Rust Toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        components: clippy rustfmt
-        cache-workspaces: |
-          ./
-          ./scorpio
-          ./monobean
-        cache-directories: |
-          ./target
-          ./scorpio/target
-          ./monobean/target
-
     # ================ Platform-specific Initialization (Linux) ================
     - name: Install dependencies (Ubuntu)
       if: contains(inputs.platform, 'ubuntu')
       shell: bash
       run: |
-        echo "deb http://gb.archive.ubuntu.com/ubuntu jammy main" | sudo tee -a /etc/apt/sources.list
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
         sudo apt update
         sudo apt install -y \
+          rustup \
           git-lfs \
           libwebkit2gtk-4.1-dev \
           build-essential \
@@ -69,17 +63,13 @@ runs:
           libfuse3-dev \
 
     # ================ Platform-specific Initialization (macOS) ================
-    - name: Set up Homebrew
-      if: contains(inputs.platform, 'macos')
-      id: set-up-homebrew
-      uses: Homebrew/actions/setup-homebrew@master
-
     # fuse not available on macOS
+    # Newest cmake version from homebrew is 4.x, which breaks building for rdkafka-sys
     - name: Install dependencies (macOS)
       if: contains(inputs.platform, 'macos')
       shell: bash
       run: |
-        export HOMEBREW_NO_AUTO_UPDATE=1
+        echo CMAKE_POLICY_VERSION_MINIMUM=3.10 >> $GITHUB_ENV
         brew install \
           gtk4 \
           libadwaita \
@@ -91,22 +81,23 @@ runs:
     # OpenSSL, cmake and some other build tools have been embedded into the windows-latest image.
     - name: Install dependencies (Windows)
       if: contains(inputs.platform, 'windows')
-      shell: pwsh
+      shell: powershell
       run: |
         choco config set cacheLocation ./.choco-cache
         choco install --no-progress git-lfs pkgconfiglite ninja nasm
         pip install requests tqdm
+        rustup update
 
     # Required by monobean, performing this step would take about 5s.
     # Won't caching it, for compression and decompression are MUCH slower than downloading it directly.
     - name: Load GTK and libadwaita
       if: contains(inputs.platform, 'windows') && inputs.use-gtk == 'true'
-      shell: pwsh
+      shell: powershell
       run: python ./monobean/setup.py
 
     - name: Manually set env vars and export
       if: contains(inputs.platform, 'windows')
-      shell: pwsh
+      shell: powershell
       run: |
         $env:Path = "$env:Path;${{ github.workspace }}\monobean\resources\lib\bin;C:\Program Files\NASM;C:\Program Files\CMake\bin"
         $env:OPENSSL_DIR = "C:\Program Files\OpenSSL\"
@@ -122,9 +113,16 @@ runs:
             }
         }
 
-    # =============== Save cache for speeding up ===============
+    # =============== Post Process ===============
+    - name: Setup Rust Toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      if: ${{ ! contains(inputs.platform, 'windows') }}
+      with:
+        components: clippy rustfmt
+        cache: false
+
     - name: Cache dependencies
-      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }}
+      if: ${{ ! contains(inputs.platform, 'windows') && steps.cache-restore.outputs.cache-hit == 'false' }} && inputs.self-hosted == 'false'
       uses: actions/cache/save@v4
       with:
         path: |

@@ -49,12 +49,22 @@ fjall = "2.8.0"
 thiserror = "2.0.12"
 crossbeam = "0.8.4"
 fs_extra = "1.2"
+dashmap = "6.1.0"
+
+
 
 [features] 
 async-io = []
 
-[workspace]
-
+[dev-dependencies]
+tempfile = { workspace = true }
+serial_test = { workspace = true }
+lazy_static = { workspace = true }
+assert_cmd = { workspace = true }
+scopeguard = { workspace = true }
+testcontainers = { workspace = true, features = ["http_wait","reusable-containers"] }
+reqwest = { version = "0.12.12", features = ["blocking"] }
+http = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true
