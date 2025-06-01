@@ -51,8 +51,23 @@ jobs:
         with:
           submodules: recursive
 
+      # Install system dependencies
       - name: Install system dependencies
         uses: ./.github/install-dep
         with:
           cache-key: sysdeps
           platform: ubuntu
+
+      # Set up the environment for git and git-lfs
+      - name: Set up git lfs
+        run: |
+          echo "GPG_TTY=$(tty)" >> $GITHUB_ENV
+          git lfs install
+          git config --global user.email "mono@web3infra.foundation"
+          git config --global user.name "Mono Web3Infra"
+          git config --global lfs.url http://localhost:8000
+
+      # Build the mono and libra binaries
+      - name: Build mono and libra
+        run: |
+          cargo build --bin mono --bin libra
