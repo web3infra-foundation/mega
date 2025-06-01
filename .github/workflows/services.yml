@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
+      # Set the base directory for the mono binary
+      MEGA_BASE_DIR: ${{ github.workspace }}
     # Service containers to run with `runner-job`
     services:
       # Label used to access the service container
