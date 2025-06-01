@@ -6,7 +6,8 @@ use smallvec::smallvec;
 
 use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder};
 use pgp::types::SecretKeyTrait;
-use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
+pub use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
+pub use pgp::KeyType;
 
 use crate::vault::{delete_secret, read_secret, write_secret};
 

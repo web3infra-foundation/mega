@@ -51,6 +51,7 @@ jobs:
 
       - name: Run cargo clippy
         run: |
+          cargo build --bin mega --bin libra
           cargo clippy --all-targets --all-features --no-deps -- -D warnings
 
 
