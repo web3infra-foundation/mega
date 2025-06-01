@@ -105,9 +105,9 @@ jobs:
         run: |
           echo "GPG_TTY=${{ matrix.os == 'windows' && 'CON' || '$(tty)' }}" >> $GITHUB_ENV
           git lfs install
-          git config user.email "mega@github.com"
-          git config user.name "Mega"
-          git config lfs.url http://localhost:8000
+          git config --global user.email "mega@github.com"
+          git config --global user.name "Mega"
+          git config --global lfs.url http://localhost:8000
 
       - name: Run cargo test
         run: |
