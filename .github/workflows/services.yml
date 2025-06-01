@@ -25,7 +25,7 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       # Set the base directory for the mono binary
-      MEGA_BASE_DIR: ${{ github.workspace }}
+      MEGA_BASE_DIR: ${{ github.workspace }}/testing
     # Service containers to run with `runner-job`
     services:
       # Label used to access the service container
@@ -73,3 +73,6 @@ jobs:
       - name: Build mono and libra
         run: |
           cargo build --bin mono --bin libra
+          mkdir -p ${{ github.workspace }}/testing
+          echo "The mono volume is located at: ${{ github.workspace }}/testing"
+          ls -l ${{ github.workspace }}/testing
