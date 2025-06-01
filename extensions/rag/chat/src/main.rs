@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(node) => node,
                 Err(e) => {
                     error!("Failed to create SearchNode: {}", e);
-                    return Err(e.into());
+                    return Err(e);
                 }
             };
 
