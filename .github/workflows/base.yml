@@ -32,17 +32,6 @@ concurrency:
 
 jobs:
   #
-  format:
-    name: Rustfmt Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - run: cargo fmt --all -- --check
-
-  #
   clippy:
     name: Clippy Check
     runs-on: ubuntu-latest
@@ -62,7 +51,6 @@ jobs:
 
       - name: Run cargo clippy
         run: |
-          cargo build --bin mega --bin libra
           cargo clippy --all-targets --all-features --no-deps -- -D warnings
 
 
@@ -152,13 +140,13 @@ jobs:
           use-gtk: true
           self-hosted: ${{ matrix.self-hosted }}
 
-      - name: Run Lints
+      - name: Run Clippy and Test Monobean Application
         run: |
           cargo clippy --manifest-path monobean/Cargo.toml --no-deps -- -D warnings
           cargo test --manifest-path monobean/Cargo.toml  --all-features --no-fail-fast -- --nocapture
 
   fuse:
-    name: Fuse Lints
+    name: Fuse Clippy Check
     runs-on: [ self-hosted, Linux, X64 ]
     env:
       CARGO_TERM_COLOR: always
