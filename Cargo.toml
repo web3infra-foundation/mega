@@ -18,8 +18,9 @@ members = [
     "extensions/rag/chat",
     "extensions/rag/index",
     "extensions/observatory",
+    "scorpio",
 ]
-default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]
+default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server","scorpio"]
 resolver = "1"
 
 [workspace.dependencies]
