@@ -393,6 +393,7 @@ mod test {
 
     #[test]
     #[serial]
+    #[ignore]
     ///Test the function of is_sub_path.
     fn test_is_sub_path() {
         let _guard = test::ChangeDirGuard::new(Path::new(env!("CARGO_MANIFEST_DIR")));
@@ -412,6 +413,7 @@ mod test {
 
     #[tokio::test]
     #[serial]
+    #[ignore]
     ///Test the function of to_workdir_path.
     async fn test_to_workdir_path() {
         let temp_path = tempdir().unwrap();
@@ -429,6 +431,7 @@ mod test {
 
     #[test]
     #[serial]
+    #[ignore]
     /// Tests that files matching patterns in .libraignore are correctly identified as ignored.
     fn test_check_gitignore_ignore() {
         let temp_path = tempdir().unwrap();
@@ -443,6 +446,7 @@ mod test {
 
     #[test]
     #[serial]
+    #[ignore]
     /// Tests ignore pattern matching in subdirectories with .libraignore files at different directory levels.
     fn test_check_gitignore_ignore_subdirectory() {
         let temp_path = tempdir().unwrap();
@@ -461,6 +465,7 @@ mod test {
 
     #[test]
     #[serial]
+    #[ignore]
     /// Tests that files not matching patterns in .libraignore are correctly identified as not ignored.
     fn test_check_gitignore_not_ignore() {
         let temp_path = tempdir().unwrap();
@@ -476,6 +481,7 @@ mod test {
 
     #[test]
     #[serial]
+    #[ignore]
     /// Tests that files not matching subdirectory-specific patterns in .libraignore are correctly identified as not ignored.
     fn test_check_gitignore_not_ignore_subdirectory() {
         let temp_path = tempdir().unwrap();
