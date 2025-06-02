@@ -59,7 +59,7 @@
                       <object class="GtkButton" id="back_button">
                         <property name="visible">false</property>
                         <property name="action-name">win.back-button</property>
-                        <property name="icon-name">go-previous-symbolic</property>
+                        <property name="icon-name">monobean-arrow-left-symbolic</property>
                       </object>
                     </child>
                   </object>
@@ -67,7 +67,7 @@
                 <child type="end">
                   <object class="GtkMenuButton" id="primary_menu_button">
                     <property name="menu-model">primary_menu</property>
-                    <property name="icon-name">open-menu-symbolic</property>
+                    <property name="icon-name">monobean-menu-symbolic</property>
                   </object>
                 </child>
                 <child type="title">
@@ -105,7 +105,7 @@
                           <object class="AdwViewStackPage">
                             <property name="name">mega_tab</property>
                             <property name="title" translatable="true">Mega</property>
-                            <property name="icon-name">view-sort-ascending-symbolic</property>
+                            <property name="icon-name">monobean-code-symbolic</property>
                             <property name="child">
                               <object class="MegaTab" id="mega_tab"></object>
                             </property>
@@ -115,7 +115,7 @@
                           <object class="AdwViewStackPage">
                             <property name="name">monorepo</property>
                             <property name="title" translatable="true">Mono Repo</property>
-                            <property name="icon-name">x-package-repository</property>
+                            <property name="icon-name">monobean-package-symbolic</property>
                             <property name="child">
                               <object class="RepoTab" id="repo_tab"></object>
                             </property>
@@ -125,7 +125,7 @@
                           <object class="AdwViewStackPage">
                             <property name="name">code</property>
                             <property name="title" translatable="true">Code</property>
-                            <property name="icon-name">x-package-repository</property>
+                            <property name="icon-name">monobean-package-2-symbolic</property>
                             <property name="child">
                               <object class="CodePage" id="code_page"></object>
                             </property>
@@ -136,7 +136,7 @@
                           <object class="AdwViewStackPage">
                             <property name="name">p2p</property>
                             <property name="title" translatable="true">P2P</property>
-                            <property name="icon-name">user-info-symbolic</property>
+                            <property name="icon-name">monobean-crop-symbolic</property>
                             <property name="child">
                               <object class="NotImplemented" id="not_implemented"></object>
                             </property>

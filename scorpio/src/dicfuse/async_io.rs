@@ -6,10 +6,10 @@ use fuse3::raw::prelude::*;
 use fuse3::raw::reply::DirectoryEntry;
 use fuse3::{Errno, Inode, Result};
 
+use super::Dicfuse;
+use crate::dicfuse::store::load_dir;
 use futures::stream::{iter, Iter};
 use std::vec::IntoIter;
-
-use super::Dicfuse;
 
 impl Filesystem for Dicfuse {
     /// dir entry stream given by [`readdir`][Filesystem::readdir].
@@ -136,6 +136,18 @@ impl Filesystem for Dicfuse {
     }
     async fn access(&self, _req: Request, inode: Inode, _mask: u32) -> Result<()> {
         self.store.get_inode(inode).await?;
+        let load_parent = "/".to_string()
+            + &self
+                .store
+                .find_path(inode)
+                .await
+                .ok_or(libc::ENOENT)?
+                .to_string();
+        let max_depth = self.store.max_depth() + load_parent.matches('/').count();
+        let hash_change = load_dir(self.store.clone(), load_parent, max_depth).await;
+        if hash_change {
+            self.store.update_ancestors_hash(inode).await;
+        }
         Ok(())
     }
 
@@ -213,7 +225,7 @@ impl Filesystem for Dicfuse {
                 }));
             }
         }
-        println!("{:?}", d);
+        // println!("{:?}", d);
         Ok(ReplyDirectoryPlus {
             entries: iter(d.into_iter()),
         })

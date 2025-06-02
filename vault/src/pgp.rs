@@ -1,15 +1,15 @@
-use crate::vault::{delete_secret, read_secret, write_secret};
-use pgp::composed::Deserializable;
 /// This module provides functions for generating, loading, saving, and deleting PGP key pairs.
 ///
 /// It uses the `pgp` crate for key generation and management, and stores the keys in a vault
 /// using asynchronous operations.
-pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
-use pgp::types::SecretKeyTrait;
-pub use pgp::KeyType;
-use pgp::SecretKeyParams;
-use pgp::{SecretKeyParamsBuilder, SubkeyParamsBuilder};
 use smallvec::smallvec;
+
+use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder};
+use pgp::types::SecretKeyTrait;
+pub use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
+pub use pgp::KeyType;
+
+use crate::vault::{delete_secret, read_secret, write_secret};
 
 const VAULT_KEY: &str = "pgp-signed-secret";
 
