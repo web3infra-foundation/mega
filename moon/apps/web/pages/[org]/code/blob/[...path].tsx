@@ -1,7 +1,7 @@
 import React from 'react'
 import { Flex, Layout } from 'antd'
 import Bread from '@/components/CodeView/TreeView/BreadCrumb'
-import CodeContent from '@/components/CodeView/BlobView/CodeContent'
+import CodeContent from '@/components/CodeView/blobView/CodeContent'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
