@@ -81,7 +81,7 @@ jobs:
           mkdir -p ${{ github.workspace }}/testing/logs
           mkdir -p ${{ github.workspace }}/testing/objects
           mkdir -p ${{ github.workspace }}/testing/etc/ssh
-          mkdir -p ${{ github.workspace }}/testing/etc/https"
+          mkdir -p ${{ github.workspace }}/testing/etc/https
           ssh-keygen -t rsa -b 4096 -f "${{ github.workspace }}/testing/etc/ssh/ssh_host_rsa_key" -N "" -C "sshd host key" >/dev/null 2>&1
           echo "Directory structure has been successfully created:"
           echo "${{ github.workspace }}/testing"
