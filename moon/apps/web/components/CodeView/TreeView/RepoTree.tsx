@@ -242,7 +242,7 @@ const RepoTree = ({ directory }:any) => {
 
   const handleNodeSelect = (_event: React.SyntheticEvent<Element, Event> | null, nodeId: string | null) => {
     if (!nodeId) return;
-    
+
     setSelectedNode(nodeId);
     const node = findNode(treeData, nodeId);
 
