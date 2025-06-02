@@ -70,7 +70,7 @@ function TreeDetailPage() {
   };
 
   return (
-    <div className='m-2'>
+    <div className='m-2 overflow-hidden'>
       <Flex gap="middle" wrap>
           <Layout style={breadStyle}>
               <Bread path={path} />

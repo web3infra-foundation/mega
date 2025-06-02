@@ -1,208 +1,289 @@
-import 'github-markdown-css/github-markdown-light.css'
-// import { DownloadIcon} from '@gitmono/ui/Icons'
-import { DownOutlined } from '@ant-design/icons/lib'
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter, usePathname  } from 'next/navigation'
-import { Tree, TreeProps } from 'antd/lib'
-import { DataNode, EventDataNode } from 'antd/lib/tree'
+import * as React from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/router';
+import FolderRounded from '@mui/icons-material/FolderRounded';
+import ArticleIcon from '@mui/icons-material/Article';
+import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
+import { TreeItemCheckbox, TreeItemContent, TreeItemGroupTransition, TreeItemIconContainer, TreeItemLabel, TreeItemRoot } from '@mui/x-tree-view/TreeItem';
+import { TreeItemDragAndDropOverlay, TreeItemIcon, TreeItemProvider, useTreeItem, useTreeItemModel, UseTreeItemParameters } from '@mui/x-tree-view';
+import { Box, IconButton } from '@mui/material';
 
-interface TreeNode extends DataNode {
-  title: string;
-  key: string;
-  isLeaf: boolean;
+interface MuiTreeNode {
+  id: string;
+  label: string;
   path: string;
-  children?: TreeNode[];
+  content_type:string;
+  // isLeaf: boolean;
+  children?: MuiTreeNode[];
 }
 
-const RepoTree = ({ directory }:any) => {
-    const router = useRouter();
-    const pathname = usePathname();
-    const [treeData, setTreeData] = useState<TreeNode[]>([]);
-    const [updateTree, setUpdateTree] = useState(false);
-    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
-    const convertToTreeData = useCallback((directory: any) => {
-        return sortProjectsByType(directory)?.map((item) => {
-            const treeItem = {
-                title: item.name,
-                key: item.id,
-                isLeaf: item.content_type !== 'directory',
-                path: item.path,
-                expanded: false, // initialize expanded state to false
-                children: [] // eneure every node having the children element
-            };
+type FileType = 'file' | 'directory';
 
-            return treeItem;
-        });
-    }, []);
+interface ExtendedTreeItemProps {
+  content_type?: FileType;
+  id: string;
+  label: string;
+}
 
-    useEffect(() => {
-        setTreeData(convertToTreeData(directory));
-    }, [directory, convertToTreeData]);
+interface CustomLabelProps {
+  children: React.ReactNode;
+  icon?: React.ElementType;
+  expandable?: boolean;
+}
+  
+  function CustomLabel({
+    icon: Icon,
+    children,
+    ...other
+  }: CustomLabelProps) {
+    return (
+      <TreeItemLabel
+        {...other}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        {Icon && (
+          <Box
+            component={Icon}
+            className="labelIcon"
+            color="inherit"
+            sx={{ mr: 1, fontSize: '1.2rem' }}
+          />
+        )}
 
+        <TreeItemLabel variant="body2">{children}</TreeItemLabel>
+      </TreeItemLabel>
+    );
+  }
+    
+  const getIconFromFileType = (fileType: FileType) => {
+    switch (fileType) {
+      case 'file':
+        return ArticleIcon;
+      case 'directory':
+        return FolderRounded;
+      default:
+        return ArticleIcon;
+    }
+  };
+  
+  interface CustomTreeItemProps
+    extends Omit<UseTreeItemParameters, 'rootRef'>,
+      Omit<React.HTMLAttributes<HTMLLIElement>, 'onFocus'> {}
 
-    useEffect(() => {
-        if (updateTree) {
-            setUpdateTree(false);
-        }
-    }, [updateTree]);
+  const CustomTreeItem = React.forwardRef(function CustomTreeItem(
+    props: CustomTreeItemProps,
+    ref: React.Ref<HTMLLIElement>,
+  ) {
+    const { id, itemId, label, disabled, children, ...other } = props;
+    const {
+      getContextProviderProps,
+      getRootProps,
+      getContentProps,
+      getIconContainerProps,
+      getCheckboxProps,
+      getLabelProps,
+      getGroupTransitionProps,
+      getDragAndDropOverlayProps,
+      status,
+    } = useTreeItem({ id, itemId, children, label, disabled, rootRef: ref });
+  
+    const item = useTreeItemModel<ExtendedTreeItemProps>(itemId)!;
 
-    // sortProjectsByType function to sort projects by file type
-    const sortProjectsByType = (projects: any[]) => {
-        return projects?.sort((a, b) => {
-            if (a.content_type === 'directory' && b.content_type === 'file') {
-                return -1; // directory comes before file
-            } else if (a.content_type === 'file' && b.content_type === 'directory') {
-                return 1; // file comes after directory
-            } else {
-                return 0; // maintain original order
-            }
-        });
-    };
+    let icon;
 
-    // append the clicked dir to the treeData
-    const appendTreeData = (treeData:any, subItems:object, clickedNodeTitle: string) => {
-        return treeData.map((item: { title: string; children: any }) => {
-            if (item.title === clickedNodeTitle) {
-                return {
-                    ...item,
-                    children: subItems
-                };
-            } else if (Array.isArray(item.children)) {
-                return {
-                    ...item,
-                    children: appendTreeData(item.children, subItems, clickedNodeTitle)
-                };
-            }
-        });
-    };
+    if (status.expandable) {
+      icon = FolderRounded;
+    } else if (item.content_type) {
+      icon = getIconFromFileType(item.content_type);
+    }
 
-    const onExpand = async (expandedKeys: any[], {expanded, node}: any) => {
-        if (expanded) {
-            let responseData;
-
-            try {
-                // query tree by path
-                const reqPath = pathname?.replace('/tree', '') + '/' + node.title;
-
-                if (node.path && node.path !== '' && node.path !== undefined) {
-                    responseData = await fetch(`/api/tree?path=${node.path}`)
-                      .then(response => response.json())
-                      .catch(_ => {
-                          throw new Error('Failed to fetch tree data');
-                      })
-                } else {
-                    responseData = await fetch(`/api/tree?path=${reqPath}`)
-                      .then(response => response.json())
-                      .catch(_ => {
-                          throw new Error('Failed to fetch tree data');
-                      })
-                }
-            } catch (error) {
-                // eslint-disable-next-line no-console
-                console.error('Error fetching tree data:', error);
-
-            }
-            const subTreeData = convertToTreeData(responseData?.data?.data);
-            const newTreeData = appendTreeData(treeData, subTreeData, node.title);
-
-            setExpandedKeys([...expandedKeys, node.key]);
-            setTreeData(newTreeData);
-        } else {
-            setExpandedKeys(expandedKeys.filter(key => key !== node.key));
-        }
-    };
-
-    const onSelect: TreeProps<TreeNode>['onSelect'] = (
-      selectedKeys: React.Key[],
-      _info: {
-        event: 'select';
-        selected: boolean;
-        node: EventDataNode<TreeNode>;
-        selectedNodes: TreeNode[];
-        nativeEvent: MouseEvent;
-      }
-    ) => {
-        const selectedKey = selectedKeys[0]?.toString();
-        // only click one, example: click the first one is ['0-0'], then the array index is 0
-        const pathArray = selectedKey.split('-').map((part: string) => parseInt(part, 10));
-        // according to the current route, splicing the next route and determine the type to jump
-        const real_path = pathname?.replace('/tree', '');
-
-        if (Array.isArray(treeData) && treeData?.length > 0) {
-            if (Array.isArray(pathArray) && pathArray.length === 2) {
-                // root folder
-                const clickNode = treeData[pathArray[1]] as TreeNode
-                // determine file type and router push
-
-                if (clickNode.isLeaf) {
-                    router.push(`/blob/${real_path}/${clickNode.title}`);
-                } else {
-                    router.push(`${pathname}/${clickNode.title}`);
-                }
-            } else {
-                // child list, recursively find the target node
-                const findNode = (data: TreeNode[], indices: number[]): TreeNode | null => {
-                    if (indices.length === 0) return null;
-                    if (indices.length === 1) return data[indices[0]];
-
-                    const node = data[indices[1]] as TreeNode;
-                    let current = node;
-                    
-                    for (let i = 2; i < indices.length; i++) {
-                        if (!current.children) return null;
-                        current = current.children[indices[i]] as TreeNode;
-                    }
-                    
-                    return current;
-                };
-
-                // build the path
-                const buildPath = (indices: number[]): string => {
-                    let path = '';
-                    let current = treeData[indices[1]] as TreeNode;
-
-                    path += current.title;
-                    
-                    for (let i = 2; i < indices.length; i++) {
-                        if (!current.children) break;
-                        current = current.children[indices[i]] as TreeNode;
-                        path += '/' + current.title;
-                    }
-                    
-                    return path;
-                };
-
-                const targetNode = findNode(treeData, pathArray);
-
-                if (targetNode) {
-                    const fullPath = buildPath(pathArray);
-
-                    if (targetNode.isLeaf) {
-                        router.push(`/blob/${real_path}/${fullPath}`);
-                    } else {
-                        router.push(`${pathname}/${fullPath}`);
-                    }
-                }
-            }
-        } else {
-            router.push(`${pathname}`)
-        }
+    const handleClick = async(event: React.MouseEvent) => {
+      // eslint-disable-next-line no-console
+      console.log(event,"event===event====")
+      // interactions.handleExpansion(event);
+  
     };
 
     return (
-        <div className="mt-4">
-            <Tree
-                // multiple
-                onSelect={onSelect}
-                onExpand={onExpand}
-                treeData={treeData}
-                showLine={true}
-                switcherIcon={<DownOutlined />}
-                expandedKeys={expandedKeys}
+      <TreeItemProvider {...getContextProviderProps()}>
+        <TreeItemRoot {...getRootProps(other)}>
+          <TreeItemContent {...getContentProps()}>
+            
+            <TreeItemIconContainer {...getIconContainerProps()}>
+              <TreeItemIcon status={status} />
+            </TreeItemIconContainer>
+  
+              {/* icon */}
+            <React.Fragment>
+              <IconButton
+                onClick={handleClick}
+                aria-label="collapse item"
+                size="small"
+              >
+              </IconButton>
+            </React.Fragment>
+            
+            <TreeItemCheckbox {...getCheckboxProps()} />
+  
+            {/* label */}
+            <CustomLabel
+              {...getLabelProps({
+                icon,
+                expandable: status.expandable && status.expanded,
+              })}
             />
-        </div >
+            <TreeItemDragAndDropOverlay {...getDragAndDropOverlayProps()} />
+          </TreeItemContent>
+          {children && <TreeItemGroupTransition {...getGroupTransitionProps()} />}
+        </TreeItemRoot>
+      </TreeItemProvider>
     );
+  }
+);
+
+const RepoTree = ({ directory }:any) => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [treeData, setTreeData] = useState<MuiTreeNode[]>([]);
+  const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+
+  const convertToTreeData = useCallback((directory:any) => {
+    return sortProjectsByType(directory)?.map(item => ({
+      id: item.date + item.name,
+      label: item.name,
+      path: item.path,
+      content_type:item.content_type,
+      children: item.content_type === 'directory' ? [] : undefined
+    }));
+  }, []);
+
+  useEffect(() => {
+    setTreeData(convertToTreeData(directory));
+  }, [directory, convertToTreeData]);
+
+
+  const sortProjectsByType = (projects:any[]) => {
+    return projects?.sort((a, b) => {
+      if (a.content_type === 'directory' && b.content_type === 'file') {
+        return -1;
+      } else if (a.content_type === 'file' && b.content_type === 'directory') {
+        return 1;
+      } else {
+        return 0;
+      }
+    });
+  };
+
+  const appendTreeData = (treeData: any, subItems: any, nodeId: string) => {
+    return treeData.map((item:any) => {
+      if (item.id === nodeId) {
+        return {
+          ...item,
+          children: subItems
+        };
+      } else if (item.children) {
+        return {
+          ...item,
+          children: appendTreeData(item.children, subItems, nodeId)
+        };
+      }
+      return item;
+    });
+  };
+
+  const handleNodeToggle = (_event: React.SyntheticEvent<Element, Event> | null, nodeIds: string[]) => {
+    const newlyExpandedNodeId = nodeIds.find(id => !expandedNodes.includes(id));
+    
+
+    // eslint-disable-next-line no-console
+    console.log("11111====")
+    if (newlyExpandedNodeId) {
+      const loadChildren = async () => {
+        try {
+          const node = findNode(treeData, newlyExpandedNodeId);
+
+          // eslint-disable-next-line no-console
+          console.log(node, 'node===node====')
+
+          if (!node) return;
+
+          let responseData;
+          const reqPath = pathname?.replace('/tree', '') + '/' + node.label;
+          
+          if (node.path && node.path !== '' && node.path !== undefined) {
+            responseData = await fetch(`/api/tree?path=${node.path}`)
+              .then(response => response.json());
+          } else {
+            responseData = await fetch(`/api/tree?path=${reqPath}`)
+              .then(response => response.json());
+          }
+
+          const subTreeData = convertToTreeData(responseData.data.data);
+          const newTreeData = appendTreeData(treeData, subTreeData, newlyExpandedNodeId);
+
+          setTreeData(newTreeData);
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.error('Error fetching tree data:', error);
+        }
+      };
+      
+      loadChildren();
+    }
+    
+    setExpandedNodes(nodeIds);
+  };
+
+  const handleNodeSelect = (_event: React.SyntheticEvent<Element, Event> | null, nodeId: string | null) => {
+    if (!nodeId) return;
+    
+    setSelectedNode(nodeId);
+    const node = findNode(treeData, nodeId);
+
+    // eslint-disable-next-line no-console
+    console.log("node====")
+
+    if (!node) return;
+
+    const real_path = pathname?.replace('/tree', '');
+    const modified_path = real_path?.replace('/code/', '/code/blob/');
+
+    if (node?.content_type === 'directory') {
+      router.push(`${pathname}/${node.label}`);
+    } else {
+      router.push(`/${modified_path}/${node.label}`);
+    }
+  };
+
+  const findNode = (data: MuiTreeNode[], nodeId: string): MuiTreeNode | null => {
+    for (const node of data) {
+      if (node.id === nodeId) return node;
+      if (node.children) {
+        const found = findNode(node.children, nodeId);
+
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  return (
+    <RichTreeView
+    items={treeData}
+    expandedItems={expandedNodes}
+    selectedItems={selectedNode}
+    onExpandedItemsChange={handleNodeToggle}
+    onSelectedItemsChange={handleNodeSelect}
+    sx={{ height: 'fit-content', flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
+    slots={{ item: CustomTreeItem }}
+  />
+  )
 };
 
 export default RepoTree;
