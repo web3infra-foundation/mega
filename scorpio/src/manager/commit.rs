@@ -243,11 +243,11 @@ pub fn commit_core(
     // Includes the old tree.db containing
     //the tree structure of the previous
     // version and the new tree.db.
-    // 
+    //
     // tree_dbs = (old_tree_db, new_tree_db)
     tree_dbs: (&sled::Db, &sled::Db),
-    temp_store_area: &TempStoreArea,  // The temporary storage area.
-    old_root_path: &Path,             // The path of the main Tree in tree.db.
+    temp_store_area: &TempStoreArea, // The temporary storage area.
+    old_root_path: &Path,            // The path of the main Tree in tree.db.
 ) -> sled::Result<SHA1> {
     // To prevent the Remove operation from affecting the
     // Vec<TreeItem> of the main Tree, we now change it to performing

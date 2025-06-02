@@ -5,6 +5,7 @@ apt-get install -y \
   apt-utils \
   curl \
   git \
+  git-lfs \
   gnupg2 \
   jq \
   build-essential \
@@ -18,6 +19,12 @@ apt-get install -y \
   file \
   ca-certificates \
   zstd \
+  libglib2.0-dev \
+  libpango1.0-dev \
+  libgdk-pixbuf-2.0-dev \
+  libgtk-4-dev \
+  libadwaita-1-dev \
+  libgtksourceview-5-dev \
   clang \
   clang-18 \
   lldb-18 \
@@ -40,7 +47,7 @@ cargo install cargo-expand
 cargo install cargo-edit
 
 ## Install Buck2 and Reindeer
-wget https://github.com/facebook/buck2/releases/download/2025-02-01/buck2-x86_64-unknown-linux-musl.zst
+wget https://github.com/facebook/buck2/releases/download/2025-06-01/buck2-x86_64-unknown-linux-musl.zst
 zstd -d /home/buck2-x86_64-unknown-linux-musl.zst
 mv /home/buck2-x86_64-unknown-linux-musl /home/buck2
 chmod +x /home/buck2
