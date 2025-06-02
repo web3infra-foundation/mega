@@ -73,6 +73,25 @@ jobs:
       - name: Build mono and libra
         run: |
           cargo build --bin mono --bin libra
+          echo "The mono volumn located at: ${{ github.workspace }}/testing"
           mkdir -p ${{ github.workspace }}/testing
-          echo "The mono volume is located at: ${{ github.workspace }}/testing"
-          ls -l ${{ github.workspace }}/testing
+          mkdir -p ${{ github.workspace }}/testing/etc
+          mkdir -p ${{ github.workspace }}/testing/cache
+          mkdir -p ${{ github.workspace }}/testing/lfs
+          mkdir -p ${{ github.workspace }}/testing/logs
+          mkdir -p ${{ github.workspace }}/testing/objects
+          mkdir -p ${{ github.workspace }}/testing/etc/ssh
+          mkdir -p ${{ github.workspace }}/testing/etc/https"
+          ssh-keygen -t rsa -b 4096 -f "${{ github.workspace }}/testing/etc/ssh/ssh_host_rsa_key" -N "" -C "sshd host key" >/dev/null 2>&1
+          echo "Directory structure has been successfully created:"
+          echo "${{ github.workspace }}/testing"
+          echo "├── etc"
+          echo "│    ├── ssh"
+          echo "│    │   ├── ssh_host_rsa_key"
+          echo "│    │   └── ssh_host_rsa_key.pub"
+          echo "│    ├── https"
+          echo "│    └── config.toml"
+          echo "├── cache"
+          echo "├── lfs"
+          echo "├── logs"
+          echo "├── objects"
