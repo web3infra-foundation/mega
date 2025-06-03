@@ -270,3 +270,8 @@ catalog:
   clsx: ^2.1.1
   copy-to-clipboard: ^3.3.3
   '@ant-design/icons': ^6.0.0
+  '@mui/icons-material': ^7.1.0
+  '@mui/material': ^7.1.0
+  '@mui/x-tree-view': ^8.5.0
+  '@emotion/styled': ^11.14.0
+  prism-react-renderer: ^2.4.1

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs, TabsProps, Button, Space, Popover, Input } from 'antd';
 import copy from 'copy-to-clipboard';
-import {CopyIcon, AlarmCheckIcon, DownloadIcon} from '@gitmono/ui/Icons'
-// import { CopyOutlined, CheckOutlined, DownloadOutlined } from '@ant-design/icons';
+import {CopyIcon, DownloadIcon} from '@gitmono/ui/Icons'
+import { CheckOutlined,  } from '@ant-design/icons';
 import { usePathname } from 'next/navigation';
 
 
@@ -43,7 +43,7 @@ const CloneTabs = ({ endpoint }:any) => {
             children:
                 <Space style={{ width: '100%' }}>
                     <Input value={text} />
-                    <Button onClick={handleCopy} icon={copied ? <AlarmCheckIcon /> : <CopyIcon />} size={'small'} />
+                    <Button onClick={handleCopy} icon={copied ? <CheckOutlined /> : <CopyIcon />} size={'small'} />
                 </Space>
         },
         {
@@ -51,7 +51,7 @@ const CloneTabs = ({ endpoint }:any) => {
             label: 'SSH',
             children: <Space style={{ width: '100%' }}>
                 <Input value={text} />
-                <Button onClick={handleCopy} icon={copied ? <AlarmCheckIcon /> : <CopyIcon />} size={'small'} />
+                <Button onClick={handleCopy} icon={copied ? <CheckOutlined /> : <CopyIcon />} size={'small'} />
             </Space>
         }
     ];
