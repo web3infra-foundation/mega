@@ -44,6 +44,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const { id : tempId, title } = router.query;
     const { scope } = useScope()
     const [editorState, setEditorState] = useState("");
+    const [editorHasText, setEditorHasText] = useState(false);
     const [login, _setLogin] = useState(true);
     const [outputHtml, setOutputHtml] = useState('');
 
@@ -143,7 +144,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
           <div className="flex flex-col w-full">
             <Timeline items={conv_items}/>
             <h1>Add a comment</h1>
-            <RichEditor setEditorState={setEditorState}/>
+            <RichEditor setEditorState={setEditorState} setEditorHasText={setEditorHasText}/>
             <div className="flex gap-2 justify-end">
               {mrDetail && mrDetail.status === "open" &&
                 <Button
@@ -168,7 +169,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                 </Button>
               }
               <Button
-                disabled={!login}
+                disabled={!login || !editorHasText}
                 onClick={() => save_comment()}
                 aria-label="Comment"
                 className={cn(buttonClasses)}
