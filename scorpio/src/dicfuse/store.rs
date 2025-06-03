@@ -3,6 +3,7 @@ use async_recursion::async_recursion;
 /// Read only file system for obtaining and displaying monorepo directory information
 use core::panic;
 use crossbeam::queue::SegQueue;
+use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
 use fuse3::raw::reply::ReplyEntry;
 use fuse3::FileType;
@@ -19,6 +20,7 @@ use tokio::sync::Mutex;
 use tokio::sync::Notify;
 
 use super::abi::{default_dic_entry, default_file_entry};
+use super::content_store::ContentStorage;
 use super::tree_store::{StorageItem, TreeStorage};
 use crate::util::{config, GPath};
 const UNKNOW_INODE: u64 = 0; // illegal inode number;
@@ -190,13 +192,44 @@ async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
         Err(e) => Err(e.into()),
     }
 }
+
+/// Download a file from the server using its OID/hash
+async fn fetch_file(oid: &str) -> Vec<u8> {
+    let file_blob_endpoint = config::file_blob_endpoint();
+    let url = format!("{}/{}", file_blob_endpoint, oid);
+    let client = Client::new();
+
+    // Send GET request
+    let response = match client.get(url).send().await {
+        Ok(resp) => resp,
+        Err(_) => {
+            eprintln!("Failed to fetch file with OID: {}", oid);
+            return Vec::new(); // Return empty vector on error
+        }
+    };
+
+    // Ensure that the response status is successful
+    if response.status().is_success() {
+        // Get the binary data from the response body
+        let content = match response.bytes().await {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                eprintln!("Failed to read content for OID: {}", oid);
+                return Vec::new(); // Return empty vector on error
+            }
+        };
+        return content.to_vec();
+    }
+    Vec::new()
+}
+
 async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     static CLIENT: Lazy<Client> = Lazy::new(Client::new);
     let client = CLIENT.clone();
 
     let clean_path = path.trim_start_matches('/');
     let url = format!(
-        "{}/api/v1/tree/commit-info?path=/{}",
+        "{}/api/v1/tree/content-hash?path=/{}",
         config::base_url(),
         clean_path
     );
@@ -345,6 +378,8 @@ pub struct DictionaryStore {
     persistent_path_store: Arc<TreeStorage>, // persistent path store for saving and retrieving file paths
     max_depth: Arc<usize>,                   // max depth for loading directories
     init_notify: Arc<Notify>,                // used in dir_test to notify the start of the test..
+    persistent_content_store: Arc<ContentStorage>, // persistent content store for saving and retrieving file contents
+    open_buff: Arc<DashMap<u64, Vec<u8>>>,         // buffer for open files
 }
 
 #[allow(unused)]
@@ -359,14 +394,16 @@ impl DictionaryStore {
             dirs: Arc::new(DashMap::new()),
             max_depth: Arc::new(config::load_dir_depth()),
             init_notify: Arc::new(Notify::new()),
+            persistent_content_store: Arc::new(
+                ContentStorage::new().expect("Failed to create ContentStorage"),
+            ),
+            open_buff: Arc::new(DashMap::new()),
         }
     }
-
     #[inline(always)]
     pub fn max_depth(&self) -> usize {
         *self.max_depth
     }
-
     pub async fn wait_for_ready(&self) {
         // Wait for the store to be initialized
         self.init_notify.notified().await;
@@ -512,6 +549,8 @@ impl DictionaryStore {
         depth_items
     }
 
+    /// When a file changed,the parent directory's hash changed too.
+    /// So we need to update the ancestors' hash .
     pub async fn update_ancestors_hash(&self, inode: u64) {
         let item = self.persistent_path_store.get_item(inode).unwrap();
         let mut parent_inode = item.get_parent();
@@ -534,7 +573,15 @@ impl DictionaryStore {
             parent_inode = item.get_parent();
         }
     }
+    /// When scorpio start,if the db is not empty, we need to load all the files to the memory.
+    fn load_file(&self, inode: u64) -> Result<(), io::Error> {
+        let file_content = self.persistent_content_store.get_file_content(inode)?;
+        let _ = self.open_buff.insert(inode, file_content);
+        Ok(())
+    }
+
     #[async_recursion]
+    /// Loads directories recursively from the parent path into memory.
     async fn load_dirs(&self, path: PathBuf, parent_inode: u64) -> Result<(), io::Error> {
         let root_item = self.persistent_path_store.get_item(parent_inode)?;
         self.dirs.insert(
@@ -561,10 +608,14 @@ impl DictionaryStore {
 
             if child_item.is_dir() {
                 self.load_dirs(child_path, child).await?;
+            } else {
+                self.load_file(child);
             }
         }
         Ok(())
     }
+
+    /// When the scorpio start,we need to load the directories and files from db to the memory.
     pub async fn load_db(&self) -> Result<(), io::Error> {
         let mut path = PathBuf::from("/");
         self.load_dirs(path, 1).await?;
@@ -632,7 +683,7 @@ impl DictionaryStore {
 
         self.get_inode(inode).await
     }
-    /// get the inode from path
+    /// Get the inode from path
     pub async fn get_inode_from_path(&self, path: &str) -> Result<u64, io::Error> {
         let inode = if path.is_empty() || path == "/" {
             1
@@ -681,6 +732,48 @@ impl DictionaryStore {
     }
 }
 
+/// File operations interface for in-memory file management
+/// Provides functions to handle file content stored in memory buffer (open_buff)
+impl DictionaryStore {
+    pub fn get_file_len(&self, inode: u64) -> u64 {
+        self.open_buff.get(&inode).map_or(0, |v| v.len() as u64)
+    }
+    pub fn remove_file_by_node(&self, inode: u64) -> Result<(), io::Error> {
+        self.persistent_content_store.remove_file(inode)?;
+        self.open_buff.remove(&inode);
+        Ok(())
+    }
+    /// Save to db and then save in the memory.
+    pub fn save_file(&self, inode: u64, content: Vec<u8>) {
+        self.persistent_content_store
+            .insert_file(inode, &content)
+            .expect("Failed to save file content");
+        self.open_buff.insert(inode, content);
+    }
+    /// Check if the file exists in the memory.
+    pub fn file_exists(&self, inode: u64) -> bool {
+        self.open_buff.contains_key(&inode)
+    }
+    /// Get the file content from the memory.
+    pub fn get_file_content(&self, inode: u64) -> Option<Ref<'_, u64, Vec<u8>>> {
+        self.open_buff.get(&inode)
+    }
+
+    /// Doanload the file content from the server and save it to the db and memory.
+    pub async fn fetch_file_content(&self, inode: u64, oid: &str) {
+        let content = fetch_file(oid).await;
+        self.save_file(inode, content);
+    }
+    /// Return the content of a file by its path.
+    pub async fn get_file_content_by_path(&self, path: &str) -> Result<Vec<u8>, io::Error> {
+        let inode = self.get_inode_from_path(path).await?;
+        if let Some(content) = self.get_file_content(inode) {
+            Ok(content.to_vec())
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotFound, "File not found"))
+        }
+    }
+}
 /// Loads subdirectories from a remote server into an empty parent directory up to a specified depth.
 ///
 /// # Arguments
@@ -715,6 +808,8 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                         file_list: HashMap::new(),
                     },
                 );
+            } else {
+                store.fetch_file_content(it_inode, it.hash.as_str()).await;
             }
         }
     }
@@ -773,6 +868,11 @@ pub async fn load_dir_depth(store: Arc<DictionaryStore>, parent_path: String, ma
                                             file_list: HashMap::new(),
                                         },
                                     );
+                                } else {
+                                    // If it's a file, fetch its content
+                                    store
+                                        .fetch_file_content(new_inode, newit.hash.as_str())
+                                        .await;
                                 }
                             }
                         }
@@ -956,13 +1056,22 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
             if is_dir {
                 println!("hash changes dir {:?}", path);
                 load_dir(store.clone(), path.to_owned(), max_depth).await;
+            } else {
+                let inode = store.get_inode_from_path(&path).await.unwrap();
+                let item = store.persistent_path_store.get_item(inode).unwrap();
+                if item.hash != it.hash {
+                    // update the hash in the db.
+                    tree_db.update_item_hash(inode, it.hash.to_owned()).unwrap();
+                    store.fetch_file_content(inode, &it.hash).await
+                }
             }
         } else {
             dirs.get_mut(&parent_path)
                 .unwrap()
                 .file_list
                 .insert(path.to_owned(), true);
-            let _ = store.update_inode(parent_inode, it.clone()).await.unwrap();
+            println!("load dir add new file {:?}", path);
+            let new_node = store.update_inode(parent_inode, it.clone()).await.unwrap();
             //fetch a new dir.
             if is_dir {
                 println!("add dir {:?}", path);
@@ -974,6 +1083,8 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
                     },
                 );
                 load_dir_depth(store.clone(), path.to_owned(), max_depth).await;
+            } else {
+                store.fetch_file_content(new_node, &it.hash).await
             }
         }
     }
@@ -994,6 +1105,7 @@ pub async fn load_dir(store: Arc<DictionaryStore>, parent_path: String, max_dept
         let inode = store.get_inode_from_path(&item).await.unwrap();
         println!("delete {:?} {} ", inode, item);
         tree_db.remove_item(inode).unwrap();
+        let _ = store.remove_file_by_node(inode);
     }
     return true;
 }
@@ -1021,30 +1133,39 @@ pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
                 .unwrap()
                 .file_list
                 .insert(path.to_owned(), true);
-            if is_dir && dirs.get(&path).unwrap().hash != it.hash {
-                //when the dir's hash changed,fetch the dir.
-                // If the path already exists, update the hash
-                update_dir(store.clone(), path.to_owned()).await;
 
-                let mut dir_it = dirs.get_mut(&path).unwrap();
-                dir_it.hash = it.hash.to_owned();
-                //also update the hash in the db.
-                let inode = store.get_inode_from_path(&path).await.unwrap();
+            let inode = store.get_inode_from_path(&path).await.unwrap();
+            let item = store.persistent_path_store.get_item(inode).unwrap();
+            if item.hash != it.hash {
+                if is_dir {
+                    //when the dir's hash changed,fetch the dir.
+                    // If the path already exists, update the hash
+                    update_dir(store.clone(), path.to_owned()).await;
+
+                    let mut dir_it = dirs.get_mut(&path).unwrap();
+                    dir_it.hash = it.hash.to_owned();
+                    //also update the hash in the db.
+
+                    println!("modify dir {:?}", path);
+                } else {
+                    // If it's a file, fetch its content
+                    // update the hash in the db.
+                    store.fetch_file_content(inode, &it.hash).await
+                }
                 tree_db.update_item_hash(inode, it.hash).unwrap();
-                println!("modify dir {:?}", path);
             }
         } else {
             dirs.get_mut(&parent_path)
                 .unwrap()
                 .file_list
                 .insert(path.to_owned(), true);
+            println!("update_dir new add file {:?}", path);
             let parent_inode = store.get_inode_from_path(&parent_path).await.unwrap();
 
-            let _ = store.update_inode(parent_inode, it.clone()).await.unwrap();
+            let new_node = store.update_inode(parent_inode, it.clone()).await.unwrap();
             //fetch a new dir.
             if is_dir {
                 println!("add dir {:?}", path);
-
                 dirs.insert(
                     path,
                     DirItem {
@@ -1052,6 +1173,9 @@ pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
                         file_list: HashMap::new(),
                     },
                 );
+            } else {
+                // If it's a file, fetch its content
+                store.fetch_file_content(new_node, &it.hash).await;
             }
         }
     }
@@ -1073,6 +1197,7 @@ pub async fn update_dir(store: Arc<DictionaryStore>, parent_path: String) {
         let inode = store.get_inode_from_path(&item).await.unwrap();
         println!("delete {:?} {} ", inode, item);
         tree_db.remove_item(inode).unwrap();
+        let _ = store.remove_file_by_node(inode);
     }
 }
 

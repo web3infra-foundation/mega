@@ -31,6 +31,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .routes(routes!(create_file))
         .routes(routes!(get_latest_commit))
         .routes(routes!(get_tree_commit_info))
+        .routes(routes!(get_tree_content_hash))
         .routes(routes!(get_tree_dir_hash))
         .routes(routes!(path_can_be_cloned))
         .routes(routes!(get_tree_info))
@@ -169,6 +170,30 @@ async fn get_tree_commit_info(
         .api_handler(query.path.clone().into())
         .await?
         .get_tree_commit_info(query.path.into())
+        .await?;
+    Ok(Json(CommonResult::success(Some(data))))
+}
+
+/// Get tree content hash,the dir's hash as same as old,file's hash is the content hash
+#[utoipa::path(
+    get,
+    path = "/tree/content-hash",
+    params(
+        CodePreviewQuery
+    ),
+    responses(
+        (status = 200, body = CommonResult<Vec<TreeCommitItem>>, content_type = "application/json")
+    ),
+    tag = GIT_TAG
+)]
+async fn get_tree_content_hash(
+    Query(query): Query<CodePreviewQuery>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
+    let data = state
+        .api_handler(query.path.clone().into())
+        .await?
+        .get_tree_content_hash(query.path.into())
         .await?;
     Ok(Json(CommonResult::success(Some(data))))
 }
