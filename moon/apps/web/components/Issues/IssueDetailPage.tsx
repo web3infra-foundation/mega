@@ -41,7 +41,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
     conversations: [],
     title: ''
   })
-
+  const [editorHasText, setEditorHasText] = useState(false);
   const [buttonLoading, setButtonLoading] = useState<{ [key: string]: boolean }>({
     comment: false,
     close: false,
@@ -190,7 +190,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
           {info && info.status === 'open' && (
             <>
               <h1>Add a comment</h1>
-              <RichEditor setEditorState={setEditorState} />
+              <RichEditor setEditorState={setEditorState} setEditorHasText={setEditorHasText}/>
               <Flex gap='small' justify={'flex-end'}>
                 <Button
                   // loading={motivation === 'close' ? loadings[3] : undefined}
@@ -202,7 +202,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
                 </Button>
                 <Button
                   loading={buttonLoading.comment}
-                  disabled={editorState === '' || !login}
+                  disabled={editorState === '' || !login || !editorHasText}
                   onClick={() => save_comment(editorState)}
                 >
                   Comment
