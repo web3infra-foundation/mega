@@ -54,6 +54,9 @@ catalogs:
     '@lexical/rich-text':
       specifier: ^0.31.2
       version: 0.31.2
+    '@lexical/selection':
+      specifier: ^0.31.2
+      version: 0.31.2
     '@lexical/table':
       specifier: ^0.31.2
       version: 0.31.2
@@ -755,6 +758,9 @@ importers:
         specifier: 'catalog:'
         version: 0.31.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(yjs@13.6.8)
       '@lexical/rich-text':
+        specifier: 'catalog:'
+        version: 0.31.2
+      '@lexical/selection':
         specifier: 'catalog:'
         version: 0.31.2
       '@lexical/table':

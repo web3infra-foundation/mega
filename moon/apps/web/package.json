@@ -36,6 +36,7 @@
     "@lexical/rich-text": "catalog:",
     "@lexical/table": "catalog:",
     "@lexical/utils": "catalog:",
+    "@lexical/selection": "catalog:",
     "@mui/icons-material": "catalog:",
     "@mui/material": "catalog:",
     "@mui/x-tree-view": "catalog:",
