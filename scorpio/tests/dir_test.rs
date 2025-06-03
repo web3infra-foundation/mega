@@ -1,5 +1,5 @@
 use core::panic;
-use http::Method;
+// use http::Method;
 use lazy_static::lazy_static;
 use libfuse_fs::passthrough::newlogfs::LoggingFileSystem;
 use scorpio::dicfuse::store;
@@ -19,7 +19,8 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use std::{env, fs, io};
 use std::{ffi::OsStr, sync::Arc};
-use testcontainers::core::wait::HttpWaitStrategy;
+// use testcontainers::core::wait::HttpWaitStrategy;
+use testcontainers::core::wait::LogWaitStrategy;
 use testcontainers::{
     core::{IntoContainerPort, Mount, ReuseDirective, WaitFor},
     runners::AsyncRunner,
@@ -35,6 +36,7 @@ enum SCORCommand {
     GitAddFile(String, String), // add a new file and update to check the watch_dir
     GitDeleteFile(String),      // remove a new file and update to check the watch_dir
     Shutdown,                   // finish and close the file system service
+    ReadFileContent(String),    // read the content of a file
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,7 +44,8 @@ enum CommandResult {
     StoreDirectoryStructure(HashMap<i32, BTreeSet<String>>), //used to return the directory structure
     Success,
     Error(String),
-    InitFinish(usize), // used to indicate the initialization is finished
+    InitFinish(usize),    // used to indicate the initialization is finished
+    FileContent(Vec<u8>), // used to return the content of a file
 }
 
 lazy_static! {
@@ -231,11 +234,12 @@ async fn mono_container(mapping_port: u16) -> ContainerAsync<GenericImage> {
 
     GenericImage::new("ubuntu", "latest")
         .with_exposed_port(mapping_port.tcp())
-        .with_wait_for(WaitFor::Http(Box::new(
-            HttpWaitStrategy::new("/")
-                .with_method(Method::GET)
-                .with_expected_status_code(404_u16),
-        )))
+        // .with_wait_for(WaitFor::Http(Box::new(
+        //     HttpWaitStrategy::new("/")
+        //         .with_method(Method::GET)
+        //         .with_expected_status_code(404_u16),
+        // )))
+        .with_wait_for(WaitFor::Log(LogWaitStrategy::stdout("CommonHttpOptions")))
         .with_mapped_port(mapping_port, mapping_port.tcp())
         .with_mount(Mount::bind_mount(MONO.to_str().unwrap(), "/root/mono"))
         .with_working_dir("/root")
@@ -308,50 +312,78 @@ async fn test_scorpio_service_with_containers() {
 
     println!("\n===== add a file and WatchDir =====");
     let test_file = "test_file.txt";
-    let test_content = format!(
-        "now: {}",
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-    );
+    for i in 0..2 {
+        let test_content = format!(
+            "now: {} {}",
+            i,
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
 
-    cmd_tx
-        .send(SCORCommand::GitAddFile(test_file.to_string(), test_content))
-        .await
-        .unwrap();
+        cmd_tx
+            .send(SCORCommand::GitAddFile(
+                test_file.to_string(),
+                test_content.to_owned(),
+            ))
+            .await
+            .unwrap();
 
-    if let Some(result) = result_rx.recv().await {
-        match result {
-            CommandResult::Success => {
-                println!("git add success.");
-            }
-            _ => {
-                cmd_tx.send(SCORCommand::Shutdown).await.unwrap();
-                // let _ = scorpio_handle.await;
-                let _ = result_rx.recv().await;
+        if let Some(result) = result_rx.recv().await {
+            match result {
+                CommandResult::Success => {
+                    println!("git add success.");
+                }
+                _ => {
+                    cmd_tx.send(SCORCommand::Shutdown).await.unwrap();
+                    // let _ = scorpio_handle.await;
+                    let _ = result_rx.recv().await;
 
-                panic!("git add file error.");
+                    panic!("git add file error.");
+                }
             }
         }
-    }
 
-    cmd_tx.send(SCORCommand::WatchDir()).await.unwrap();
+        cmd_tx.send(SCORCommand::WatchDir()).await.unwrap();
 
-    if let Some(result) = result_rx.recv().await {
-        match result {
-            CommandResult::StoreDirectoryStructure(result) => {
-                assert!(
-                    result.get(&0).unwrap().contains(&test_file.to_string()),
-                    "WatchDir fail: did not find the added file"
-                );
+        if let Some(result) = result_rx.recv().await {
+            match result {
+                CommandResult::StoreDirectoryStructure(result) => {
+                    assert!(
+                        result.get(&0).unwrap().contains(&test_file.to_string()),
+                        "WatchDir fail: did not find the added file"
+                    );
+                }
+                _ => {
+                    cmd_tx.send(SCORCommand::Shutdown).await.unwrap();
+                    // let _ = scorpio_handle.await;
+                    let _ = result_rx.recv().await;
+
+                    panic!("WatchDir error.");
+                }
             }
-            _ => {
-                cmd_tx.send(SCORCommand::Shutdown).await.unwrap();
-                // let _ = scorpio_handle.await;
-                let _ = result_rx.recv().await;
+        }
+        cmd_tx
+            .send(SCORCommand::ReadFileContent(test_file.to_string()))
+            .await
+            .unwrap();
+        if let Some(result) = result_rx.recv().await {
+            match result {
+                CommandResult::FileContent(result) => {
+                    assert_eq!(
+                        result,
+                        test_content.as_bytes(),
+                        "ReadFileContent failed to get the correct content"
+                    );
+                }
+                _ => {
+                    cmd_tx.send(SCORCommand::Shutdown).await.unwrap();
+                    // let _ = scorpio_handle.await;
+                    let _ = result_rx.recv().await;
 
-                panic!("WatchDir error.");
+                    panic!("WatchDir error.");
+                }
             }
         }
     }
@@ -522,6 +554,24 @@ async fn test_scorpio_dir(
                                 .send(CommandResult::StoreDirectoryStructure(dir_items))
                                 .await;
                         }
+                    }
+                    SCORCommand::ReadFileContent(path) => {
+                        env::set_current_dir(&repo_dir).unwrap();
+                        let base_path = "/third-party/dir_test/";
+
+                        let file_path = base_path.to_string() + &path;
+                        // if !file_path.exists() {
+                        //     let _ = result_tx
+                        //         .send(CommandResult::Error(format!("File not found: {}", path)))
+                        //         .await;
+                        //     continue;
+                        // }
+                        println!("ReadFileContent {:?}", file_path);
+                        let content = store
+                            .get_file_content_by_path(&file_path)
+                            .await
+                            .expect("Failed to get file content");
+                        let _ = result_tx.send(CommandResult::FileContent(content)).await;
                     }
                     SCORCommand::GitAddFile(path, content) => {
                         env::set_current_dir(&repo_dir).unwrap();
