@@ -71,23 +71,24 @@ function TreeDetailPage() {
   }
 
   return (
-    <div className='m-2'>
-      <Flex gap='middle' wrap>
-        <Layout style={breadStyle}>
-          <Bread path={path} />
-          {canClone?.data && (
-            <Flex justify={'flex-end'}>
-              <CloneTabs endpoint={endpoint} />
-            </Flex>
-          )}
-        </Layout>
-        {/* tree */}
-        <Layout style={treeStyle}>
-          <RepoTree directory={directory} />
-        </Layout>
-        <Layout style={codeStyle}>
-          <CodeTable directory={directory} readmeContent={readmeContent} />
-        </Layout>
+    <div className='m-2 overflow-hidden'>
+      <Flex gap="middle" wrap>
+          <Layout style={breadStyle}>
+              <Bread path={path} />
+              {
+                  canClone?.data &&
+                  <Flex justify={'flex-end'} >
+                      <CloneTabs endpoint={endpoint} />
+                  </Flex>
+              }
+          </Layout>
+            {/* tree */}
+          <Layout style={treeStyle}>
+              <RepoTree directory={directory} />
+          </Layout>
+          <Layout style={codeStyle}>
+              <CodeTable directory={directory} readmeContent={readmeContent} />
+          </Layout>
       </Flex>
     </div>
   )
