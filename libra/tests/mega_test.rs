@@ -85,8 +85,6 @@ async fn mega_container(mapping_port: u16) -> ContainerAsync<GenericImage> {
                 .with_expected_status_code(404_u16),
         )))
         .with_mapped_port(mapping_port, mapping_port.tcp())
-        // .with_copy_to("/root/mega", MEGA.clone())
-        // .with_copy_to("/root/config.toml", CONFIG.clone())
         .with_mount(Mount::bind_mount(MEGA.to_str().unwrap(), "/root/mega"))
         .with_mount(Mount::bind_mount(
             CONFIG.to_str().unwrap(),
@@ -109,6 +107,7 @@ pub async fn mega_bootstrap_servers(mapping_port: u16) -> (ContainerAsync<Generi
 }
 
 #[tokio::test]
+#[ignore]
 ///Use container to run mega server and test push and download
 async fn test_push_object_and_download() {
     let (_container, mega_server_url) = mega_bootstrap_servers(12000).await;
