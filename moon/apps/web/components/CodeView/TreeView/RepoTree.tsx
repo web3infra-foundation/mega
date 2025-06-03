@@ -55,7 +55,7 @@ interface CustomLabelProps {
           />
         )}
 
-        <TreeItemLabel variant="body2">{children}</TreeItemLabel>
+        <TreeItemLabel>{children}</TreeItemLabel>
       </TreeItemLabel>
     );
   }
