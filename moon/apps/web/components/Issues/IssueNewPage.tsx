@@ -15,7 +15,7 @@ export default function IssueNewPage() {
   const [loadings, setLoadings] = useState<boolean[]>([])
   const router = useRouter()
   const { mutate: submitNewIssue } = usePostIssueSubmit()
-
+  const [editorHasText, setEditorHasText] = useState(false);
   const set_to_loading = (index: number) => {
     setLoadings((prevLoadings) => {
       const newLoadings = [...prevLoadings]
@@ -74,9 +74,9 @@ export default function IssueNewPage() {
         </Space>
         <Space direction='vertical' style={{ width: '100%' }}>
           <h1>Add a description</h1>
-          <RichEditor setEditorState={setEditorState} />
+          <RichEditor setEditorState={setEditorState} setEditorHasText={setEditorHasText}/>
           <Flex justify={'flex-end'}>
-            <Button loading={loadings[3]} onClick={() => submit(editorState)}>
+            <Button disabled={!editorHasText} loading={loadings[3]} onClick={() => submit(editorState)}>
               Submit New Issue
             </Button>
           </Flex>
