@@ -543,6 +543,30 @@ pub struct OauthConfig {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use std::path::Path;
+
+    fn check_file_permission(path: &Path) {
+        let metadata = std::fs::metadata(path).expect("Failed to read metadata");
+        assert!(!metadata.permissions().readonly(), "File should not be read-only");
+    }
+
+    #[test]
+    fn test_mega_base() {
+        let base_dir = mega_base();
+        std::fs::create_dir_all(&base_dir).expect("Failed to create base directory");
+        assert!(base_dir.exists(), "Mega base directory should exist");
+        check_file_permission(&base_dir);
+    }
+
+    #[test]
+    fn test_mega_cache() {
+        let cache_dir = mega_cache();
+        std::fs::create_dir_all(&cache_dir).expect("Failed to create cache directory");
+        assert!(cache_dir.exists(), "Mega cache directory should exist");
+        check_file_permission(&cache_dir);
+    }
+
     #[test]
     fn test_get_size_from_str() {
         use crate::config::PackConfig;
