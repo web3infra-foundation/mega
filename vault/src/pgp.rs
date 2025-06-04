@@ -4,10 +4,10 @@
 /// using asynchronous operations.
 use smallvec::smallvec;
 
-use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder};
-use pgp::types::SecretKeyTrait;
 pub use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
+use pgp::types::SecretKeyTrait;
 pub use pgp::KeyType;
+use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder};
 
 use crate::vault::{delete_secret, read_secret, write_secret};
 
