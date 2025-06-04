@@ -164,7 +164,7 @@ impl Default for Config {
             .lines()
             .map(|line| {
                 if line.starts_with("base_dir ") {
-                    format!("base_dir = \"{}\"", base_dir.to_str().unwrap())
+                    format!("base_dir = {:?}", base_dir)
                 } else {
                     line.to_string()
                 }
