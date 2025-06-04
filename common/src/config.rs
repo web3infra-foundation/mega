@@ -548,7 +548,10 @@ mod test {
 
     fn check_file_permission(path: &Path) {
         let metadata = std::fs::metadata(path).expect("Failed to read metadata");
-        assert!(!metadata.permissions().readonly(), "File should not be read-only");
+        assert!(
+            !metadata.permissions().readonly(),
+            "File should not be read-only"
+        );
     }
 
     #[test]
