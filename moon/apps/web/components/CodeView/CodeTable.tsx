@@ -20,7 +20,7 @@ export interface DataType {
   date: number
 }
 
-const CodeTable = ({ directory, readmeContent }: any) => {
+const CodeTable = ({ directory, readmeContent, loading }: any) => {
   const router = useRouter()
   const pathname = usePathname()
   let real_path = pathname?.replace('/tree', '')
@@ -94,7 +94,14 @@ const CodeTable = ({ directory, readmeContent }: any) => {
 
   return (
     <div>
-      <RTable columns={columns ?? []} datasource={directory} size='3' align='center' onClick={handleRowClick} />
+      <RTable
+        columns={columns ?? []}
+        datasource={directory}
+        size='3'
+        align='center'
+        onClick={handleRowClick}
+        loading={loading}
+      />
 
       {readmeContent && (
         <div className={styles.markdownContent}>

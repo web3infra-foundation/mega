@@ -1,10 +1,12 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
 import { Theme } from '@radix-ui/themes'
 import { Flex, Layout } from 'antd'
 import { useParams } from 'next/navigation'
+
+import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
+import { LoadingSpinner } from '@gitmono/ui'
 
 import CodeTable from '@/components/CodeView/CodeTable'
 import Bread from '@/components/CodeView/TreeView/BreadCrumb'
@@ -71,25 +73,30 @@ function TreeDetailPage() {
   }
 
   return (
-    <div className='m-2 overflow-hidden'>
-      <Flex gap="middle" wrap>
+    <div className='relative m-2 h-screen overflow-hidden'>
+      {!TreeCommitInfo ? (
+        <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <Flex gap='middle' wrap>
           <Layout style={breadStyle}>
-              <Bread path={path} />
-              {
-                  canClone?.data &&
-                  <Flex justify={'flex-end'} >
-                      <CloneTabs endpoint={endpoint} />
-                  </Flex>
-              }
+            <Bread path={path} />
+            {canClone?.data && (
+              <Flex justify={'flex-end'}>
+                <CloneTabs endpoint={endpoint} />
+              </Flex>
+            )}
           </Layout>
-            {/* tree */}
+          {/* tree */}
           <Layout style={treeStyle}>
-              <RepoTree directory={directory} />
+            <RepoTree directory={directory} />
           </Layout>
           <Layout style={codeStyle}>
-              <CodeTable directory={directory} readmeContent={readmeContent} />
+            <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent} />
           </Layout>
-      </Flex>
+        </Flex>
+      )}
     </div>
   )
 }
