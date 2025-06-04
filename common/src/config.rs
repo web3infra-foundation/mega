@@ -11,6 +11,68 @@ use std::rc::Rc;
 
 use crate::utils;
 
+/// Retrieves the base directory path for Mega
+///
+/// The directory is determined in the following priority order:
+/// 1. Uses the `MEGA_BASE_DIR` environment variable if set
+/// 2. Falls back to system default paths when environment variable is not set:
+///     - On Linux: `~/.local/share/mega`
+///     - On Windows: `C:\Users\{UserName}\AppData\Local\mega`
+///     - On macOS: `~/Library/Application Support/mega`
+///
+/// # Returns
+/// A PathBuf containing the base directory path
+///
+/// # Panics
+/// Will panic if both conditions occur:
+/// - Environment variable is not set
+/// - System base directories cannot be determined
+///
+pub fn mega_base() -> PathBuf {
+    // Get the base directory from the environment variable or use the default
+    let base_dir = std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| {
+        let base_dirs = directories::BaseDirs::new().unwrap();
+        base_dirs
+            .data_local_dir()
+            .join("mega")
+            .to_str()
+            .unwrap()
+            .to_string()
+    });
+    PathBuf::from(base_dir)
+}
+
+/// Retrieves the cache directory path for Mega
+///
+/// The directory is determined in the following priority order:
+/// 1. Uses the `MEGA_CACHE_DIR` environment variable if set
+/// 2. Falls back to system default paths when environment variable is not set:
+///     - On Linux: `~/.cache/mega`
+///     - On Windows: `C:\Users\{username}\AppData\Local\Cache\mega`
+///     - On macOS: `~/Library/Caches/mega`
+///
+/// # Returns
+/// A PathBuf containing the cache directory path
+///
+/// # Panics
+/// Will panic if both conditions occur:
+/// - Environment variable is not set
+/// - System cache directories cannot be determined
+///
+pub fn mega_cache() -> PathBuf {
+    // Get the cache directory from the environment variable or use the default
+    let cache_dir = std::env::var("MEGA_CACHE_DIR").unwrap_or_else(|_| {
+        let base_dirs = directories::BaseDirs::new().unwrap();
+        base_dirs
+            .cache_dir()
+            .join("mega")
+            .to_str()
+            .unwrap()
+            .to_string()
+    });
+    PathBuf::from(cache_dir)
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     pub base_dir: PathBuf,
@@ -89,9 +151,7 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
-        let base_dir = PathBuf::from(
-            std::env::var("MEGA_BASE_DIR").unwrap_or_else(|_| "/tmp/.mega".to_string()),
-        );
+        let base_dir = mega_base();
         std::fs::create_dir_all(&base_dir).unwrap();
 
         let bin_name = utils::get_current_bin_name();
@@ -209,7 +269,7 @@ pub struct LogConfig {
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            log_path: PathBuf::from("/tmp/.mega/logs"),
+            log_path: mega_cache().join("logs"),
             level: String::from("info"),
             print_std: true,
         }
@@ -230,7 +290,7 @@ impl Default for DbConfig {
     fn default() -> Self {
         Self {
             db_type: String::from("sqlite"),
-            db_path: PathBuf::from("/tmp/.mega/mega.db"),
+            db_path: mega_base().join("mega.db"),
             db_url: String::from("postgres://mega:mega@localhost:5432/mega"),
             max_connection: 32,
             min_connection: 16,
@@ -296,7 +356,7 @@ impl Default for PackConfig {
         Self {
             pack_decode_mem_size: "4G".to_string(),
             pack_decode_disk_size: "20%".to_string(),
-            pack_decode_cache_path: PathBuf::from("/tmp/.mega/cache"),
+            pack_decode_cache_path: mega_cache().join("pack_decode_cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
         }
@@ -446,7 +506,7 @@ pub struct LFSLocalConfig {
 impl Default for LFSLocalConfig {
     fn default() -> Self {
         Self {
-            lfs_file_path: PathBuf::from("/tmp/.mega/lfs"),
+            lfs_file_path: mega_base().join("lfs"),
             enable_split: true,
             split_size: "20M".to_string(),
         }
