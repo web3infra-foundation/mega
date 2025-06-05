@@ -140,6 +140,7 @@ diffs = "0.5.1"
 libc = "0.2.172"
 zstd-sys = "2.0.15+zstd.1.5.7"
 quickcheck = "1.0.3"
+directories = "6.0.0"
 
 [profile.release]
 debug = true

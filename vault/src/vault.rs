@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +30,7 @@ lazy_static! {
 /// Initialize the vault core, used in `lazy_static!`
 fn init() -> CoreInfo {
     const CORE_KEY_FILE: &str = "core_key.json"; // where the core key is stored, like `root_token`
-    let dir = PathBuf::from("/tmp/rusty_vault_pki_module"); // RustyVault files TODO configurable
+    let dir = common::config::mega_base().join("vault");
     let core_key_path = dir.join(CORE_KEY_FILE);
     // let dir = env::temp_dir().join("rusty_vault_pki_module"); // TODO: 改成数据库？
 
