@@ -71,9 +71,10 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn remove_refs(&self, path: &str) -> Result<(), MegaError> {
+    pub async fn remove_none_mr_refs(&self, path: &str) -> Result<(), MegaError> {
         mega_refs::Entity::delete_many()
             .filter(mega_refs::Column::Path.starts_with(path))
+            .filter(mega_refs::Column::IsMr.eq(false))
             .exec(self.get_connection())
             .await?;
         Ok(())
