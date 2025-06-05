@@ -3,6 +3,7 @@ use sea_orm_migration::schema::big_integer;
 
 mod m20250314_025943_init;
 mod m20250427_031332_add_mr_refs_tag;
+mod m20250605_013340_alter_mega_mr_index;
 
 pub struct Migrator;
 
@@ -12,6 +13,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20250314_025943_init::Migration),
             Box::new(m20250427_031332_add_mr_refs_tag::Migration),
+            Box::new(m20250605_013340_alter_mega_mr_index::Migration),
         ]
     }
 }

@@ -48,7 +48,12 @@ impl PackHandler for MonoRepo {
         let storage = self.context.services.mono_storage.clone();
 
         let result = storage.get_refs(self.path.to_str().unwrap()).await.unwrap();
-        let refs = if !result.is_empty() {
+
+        let heads_exist = result
+            .iter()
+            .any(|x| x.ref_name == common::utils::MEGA_BRANCH_NAME);
+
+        let refs = if heads_exist {
             let refs: Vec<Refs> = result.into_iter().map(|x| x.into()).collect();
             refs
         } else {
@@ -164,75 +169,7 @@ impl PackHandler for MonoRepo {
 
     // monorepo full pack should follow the shallow clone command 'git clone --depth=1'
     async fn full_pack(&self, want: Vec<String>) -> Result<ReceiverStream<Vec<u8>>, GitError> {
-        let pack_config = &self.context.config.pack;
-        let storage = self.context.services.mono_storage.clone();
-        let obj_num = AtomicUsize::new(0);
-        let mut trees = Vec::new();
-
-        let refs = storage
-            .get_ref(self.path.to_str().unwrap())
-            .await
-            .unwrap()
-            .unwrap();
-        let commit: Commit = storage
-            .get_commit_by_hash(&refs.ref_commit_hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into();
-        let tree: Tree = storage
-            .get_tree_by_hash(&refs.ref_tree_hash)
-            .await
-            .unwrap()
-            .unwrap()
-            .into();
-        trees.push(tree.clone());
-        let mut exist_objs = HashSet::new();
-        let mut counted_obj = HashSet::new();
-        self.traverse_for_count(tree.clone(), &exist_objs, &mut counted_obj, &obj_num)
-            .await;
-        obj_num.fetch_add(1, Ordering::SeqCst);
-
-        exist_objs.extend(counted_obj.clone());
-
-        let (entry_tx, entry_rx) = mpsc::channel(pack_config.channel_message_size);
-        let (stream_tx, stream_rx) = mpsc::channel(pack_config.channel_message_size);
-
-        let want_c = want.first().unwrap();
-        if refs.ref_commit_hash != *want_c {
-            let refs = storage
-                .get_ref_by_commit(self.path.to_str().unwrap(), want_c)
-                .await
-                .unwrap()
-                .unwrap();
-            let commit: Commit = storage
-                .get_commit_by_hash(&refs.ref_commit_hash)
-                .await
-                .unwrap()
-                .unwrap()
-                .into();
-            let tree: Tree = storage
-                .get_tree_by_hash(&refs.ref_tree_hash)
-                .await
-                .unwrap()
-                .unwrap()
-                .into();
-            trees.push(tree.clone());
-            self.traverse_for_count(tree, &exist_objs, &mut counted_obj, &obj_num)
-                .await;
-            obj_num.fetch_add(1, Ordering::SeqCst);
-            entry_tx.send(commit.into()).await.unwrap();
-        }
-
-        let encoder = PackEncoder::new(obj_num.into_inner(), 0, stream_tx);
-        encoder.encode_async(entry_rx).await.unwrap();
-        let mut send_exist = HashSet::new();
-        for tree in trees {
-            self.traverse(tree, &mut send_exist, Some(&entry_tx)).await;
-        }
-        entry_tx.send(commit.into()).await.unwrap();
-        drop(entry_tx);
-        Ok(ReceiverStream::new(stream_rx))
+        self.incremental_pack(want, Vec::new()).await
     }
 
     async fn incremental_pack(
