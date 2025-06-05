@@ -35,3 +35,7 @@ uuid = { workspace = true }
 futures-util = { workspace = true }
 tokio-util = { workspace = true }
 futures = { workspace = true }
+
+
+#[dev-dependencies]
+#tracing-subscriber = { workspace = true }
