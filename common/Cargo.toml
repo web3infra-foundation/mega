@@ -24,3 +24,4 @@ serde_json = { workspace = true }
 regex = { workspace = true }
 sea-orm = { workspace = true, features = ["macros"] }
 utoipa = { workspace = true }
+directories = { workspace = true }
