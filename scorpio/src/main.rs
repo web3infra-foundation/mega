@@ -43,6 +43,7 @@ async fn main() {
     let mountpoint = OsStr::new(workspace);
     let lgfs = LoggingFileSystem::new(fuse_interface.clone());
     let mut mount_handle = mount_filesystem(lgfs, mountpoint).await;
+
     let handle = &mut mount_handle;
 
     // spawn the server running function.

@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+
 import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
 
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 
-import CodeTable from './CodeTable'
+import SpinnerTable from './TableWithLoading'
 
 export default function CodeView() {
   const { data: TreeCommitInfo } = useGetTreeCommitInfo('/')
@@ -31,11 +32,7 @@ export default function CodeView() {
     fetchData()
   }, [fetchData])
 
-  return (
-    <div className='mt-3 p-3.5'>
-      <CodeTable directory={directory} readmeContent={readmeContent} />
-    </div>
-  )
+  return <SpinnerTable isLoading={!TreeCommitInfo} datasource={directory} content={readmeContent} />
 }
 
 async function getReadmeContent(pathname: string, directory: any) {
