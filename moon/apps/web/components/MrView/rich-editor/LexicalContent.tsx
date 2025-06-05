@@ -3,6 +3,7 @@ import ExampleTheme from './ExampleTheme';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
+import type { LexicalEditor } from 'lexical';
 
 const LexicalContent = ({ lexicalJson }: { lexicalJson: string }) => {
     const editorConfig = {
@@ -13,7 +14,18 @@ const LexicalContent = ({ lexicalJson }: { lexicalJson: string }) => {
         },
         theme: ExampleTheme,
         editable: false,
-        editorState: lexicalJson,
+        editorState: (editor: LexicalEditor) => {
+            if (lexicalJson) {
+                try {
+                    const parsedState = editor.parseEditorState(lexicalJson);
+                    
+                    editor.setEditorState(parsedState);
+                } catch (e) {
+                    // eslint-disable-next-line no-console
+                    console.warn('Invalid lexical JSON, loading empty editor state.');
+                }
+            }
+        },
     };
 
     const placeholder = 'No description provided.';

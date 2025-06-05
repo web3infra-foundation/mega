@@ -113,22 +113,29 @@ impl BootstrapNode {
     }
 }
 
-pub async fn run(context: Context, bootstrap_node: String) {
+pub async fn run(context: Context, bootstrap_node: String) -> Result<()> {
     let connection = match get_client_connection(bootstrap_node.clone()).await {
         Ok(connection) => connection,
         Err(e) => {
-            error!("P2P: Connect to {} failed, {}", bootstrap_node, e);
-            return;
+            bail!("P2P: Connect to {} failed, {}", bootstrap_node, e);
         }
     };
 
     let connection = Arc::new(connection);
+
     MsgSingletonConnection::init(connection.clone());
     BootstrapNode::init(bootstrap_node.clone());
 
     let (tx, mut rx) = mpsc::channel(8);
 
     let peer_id = get_peerid().await;
+
+    // Register msg connection to relay
+    let connection_clone = MsgSingletonConnection::get_connection();
+    let (mut send, _) = connection_clone.open_bi().await?;
+    send.write_all(format!("{}|{}", peer_id.clone(), "MSG").as_bytes())
+        .await?;
+    send.finish()?;
 
     tokio::spawn(async move {
         if let Err(e) = run_ping_task(peer_id.clone()).await {
@@ -151,15 +158,10 @@ pub async fn run(context: Context, bootstrap_node: String) {
             }
         });
     }
+    Ok(())
 }
 
 async fn run_ping_task(peer_id: String) -> Result<()> {
-    // Register msg connection to relay
-    let connection_clone = MsgSingletonConnection::get_connection();
-    let (mut send, _) = connection_clone.open_bi().await?;
-    send.write_all(format!("{}|{}", peer_id.clone(), "MSG").as_bytes())
-        .await?;
-
     loop {
         let connection_clone = MsgSingletonConnection::get_connection();
         let (mut quic_send, _) = connection_clone.open_bi().await?;
@@ -236,7 +238,7 @@ async fn get_client_connection(bootstrap_node: String) -> Result<Connection> {
     client_crypto.alpn_protocols = ALPN_QUIC_HTTP.iter().map(|&x| x.into()).collect();
     client_crypto.enable_early_data = true;
     let client_config = ClientConfig::new(Arc::new(QuicClientConfig::try_from(client_crypto)?));
-    let mut endpoint = Endpoint::client(SocketAddr::from_str("[::]:0").unwrap())?;
+    let mut endpoint = Endpoint::client(SocketAddr::from_str("[::]:0")?)?;
     endpoint.set_default_client_config(client_config);
 
     let server_addr: SocketAddr = bootstrap_node.parse()?;
@@ -251,50 +253,46 @@ async fn get_client_connection(bootstrap_node: String) -> Result<Connection> {
     Ok(connection)
 }
 
-pub async fn call(to_peer_id: String, func: String, data: Vec<u8>) -> Result<Vec<u8>> {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-
-    let connection = MsgSingletonConnection::get_connection();
-
-    let connection_clone = connection.clone();
-    let local_peer_id = get_peerid().await;
-    tokio::spawn(async move {
-        let (mut sender, _) = connection_clone.open_bi().await.unwrap();
-        let send = RequestData {
-            from: local_peer_id.clone(),
-            data: data.clone(),
-            func: func.to_string(),
-            action: Action::Call,
-            to: to_peer_id.to_string(),
-            req_id: Uuid::new_v4().into(),
-        };
-        let json = serde_json::to_string(&send).unwrap();
-        sender.write_all(json.as_bytes()).await.unwrap();
-        sender.finish().unwrap();
-    });
-
-    let connection_clone = connection.clone();
-
-    tokio::spawn(async move {
-        let (_, mut quic_recv) = connection_clone.accept_bi().await.unwrap();
-        let buffer = quic_recv.read_to_end(1024 * 1024).await.unwrap();
-        info!("QUIC Received:\n{}", String::from_utf8_lossy(&buffer));
-        if tx.send(buffer).is_err() {
-            info!("Receiver closed");
-        }
-    });
-    let message = rx.await?;
-    let data: ResponseData = serde_json::from_slice(&message)?;
-    Ok(data.data)
-}
+// pub async fn call(to_peer_id: String, func: String, data: Vec<u8>) -> Result<Vec<u8>> {
+//     let (tx, rx) = tokio::sync::oneshot::channel();
+//
+//     let connection = MsgSingletonConnection::get_connection();
+//
+//     let connection_clone = connection.clone();
+//     let local_peer_id = get_peerid().await;
+//     tokio::spawn(async move {
+//         let (mut sender, _) = connection_clone.open_bi().await.unwrap();
+//         let send = RequestData {
+//             from: local_peer_id.clone(),
+//             data: data.clone(),
+//             func: func.to_string(),
+//             action: Action::Call,
+//             to: to_peer_id.to_string(),
+//             req_id: Uuid::new_v4().into(),
+//         };
+//         let json = serde_json::to_string(&send).unwrap();
+//         sender.write_all(json.as_bytes()).await.unwrap();
+//         sender.finish().unwrap();
+//     });
+//
+//     let connection_clone = connection.clone();
+//
+//     tokio::spawn(async move {
+//         let (_, mut quic_recv) = connection_clone.accept_bi().await.unwrap();
+//         let buffer = quic_recv.read_to_end(1024 * 1024).await.unwrap();
+//         info!("QUIC Received:\n{}", String::from_utf8_lossy(&buffer));
+//         if tx.send(buffer).is_err() {
+//             info!("Receiver closed");
+//         }
+//     });
+//     let message = rx.await?;
+//     let data: ResponseData = serde_json::from_slice(&message)?;
+//     Ok(data.data)
+// }
 
 pub async fn send(to_peer_id: String, func: String, data: Vec<u8>) -> Result<()> {
-    let connection = MsgSingletonConnection::get_connection();
-
-    let connection_clone = connection.clone();
     let local_peer_id = get_peerid().await;
     let t = tokio::spawn(async move {
-        let (mut sender, _) = connection_clone.open_bi().await.unwrap();
         let send = RequestData {
             from: local_peer_id.clone(),
             data: data.clone(),
@@ -303,11 +301,20 @@ pub async fn send(to_peer_id: String, func: String, data: Vec<u8>) -> Result<()>
             to: to_peer_id.to_string(),
             req_id: Uuid::new_v4().into(),
         };
-        let json = serde_json::to_string(&send).unwrap();
-        sender.write_all(json.as_bytes()).await.unwrap();
-        sender.finish().unwrap();
+        if let Err(e) = send_request(send).await {
+            error!("failed to send request: {e}");
+        };
     });
     let _ = join!(t);
+    Ok(())
+}
+
+async fn send_request(data: RequestData) -> Result<()> {
+    let connection = MsgSingletonConnection::get_connection();
+    let (mut sender, _) = connection.open_bi().await?;
+    let json = serde_json::to_string(&data)?;
+    sender.write_all(json.as_bytes()).await?;
+    sender.finish()?;
     Ok(())
 }
 
@@ -320,7 +327,10 @@ pub async fn repo_share(context: Context, path: String) -> Result<String> {
         }
         Some(repo) => repo,
     };
-    let commit = storage.get_last_commit_by_repo_id(repo.id).await.unwrap();
+    let commit = match storage.get_last_commit_by_repo_id(repo.id).await {
+        Ok(commit) => commit,
+        Err(e) => bail!(e),
+    };
     let commit = match commit {
         Some(commit) => commit,
         None => {
@@ -334,16 +344,12 @@ pub async fn repo_share(context: Context, path: String) -> Result<String> {
     repo_info.update_time = commit.created_at.and_utc().timestamp();
     repo_info.origin = get_peerid().await;
 
-    let connection = MsgSingletonConnection::get_connection();
-
-    let connection_clone = connection.clone();
     let local_peer_id = get_peerid().await;
     let req_id: String = Uuid::new_v4().into();
 
     let (tx, rx) = tokio::sync::oneshot::channel();
     REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
     tokio::spawn(async move {
-        let (mut sender, _) = connection_clone.open_bi().await.unwrap();
         let send = RequestData {
             from: local_peer_id.clone(),
             data: repo_info.to_json().into_bytes(),
@@ -352,9 +358,10 @@ pub async fn repo_share(context: Context, path: String) -> Result<String> {
             to: "".to_string(),
             req_id: req_id.clone(),
         };
-        let json = serde_json::to_string(&send).unwrap();
-        sender.write_all(json.as_bytes()).await.unwrap();
-        sender.finish().unwrap();
+
+        if let Err(e) = send_request(send).await {
+            error!("failed to send request: {e}");
+        }
     });
     let _message = wait_rx_with_timeout(rx).await?;
     info!("Repo share success: {}", identifier);
@@ -381,10 +388,10 @@ pub async fn repo_clone(context: Context, identifier: String) -> Result<String> 
 
 async fn request_git_clone(context: Context, path: String, to_peer_id: String) -> Result<()> {
     let storage = context.services.git_db_storage.clone();
-    let model = storage
-        .find_git_repo_exact_match(path.as_str())
-        .await
-        .unwrap();
+    let model = match storage.find_git_repo_exact_match(path.as_str()).await {
+        Ok(model) => model,
+        Err(e) => bail!(e),
+    };
     if model.is_some() {
         bail!("Repo path already exists");
     }
@@ -425,8 +432,12 @@ async fn request_git_clone(context: Context, path: String, to_peer_id: String) -
     //receive  header
     let (_file_sender, mut file_receiver) = file_connection.accept_bi().await?;
     let mut header_buf = [0u8; 1024];
-    let len = file_receiver.read(&mut header_buf).await?.unwrap();
-    let header = String::from_utf8_lossy(&header_buf[..len]);
+    let header = match file_receiver.read(&mut header_buf).await? {
+        Some(len) => String::from_utf8_lossy(&header_buf[..len]),
+        None => {
+            bail!("failed to read header");
+        }
+    };
     let header: GitCloneHeader = serde_json::from_str(&header)?;
     let (target_id, from, git_path) = (header.target, header.from, header.git_path);
     if target_id != peer_id {
@@ -469,17 +480,24 @@ async fn request_git_clone(context: Context, path: String, to_peer_id: String) -
             let to_peer_id = to_peer_id.clone();
             let t = tokio::spawn(async move {
                 //try to download lfs
-                request_lfs(context.clone(), oid.0.to_string(), to_peer_id.clone())
-                    .await
-                    .unwrap();
+                match request_lfs(context.clone(), oid.0.to_string(), to_peer_id.clone()).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("failed request lfs: {e}");
+                    }
+                };
             });
             task.push(t);
         }
     }
     futures::future::join_all(task).await;
     //Save to db
-    storage.save_git_repo(repo.clone().into()).await.unwrap();
-    storage.save_entry(repo.repo_id, entry_list).await.unwrap();
+    if let Err(e) = storage.save_git_repo(repo.clone().into()).await {
+        bail!("failed to save git repo: {}", e);
+    };
+    if let Err(e) = storage.save_entry(repo.repo_id, entry_list).await {
+        bail!("failed to save entry for repo: {}", e);
+    };
     for x in header.branches {
         let r = import_refs::Model {
             id: generate_id(),
@@ -491,7 +509,9 @@ async fn request_git_clone(context: Context, path: String, to_peer_id: String) -
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
-        storage.save_ref(repo.repo_id, r).await.unwrap();
+        if let Err(e) = storage.save_ref(repo.repo_id, r).await {
+            bail!("failed to save reference: {}", e);
+        }
     }
 
     info!(
@@ -530,7 +550,10 @@ async fn response_git_clone(context: Context, path: String, to_peer_id: String) 
     file_sender.finish()?;
 
     //send git clone header
-    let refs = storage.get_ref(repo.repo_id).await.unwrap();
+    let refs = match storage.get_ref(repo.repo_id).await {
+        Ok(refs) => refs,
+        Err(e) => bail!("failed to fetch refs: {e}"),
+    };
     let header = GitCloneHeader {
         from: peer_id.clone(),
         target: to_peer_id.clone(),
@@ -544,7 +567,7 @@ async fn response_git_clone(context: Context, path: String, to_peer_id: String) 
 
     //send encoded git objects
     let (mut file_sender, _file_receiver) = file_connection.open_bi().await?;
-    let mut receiver = get_encode_git_objects_by_repo(context, repo).await;
+    let mut receiver = get_encode_git_objects_by_repo(context, repo).await?;
     while let Some(data) = receiver.recv().await {
         file_sender.write_all(&data).await?;
     }
@@ -595,7 +618,10 @@ async fn request_lfs(context: Context, oid: String, to_peer_id: String) -> Resul
     //receive  header
     let (_file_sender, mut file_receiver) = file_connection.accept_bi().await?;
     let mut header_buf = [0u8; 1024];
-    let len = file_receiver.read(&mut header_buf).await?.unwrap();
+    let len = match file_receiver.read(&mut header_buf).await? {
+        Some(n) => n,
+        None => bail!("failed to read header"),
+    };
     let header = String::from_utf8_lossy(&header_buf[..len]);
     let header: LFSHeader = serde_json::from_str(&header)?;
     info!("LFS handle receive, {:?}", header);
@@ -667,11 +693,10 @@ async fn request_lfs(context: Context, oid: String, to_peer_id: String) -> Resul
 async fn response_lfs(context: Context, oid: String, to_peer_id: String) -> Result<()> {
     let bootstrap_node = BootstrapNode::get();
     info!("oid:{}", oid.clone());
-    let result = context
-        .lfs_stg()
-        .get_lfs_object(oid.as_str())
-        .await
-        .unwrap();
+    let result = match context.lfs_stg().get_lfs_object(oid.as_str()).await {
+        Ok(m) => m,
+        Err(e) => bail!(e),
+    };
 
     let lfs_object = match result {
         None => {
@@ -702,9 +727,7 @@ async fn response_lfs(context: Context, oid: String, to_peer_id: String) -> Resu
 
     //send data
     let (mut file_sender, _file_receiver) = file_connection.open_bi().await?;
-    let mut result = lfs_download_object(context.clone(), oid.clone())
-        .await
-        .unwrap();
+    let mut result = lfs_download_object(context.clone(), oid.clone()).await?;
     while let Some(d) = result.next().await {
         match d {
             Ok(bytes_chunk) => {
@@ -758,9 +781,7 @@ async fn send_nostr_msg(client_message: ClientMessage) -> Result<RelayMessage> {
     let req_id: String = Uuid::new_v4().into();
     let local_peer_id = get_peerid().await;
     REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
-    let connection = MsgSingletonConnection::get_connection();
     tokio::spawn(async move {
-        let (mut sender, _) = connection.open_bi().await.unwrap();
         let send = RequestData {
             from: local_peer_id.clone(),
             data: client_message.as_json().as_bytes().to_vec(),
@@ -769,9 +790,9 @@ async fn send_nostr_msg(client_message: ClientMessage) -> Result<RelayMessage> {
             to: "".to_string(),
             req_id: req_id.clone(),
         };
-        let json = serde_json::to_string(&send).unwrap();
-        sender.write_all(json.as_bytes()).await.unwrap();
-        sender.finish().unwrap();
+        if let Err(e) = send_request(send).await {
+            error!("failed to send nostr msg: {e}");
+        }
     });
     let data = rx.await?;
     let data = RelayMessage::from_json(data)?;
@@ -780,7 +801,7 @@ async fn send_nostr_msg(client_message: ClientMessage) -> Result<RelayMessage> {
 
 async fn receive_nostr(data: Vec<u8>) -> Result<()> {
     info!("Nostr data:{}", String::from_utf8(data.clone())?);
-    let _relay_message: RelayMessage = serde_json::from_slice(data.as_slice()).unwrap();
+    let _relay_message: RelayMessage = serde_json::from_slice(data.as_slice())?;
     Ok(())
 }
 
@@ -789,21 +810,18 @@ pub async fn get_peers() -> Result<Vec<Node>> {
     let req_id: String = Uuid::new_v4().into();
     let local_peer_id = get_peerid().await;
     REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
-    let connection = MsgSingletonConnection::get_connection();
-    tokio::spawn(async move {
-        let (mut sender, _) = connection.open_bi().await.unwrap();
-        let send = RequestData {
-            from: local_peer_id.clone(),
-            data: vec![],
-            func: "".to_string(),
-            action: Action::Peers,
-            to: "".to_string(),
-            req_id: req_id.clone(),
-        };
-        let json = serde_json::to_string(&send).unwrap();
-        sender.write_all(json.as_bytes()).await.unwrap();
-        sender.finish().unwrap();
-    });
+    let send = RequestData {
+        from: local_peer_id.clone(),
+        data: vec![],
+        func: "".to_string(),
+        action: Action::Peers,
+        to: "".to_string(),
+        req_id: req_id.clone(),
+    };
+    if let Err(e) = send_request(send).await {
+        error!("failed to get peers: {e}");
+    }
+
     let res = wait_rx_with_timeout(rx).await?;
     let peers: Vec<Node> = serde_json::from_slice(res.as_slice())?;
     Ok(peers)
@@ -814,21 +832,18 @@ pub async fn get_repos() -> Result<Vec<RepoInfo>> {
     let req_id: String = Uuid::new_v4().into();
     let local_peer_id = get_peerid().await;
     REQ_SENDER_MAP.insert(req_id.clone(), Arc::new(Mutex::new(Some(tx))));
-    let connection = MsgSingletonConnection::get_connection();
-    tokio::spawn(async move {
-        let (mut sender, _) = connection.open_bi().await.unwrap();
-        let send = RequestData {
-            from: local_peer_id.clone(),
-            data: vec![],
-            func: "".to_string(),
-            action: Action::Repos,
-            to: "".to_string(),
-            req_id: req_id.clone(),
-        };
-        let json = serde_json::to_string(&send).unwrap();
-        sender.write_all(json.as_bytes()).await.unwrap();
-        sender.finish().unwrap();
-    });
+    let send = RequestData {
+        from: local_peer_id.clone(),
+        data: vec![],
+        func: "".to_string(),
+        action: Action::Repos,
+        to: "".to_string(),
+        req_id: req_id.clone(),
+    };
+
+    if let Err(e) = send_request(send).await {
+        error!("failed to get repos: {e}");
+    }
     let res = wait_rx_with_timeout(rx).await?;
     let repo_list: Vec<RepoInfo> = serde_json::from_slice(res.as_slice())?;
     Ok(repo_list)
@@ -843,14 +858,16 @@ async fn wait_rx_with_timeout(rx: tokio::sync::oneshot::Receiver<Vec<u8>>) -> Re
     }
 }
 
-async fn get_encode_git_objects_by_repo(context: Context, repo: Repo) -> Receiver<Vec<u8>> {
+async fn get_encode_git_objects_by_repo(context: Context, repo: Repo) -> Result<Receiver<Vec<u8>>> {
     let import_repo = ImportRepo {
         context: context.clone(),
         repo,
         command_list: vec![],
     };
-    let s = import_repo.full_pack(vec![]).await.unwrap();
-    s.into_inner()
+    match import_repo.full_pack(vec![]).await {
+        Ok(s) => Ok(s.into_inner()),
+        Err(e) => bail!("full pack repo failed: {}", e),
+    }
 }
 
 async fn get_user_cert_from_ca(
