@@ -112,7 +112,11 @@ pub fn check_run_with_p2p(context: Context, p2p: P2pOptions) {
                 bootstrap_node.clone()
             );
 
-            tokio::spawn(async move { gemini::p2p::client::run(context, bootstrap_node).await });
+            tokio::spawn(async move {
+                if let Err(e) = gemini::p2p::client::run(context, bootstrap_node).await {
+                    tracing::error!("P2P client closed:{}", e)
+                }
+            });
         }
         None => {
             tracing::info!("The bootstrap node is not set, prepare to start mega server locally");
