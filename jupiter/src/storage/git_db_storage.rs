@@ -162,21 +162,11 @@ impl GitDbStorage {
         let git_objects = Arc::try_unwrap(git_objects)
             .expect("Failed to unwrap Arc")
             .into_inner();
-        batch_save_model(self.get_connection(), git_objects.commits)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.trees)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.blobs)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.raw_blobs)
-            .await
-            .unwrap();
-        batch_save_model(self.get_connection(), git_objects.tags)
-            .await
-            .unwrap();
+        batch_save_model(self.get_connection(), git_objects.commits).await?;
+        batch_save_model(self.get_connection(), git_objects.trees).await?;
+        batch_save_model(self.get_connection(), git_objects.blobs).await?;
+        batch_save_model(self.get_connection(), git_objects.raw_blobs).await?;
+        batch_save_model(self.get_connection(), git_objects.tags).await?;
         Ok(())
     }
 

@@ -2,12 +2,18 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     str::FromStr,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use async_trait::async_trait;
 use futures::{future::join_all, StreamExt};
-use tokio::sync::mpsc::{self, UnboundedReceiver};
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver},
+    Semaphore,
+};
 use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
@@ -58,20 +64,37 @@ impl PackHandler for ImportRepo {
     ) -> Result<Option<Commit>, GitError> {
         let storage = self.context.services.git_db_storage.clone();
         let mut entry_list = vec![];
+        let semaphore = Arc::new(Semaphore::new(8));
         let mut join_tasks = vec![];
         let repo_id = self.repo.repo_id;
+
         while let Some(entry) = receiver.recv().await {
             entry_list.push(entry);
-            if entry_list.len() >= 10000 {
+            if entry_list.len() >= 1000 {
                 let stg_clone = storage.clone();
+                let acquired = semaphore.clone().acquire_owned().await.unwrap();
+
                 let handle = tokio::spawn(async move {
-                    stg_clone.save_entry(repo_id, entry_list).await.unwrap();
+                    let _acquired = acquired;
+                    stg_clone.save_entry(repo_id, entry_list).await
                 });
                 join_tasks.push(handle);
                 entry_list = vec![];
             }
         }
-        join_all(join_tasks).await;
+        let results = join_all(join_tasks).await;
+        for (i, res) in results.into_iter().enumerate() {
+            match res {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    tracing::error!("Task {} save_entry Err: {:?}", i, e);
+                }
+                Err(join_err) => {
+                    tracing::error!("Task {} panic or cancle: {:?}", i, join_err);
+                }
+            }
+        }
+
         storage.save_entry(repo_id, entry_list).await.unwrap();
         self.attach_to_monorepo_parent().await.unwrap();
         Ok(None)
@@ -126,29 +149,28 @@ impl PackHandler for ImportRepo {
                 }
             }
 
-            let mut blob_handler = vec![];
-            for chunk in bids.chunks(10000) {
+            // let mut blob_handler = vec![];
+            for chunk in bids.chunks(1000) {
                 let raw_storage = raw_storage.clone();
                 let sender_clone = entry_tx.clone();
                 let chunk_clone = chunk.to_vec();
-                let handler = tokio::spawn(async move {
-                    let mut blob_stream =
-                        raw_storage.get_raw_blobs_stream(chunk_clone).await.unwrap();
-                    while let Some(model) = blob_stream.next().await {
-                        match model {
-                            Ok(m) => {
-                                // todo handle storage type
-                                let b: Blob = m.into();
-                                let entry: Entry = b.into();
-                                sender_clone.send(entry).await.unwrap();
-                            }
-                            Err(err) => eprintln!("Error: {:?}", err),
+                // let handler = tokio::spawn(async move {
+                let mut blob_stream = raw_storage.get_raw_blobs_stream(chunk_clone).await.unwrap();
+                while let Some(model) = blob_stream.next().await {
+                    match model {
+                        Ok(m) => {
+                            // TODO handle storage type
+                            let b: Blob = m.into();
+                            let entry: Entry = b.into();
+                            sender_clone.send(entry).await.unwrap();
                         }
+                        Err(err) => eprintln!("Error: {:?}", err),
                     }
-                });
-                blob_handler.push(handler);
+                }
+                // });
+                // blob_handler.push(handler);
             }
-            join_all(blob_handler).await;
+            // join_all(blob_handler).await;
             tracing::info!("send blobs end");
 
             let tags = storage.get_tags_by_repo_id(repo_id).await.unwrap();
