@@ -47,7 +47,8 @@ impl TreeStore for sled::Db {
                 // By returning a HashMap, we avoid using a double pointer loop structure in diff.rs.
                 Ok((path, encoded_value)) => {
                     // Convert the IVec to a string and then to a PathBuf
-                    let path = std::str::from_utf8(&path).unwrap_or("Invalid UTF8 path");
+                    let path = std::str::from_utf8(&path)
+                        .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF8 path"))?;
                     let decoded_tree: Result<Tree> = bincode::deserialize(&encoded_value)
                         .map_err(|_| Error::other("Deserialization error"));
                     Ok((PathBuf::from(path), decoded_tree?))
@@ -185,11 +186,15 @@ impl BlobFsStore for PathBuf {
         hashmap
             .values()
             .map(|hash| {
-                let hash_path = object_path.join(&hash[0..2]);
+                let hash_flag = hash.get(0..2).ok_or(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Hash must be 40 characters long",
+                ))?;
+                let hash_path = object_path.join(hash_flag);
                 let sha_hash =
                     SHA1::from_str(hash).map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
-                let data_path = hash_path.join(&hash[2..]);
+                let data_path = hash_path.join(hash_flag);
                 let data = std::fs::read(&data_path)?;
                 let blob = Blob::from_bytes(&data, sha_hash);
                 blob.map_err(|e| Error::new(ErrorKind::InvalidData, e))
