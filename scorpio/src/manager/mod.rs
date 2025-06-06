@@ -158,7 +158,7 @@ impl ScorpioManager {
         let temp_store_area = TempStoreArea::new(&modified_path)?;
         println!("OK1");
         let base_url = config::base_url();
-        let url = format!("{}/{}/git-receive-pack", base_url, mono_path);
+        let url = format!("{}/{}.git/git-receive-pack", base_url, mono_path);
 
         println!("START");
         let res= push::push(&work_path, &url, &temp_store_area.index_db).await?;
