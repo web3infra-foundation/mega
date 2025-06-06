@@ -9,6 +9,12 @@ on:
 
 env:
   TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
+  AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
+  AWS_ECS_WEB_SERVICE_NAME: ${{ secrets.AWS_ECS_WEB_SERVICE_NAME }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   web-ui-deploy:
@@ -23,39 +29,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4.0.0
-        with:
-          version: 9
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - run: pnpm config set "@tiptap-pro:registry" https://registry.tiptap.dev/
-      - run: pnpm config set "//registry.tiptap.dev/:_authToken" ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
-
-      - name: Install dependencies
-        working-directory: ./moon
-        run: pnpm i --frozen-lockfile
-
-      - name: Run ESLint
-        working-directory: ./moon
-        run: pnpm run lint
-
-      - name: Build Next.js application
-        working-directory: ./moon
-        run: pnpm run build
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -79,5 +52,17 @@ jobs:
           IMAGE_TAG: mega-ui-0.1.0-pre-release
         run: |
           docker build \
+            -f apps/web/Dockerfile \
             -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
+            --service ${{ secrets.AWS_ECS_WEB_SERVICE_NAME }} \
+            --force-new-deployment
+        env:
+          AWS_REGION: ap-southeast-2
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

@@ -61,7 +61,7 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
     # trees' hash
     tree[^0-9a-z]+(?P<current_hash>[0-9a-z]{40})\n
     parent[^0-9a-z]+(?P<parent_hash>[0-9a-z]{40})\n
-    
+
     # author
     author[[:blank:]]+
     (?P<author>[a-zA-Z0-9_-]+)
@@ -69,7 +69,7 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
     <(?P<author_email>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[[:alpha:]]{2,})>\n
     .*\n
     \n
-    
+
     # committer
     committer[[:blank:]]+
     (?P<committer>[a-zA-Z0-9_-]+)
@@ -77,7 +77,7 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
     <(?P<committer_email>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[[:alpha:]]{2,})>\n
     .*\n
     \n
-    
+
     # commit message
     (?s)(?P<message>.*)
     "####,

@@ -78,6 +78,8 @@ workspace = "/home/luxian/megadir/mount"
 config_file = "config.toml"
 git_author = "MEGA"
 git_email = "admin@mega.org"
+dicfuse_readable = "true"
+load_dir_depth = "3"
 ```
 ### `scorpio.toml` Configuration Guide:  
 
@@ -97,8 +99,13 @@ git_email = "admin@mega.org"
   Extended configuration filename (default: `config.toml`).  
 
 - **`git_author`** / **`git_email`**  
-  Default Git author metadata (for version tracking).  
+  Default Git author metadata (for version tracking). 
 
+- **`dicfuse_readable`**  
+  Allow reading file contents from a read-only directory.
+
+- **`load_dir_depth`**  
+  Specifies how deep the file system should load and preload directories during initialization.
 
 ### How to Contribute?
 

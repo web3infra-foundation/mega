@@ -14,9 +14,7 @@ byte-unit = { workspace = true }
 byteorder = { workspace = true }
 bytes = { workspace = true }
 ceres = { workspace = true }
-chrono = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-color-backtrace = { workspace = true }
 colored = { workspace = true }
 common = { workspace = true }
 flate2 = { workspace = true } # add features = ["zlib"] if slow
@@ -24,7 +22,6 @@ futures = { workspace = true }
 futures-util = { workspace = true }
 gemini = { workspace = true, optional = true }
 hex = { workspace = true }
-ignore = { workspace = true }
 imara-diff = { workspace = true }
 indicatif = { workspace = true }
 infer = { workspace = true }
@@ -49,11 +46,12 @@ serde_json = { workspace = true }
 sha1 = { workspace = true }
 similar = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "rt", "macros"] }
-tokio-util = { version = "0.7.11", features = ["io"] }
+tokio-util = {workspace = true, features = ["io"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-url = { workspace = true }
 wax = { workspace = true }
+url = { workspace = true }
+ignore = { workspace = true }
 
 [target.'cfg(unix)'.dependencies] # only on Unix
 pager = { workspace = true }
@@ -62,6 +60,5 @@ pager = { workspace = true }
 tempfile = { workspace = true }
 serial_test = { workspace = true }
 tokio = { workspace = true, features = ["macros", "process"] }
-tracing-test = { workspace = true }
 testcontainers = { workspace = true, features = ["http_wait","reusable-containers"] }
-reqwest = { version = "0.12.12", features = ["blocking"] }
+reqwest = { workspace = true, features = ["blocking"] }

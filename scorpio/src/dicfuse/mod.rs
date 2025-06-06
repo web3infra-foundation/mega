@@ -1,11 +1,11 @@
 mod abi;
 mod async_io;
-mod store;
+mod content_store;
+pub mod store;
 mod tree_store;
 use crate::manager::fetch::fetch_tree;
 use crate::util::config;
 use std::{
-    collections::HashMap,
     ffi::{OsStr, OsString},
     sync::Arc,
 };
@@ -19,7 +19,6 @@ use tree_store::StorageItem;
 pub struct Dicfuse {
     readable: bool,
     pub store: Arc<DictionaryStore>,
-    open_buff: Arc<tokio::sync::RwLock<HashMap<u64, Vec<u8>>>>,
 }
 #[allow(unused)]
 impl Dicfuse {
@@ -27,15 +26,11 @@ impl Dicfuse {
         Self {
             readable: config::dicfuse_readable(),
             store: DictionaryStore::new().await.into(), // Assuming DictionaryStore has a new() method
-            open_buff: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         }
     }
     pub async fn get_stat(&self, item: StorageItem) -> ReplyEntry {
         let mut e = item.get_stat();
-        let rl = self.open_buff.read().await;
-        if let Some(datas) = rl.get(&item.get_inode()) {
-            e.attr.size = datas.len() as u64;
-        }
+        e.attr.size = self.store.get_file_len(item.get_inode());
         e
     }
     async fn load_one_file(&self, parent: u64, name: &OsStr) -> std::io::Result<()> {
@@ -72,11 +67,7 @@ impl Dicfuse {
                 parent_item.push(i.name.clone());
 
                 let it_temp = self.store.get_by_path(&parent_item.to_string()).await?;
-
-                self.open_buff
-                    .write()
-                    .await
-                    .insert(it_temp.get_inode(), data);
+                self.store.save_file(it_temp.get_inode(), data);
             } else {
                 eprintln!("Request failed with status: {}", response.status());
             }
@@ -88,12 +79,7 @@ impl Dicfuse {
         if !self.readable {
             return;
         }
-        if self
-            .open_buff
-            .read()
-            .await
-            .contains_key(&parent_item.get_inode())
-        {
+        if self.store.file_exists(parent_item.get_inode()) {
             return;
         }
         let gpath = self.store.find_path(parent_item.get_inode()).await.unwrap();
@@ -131,26 +117,18 @@ impl Dicfuse {
 
                 // Look up the buff, find Loaded file.
                 if is_first {
-                    match self.open_buff.write().await.get(&hit_inodes) {
-                        Some(_) => {
-                            break;
-                            // is loaded , no need to reload ;
-                        }
-                        None => {
-                            // this dictionary is not loaded ,  just go ahead.
-                            is_first = false;
-                        }
+                    if self.store.file_exists(hit_inodes) {
+                        // if the file is already exists, no need to load again.
+                        break;
                     }
+                    self.store.save_file(hit_inodes, data);
+                    is_first = false;
                 }
-                self.open_buff.write().await.insert(hit_inodes, data);
             } else {
                 eprintln!("Request failed with status: {}", response.status());
             }
         }
-        self.open_buff
-            .write()
-            .await
-            .insert(parent_item.get_inode(), Vec::new());
+        self.store.save_file(parent_item.get_inode(), Vec::new());
     }
 }
 

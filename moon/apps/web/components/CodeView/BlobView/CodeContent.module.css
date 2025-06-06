@@ -1,0 +1,28 @@
+
+.codeLineNumber {
+    margin-left: 15px;
+    margin-right: 25px;
+}
+
+.viewChangeTab {
+    background-color: rgba(53, 53, 53, 0.103);
+    display: flex;
+    position: absolute;
+    height: 50px;
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+}
+
+.viewChangeTabButton {
+    padding-left: 20px;
+    padding-right: 20px;
+    height: 100%;
+    border-radius: 1rem;
+    border: none;
+    background-color: transparent;
+}
+
+.viewChangeTabButton:hover,
+.viewChangeTabButton:checked {
+    background-color: rgba(0, 0, 0, 0.121);
+}

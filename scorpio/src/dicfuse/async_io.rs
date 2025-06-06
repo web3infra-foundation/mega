@@ -6,10 +6,10 @@ use fuse3::raw::prelude::*;
 use fuse3::raw::reply::DirectoryEntry;
 use fuse3::{Errno, Inode, Result};
 
+use super::Dicfuse;
+use crate::dicfuse::store::load_dir;
 use futures::stream::{iter, Iter};
 use std::vec::IntoIter;
-
-use super::Dicfuse;
 
 impl Filesystem for Dicfuse {
     /// dir entry stream given by [`readdir`][Filesystem::readdir].
@@ -32,11 +32,8 @@ impl Filesystem for Dicfuse {
             .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
 
         ppath.push(name.to_string_lossy().into_owned());
-        let chil = store.get_by_path(&ppath.to_string()).await?;
-        if self.open_buff.read().await.get(&chil.get_inode()).is_none() {
-            let _ = self.load_one_file(parent, name).await;
-        }
-        let re = self.get_stat(chil).await;
+        let child = store.get_by_path(&ppath.to_string()).await?;
+        let re = self.get_stat(child).await;
         Ok(re)
     }
     /// initialize filesystem. Called before any other filesystem method.
@@ -122,9 +119,9 @@ impl Filesystem for Dicfuse {
                 data: Bytes::from("".as_bytes()),
             });
         }
-        let read_lock = self.open_buff.read().await;
-        let datas = read_lock
-            .get(&inode)
+        let datas = self
+            .store
+            .get_file_content(inode)
             .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENOENT))?;
         let _offset = offset as usize;
         let end = (_offset + size as usize).min(datas.len());
@@ -136,6 +133,18 @@ impl Filesystem for Dicfuse {
     }
     async fn access(&self, _req: Request, inode: Inode, _mask: u32) -> Result<()> {
         self.store.get_inode(inode).await?;
+        let load_parent = "/".to_string()
+            + &self
+                .store
+                .find_path(inode)
+                .await
+                .ok_or(libc::ENOENT)?
+                .to_string();
+        let max_depth = self.store.max_depth() + load_parent.matches('/').count();
+        let hash_change = load_dir(self.store.clone(), load_parent, max_depth).await;
+        if hash_change {
+            self.store.update_ancestors_hash(inode).await;
+        }
         Ok(())
     }
 
@@ -189,8 +198,6 @@ impl Filesystem for Dicfuse {
         let items = self.store.do_readdir(parent, fh, offset).await?;
         let mut d: Vec<std::result::Result<DirectoryEntryPlus, Errno>> = Vec::new();
 
-        let parent_item = self.store.get_inode(parent).await?;
-        self.load_files(parent_item, &items).await;
         for (index, item) in items.into_iter().enumerate() {
             if index as u64 >= offset {
                 let attr = self.get_stat(item.clone()).await;
@@ -213,7 +220,7 @@ impl Filesystem for Dicfuse {
                 }));
             }
         }
-        println!("{:?}", d);
+        // println!("{:?}", d);
         Ok(ReplyDirectoryPlus {
             entries: iter(d.into_iter()),
         })

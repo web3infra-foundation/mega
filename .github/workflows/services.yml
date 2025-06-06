@@ -1,0 +1,78 @@
+name: Test with Services
+on:
+  workflow_dispatch:
+  pull_request:
+    paths-ignore:
+      - 'alfs/**'
+      - 'archived/**'
+      - 'aries/**'
+      - 'config/**'
+      - 'docker/**'
+      - 'docs/**'
+      - 'moon/**'
+      - 'rust/**'
+      - 'scripts/**'
+      - 'third-party/**'
+      - 'toolchains/**'
+      - '.github/workflows/web-test.yml'
+      - '.github/workflows/web-deploy.yml'
+
+jobs:
+  # Label of the runner job
+  runner-job:
+    # You must use a Linux environment when using service containers or container jobs
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+      # Set the base directory for the mono binary
+      MEGA_BASE_DIR: ${{ github.workspace }}/testing
+    # Service containers to run with `runner-job`
+    services:
+      # Label used to access the service container
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_USER: mono
+          POSTGRES_PASSWORD: mono
+          POSTGRES_DB: mono
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Maps tcp port 5432 on service container to the host
+          - 5432:5432
+    steps:
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Checkout out mega repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Install system dependencies
+      - name: Install system dependencies
+        uses: ./.github/install-dep
+        with:
+          cache-key: sysdeps
+          platform: ubuntu
+
+      # Set up the environment for git and git-lfs
+      - name: Set up git lfs
+        run: |
+          echo "GPG_TTY=$(tty)" >> $GITHUB_ENV
+          git lfs install
+          git config --global user.email "mono@web3infra.foundation"
+          git config --global user.name "Mono Web3Infra"
+          git config --global lfs.url http://localhost:8000
+
+      # Build the mono and libra binaries
+      - name: Build mono and libra
+        run: |
+          cargo build --bin mono --bin libra
+          mkdir -p ${{ github.workspace }}/testing
+          echo "The mono volume is located at: ${{ github.workspace }}/testing"
+          ls -l ${{ github.workspace }}/testing

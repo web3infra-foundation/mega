@@ -94,8 +94,10 @@ mod tests {
     // use crate::util::repo_path_to_identifier;
     // use common::config::Config;
     // use jupiter::context::Context;
+    // use quinn::rustls;
     // use std::sync::Arc;
     // use tracing::info;
+    // use tracing_subscriber::fmt;
     //
     // #[tokio::test]
     // async fn test_get_peers() {
@@ -107,8 +109,11 @@ mod tests {
     //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
     //             .await
     //             .unwrap();
+    //         // client::run(context_clone.clone(), "127.0.0.1:8001".to_string())
+    //         //     .await
+    //         //     .unwrap();
     //     });
-    //     tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
     //     let peers = client::get_peers().await.unwrap();
     //     info!("peers: {:?}", peers);
     // }
@@ -124,7 +129,7 @@ mod tests {
     //             .await
     //             .unwrap();
     //     });
-    //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
     //     let repos = client::get_repos().await.unwrap();
     //     info!("repos: {:?}", repos);
     // }
@@ -136,11 +141,9 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
-    //             .await
-    //             .unwrap();
+    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string()).await
     //     });
-    //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //     tokio::time::sleep(tokio::time::Duration::from_millis(4000)).await;
     //     let context_clone = context.clone();
     //     let i = client::repo_share(
     //         context_clone.clone(),
@@ -158,14 +161,12 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
-    //             .await
-    //             .unwrap();
+    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string()).await
     //     });
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
     //     client::repo_clone(
     //         context.clone(),
-    //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-party/lfs_test.git"
+    //         "p2p://28DQdHDjcyp6MHSjfWWwHARoUYbzazn9yQMWVMLx9zyYo/third-party/lfs_test.git"
     //             .to_string(),
     //     )
     //     .await
@@ -179,13 +180,11 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
-    //             .await
-    //             .unwrap();
+    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string()).await
     //     });
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     //     client::repo_subscribe(
-    //         "p2p://23G4CgqpxezqrFNXbWyF9ESzh68acrcJk2y3xYJRW6VgA/third-party/lfs_test.git"
+    //         "p2p://28DQdHDjcyp6MHSjfWWwHARoUYbzazn9yQMWVMLx9zyYo/third-party/lfs_test.git"
     //             .to_string(),
     //     )
     //     .await
@@ -199,9 +198,7 @@ mod tests {
     //     let context = Context::new(Arc::from(config)).await;
     //     let context_clone = context.clone();
     //     tokio::spawn(async move {
-    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string())
-    //             .await
-    //             .unwrap();
+    //         client::run(context_clone.clone(), "47.74.41.94:8001".to_string()).await
     //     });
     //     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     //     let req = GitEventReq {
@@ -228,9 +225,16 @@ mod tests {
     // }
     //
     // fn test_with_logs() {
-    //     let _ = env_logger::builder()
-    //         .is_test(true)
-    //         .filter_level(log::LevelFilter::Info)
-    //         .try_init();
+    //     rustls::crypto::ring::default_provider()
+    //         .install_default()
+    //         .expect("Failed to install rustls crypto provider");
+    //
+    //     let subscriber = fmt()
+    //         .with_max_level(tracing::Level::DEBUG)
+    //         .with_target(false)
+    //         .finish();
+    //
+    //     tracing::subscriber::set_global_default(subscriber)
+    //         .expect("setting default subscriber failed");
     // }
 }

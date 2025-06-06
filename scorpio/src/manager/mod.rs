@@ -101,7 +101,11 @@ impl ScorpioManager {
         };
 
         println!("\x1b[34m[START]\x1b[0m");
-        let main_tree_hash = commit_core((&old_tree_db, &new_tree_db), &temp_store_area, &old_root_path)?;
+        let main_tree_hash = commit_core(
+            (&old_tree_db, &new_tree_db),
+            &temp_store_area,
+            &old_root_path,
+        )?;
         println!("\x1b[34m[DONE]\x1b[0m");
 
         println!("   [\x1b[33mDEBUG\x1b[0m] commit.author = {}", sign.name);
@@ -161,7 +165,7 @@ impl ScorpioManager {
         let url = format!("{}/{}.git/git-receive-pack", base_url, mono_path);
 
         println!("START");
-        let res= push::push(&work_path, &url, &temp_store_area.index_db).await?;
+        let res = push::push(&work_path, &url, &temp_store_area.index_db).await?;
         println!("END");
         Ok(res)
     }

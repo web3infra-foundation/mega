@@ -13,7 +13,7 @@ on:
       - 'alfs/**'
       - 'archived/**'
       - 'aries/**'
-      - 'congig/**'
+      - 'config/**'
       - 'docker/**'
       - 'docs/**'
       - 'moon/**'
@@ -31,57 +31,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # cache files before all jobs
-  setup:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-
-    name: Setup and cache ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Rust Toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: clippy rustfmt
-          cache-workspaces: |
-            ./
-            ./scorpio
-            ./monobean
-          cache-directories: |
-            ./target
-            ./scorpio/target
-            ./monobean/target
-
-  #
-  format:
-    name: Rustfmt Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - run: cargo fmt --all -- --check
-
   #
   clippy:
-    name: Clippy for ${{ matrix.os }}
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-    runs-on: ${{ matrix.os }}
-    needs: setup
+    name: Clippy Check
+    runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -94,37 +47,52 @@ jobs:
         uses: ./.github/install-dep
         with:
           cache-key: sysdeps
-          platform: ${{ matrix.os }}
+          platform: ubuntu
 
       - name: Run cargo clippy
         run: |
           cargo build --bin mega --bin libra
-          cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
+          cargo clippy --all-targets --all-features --no-deps -- -D warnings
 
-  #
+
   test:
     name: Full Test
-    runs-on: [self-hosted, Linux, X64]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu
+            runs-on: [self-hosted, Linux, X64]
+            home: /home/github
+          - os: macos
+            runs-on: [self-hosted, macOS, ARM64]
+            home: "/Users/eli"
+          - os: windows
+            runs-on: [self-hosted, X64, Windows]
+            home: "C:\\Users\\meagl"
+
+    runs-on: ${{ matrix.runs-on }}
     env:
       CARGO_TERM_COLOR: always
+      HOME: ${{ matrix.home }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
           lfs: true
-      - name: Setup Rust Toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install system dependencies
+        uses: ./.github/install-dep
         with:
-          components: clippy
-          cache-workspaces: |
-            ./
-          cache-directories: |
-            ./target
+          cache-key: sysdeps
+          platform: ${{ matrix.os }}
+          self-hosted: true
+          use-gtk: false
 
       - name: Set up git lfs
         run: |
-          echo "GPG_TTY=`tty`" >> $GITHUB_ENV
+          echo "GPG_TTY=${{ matrix.os == 'windows' && 'CON' || '$(tty)' }}" >> $GITHUB_ENV
           git lfs install
           git config --global user.email "mega@github.com"
           git config --global user.name "Mega"
@@ -133,20 +101,31 @@ jobs:
       - name: Run cargo test
         run: |
           cargo build --bin mega --bin libra
-          cargo test --workspace --all-features --no-fail-fast
+          cargo test --all-targets --no-fail-fast
 
-  #
   monobean:
     name: Test Monobean for ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        include:
+          - os: ubuntu
+            runs-on: [self-hosted, Linux, X64]
+            self-hosted: true
+            home: /home/github
+          - os: macos
+            runs-on: [self-hosted, macOS, ARM64]
+            self-hosted: true
+            home: "/Users/eli"
+          - os: windows
+            runs-on: [self-hosted, X64, Windows]
+            self-hosted: true
+            home: "C:\\Users\\meagl"
 
-    runs-on: ${{ matrix.os }}
-    needs: setup
+    runs-on: ${{ matrix.runs-on }}
     env:
       CARGO_TERM_COLOR: always
+      HOME: ${{ matrix.home }}
 
     steps:
       - name: Checkout repository
@@ -159,15 +138,16 @@ jobs:
         with:
           cache-key: sysdeps
           platform: ${{ matrix.os }}
+          use-gtk: true
+          self-hosted: ${{ matrix.self-hosted }}
 
-      - name: Run Lints
+      - name: Run Clippy and Test Monobean Application
         run: |
           cargo clippy --manifest-path monobean/Cargo.toml --no-deps -- -D warnings
           cargo test --manifest-path monobean/Cargo.toml  --all-features --no-fail-fast -- --nocapture
 
-  #
   fuse:
-    name: Fuse Lints
+    name: Fuse Clippy Check
     runs-on: [self-hosted, Linux, X64]
     env:
       CARGO_TERM_COLOR: always
