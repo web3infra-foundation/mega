@@ -1,38 +1,36 @@
-name: Mono Engine deploy
+name: Web Sync Server deploy
 on:
   push:
     branches:
       - main
-    paths-ignore:
-      - 'alfs/**'
-      - 'archived/**'
-      - 'aries/**'
-      - 'config/**'
-      - 'docker/**'
-      - 'docs/**'
-      - 'moon/**'
-      - 'rust/**'
-      - 'scripts/**'
-      - 'third-party/**'
-      - 'toolchains/**'
-      - '.github/workflows/web-**'
-      - '.github/workflows/mono-engine-deploy.yml'
+    paths:
+      - '.github/workflows/web-sycn-server*'
+      - 'moon/apps/sync-server/**'
+      - 'moon/packages/editor/**'
+      - 'moon/packages/config/**'
+      - 'moon/packages/types/**'
 
 env:
+  TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
   AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
-  AWS_ECS_MONO_SERVICE_NAME: ${{ secrets.AWS_ECS_MONO_SERVICE_NAME }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy-mono:
+  web-sync-server-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -48,20 +46,23 @@ jobs:
           registry-type: public
 
       - name: Build, tag, and push docker image to Amazon ECR Public
+        working-directory: moon
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           REGISTRY_ALIAS: m8q5m4u3
           REPOSITORY: mega
-          IMAGE_TAG: mono-0.1.0-pre-release
+          IMAGE_TAG: mega-web-sync-server-0.1.0-pre-release
         run: |
-          docker buildx build -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG -f ./docker/mono-engine-dockerfile .
+          docker build \
+            -f apps/sync-server/Dockerfile \
+            -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
 
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
             --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
-            --service ${{ secrets.AWS_ECS_MONO_SERVICE_NAME }} \
+            --service mega-web-sync-server-dev-service-v3hdlyk8 \
             --force-new-deployment
         env:
           AWS_REGION: ap-southeast-2

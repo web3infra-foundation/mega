@@ -21,8 +21,7 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/workflows/web-test.yml'
-      - '.github/workflows/web-deploy.yml'
+      - '.github/workflows/web-**'
 
 name: Base GitHub Action for Check, Test and Lints
 

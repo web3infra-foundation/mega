@@ -5,7 +5,7 @@ const SITE_URL_PROD = 'https://www.gitmono.com'
 const SITE_URL_DEV = 'http://gitmono.test:3003'
 
 const SYNC_URL_PROD = 'wss://sync.gitmono.com'
-const SYNC_URL_DEV = 'ws://localhost:9000'
+const SYNC_URL_DEV = 'ws://sync.gitmega.com'
 
 export const IS_PRODUCTION = process.env.APP_ENV === 'production'
 export const SCOPE_COOKIE_NAME = 'scope'
@@ -25,7 +25,7 @@ export const RAILS_API_URL = IS_PRODUCTION
   : process.env.NEXT_PUBLIC_API_URL || 'http://api.gitmega.com'
 
 export const LEGACY_API_URL = IS_PRODUCTION
-  ? 'https://api.gitmono.com'
+  ? 'https://git.gitmono.com'
   : process.env.NEXT_PUBLIC_LEGACY_API_URL || 'http://git.gitmega.com'
 
 const RAILS_AUTH_URL_PROD_COM = 'https://auth.gitmono.com'
