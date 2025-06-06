@@ -15,7 +15,7 @@ pub type ConfigResult<T> = Result<T, ConfigError>;
 pub struct ScorpioConfig {
     config: HashMap<String, String>,
 }
-
+const DEFAULT_LOAD_DIR_DEPTH: usize = 3;
 // Global configuration management
 static SCORPIO_CONFIG: OnceLock<ScorpioConfig> = OnceLock::new();
 
@@ -148,6 +148,10 @@ fn get_config() -> &'static ScorpioConfig {
         config.insert("git_email".to_string(), "admin@mega.org".to_string());
         config.insert("config_file".to_string(), "config.toml".to_string());
         config.insert(
+            "load_dir_depth".to_string(),
+            DEFAULT_LOAD_DIR_DEPTH.to_string(),
+        );
+        config.insert(
             "lfs_url".to_string(),
             "http://localhost:8000/lfs".to_string(),
         );
@@ -191,6 +195,7 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
         "config_file",
         "lfs_url",
         "dicfuse_readable",
+        "load_dir_depth",
     ];
 
     for key in required_keys {
@@ -240,6 +245,15 @@ pub fn lfs_url() -> &'static str {
 pub fn dicfuse_readable() -> bool {
     get_config().config["dicfuse_readable"] == "true"
 }
+
+///Get the depth of directory loading
+pub fn load_dir_depth() -> usize {
+    get_config()
+        .config
+        .get("load_dir_depth")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_LOAD_DIR_DEPTH)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,6 +268,7 @@ mod tests {
         config_file = "config.toml"
         lfs_url = "http://localhost:8000/lfs"
         dicfuse_readable = "true"
+        load_dir_depth = "3"
         "#;
         let config_path = "/tmp/scorpio.toml";
         std::fs::write(config_path, config_content).expect("Failed to write test config file");
@@ -273,6 +288,7 @@ mod tests {
             file_blob_endpoint(),
             "http://localhost:8000/api/v1/file/blob"
         );
+        assert_eq!(load_dir_depth(), 3);
         assert_eq!(config_file(), "config.toml");
     }
 }

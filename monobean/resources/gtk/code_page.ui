@@ -35,7 +35,7 @@
                     <property name="spacing">12</property>
                     <child>
                       <object class="GtkImage">
-                        <property name="icon-name">text-x-generic-symbolic</property>
+                        <property name="icon-name">monobean-file-text-symbolic</property>
                         <property name="pixel-size">64</property>
                       </object>
                     </child>

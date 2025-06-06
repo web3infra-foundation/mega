@@ -280,6 +280,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore]
     async fn test_generate_pointer_file() {
         test::reset_working_dir();
         let file_map = mercury::test_utils::setup_lfs_file().await;

@@ -1,12 +1,11 @@
+import { LayeredHotkeys } from '@gitmono/ui'
+import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
+import { cn } from '@gitmono/ui/src/utils'
 import { m } from 'framer-motion'
 import { useAtom, useAtomValue } from 'jotai'
 import Router from 'next/router'
 import { isMacOs } from 'react-device-detect'
 import { useInView } from 'react-intersection-observer'
-
-import { LayeredHotkeys } from '@gitmono/ui'
-import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
-import { cn } from '@gitmono/ui/src/utils'
 
 import { DesktopAppNavigationButtons } from '@/components/DesktopAppNavigationButtons'
 import { sidebarCollapsedAtom } from '@/components/Layout/AppLayout'
@@ -17,6 +16,7 @@ import { SidebarActivity } from '@/components/Sidebar/SidebarActivity'
 import { SidebarChatSectionGroup } from '@/components/Sidebar/SidebarChatSectionGroup'
 import { SidebarDrafts } from '@/components/Sidebar/SidebarDrafts'
 import { SidebarFavoritesGroup } from '@/components/Sidebar/SidebarFavoritesGroup'
+import { SidebarIssue } from '@/components/Sidebar/SidebarIssue'
 import {
   SIDEBAR_SCROLL_CONTAINER_ID,
   SidebarMoreUnreadsBottom,
@@ -36,9 +36,9 @@ import { useProjectSubscriptions } from '@/hooks/useProjectSubscriptions'
 import { useShowOrgSwitcherSidebar } from '@/hooks/useShowOrgSwitcherSidebar'
 
 import { RecentlyViewedPopover } from './RecentlyViewed/RecentlyViewedPopover'
+import { SidebarCode } from './SidebarCode'
 import { SidebarGroup } from './SidebarGroup'
 import { SidebarInbox } from './SidebarInbox'
-import { SidebarTest } from './SidebarTest'
 import { SiderbarMergeRequest } from './SiderbarMergeRequest'
 
 export function SidebarContainer() {
@@ -165,8 +165,9 @@ function SidebarContent() {
           <SidebarInbox />
           <SidebarMyWorkItems />
           <SidebarDrafts />
-          <SidebarTest />
+          <SidebarCode />
           <SiderbarMergeRequest />
+          <SidebarIssue />
         </SidebarGroup>
 
         <SidebarFavoritesGroup />

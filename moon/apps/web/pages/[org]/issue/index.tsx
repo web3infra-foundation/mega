@@ -1,24 +1,17 @@
-import Head from 'next/head'
-
+import IssuePage from '@/components/Issues/IssuePage'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { AuthAppProviders } from '@/components/Providers/AuthAppProviders'
 import { PageWithLayout } from '@/utils/types'
-import TestView from '@/components/TestView'
 
-const OrganizationTestPage: PageWithLayout<any> = () => {
-
+const OrganizationIssuePage: PageWithLayout<any> = () => {
   return (
     <>
-      <Head>
-        <title>Test</title>
-      </Head>
-
-      <TestView />
+      <IssuePage />
     </>
   )
 }
 
-OrganizationTestPage.getProviders = (page, pageProps) => {
+OrganizationIssuePage.getProviders = (page, pageProps) => {
   return (
     <AuthAppProviders {...pageProps}>
       <AppLayout {...pageProps}>{page}</AppLayout>
@@ -26,4 +19,4 @@ OrganizationTestPage.getProviders = (page, pageProps) => {
   )
 }
 
-export default OrganizationTestPage
+export default OrganizationIssuePage

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+common = { workspace = true}
 rusty_vault = { workspace = true }
 serde_json = { workspace = true }
 go-defer = { workspace = true }

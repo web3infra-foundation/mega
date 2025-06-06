@@ -20,7 +20,7 @@
                         <property name="action-name">win.style-variant</property>
                         <property name="action-target">'system'</property>
                         <property name="tooltip-text" translatable="yes">Use system style</property>
-                        <property name="icon-name">object-select-symbolic</property>
+                        <property name="icon-name">monobean-lasso-select-symbolic</property>
                     </object>
                 </child>
 
@@ -33,7 +33,7 @@
                         <property name="action-name">win.style-variant</property>
                         <property name="action-target">'light'</property>
                         <property name="tooltip-text" translatable="yes">Light style</property>
-                        <property name="icon-name">object-select-symbolic</property>
+                        <property name="icon-name">monobean-lasso-select-symbolic</property>
                     </object>
                 </child>
 
@@ -47,7 +47,7 @@
                         <property name="action-name">win.style-variant</property>
                         <property name="action-target">'dark'</property>
                         <property name="tooltip-text" translatable="yes">Dark style</property>
-                        <property name="icon-name">object-select-symbolic</property>
+                        <property name="icon-name">monobean-lasso-select-symbolic</property>
                     </object>
                 </child>
 

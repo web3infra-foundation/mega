@@ -189,7 +189,7 @@ pub trait ApiHandler: Send + Sync {
                         let commit = if let Some(commit) = commit_map.get(commit_id) {
                             commit.to_owned()
                         } else {
-                            tracing::warn!("failed fecth from commit map: {}", commit_id);
+                            tracing::warn!("failed fetch from commit map: {}", commit_id);
                             if root_commit.is_none() {
                                 root_commit = Some(self.get_root_commit().await);
                             }
@@ -210,6 +210,149 @@ pub trait ApiHandler: Send + Sync {
                         .cmp(&b.content_type)
                         .then(a.name.cmp(&b.name))
                 });
+                Ok(items)
+            }
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// the dir's hash as same as old,file's hash is the content hash
+    /// may think about change dir'hash as the content
+    /// for now,only change the file's hash
+    async fn get_tree_content_hash(&self, path: PathBuf) -> Result<Vec<TreeCommitItem>, GitError> {
+        let mut cache = GitObjectCache::default();
+        match self.search_tree_by_path(&path).await? {
+            Some(tree) => {
+                let mut item_to_commit = HashMap::new();
+
+                self.add_trees_to_map(
+                    &mut item_to_commit,
+                    tree.tree_items
+                        .iter()
+                        .filter(|x| x.mode == TreeItemMode::Tree)
+                        .map(|x| x.id.to_string())
+                        .collect(),
+                )
+                .await;
+
+                // self.add_blobs_to_map(
+                //     &mut item_to_commit,
+                //     tree.tree_items
+                //         .iter()
+                //         .filter(|x| x.mode == TreeItemMode::Blob)
+                //         .map(|x| x.id.to_string())
+                //         .collect(),
+                // )
+                // .await;
+                let content_items: Vec<TreeCommitItem> = tree
+                    .tree_items
+                    .iter()
+                    .filter(|x| x.mode == TreeItemMode::Blob)
+                    .map(|x| TreeCommitItem {
+                        oid: x.id.to_string(),
+                        name: x.name.clone(),
+                        content_type: "file".to_owned(),
+                        message: String::new(),
+                        date: String::new(),
+                    })
+                    .collect();
+                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
+                let commits = self
+                    .get_commits_by_hashes(commit_ids.into_iter().collect())
+                    .await
+                    .unwrap();
+                let commit_map: HashMap<String, Commit> =
+                    commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
+
+                let mut root_commit: Option<Commit> = None;
+                let mut item_to_commit_map: HashMap<TreeItem, Option<Commit>> = HashMap::new();
+                for item in tree.tree_items {
+                    if item.mode == TreeItemMode::Blob {
+                        continue;
+                    }
+                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
+                        let commit = if let Some(commit) = commit_map.get(commit_id) {
+                            commit.to_owned()
+                        } else {
+                            tracing::warn!("failed fetch from commit map: {}", commit_id);
+                            if root_commit.is_none() {
+                                root_commit = Some(self.get_root_commit().await);
+                            }
+                            let root_commit = root_commit.as_ref().unwrap().clone();
+                            self.traverse_commit_history(&path, &root_commit, &item, &mut cache)
+                                .await
+                        };
+                        item_to_commit_map.insert(item, Some(commit));
+                    }
+                }
+                let mut items: Vec<TreeCommitItem> = item_to_commit_map
+                    .into_iter()
+                    .map(TreeCommitItem::from)
+                    .collect();
+                // sort with type and date
+                items.sort_by(|a, b| {
+                    a.content_type
+                        .cmp(&b.content_type)
+                        .then(a.name.cmp(&b.name))
+                });
+                items.extend(content_items);
+                Ok(items)
+            }
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// return the dir's hash only
+    async fn get_tree_dir_hash(
+        &self,
+        path: PathBuf,
+        dir_name: &str,
+    ) -> Result<Vec<TreeCommitItem>, GitError> {
+        let mut cache = GitObjectCache::default();
+        match self.search_tree_by_path(&path).await? {
+            Some(tree) => {
+                let mut item_to_commit = HashMap::new();
+
+                self.add_trees_to_map(
+                    &mut item_to_commit,
+                    tree.tree_items
+                        .iter()
+                        .filter(|x| x.mode == TreeItemMode::Tree && x.name == dir_name)
+                        .map(|x| x.id.to_string())
+                        .collect(),
+                )
+                .await;
+
+                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
+                let commits = self
+                    .get_commits_by_hashes(commit_ids.into_iter().collect())
+                    .await
+                    .unwrap();
+                let commit_map: HashMap<String, Commit> =
+                    commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
+
+                let mut root_commit: Option<Commit> = None;
+                let mut item_to_commit_map: HashMap<TreeItem, Option<Commit>> = HashMap::new();
+                for item in tree.tree_items {
+                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
+                        let commit = if let Some(commit) = commit_map.get(commit_id) {
+                            commit.to_owned()
+                        } else {
+                            tracing::warn!("failed fetch from commit map: {}", commit_id);
+                            if root_commit.is_none() {
+                                root_commit = Some(self.get_root_commit().await);
+                            }
+                            let root_commit = root_commit.as_ref().unwrap().clone();
+                            self.traverse_commit_history(&path, &root_commit, &item, &mut cache)
+                                .await
+                        };
+                        item_to_commit_map.insert(item, Some(commit));
+                    }
+                }
+                let items: Vec<TreeCommitItem> = item_to_commit_map
+                    .into_iter()
+                    .map(TreeCommitItem::from)
+                    .collect();
                 Ok(items)
             }
             None => Ok(Vec::new()),

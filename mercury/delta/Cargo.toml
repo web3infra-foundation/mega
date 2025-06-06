@@ -6,9 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-diffs = "0.5.1"
+diffs = { workspace = true }
 thiserror = { workspace = true }
-sha1 = { workspace = true }
 flate2 = { workspace = true, features = ["zlib"] }
 
 [features]

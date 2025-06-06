@@ -15,7 +15,7 @@ import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import ExampleTheme from './ExampleTheme';
 import ToolbarPlugin from './plugins/ToolbarPlugin';
 // import TreeViewPlugin from './plugins/TreeViewPlugin';
-
+import { $getRoot } from 'lexical';
 import './styles.css';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { useEffect} from 'react';
@@ -45,7 +45,7 @@ function OnChangePlugin({ onChange }:any) {
 }
 
 
-export default function RichEditor({ setEditorState }:any) {
+export default function RichEditor({ setEditorState, setEditorHasText}:any) {
 
   function onChange(editorState:any) {
     // Call toJSON on the EditorState object, which produces a serialization safe string
@@ -53,6 +53,12 @@ export default function RichEditor({ setEditorState }:any) {
     // However, we still have a JavaScript object, so we need to convert it to an actual string with JSON.stringify
 
     setEditorState(JSON.stringify(editorStateJSON));
+
+    editorState.read(() => {
+      const text = $getRoot().getTextContent();
+      
+      setEditorHasText(text.trim().length > 0);
+    });
   }
 
   return (

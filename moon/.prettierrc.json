@@ -14,7 +14,7 @@
     "^react$",
     "<THIRD_PARTY_MODULES>",
     "",
-    "^@campsite/(.*)$",
+    "^@gitmono/(.*)$",
     "",
     "^@/(.*)$",
     "",

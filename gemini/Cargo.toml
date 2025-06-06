@@ -29,13 +29,13 @@ secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 quinn = { workspace = true }
 anyhow = { workspace = true }
 lazy_static = { workspace = true }
-rcgen = { version = "0.13", features = ["x509-parser", "pem", "crypto"] }
+rcgen = { workspace = true, features = ["x509-parser", "pem", "crypto"] }
 dashmap = { workspace = true }
 uuid = { workspace = true }
 futures-util = { workspace = true }
 tokio-util = { workspace = true }
 futures = { workspace = true }
 
-[dev-dependencies]
-log = "0.4"
-env_logger = "0.11.7"
+
+#[dev-dependencies]
+#tracing-subscriber = { workspace = true }

@@ -37,5 +37,29 @@
         <file compressed="true">icons/scalable/apps/walrus-5.png</file>
         <file compressed="true">icons/scalable/apps/walrus-6.png</file>
 
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-archive-restore-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-arrow-down-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-arrow-left-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-arrow-right-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-arrow-up-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-code-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-crop-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-file-text-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-hard-drive-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-info-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-lasso-select-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-list-plus-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-list-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-menu-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-monitor-stop-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-network-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-package-2-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-package-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-refresh-cw-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-save-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-step-back-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-trash-symbolic.svg</file>
+        <file preprocess="xml-stripblanks" compressed="true">icons/symbolic/apps/monobean-upload-symbolic.svg</file>
+
     </gresource>
 </gresources>
