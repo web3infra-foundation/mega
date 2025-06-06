@@ -52,6 +52,9 @@ impl ScorpioManager {
         fs::write(file_path, content)?;
         Ok(())
     }
+
+    /// Integrate the temporary storage area files, merge
+    /// them into a Tree object and output Commit
     pub async fn mono_commit(
         &self,
         mono_path: String,
@@ -151,6 +154,7 @@ impl ScorpioManager {
         Err(Box::from("WorkDir not found"))
     }
 
+    /// Pushes a commit to the remote mono repository.
     pub async fn push_commit(
         &self,
         mono_path: &str,
@@ -165,45 +169,10 @@ impl ScorpioManager {
         let url = format!("{}/{}.git/git-receive-pack", base_url, mono_path);
 
         println!("START");
-        let res = push::push(&work_path, &url, &temp_store_area.index_db).await?;
+        let res = push::push_core(&work_path, &url, &temp_store_area.index_db).await?;
         println!("END");
         Ok(res)
     }
-    /*
-    pub async fn push_commit(
-        &self,
-        mono_path: &str,
-    ) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
-        let work_dir = self.select_work(mono_path)?; // TODO : deal with error.
-        let store_path = config::store_path();
-        let mut path = store_path.to_string();
-        path.push_str(&work_dir.hash);
-        path.push_str("commit");
-
-        // check path is exist
-        if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
-            eprintln!("Path does not exist: {}", path);
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Path does not exist: {}", path),
-            )));
-        }
-        // read the file as the body to send
-        let commit_data = tokio::fs::read(&path).await?;
-
-        // Send Commit data to remote mono.
-        let base_url = config::base_url();
-        let url = format!("{}/{}/git-receive-pack", base_url, mono_path);
-        let client = reqwest::Client::new();
-        client
-            .post(&url)
-            .header("Content-Type", "application/x-git-receive-pack-request")
-            .body(Bytes::from(commit_data))
-            .send()
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-    }
-    */
 
     pub fn check_before_mount(&self, mono_path: &str) -> Result<(), String> {
         for work in &self.works {
@@ -227,6 +196,7 @@ impl ScorpioManager {
         }
     }
 
+    /// Adds a mono file to the Scorpio manager's workspace.
     pub async fn mono_add(&self, mono_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         // The OS path cannot be used, and should be mapped from
         // the FUSE system to the path under Upper.

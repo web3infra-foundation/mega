@@ -194,7 +194,7 @@ impl BlobFsStore for PathBuf {
                 let sha_hash =
                     SHA1::from_str(hash).map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
-                let data_path = hash_path.join(hash_flag);
+                let data_path = hash_path.join(&hash[2..]);
                 let data = std::fs::read(&data_path)?;
                 let blob = Blob::from_bytes(&data, sha_hash);
                 blob.map_err(|e| Error::new(ErrorKind::InvalidData, e))
