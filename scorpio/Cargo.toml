@@ -50,7 +50,7 @@ thiserror = "2.0.12"
 crossbeam = "0.8.4"
 fs_extra = "1.2"
 dashmap = "6.1.0"
-
+chrono = { workspace = true }
 
 
 [features] 
