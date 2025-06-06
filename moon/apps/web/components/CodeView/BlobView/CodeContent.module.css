@@ -1,28 +1,37 @@
 
 .codeLineNumber {
-    margin-left: 15px;
+    margin-left: 4px;
     margin-right: 25px;
+    text-align: center;
+    user-select: none;
 }
 
-.viewChangeTab {
-    background-color: rgba(53, 53, 53, 0.103);
+.toolbar {
+    background-color: #f6f8fa;
     display: flex;
-    position: absolute;
+    align-items: center;
+    text-align: center;
     height: 50px;
-    border-top-left-radius: 1rem;
-    border-top-right-radius: 1rem;
+    border-bottom: 1px solid #d1d9e0;
 }
 
-.viewChangeTabButton {
-    padding-left: 20px;
-    padding-right: 20px;
+.toolbarLeftButton {
+    padding:0 20px;
     height: 100%;
-    border-radius: 1rem;
-    border: none;
-    background-color: transparent;
+    border-radius: 0.5rem;
 }
 
-.viewChangeTabButton:hover,
-.viewChangeTabButton:checked {
-    background-color: rgba(0, 0, 0, 0.121);
+.toolbarLeftButton.active {
+    background-color: #ffffff;
+    border: solid 1px #818b98;
+}
+
+.toolbarRightButton {
+    padding:0 20px;
+    height: 100%;
+}
+
+.toolbarRightButton:hover {
+    background-color: #e0e5ea;
+    transition: all 0.5s;
 }
