@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { ThemeProvider } from '../components/Providers/ThemeProvider'
 import { ScopeProvider } from '../contexts/scope'
+import { QueryNormalizerProvider } from '../utils/normy/QueryNormalizerProvider'
 
 const client = new QueryClient({})
 
@@ -20,7 +21,9 @@ const preview: Preview = {
       <QueryClientProvider client={client}>
         <ThemeProvider>
           <ScopeProvider>
-            <Story />
+            <QueryNormalizerProvider queryClient={client}>
+              <Story />
+            </QueryNormalizerProvider>
           </ScopeProvider>
         </ThemeProvider>
       </QueryClientProvider>
