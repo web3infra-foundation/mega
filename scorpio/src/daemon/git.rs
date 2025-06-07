@@ -24,6 +24,7 @@ pub(super) struct GitStatusParams {
     path: String,
 }
 
+/// Handles the git status request.
 pub(super) async fn git_status_handler(
     Query(params): Query<GitStatusParams>,
     State(state): State<ScoState>,
@@ -76,6 +77,8 @@ pub(super) struct CommitResp {
     commit: Option<Commit>,
     msg: String,
 }
+
+/// Handles the git commit request.
 #[axum::debug_handler]
 pub(super) async fn git_commit_handler(
     State(state): State<ScoState>,
@@ -106,6 +109,7 @@ pub(super) struct AddReq {
     mono_path: String,
 }
 
+/// Handles the git add request.
 pub(super) async fn git_add_handler(
     State(state): State<ScoState>,
     axum::Json(req): axum::Json<AddReq>,
@@ -127,6 +131,7 @@ pub(super) struct ResetReq {
     path: String,
 }
 
+/// Handles the git reset request.
 pub(super) async fn git_reset_handler(
     State(state): State<ScoState>,
     axum::Json(req): axum::Json<ResetReq>,
@@ -159,9 +164,10 @@ pub(super) async fn git_reset_handler(
 
 #[derive(serde::Deserialize)]
 pub(super) struct PushRequest {
-    monopath: String,
+    mono_path: String,
 }
 
+/// Handles the git push request.
 pub(super) async fn git_push_handler(
     State(state): State<ScoState>,
     axum::Json(payload): axum::Json<PushRequest>,
@@ -170,7 +176,7 @@ pub(super) async fn git_push_handler(
         .manager
         .lock()
         .await
-        .push_commit(&payload.monopath)
+        .push_commit(&payload.mono_path)
         .await
     {
         Ok(response) => {

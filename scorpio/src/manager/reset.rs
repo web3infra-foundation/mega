@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+/// Reset the repository, discarding all changes.
 pub fn reset_core(work_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let modified_path = work_path.join("modifiedstore");
     let upper_path = work_path.join("upper");
