@@ -117,10 +117,12 @@ fn extract_commit_from_bytes(commitpath: &Path) -> std::io::Result<Commit> {
             let commit_time = DateTime::parse_from_str(&commit_time, "%Y-%m-%d %H:%M:%S UTC %z")
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                 .to_utc();
+            /*
             println!("author_time = {:?}", author_time);
             println!("commit_time = {:?}", commit_time);
             println!("now = {:?}", chrono::Utc::now());
             println!("now = {}", chrono::Utc::now());
+            */
             let author_sign = Signature::from_data(
                 format!(
                     "{} {} <{}> {} +0800",
@@ -170,7 +172,7 @@ pub async fn push_core(
     let new_dbpath = work_path.join("new_tree.db");
     let commitpath = work_path.join("commit");
 
-    println!("PART1");
+    println!("\x1b[34m[PART1]\x1b[0m");
     // check path is exist
     if !tokio::fs::try_exists(&commitpath).await.unwrap_or(false) {
         eprintln!("Path does not exist: {}", commitpath.display());
@@ -181,12 +183,14 @@ pub async fn push_core(
     }
     // read the file as the body to send
     let commit = extract_commit_from_bytes(&commitpath)?;
+    /*
     println!("commit id = {}", commit.id._to_string());
     println!("commit tree_id = {}", commit.tree_id._to_string());
     println!("commit = {:?}", commit);
+    */
 
-    println!("PART2");
-    println!("new_dbpath = {}", new_dbpath.display());
+    println!("\x1b[34m[PART2]\x1b[0m");
+    // println!("new_dbpath = {}", new_dbpath.display());
     let new_tree_db = sled::open(new_dbpath)?;
     println!("Fin");
     let hashmap = new_tree_db.db_tree_list()?;
@@ -199,7 +203,7 @@ pub async fn push_core(
 
     let remote_hash = string_to_sha(work_path.file_name().unwrap().to_str().unwrap())?;
 
-    println!("PART3");
+    println!("\x1b[34m[PART3]\x1b[0m");
     let mut data = BytesMut::new();
     add_pkt_line_string(
         &mut data,
@@ -210,14 +214,14 @@ pub async fn push_core(
     );
     data.extend_from_slice(b"0000");
 
-    tracing::debug!("{:?}", data);
+    // tracing::debug!("{:?}", data);
     data.extend(pack(commit, trees, blobs).await);
 
-    println!("PART4");
+    println!("\x1b[34m[PART4]\x1b[0m");
     let request = ClientBuilder::new().build().unwrap();
 
-    println!("data = {:?}", data.clone().freeze());
-    println!("url = {url}");
+    // println!("data = {:?}", data.clone().freeze());
+    // println!("url = {url}");
     let url = Url::from_str(url).unwrap();
 
     let res = request
@@ -231,8 +235,7 @@ pub async fn push_core(
         Ok(response) => response,
         Err(e) => {
             eprintln!("\x1b[31mFailed to send request: {:?}\x1b[0m", e);
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "Failed to send request",
             ));
         }
