@@ -70,7 +70,7 @@ This server provides endpoints to manage file system mounting and configuration 
 **Response (JSON)**:
 ```json
 {
-  "status": "Success",
+  "status":  "Success",
   "message": "Directory unmounted successfully"
 }
 ```
@@ -85,7 +85,7 @@ This server provides endpoints to manage file system mounting and configuration 
 {
   "status": "Success",
   "config": {
-    "mega_url": "http://example.com",
+    "mega_url":   "http://example.com",
     "mount_path": "path/to/mount",
     "store_path": "path/to/store"
   }
@@ -100,7 +100,7 @@ This server provides endpoints to manage file system mounting and configuration 
 **Request Body (JSON)**:
 ```json
 {
-  "mega_url": "http://example.com",
+  "mega_url":   "http://example.com",
   "mount_path": "new/mount/path",
   "store_path": "new/store/path"
 }
@@ -111,59 +111,116 @@ This server provides endpoints to manage file system mounting and configuration 
 {
   "status": "Success",
   "config": {
-    "mega_url": "http://example.com",
+    "mega_url":   "http://example.com",
     "mount_path": "new/mount/path",
     "store_path": "new/store/path"
   }
 }
 ```
 
-### 6. **Git Status**
+### 6. **Git Add**
+**URL**: `/api/git/add`  
+**Method**: POST  
+**Description**: Add added, deleted, and modified files to the temporary storage area.
+
+**Request Body (JSON)**:
+```json
+{
+  "mono_path": "path/to/add",
+}
+```
+
+**Response (JSON)**:
+```json
+{
+	"status_code": 200,
+}
+```
+
+### 7. **Git Status**
 **URL**: `/api/git/status`  
 **Method**: GET  
 **Description**: Retrieves the status of the Git repository.
 
 **Query Parameters**:
-- `filter` (optional): Filter specific output based on the input string.
+- `path` : The target path whose status needs to be checked.
 
 **Response (JSON)**:
 ```json
 {
-  "status_code": 200,
-  "output": "Git status output"
+	"status":     "Success",
+	"mono_path":  "target/path",
+	"upper_path": "upper/folder/of/mono_path",
+	"lower_path": "lower/folder/of/mono_path",
+	"message":    "Status of mono_path",
 }
 ```
 
-### 7. **Git Commit**
-**URL**: `/api/git/commit`  
-**Method**: POST  
+### 8. **Git Commit**
+**URL**: `/api/git/commit`
+**Method**: POST
 **Description**: Commits changes in the Git repository with a given message.
 
 **Request Body (JSON)**:
 ```json
 {
-  "message": "Commit message"
+	"mono_path": "commit/path",
+	"message":   "Commit message",
 }
 ```
 
 **Response (JSON)**:
 ```json
 {
-  "status_code": 200,
-  "output": "Commit successful"
+	"status": "Success",
+	"commit": {
+		"id":                "The Commit hash",
+		"tree_id":           "New hash of root tree",
+		"parent_commit_ids": "The hash of last version",
+		"author":            "The author of this repository",
+		committer:           "The committer of current Commit",
+		message:             "Commit message",
+	},
+	"msg":    "Detailed information",
 }
 ```
 
-### 8. **Git Push**
-**URL**: `/api/git/push`  
-**Method**: POST  
+### 9. **Git Push**
+**URL**: `/api/git/push`
+**Method**: POST
 **Description**: Pushes committed changes to the remote repository.
+
+**Request Body (JSON)**:
+```json
+{
+	"mono_path": "push/path",
+}
+```
 
 **Response (JSON)**:
 ```json
 {
   "status_code": 200,
   "output": "Push successful"
+}
+```
+
+### 10. **Git Reset**
+**URL**: `/api/git/reset`
+**Method**: POST
+**Description**: Reset the repository, undoing all modifications.
+
+**Request Body (JSON)**:
+```json
+{
+	"path": "reset/path",
+}
+```
+
+**Response (JSON)**:
+```json
+{
+  "status_code": 200,
 }
 ```
 
@@ -210,10 +267,58 @@ struct ConfigRequest {
 }
 ```
 
-### GitStatusParams
+### AddReq
 ```rust
-struct GitStatusParams {
-    filter: Option<String>,
+struct AddReq {
+	mono_path: String,
 }
 ```
 
+### GitStatus
+```rust
+struct GitStatus {
+	status: String,
+	mono_path: String,
+	upper_path: String,
+	lower_path: String,
+	message: String,
+}
+```
+
+### GitStatusParams
+```rust
+struct GitStatusParams {
+	path: String,
+}
+```
+
+### CommitPayload
+```rust
+struct CommitPayload {
+	mono_path: String,
+	message: String,
+}
+```
+
+### CommitResp
+```rust
+struct CommitResp {
+	status: String,
+	commit: Option<Commit>,
+	msg: String,
+}
+```
+
+### PushRequest
+```rust
+struct PushRequest {
+	mono_path: String,
+}
+```
+
+### ResetReq
+```rust
+struct ResetReq {
+	path: String,
+}
+```
