@@ -20,13 +20,13 @@ const Bread = ({ path }:any) => {
   });
 
     return (
-      <div className='m-4 flex items-center overflow-x-auto pb-2 no-scrollbar'>
+      <div className='flex items-center overflow-x-auto p-2 no-scrollbar mt-2'>
 
         {breadCrumbItems?.map((item: { isLast: any; title: string; href: string | UrlObject; }, index: number) => (
         <React.Fragment key={item.title}>
           {/* displayed after the home item and before non-last items */}
           {index > 0 && (
-            <span className="text-gray-400 mx-1">/</span>
+            <span className="text-gray-400">/</span>
           )}
           {/* Current breadcrumb item */}
           {item.isLast ? (
