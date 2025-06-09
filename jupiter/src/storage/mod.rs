@@ -9,7 +9,7 @@ pub mod raw_db_storage;
 pub mod relay_storage;
 pub mod user_storage;
 
-use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, EntityTrait};
+use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, DbErr, EntityTrait};
 
 use common::errors::MegaError;
 
@@ -50,7 +50,7 @@ where
     .await
 }
 
-async fn batch_save_model_with_conflict<E, A>(
+pub async fn batch_save_model_with_conflict<E, A>(
     connection: &impl ConnectionTrait,
     save_models: Vec<A>,
     onconflict: OnConflict,
@@ -61,9 +61,18 @@ where
 {
     // notice that sqlx not support packets larger than 16MB now
     let futures = save_models.chunks(1000).map(|chunk| {
-        E::insert_many(chunk.iter().cloned())
-            .on_conflict(onconflict.clone())
-            .exec(connection)
+        let insert = E::insert_many(chunk.iter().cloned()).on_conflict(onconflict.clone());
+        let conn = connection;
+        async move {
+            match insert.exec(conn).await {
+                Ok(_) => Ok(()),
+                Err(DbErr::RecordNotInserted) => {
+                    // ignore not inserted err
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            }
+        }
     });
     futures::future::try_join_all(futures).await?;
     Ok(())
