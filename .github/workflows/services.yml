@@ -99,4 +99,11 @@ jobs:
           export MEGA_BASE_DIR="${{ github.workspace }}/testing"
           nohup ${{ github.workspace }}/target/debug/mono -c ${{ github.workspace }}/testing/etc/config.toml service multi http ssh --host 0.0.0.0 --port 8000 --ssh-port 9000 >/dev/null 2>&1 &
           echo "mono has been successfully built and started in the background"
+          sleep 10
+          status_code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/v1/status)
+          if [ "$status_code" -eq 200 ]; then
+            echo "服务状态正常，状态码：$status_code"
+          else
+            echo "服务状态异常，状态码：$status_code"
+          fi
           
