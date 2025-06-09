@@ -11,15 +11,9 @@ import { CommentSection } from '@/components/CodeView/BlobView/CommentSection'
 const codeStyle = {
   borderRadius: 8,
   width: 'calc(85% - 8px)',
-  background: '#fff'
-}
-
-const breadStyle = {
-  minHeight: 30,
-  borderRadius: 8,
-  overflow: 'hidden',
-  width: 'calc(100% - 8px)',
-  background: '#fff'
+  background: '#fff',
+  border: '1px solid #d1d9e0',
+  margin: '0 10px'
 }
 
 interface Comment {
@@ -85,11 +79,11 @@ function BlobPage() {
   return (
     <div style={{overflow: 'auto'}}>
       <Flex gap='middle' wrap>
-        <Layout style={breadStyle}>
+        <Layout>
           <Bread path={path} />
         </Layout>
         <Layout style={codeStyle}>
-          <CodeContent fileContent={fileContent} />
+          <CodeContent fileContent={fileContent} path={path} />
         </Layout>
         <Layout>
           {/* @ts-ignore */}
@@ -105,7 +99,7 @@ BlobPage.getProviders = (
     | string
     | number
     | boolean
-    | React.ReactElement<any, string | React.JSXElementConstructor<any>>
+    | React.ReactElement
     | Iterable<React.ReactNode>
     | React.ReactPortal
     | Promise<React.AwaitedReactNode>
