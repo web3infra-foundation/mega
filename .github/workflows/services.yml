@@ -83,7 +83,7 @@ jobs:
           mkdir -p ${{ github.workspace }}/testing/etc/ssh
           mkdir -p ${{ github.workspace }}/testing/etc/https
           ssh-keygen -t rsa -b 4096 -f "${{ github.workspace }}/testing/etc/ssh/ssh_host_rsa_key" -N "" -C "sshd host key" >/dev/null 2>&1
-          ls ${{ github.workspace }}
+          cp ${{ github.workspace }}/config/config-workflow.toml ${{ github.workspace }}/testing/etc/config.toml
           echo "Directory structure has been successfully created:"
           echo "${{ github.workspace }}/testing"
           echo "├── etc"
@@ -96,3 +96,6 @@ jobs:
           echo "├── lfs"
           echo "├── logs"
           echo "├── objects"
+          export MEGA_BASE_DIR="${{ github.workspace }}/testing"
+          ${{ github.workspace }}/target/debug/mono -c ${{ github.workspace }}/testing/etc/config.toml service multi http ssh --host 0.0.0.0 --port 8000 --ssh-port 9000 >/dev/null 2>&1
+          
