@@ -15,7 +15,7 @@ import {
 } from '@gitmono/ui'
 
 import { Item } from '@/components/Issues/IssuesContent'
-import { darkModeAtom, filterAtom, sortAtom } from '@/components/Issues/utils/store'
+import { darkModeAtom } from '@/components/Issues/utils/store'
 import { SubjectCommand } from '@/components/Subject/SubjectCommand'
 import { BreadcrumbTitlebar } from '@/components/Titlebar/BreadcrumbTitlebar'
 import { useScope } from '@/contexts/scope'
@@ -28,12 +28,11 @@ interface Props {
   hideProject?: boolean
 }
 
-export function IssueList({ Issuelists, hideProject }: Props) {
+export function IssueList({ Issuelists }: Props) {
   const { scope } = useScope()
   const router = useRouter()
-  const filter = useAtomValue(filterAtom(scope))
-  const sort = useAtomValue(sortAtom({ scope, filter }))
-  // const groups = useMemo(() => groupByDate(notes, (note) => note[sort]), [notes, sort])
+  // const filter = useAtomValue(filterAtom(scope))
+  // const sort = useAtomValue(sortAtom({ scope, filter }))
   const needsCommandWrap = !useCommand()
   const isDark = useAtomValue(darkModeAtom)
 
@@ -80,7 +79,7 @@ type IssuePickerType = 'Author' | 'Labels' | 'Projects' | 'Milestones' | 'Assign
 
 const ListPicker = <T extends IssuePickerType>({ Sign }: { Sign: T }) => {
   const filterAtom = atomFamily(() => atomWithWebStorage<T>(`${Sign}:picker`, Sign))
-  const [filter, setFilter] = useAtom(filterAtom(Sign))
+  const [_filter, setFilter] = useAtom(filterAtom(Sign))
 
   // TODO
   // logic of onClick will change later

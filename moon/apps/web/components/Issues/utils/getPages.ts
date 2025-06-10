@@ -3,7 +3,7 @@ export const getPages = (current: number, total: number): (number | '...')[] => 
   const pages: (number | '...')[] = []
 
   // lower than maxVisible show them all
-  if (total < maxVisible) return [...Array(total)]
+  if (total < maxVisible) return [...Array(total)].map((_, i) => i + 1)
 
   const left = Math.max(1, current - 2)
   const right = Math.min(total, current + 2)

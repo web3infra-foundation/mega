@@ -4,8 +4,9 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/web-*.yml'
-      - 'moon/**'
+      - '.github/workflows/web-deploy.yml'
+      - 'moon/apps/web/**'
+      - 'moon/packages/**'
 
 env:
   TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
