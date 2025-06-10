@@ -9,7 +9,7 @@ pub mod raw_db_storage;
 pub mod relay_storage;
 pub mod user_storage;
 
-use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, EntityTrait};
+use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, DbErr, EntityTrait};
 
 use common::errors::MegaError;
 
@@ -50,7 +50,28 @@ where
     .await
 }
 
-async fn batch_save_model_with_conflict<E, A>(
+/// Performs batch saving of models in the database with conflict resolution.
+///
+/// This function allows saving models in batches while specifying conflict resolution behavior using the `OnConflict` parameter.
+/// It is intended for advanced use cases where fine-grained control over conflict handling is required.
+///
+/// # Arguments
+///
+/// * `connection` - A reference to the database connection.
+/// * `save_models` - A vector of models to be saved.
+/// * `onconflict` - Specifies the conflict resolution strategy to be used during insertion.
+///
+/// # Generic Constraints
+///
+/// * `E` - The entity type that implements the `EntityTrait` trait.
+/// * `A` - The model type that implements the `ActiveModelTrait` trait and is convertible from the corresponding model type of `E`.
+///
+/// # Errors
+///
+/// Returns a `MegaError` if an error occurs during the batch save operation.
+/// Note: The function ignores `DbErr::RecordNotInserted` errors, which may lead to silent failures.
+/// Use this function with caution and ensure that the `OnConflict` parameter is configured correctly to avoid unintended consequences.
+pub async fn batch_save_model_with_conflict<E, A>(
     connection: &impl ConnectionTrait,
     save_models: Vec<A>,
     onconflict: OnConflict,
@@ -61,9 +82,18 @@ where
 {
     // notice that sqlx not support packets larger than 16MB now
     let futures = save_models.chunks(1000).map(|chunk| {
-        E::insert_many(chunk.iter().cloned())
-            .on_conflict(onconflict.clone())
-            .exec(connection)
+        let insert = E::insert_many(chunk.iter().cloned()).on_conflict(onconflict.clone());
+        let conn = connection;
+        async move {
+            match insert.exec(conn).await {
+                Ok(_) => Ok(()),
+                Err(DbErr::RecordNotInserted) => {
+                    // ignore not inserted err
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            }
+        }
     });
     futures::future::try_join_all(futures).await?;
     Ok(())
