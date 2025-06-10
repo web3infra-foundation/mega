@@ -54,14 +54,9 @@ impl From<GPath> for PathBuf {
     }
 }
 impl From<GPath> for String {
-    fn from(val: GPath) -> Self {
-        val.path.iter().fold(String::new(), |acc, part| {
-            match (acc.is_empty(), part.is_empty()) {
-                (true, _) => part.clone(),
-                (false, true) => acc,
-                (false, false) => acc + "/" + part,
-            }
-        })
+    fn from(mut val: GPath) -> Self {
+        val.path.retain(|part| !part.is_empty());
+        val.path.join("/")
     }
 }
 impl Display for GPath {

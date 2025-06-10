@@ -28,10 +28,10 @@ db_path = "${base_dir}/mega.db"
 db_url = "postgres://mono:mono@localhost:5432/mono"
 
 # db max connection, setting it to twice the number of CPU cores would be appropriate.
-max_connection = 16
+max_connection = 4
 
 # db min connection, setting it to the number of CPU cores would be appropriate.
-min_connection = 8
+min_connection = 2
 
 # Whether to disabling SQLx Log
 sqlx_logging = false
@@ -109,8 +109,8 @@ s3_secret_access_key = ""
 github_client_id = ""
 github_client_secret = ""
 
-# Used for redirect to ui after login, for example: http://app.gitmega.com
-ui_domain = "http://local.gitmega.com"
+# Used for redirect to ui after login, for example: https://console.gitmono.com
+ui_domain = "http://localhost:3000"
 
 # Set your own domain here, for example: .gitmono.com
 cookie_domain = "localhost"

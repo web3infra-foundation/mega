@@ -3125,9 +3125,19 @@ export type CommonResultVecTreeBriefItem = {
 
 export type CommonResultVecTreeCommitItem = {
   data?: {
+    commit_id: string
+    commit_message: string
     content_type: string
     date: string
-    message: string
+    name: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecTreeHashItem = {
+  data?: {
+    content_type: string
     name: string
     oid: string
   }[]
@@ -3292,9 +3302,15 @@ export type TreeBriefItem = {
 }
 
 export type TreeCommitItem = {
+  commit_id: string
+  commit_message: string
   content_type: string
   date: string
-  message: string
+  name: string
+}
+
+export type TreeHashItem = {
+  content_type: string
   name: string
   oid: string
 }
@@ -4497,6 +4513,20 @@ export type GetApiTreeCommitInfoParams = {
 }
 
 export type GetApiTreeCommitInfoData = CommonResultVecTreeCommitItem
+
+export type GetApiTreeContentHashParams = {
+  refs?: string
+  path?: string
+}
+
+export type GetApiTreeContentHashData = CommonResultVecTreeHashItem
+
+export type GetApiTreeDirHashParams = {
+  refs?: string
+  path?: string
+}
+
+export type GetApiTreeDirHashData = CommonResultVecTreeHashItem
 
 export type GetApiTreePathCanCloneParams = {
   path?: string
@@ -13276,6 +13306,55 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         request: (query: GetApiTreeCommitInfoParams, params: RequestParams = {}) =>
           this.request<GetApiTreeCommitInfoData>({
             path: `/api/v1/tree/commit-info`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
+     * @name GetApiTreeContentHash
+     * @summary Get tree content hash,the dir's hash as same as old,file's hash is the content hash
+     * @request GET:/api/v1/tree/content-hash
+     */
+    getApiTreeContentHash: () => {
+      const base = 'GET:/api/v1/tree/content-hash' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiTreeContentHashData>([base]),
+        requestKey: (params: GetApiTreeContentHashParams) =>
+          dataTaggedQueryKey<GetApiTreeContentHashData>([base, params]),
+        request: (query: GetApiTreeContentHashParams, params: RequestParams = {}) =>
+          this.request<GetApiTreeContentHashData>({
+            path: `/api/v1/tree/content-hash`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags git
+     * @name GetApiTreeDirHash
+     * @summary return the dir's hash
+     * @request GET:/api/v1/tree/dir-hash
+     */
+    getApiTreeDirHash: () => {
+      const base = 'GET:/api/v1/tree/dir-hash' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiTreeDirHashData>([base]),
+        requestKey: (params: GetApiTreeDirHashParams) => dataTaggedQueryKey<GetApiTreeDirHashData>([base, params]),
+        request: (query: GetApiTreeDirHashParams, params: RequestParams = {}) =>
+          this.request<GetApiTreeDirHashData>({
+            path: `/api/v1/tree/dir-hash`,
             method: 'GET',
             query: query,
             ...params
