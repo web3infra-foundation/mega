@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { Button, Flex, Input, Space } from 'antd/lib'
+import { Flex, Input, Space } from 'antd/lib'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
+
+import { Button, LargeTitle } from '@gitmono/ui'
 
 import RichEditor from '@/components/MrView/rich-editor/RichEditor'
 import { usePostIssueSubmit } from '@/hooks/issues/usePostIssueSubmit'
@@ -15,7 +17,7 @@ export default function IssueNewPage() {
   const [loadings, setLoadings] = useState<boolean[]>([])
   const router = useRouter()
   const { mutate: submitNewIssue } = usePostIssueSubmit()
-  const [editorHasText, setEditorHasText] = useState(false);
+  const [editorHasText, setEditorHasText] = useState(false)
   const set_to_loading = (index: number) => {
     setLoadings((prevLoadings) => {
       const newLoadings = [...prevLoadings]
@@ -60,6 +62,7 @@ export default function IssueNewPage() {
   return (
     <>
       <div className='container p-10'>
+        <LargeTitle>Add a title</LargeTitle>
         <Space direction='vertical' style={{ width: '100%' }}>
           <h1>
             Add a title
@@ -74,9 +77,9 @@ export default function IssueNewPage() {
         </Space>
         <Space direction='vertical' style={{ width: '100%' }}>
           <h1>Add a description</h1>
-          <RichEditor setEditorState={setEditorState} setEditorHasText={setEditorHasText}/>
+          <RichEditor setEditorState={setEditorState} setEditorHasText={setEditorHasText} />
           <Flex justify={'flex-end'}>
-            <Button disabled={!editorHasText} loading={loadings[3]} onClick={() => submit(editorState)}>
+            <Button type={'submit'} disabled={!editorHasText} loading={loadings[3]} onClick={() => submit(editorState)}>
               Submit New Issue
             </Button>
           </Flex>
