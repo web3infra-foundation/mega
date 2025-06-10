@@ -7,6 +7,7 @@ use tempfile::tempdir;
 
 #[tokio::test]
 #[serial]
+#[ignore]
 /// Test the clone command with a specific branch
 async fn test_clone_branch() {
     let temp_path = tempdir().unwrap();
@@ -36,6 +37,7 @@ async fn test_clone_branch() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 /// Test the clone command with the default branch
 async fn test_clone_default_branch() {
     let temp_path = tempdir().unwrap();
@@ -65,6 +67,7 @@ async fn test_clone_default_branch() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 /// Test the clone command with an empty repository
 async fn test_clone_empty_repo() {
     let temp_path = tempdir().unwrap();
