@@ -10,6 +10,7 @@ use axum::http::{self, Request, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
+use http::HeaderValue;
 use lazy_static::lazy_static;
 use regex::Regex;
 use tower::ServiceBuilder;
@@ -91,13 +92,15 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
         context: context.clone(),
     };
 
+    let config = context.config.clone();
     let api_state = MonoApiServiceState {
         context: context.clone(),
-        oauth_client: Some(oauth_client(context.config.oauth.clone().unwrap()).unwrap()),
+        oauth_client: Some(oauth_client(config.oauth.clone().unwrap()).unwrap()),
         store: Some(MemoryStore::new()),
         listen_addr: format!("http://{}:{}", host, port),
     };
 
+    let cors_origin = HeaderValue::from_str(&config.oauth.clone().unwrap().ui_domain).expect("ui_domain in config not set");
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
@@ -111,10 +114,9 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
         // Using Regular Expressions for Path Matching in Protocol
         .route("/{*path}", get(get_method_router).post(post_method_router))
         .layer(
-            ServiceBuilder::new().layer(CorsLayer::new().allow_origin(Any).allow_headers(vec![
-                http::header::AUTHORIZATION,
-                http::header::CONTENT_TYPE,
-            ])),
+            ServiceBuilder::new().layer(CorsLayer::new().allow_origin(cors_origin).allow_headers(
+                vec![http::header::AUTHORIZATION, http::header::CONTENT_TYPE],
+            ).allow_methods(Any)),
         )
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())

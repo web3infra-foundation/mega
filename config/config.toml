@@ -109,8 +109,8 @@ s3_secret_access_key = ""
 github_client_id = ""
 github_client_secret = ""
 
-# Used for redirect to ui after login, for example: https://console.gitmono.com
-ui_domain = "http://localhost:3000"
+# Used for redirect to ui after login, for example: http://app.gitmega.com
+ui_domain = "http://local.gitmega.com"
 
 # Set your own domain here, for example: .gitmono.com
 cookie_domain = "localhost"
