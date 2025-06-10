@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{env, fs};
@@ -18,7 +18,7 @@ use mercury::internal::object::blob::Blob;
 use mercury::internal::object::commit::Commit;
 use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
-use crate::api_service::{ApiHandler, GitObjectCache};
+use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
 use crate::protocol::mr::MergeRequest;
 
@@ -149,6 +149,14 @@ impl ApiHandler for MonoApiService {
             .into()
     }
 
+    async fn get_commit_by_hash(&self, hash: &str) -> Option<Commit> {
+        let storage = self.context.services.mono_storage.clone();
+        match storage.get_commit_by_hash(hash).await {
+            Ok(Some(commit)) => Some(commit.into()),
+            _ => None,
+        }
+    }
+
     async fn get_tree_relate_commit(&self, t_hash: &str) -> Commit {
         let storage = self.context.services.mono_storage.clone();
         let tree_info = storage.get_tree_by_hash(t_hash).await.unwrap().unwrap();
@@ -160,44 +168,67 @@ impl ApiHandler for MonoApiService {
             .into()
     }
 
-    async fn add_trees_to_map(
-        &self,
-        item_to_commit: &mut HashMap<String, String>,
-        hashes: Vec<String>,
-    ) {
-        let storage = self.context.services.mono_storage.clone();
-        let trees = storage.get_trees_by_hashes(hashes).await.unwrap();
-        for tree in trees {
-            item_to_commit.insert(tree.tree_id, tree.commit_id);
-        }
-    }
-
-    async fn add_blobs_to_map(
-        &self,
-        item_to_commit: &mut HashMap<String, String>,
-        hashes: Vec<String>,
-    ) {
-        let storage = self.context.services.mono_storage.clone();
-        let blobs = storage.get_mega_blobs_by_hashes(hashes).await.unwrap();
-        for blob in blobs {
-            item_to_commit.insert(blob.blob_id, blob.commit_id);
-        }
-    }
-
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
         let storage = self.context.services.mono_storage.clone();
         let commits = storage.get_commits_by_hashes(&c_hashes).await.unwrap();
         Ok(commits.into_iter().map(|x| x.into()).collect())
     }
 
-    async fn traverse_commit_history(
+    async fn item_to_commit_map(
         &self,
-        _: &Path,
-        _: &Commit,
-        _: &TreeItem,
-        _: &mut GitObjectCache,
-    ) -> Commit {
-        unreachable!()
+        path: PathBuf,
+    ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
+        match self.search_tree_by_path(&path).await? {
+            Some(tree) => {
+                let mut item_to_commit = HashMap::new();
+
+                let storage = self.context.services.mono_storage.clone();
+                let tree_hashes = tree
+                    .tree_items
+                    .iter()
+                    .filter(|x| x.mode == TreeItemMode::Tree)
+                    .map(|x| x.id.to_string())
+                    .collect();
+                let trees = storage.get_trees_by_hashes(tree_hashes).await.unwrap();
+                for tree in trees {
+                    item_to_commit.insert(tree.tree_id, tree.commit_id);
+                }
+
+                let blob_hashes = tree
+                    .tree_items
+                    .iter()
+                    .filter(|x| x.mode == TreeItemMode::Blob)
+                    .map(|x| x.id.to_string())
+                    .collect();
+                let blobs = storage.get_mega_blobs_by_hashes(blob_hashes).await.unwrap();
+                for blob in blobs {
+                    item_to_commit.insert(blob.blob_id, blob.commit_id);
+                }
+
+                let commit_ids: HashSet<String> = item_to_commit.values().cloned().collect();
+                let commits = self
+                    .get_commits_by_hashes(commit_ids.into_iter().collect())
+                    .await
+                    .unwrap();
+                let commit_map: HashMap<String, Commit> =
+                    commits.into_iter().map(|x| (x.id.to_string(), x)).collect();
+
+                let mut result: HashMap<TreeItem, Option<Commit>> = HashMap::new();
+                for item in tree.tree_items {
+                    if let Some(commit_id) = item_to_commit.get(&item.id.to_string()) {
+                        let commit = if let Some(commit) = commit_map.get(commit_id) {
+                            Some(commit.to_owned())
+                        } else {
+                            tracing::warn!("failed fetch from commit map: {}", commit_id);
+                            None
+                        };
+                        result.insert(item, commit);
+                    }
+                }
+                Ok(result)
+            }
+            None => Ok(HashMap::new()),
+        }
     }
 }
 

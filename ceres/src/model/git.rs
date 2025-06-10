@@ -48,6 +48,28 @@ pub struct LatestCommitInfo {
     pub status: String,
 }
 
+impl From<Commit> for LatestCommitInfo {
+    fn from(commit: Commit) -> Self {
+        let message = commit.format_message();
+        let committer = UserInfo {
+            display_name: commit.committer.name,
+            ..Default::default()
+        };
+        let author = UserInfo {
+            display_name: commit.author.name,
+            ..Default::default()
+        };
+        Self {
+            oid: commit.id.to_string(),
+            date: commit.committer.timestamp.to_string(),
+            short_message: message,
+            author,
+            committer,
+            status: "success".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct UserInfo {
     pub display_name: String,
@@ -65,10 +87,10 @@ impl Default for UserInfo {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct TreeCommitItem {
-    pub oid: String,
+    pub commit_id: String,
     pub name: String,
     pub content_type: String,
-    pub message: String,
+    pub commit_message: String,
     pub date: String,
 }
 
@@ -81,11 +103,11 @@ impl From<(TreeItem, Option<Commit>)> for TreeCommitItem {
             } else {
                 "file".to_owned()
             },
-            oid: commit
+            commit_id: commit
                 .as_ref()
                 .map(|x| x.id.to_string())
                 .unwrap_or_default(),
-            message: commit
+            commit_message: commit
                 .as_ref()
                 .map(|x| x.format_message())
                 .unwrap_or_default(),
@@ -93,6 +115,27 @@ impl From<(TreeItem, Option<Commit>)> for TreeCommitItem {
                 .as_ref()
                 .map(|x| x.committer.timestamp.to_string())
                 .unwrap_or_default(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct TreeHashItem {
+    pub name: String,
+    pub content_type: String,
+    pub oid: String,
+}
+
+impl From<TreeItem> for TreeHashItem {
+    fn from(value: TreeItem) -> Self {
+        Self {
+            oid: value.id.to_string(),
+            name: value.name,
+            content_type: if value.mode == TreeItemMode::Tree {
+                "directory".to_owned()
+            } else {
+                "file".to_owned()
+            },
         }
     }
 }

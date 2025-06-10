@@ -12,8 +12,7 @@ use http::StatusCode;
 use ceres::{
     api_service::ApiHandler,
     model::git::{
-        BlobContentQuery, CodePreviewQuery, CreateFileInfo, LatestCommitInfo, TreeBriefItem,
-        TreeCommitItem, TreeQuery,
+        BlobContentQuery, CodePreviewQuery, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem, TreeQuery
     },
 };
 use common::model::CommonResult;
@@ -182,14 +181,14 @@ async fn get_tree_commit_info(
         CodePreviewQuery
     ),
     responses(
-        (status = 200, body = CommonResult<Vec<TreeCommitItem>>, content_type = "application/json")
+        (status = 200, body = CommonResult<Vec<TreeHashItem>>, content_type = "application/json")
     ),
     tag = GIT_TAG
 )]
 async fn get_tree_content_hash(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
+) -> Result<Json<CommonResult<Vec<TreeHashItem>>>, ApiError> {
     let data = state
         .api_handler(query.path.clone().into())
         .await?
@@ -206,14 +205,14 @@ async fn get_tree_content_hash(
         CodePreviewQuery
     ),
     responses(
-        (status = 200, body = CommonResult<Vec<TreeCommitItem>>, content_type = "application/json")
+        (status = 200, body = CommonResult<Vec<TreeHashItem>>, content_type = "application/json")
     ),
     tag = GIT_TAG
 )]
 async fn get_tree_dir_hash(
     Query(query): Query<CodePreviewQuery>,
     state: State<MonoApiServiceState>,
-) -> Result<Json<CommonResult<Vec<TreeCommitItem>>>, ApiError> {
+) -> Result<Json<CommonResult<Vec<TreeHashItem>>>, ApiError> {
     let path = std::path::Path::new(&query.path);
     let parent_path = path
         .parent()
