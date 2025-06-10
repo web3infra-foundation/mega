@@ -1,6 +1,3 @@
-use reqwest;
-use tokio;
-use serial_test::serial;
 
 #[tokio::test]
 #[serial]
