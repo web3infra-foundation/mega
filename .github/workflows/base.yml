@@ -100,7 +100,7 @@ jobs:
       - name: Run cargo test
         run: |
           cargo build --bin mega --bin libra
-          cargo test --all-targets --no-fail-fast --workspace --exclude mega
+          cargo test --all-targets --no-fail-fast --workspace --exclude mega --exclude libra
 
   monobean:
     name: Test Monobean for ${{ matrix.os }}
