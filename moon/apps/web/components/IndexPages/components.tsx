@@ -1,6 +1,6 @@
 import { forwardRef, useRef } from 'react'
 
-import { LayeredHotkeys, LazyLoadingSpinner, SearchIcon } from '@gitmono/ui'
+import { LayeredHotkeys, LazyLoadingSpinner, LoadingSpinner, SearchIcon } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { ScrollableContainer, ScrollableContainerProps } from '../ScrollableContainer'
@@ -35,6 +35,14 @@ export function IndexPageLoading() {
   return (
     <div className='flex flex-1 flex-col items-center justify-center'>
       <LazyLoadingSpinner />
+    </div>
+  )
+}
+
+export function IndexPageInstantLoading() {
+  return (
+    <div className='flex flex-1 flex-col items-center justify-center'>
+      <LoadingSpinner />
     </div>
   )
 }
