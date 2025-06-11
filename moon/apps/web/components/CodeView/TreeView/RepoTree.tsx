@@ -57,7 +57,6 @@ function CustomLabel({ icon: Icon, children, ...other }: CustomLabelProps) {
         display: 'flex',
         alignItems: 'center',
       }}
-      onClick={() => {}}
     >
       {Icon && (
         <Box component={Icon} className="labelIcon" color="inherit" sx={{ mr: 1, fontSize: '1.2rem' }} />
@@ -81,11 +80,10 @@ const getIconFromFileType = (fileType: FileType, isExpanded:Boolean) => {
 interface CustomTreeItemProps
   extends Omit<UseTreeItemParameters, 'rootRef'>,
     Omit<React.HTMLAttributes<HTMLLIElement>, 'onFocus'> {
-    loadingNode?: string | null;
   }
 
 const CustomTreeItem = React.forwardRef(function CustomTreeItem(
-  { loadingNode, ...props }: CustomTreeItemProps,
+  { ...props }: CustomTreeItemProps,
   ref: React.Ref<HTMLLIElement>,
 ) {
   const { id, itemId, label, disabled, children, ...other } = props;
@@ -152,25 +150,26 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
   const basePath = pathname?.replace(`/${scope}/code/tree`, ''); 
 
   const [treeData, setTreeData] = useState<MuiTreeNode[]>([]); 
+
   const [expandedNodes, setExpandedNodes] = useState<string[]>([]); 
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [loadingNode, setLoadingNode] = useState<string | null>(null);
 
   const [loadPath, setLoadPath] = useState<string | null >(null);
   const [targetNodeId, setTargetNodeId] = useState<string | null >(null);
-  const [loadingError, setLoadingError] = useState<string| null>(null);
+  // const [loadingError, setLoadingError] = useState<string| null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true); 
+  const { data: response, isLoading, error } = useGetTree({ path: loadPath??undefined});
 
   const convertToTreeData = useCallback((parentBasePath: string, directory: any[]) => {
     if (!Array.isArray(directory) || directory.length === 0) {
-      console.warn('convertToTreeData: 接收到非数组或空数据', directory);
+      // console.warn('convertToTreeData: 接收到非数组或空数据', directory);
       return [];
     }
     
     return sortProjectsByType(directory).map((item) => {
       
       const currentPath = `${parentBasePath}/${item.name}`.replace('//', '/') || '/';
-      console.log('生成节点路径:', item.name, '=>', currentPath);
+      // console.log('生成节点路径:', item.name, '=>', currentPath);
 
       return {
         id: uuidv4(), 
@@ -191,20 +190,20 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
 
   useEffect(() => {
     if (!Array.isArray(directory) || directory.length === 0) {
-      console.warn('RepoTree: 接收到非数组或空的初始数据', directory);
+      // console.warn('RepoTree: 接收到非数组或空的初始数据', directory);
       setIsInitialLoading(false);
       return;
     }
     
     const rootPath = basePath || '/'; // 使用基路径作为根路径
+    
     setTreeData(convertToTreeData(rootPath, directory));
     setIsInitialLoading(false);
-  }, [directory, convertToTreeData]);
+  }, [directory, convertToTreeData,basePath]);
 
   const sortProjectsByType = (projects: any[]) => {
-    console.log(projects, 'projects===projects==');
     if (!Array.isArray(projects) || projects.length === 0) {
-      console.warn('sortProjectsByType: 接收到非数组或空数据', projects);
+      // console.warn('sortProjectsByType: 接收到非数组或空数据', projects);
       return [];
     }
     
@@ -222,7 +221,7 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
   const updateTreeData = useCallback(
     (currentTree: MuiTreeNode[], nodeId: string, newChildren: MuiTreeNode[]): any => {
       if (!Array.isArray(currentTree) || currentTree.length === 0) {
-        console.warn('updateTreeData: 接收到非数组或空的当前树数据', currentTree);
+        // console.warn('updateTreeData: 接收到非数组或空的当前树数据', currentTree);
         return [];
       }
       
@@ -246,6 +245,27 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
     [],
   );
 
+  const findNode = useCallback(
+    (data: MuiTreeNode[], nodeId: string): MuiTreeNode | null => {
+      if (!Array.isArray(data) || data.length === 0) {
+        return null;
+      }
+      
+      for (const node of data) {
+
+        if (node.id === nodeId) return node;
+
+        if (node.children) {
+          const found = findNode(node.children, nodeId);
+
+          if (found) return found;
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
   const handleNodeToggle = useCallback(
     (_event: React.SyntheticEvent<Element, Event> | null, nodeIds: string[]) => {
       const newlyExpandedId = nodeIds.find((id) => !expandedNodes.includes(id));
@@ -262,54 +282,46 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
           targetNode.content_type === 'directory' && 
           targetNode.children?.[0]?.label === '加载中...' // 中文判断
         ) {
-          setLoadingNode(targetNode?.id??null);
           setLoadPath(reqPath);
           setTargetNodeId(newlyExpandedId);
-          setLoadingError(null);
+          // setLoadingError(null);
         }
       }
       
       setExpandedNodes(nodeIds);
     },
-    [expandedNodes, treeData, setLoadingNode, setLoadPath, setTargetNodeId],
+    [expandedNodes, treeData, setLoadPath, setTargetNodeId, findNode],
   );
 
-  const QueryComponent = React.memo(() => {
-    if (!loadPath) return null;
-  
-    const { data: response, isLoading, error } = useGetTree({ path: loadPath });
-  
-    useEffect(() => {
-      if (response && !isLoading) {
-        if (
-          !response.req_result || 
-          !Array.isArray(response.data) || 
-          response.data.length === 0
-        ) {
-          console.error('API数据格式错误:', response);
-          setLoadingError('数据格式错误或为空');
-          return;
-        }
-  
-        const items = response.data;
-        const newChildren = convertToTreeData(loadPath, items);
-        const newTree = updateTreeData(treeData, targetNodeId!, newChildren);
-        
-        setTreeData(newTree);
-        setLoadingNode(null);
-        setLoadPath(null);
-        setTargetNodeId(null);
+  useEffect(() => {
+    if (!loadPath) return;
+    
+    if (response && !isLoading) {
+      if (
+        !response.req_result || 
+        !Array.isArray(response.data) || 
+        response.data.length === 0
+      ) {
+        // console.error('API数据格式错误:', response);
+        // setLoadingError('数据格式错误或为空');
+        return;
       }
   
-      if (error) {
-        console.error('加载子节点失败:', error);
-        setLoadingError(error.message || '加载失败');
-        setLoadingNode(null);
-      }
-    }, [response, isLoading, error, loadPath, targetNodeId, treeData, convertToTreeData, updateTreeData]);
+      const items = response.data;
+      const newChildren = convertToTreeData(loadPath, items);
+      const newTree = updateTreeData(treeData, targetNodeId!, newChildren);
+
+      setTreeData(newTree);
+      setLoadPath(null);
+      setTargetNodeId(null);
+    }
   
-    return null;
-  });
+    // if (error) {
+    //   console.error('Error fetching data:', error);
+    //   // setLoadingError(error.message || '加载失败');
+    // }
+  }, [response, isLoading, error, loadPath, targetNodeId, treeData, convertToTreeData, updateTreeData]);
+
 
   const handleNodeSelect = useCallback(
     (_event: React.SyntheticEvent<Element, Event> | null, nodeId: string | null) => {
@@ -323,6 +335,7 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
       const basePath = pathname?.replace(`/${scope}/code/tree`, '') || '';
       
       let fullPath = node.path;
+
       if (basePath && fullPath?.startsWith(basePath)) {
         fullPath = fullPath?.substring(basePath.length);
       }
@@ -333,30 +346,11 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
       }
   
       },
-    [pathname, router, treeData],
-  );
-
-  const findNode = useCallback(
-    (data: MuiTreeNode[], nodeId: string): MuiTreeNode | null => {
-      if (!Array.isArray(data) || data.length === 0) {
-        return null;
-      }
-      
-      for (const node of data) {
-        if (node.id === nodeId) return node;
-        if (node.children) {
-          const found = findNode(node.children, nodeId);
-          if (found) return found;
-        }
-      }
-      return null;
-    },
-    [],
+    [pathname, router, treeData, scope, findNode],
   );
 
   return (
     <>
-      <QueryComponent />
       {isInitialLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
           <CircularProgress />
@@ -377,8 +371,7 @@ const RepoTree = ({ directory }: { directory: any[] }) => {
           slots={{
             item: (itemProps) => (
               <CustomTreeItem 
-                {...itemProps} 
-                loadingNode={loadingNode}
+                {...itemProps}
               />
             )
           }}
