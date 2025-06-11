@@ -72,7 +72,7 @@ jobs:
       # Build the mono and libra binaries
       - name: Build mono and libra
         run: |
-          cargo build --bin mono --bin libra
+          cargo build --bin mega --bin mono --bin libra
           echo "The mono volumn located at: ${{ github.workspace }}/testing"
           mkdir -p ${{ github.workspace }}/testing
           mkdir -p ${{ github.workspace }}/testing/etc
@@ -100,8 +100,9 @@ jobs:
           nohup ${{ github.workspace }}/target/debug/mono -c ${{ github.workspace }}/testing/etc/config.toml service multi http ssh --host 0.0.0.0 --port 8000 --ssh-port 9000 >/dev/null 2>&1 &
           echo "mono has been successfully built and started in the background"
           sleep 10
-          cargo test -p mega --all-features --no-fail-fast -- --nocapture
-          cargo test -p mono --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path mega/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path mono/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --test service_test -- --nocapture
           cargo test --test lfs_test -- --nocapture
           
