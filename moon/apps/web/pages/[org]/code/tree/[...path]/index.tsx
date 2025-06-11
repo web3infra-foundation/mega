@@ -9,7 +9,7 @@ import { CommonResultVecTreeCommitItem } from '@gitmono/types/generated'
 import { LoadingSpinner } from '@gitmono/ui'
 
 import CodeTable from '@/components/CodeView/CodeTable'
-import Bread from '@/components/CodeView/TreeView/BreadCrumb'
+import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import { AppLayout } from '@/components/Layout/AppLayout'
@@ -81,7 +81,7 @@ function TreeDetailPage() {
       ) : (
         <Flex gap='middle' wrap>
           <Layout style={breadStyle}>
-            <Bread path={path} />
+            <BreadCrumb path={path} />
             {canClone?.data && (
               <Flex justify={'flex-end'}>
                 <CloneTabs endpoint={endpoint} />
