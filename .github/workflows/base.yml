@@ -100,9 +100,9 @@ jobs:
       - name: Run cargo test
         run: |
           cargo build --bin mega --bin libra
-          cargo test -manifest-path libra/Cargo.toml -p libra --all-features --no-fail-fast -- --nocapture
-          cargo test -manifest-path common/Cargo.toml -p common --all-features --no-fail-fast -- --nocapture
-          cargo test -manifest-path mercury/Cargo.toml -p mercury --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path common/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path mercury/Cargo.toml --all-features --no-fail-fast -- --nocapture
 
   monobean:
     name: Test Monobean for ${{ matrix.os }}
