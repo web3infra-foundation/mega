@@ -1,6 +1,6 @@
 import React from 'react'
 import { Flex, Layout } from 'antd'
-import Bread from '@/components/CodeView/TreeView/BreadCrumb'
+import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CodeContent from '@/components/CodeView/BlobView/CodeContent'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
@@ -80,7 +80,7 @@ function BlobPage() {
     <div style={{overflow: 'auto'}}>
       <Flex gap='middle' wrap>
         <Layout>
-          <Bread path={path} />
+          <BreadCrumb path={path} />
         </Layout>
         <Layout style={codeStyle}>
           <CodeContent fileContent={fileContent} path={path} />
