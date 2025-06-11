@@ -5,7 +5,7 @@ import { BreadcrumbLabel } from '@/components/Titlebar/BreadcrumbTitlebar'
 import { Link } from '@gitmono/ui'
 import { UrlObject } from 'url';
 
-const Bread = ({ path }:any) => {
+const Breadcrumb = ({ path }:any) => {
   const router = useRouter();
   const scope = router.query.org as string
   
@@ -46,4 +46,4 @@ const Bread = ({ path }:any) => {
     );
 };
 
-export default Bread;
+export default Breadcrumb;
