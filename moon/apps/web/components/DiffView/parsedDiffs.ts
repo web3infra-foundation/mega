@@ -42,10 +42,13 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
     const diffGitMatch = block.match(/^diff --git a\/[^\s]+ b\/([^\s]+)/m);
 
     if (diffGitMatch) {
-      if (diffGitMatch[2] && diffGitMatch[2] !== '/dev/null') {
-        path = diffGitMatch[2].trim();  
+      const originalPath = diffGitMatch[1]?.trim();
+      const newPath = diffGitMatch[2]?.trim();
+
+      if (newPath && newPath !== '/dev/null') {
+        path = newPath;
       } else {
-        path = diffGitMatch[1].trim();
+        path = originalPath;
       }
     }
 
@@ -64,6 +67,7 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
       const hunkIndex = block.indexOf("@@");
 
       let prefix = `--- a/${path}\n+++ b/${path}\n`;
+      
       diffWithHeader = hunkIndex >= 0
         ? block.slice(0, hunkIndex) + prefix + block.slice(hunkIndex)
         : prefix + block;
