@@ -32,10 +32,11 @@ const table = <T extends DirectoryType>({
           </Table.Header>
 
           <Table.Body>
-            {datasource.map((d) => {
+            {datasource.map((d, index) => {
               if (d) {
                 return (
-                  <Table.Row className='hover:bg-gray-100' key={d.oid}>
+                  // eslint-disable-next-line react/no-array-index-key
+                  <Table.Row className='hover:bg-gray-100' key={index}>
                     {columns.map((c, index) => (
                       <Table.Cell
                         onClick={(e) => {
@@ -43,7 +44,8 @@ const table = <T extends DirectoryType>({
                           onClick?.(d)
                         }}
                         justify={justify}
-                        key={c.key + d.oid}
+                        // eslint-disable-next-line react/no-array-index-key
+                        key={c.key + index}
                       >
                         {c.render ? c.render(c.dataIndex[0], d, index) : null}
                       </Table.Cell>

@@ -1,15 +1,17 @@
 'use client'
 
 import React, { useCallback, useEffect, useState } from 'react'
-// import { CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
-import { Link } from '@gitmono/ui'
-import { Button, Flex, List, PaginationProps, Tabs, TabsProps, Tag } from 'antd'
+import { Flex, List, PaginationProps, Tabs, TabsProps, Tag } from 'antd'
 import { formatDistance, fromUnixTime } from 'date-fns'
 import { useRouter } from 'next/router'
+
+// import { CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { Button, Link } from '@gitmono/ui'
 
 import { Heading } from '@/components/Catalyst/Heading'
 import { useGetIssueLists } from '@/hooks/issues/useGetIssueLists'
 import { apiErrorToast } from '@/utils/apiErrorToast'
+
 
 interface Item {
   closed_at?: number | null
@@ -110,13 +112,10 @@ export default function IssuePage() {
 
   return (
     <>
-      <div className='container p-10'>
+      <div className='container max-h-64 overflow-y-auto p-10'>
         <Heading>Issues</Heading>
         <Flex justify={'flex-end'}>
-          <Button
-            style={{ backgroundColor: '#428646', color: '#fff' }}
-            onClick={() => router.push(`/${router.query.org}/issue/new`)}
-          >
+          <Button variant='primary' size={'base'} onClick={() => router.push(`/${router.query.org}/issue/new`)}>
             New Issue
           </Button>
         </Flex>

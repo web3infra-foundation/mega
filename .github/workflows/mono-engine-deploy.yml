@@ -15,8 +15,8 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/workflows/web-test.yml'
-      - '.github/workflows/web-deploy.yml'
+      - '.github/workflows/web-**'
+      - '.github/workflows/mono-engine-deploy.yml'
 
 env:
   AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}

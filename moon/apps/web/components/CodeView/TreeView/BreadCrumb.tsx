@@ -5,7 +5,7 @@ import { BreadcrumbLabel } from '@/components/Titlebar/BreadcrumbTitlebar'
 import { Link } from '@gitmono/ui'
 import { UrlObject } from 'url';
 
-const Bread = ({ path }:any) => {
+const Breadcrumb = ({ path }:any) => {
   const router = useRouter();
   const scope = router.query.org as string
   
@@ -20,13 +20,13 @@ const Bread = ({ path }:any) => {
   });
 
     return (
-      <div className='m-4 flex items-center overflow-x-auto pb-2 no-scrollbar'>
+      <div className='flex items-center overflow-x-auto p-2 no-scrollbar mt-2'>
 
         {breadCrumbItems?.map((item: { isLast: any; title: string; href: string | UrlObject; }, index: number) => (
         <React.Fragment key={item.title}>
           {/* displayed after the home item and before non-last items */}
           {index > 0 && (
-            <span className="text-gray-400 mx-1">/</span>
+            <span className="text-gray-400">/</span>
           )}
           {/* Current breadcrumb item */}
           {item.isLast ? (
@@ -46,4 +46,4 @@ const Bread = ({ path }:any) => {
     );
 };
 
-export default Bread;
+export default Breadcrumb;

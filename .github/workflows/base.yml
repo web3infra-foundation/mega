@@ -21,8 +21,7 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/workflows/web-test.yml'
-      - '.github/workflows/web-deploy.yml'
+      - '.github/workflows/web-**'
 
 name: Base GitHub Action for Check, Test and Lints
 
@@ -101,7 +100,7 @@ jobs:
       - name: Run cargo test
         run: |
           cargo build --bin mega --bin libra
-          cargo test --all-targets --no-fail-fast
+          cargo test -p libra --all-features --no-fail-fast -- --nocapture
 
   monobean:
     name: Test Monobean for ${{ matrix.os }}

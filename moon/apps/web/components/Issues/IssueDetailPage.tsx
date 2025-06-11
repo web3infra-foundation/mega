@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useCallback, useEffect, useState } from 'react'
-// import { CloseCircleOutlined, CommentOutlined } from '@ant-design/icons'
 import { Button, Card, Flex, Space, Tabs, TabsProps, Timeline } from 'antd'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
+
+import { CanvasCommentIcon, ResolveCommentIcon } from '@gitmono/ui'
 
 import Comment from '@/components/MrView/MRComment'
 import RichEditor from '@/components/MrView/rich-editor/RichEditor'
@@ -41,7 +42,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
     conversations: [],
     title: ''
   })
-  const [editorHasText, setEditorHasText] = useState(false);
+  const [editorHasText, setEditorHasText] = useState(false)
   const [buttonLoading, setButtonLoading] = useState<{ [key: string]: boolean }>({
     comment: false,
     close: false,
@@ -164,11 +165,11 @@ export default function IssueDetailPage({ id }: { id: string }) {
 
     switch (conv.conv_type) {
       case 'Comment':
-        // icon = <CommentOutlined />
+        icon = <CanvasCommentIcon />
         children = <Comment conv={conv} id={id} whoamI='issue' />
         break
       case 'Closed':
-        // icon = <CloseCircleOutlined />
+        icon = <ResolveCommentIcon />
         children = conv.comment
     }
 
@@ -190,7 +191,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
           {info && info.status === 'open' && (
             <>
               <h1>Add a comment</h1>
-              <RichEditor setEditorState={setEditorState} setEditorHasText={setEditorHasText}/>
+              <RichEditor setEditorState={setEditorState} setEditorHasText={setEditorHasText} />
               <Flex gap='small' justify={'flex-end'}>
                 <Button
                   // loading={motivation === 'close' ? loadings[3] : undefined}

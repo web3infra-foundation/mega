@@ -1,23 +1,39 @@
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import ArticleIcon from '@mui/icons-material/Article';
+import FolderRounded from '@mui/icons-material/FolderRounded';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import { Box, CircularProgress } from '@mui/material';
+import {
+  TreeItemDragAndDropOverlay,
+  TreeItemIcon,
+  TreeItemProvider,
+  useTreeItem,
+  useTreeItemModel,
+  UseTreeItemParameters,
+} from '@mui/x-tree-view';
+import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
+import {
+  TreeItemContent,
+  TreeItemGroupTransition,
+  TreeItemIconContainer,
+  TreeItemLabel,
+  TreeItemRoot,
+} from '@mui/x-tree-view/TreeItem';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';
-import FolderRounded from '@mui/icons-material/FolderRounded';
-import ArticleIcon from '@mui/icons-material/Article';
-import { RichTreeView } from '@mui/x-tree-view/RichTreeView';
-import { TreeItemCheckbox, TreeItemContent, TreeItemGroupTransition, TreeItemIconContainer, TreeItemLabel, TreeItemRoot } from '@mui/x-tree-view/TreeItem';
-import { TreeItemDragAndDropOverlay, TreeItemIcon, TreeItemProvider, useTreeItem, useTreeItemModel, UseTreeItemParameters } from '@mui/x-tree-view';
-import { Box, IconButton } from '@mui/material';
+import { styled, alpha } from '@mui/material/styles';
+import { useGetTree } from '@/hooks/useGetTree';
+import { v4 as uuidv4 } from 'uuid';
 
 interface MuiTreeNode {
-  id: string;
-  label: string;
-  path: string;
-  content_type:string;
-  // isLeaf: boolean;
+  id?: string;
+  label?: string;
+  path?: string;
+  content_type?: FileType;
+  isLeaf?: boolean;
   children?: MuiTreeNode[];
 }
-
 
 type FileType = 'file' | 'directory';
 
@@ -32,144 +48,166 @@ interface CustomLabelProps {
   icon?: React.ElementType;
   expandable?: boolean;
 }
-  
-  function CustomLabel({
-    icon: Icon,
-    children,
-    ...other
-  }: CustomLabelProps) {
-    return (
-      <TreeItemLabel
-        {...other}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-        }}
-      >
-        {Icon && (
-          <Box
-            component={Icon}
-            className="labelIcon"
-            color="inherit"
-            sx={{ mr: 1, fontSize: '1.2rem' }}
-          />
-        )}
 
-        <TreeItemLabel>{children}</TreeItemLabel>
-      </TreeItemLabel>
-    );
+function CustomLabel({ icon: Icon, children, ...other }: CustomLabelProps) {
+  return (
+    <TreeItemLabel
+      {...other}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+      }}
+    >
+      {Icon && (
+        <Box component={Icon} className="labelIcon" color="inherit" sx={{ mr: 1, fontSize: '1.2rem' }} />
+      )}
+      <TreeItemLabel>{children}</TreeItemLabel>
+    </TreeItemLabel>
+  );
+}
+
+const getIconFromFileType = (fileType: FileType, isExpanded:Boolean) => {
+  switch (fileType) {
+    case 'file':
+      return ArticleIcon;
+    case 'directory':
+      return isExpanded ? FolderOpenIcon :FolderRounded;
+    default:
+      return ArticleIcon;
   }
-    
-  const getIconFromFileType = (fileType: FileType) => {
-    switch (fileType) {
-      case 'file':
-        return ArticleIcon;
-      case 'directory':
-        return FolderRounded;
-      default:
-        return ArticleIcon;
-    }
-  };
-  
-  interface CustomTreeItemProps
-    extends Omit<UseTreeItemParameters, 'rootRef'>,
-      Omit<React.HTMLAttributes<HTMLLIElement>, 'onFocus'> {}
+};
 
-  const CustomTreeItem = React.forwardRef(function CustomTreeItem(
-    props: CustomTreeItemProps,
-    ref: React.Ref<HTMLLIElement>,
-  ) {
-    const { id, itemId, label, disabled, children, ...other } = props;
-    const {
-      getContextProviderProps,
-      getRootProps,
-      getContentProps,
-      getIconContainerProps,
-      getCheckboxProps,
-      getLabelProps,
-      getGroupTransitionProps,
-      getDragAndDropOverlayProps,
-      status,
-    } = useTreeItem({ id, itemId, children, label, disabled, rootRef: ref });
-  
-    const item = useTreeItemModel<ExtendedTreeItemProps>(itemId)!;
+interface CustomTreeItemProps
+  extends Omit<UseTreeItemParameters, 'rootRef'>,
+    Omit<React.HTMLAttributes<HTMLLIElement>, 'onFocus'> {
+  }
 
-    let icon;
+const CustomTreeItem = React.forwardRef(function CustomTreeItem(
+  { ...props }: CustomTreeItemProps,
+  ref: React.Ref<HTMLLIElement>,
+) {
+  const { id, itemId, label, disabled, children, ...other } = props;
+  const {
+    getContextProviderProps,
+    getRootProps,
+    getContentProps,
+    getIconContainerProps,
+    getLabelProps,
+    getGroupTransitionProps,
+    getDragAndDropOverlayProps,
+    status,
+  } = useTreeItem({ id, itemId, children, label, disabled, rootRef: ref });
 
-    if (status.expandable) {
-      icon = FolderRounded;
-    } else if (item.content_type) {
-      icon = getIconFromFileType(item.content_type);
-    }
+  const item = useTreeItemModel<ExtendedTreeItemProps>(itemId)!;
+  let icon;
 
-    const handleClick = async(event: React.MouseEvent) => {
-      // eslint-disable-next-line no-console
-      console.log(event,"event===event====")
-      // interactions.handleExpansion(event);
-  
-    };
+  if (status.expandable) {
+    icon = getIconFromFileType(item.content_type || 'file', status.expanded);
+  } else if (item.content_type) {
+    icon = getIconFromFileType(item.content_type, false);
+  }
 
-    return (
-      <TreeItemProvider {...getContextProviderProps()}>
-        <TreeItemRoot {...getRootProps(other)}>
-          <TreeItemContent {...getContentProps()}>
-            
+  const StyledGroupTransition = styled(TreeItemGroupTransition)(({ theme }) => ({
+    marginLeft: 15,
+    borderLeft: `1px dashed ${alpha(theme.palette.text.primary, 0.4)}`,
+  }));
+
+  return (
+    <TreeItemProvider {...getContextProviderProps()}>
+      <TreeItemRoot {...getRootProps(other)}>
+        {item.label === '加载中...' ? ( 
+          <TreeItemContent {...getContentProps()} sx={{ paddingLeft: 2 }}>
+            <TreeItemIconContainer {...getIconContainerProps()}>
+              <CircularProgress size="1.2rem" color="inherit" />
+            </TreeItemIconContainer>
+          </TreeItemContent>
+        ) : (
+          <TreeItemContent {...getContentProps()} sx={{ paddingLeft: 1 }}>
             <TreeItemIconContainer {...getIconContainerProps()}>
               <TreeItemIcon status={status} />
             </TreeItemIconContainer>
-  
-              {/* icon */}
-            <React.Fragment>
-              <IconButton
-                onClick={handleClick}
-                aria-label="collapse item"
-                size="small"
-              >
-              </IconButton>
-            </React.Fragment>
             
-            <TreeItemCheckbox {...getCheckboxProps()} />
-  
             {/* label */}
             <CustomLabel
               {...getLabelProps({
                 icon,
-                expandable: status.expandable && status.expanded,
+                expandable: status.expandable && status.expanded, 
               })}
             />
             <TreeItemDragAndDropOverlay {...getDragAndDropOverlayProps()} />
           </TreeItemContent>
-          {children && <TreeItemGroupTransition {...getGroupTransitionProps()} />}
-        </TreeItemRoot>
-      </TreeItemProvider>
-    );
-  }
-);
+        )}
+        {children && <StyledGroupTransition {...getGroupTransitionProps()} />}
+      </TreeItemRoot>
+    </TreeItemProvider>
+  );
+});
 
-const RepoTree = ({ directory }:any) => {
+const RepoTree = ({ directory }: { directory: any[] }) => {
   const router = useRouter();
+  const scope = router.query.org as string;
   const pathname = usePathname();
-  const [treeData, setTreeData] = useState<MuiTreeNode[]>([]);
-  const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
+  const basePath = pathname?.replace(`/${scope}/code/tree`, ''); 
+
+  const [treeData, setTreeData] = useState<MuiTreeNode[]>([]); 
+
+  const [expandedNodes, setExpandedNodes] = useState<string[]>([]); 
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
-  const convertToTreeData = useCallback((directory:any) => {
-    return sortProjectsByType(directory)?.map(item => ({
-      id: item.date + item.name,
-      label: item.name,
-      path: item.path,
-      content_type:item.content_type,
-      children: item.content_type === 'directory' ? [] : undefined
-    }));
-  }, []);
+  const [loadPath, setLoadPath] = useState<string | null >(null);
+  const [targetNodeId, setTargetNodeId] = useState<string | null >(null);
+  // const [loadingError, setLoadingError] = useState<string| null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true); 
+  const { data: response, isLoading, error } = useGetTree({ path: loadPath??undefined});
+
+  const convertToTreeData = useCallback((parentBasePath: string, directory: any[]) => {
+    if (!Array.isArray(directory) || directory.length === 0) {
+      // console.warn('convertToTreeData: 接收到非数组或空数据', directory);
+      return [];
+    }
+    
+    return sortProjectsByType(directory).map((item) => {
+      
+      const currentPath = `${parentBasePath}/${item.name}`.replace('//', '/') || '/';
+      // console.log('生成节点路径:', item.name, '=>', currentPath);
+
+      return {
+        id: uuidv4(), 
+        label: item.name,
+        path: currentPath,
+        isLeaf: item.content_type !== 'directory',
+        content_type: item.content_type,
+        children: item.content_type === 'directory' ? [
+          {
+            id: uuidv4(), 
+            label: '加载中...', 
+            isLeaf: true,
+          },
+        ] : undefined,
+      };
+    });
+  }, []); 
 
   useEffect(() => {
-    setTreeData(convertToTreeData(directory));
-  }, [directory, convertToTreeData]);
+    if (!Array.isArray(directory) || directory.length === 0) {
+      // console.warn('RepoTree: 接收到非数组或空的初始数据', directory);
+      setIsInitialLoading(false);
+      return;
+    }
+    
+    const rootPath = basePath || '/'; // 使用基路径作为根路径
+    
+    setTreeData(convertToTreeData(rootPath, directory));
+    setIsInitialLoading(false);
+  }, [directory, convertToTreeData,basePath]);
 
-
-  const sortProjectsByType = (projects:any[]) => {
-    return projects?.sort((a, b) => {
+  const sortProjectsByType = (projects: any[]) => {
+    if (!Array.isArray(projects) || projects.length === 0) {
+      // console.warn('sortProjectsByType: 接收到非数组或空数据', projects);
+      return [];
+    }
+    
+    return projects.sort((a, b) => {
       if (a.content_type === 'directory' && b.content_type === 'file') {
         return -1;
       } else if (a.content_type === 'file' && b.content_type === 'directory') {
@@ -180,110 +218,173 @@ const RepoTree = ({ directory }:any) => {
     });
   };
 
-  const appendTreeData = (treeData: any, subItems: any, nodeId: string) => {
-    return treeData.map((item:any) => {
-      if (item.id === nodeId) {
-        return {
-          ...item,
-          children: subItems
-        };
-      } else if (item.children) {
-        return {
-          ...item,
-          children: appendTreeData(item.children, subItems, nodeId)
-        };
+  const updateTreeData = useCallback(
+    (currentTree: MuiTreeNode[], nodeId: string, newChildren: MuiTreeNode[]): any => {
+      if (!Array.isArray(currentTree) || currentTree.length === 0) {
+        // console.warn('updateTreeData: 接收到非数组或空的当前树数据', currentTree);
+        return [];
       }
-      return item;
-    });
-  };
-
-  const handleNodeToggle = (_event: React.SyntheticEvent<Element, Event> | null, nodeIds: string[]) => {
-    const newlyExpandedNodeId = nodeIds.find(id => !expandedNodes.includes(id));
-    
-
-    // eslint-disable-next-line no-console
-    console.log("11111====")
-    if (newlyExpandedNodeId) {
-      const loadChildren = async () => {
-        try {
-          const node = findNode(treeData, newlyExpandedNodeId);
-
-          // eslint-disable-next-line no-console
-          console.log(node, 'node===node====')
-
-          if (!node) return;
-
-          let responseData;
-          const reqPath = pathname?.replace('/tree', '') + '/' + node.label;
-          
-          if (node.path && node.path !== '' && node.path !== undefined) {
-            responseData = await fetch(`/api/tree?path=${node.path}`)
-              .then(response => response.json());
-          } else {
-            responseData = await fetch(`/api/tree?path=${reqPath}`)
-              .then(response => response.json());
-          }
-
-          const subTreeData = convertToTreeData(responseData.data.data);
-          const newTreeData = appendTreeData(treeData, subTreeData, newlyExpandedNodeId);
-
-          setTreeData(newTreeData);
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.error('Error fetching tree data:', error);
-        }
-      };
       
-      loadChildren();
-    }
-    
-    setExpandedNodes(nodeIds);
-  };
+      return currentTree.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            children: newChildren,
+            isLeaf: newChildren.length === 0,
+          };
+        }
+        if (node.children && node.children.length > 0) {
+          return {
+            ...node,
+            children: updateTreeData(node.children, nodeId, newChildren),
+          };
+        }
+        return node;
+      });
+    },
+    [],
+  );
 
-  const handleNodeSelect = (_event: React.SyntheticEvent<Element, Event> | null, nodeId: string | null) => {
-    if (!nodeId) return;
-
-    setSelectedNode(nodeId);
-    const node = findNode(treeData, nodeId);
-
-    // eslint-disable-next-line no-console
-    console.log("node====")
-
-    if (!node) return;
-
-    const real_path = pathname?.replace('/tree', '');
-    const modified_path = real_path?.replace('/code/', '/code/blob/');
-
-    if (node?.content_type === 'directory') {
-      router.push(`${pathname}/${node.label}`);
-    } else {
-      router.push(`/${modified_path}/${node.label}`);
-    }
-  };
-
-  const findNode = (data: MuiTreeNode[], nodeId: string): MuiTreeNode | null => {
-    for (const node of data) {
-      if (node.id === nodeId) return node;
-      if (node.children) {
-        const found = findNode(node.children, nodeId);
-
-        if (found) return found;
+  const findNode = useCallback(
+    (data: MuiTreeNode[], nodeId: string): MuiTreeNode | null => {
+      if (!Array.isArray(data) || data.length === 0) {
+        return null;
       }
+      
+      for (const node of data) {
+
+        if (node.id === nodeId) return node;
+
+        if (node.children) {
+          const found = findNode(node.children, nodeId);
+
+          if (found) return found;
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
+  const handleNodeToggle = useCallback(
+    (_event: React.SyntheticEvent<Element, Event> | null, nodeIds: string[]) => {
+      const newlyExpandedId = nodeIds.find((id) => !expandedNodes.includes(id));
+      
+      if (newlyExpandedId) {
+        const targetNode = findNode(treeData, newlyExpandedId);
+
+          const reqPath = targetNode?.path?.startsWith('/') 
+          ? targetNode.path 
+          : `/${targetNode?.path}`;
+
+        if (
+          targetNode && 
+          targetNode.content_type === 'directory' && 
+          targetNode.children?.[0]?.label === '加载中...' // 中文判断
+        ) {
+          setLoadPath(reqPath);
+          setTargetNodeId(newlyExpandedId);
+          // setLoadingError(null);
+        }
+      }
+      
+      setExpandedNodes(nodeIds);
+    },
+    [expandedNodes, treeData, setLoadPath, setTargetNodeId, findNode],
+  );
+
+  useEffect(() => {
+    if (!loadPath) return;
+    
+    if (response && !isLoading) {
+      if (
+        !response.req_result || 
+        !Array.isArray(response.data) || 
+        response.data.length === 0
+      ) {
+        // console.error('API数据格式错误:', response);
+        // setLoadingError('数据格式错误或为空');
+        return;
+      }
+  
+      const items = response.data;
+      const newChildren = convertToTreeData(loadPath, items);
+      const newTree = updateTreeData(treeData, targetNodeId!, newChildren);
+
+      setTreeData(newTree);
+      setLoadPath(null);
+      setTargetNodeId(null);
     }
-    return null;
-  };
+  
+    // if (error) {
+    //   console.error('Error fetching data:', error);
+    //   // setLoadingError(error.message || '加载失败');
+    // }
+  }, [response, isLoading, error, loadPath, targetNodeId, treeData, convertToTreeData, updateTreeData]);
+
+
+  const handleNodeSelect = useCallback(
+    (_event: React.SyntheticEvent<Element, Event> | null, nodeId: string | null) => {
+      if (!nodeId) return;
+
+      setSelectedNode(nodeId);
+      const node = findNode(treeData, nodeId);
+
+      if (!node) return;
+
+      const basePath = pathname?.replace(`/${scope}/code/tree`, '') || '';
+      
+      let fullPath = node.path;
+
+      if (basePath && fullPath?.startsWith(basePath)) {
+        fullPath = fullPath?.substring(basePath.length);
+      }
+
+      fullPath = fullPath?.replace(/^\//, '');
+      if (node?.isLeaf) {
+        router.push(`/${scope}/code/blob${basePath}/${fullPath}`);
+      }
+  
+      },
+    [pathname, router, treeData, scope, findNode],
+  );
 
   return (
-    <RichTreeView
-    items={treeData}
-    expandedItems={expandedNodes}
-    selectedItems={selectedNode}
-    onExpandedItemsChange={handleNodeToggle}
-    onSelectedItemsChange={handleNodeSelect}
-    sx={{ height: 'fit-content', flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
-    slots={{ item: CustomTreeItem }}
-  />
-  )
+    <>
+      {isInitialLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', padding: '16px' }}>
+          <CircularProgress />
+        </Box>
+      ) : treeData.length === 0 ? (
+        <Box sx={{ color: 'text.secondary', padding: '16px' }}>
+          no data
+        </Box>
+      ) : (
+        <RichTreeView
+          items={treeData}
+          defaultExpandedItems={['grid', 'pickers']}
+          expandedItems={expandedNodes}
+          selectedItems={selectedNode}
+          onExpandedItemsChange={handleNodeToggle}
+          onSelectedItemsChange={handleNodeSelect}
+          sx={{ height: 'fit-content', flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
+          slots={{
+            item: (itemProps) => (
+              <CustomTreeItem 
+                {...itemProps}
+              />
+            )
+          }}
+        >
+        </RichTreeView>
+      )}
+      {/* {loadingError && (
+        <Box sx={{ color: 'error.main', mt: 2, padding: '0 16px' }}>
+          加载错误: {loadingError}
+        </Box>
+      )} */}
+    </>
+  );
 };
 
 export default RepoTree;

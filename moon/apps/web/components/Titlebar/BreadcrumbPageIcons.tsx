@@ -7,6 +7,7 @@ import {
   PostDraftIcon,
   PostFilledIcon,
   ProjectIcon,
+  QuestionMarkCircleIcon,
   SquircleIconContainer,
   UIText,
   UserCircleFilledIcon,
@@ -27,6 +28,14 @@ export function NoteBreadcrumbIcon() {
   return (
     <SquircleIconContainer className='text-blue-500' size='small'>
       <NoteFilledIcon className='relative z-10 text-white' />
+    </SquircleIconContainer>
+  )
+}
+
+export function IssueBreadcrumbIcon() {
+  return (
+    <SquircleIconContainer className='text-blue-500' size='small'>
+      <QuestionMarkCircleIcon className='relative z-10 text-white' />
     </SquircleIconContainer>
   )
 }
