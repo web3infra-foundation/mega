@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DiffFile, DiffModeEnum, DiffView } from '@git-diff-view/react'
 
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
@@ -57,6 +57,10 @@ export default function FileDiff({ diffs }: { diffs: string }) {
     setExpandedMap((prev) => ({ ...prev, [path]: !prev[path] }))
   };
 
+  useEffect(() => {
+    setExpandedMap(Object.fromEntries(diffFiles.map((f) => [f.path, false])));
+  }, [diffFiles]);
+
   const RenderDiffView = ({ file, instance }: { 
     file: { path: string; lang: string; diff: string };
     instance: DiffFile;
@@ -77,7 +81,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
   }
 
   return (
-    <div style={{ display: 'flex', fontFamily: 'sans-serif' }}>
+    <div className='flex font-sans'>
       <div
         className='rounded-lg bg-gray-100 w-[300px] h-[85vh] border border-[#ddd] p-2 overflow-y-auto sticky top-5'
       >

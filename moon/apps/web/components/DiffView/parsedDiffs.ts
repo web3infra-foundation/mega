@@ -39,35 +39,38 @@ export function parsedDiffs(diffText: string): { path: string; lang: string; dif
   return parts.map((block) => {
     let path = "";
 
-    const plusMatch = block.match(/^\+\+\+ b\/([^\n\r]+)/m);
+    const diffGitMatch = block.match(/^diff --git a\/[^\s]+ b\/([^\s]+)/m);
 
-    if (plusMatch) {
-      path = plusMatch[1].trim();
-    } else {
-      const diffGitMatch = block.match(/^diff --git a\/[^\s]+ b\/([^\s]+)/m);
-
-      if (diffGitMatch) {
+    if (diffGitMatch) {
+      if (diffGitMatch[2] && diffGitMatch[2] !== '/dev/null') {
+        path = diffGitMatch[2].trim();  
+      } else {
         path = diffGitMatch[1].trim();
       }
     }
 
     if (getLangFromPath(path) === "plaintext") {
       return {
-      path,
-      lang: getLangFromPath(path),
-      diff: block,
-    };
+        path,
+        lang: getLangFromPath(path),
+        diff: block,
+      };
     }
 
-    const hunkIndex = block.indexOf("@@");
+    let diffWithHeader = block;
+    const plusMatch = block.match(/^\+\+\+ b\/([^\n\r]+)/m);
 
-    let prefix = `--- a/${path}\n+++ b/${path}\n`;
-    let diffWithHeader = hunkIndex >= 0
-      ? block.slice(0, hunkIndex) + prefix + block.slice(hunkIndex)
-      : prefix + block;
+    if(!plusMatch){
+      const hunkIndex = block.indexOf("@@");
 
-    if (!diffWithHeader.endsWith("\n")) {
-      diffWithHeader += "\n";
+      let prefix = `--- a/${path}\n+++ b/${path}\n`;
+      diffWithHeader = hunkIndex >= 0
+        ? block.slice(0, hunkIndex) + prefix + block.slice(hunkIndex)
+        : prefix + block;
+
+      if (!diffWithHeader.endsWith("\n")) {
+        diffWithHeader += "\n";
+      }
     }
 
     return {
