@@ -31,9 +31,15 @@ function generateParsedFiles(diffFiles: { path: string; lang: string; diff: stri
   return diffFiles.map((file) => {
     const instance = new DiffFile('', '', '', '', [file.diff], file.lang);
 
-    instance.init();
-    instance.buildSplitDiffLines();
-    instance.buildUnifiedDiffLines();
+    try {
+      instance.init();
+      instance.buildSplitDiffLines();
+      instance.buildUnifiedDiffLines();
+    } catch (e) {
+      /* eslint-disable-next-line no-console */
+      console.error("error:", e);
+    }
+
     const stats = calculateDiffStatsFromRawDiff(file.diff);
 
     return { file, instance, stats }
