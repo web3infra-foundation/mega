@@ -78,7 +78,7 @@ impl MrStorage {
     pub async fn close_mr(
         &self,
         model: mega_mr::Model,
-        user_id: i64,
+        user_id: String,
         username: &str,
     ) -> Result<(), MegaError> {
         self.update_mr(model.clone()).await.unwrap();
@@ -96,7 +96,7 @@ impl MrStorage {
     pub async fn reopen_mr(
         &self,
         model: mega_mr::Model,
-        user_id: i64,
+        user_id: String,
         username: &str,
     ) -> Result<(), MegaError> {
         self.update_mr(model.clone()).await.unwrap();
@@ -141,7 +141,7 @@ impl MrStorage {
     pub async fn add_mr_conversation(
         &self,
         link: &str,
-        user_id: i64,
+        user_id: String,
         conv_type: ConvTypeEnum,
         comment: Option<String>,
     ) -> Result<i64, MegaError> {

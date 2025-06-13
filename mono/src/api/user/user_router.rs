@@ -59,7 +59,7 @@ async fn add_key(
     let res = state
         .user_stg()
         .save_ssh_key(
-            user.user_id,
+            user.campsite_user_id,
             &title,
             &json.ssh_key,
             &key.fingerprint(HashAlg::Sha256).to_string(),
@@ -77,7 +77,10 @@ async fn remove_key(
     state: State<MonoApiServiceState>,
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.user_stg().delete_ssh_key(user.user_id, key_id).await;
+    let res = state
+        .user_stg()
+        .delete_ssh_key(user.campsite_user_id, key_id)
+        .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
@@ -89,7 +92,7 @@ async fn list_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListSSHKey>>>, ApiError> {
-    let res = state.user_stg().list_user_ssh(user.user_id).await;
+    let res = state.user_stg().list_user_ssh(user.campsite_user_id).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data.into_iter().map(|x| x.into()).collect())),
         Err(err) => CommonResult::failed(&err.to_string()),
@@ -101,7 +104,7 @@ async fn generate_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.user_stg().generate_token(user.user_id).await;
+    let res = state.user_stg().generate_token(user.campsite_user_id).await;
     let res = match res {
         Ok(data) => CommonResult::success(Some(data)),
         Err(err) => CommonResult::failed(&err.to_string()),
@@ -114,7 +117,10 @@ async fn remove_token(
     state: State<MonoApiServiceState>,
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.user_stg().delete_token(user.user_id, key_id).await;
+    let res = state
+        .user_stg()
+        .delete_token(user.campsite_user_id, key_id)
+        .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
         Err(err) => CommonResult::failed(&err.to_string()),
@@ -126,7 +132,7 @@ async fn list_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListToken>>>, ApiError> {
-    let res = state.user_stg().list_token(user.user_id).await;
+    let res = state.user_stg().list_token(user.campsite_user_id).await;
     let res = match res {
         Ok(data) => {
             let res = data.into_iter().map(|x| x.into()).collect();

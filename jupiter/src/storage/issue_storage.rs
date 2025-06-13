@@ -120,7 +120,7 @@ impl IssueStorage {
     pub async fn add_issue_conversation(
         &self,
         link: &str,
-        user_id: i64,
+        user_id: String,
         comment: Option<String>,
     ) -> Result<i64, MegaError> {
         let conversation = mega_conversation::Model {
