@@ -71,10 +71,11 @@ async fn http_auth(header: &HeaderMap<HeaderValue>, context: &Context) -> bool {
                 .await
                 .unwrap()
             {
-                Some(user) => {
+                // TODO refactor later
+                Some(_) => {
                     return context
                         .user_stg()
-                        .check_token(user.id, token)
+                        .check_token(String::new(), token)
                         .await
                         .unwrap();
                 }

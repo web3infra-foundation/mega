@@ -539,6 +539,8 @@ pub struct OauthConfig {
     pub github_client_secret: String,
     pub ui_domain: String,
     pub cookie_domain: String,
+    pub campsite_api_domain: String,
+    pub allowed_cors_origins: Vec<String>,
 }
 
 #[cfg(test)]

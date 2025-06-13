@@ -37,6 +37,8 @@ const cspResourcesByDirective = {
     'wss://*.gitmono.com',
     'ws://*.gitmega.com',
     'http://*.gitmega.com',
+    'http://*.gitmono.test:3001',
+    'http://*.gitmono.test:8000',
     process.env.NODE_ENV !== 'production' && 'http://api.gitmega.com',
     process.env.NODE_ENV !== 'production' && 'http://git.gitmega.com',
     process.env.NODE_ENV !== 'production' && 'localhost:8000',

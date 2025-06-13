@@ -4,16 +4,21 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use saturn::ActionEnum;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::protocol::mr::MergeRequest;
 use common::model::{CommonPage, CommonResult, PageParams};
 
-use crate::api::mr::{
-    FilesChangedItem, FilesChangedList, MRDetail, MRStatusParams, MrInfoItem, SaveCommentRequest,
+use crate::api::{
+    mr::{
+        FilesChangedItem, FilesChangedList, MRDetail, MRStatusParams, MrInfoItem,
+        SaveCommentRequest,
+    },
+    oauth::model::LoginUser,
 };
-use crate::api::MonoApiServiceState;
+use crate::api::{util, MonoApiServiceState};
 use crate::{api::error::ApiError, server::https_server::MR_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -44,6 +49,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     tag = MR_TAG
 )]
 async fn reopen_mr(
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
@@ -59,7 +65,11 @@ async fn reopen_mr(
             // .unwrap();
             let mut mr: MergeRequest = model.into();
             mr.status = MergeStatusEnum::Open;
-            let res = match state.mr_stg().reopen_mr(mr.into(), 0, "admin").await {
+            let res = match state
+                .mr_stg()
+                .reopen_mr(mr.into(), user.campsite_user_id, &user.name)
+                .await
+            {
                 Ok(_) => CommonResult::success(None),
                 Err(err) => CommonResult::failed(&err.to_string()),
             };
@@ -82,7 +92,7 @@ async fn reopen_mr(
     tag = MR_TAG
 )]
 async fn close_mr(
-    // user: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
@@ -98,7 +108,11 @@ async fn close_mr(
             // .unwrap();
             let mut mr: MergeRequest = model.into();
             mr.status = MergeStatusEnum::Closed;
-            let res = match state.mr_stg().close_mr(mr.into(), 0, "admin").await {
+            let res = match state
+                .mr_stg()
+                .close_mr(mr.into(), user.campsite_user_id, &user.name)
+                .await
+            {
                 Ok(_) => CommonResult::success(None),
                 Err(err) => CommonResult::failed(&err.to_string()),
             };
@@ -121,22 +135,25 @@ async fn close_mr(
     tag = MR_TAG
 )]
 async fn merge(
-    // user: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
         if model.status == MergeStatusEnum::Open {
-            // let path = model.path.clone();
-            // util::check_permissions(
-            //     &user.name,
-            //     &path,
-            //     ActionEnum::ApproveMergeRequest,
-            //     state.clone(),
-            // )
-            // .await
-            // .unwrap();
-            let res = state.monorepo().merge_mr(&mut model.into()).await;
+            let path = model.path.clone();
+            util::check_permissions(
+                &user.name,
+                &path,
+                ActionEnum::ApproveMergeRequest,
+                state.clone(),
+            )
+            .await
+            .unwrap();
+            let res = state
+                .monorepo()
+                .merge_mr(user.campsite_user_id, &mut model.into())
+                .await;
             let res = match res {
                 Ok(_) => CommonResult::success(None),
                 Err(err) => CommonResult::failed(&err.to_string()),
@@ -270,7 +287,7 @@ async fn get_mr_files_changed(
     tag = MR_TAG
 )]
 async fn save_comment(
-    // user: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<SaveCommentRequest>,
@@ -278,7 +295,12 @@ async fn save_comment(
     let res = if let Some(model) = state.mr_stg().get_mr(&link).await.unwrap() {
         state
             .mr_stg()
-            .add_mr_conversation(&model.link, 0, ConvTypeEnum::Comment, Some(payload.content))
+            .add_mr_conversation(
+                &model.link,
+                user.campsite_user_id,
+                ConvTypeEnum::Comment,
+                Some(payload.content),
+            )
             .await
             .unwrap();
         CommonResult::success(None)

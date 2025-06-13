@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use common::utils::generate_id;
 use serde::{Deserialize, Serialize};
 
@@ -40,9 +40,30 @@ impl From<GitHubUserJson> for user::Model {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct CampsiteUserJson {
+    pub username: String,
+    pub id: String,
+    pub avatar_url: String,
+    pub email: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<CampsiteUserJson> for LoginUser {
+    fn from(value: CampsiteUserJson) -> Self {
+        Self {
+            name: value.username,
+            email: value.email.unwrap_or_default(),
+            avatar_url: value.avatar_url,
+            campsite_user_id: value.id,
+            created_at: value.created_at.naive_utc(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LoginUser {
-    pub user_id: i64,
+    pub campsite_user_id: String,
     pub name: String,
     pub avatar_url: String,
     pub email: String,
@@ -52,11 +73,11 @@ pub struct LoginUser {
 impl From<user::Model> for LoginUser {
     fn from(value: user::Model) -> Self {
         Self {
-            user_id: value.id,
             name: value.name,
             avatar_url: value.avatar_url,
             email: value.email,
             created_at: value.created_at,
+            campsite_user_id: String::new(),
         }
     }
 }
