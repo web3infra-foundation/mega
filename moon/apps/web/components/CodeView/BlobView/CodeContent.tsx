@@ -1,14 +1,13 @@
-'use client'
-import 'github-markdown-css/github-markdown-light.css'
+'use client';
 
-import { useEffect, useRef, useState } from 'react'
-import { ListIcon } from '@gitmono/ui'
-import { Button, Dropdown, MenuProps, message} from 'antd'
-import { Highlight, themes } from 'prism-react-renderer'
+import { useEffect, useRef, useState } from 'react';
+import { Button, Dropdown, MenuProps, message } from 'antd';
+import { Highlight, themes } from 'prism-react-renderer';
+import { DotsHorizontal } from '@gitmono/ui';
 
-import styles from './CodeContent.module.css'
+import 'github-markdown-css/github-markdown-light.css';
+import styles from './CodeContent.module.css';
 
-// @ts-ignore
 const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string[] }) => {
   const [lfs, setLfs] = useState(false)
   const [selectedLine, setSelectedLine] = useState<number | null>(null)
@@ -18,6 +17,18 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
       {
         label: 'Copy line',
         key: '1'
+      },
+      {
+        label: 'Copy permalink',
+        key: '2'
+      },
+      {
+        label: 'View file in GitHub.dev',
+        key: '3'
+      },
+      {
+        label: 'View file in different branch/tag',
+        key: '4'
       }
     ]
   }
@@ -175,36 +186,38 @@ const CodeContent = ({ fileContent, path }: { fileContent: string, path?: string
                   style={{
                     backgroundColor: selectedLine === i ? '#f0f7ff' : 'transparent'
                   }}
+                  className='flex h-6 items-center'
                 >
-                  <div className='h-6 justify-center items-center align-middle'>
-                    <span className='inline-block w-8 text-center justify-center items-center'>
-                      {selectedLine === i ?
-                        <Dropdown
-                          menu={{
-                            ...menuItems,
-                            onClick: (props) => {
-                              if(props.key === '1') {
-                                handleCopyLine(line.map(i=>i.content).join(''))
-                              }
+                  <span className='inline-block w-8'>
+                    {selectedLine === i ?
+                      <Dropdown
+                        menu={{
+                          ...menuItems,
+                          onClick: (props) => {
+                            if(props.key === '1') {
+                              handleCopyLine(line.map(i=>i.content).join(''))
                             }
-                          }}
-                          className='bg-gray-100 border rounded border-gray-200 justify-center'
-
-                        >
-                          <Button icon={<ListIcon />} size={'small'}/>
-                        </Dropdown>
-                        :
-                        null
-                      }
-                    </span>
-                    <span className={styles.codeLineNumber} onClick={() => handleLineClick(i)}>
-                      {i + 1}
-                    </span>
-                    {line.map((token, key) => (
-                      // eslint-disable-next-line react/no-array-index-key
-                      <span key={key} {...getTokenProps({ token })} />
-                    ))}
-                  </div>
+                          }
+                        }}
+                        className='bg-gray-100 border rounded border-gray-200'
+                      >
+                        <Button
+                          icon={<DotsHorizontal />}
+                          size={'small'}
+                          className='h-6 w-6 p-0 flex'
+                        />
+                      </Dropdown>
+                      :
+                      null
+                    }
+                  </span>
+                  <span className={styles.codeLineNumber} onClick={() => handleLineClick(i)}>
+                    {i + 1}
+                  </span>
+                  {line.map((token, key) => (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <span key={key} {...getTokenProps({ token })} />
+                  ))}
                 </div>
               ))}
             {lfs && <span>(Sorry about that, but we can’t show files that are this big right now.)</span>}
