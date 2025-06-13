@@ -28,6 +28,20 @@ pub struct ConfigArgs {
     /// the value or the possible value pattern of the configuration entry
     #[clap(value_name("value_pattern"), required_unless_present("mode"))]
     pub valuepattern: Option<String>,
+    /// If the target key is not present, return the given default value.
+    /// This is only valid when `get` is set.
+    #[clap(long, short = 'd', requires = "get")]
+    pub default: Option<String>,
+}
+
+impl ConfigArgs {
+    pub fn validate(&self) -> Result<(), String> {
+        // validate the default value is only present when get is set
+        if self.default.is_some() && !self.get && self.default.is_some() && !self.get_all {
+            return Err("default value is only valid when get (get_all) is set".to_string());
+        }
+        Ok(())
+    }
 }
 
 pub struct Key {
@@ -37,6 +51,10 @@ pub struct Key {
 }
 
 pub async fn execute(args: ConfigArgs) {
+    if let Err(e) = args.validate() {
+        eprintln!("error: {}", e);
+        return;
+    }
     if args.list {
         list_config().await;
     } else {
@@ -45,7 +63,7 @@ pub async fn execute(args: ConfigArgs) {
         if args.add {
             add_config(&key, &args.valuepattern.unwrap()).await;
         } else if args.get {
-            get_config(&key, args.valuepattern.as_deref()).await;
+            get_config(&key, args.default.as_deref(), args.valuepattern.as_deref()).await;
         } else if args.get_all {
             get_all_config(&key, args.valuepattern.as_deref()).await;
         } else if args.unset {
@@ -113,7 +131,7 @@ async fn set_config(key: &Key, value: &str) {
 }
 
 /// Get the first configuration by the given key and value pattern
-async fn get_config(key: &Key, valuepattern: Option<&str>) {
+async fn get_config(key: &Key, default: Option<&str>, valuepattern: Option<&str>) {
     let value: Option<String> =
         config::Config::get(&key.configuration, key.name.as_deref(), &key.key).await;
     if let Some(v) = value {
@@ -126,6 +144,10 @@ async fn get_config(key: &Key, valuepattern: Option<&str>) {
             // if value pattern is not present, just print it
             println!("{}", v);
         }
+    }
+    // if value is not exits just return the default value if it's present
+    if let Some(default_value) = default {
+        println!("{}", default_value);
     }
 }
 
