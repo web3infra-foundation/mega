@@ -34,14 +34,21 @@ pub struct InitArgs {
     /// Suppress all output
     #[clap(long, short = 'q', required = false)]
     pub quiet: bool,
+
+    /// Separate git dir from working tree
+    #[clap(long, required = false)]
+    pub separate_git_dir: Option<String>,
 }
 
 /// Execute the init function
 pub async fn execute(args: InitArgs) {
+    let quiet = args.quiet; // Store quiet flag before moving args
     match init(args).await {
         Ok(_) => {}
         Err(e) => {
-            eprintln!("Error: {}", e);
+            if !quiet {
+                eprintln!("Error: {}", e);
+            }
             std::process::exit(1);
         }
     }
@@ -90,11 +97,24 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     // Get the current directory
     // let cur_dir = env::current_dir()?;
     let cur_dir = Path::new(&args.repo_directory).to_path_buf();
-    // Join the current directory with the root directory
-    let root_dir = if args.bare {
-        cur_dir.clone()
+    
+    // Handle separate git dir
+    let (root_dir, git_link_file) = if let Some(ref separate_git_dir) = args.separate_git_dir {
+        let separate_path = Path::new(separate_git_dir).to_path_buf();
+        let git_link_file = if args.bare {
+            None
+        } else {
+            Some(cur_dir.join(".libra"))
+        };
+        (separate_path, git_link_file)
     } else {
-        cur_dir.join(ROOT_DIR)
+        // Join the current directory with the root directory
+        let root_dir = if args.bare {
+            cur_dir.clone()
+        } else {
+            cur_dir.join(ROOT_DIR)
+        };
+        (root_dir, None)
     };
 
     // Check if the root directory already exists
@@ -178,11 +198,29 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     // Set .libra as hidden
     set_dir_hidden(root_dir.to_str().unwrap())?;
+    
+    // Create git link file if using separate git dir
+    if let Some(git_link_file) = git_link_file {
+        let git_link_content = format!("gitdir: {}", root_dir.display());
+        fs::write(&git_link_file, git_link_content)?;
+        
+        // Set the git link file as hidden too
+        set_dir_hidden(git_link_file.to_str().unwrap())?;
+    }
+    
     if !args.quiet {
-        println!(
-            "Initializing empty Libra repository in {}",
-            root_dir.display()
-        );
+        if args.separate_git_dir.is_some() {
+            println!(
+                "Initializing empty Libra repository in {} (separate git dir: {})",
+                cur_dir.display(),
+                root_dir.display()
+            );
+        } else {
+            println!(
+                "Initializing empty Libra repository in {}",
+                root_dir.display()
+            );
+        }
     }
 
     Ok(())
@@ -248,4 +286,191 @@ fn set_dir_hidden(_dir: &str) -> io::Result<()> {
 
 /// Unit tests for the init module
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_init_args_parsing() {
+        // Test normal parsing
+        let args = InitArgs::try_parse_from(&["libra", "init", "test_dir"]).unwrap();
+        assert_eq!(args.repo_directory, "test_dir");
+        assert!(!args.bare);
+        assert!(!args.quiet);
+        assert!(args.initial_branch.is_none());
+
+        // Test with --quiet flag
+        let args = InitArgs::try_parse_from(&["libra", "init", "--quiet", "test_dir"]).unwrap();
+        assert!(args.quiet);
+        assert_eq!(args.repo_directory, "test_dir");
+
+        // Test with -q flag
+        let args = InitArgs::try_parse_from(&["libra", "init", "-q", "test_dir"]).unwrap();
+        assert!(args.quiet);
+
+        // Test with --bare and --quiet
+        let args = InitArgs::try_parse_from(&["libra", "init", "--bare", "--quiet", "test_dir"]).unwrap();
+        assert!(args.bare);
+        assert!(args.quiet);
+
+        // Test with --initial-branch
+        let args = InitArgs::try_parse_from(&["libra", "init", "-b", "main", "--quiet"]).unwrap();
+        assert_eq!(args.initial_branch, Some("main".to_string()));
+        assert!(args.quiet);
+
+        // Test with --separate-git-dir
+        let args = InitArgs::try_parse_from(&["libra", "init", "--separate-git-dir", "/tmp/git", "test_dir"]).unwrap();
+        assert_eq!(args.separate_git_dir, Some("/tmp/git".to_string()));
+        assert_eq!(args.repo_directory, "test_dir");
+    }
+
+    #[tokio::test]
+    async fn test_init_quiet_functionality() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path().join("test_repo");
+        
+        // Test normal initialization
+        let args = InitArgs {
+            bare: false,
+            initial_branch: None,
+            repo_directory: test_path.to_str().unwrap().to_string(),
+            quiet: false,
+            separate_git_dir: None,
+        };
+        
+        // This should succeed without panicking
+        let result = init(args).await;
+        assert!(result.is_ok(), "Normal init should succeed");
+        
+        // Verify repository structure was created
+        assert!(test_path.join(".libra").exists());
+        assert!(test_path.join(".libra/objects").exists());
+        assert!(test_path.join(".libra/description").exists());
+    }
+
+    #[tokio::test]
+    async fn test_init_quiet_on_existing_repo() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path().join("test_repo");
+        
+        // First initialization
+        let args1 = InitArgs {
+            bare: false,
+            initial_branch: None,
+            repo_directory: test_path.to_str().unwrap().to_string(),
+            quiet: true,
+            separate_git_dir: None,
+        };
+        
+        let result1 = init(args1).await;
+        assert!(result1.is_ok());
+        
+        // Second initialization (should fail but quietly)
+        let args2 = InitArgs {
+            bare: false,
+            initial_branch: None,
+            repo_directory: test_path.to_str().unwrap().to_string(),
+            quiet: true,
+            separate_git_dir: None,
+        };
+        
+        let result2 = init(args2).await;
+        assert!(result2.is_err());
+        assert_eq!(result2.unwrap_err().kind(), io::ErrorKind::AlreadyExists);
+    }
+
+    #[test]
+    fn test_is_reinit() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path();
+        
+        // Should return false for empty directory
+        assert!(!is_reinit(test_path));
+        
+        // Create .libra/description file
+        fs::create_dir_all(test_path.join(".libra")).unwrap();
+        fs::write(test_path.join(".libra/description"), "test").unwrap();
+        
+        // Should return true now
+        assert!(is_reinit(test_path));
+    }
+
+    #[test]
+    fn test_is_writable() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_path = temp_dir.path();
+        
+        // Should be writable
+        assert!(is_writable(test_path).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_init_separate_git_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let work_dir = temp_dir.path().join("work");
+        let git_dir = temp_dir.path().join("git");
+        
+        // Create work directory
+        fs::create_dir_all(&work_dir).unwrap();
+
+        let args = InitArgs {
+            bare: false,
+            initial_branch: None,
+            repo_directory: work_dir.to_str().unwrap().to_string(),
+            quiet: true,
+            separate_git_dir: Some(git_dir.to_str().unwrap().to_string()),
+        };
+
+        // This should succeed
+        let result = init(args).await;
+        assert!(result.is_ok(), "Init with separate git dir should succeed");
+
+        // Check that the git directory was created at the separate location
+        assert!(git_dir.exists(), "Separate git directory should exist");
+        assert!(git_dir.join("objects").exists(), "Git objects directory should exist");
+        assert!(git_dir.join("description").exists(), "Git description file should exist");
+
+        // Check that a .libra file (not directory) exists in the work directory
+        let libra_file = work_dir.join(".libra");
+        assert!(libra_file.exists(), ".libra file should exist in work directory");
+        assert!(libra_file.is_file(), ".libra should be a file, not a directory");
+
+        // Check the content of the .libra file
+        let content = fs::read_to_string(&libra_file).unwrap();
+        assert!(content.starts_with("gitdir: "), ".libra file should start with 'gitdir: '");
+        assert!(content.contains(&git_dir.to_string_lossy().to_string()), 
+                ".libra file should contain path to separate git dir");
+    }
+
+    #[tokio::test]
+    async fn test_init_separate_git_dir_bare() {
+        let temp_dir = TempDir::new().unwrap();
+        let work_dir = temp_dir.path().join("work");
+        let git_dir = temp_dir.path().join("git");
+        
+        // Create work directory
+        fs::create_dir_all(&work_dir).unwrap();
+
+        let args = InitArgs {
+            bare: true,
+            initial_branch: None,
+            repo_directory: work_dir.to_str().unwrap().to_string(),
+            quiet: true,
+            separate_git_dir: Some(git_dir.to_str().unwrap().to_string()),
+        };
+
+        // This should succeed
+        let result = init(args).await;
+        assert!(result.is_ok(), "Bare init with separate git dir should succeed");
+
+        // Check that the git directory was created at the separate location
+        assert!(git_dir.exists(), "Separate git directory should exist");
+        assert!(git_dir.join("objects").exists(), "Git objects directory should exist");
+
+        // For bare repositories with separate git dir, no .libra file should be created
+        let libra_file = work_dir.join(".libra");
+        assert!(!libra_file.exists(), ".libra file should not exist in bare repository");
+    }
+}
