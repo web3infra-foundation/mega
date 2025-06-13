@@ -37,7 +37,7 @@ pub struct ConfigArgs {
 impl ConfigArgs {
     pub fn validate(&self) -> Result<(), String> {
         // validate the default value is only present when get is set
-        if self.default.is_some() && !self.get && self.default.is_some() && !self.get_all {
+        if self.default.is_some() && !(self.get || self.get_all) {
             return Err("default value is only valid when get (get_all) is set".to_string());
         }
         Ok(())
@@ -65,7 +65,7 @@ pub async fn execute(args: ConfigArgs) {
         } else if args.get {
             get_config(&key, args.default.as_deref(), args.valuepattern.as_deref()).await;
         } else if args.get_all {
-            get_all_config(&key, args.valuepattern.as_deref()).await;
+            get_all_config(&key, args.default.as_deref(), args.valuepattern.as_deref()).await;
         } else if args.unset {
             unset_config(&key, args.valuepattern.as_deref()).await;
         } else if args.unset_all {
@@ -144,26 +144,34 @@ async fn get_config(key: &Key, default: Option<&str>, valuepattern: Option<&str>
             // if value pattern is not present, just print it
             println!("{}", v);
         }
-    }
-    // if value is not exits just return the default value if it's present
-    if let Some(default_value) = default {
+    } else if let Some(default_value) = default {
+        // if value is not exits just return the default value if it's present
         println!("{}", default_value);
     }
 }
 
 /// Get all the configurations by the given key and value pattern
-async fn get_all_config(key: &Key, valuepattern: Option<&str>) {
+async fn get_all_config(key: &Key, default: Option<&str>, valuepattern: Option<&str>) {
     let values: Vec<String> =
         config::Config::get_all(&key.configuration, key.name.as_deref(), &key.key).await;
+    let mut matched_any = false;
     for value in values {
         if let Some(vp) = valuepattern {
             // for each value, check if it matches the pattern
             if value.contains(vp) {
-                println!("{}", value)
+                println!("{}", value);
+                matched_any = true;
             }
         } else {
             // print all if value pattern is not present
-            println!("{}", value)
+            matched_any = true;
+            println!("{}", value);
+        }
+    }
+    if !matched_any {
+        if let Some(default_value) = default {
+            // if no value matches the pattern, print the default value if it's present
+            println!("{}", default_value);
         }
     }
 }
