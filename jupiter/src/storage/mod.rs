@@ -8,6 +8,7 @@ pub mod mr_storage;
 pub mod raw_db_storage;
 pub mod relay_storage;
 pub mod user_storage;
+pub mod vault_storage;
 
 use sea_orm::{sea_query::OnConflict, ActiveModelTrait, ConnectionTrait, DbErr, EntityTrait};
 

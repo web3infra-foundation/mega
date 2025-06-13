@@ -34,3 +34,4 @@ pub mod relay_repo_info;
 pub mod sea_orm_active_enums;
 pub mod ssh_keys;
 pub mod user;
+pub mod vault;

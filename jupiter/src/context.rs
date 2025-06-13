@@ -8,7 +8,7 @@ use crate::{
         git_db_storage::GitDbStorage, init::database_connection, issue_storage::IssueStorage,
         lfs_db_storage::LfsDbStorage, mono_storage::MonoStorage, mq_storage::MQStorage,
         mr_storage::MrStorage, raw_db_storage::RawDbStorage, relay_storage::RelayStorage,
-        user_storage::UserStorage,
+        user_storage::UserStorage, vault_storage::VaultStorage,
     },
 };
 
@@ -46,6 +46,10 @@ impl Context {
         self.services.lfs_file_storage()
     }
 
+    pub fn vault_stg(&self) -> VaultStorage {
+        self.services.vault_storage.clone()
+    }
+
     pub fn mock() -> Self {
         Context {
             services: Service::mock(),
@@ -63,6 +67,7 @@ pub struct Service {
     pub relay_storage: RelayStorage,
     pub mq_storage: MQStorage,
     user_storage: UserStorage,
+    pub vault_storage: VaultStorage,
     mr_storage: MrStorage,
     issue_storage: IssueStorage,
     lfs_file_storage: Arc<dyn LfsFileStorage>,
@@ -82,6 +87,7 @@ impl Service {
             user_storage: UserStorage::new(connection.clone()).await,
             mr_storage: MrStorage::new(connection.clone()).await,
             issue_storage: IssueStorage::new(connection.clone()).await,
+            vault_storage: VaultStorage::new(connection.clone()).await,
             lfs_file_storage: lfs_storage::init(config.lfs.clone(), lfs_db_storage.clone()).await,
         }
     }
@@ -119,6 +125,7 @@ impl Service {
             relay_storage: RelayStorage::mock(),
             mq_storage: MQStorage::mock(),
             user_storage: UserStorage::mock(),
+            vault_storage: VaultStorage::mock(),
             lfs_file_storage: Arc::new(LocalStorage::mock()),
             mr_storage: MrStorage::mock(),
             issue_storage: IssueStorage::mock(),

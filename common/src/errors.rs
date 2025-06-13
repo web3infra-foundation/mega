@@ -28,16 +28,16 @@ impl MegaError {
         panic!("{}", self.error.as_ref().unwrap());
     }
 
-    pub fn unknown_subcommand(cmd: &str) -> MegaError {
+    pub fn unknown_subcommand(cmd: impl AsRef<str>) -> MegaError {
         MegaError {
-            error: anyhow::anyhow!("Unknown subcommand: {}", cmd).into(),
+            error: anyhow::anyhow!("Unknown subcommand: {}", cmd.as_ref()).into(),
             code: 1,
         }
     }
 
-    pub fn with_message(msg: &str) -> MegaError {
+    pub fn with_message(msg: impl AsRef<str>) -> MegaError {
         MegaError {
-            error: anyhow::anyhow!("Error Message: {}", msg).into(),
+            error: anyhow::anyhow!("Error Message: {}", msg.as_ref()).into(),
             code: 0,
         }
     }
