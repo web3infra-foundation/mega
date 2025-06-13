@@ -101,17 +101,18 @@ jobs:
           export MEGA_BASE_DIR="${{ github.workspace }}/testing"
           nohup ${{ github.workspace }}/target/debug/mono -c ${{ github.workspace }}/testing/etc/config.toml service multi http ssh --host 0.0.0.0 --port 8000 --ssh-port 9000 >/dev/null 2>&1 &
           echo "mono has been successfully built and started in the background"
-          sleep 10
-      - name: Testing Mega
-        run: |
-          cargo test --manifest-path mega/Cargo.toml --all-features --no-fail-fast -- --nocapture
-      - name: Testing Mono
-        run: |
-          cargo test --manifest-path mono/Cargo.toml --all-features --no-fail-fast -- --nocapture
-      - name: Testing Libra
-        run: |    
-          cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          sleep 30
       - name: Testing cases with mono service
         run: |
           cargo test --test service_test -- --nocapture
+          cargo test --test lfs_test -- --nocapture
+      - name: Testing Mega Test Cases
+        run: |
+          cargo test --manifest-path mega/Cargo.toml --all-features --no-fail-fast -- --nocapture
+      - name: Testing Mono Test Cases
+        run: |
+          cargo test --manifest-path mono/Cargo.toml --all-features --no-fail-fast -- --nocapture
+      - name: Testing Libra Test Cases
+        run: |    
+          cargo test --manifest-path libra/Cargo.toml --all-features --no-fail-fast -- --nocapture
           
