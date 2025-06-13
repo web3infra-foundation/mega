@@ -53,7 +53,7 @@ impl UserStorage {
 
     pub async fn save_ssh_key(
         &self,
-        user_id: i64,
+        user_id: String,
         title: &str,
         ssh_key: &str,
         finger: &str,
@@ -71,7 +71,7 @@ impl UserStorage {
         Ok(())
     }
 
-    pub async fn list_user_ssh(&self, user_id: i64) -> Result<Vec<ssh_keys::Model>, MegaError> {
+    pub async fn list_user_ssh(&self, user_id: String) -> Result<Vec<ssh_keys::Model>, MegaError> {
         let res = ssh_keys::Entity::find()
             .filter(ssh_keys::Column::UserId.eq(user_id))
             .all(self.get_connection())
@@ -79,7 +79,7 @@ impl UserStorage {
         Ok(res)
     }
 
-    pub async fn delete_ssh_key(&self, user_id: i64, id: i64) -> Result<(), MegaError> {
+    pub async fn delete_ssh_key(&self, user_id: String, id: i64) -> Result<(), MegaError> {
         let res = ssh_keys::Entity::find()
             .filter(ssh_keys::Column::Id.eq(id))
             .filter(ssh_keys::Column::UserId.eq(user_id))
@@ -102,7 +102,7 @@ impl UserStorage {
         Ok(res)
     }
 
-    pub async fn generate_token(&self, user_id: i64) -> Result<String, MegaError> {
+    pub async fn generate_token(&self, user_id: String) -> Result<String, MegaError> {
         let token_str = Uuid::new_v4().to_string();
         let model = access_token::Model {
             id: generate_id(),
@@ -115,7 +115,7 @@ impl UserStorage {
         Ok(token_str.to_owned())
     }
 
-    pub async fn delete_token(&self, user_id: i64, id: i64) -> Result<(), MegaError> {
+    pub async fn delete_token(&self, user_id: String, id: i64) -> Result<(), MegaError> {
         let res = access_token::Entity::find()
             .filter(access_token::Column::Id.eq(id))
             .filter(access_token::Column::UserId.eq(user_id))
@@ -127,7 +127,7 @@ impl UserStorage {
         Ok(())
     }
 
-    pub async fn list_token(&self, user_id: i64) -> Result<Vec<access_token::Model>, MegaError> {
+    pub async fn list_token(&self, user_id: String) -> Result<Vec<access_token::Model>, MegaError> {
         let res = access_token::Entity::find()
             .filter(access_token::Column::UserId.eq(user_id))
             .all(self.get_connection())
@@ -135,7 +135,7 @@ impl UserStorage {
         Ok(res)
     }
 
-    pub async fn check_token(&self, user_id: i64, token: &str) -> Result<bool, MegaError> {
+    pub async fn check_token(&self, user_id: String, token: &str) -> Result<bool, MegaError> {
         let res = access_token::Entity::find()
             .filter(access_token::Column::UserId.eq(user_id))
             .filter(access_token::Column::Token.eq(token))
