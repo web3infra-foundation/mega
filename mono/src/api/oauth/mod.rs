@@ -17,18 +17,20 @@ use oauth2::{
 };
 
 use common::config::OauthConfig;
-use jupiter::storage::user_storage::UserStorage;
 use model::{GitHubUserJson, LoginUser, OauthCallbackParams};
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::error::ApiError;
 use crate::api::MonoApiServiceState;
+use crate::api::{error::ApiError, oauth::campsite_store::CampsiteApiStore};
 
 use super::GithubClient;
 
+pub mod campsite_store;
 pub mod model;
 
 static COOKIE_NAME: &str = "SESSION";
+
+static CAMPSITE_API_COOKIE: &str = "_campsite_api_session";
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
@@ -200,15 +202,14 @@ impl IntoResponse for AuthRedirect {
 
 impl<S> FromRequestParts<S> for LoginUser
 where
-    MemoryStore: FromRef<S>,
-    UserStorage: FromRef<S>,
+    CampsiteApiStore: FromRef<S>,
     S: Send + Sync,
 {
     // If anything goes wrong or no session is found, redirect to the auth page
     type Rejection = AuthRedirect;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let store = MemoryStore::from_ref(state);
+        let store = CampsiteApiStore::from_ref(state);
 
         let cookies = parts
             .extract::<TypedHeader<headers::Cookie>>()
@@ -220,7 +221,7 @@ where
                 },
                 _ => panic!("unexpected error getting cookies: {e}"),
             })?;
-        let session_cookie = cookies.get(COOKIE_NAME).ok_or(AuthRedirect)?;
+        let session_cookie = cookies.get(CAMPSITE_API_COOKIE).ok_or(AuthRedirect)?;
 
         let session = store
             .load_session(session_cookie.to_string())
