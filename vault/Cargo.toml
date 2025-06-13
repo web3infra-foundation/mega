@@ -7,7 +7,6 @@ edition = "2021"
 common = { workspace = true}
 jupiter = { workspace = true }
 
-rusty_vault = { workspace = true }
 serde_json = { workspace = true }
 go-defer = { workspace = true }
 openssl = { workspace = true }
@@ -20,3 +19,8 @@ tokio = { workspace = true, features = ["full"] }
 async-std = { workspace = true }
 pgp = { workspace = true }
 smallvec = { workspace = true }
+
+[dependencies.rusty_vault]
+git = "https://github.com/Tongsuo-Project/RustyVault"
+tag = "v0.2.2"
+features = ["sync_handler"]
