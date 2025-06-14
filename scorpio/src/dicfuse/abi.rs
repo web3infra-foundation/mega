@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use fuse3::{
+use rfuse3::{
     raw::reply::{FileAttr, ReplyEntry},
     FileType, Timestamp,
 };

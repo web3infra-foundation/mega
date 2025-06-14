@@ -52,8 +52,8 @@
 //     }
 // }
 
-use fuse3::raw::{Filesystem, MountHandle};
-use fuse3::{raw::Session, MountOptions};
+use rfuse3::raw::{Filesystem, MountHandle};
+use rfuse3::{raw::Session, MountOptions};
 use std::ffi::{OsStr, OsString};
 
 #[allow(unused)]

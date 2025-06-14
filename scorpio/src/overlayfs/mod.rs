@@ -19,11 +19,11 @@ use std::io::{Error, ErrorKind, Result};
 
 use std::sync::{Arc, Weak};
 use config::Config;
-use fuse3::raw::reply::{DirectoryEntry, DirectoryEntryPlus, ReplyAttr, ReplyEntry, ReplyOpen, ReplyStatFs};
-use fuse3::raw::{Filesystem, Request};
+use rfuse3::raw::reply::{DirectoryEntry, DirectoryEntryPlus, ReplyAttr, ReplyEntry, ReplyOpen, ReplyStatFs};
+use rfuse3::raw::{Filesystem, Request};
 
 
-use fuse3::{mode_from_kind_and_perm, Errno, FileType};
+use rfuse3::{mode_from_kind_and_perm, Errno, FileType};
 const SLASH_ASCII: char = '/';
 use futures::future::join_all;
 use futures::stream::iter;
@@ -1131,7 +1131,7 @@ impl OverlayFs {
         handle: u64,
         offset: u64,
         is_readdirplus: bool,
-    ) -> Result<<OverlayFs as fuse3::raw::Filesystem>::DirEntryStream<'a>> {
+    ) -> Result<<OverlayFs as rfuse3::raw::Filesystem>::DirEntryStream<'a>> {
 
 
         // lookup the directory
@@ -1210,7 +1210,7 @@ impl OverlayFs {
         handle: u64,
         offset: u64,
         is_readdirplus: bool,
-    ) -> Result<<OverlayFs as fuse3::raw::Filesystem>::DirEntryPlusStream<'a>> {
+    ) -> Result<<OverlayFs as rfuse3::raw::Filesystem>::DirEntryPlusStream<'a>> {
 
 
         // lookup the directory
