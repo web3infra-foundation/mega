@@ -1,10 +1,10 @@
 use std::ffi::OsStr;
 
 use bytes::Bytes;
-use fuse3::notify::Notify;
-use fuse3::raw::reply::*;
-use fuse3::raw::{reply::ReplyInit, Filesystem, Request};
-use fuse3::{Result, SetAttr};
+use rfuse3::notify::Notify;
+use rfuse3::raw::reply::*;
+use rfuse3::raw::{reply::ReplyInit, Filesystem, Request};
+use rfuse3::{Result, SetAttr};
 
 use std::any::type_name_of_val;
 use super::Inode;
@@ -26,7 +26,7 @@ impl <FS: Filesystem>LoggingFileSystem<FS> {
 }
 
 
-impl <FS: fuse3::raw::Filesystem + std::marker::Sync>Filesystem for LoggingFileSystem<FS>{
+impl <FS: rfuse3::raw::Filesystem + std::marker::Sync>Filesystem for LoggingFileSystem<FS>{
     
     type DirEntryStream<'a>  = FS::DirEntryStream<'a> where Self:'a;
 

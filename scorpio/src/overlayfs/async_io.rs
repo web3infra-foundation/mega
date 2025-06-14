@@ -4,8 +4,8 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use fuse3::raw::prelude::*;
-use fuse3::*;
+use rfuse3::raw::prelude::*;
+use rfuse3::*;
 use futures::stream::Iter;
 use std::vec::IntoIter;
 use crate::overlayfs::AtomicU64;
@@ -858,7 +858,7 @@ impl Filesystem for OverlayFs{
 mod tests{
     use std::{ffi::OsString, sync::Arc};
 
-    use fuse3::{raw::Session, MountOptions};
+    use rfuse3::{raw::Session, MountOptions};
     use tokio::signal;
 
     use crate::{overlayfs::{config::Config, OverlayFs}, passthrough::{logfs::LoggingFileSystem, new_passthroughfs_layer}};
@@ -910,7 +910,7 @@ mod tests{
     
         
     
-        let mut mount_handle: fuse3::raw::MountHandle = if !not_unprivileged {
+        let mut mount_handle: rfuse3::raw::MountHandle = if !not_unprivileged {
             Session::new(mount_options)
                 .mount_with_unprivileged(logfs, mount_path)
                 .await

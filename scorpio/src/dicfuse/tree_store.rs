@@ -1,6 +1,6 @@
 use crate::util::{config, GPath};
-use fuse3::raw::reply::ReplyEntry;
-use fuse3::FileType;
+use rfuse3::raw::reply::ReplyEntry;
+use rfuse3::FileType;
 use serde::{Deserialize, Serialize};
 use sled::Db;
 use std::io;

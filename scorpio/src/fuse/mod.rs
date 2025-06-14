@@ -1,9 +1,9 @@
-use fuse3::raw::{Filesystem, Request};
 use inode_alloc::InodeAlloc;
 use libfuse_fs::{
     overlayfs::{config, OverlayFs},
     passthrough::new_passthroughfs_layer,
 };
+use rfuse3::raw::{Filesystem, Request};
 use tokio::sync::Mutex;
 
 use crate::util::config as sconfig;
