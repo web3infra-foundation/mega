@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::io::Error;
-use fuse3::raw::reply::{ FileAttr, ReplyXAttr};
-use fuse3::{raw::{reply::ReplyEntry, Filesystem, Request}, Inode,Result};
+use rfuse3::raw::reply::{ FileAttr, ReplyXAttr};
+use rfuse3::{raw::{reply::ReplyEntry, Filesystem, Request}, Inode,Result};
 
 
 use crate::passthrough::PassthroughFs;
@@ -121,7 +121,7 @@ pub trait Layer: Filesystem {
         let ino: u64 = inode;
 
         // Get attributes of the directory.
-        let attr: fuse3::raw::prelude::ReplyAttr  = self.getattr(ctx, ino, None,0).await?;
+        let attr: rfuse3::raw::prelude::ReplyAttr  = self.getattr(ctx, ino, None,0).await?;
         if !is_dir(&attr.attr) {
             return Err(Error::from_raw_os_error(libc::ENOTDIR).into());
         }
