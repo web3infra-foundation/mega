@@ -4,9 +4,9 @@ use std::vec::IntoIter;
 
 use super::MegaFuse;
 use crate::READONLY_INODE;
-use fuse3::raw::prelude::*;
-use fuse3::{Inode, Result};
 use futures::stream::Iter;
+use rfuse3::raw::prelude::*;
+use rfuse3::{Inode, Result};
 /// select the right fs by inodes .
 /// 1. in inodes < READONLY_INODE , it from the readonly fuse.
 /// 2. if inodes is a overlay fs root ,find it from the hashmap
@@ -425,9 +425,9 @@ impl Filesystem for MegaFuse {
     }
 
     /// forget more than one inode. This is a batch version [`forget`][Filesystem::forget]
-    async fn batch_forget(&self, req: Request, inodes: &[Inode]) {
-        for inode in inodes.iter() {
-            self.forget(req, *inode, 1).await
+    async fn batch_forget(&self, req: Request, inodes: &[(u64, u64)]) {
+        for (inode, vlookup) in inodes.iter() {
+            self.forget(req, *inode, *vlookup).await
         }
     }
 

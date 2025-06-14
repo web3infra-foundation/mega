@@ -12,8 +12,8 @@ use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Mutex;
 
-use fuse3::raw::reply::FileAttr;
-use fuse3::{FileType, Timestamp};
+use rfuse3::raw::reply::FileAttr;
+use rfuse3::{FileType, Timestamp};
 use libc::stat64;
 
 use super::inode_store::InodeId;
