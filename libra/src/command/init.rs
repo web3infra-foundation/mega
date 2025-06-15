@@ -34,14 +34,21 @@ pub struct InitArgs {
     /// Suppress all output
     #[clap(long, short = 'q', required = false)]
     pub quiet: bool,
+
+    /// Separate git dir from working tree
+    #[clap(long, required = false)]
+    pub separate_git_dir: Option<String>,
 }
 
 /// Execute the init function
 pub async fn execute(args: InitArgs) {
+    let quiet = args.quiet; // Store quiet flag before moving args
     match init(args).await {
         Ok(_) => {}
         Err(e) => {
-            eprintln!("Error: {}", e);
+            if !quiet {
+                eprintln!("Error: {}", e);
+            }
             std::process::exit(1);
         }
     }
@@ -90,11 +97,24 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
     // Get the current directory
     // let cur_dir = env::current_dir()?;
     let cur_dir = Path::new(&args.repo_directory).to_path_buf();
-    // Join the current directory with the root directory
-    let root_dir = if args.bare {
-        cur_dir.clone()
+    
+    // Handle separate git dir
+    let (root_dir, git_link_file) = if let Some(ref separate_git_dir) = args.separate_git_dir {
+        let separate_path = Path::new(separate_git_dir).to_path_buf();
+        let git_link_file = if args.bare {
+            None
+        } else {
+            Some(cur_dir.join(".libra"))
+        };
+        (separate_path, git_link_file)
     } else {
-        cur_dir.join(ROOT_DIR)
+        // Join the current directory with the root directory
+        let root_dir = if args.bare {
+            cur_dir.clone()
+        } else {
+            cur_dir.join(ROOT_DIR)
+        };
+        (root_dir, None)
     };
 
     // Check if the root directory already exists
@@ -178,11 +198,29 @@ pub async fn init(args: InitArgs) -> io::Result<()> {
 
     // Set .libra as hidden
     set_dir_hidden(root_dir.to_str().unwrap())?;
+    
+    // Create git link file if using separate git dir
+    if let Some(git_link_file) = git_link_file {
+        let git_link_content = format!("gitdir: {}", root_dir.display());
+        fs::write(&git_link_file, git_link_content)?;
+        
+        // Set the git link file as hidden too
+        set_dir_hidden(git_link_file.to_str().unwrap())?;
+    }
+    
     if !args.quiet {
-        println!(
-            "Initializing empty Libra repository in {}",
-            root_dir.display()
-        );
+        if args.separate_git_dir.is_some() {
+            println!(
+                "Initializing empty Libra repository in {} (separate git dir: {})",
+                cur_dir.display(),
+                root_dir.display()
+            );
+        } else {
+            println!(
+                "Initializing empty Libra repository in {}",
+                root_dir.display()
+            );
+        }
     }
 
     Ok(())
