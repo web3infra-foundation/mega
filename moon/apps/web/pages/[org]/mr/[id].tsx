@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { Card, Tabs, TabsProps,Timeline,} from 'antd';
 // import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
 import { ChevronRightCircleIcon, ChevronSelectIcon,AlarmIcon,ClockIcon} from '@gitmono/ui/Icons'
@@ -8,9 +8,8 @@ import { formatDistance, fromUnixTime } from 'date-fns';
 import RichEditor from '@/components/MrView/rich-editor/RichEditor';
 import MRComment from '@/components/MrView/MRComment';
 import { useRouter } from 'next/router';
-import * as Diff2Html from 'diff2html';
 import 'diff2html/bundles/css/diff2html.min.css';
-import FilesChanged from '@/components/MrView/files-changed';
+import FileDiff from '@/components/DiffView/FileDiff';
 import { Button } from '@gitmono/ui';
 // import { ReloadIcon } from '@radix-ui/react-icons';
 import {DownloadIcon } from '@gitmono/ui'
@@ -46,7 +45,6 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const [editorState, setEditorState] = useState("");
     const [editorHasText, setEditorHasText] = useState(false);
     const [login, _setLogin] = useState(true);
-    const [outputHtml, setOutputHtml] = useState('');
 
     const id = typeof tempId === 'string' ? tempId : '';
     const { data: MrDetailData } = useGetMrDetail(id)
@@ -58,17 +56,6 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     }
 
     const { data: MrFilesChangedData} = useGetMrFilesChanged(id)
-    const get_diff_content = useCallback(() => {
-      const content = MrFilesChangedData?.data?.content;
-
-      if (typeof content !== 'string') return; 
-      const diff = Diff2Html.html(content, {
-          drawFileList: true,
-          matching: 'lines',
-        });
-        
-        setOutputHtml(diff);
-    }, [MrFilesChangedData]);
 
     const { mutate: approveMr, isPending : mrMergeIsPending } = usePostMrMerge(id)
     const handleMrApprove = () => {
@@ -128,12 +115,6 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
         return element
     });
 
-    const onTabsChange = (key: string) => {
-        if (key === '2') {
-            get_diff_content()
-        }
-    };
-
     const buttonClasses= 'cursor-pointer';
 
     const tab_items: TabsProps['items'] = [
@@ -183,7 +164,9 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
       {
         key: '2',
         label: 'Files Changed',
-        children: <FilesChanged outputHtml={outputHtml}/>
+        children: MrFilesChangedData?.data?.content ? 
+                  <FileDiff diffs={MrFilesChangedData.data.content} /> : 
+                  <div>No files changed</div>
       }
     ];
 
@@ -200,7 +183,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                 Merge MR
             </Button>
           }
-          <Tabs defaultActiveKey="1" items={tab_items} onChange={onTabsChange}/>
+          <Tabs defaultActiveKey="1" items={tab_items} />
       </Card>
     )
 }

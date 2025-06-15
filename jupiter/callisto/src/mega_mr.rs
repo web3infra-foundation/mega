@@ -14,7 +14,7 @@ pub struct Model {
     pub title: String,
     pub merge_date: Option<DateTime>,
     pub status: MergeStatusEnum,
-    #[sea_orm(column_type = "Text", unique)]
+    #[sea_orm(column_type = "Text")]
     pub path: String,
     pub from_hash: String,
     pub to_hash: String,

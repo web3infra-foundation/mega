@@ -1,6 +1,6 @@
 use std::{ffi::{CStr, CString, OsStr, OsString}, fs::File, io::{self, Read, Seek, SeekFrom, Write},  mem::{self, ManuallyDrop, MaybeUninit}, num::NonZeroU32, os::{fd::{ AsRawFd, FromRawFd, RawFd}, unix::ffi::OsStringExt}, sync::Arc, time::Duration};
 use bytes::Bytes;
-use fuse3::{raw::prelude::*, Errno, Inode, Result};
+use rfuse3::{raw::prelude::*, Errno, Inode, Result};
 use fuse_backend_rs::{abi::fuse_abi::OpenOptions, bytes_to_cstr};
 use futures::stream;
 use futures_util::stream::Iter;

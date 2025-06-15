@@ -114,3 +114,9 @@ ui_domain = "http://local.gitmega.com"
 
 # Set your own domain here, for example: .gitmono.com
 cookie_domain = "localhost"
+
+# Used for call api from campsite server
+campsite_api_domain = "http://api.gitmega.com"
+
+# allowed cors origins
+allowed_cors_origins = ["http://local.gitmega.com", "http://app.gitmega.com"]

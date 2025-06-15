@@ -8,9 +8,12 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use common::model::{CommonPage, CommonResult, PageParams};
 
-use crate::api::issue::{IssueDetail, IssueItem, NewIssue};
 use crate::api::mr::SaveCommentRequest;
 use crate::api::MonoApiServiceState;
+use crate::api::{
+    issue::{IssueDetail, IssueItem, NewIssue},
+    oauth::model::LoginUser,
+};
 use crate::{api::error::ApiError, server::https_server::ISSUE_TAG};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -104,14 +107,14 @@ async fn issue_detail(
     tag = ISSUE_TAG
 )]
 async fn new_issue(
-    // user: LoginUser,
+    user: LoginUser,
     state: State<MonoApiServiceState>,
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let stg = state.issue_stg().clone();
     let res = stg.save_issue(0, &json.title).await.unwrap();
     let res = stg
-        .add_issue_conversation(&res.link, 0, Some(json.description))
+        .add_issue_conversation(&res.link, user.campsite_user_id, Some(json.description))
         .await;
     let res = match res {
         Ok(_) => CommonResult::success(None),
@@ -182,14 +185,14 @@ async fn reopen_issue(
     tag = ISSUE_TAG
 )]
 async fn save_comment(
-    // user: LoginUser,
+    user: LoginUser,
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
     Json(payload): Json<SaveCommentRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = match state
         .issue_stg()
-        .add_issue_conversation(&link, 0, Some(payload.content))
+        .add_issue_conversation(&link, user.campsite_user_id, Some(payload.content))
         .await
     {
         Ok(_) => CommonResult::success(None),
@@ -211,6 +214,7 @@ async fn save_comment(
     tag = ISSUE_TAG
 )]
 async fn delete_comment(
+    _: LoginUser,
     Path(id): Path<i64>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
