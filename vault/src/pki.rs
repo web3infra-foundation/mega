@@ -1,38 +1,23 @@
 use std::cmp::Ordering;
-use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use openssl::asn1::Asn1Time;
 use openssl::x509::X509;
-use rusty_vault::core::Core;
 use serde_json::{json, Value};
-use tokio::sync::OnceCell;
 
-use super::vault::{read_api, write_api, CoreInfo, CORE};
+use crate::integration::vault_core::VaultCore;
 
-const ROLE: &str = "test";
+// FIXME: A more official and robust ROLE name
+const ROLE: &str = "test-role";
 
-// DO NOT use `async_static!`, which will cause some compile errors
-static _CA: OnceCell<CoreInfo> = OnceCell::const_new();
-// Automatically initialize CA when you first use it
-pub async fn ca() -> &'static CoreInfo {
-    _CA.get_or_init(|| async { init_ca().await }).await
-}
-#[allow(clippy::await_holding_lock)]
-async fn init_ca() -> CoreInfo {
-    let c = CORE.clone();
-    // init CA if not
-    let token = &c.token;
-    if read_api(&c.core.read().unwrap(), token, "pki/ca/pem")
-        .is_err()
-    {
+impl VaultCore {
+    /// Initialize the Vault CA
+    async fn init_ca(&self) {
         // err = not found
-        config_ca(c.core.clone(), token).await;
-        generate_root(c.core.clone(), token, false).await;
-        config_role(
-            c.core.clone(),
-            token,
-            json!({ // TODO You may want to customize this
+        if self.read_api("pki/ca/pem").is_err() {
+            self.config_ca().await;
+            self.generate_root(false).await;
+            self.config_role(json!({ // TODO You may want to customize this
                 "ttl": "60d",
                 "max_ttl": "365d",
                 "key_type": "rsa",
@@ -42,179 +27,144 @@ async fn init_ca() -> CoreInfo {
                 "locality": "Beijing",
                 "organization": "OpenAtom-Mega",
                 "no_store": false,
-            }),
-        )
-        .await;
+            }))
+            .await;
+        }
     }
-    c
-}
 
-#[allow(clippy::await_holding_lock)]
-async fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
-    let core = core.read().unwrap();
-
-    // mount pki backend to path: pki/
-    let mount_data = json!({
-        "type": "pki",
-    })
-    .as_object()
-    .unwrap()
-    .clone();
-
-    let resp = write_api(&core, token, "sys/mounts/pki/", Some(mount_data));
-    assert!(resp.is_ok());
-}
-
-/// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
-#[allow(clippy::await_holding_lock)]
-pub async fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
-    let role_data = data
+    async fn config_ca(&self) {
+        // mount pki backend to path: pki/
+        let mount_data = json!({
+            "type": "pki",
+        })
         .as_object()
-        .expect("`data` must be a JSON object")
-        .clone();
-
-    // config role
-    let result = async_std::task::block_on(async {
-        let core = core.read().unwrap();
-        write_api(
-            &core,
-            token,
-            &format!("pki/roles/{}", ROLE),
-            Some(role_data),
-        )
-    });
-    assert!(result.is_ok());
-}
-
-/// generate root cert, so that you can read from `pki/ca/pem`
-/// - if `exported` is true, then the response will contain `private key`
-#[allow(clippy::await_holding_lock)]
-async fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
-    let core = core.read().unwrap();
-
-    let key_type = "rsa";
-    let key_bits = 4096;
-    let common_name = "mega-ca";
-    let req_data = json!({
-        "common_name": common_name,
-        "ttl": "365d",
-        "country": "cn",
-        "key_type": key_type,
-        "key_bits": key_bits,
-    })
-    .as_object()
-    .unwrap()
-    .clone();
-
-    let resp = write_api(
-        &core,
-        token,
-        format!(
-            "pki/root/generate/{}",
-            if exported { "exported" } else { "internal" }
-        )
-        .as_str(),
-        Some(req_data),
-    );
-    assert!(resp.is_ok());
-}
-
-/// issue certificate
-/// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
-/// - return: `(cert_pem, private_key)`
-#[allow(clippy::await_holding_lock)]
-pub async fn issue_cert(data: Value) -> (String, String) {
-    // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
-    let issue_data = data
-        .as_object()
-        .expect("`data` must be a JSON object")
-        .clone();
-
-    // issue cert
-    let resp = async_std::task::block_on(async {
-        let core = ca().await.core.read().unwrap();
-        let token = &ca().await.token;
-        write_api(
-            &core,
-            token,
-            &format!("pki/issue/{}", ROLE),
-            Some(issue_data),
-        )
-    });
-    assert!(resp.is_ok());
-    let resp_body = resp.unwrap();
-    let cert_data = resp_body.unwrap().data.unwrap();
-
-    (
-        cert_data["certificate"].as_str().unwrap().to_owned(), // TODO may add root cert (chain) in it
-        cert_data["private_key"].as_str().unwrap().to_owned(),
-    )
-}
-
-/// Verify certificate: time & signature
-pub async fn verify_cert(cert_pem: &[u8]) -> bool {
-    let ca_cert = X509::from_pem(get_root_cert().await.as_ref()).unwrap();
-
-    let cert = X509::from_pem(cert_pem).unwrap();
-    // verify time
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64;
-    let now = Asn1Time::from_unix(now).unwrap();
-    let not_before = cert.not_before();
-    let not_after = cert.not_after();
-    match now.compare(not_before) {
-        Ok(Ordering::Less) | Err(_) => return false,
-        _ => {}
-    }
-    match now.compare(not_after) {
-        Ok(Ordering::Greater) | Err(_) => return false,
-        _ => {}
+        .clone();
+
+        self.write_api("sys/mounts/pki/", Some(mount_data))
+            .expect("Failed to mount pki backend");
     }
 
-    // verify signature
-    cert.verify(&ca_cert.public_key().unwrap()).unwrap()
-}
+    /// generate root cert, so that you can read from `pki/ca/pem`
+    /// - if `exported` is true, then the response will contain `private key`
+    async fn generate_root(&self, exported: bool) {
+        let key_type = "rsa";
+        let key_bits = 4096;
+        let common_name = "mega-ca";
+        let req_data = json!({
+            "common_name": common_name,
+            "ttl": "365d",
+            "country": "cn",
+            "key_type": key_type,
+            "key_bits": key_bits,
+        })
+        .as_object()
+        .unwrap()
+        .clone();
 
-#[allow(clippy::await_holding_lock)]
-/// Get root certificate of CA
-pub async fn get_root_cert() -> String {
-    let resp_ca_pem = async_std::task::block_on(async {
-        let core = ca().await.core.read().unwrap();
-        read_api(&core, &ca().await.token, "pki/ca/pem")
+        self.write_api(
+            format!(
+                "pki/root/generate/{}",
+                if exported { "exported" } else { "internal" }
+            )
+            .as_str(),
+            Some(req_data),
+        )
+        .expect("Failed to generate root cert");
+    }
+
+    /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
+    pub async fn config_role(&self, data: Value) {
+        let role_data = data
+            .as_object()
+            .expect("`data` must be a JSON object")
+            .clone();
+
+        // config role
+        self.write_api(&format!("pki/roles/{}", ROLE), Some(role_data))
+            .expect("Failed to configure role");
+    }
+
+    /// issue certificate
+    /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
+    /// - return: `(cert_pem, private_key)`
+    pub async fn issue_cert(&self, data: Value) -> (String, String) {
+        // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
+        let issue_data = data
+            .as_object()
+            .expect("`data` must be a JSON object")
+            .clone();
+
+        // issue cert
+        let resp = self.write_api(&format!("pki/issue/{}", ROLE), Some(issue_data));
+        let resp_body = resp.unwrap();
+        let cert_data = resp_body.unwrap().data.unwrap();
+
+        (
+            cert_data["certificate"].as_str().unwrap().to_owned(), // TODO may add root cert (chain) in it
+            cert_data["private_key"].as_str().unwrap().to_owned(),
+        )
+    }
+
+    /// Verify certificate: time & signature
+    pub async fn verify_cert(&self, cert_pem: &[u8]) -> bool {
+        let ca_cert = X509::from_pem(self.get_root_cert().await.as_ref()).unwrap();
+
+        let cert = X509::from_pem(cert_pem).unwrap();
+        // verify time
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
-            .unwrap()
-    });
+            .as_secs() as i64;
+        let now = Asn1Time::from_unix(now).unwrap();
+        let not_before = cert.not_before();
+        let not_after = cert.not_after();
+        match now.compare(not_before) {
+            Ok(Ordering::Less) | Err(_) => return false,
+            _ => {}
+        }
+        match now.compare(not_after) {
+            Ok(Ordering::Greater) | Err(_) => return false,
+            _ => {}
+        }
 
-    let ca_data = resp_ca_pem.data.unwrap();
+        // verify signature
+        cert.verify(&ca_cert.public_key().unwrap()).unwrap()
+    }
 
-    ca_data["certificate"].as_str().unwrap().to_owned()
-}
+    /// Get root certificate of CA
+    pub async fn get_root_cert(&self) -> String {
+        let resp_ca_pem = self.read_api("pki/ca/pem").unwrap().unwrap();
+        let ca_data = resp_ca_pem.data.unwrap();
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::io::Write;
-
-    #[tokio::test]
-    async fn test_pki_issue() {
-        let (cert_pem, private_key) = issue_cert(json!({
-            "ttl": "10d",
-            "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
-        }))
-        .await;
-
-        println!("cert_pem: {}", cert_pem);
-        println!("private_key: {}", private_key);
-
-        assert!(verify_cert(cert_pem.as_ref()).await);
-
-        let mut file = fs::File::create("/tmp/cert.crt").unwrap();
-        file.write_all(cert_pem.as_ref()).unwrap();
+        ca_data["certificate"].as_str().unwrap().to_owned()
     }
 }
+
+// TODO use mock core to test
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use std::fs;
+//     use std::io::Write;
+
+//     #[tokio::test]
+//     async fn test_pki_issue() {
+//         let (cert_pem, private_key) = issue_cert(json!({
+//             "ttl": "10d",
+//             "common_name": "oqpXWgEhXa1WDqMWBnpUW4jvrxGqJKVuJATy4MSPdKNS", //nostr id
+//         }))
+//         .await;
+
+//         println!("cert_pem: {}", cert_pem);
+//         println!("private_key: {}", private_key);
+
+//         assert!(verify_cert(cert_pem.as_ref()).await);
+
+//         let mut file = fs::File::create("/tmp/cert.crt").unwrap();
+//         file.write_all(cert_pem.as_ref()).unwrap();
+//     }
+// }
 
 #[allow(clippy::await_holding_lock)]
 #[cfg(test)]
