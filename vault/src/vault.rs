@@ -109,14 +109,14 @@ fn init() -> CoreInfo {
     }
 }
 
-pub async fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
+pub fn read_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
     let mut req = Request::new(path);
     req.operation = Operation::Read;
     req.client_token = token.to_string();
-    core.handle_request(&mut req).await // !Send
+    core.handle_request(&mut req)
 }
 
-pub async fn write_api(
+pub fn write_api(
     core: &Core,
     token: &str,
     path: &str,
@@ -127,16 +127,16 @@ pub async fn write_api(
     req.client_token = token.to_string();
     req.body = data;
 
-    let resp = core.handle_request(&mut req).await; // !Send
+    let resp = core.handle_request(&mut req);
     println!("path: {}, req.body: {:?}", path, req.body);
     resp
 }
 
-pub async fn delete_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
+pub fn delete_api(core: &Core, token: &str, path: &str) -> Result<Option<Response>, RvError> {
     let mut req = Request::new(path);
     req.operation = Operation::Delete;
     req.client_token = token.to_string();
-    core.handle_request(&mut req).await // !Send
+    core.handle_request(&mut req)
 }
 
 /// Write a secret to the vault (k-v)
@@ -144,33 +144,30 @@ pub async fn write_secret(
     name: &str,
     data: Option<Map<String, Value>>,
 ) -> Result<Option<Response>, RvError> {
-    // async_std: stop spread of `!Send` (RwLockReadGuard cross .await), for `tokio::spawn`
-    async_std::task::block_on(write_api(
+    write_api(
         &CORE.core.read().unwrap(),
         &CORE.token,
         &format!("secret/{}", name),
         data,
-    ))
+    )
 }
 
 /// Read a secret from the vault (k-v)
 pub async fn read_secret(name: &str) -> Result<Option<Response>, RvError> {
-    // async_std: stop spread of `!Send` (RwLockReadGuard cross .await), for `tokio::spawn`
-    async_std::task::block_on(read_api(
+    read_api(
         &CORE.core.read().unwrap(),
         &CORE.token,
         &format!("secret/{}", name),
-    ))
+    )
 }
 
 /// Delete a secret from the vault (k-v)
 pub async fn delete_secret(name: &str) -> Result<Option<Response>, RvError> {
-    // async_std: stop spread of `!Send` (RwLockReadGuard cross .await), for `tokio::spawn`
-    async_std::task::block_on(delete_api(
+    delete_api(
         &CORE.core.read().unwrap(),
         &CORE.token,
         &format!("secret/{}", name),
-    ))
+    )
 }
 
 #[cfg(test)]
@@ -200,7 +197,6 @@ mod tests {
         assert!(read_secret("foo").await.unwrap().is_none());
         assert!(
             read_api(&CORE.core.read().unwrap(), &CORE.token, "secret1/foo")
-                .await
                 .is_err()
         );
     }

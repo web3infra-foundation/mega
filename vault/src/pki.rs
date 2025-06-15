@@ -24,7 +24,6 @@ async fn init_ca() -> CoreInfo {
     // init CA if not
     let token = &c.token;
     if read_api(&c.core.read().unwrap(), token, "pki/ca/pem")
-        .await
         .is_err()
     {
         // err = not found
@@ -62,7 +61,7 @@ async fn config_ca(core: Arc<RwLock<Core>>, token: &str) {
     .unwrap()
     .clone();
 
-    let resp = write_api(&core, token, "sys/mounts/pki/", Some(mount_data)).await;
+    let resp = write_api(&core, token, "sys/mounts/pki/", Some(mount_data));
     assert!(resp.is_ok());
 }
 
@@ -83,7 +82,6 @@ pub async fn config_role(core: Arc<RwLock<Core>>, token: &str, data: Value) {
             &format!("pki/roles/{}", ROLE),
             Some(role_data),
         )
-        .await
     });
     assert!(result.is_ok());
 }
@@ -117,8 +115,7 @@ async fn generate_root(core: Arc<RwLock<Core>>, token: &str, exported: bool) {
         )
         .as_str(),
         Some(req_data),
-    )
-    .await;
+    );
     assert!(resp.is_ok());
 }
 
@@ -143,7 +140,6 @@ pub async fn issue_cert(data: Value) -> (String, String) {
             &format!("pki/issue/{}", ROLE),
             Some(issue_data),
         )
-        .await
     });
     assert!(resp.is_ok());
     let resp_body = resp.unwrap();
@@ -187,7 +183,6 @@ pub async fn get_root_cert() -> String {
     let resp_ca_pem = async_std::task::block_on(async {
         let core = ca().await.core.read().unwrap();
         read_api(&core, &ca().await.token, "pki/ca/pem")
-            .await
             .unwrap()
             .unwrap()
     });
@@ -254,7 +249,7 @@ mod tests_raw {
         let mut req = Request::new(path);
         req.operation = Operation::Read;
         req.client_token = token.to_string();
-        let resp = core.handle_request(&mut req).await;
+        let resp = core.handle_request(&mut req);
         assert_eq!(resp.is_ok(), is_ok);
         resp
     }
@@ -271,7 +266,7 @@ mod tests_raw {
         req.client_token = token.to_string();
         req.body = data;
 
-        let resp = core.handle_request(&mut req).await;
+        let resp = core.handle_request(&mut req);
         println!("path: {}, req.body: {:?}", path, req.body);
         assert_eq!(resp.is_ok(), is_ok);
         resp
