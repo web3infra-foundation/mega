@@ -25,6 +25,7 @@ async fn test_config_get_failed() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_config_get_all() {
     let temp_path = tempdir().unwrap();
     // start a new libra repository in a temporary directory
@@ -62,6 +63,7 @@ async fn test_config_get_all() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_config_get_all_with_default() {
     let temp_path = tempdir().unwrap();
     // start a new libra repository in a temporary directory
@@ -85,6 +87,7 @@ async fn test_config_get_all_with_default() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_config_get() {
     let temp_path = tempdir().unwrap();
     // start a new libra repository in a temporary directory
@@ -122,6 +125,7 @@ async fn test_config_get() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_config_get_with_default() {
     let temp_path = tempdir().unwrap();
     // start a new libra repository in a temporary directory
