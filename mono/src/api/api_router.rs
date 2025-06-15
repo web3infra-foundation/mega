@@ -12,7 +12,8 @@ use http::StatusCode;
 use ceres::{
     api_service::ApiHandler,
     model::git::{
-        BlobContentQuery, CodePreviewQuery, CreateFileInfo, LatestCommitInfo, TreeBriefItem, TreeCommitItem, TreeHashItem, TreeQuery
+        BlobContentQuery, CodePreviewQuery, CreateFileInfo, LatestCommitInfo, TreeBriefItem,
+        TreeCommitItem, TreeHashItem, TreeQuery,
     },
 };
 use common::model::CommonResult;
