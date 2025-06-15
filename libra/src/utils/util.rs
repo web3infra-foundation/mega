@@ -44,7 +44,7 @@ pub fn try_get_storage_path(path: Option<PathBuf>) -> Result<PathBuf, io::Error>
         if !path.pop() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("{:?} is not a git repository", orig),
+                format!("{:?} is not a libra repository", orig),
             ));
         }
     }
