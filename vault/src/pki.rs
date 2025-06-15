@@ -12,11 +12,11 @@ const ROLE: &str = "test-role";
 
 impl VaultCore {
     /// Initialize the Vault CA
-    async fn init_ca(&self) {
+    fn init_ca(&self) {
         // err = not found
         if self.read_api("pki/ca/pem").is_err() {
-            self.config_ca().await;
-            self.generate_root(false).await;
+            self.config_ca();
+            self.generate_root(false);
             self.config_role(json!({ // TODO You may want to customize this
                 "ttl": "60d",
                 "max_ttl": "365d",
@@ -27,12 +27,11 @@ impl VaultCore {
                 "locality": "Beijing",
                 "organization": "OpenAtom-Mega",
                 "no_store": false,
-            }))
-            .await;
+            }));
         }
     }
 
-    async fn config_ca(&self) {
+    fn config_ca(&self) {
         // mount pki backend to path: pki/
         let mount_data = json!({
             "type": "pki",
@@ -47,7 +46,7 @@ impl VaultCore {
 
     /// generate root cert, so that you can read from `pki/ca/pem`
     /// - if `exported` is true, then the response will contain `private key`
-    async fn generate_root(&self, exported: bool) {
+    fn generate_root(&self, exported: bool) {
         let key_type = "rsa";
         let key_bits = 4096;
         let common_name = "mega-ca";
@@ -74,7 +73,27 @@ impl VaultCore {
     }
 
     /// - `data`: see [RoleEntry](rusty_vault::modules::pki::path_roles)
-    pub async fn config_role(&self, data: Value) {
+    ///  - This function configures a role for issuing certificates.
+    ///  - The `ROLE` constant is used as the role name.
+    ///
+    ///  # Arguments
+    ///  - `data`: A JSON object containing the role configuration data.
+    ///
+    ///  # Example
+    ///   ```json
+    ///   {
+    ///     "ttl": "60d",
+    ///     "max_ttl": "365d",
+    ///     "key_type": "rsa",
+    ///     "key_bits": 4096,
+    ///     "country": "CN",
+    ///     "province": "Beijing",
+    ///     "locality": "Beijing",
+    ///     "organization": "Open Atom-Mega",
+    ///     "no_store": false
+    ///   }
+    ///   ```
+    pub fn config_role(&self, data: Value) {
         let role_data = data
             .as_object()
             .expect("`data` must be a JSON object")
@@ -88,7 +107,7 @@ impl VaultCore {
     /// issue certificate
     /// - `data`: see [issue_path](rusty_vault::modules::pki::path_issue)
     /// - return: `(cert_pem, private_key)`
-    pub async fn issue_cert(&self, data: Value) -> (String, String) {
+    pub fn issue_cert(&self, data: Value) -> (String, String) {
         // let dns_sans = ["test.com", "a.test.com", "b.test.com"];
         let issue_data = data
             .as_object()
@@ -107,8 +126,13 @@ impl VaultCore {
     }
 
     /// Verify certificate: time & signature
-    pub async fn verify_cert(&self, cert_pem: &[u8]) -> bool {
-        let ca_cert = X509::from_pem(self.get_root_cert().await.as_ref()).unwrap();
+    /// # Arguments
+    /// - `cert_pem`: The PEM-encoded certificate to verify.
+    ///
+    /// # Returns
+    /// - `true` if the certificate is valid, `false` otherwise.
+    pub fn verify_cert(&self, cert_pem: &[u8]) -> bool {
+        let ca_cert = X509::from_pem(self.get_root_cert().as_ref()).unwrap();
 
         let cert = X509::from_pem(cert_pem).unwrap();
         // verify time
@@ -133,7 +157,7 @@ impl VaultCore {
     }
 
     /// Get root certificate of CA
-    pub async fn get_root_cert(&self) -> String {
+    pub fn get_root_cert(&self) -> String {
         let resp_ca_pem = self.read_api("pki/ca/pem").unwrap().unwrap();
         let ca_data = resp_ca_pem.data.unwrap();
 

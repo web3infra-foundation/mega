@@ -1,14 +1,14 @@
-use jupiter::context::Context;
+use jupiter::context::StorageContext;
 use rusty_vault::storage::Backend;
 use tokio::runtime::Handle;
 
 pub struct JupiterBackend {
-    ctx: Context,
+    ctx: StorageContext,
     rt: Handle,
 }
 
 impl JupiterBackend {
-    pub fn new(ctx: Context) -> Self {
+    pub fn new(ctx: StorageContext) -> Self {
         let rt = tokio::runtime::Handle::current();
         JupiterBackend { ctx, rt }
     }
@@ -16,7 +16,7 @@ impl JupiterBackend {
 
 impl Backend for JupiterBackend {
     fn list(&self, prefix: &str) -> Result<Vec<String>, rusty_vault::errors::RvError> {
-        let service = self.ctx.vault_stg();
+        let service = self.ctx.vault_storage();
         self.rt.block_on(async move {
             match service.list_keys(prefix).await {
                 Ok(keys) => Ok(keys),
@@ -26,7 +26,7 @@ impl Backend for JupiterBackend {
     }
 
     fn get(&self, key: &str) -> Result<Option<rusty_vault::storage::BackendEntry>, rusty_vault::errors::RvError> {
-        let service = self.ctx.vault_stg();
+        let service = self.ctx.vault_storage();
         self.rt.block_on(async move {
             match service.load(key).await {
                 Ok(model) => {
@@ -42,7 +42,7 @@ impl Backend for JupiterBackend {
     }
 
     fn put(&self, entry: &rusty_vault::storage::BackendEntry) -> Result<(), rusty_vault::errors::RvError> {
-        let service = self.ctx.vault_stg();
+        let service = self.ctx.vault_storage();
         self.rt.block_on(async move {
             match service.save(&entry.key, entry.value.clone()).await {
                 Ok(_) => Ok(()),
@@ -52,7 +52,7 @@ impl Backend for JupiterBackend {
     }
 
     fn delete(&self, key: &str) -> Result<(), rusty_vault::errors::RvError> {
-        let service = self.ctx.vault_stg();
+        let service = self.ctx.vault_storage();
         self.rt.block_on(async move {
             match service.delete(key).await {
                 Ok(_) => Ok(()),
