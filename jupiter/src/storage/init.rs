@@ -1,10 +1,10 @@
+use common::config::DbConfig;
 use common::errors::MegaError;
-use migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use std::{path::Path, time::Duration};
 use tracing::log;
 
-use common::config::DbConfig;
+use crate::migrator::apply_migrations;
 
 use crate::utils::id_generator;
 
@@ -27,7 +27,7 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
     } else {
         sqlite_connection(db_config).await.unwrap()
     };
-    Migrator::up(&conn, None).await.unwrap();
+    apply_migrations(&conn, false).await.expect("Failed to apply migrations");
 
     conn
 }

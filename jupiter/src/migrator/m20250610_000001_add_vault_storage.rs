@@ -3,7 +3,7 @@ use sea_orm_migration::{
     schema::{binary, string},
 };
 
-use crate::pk_bigint;
+use crate::migrator::pk_bigint;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

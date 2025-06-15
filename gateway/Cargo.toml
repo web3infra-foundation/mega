@@ -29,7 +29,6 @@ tower-http = { workspace = true, features = [
 ] }
 tokio = { workspace = true, features = ["net"] }
 reqwest = { workspace = true, features = ["json"] }
-lazy_static = { workspace = true }
 chrono = { workspace = true }
 quinn = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }

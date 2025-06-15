@@ -13,70 +13,25 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct Context {
-    pub services: Arc<Service>,
-    pub config: Arc<Config>,
-}
-
-impl Context {
-    pub async fn new(config: Arc<Config>) -> Self {
-        Context {
-            services: Service::shared(&config).await,
-            config,
-        }
-    }
-
-    pub fn user_stg(&self) -> UserStorage {
-        self.services.user_storage()
-    }
-
-    pub fn issue_stg(&self) -> IssueStorage {
-        self.services.issue_storage()
-    }
-
-    pub fn mr_stg(&self) -> MrStorage {
-        self.services.mr_storage()
-    }
-
-    pub fn lfs_stg(&self) -> LfsDbStorage {
-        self.services.lfs_db_storage()
-    }
-
-    pub fn lfs_file_stg(&self) -> Arc<dyn LfsFileStorage> {
-        self.services.lfs_file_storage()
-    }
-
-    pub fn vault_stg(&self) -> VaultStorage {
-        self.services.vault_storage.clone()
-    }
-
-    pub fn mock() -> Self {
-        Context {
-            services: Service::mock(),
-            config: Arc::new(Config::mock()),
-        }
-    }
-}
-
-#[derive(Clone)]
 pub struct Service {
     pub mono_storage: MonoStorage,
     pub git_db_storage: GitDbStorage,
     pub raw_db_storage: RawDbStorage,
-    lfs_db_storage: LfsDbStorage,
+    pub lfs_db_storage: LfsDbStorage,
     pub relay_storage: RelayStorage,
     pub mq_storage: MQStorage,
-    user_storage: UserStorage,
+    pub user_storage: UserStorage,
     pub vault_storage: VaultStorage,
-    mr_storage: MrStorage,
-    issue_storage: IssueStorage,
-    lfs_file_storage: Arc<dyn LfsFileStorage>,
+    pub mr_storage: MrStorage,
+    pub issue_storage: IssueStorage,
+    pub lfs_file_storage: Arc<dyn LfsFileStorage>,
 }
 
 impl Service {
     async fn new(config: &Config) -> Self {
         let connection = Arc::new(database_connection(&config.database).await);
         let lfs_db_storage = LfsDbStorage::new(connection.clone()).await;
+
         Self {
             mono_storage: MonoStorage::new(connection.clone()).await,
             git_db_storage: GitDbStorage::new(connection.clone()).await,
@@ -90,30 +45,6 @@ impl Service {
             vault_storage: VaultStorage::new(connection.clone()).await,
             lfs_file_storage: lfs_storage::init(config.lfs.clone(), lfs_db_storage.clone()).await,
         }
-    }
-
-    async fn shared(config: &Config) -> Arc<Self> {
-        Arc::new(Self::new(config).await)
-    }
-
-    fn issue_storage(&self) -> IssueStorage {
-        self.issue_storage.clone()
-    }
-
-    fn mr_storage(&self) -> MrStorage {
-        self.mr_storage.clone()
-    }
-
-    fn user_storage(&self) -> UserStorage {
-        self.user_storage.clone()
-    }
-
-    fn lfs_db_storage(&self) -> LfsDbStorage {
-        self.lfs_db_storage.clone()
-    }
-
-    fn lfs_file_storage(&self) -> Arc<dyn LfsFileStorage> {
-        self.lfs_file_storage.clone()
     }
 
     fn mock() -> Arc<Self> {
@@ -130,5 +61,71 @@ impl Service {
             mr_storage: MrStorage::mock(),
             issue_storage: IssueStorage::mock(),
         })
+    }
+}
+
+#[derive(Clone)]
+pub struct Context {
+    pub services: Arc<Service>,
+    pub config: Arc<Config>,
+}
+
+impl Context {
+    pub async fn new(config: Arc<Config>) -> Self {
+        Context {
+            services: Service::new(&config).await.into(),
+            config,
+        }
+    }
+
+    pub fn mono_storage(&self) -> MonoStorage {
+        self.services.mono_storage.clone()
+    }
+
+    pub fn git_db_storage(&self) -> GitDbStorage {
+        self.services.git_db_storage.clone()
+    }
+
+    pub fn raw_db_storage(&self) -> RawDbStorage {
+        self.services.raw_db_storage.clone()
+    }
+
+    pub fn lfs_db_storage(&self) -> LfsDbStorage {
+        self.services.lfs_db_storage.clone()
+    }
+
+    pub fn relay_storage(&self) -> RelayStorage {
+        self.services.relay_storage.clone()
+    }
+
+    pub fn mq_storage(&self) -> MQStorage {
+        self.services.mq_storage.clone()
+    }
+
+    pub fn user_storage(&self) -> UserStorage {
+        self.services.user_storage.clone()
+    }
+
+    pub fn vault_storage(&self) -> VaultStorage {
+        self.services.vault_storage.clone()
+    }
+
+    pub fn mr_storage(&self) -> MrStorage {
+        self.services.mr_storage.clone()
+    }
+
+    pub fn issue_storage(&self) -> IssueStorage {
+        self.services.issue_storage.clone()
+    }
+
+    pub fn lfs_file_storage(&self) -> Arc<dyn LfsFileStorage> {
+        self.services.lfs_file_storage.clone()
+    }
+
+    pub fn mock() -> Self {
+        Context {
+            services: Service::mock(),
+            config: Arc::new(Config::mock()),
+        }
     }
 }

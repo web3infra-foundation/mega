@@ -9,13 +9,15 @@ edition = "2021"
 name = "jupiter"
 path = "src/lib.rs"
 
+[[bin]]
+name = "migrator"
+path = "src/main.rs"
 
 [dependencies]
 callisto = { workspace = true }
 common = { workspace = true }
 mercury = { workspace = true }
 saturn = { workspace = true }
-migration = { workspace = true }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
@@ -24,6 +26,8 @@ sea-orm = { workspace = true, features = [
     "runtime-tokio-rustls",
     "macros",
 ] }
+sea-orm-migration = { workspace = true }
+
 tracing = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
@@ -39,6 +43,3 @@ ring = { workspace = true }
 aws-config = { workspace = true, features = ["behavior-version-latest"] }
 aws-sdk-s3 = { workspace = true, features = ["rt-tokio"] }
 anyhow = { workspace = true }
-
-[dev-dependencies]
-tokio = { workspace = true, features = ["macros"] }
