@@ -14,8 +14,6 @@ on:
       - 'scripts/**'
       - 'third-party/**'
       - 'toolchains/**'
-      - '.github/workflows/web-test.yml'
-      - '.github/workflows/web-deploy.yml'
 
 jobs:
   # Label of the runner job
