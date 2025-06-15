@@ -2,9 +2,9 @@ use std::ffi::OsStr;
 use std::num::NonZeroU32;
 
 use bytes::Bytes;
-use fuse3::raw::prelude::*;
-use fuse3::raw::reply::DirectoryEntry;
-use fuse3::{Errno, Inode, Result};
+use rfuse3::raw::prelude::*;
+use rfuse3::raw::reply::DirectoryEntry;
+use rfuse3::{Errno, Inode, Result};
 
 use super::Dicfuse;
 use crate::dicfuse::store::load_dir;
