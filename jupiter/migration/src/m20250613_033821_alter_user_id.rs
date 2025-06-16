@@ -53,9 +53,7 @@ impl MigrationTrait for Migration {
                     .await?;
             }
 
-            DatabaseBackend::Sqlite => {
-
-            }
+            DatabaseBackend::Sqlite => {}
         }
 
         Ok(())
