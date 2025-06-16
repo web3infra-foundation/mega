@@ -7,13 +7,14 @@ import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
 import { useRouter } from 'next/router'
 import { CommentSection } from '@/components/CodeView/BlobView/CommentSection'
+import CommitHistory, { CommitInfo } from '@/components/CodeView/CommitHistory'
 
 const codeStyle = {
   borderRadius: 8,
   width: 'calc(85% - 8px)',
   background: '#fff',
   border: '1px solid #d1d9e0',
-  margin: '0 10px'
+  margin: '0 8px'
 }
 
 interface Comment {
@@ -67,6 +68,16 @@ function BlobPage() {
       ]
     }
   ]
+  const commitInfo: CommitInfo = {
+    user: {
+      avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
+      name: 'yetianxing2014'
+    },
+    message: 'feat: migrate campsite to mega',
+    hash: '5fe4235',
+    date: '3 months ago'
+  }
+
   const handleAddComment = (__content: string, __lineNumber?: number) => {
     //wait for complete
   }
@@ -78,17 +89,22 @@ function BlobPage() {
 
   return (
     <div style={{overflow: 'auto'}}>
-      <Flex gap='middle' wrap>
+      <Flex vertical gap='middle'>
         <Layout>
           <BreadCrumb path={path} />
         </Layout>
-        <Layout style={codeStyle}>
-          <CodeContent fileContent={fileContent} path={path} />
+        <Layout className='m-2'>
+          <CommitHistory info={commitInfo}/>
         </Layout>
-        <Layout>
-          {/* @ts-ignore */}
-          <CommentSection comments={mockComments} onAddComment={handleAddComment} onReplyComment={handleReplyComment} />
-        </Layout>
+        <Flex gap='middle' wrap>
+          <Layout style={codeStyle}>
+            <CodeContent fileContent={fileContent} path={path} />
+          </Layout>
+          <Layout>
+            {/* @ts-ignore */}
+            <CommentSection comments={mockComments} onAddComment={handleAddComment} onReplyComment={handleReplyComment} />
+          </Layout>
+        </Flex>
       </Flex>
     </div>
   )
