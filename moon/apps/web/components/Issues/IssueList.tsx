@@ -77,9 +77,12 @@ export function IssueList({ Issuelists }: Props) {
 
 type IssuePickerType = 'Author' | 'Labels' | 'Projects' | 'Milestones' | 'Assignees' | 'Types'
 
+const filterAtomFamily = atomFamily((sign: IssuePickerType) =>
+  atomWithWebStorage<IssuePickerType>(`${sign}:picker`, sign)
+)
+
 const ListPicker = <T extends IssuePickerType>({ Sign }: { Sign: T }) => {
-  const filterAtom = atomFamily(() => atomWithWebStorage<T>(`${Sign}:picker`, Sign))
-  const [_filter, setFilter] = useAtom(filterAtom(Sign))
+  const [_filter, setFilter] = useAtom(filterAtomFamily(Sign))
 
   // TODO
   // logic of onClick will change later
