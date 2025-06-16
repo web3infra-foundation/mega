@@ -213,7 +213,7 @@ impl SmartProtocol {
         let pack_handler = self.pack_handler().await?;
         //1. unpack progress
         let receiver = pack_handler
-            .unpack_stream(&self.context.config.pack, data_stream)
+            .unpack_stream(&self.storage.config().pack, data_stream)
             .await?;
 
         // do not block main thread here.

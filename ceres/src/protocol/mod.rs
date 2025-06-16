@@ -7,7 +7,7 @@ use common::{
     utils::ZERO_ID,
 };
 use import_refs::RefCommand;
-use jupiter::context::Context;
+use jupiter::context::Storage;
 use repo::Repo;
 
 use crate::pack::{import_repo::ImportRepo, monorepo::MonoRepo, PackHandler};
@@ -24,7 +24,7 @@ pub struct SmartProtocol {
     pub path: PathBuf,
     pub command_list: Vec<RefCommand>,
     pub service_type: Option<ServiceType>,
-    pub context: Context,
+    pub storage: Storage,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -125,33 +125,33 @@ pub struct RefUpdateRequest {
 }
 
 impl SmartProtocol {
-    pub fn new(path: PathBuf, context: Context, transport_protocol: TransportProtocol) -> Self {
+    pub fn new(path: PathBuf, storage: Storage, transport_protocol: TransportProtocol) -> Self {
         SmartProtocol {
             transport_protocol,
             capabilities: Vec::new(),
             path,
             command_list: Vec::new(),
             service_type: None,
-            context,
+            storage,
         }
     }
 
     pub fn mock() -> Self {
-        let context = Context::mock();
+        let context = Storage::mock();
         SmartProtocol {
             transport_protocol: TransportProtocol::default(),
             capabilities: Vec::new(),
             path: PathBuf::new(),
             command_list: Vec::new(),
             service_type: None,
-            context,
+            storage: context,
         }
     }
 
     pub async fn pack_handler(&self) -> Result<Arc<dyn PackHandler>, ProtocolError> {
-        let import_dir = self.context.config.monorepo.import_dir.clone();
+        let import_dir = self.storage.config().monorepo.import_dir.clone();
         if self.path.starts_with(import_dir.clone()) {
-            let storage = self.context.services.git_db_storage.clone();
+            let storage = self.storage.services.git_db_storage.clone();
             let path_str = self.path.to_str().unwrap();
             let model = storage.find_git_repo_exact_match(path_str).await.unwrap();
             let repo = if let Some(repo) = model {
@@ -169,13 +169,13 @@ impl SmartProtocol {
                 }
             };
             Ok(Arc::new(ImportRepo {
-                context: self.context.clone(),
+                storage: self.storage.clone(),
                 repo,
                 command_list: self.command_list.clone(),
             }))
         } else {
             let mut res = MonoRepo {
-                context: self.context.clone(),
+                storage: self.storage.clone(),
                 path: self.path.clone(),
                 from_hash: String::new(),
                 to_hash: String::new(),
