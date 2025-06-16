@@ -8,7 +8,7 @@ use clap::{ArgMatches, Command};
 use std::sync::Arc;
 
 use common::{config::Config, errors::MegaResult};
-use jupiter::context::Context;
+use jupiter::context::Storage;
 
 mod http;
 mod multi;
@@ -28,7 +28,7 @@ pub fn cli() -> Command {
 #[tokio::main]
 pub(crate) async fn exec(config: Config, args: &ArgMatches) -> MegaResult {
     let config = Arc::new(config);
-    let context = Context::new(config.clone()).await;
+    let context = Storage::new(config.clone()).await;
 
     context
         .services

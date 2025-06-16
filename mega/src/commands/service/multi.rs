@@ -5,8 +5,8 @@ use common::{
     model::{CommonHttpOptions, P2pOptions},
 };
 use gateway::https_server::{self, HttpOptions};
-use jupiter::context::Context;
-use mono::server::ssh_server::{self, SshCustom, SshOptions};
+use jupiter::context::Storage;
+use mono::{context::AppContext, server::ssh_server::{self, SshCustom, SshOptions}};
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum StartCommand {
@@ -34,7 +34,7 @@ pub fn cli() -> Command {
     )
 }
 
-pub(crate) async fn exec(context: Context, args: &ArgMatches) -> MegaResult {
+pub(crate) async fn exec(context: AppContext, args: &ArgMatches) -> MegaResult {
     let server_matchers = StartOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();

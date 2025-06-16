@@ -17,7 +17,7 @@ use ceres::{
 };
 use common::errors::ProtocolError;
 use jupiter::{
-    context::Context,
+    context::Storage,
     storage::{issue_storage::IssueStorage, mr_storage::MrStorage, user_storage::UserStorage},
 };
 
@@ -50,7 +50,7 @@ pub type GithubClient<
 
 #[derive(Clone)]
 pub struct MonoApiServiceState {
-    pub context: Context,
+    pub storage: Storage,
     pub oauth_client: Option<GithubClient>,
     // TODO: Replace MemoryStore
     pub store: Option<MemoryStore>,
@@ -71,34 +71,34 @@ impl FromRef<MonoApiServiceState> for GithubClient {
 
 impl FromRef<MonoApiServiceState> for UserStorage {
     fn from_ref(state: &MonoApiServiceState) -> Self {
-        state.context.user_stg()
+        state.storage.user_storage()
     }
 }
 
 impl MonoApiServiceState {
     fn monorepo(&self) -> MonoApiService {
         MonoApiService {
-            context: self.context.clone(),
+            storage: self.storage.clone(),
         }
     }
 
     fn issue_stg(&self) -> IssueStorage {
-        self.context.issue_stg()
+        self.storage.issue_storage()
     }
 
     fn mr_stg(&self) -> MrStorage {
-        self.context.mr_stg()
+        self.storage.mr_storage()
     }
 
     fn user_stg(&self) -> UserStorage {
-        self.context.user_stg()
+        self.storage.user_storage()
     }
 
     async fn api_handler(&self, path: PathBuf) -> Result<Box<dyn ApiHandler>, ProtocolError> {
-        let import_dir = self.context.config.monorepo.import_dir.clone();
+        let import_dir = self.storage.config().monorepo.import_dir.clone();
         if path.starts_with(&import_dir) && path != import_dir {
             if let Some(model) = self
-                .context
+                .storage
                 .services
                 .git_db_storage
                 .find_git_repo_like_path(path.to_str().unwrap())
@@ -107,16 +107,22 @@ impl MonoApiServiceState {
             {
                 let repo: Repo = model.into();
                 return Ok(Box::new(ImportApiService {
-                    context: self.context.clone(),
+                    storage: self.storage.clone(),
                     repo,
                 }));
             }
         }
-        Ok(Box::new(MonoApiService {
-            context: self.context.clone(),
-        }))
+        let ret: Box<dyn ApiHandler> = Box::new(MonoApiService {
+            storage: self.storage.clone(),
+        });
+
+        // Rust-analyzer cannot infer the type of `ret` correctly and always reports an error.
+        // Use `.into()` to workaround this issue.
+        #[allow(clippy::useless_conversion)]
+        Ok(ret.into())
     }
 }
+
 pub mod util {
     use std::path::PathBuf;
 

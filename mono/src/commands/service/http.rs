@@ -1,15 +1,14 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 
-use crate::server::https_server::{self};
+use crate::{context::AppContext, server::https_server::{self}};
 use common::{errors::MegaResult, model::CommonHttpOptions};
-use jupiter::context::Context;
 
 pub fn cli() -> Command {
     CommonHttpOptions::augment_args_for_update(Command::new("http").about("Start Mega HTTP server"))
 }
 
-pub(crate) async fn exec(ctx: Context, args: &ArgMatches) -> MegaResult {
-    let server_matchers = CommonHttpOptions::from_arg_matches(args)
+pub(crate) async fn exec(ctx: AppContext, args: &ArgMatches) -> MegaResult {
+    let server_matchers: CommonHttpOptions = CommonHttpOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();
 

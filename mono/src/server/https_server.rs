@@ -20,7 +20,7 @@ use tower_http::trace::TraceLayer;
 use ceres::protocol::{ServiceType, SmartProtocol, TransportProtocol};
 use common::errors::ProtocolError;
 use common::model::{CommonHttpOptions, InfoRefsParams};
-use jupiter::context::Context;
+use jupiter::context::Storage;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
@@ -29,10 +29,11 @@ use crate::api::api_router::{self};
 use crate::api::lfs::lfs_router;
 use crate::api::oauth::{self, oauth_client};
 use crate::api::MonoApiServiceState;
+use crate::context::AppContext;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub context: Context,
+    pub storage: Storage,
     pub host: String,
     pub port: u16,
 }
@@ -41,10 +42,10 @@ pub fn remove_git_suffix(uri: Uri, git_suffix: &str) -> PathBuf {
     PathBuf::from(uri.path().replace(".git", "").replace(git_suffix, ""))
 }
 
-pub async fn start_http(context: Context, options: CommonHttpOptions) {
+pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let CommonHttpOptions { host, port } = options.clone();
 
-    let app = app(context, host.clone(), port).await;
+    let app = app(ctx.storage, host.clone(), port).await;
 
     let server_url = format!("{}:{}", host, port);
 
@@ -84,16 +85,16 @@ pub async fn start_http(context: Context, options: CommonHttpOptions) {
 ///   - GET        end of `Regex::new(r"/info/refs$")`
 ///   - POST       end of `Regex::new(r"/git-upload-pack$")`
 ///   - POST       end of `Regex::new(r"/git-receive-pack$")`
-pub async fn app(context: Context, host: String, port: u16) -> Router {
+pub async fn app(storage: Storage, host: String, port: u16) -> Router {
     let state = AppState {
         host: host.clone(),
         port,
-        context: context.clone(),
+        storage: storage.clone(),
     };
 
-    let config = context.config.clone();
+    let config = storage.config();
     let api_state = MonoApiServiceState {
-        context: context.clone(),
+        storage: storage.clone(),
         oauth_client: Some(oauth_client(config.oauth.clone().unwrap()).unwrap()),
         store: Some(MemoryStore::new()),
         listen_addr: format!("http://{}:{}", host, port),
@@ -144,7 +145,7 @@ pub async fn get_method_router(
     if INFO_REFS_REGEX.is_match(uri.path()) {
         let pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri, "/info/refs"),
-            state.context.clone(),
+            state.storage.clone(),
             TransportProtocol::Http,
         );
         crate::git_protocol::http::git_info_refs(params, pack_protocol).await
@@ -163,7 +164,7 @@ pub async fn post_method_router(
     if REGEX_GIT_UPLOAD_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-upload-pack"),
-            state.context.clone(),
+            state.storage.clone(),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::UploadPack);
@@ -171,7 +172,7 @@ pub async fn post_method_router(
     } else if REGEX_GIT_RECEIVE_PACK.is_match(uri.path()) {
         let mut pack_protocol = SmartProtocol::new(
             remove_git_suffix(uri.clone(), "/git-receive-pack"),
-            state.context.clone(),
+            state.storage.clone(),
             TransportProtocol::Http,
         );
         pack_protocol.service_type = Some(ServiceType::ReceivePack);

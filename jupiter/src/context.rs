@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, Weak};
 
 use common::config::Config;
 
@@ -43,7 +43,7 @@ impl Service {
             mr_storage: MrStorage::new(connection.clone()).await,
             issue_storage: IssueStorage::new(connection.clone()).await,
             vault_storage: VaultStorage::new(connection.clone()).await,
-            lfs_file_storage: lfs_storage::init(config.lfs.clone(), lfs_db_storage.clone()).await,
+            lfs_file_storage: lfs_storage::init(config.lfs.clone(), lfs_db_storage).await,
         }
     }
 
@@ -65,17 +65,21 @@ impl Service {
 }
 
 #[derive(Clone)]
-pub struct Context {
+pub struct Storage {
     pub services: Arc<Service>,
-    pub config: Arc<Config>,
+    pub config: Weak<Config>,
 }
 
-impl Context {
+impl Storage {
     pub async fn new(config: Arc<Config>) -> Self {
-        Context {
+        Storage {
             services: Service::new(&config).await.into(),
-            config,
+            config: Arc::downgrade(&config),
         }
+    }
+
+    pub fn config(&self) -> Arc<Config> {
+        self.config.upgrade().expect("Config has been dropped")
     }
 
     pub fn mono_storage(&self) -> MonoStorage {
@@ -123,9 +127,13 @@ impl Context {
     }
 
     pub fn mock() -> Self {
-        Context {
+        // During test time, we don't need a AppContext,
+        // Put config in a leaked static variable thus the weak reference will always be valid.
+        static CONFIG: LazyLock<Arc<Config>> = LazyLock::new(|| Config::mock().into());
+
+        Storage {
             services: Service::mock(),
-            config: Arc::new(Config::mock()),
+            config: Arc::downgrade(&*CONFIG),
         }
     }
 }

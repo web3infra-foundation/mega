@@ -13,11 +13,9 @@ use russh::{
 };
 
 use common::model::CommonHttpOptions;
-use jupiter::context::Context;
 use tokio::sync::Mutex;
-use vault::vault::{read_secret, write_secret};
 
-use crate::git_protocol::ssh::SshServer;
+use crate::{ context::AppContext, git_protocol::ssh::SshServer};
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {
@@ -35,9 +33,9 @@ pub struct SshCustom {
 }
 
 /// start a ssh server
-pub async fn start_server(context: Context, command: &SshOptions) {
+pub async fn start_server(ctx: AppContext, command: &SshOptions) {
     // we need to persist the key to prevent key expired after server restart.
-    let p_key = load_key().await;
+    let p_key = load_key(ctx.clone());
     let ru_config = russh::server::Config {
         auth_rejection_time: std::time::Duration::from_secs(3),
         keys: vec![p_key],
@@ -55,10 +53,11 @@ pub async fn start_server(context: Context, command: &SshOptions) {
         common: CommonHttpOptions { host, .. },
         custom: SshCustom { ssh_port },
     } = command;
+
     let mut ssh_server = SshServer {
         clients: Arc::new(Mutex::new(HashMap::new())),
         id: 0,
-        context,
+        storage: ctx.storage.clone(),
         smart_protocol: None,
         data_combined: BytesMut::new(),
     };
@@ -67,11 +66,10 @@ pub async fn start_server(context: Context, command: &SshOptions) {
     ssh_server.run_on_address(ru_config, addr).await.unwrap();
 }
 
-pub async fn load_key() -> PrivateKey {
-    let ssh_key = read_secret("ssh_server_key").await.unwrap();
+pub fn load_key(ctx: AppContext) -> PrivateKey {
+    let ssh_key = ctx.vault.read_secret("ssh_server_key").unwrap();
     if let Some(ssh_key) = ssh_key {
-        let data = ssh_key.data.unwrap();
-        let secret_key = data["secret_key"].as_str().unwrap();
+        let secret_key = ssh_key["secret_key"].as_str().unwrap();
         PrivateKey::from_openssh(secret_key).unwrap()
     } else {
         // generate a keypair if not exists
@@ -83,11 +81,12 @@ pub async fn load_key() -> PrivateKey {
         .as_object()
         .unwrap()
         .clone();
-        write_secret("ssh_server_key", Some(secret))
-            .await
-            .unwrap_or_else(|e| {
-                panic!("Failed to write ssh_server_key: {:?}", e);
-            });
-        keys
+
+        match ctx.vault.write_secret("ssh_server_key", Some(secret)) {
+            Ok(_) => keys,
+            Err(e) => {
+                panic!("Failed to write SSH server key to vault: {}", e);
+            }
+        }
     }
 }

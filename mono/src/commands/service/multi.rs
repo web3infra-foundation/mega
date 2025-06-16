@@ -1,10 +1,10 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
-use jupiter::context::Context;
+use jupiter::context::Storage;
 
-use crate::server::{
+use crate::{context::AppContext, server::{
     https_server::{self},
     ssh_server::{self, SshCustom, SshOptions},
-};
+}};
 use common::{errors::MegaResult, model::CommonHttpOptions};
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]
@@ -31,7 +31,7 @@ pub fn cli() -> Command {
     )
 }
 
-pub(crate) async fn exec(ctx: Context, args: &ArgMatches) -> MegaResult {
+pub(crate) async fn exec(ctx: AppContext, args: &ArgMatches) -> MegaResult {
     let server_matchers = StartOptions::from_arg_matches(args)
         .map_err(|err| err.exit())
         .unwrap();
