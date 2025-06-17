@@ -21,6 +21,7 @@
     "@ant-design/icons": "catalog:",
     "@emoji-mart/data": "catalog:",
     "@emotion/styled": "catalog:",
+    "@git-diff-view/react": "0.0.26",
     "@gitmono/config": "workspace:*",
     "@gitmono/editor": "workspace:*",
     "@gitmono/regex": "workspace:*",

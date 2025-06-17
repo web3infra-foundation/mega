@@ -1,6 +1,8 @@
-# Mega - is an unofficial open source implementation of Google Piper.
+# Mono & Mega - is an monorepo & monolithic codebase management system and decentralized open source collaboration network application
 
-Mega is an unofficial open source implementation of Google Piper. It is a monorepo & monolithic codebase management system that supports Git. Mega is designed to manage large-scale codebases, streamline development, and foster collaboration.
+Mono is a monorepo & monolithic codebase management system that supports Git, it is designed to manage large-scale codebases, streamline development, and foster collaboration. Mono is an unofficial open source implementation of Google Piper. 
+
+Mega is standalone version of Mono for the indiviual developer in their local machine and connecting to each other to build a decentralized open source collaboration network. 
 
 ## What's the Piper?
 
@@ -8,13 +10,13 @@ Google Piper is a massive, centralized version control system that Google uses i
 
 **Google Piper is not open source**
 
-## Mega features
+## Mono features
 
-Mega is an unofficial open source implementation of Google Piper. And it has the following features:
+Mono is an unofficial open source implementation of Google Piper. And it has the following features:
 
 ### Git compatible
 
-Mega offers the ability to utilize Git with a monorepo. This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, and seamless pushing of changes back.
+Mono offers the ability to utilize Git with a monorepo. This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, and seamless pushing of changes back.
 
 ### Trunk-based Development
 
@@ -22,11 +24,13 @@ When it comes to managing large codebases in a centralized manner, trunk-based d
 
 ### Conventional Commits
 
-Mega will support conventional commits, which are a set of rules for creating clear and concise commit messages.  More information on the [Conventional Commits](https://www.conventionalcommits.org/).
+Mono will support conventional commits, which are a set of rules for creating clear and concise commit messages.  More information on the [Conventional Commits](https://www.conventionalcommits.org/).
 
 ### Code Owners
 
-Mega will support code owners, which are a set of rules for defining who owns a particular piece of code. More information on the [Code Owners](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners).
+Mono will support code owners, which are a set of rules for defining who owns a particular piece of code. More information on the [Code Owners](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners).
+
+## Mega features
 
 ### Decentralized Open Source Collaboration
 
@@ -86,7 +90,7 @@ The mega project relies on community contributions and aims to simplify getting 
 
 More information on contributing to Mega is available in the [Contributing Guide](docs/contributing.md).
 
-## Talk and Share
+## Chat with us
 
 If you interested in Mega, you can make an appointment with us on [Google Calendar](https://calendar.app.google/QuBf2sdmf68wVYWL7) to discuss your ideas, questions or problems, and we will share our vision and roadmap with you.
 

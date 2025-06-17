@@ -3,18 +3,17 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::Result;
-use async_session::MemoryStore;
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::http::{self, Request, Uri};
 use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
-use http::HeaderValue;
+use http::{HeaderValue, Method};
 use lazy_static::lazy_static;
 use regex::Regex;
 use tower::ServiceBuilder;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
 
@@ -28,7 +27,8 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::api_router::{self};
 use crate::api::lfs::lfs_router;
-use crate::api::oauth::{self, oauth_client};
+use crate::api::oauth::campsite_store::CampsiteApiStore;
+use crate::api::oauth::oauth_client;
 use crate::api::MonoApiServiceState;
 
 #[derive(Clone)]
@@ -93,14 +93,20 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
     };
 
     let config = context.config.clone();
+    let oauth_config = config.oauth.clone().unwrap();
     let api_state = MonoApiServiceState {
         context: context.clone(),
-        oauth_client: Some(oauth_client(config.oauth.clone().unwrap()).unwrap()),
-        store: Some(MemoryStore::new()),
+        oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
+        store: Some(CampsiteApiStore::new(oauth_config.campsite_api_domain)),
         listen_addr: format!("http://{}:{}", host, port),
     };
 
-    let cors_origin = HeaderValue::from_str(&config.oauth.clone().unwrap().ui_domain).expect("ui_domain in config not set");
+    let origins: Vec<HeaderValue> = oauth_config
+        .allowed_cors_origins
+        .into_iter()
+        .map(|x| x.parse::<HeaderValue>().unwrap())
+        .collect();
+
     // add RequestDecompressionLayer for handle gzip encode
     // add TraceLayer for log record
     // add CorsLayer to add cors header
@@ -110,13 +116,20 @@ pub async fn app(context: Context, host: String, port: u16) -> Router {
             "/api/v1",
             api_router::routers().with_state(api_state.clone()),
         )
-        .nest("/auth", oauth::routers().with_state(api_state.clone()))
+        // .nest("/auth", oauth::routers().with_state(api_state.clone()))
         // Using Regular Expressions for Path Matching in Protocol
         .route("/{*path}", get(get_method_router).post(post_method_router))
         .layer(
-            ServiceBuilder::new().layer(CorsLayer::new().allow_origin(cors_origin).allow_headers(
-                vec![http::header::AUTHORIZATION, http::header::CONTENT_TYPE],
-            ).allow_methods(Any)),
+            ServiceBuilder::new().layer(
+                CorsLayer::new()
+                    .allow_origin(origins)
+                    .allow_headers(vec![
+                        http::header::AUTHORIZATION,
+                        http::header::CONTENT_TYPE,
+                    ])
+                    .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE])
+                    .allow_credentials(true),
+            ),
         )
         .layer(TraceLayer::new_for_http())
         .layer(RequestDecompressionLayer::new())

@@ -10,7 +10,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub link: String,
-    pub user_id: i64,
+    pub user_id: String,
     pub conv_type: ConvTypeEnum,
     #[sea_orm(column_type = "Text", nullable)]
     pub comment: Option<String>,

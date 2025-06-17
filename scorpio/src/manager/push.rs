@@ -235,9 +235,7 @@ pub async fn push_core(
         Ok(response) => response,
         Err(e) => {
             eprintln!("\x1b[31mFailed to send request: {:?}\x1b[0m", e);
-            return Err(std::io::Error::other(
-                "Failed to send request",
-            ));
+            return Err(std::io::Error::other("Failed to send request"));
         }
     };
 

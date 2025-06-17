@@ -1,8 +1,8 @@
-
 .codeLineNumber {
     margin-left: 4px;
-    margin-right: 25px;
-    text-align: center;
+    width: 50px;
+    align-items: center;
+    align-self: center;
     user-select: none;
 }
 
