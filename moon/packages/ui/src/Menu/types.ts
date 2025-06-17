@@ -38,6 +38,7 @@ interface MenuTextType {
 
 type MenuItem = MenuItemType | MenuSubType | MenuSeparatorType | MenuHeadingType | MenuTextType
 
-type MenuWidth = `w-[${number}px]` | `w-${number}`
+// type MenuWidth = `w-[${number}px]` | `w-${number}`
+type MenuWidth = string
 
 export type { MenuItem, MenuItemType, MenuSubType, MenuSeparatorType, MenuHeadingType, MenuWidth, MenuTextType }
