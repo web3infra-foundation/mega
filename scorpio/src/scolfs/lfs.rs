@@ -181,6 +181,7 @@ pub async fn lfs_restore(mono_path: &str, lower_path: &str) -> std::io::Result<(
     }
     Ok(())
 }
+#[allow(dead_code)]
 pub fn get_oid_by_path(_path: &str) -> String {
     todo!() // create a old lfs pointer storage.
 }

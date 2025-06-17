@@ -368,7 +368,12 @@ impl MonoRepo {
                 let comment = self.comment_for_force_update(&mr.to_hash, &self.to_hash);
                 mr.to_hash = self.to_hash.clone();
                 storage
-                    .add_mr_conversation(&mr.link, 0, ConvTypeEnum::ForcePush, Some(comment))
+                    .add_mr_conversation(
+                        &mr.link,
+                        String::new(),
+                        ConvTypeEnum::ForcePush,
+                        Some(comment),
+                    )
                     .await
                     .unwrap();
             } else {
@@ -379,7 +384,7 @@ impl MonoRepo {
             storage
                 .add_mr_conversation(
                     &mr.link,
-                    0,
+                    String::new(),
                     ConvTypeEnum::Closed,
                     Some("Mega closed MR due to conflict".to_string()),
                 )

@@ -231,6 +231,27 @@ pub async fn diff(
             String::from_utf8(new_content),
         ) {
             (Ok(old_text), Ok(new_text)) => {
+                let (old_prefix, new_prefix) = if old_text.is_empty() {
+                    // New file
+                    (
+                        "/dev/null".to_string(),
+                        format!("b/{}", file_display(&file, new_hash, new_type)),
+                    )
+                } else if new_text.is_empty() {
+                    // Remove file
+                    (
+                        format!("a/{}", file_display(&file, old_hash, old_type)),
+                        "/dev/null".to_string(),
+                    )
+                } else {
+                    // Update file
+                    (
+                        format!("a/{}", file_display(&file, old_hash, old_type)),
+                        format!("b/{}", file_display(&file, new_hash, new_type)),
+                    )
+                };
+                writeln!(w, "--- {}", old_prefix).unwrap();
+                writeln!(w, "+++ {}", new_prefix).unwrap();
                 imara_diff_result(&old_text, &new_text, w);
             }
             _ => {

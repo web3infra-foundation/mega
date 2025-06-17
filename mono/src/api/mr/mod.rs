@@ -64,7 +64,7 @@ impl From<mega_mr::Model> for MRDetail {
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct MegaConversation {
     pub id: i64,
-    pub user_id: i64,
+    pub user_id: String,
     pub conv_type: ConvTypeEnum,
     pub comment: Option<String>,
     pub created_at: i64,

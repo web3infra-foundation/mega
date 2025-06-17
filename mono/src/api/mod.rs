@@ -21,6 +21,8 @@ use jupiter::{
     storage::{issue_storage::IssueStorage, mr_storage::MrStorage, user_storage::UserStorage},
 };
 
+use crate::api::oauth::campsite_store::CampsiteApiStore;
+
 pub mod api_router;
 pub mod error;
 pub mod issue;
@@ -52,12 +54,17 @@ pub type GithubClient<
 pub struct MonoApiServiceState {
     pub context: Context,
     pub oauth_client: Option<GithubClient>,
-    // TODO: Replace MemoryStore
-    pub store: Option<MemoryStore>,
+    pub store: Option<CampsiteApiStore>,
     pub listen_addr: String,
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
+    fn from_ref(_: &MonoApiServiceState) -> Self {
+        MemoryStore::new()
+    }
+}
+
+impl FromRef<MonoApiServiceState> for CampsiteApiStore {
     fn from_ref(state: &MonoApiServiceState) -> Self {
         state.store.clone().unwrap()
     }
