@@ -4,7 +4,7 @@ import 'styles/editor.css'
 import 'styles/global.css' // web only
 import 'styles/prose.css'
 import '@radix-ui/themes/styles.css'
-import '@git-diff-view/react/styles/diff-view.css';
+// import '@git-diff-view/react/styles/diff-view.css';
 
 import { useEffect } from 'react'
 import { IS_PRODUCTION, LAST_CLIENT_JS_BUILD_ID_LS_KEY } from '@gitmono/config'
