@@ -71,7 +71,7 @@ export default function FileDiff({ diffs }: { diffs: string }) {
     file: { path: string; lang: string; diff: string };
     instance: DiffFile;
   }) => {
-    if (file.lang === 'plaintext') {
+    if (file.lang === 'binary') {
       return <div className='text-center p-2'>Binary file</div>
     }
 
