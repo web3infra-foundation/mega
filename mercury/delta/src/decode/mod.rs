@@ -26,13 +26,7 @@ pub fn delta_decode(
             Ok([instruction]) => instruction,
             Err(err) if err.kind() == ErrorKind::UnexpectedEof => break,
             Err(err) => {
-                panic!(
-                    "{}",
-                    GitDeltaError::DeltaDecoderError(format!(
-                        "Wrong instruction in delta :{}",
-                        err
-                    ))
-                );
+                panic!("{}", format!("Wrong instruction in delta :{err}"));
             }
         };
 
