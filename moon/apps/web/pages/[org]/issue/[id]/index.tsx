@@ -24,7 +24,7 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
 const OrganizationIssueDetailPage: PageWithLayout<any> = ({ id }) => {
   return (
     <>
-      <IssueDetailPage id={id} />
+      <IssueDetailPage id={id} key={id} />
     </>
   )
 }

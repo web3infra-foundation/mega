@@ -78,7 +78,7 @@ export default function IssueDetailPage({ id }: { id: string }) {
 
   useEffect(() => {
     fetchDetail()
-  }, [fetchDetail])
+  }, [fetchDetail, id])
 
   const [_loadings, setLoadings] = useState<boolean[]>([])
   const router = useRouter()
