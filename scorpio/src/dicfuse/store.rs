@@ -46,19 +46,17 @@ pub struct ItemExt {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct CommitInfoResponse {
+struct TreeInfoResponse {
     req_result: bool,
-    data: Vec<CommitInfo>,
+    data: Vec<TreeInfo>,
     err_message: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-struct CommitInfo {
+struct TreeInfo {
     oid: String,
     name: String,
     content_type: String,
-    message: String,
-    date: String,
 }
 
 #[allow(unused)]
@@ -243,7 +241,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         }
     };
 
-    let commit_info: CommitInfoResponse = match response.json().await {
+    let tree_info: TreeInfoResponse = match response.json().await {
         Ok(info) => info,
         Err(e) => {
             return Err(DictionaryError {
@@ -252,13 +250,13 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         }
     };
 
-    if !commit_info.req_result {
+    if !tree_info.req_result {
         return Err(DictionaryError {
-            message: commit_info.err_message,
+            message: tree_info.err_message,
         });
     }
 
-    let mut data = Vec::with_capacity(commit_info.data.len());
+    let mut data = Vec::with_capacity(tree_info.data.len());
 
     let base_path = if path.is_empty() || path == "/" {
         "".to_string()
@@ -268,7 +266,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         format!("{}/", path)
     };
 
-    for info in commit_info.data {
+    for info in tree_info.data {
         let full_path = if base_path.is_empty() {
             format!("/{}", info.name)
         } else {
@@ -313,7 +311,7 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
         }
     };
 
-    let commit_info: CommitInfoResponse = match response.json().await {
+    let tree_info: TreeInfoResponse = match response.json().await {
         Ok(info) => info,
         Err(e) => {
             return Err(DictionaryError {
@@ -322,13 +320,13 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
         }
     };
 
-    if !commit_info.req_result {
+    if !tree_info.req_result {
         return Err(DictionaryError {
-            message: commit_info.err_message,
+            message: tree_info.err_message,
         });
     }
 
-    let mut data = Vec::with_capacity(commit_info.data.len());
+    let mut data = Vec::with_capacity(tree_info.data.len());
 
     let base_path = if path.is_empty() || path == "/" {
         "".to_string()
@@ -338,7 +336,7 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
         format!("{}/", path)
     };
 
-    for info in commit_info.data {
+    for info in tree_info.data {
         let full_path = if base_path.is_empty() {
             format!("/{}", info.name)
         } else {

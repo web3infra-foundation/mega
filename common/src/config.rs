@@ -45,7 +45,7 @@ pub fn mega_base() -> PathBuf {
             .unwrap()
             .to_string()
     });
-    
+
     PathBuf::from(base_dir)
 }
 
@@ -77,7 +77,7 @@ pub fn mega_cache() -> PathBuf {
             .unwrap()
             .to_string()
     });
-    
+  
     PathBuf::from(cache_dir)
 }
 
@@ -104,7 +104,7 @@ impl Config {
                     .prefix_separator("_")
                     .separator("__"),
             );
-        
+
         let config = variable_placeholder_substitute(builder);
 
         Config::from_config(config)
