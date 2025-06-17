@@ -1,16 +1,16 @@
 //! Configuration management for the Mono and Mega application
 //! This module provides functionality to load, parse, and manage configuration settings
 
-use std::rc::Rc;
-use std::path::PathBuf;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::rc::Rc;
 
-pub use config as c;
 use c::{ConfigError, FileFormat};
+pub use config as c;
 
-use config::{Source, ValueKind};
 use config::builder::DefaultState;
+use config::{Source, ValueKind};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use callisto::sea_orm_active_enums::StorageTypeEnum;
@@ -45,7 +45,7 @@ pub fn mega_base() -> PathBuf {
             .unwrap()
             .to_string()
     });
-    
+
     PathBuf::from(base_dir)
 }
 
@@ -77,7 +77,7 @@ pub fn mega_cache() -> PathBuf {
             .unwrap()
             .to_string()
     });
-    
+
     PathBuf::from(cache_dir)
 }
 
@@ -104,7 +104,7 @@ impl Config {
                     .prefix_separator("_")
                     .separator("__"),
             );
-        
+
         let config = variable_placeholder_substitute(builder);
 
         Config::from_config(config)
