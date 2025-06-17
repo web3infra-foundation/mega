@@ -4,10 +4,11 @@ import copy from 'copy-to-clipboard'
 import { usePathname } from 'next/navigation'
 
 import { CheckIcon, CopyIcon, DownloadIcon } from '@gitmono/ui/Icons'
+import {LEGACY_API_URL} from '@gitmono/config'
 
 const CloneTabs = ({ endpoint }: any) => {
   const pathname = usePathname()
-  const [text, setText] = useState<string>(pathname || '')
+  const [text, setText] = useState<string>( pathname || '')
   const [copied, setCopied] = useState<boolean>(false)
   const [active_tab, setActiveTab] = useState<string>('1')
 
@@ -16,13 +17,13 @@ const CloneTabs = ({ endpoint }: any) => {
   }
 
   useEffect(() => {
-    if (endpoint) {
-      const url = new URL(endpoint)
+    if (LEGACY_API_URL) {
+      const url = new URL(LEGACY_API_URL)
 
       if (active_tab === '1') {
-        setText(`${url.href}${pathname?.replace('/tree/', '')}.git`)
+        setText(`${url.href}${pathname?.replace('/myorganization/code/tree/', '')}.git`)
       } else {
-        setText(`ssh://git@${url.host}${pathname?.replace('/tree', '')}.git`)
+        setText(`ssh://git@${url.host}${pathname?.replace('/myorganization/code/tree', '')}.git`)
       }
     }
   }, [pathname, active_tab, endpoint])
@@ -68,3 +69,4 @@ const CloneTabs = ({ endpoint }: any) => {
 }
 
 export default CloneTabs
+

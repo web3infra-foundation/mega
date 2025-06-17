@@ -16,6 +16,9 @@ import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
+import { useGetBlob } from '@/hooks/useGetBlob'
+import Markdown from 'react-markdown'
+import CommitHistory from '@/components/CodeView/CommitHistory'
 
 function TreeDetailPage() {
   const params = useParams()
@@ -28,30 +31,31 @@ function TreeDetailPage() {
   const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
 
   const { data: canClone } = useGetTreePathCanClone({ path: new_path })
-  const [readmeContent, setReadmeContent] = useState('')
-  const [endpoint, setEndPoint] = useState('')
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const readmeContent = await getReadmeContent(new_path, directory)
+  const readmePath = `${new_path}/README.md`
+  const {data: readmeContent} = useGetBlob({path:readmePath})
 
-        setReadmeContent(readmeContent)
-        const endpoint = await getEndpoint()
+  const commitInfo = {
+    user: {
+      avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
+      name: 'yetianxing2014'
+    },
+    message: '[feat(libra)]: 为config命令添加 --default(#1119)',
+    hash: '5fe4235',
+    date: '3 months ago'
+  }
 
-        setEndPoint(endpoint)
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Error fetching data:', error)
-      }
-    }
-
-    fetchData()
-  }, [new_path, directory])
+  const readmeStyle = {
+    marginTop:30,
+    padding: '2%',
+    border:'1px solid rgba(0, 0, 0, 0.112)',
+    borderRadius: 8,
+  }
 
   const treeStyle = {
     borderRadius: 8,
     overflow: 'hidden',
+    Height:'100%',
     width: 'calc(20% - 8px)',
     maxWidth: 'calc(20% - 8px)',
     background: '#fff'
@@ -59,6 +63,7 @@ function TreeDetailPage() {
 
   const codeStyle = {
     borderRadius: 8,
+    height: '100%',
     overflow: 'hidden',
     width: 'calc(80% - 8px)',
     background: '#fff'
@@ -73,18 +78,18 @@ function TreeDetailPage() {
   }
 
   return (
-    <div className='relative m-2 h-screen overflow-hidden'>
+    <div className='relative m-2 h-screen overflow-auto'>
       {!TreeCommitInfo ? (
         <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
           <LoadingSpinner />
         </div>
       ) : (
-        <Flex gap='middle' wrap>
+        <Flex gap='middle' wrap >
           <Layout style={breadStyle}>
             <BreadCrumb path={path} />
             {canClone?.data && (
-              <Flex justify={'flex-end'}>
-                <CloneTabs endpoint={endpoint} />
+              <Flex justify={'flex-end'} className='m-2'>
+                <CloneTabs />
               </Flex>
             )}
           </Layout>
@@ -92,8 +97,22 @@ function TreeDetailPage() {
           <Layout style={treeStyle}>
             <RepoTree directory={directory} />
           </Layout>
+          {/* commitInfo & table */}
           <Layout style={codeStyle}>
-            <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent} />
+            {
+              commitInfo &&
+              <Layout className='m-2'>
+                <CommitHistory flag='contents' info={commitInfo}/>
+              </Layout>
+            }
+            <CodeTable directory={directory} loading={!TreeCommitInfo} />
+            {readmeContent?.data && (
+              <div style={readmeStyle}>
+                <div className="markdown-body">
+                  <Markdown>{readmeContent?.data}</Markdown>
+                </div>
+              </div>
+            )}
           </Layout>
         </Flex>
       )}
@@ -101,27 +120,12 @@ function TreeDetailPage() {
   )
 }
 
-async function getReadmeContent(pathname: string, directory: any) {
-  let readmeContent = ''
+// async function getEndpoint() {
+//   const res = await fetch(`/host`)
+//   const response = await res.json()
 
-  for (const project of directory || []) {
-    if (project.name === 'README.md' && project.content_type === 'file') {
-      const res = await fetch(`/api/blob?path=${pathname}/README.md`)
-      const response = await res.json()
-
-      readmeContent = response.data.data
-      break
-    }
-  }
-  return readmeContent
-}
-
-async function getEndpoint() {
-  const res = await fetch(`/host`)
-  const response = await res.json()
-
-  return response.endpoint
-}
+//   return response.endpoint
+// }
 
 TreeDetailPage.getProviders = (
   page:

@@ -15,7 +15,10 @@ const CloneTabs = ({ endpoint }) => {
         setActiveTab(key)
     };
 
+    
+
     useEffect(() => {
+      console.log(endpoint, 'endpoint==2222=endpoint===endpoint===')
         if (endpoint) {
             const url = new URL(endpoint);
             if (active_tab === '1') {
