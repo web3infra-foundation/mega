@@ -172,6 +172,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                 </Button>
               }
               <Button
+                disabled={!login || mrCommentIsPending}
                 onClick={() => send_comment()}
                 aria-label="Comment"
                 className={cn(buttonClasses)}

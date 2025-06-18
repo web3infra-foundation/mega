@@ -111,7 +111,7 @@ export function useSimpleNoteEditor({
       editorProps: {
         attributes: {
           class:
-            'new-posts prose select-text focus:outline-none w-full relative note min-w-full px-4]',
+            'new-posts prose select-text focus:outline-none w-full relative note min-w-full px-4',
           style: "overflow-anchor: ''"
         },
         ...editorProps
