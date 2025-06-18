@@ -3,13 +3,12 @@ import { NotePlusIcon } from '@gitmono/ui/Icons'
 import type { MenuProps } from 'antd'
 import { Card, Dropdown } from 'antd/lib'
 import { formatDistance, fromUnixTime } from 'date-fns'
-
+import { getMarkdownExtensions } from '@gitmono/editor'
 import { useDeleteIssueComment } from '@/hooks/issues/useDeleteIssueComment'
 import { useDeleteMrCommentDelete } from '@/hooks/useDeleteMrCommentDelete'
 import { Conversation } from '@/pages/[org]/mr/[id]'
-
-import LexicalContent from './rich-editor/LexicalContent'
-
+import { RichTextRenderer } from '@/components/RichTextRenderer'
+import { useMemo } from 'react'
 interface CommentProps {
   conv: Conversation
   id: string
@@ -64,6 +63,7 @@ const Comment = ({ conv, id, whoamI }: CommentProps) => {
   }
 
   const time = formatDistance(fromUnixTime(conv.created_at), new Date(), { addSuffix: true })
+  const extensions = useMemo(() => getMarkdownExtensions({ linkUnfurl: {} }), [])
 
   return (
     <Card
@@ -76,7 +76,9 @@ const Comment = ({ conv, id, whoamI }: CommentProps) => {
         </Dropdown>
       }
     >
-      <LexicalContent lexicalJson={conv.comment} />
+      <div className='prose'>
+        <RichTextRenderer content={conv.comment} extensions={extensions} />
+      </div>
     </Card>
   )
 }
