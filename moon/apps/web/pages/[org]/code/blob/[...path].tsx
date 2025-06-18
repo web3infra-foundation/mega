@@ -94,7 +94,7 @@ function BlobPage() {
           <BreadCrumb path={path} />
         </Layout>
         <Layout className='m-2'>
-          <CommitHistory info={commitInfo}/>
+          <CommitHistory flag={'details'} info={commitInfo}/>
         </Layout>
         <Flex gap='middle' wrap>
           <Layout style={codeStyle}>

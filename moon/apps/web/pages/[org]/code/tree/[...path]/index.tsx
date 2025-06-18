@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { Theme } from '@radix-ui/themes'
 import { Flex, Layout } from 'antd'
 import { useParams } from 'next/navigation'
@@ -16,6 +16,8 @@ import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetTreeCommitInfo } from '@/hooks/useGetTreeCommitInfo'
 import { useGetTreePathCanClone } from '@/hooks/useGetTreePathCanClone'
+import CommitHistory from '@/components/CodeView/CommitHistory'
+import { useGetBlob } from '@/hooks/useGetBlob'
 
 function TreeDetailPage() {
   const params = useParams()
@@ -28,26 +30,22 @@ function TreeDetailPage() {
   const directory: DirectoryType = useMemo(() => TreeCommitInfo?.data ?? [], [TreeCommitInfo])
 
   const { data: canClone } = useGetTreePathCanClone({ path: new_path })
-  const [readmeContent, setReadmeContent] = useState('')
-  const [endpoint, setEndPoint] = useState('')
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const readmeContent = await getReadmeContent(new_path, directory)
+  const reqPath = `${new_path}/README.md`
+  const  {data: readmeContent}=useGetBlob({path:reqPath})
 
-        setReadmeContent(readmeContent)
-        const endpoint = await getEndpoint()
 
-        setEndPoint(endpoint)
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Error fetching data:', error)
-      }
-    }
+  const commitInfo = {
+    user: {
+      avatar_url: 'https://avatars.githubusercontent.com/u/112836202?v=4&size=40',
+      name: 'yetianxing2014'
+    },
+    message: '[feat(libra)]: 为 config 命令添加 --default参数 (#1119)',
+    hash: '5fe4235',
+    date: '3 months ago'
+  }
 
-    fetchData()
-  }, [new_path, directory])
+
 
   const treeStyle = {
     borderRadius: 8,
@@ -61,6 +59,7 @@ function TreeDetailPage() {
     borderRadius: 8,
     overflow: 'hidden',
     width: 'calc(80% - 8px)',
+    height:'100%',
     background: '#fff'
   }
 
@@ -73,7 +72,7 @@ function TreeDetailPage() {
   }
 
   return (
-    <div className='relative m-2 h-screen overflow-hidden'>
+    <div className='relative m-2 h-screen overflow-auto'>
       {!TreeCommitInfo ? (
         <div className='align-center container absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 justify-center'>
           <LoadingSpinner />
@@ -84,7 +83,7 @@ function TreeDetailPage() {
             <BreadCrumb path={path} />
             {canClone?.data && (
               <Flex justify={'flex-end'}>
-                <CloneTabs endpoint={endpoint} />
+                <CloneTabs/>
               </Flex>
             )}
           </Layout>
@@ -93,34 +92,17 @@ function TreeDetailPage() {
             <RepoTree directory={directory} />
           </Layout>
           <Layout style={codeStyle}>
-            <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent} />
+            {
+             commitInfo &&  <Layout>
+                <CommitHistory flag={'contents'} info={commitInfo}/>
+              </Layout>
+            }
+            <CodeTable directory={directory} loading={!TreeCommitInfo} readmeContent={readmeContent?.data}/>
           </Layout>
         </Flex>
       )}
     </div>
   )
-}
-
-async function getReadmeContent(pathname: string, directory: any) {
-  let readmeContent = ''
-
-  for (const project of directory || []) {
-    if (project.name === 'README.md' && project.content_type === 'file') {
-      const res = await fetch(`/api/blob?path=${pathname}/README.md`)
-      const response = await res.json()
-
-      readmeContent = response.data.data
-      break
-    }
-  }
-  return readmeContent
-}
-
-async function getEndpoint() {
-  const res = await fetch(`/host`)
-  const response = await res.json()
-
-  return response.endpoint
 }
 
 TreeDetailPage.getProviders = (
