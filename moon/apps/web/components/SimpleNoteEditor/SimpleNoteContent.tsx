@@ -45,6 +45,8 @@ export interface SimpleNoteContentRef {
   handleDragOver(isOver: boolean, event: DragEvent): void
   editor: TTEditor | null
   clearAndBlur(): void
+  insertReaction: TTEditor['commands']['insertReaction']
+  uploadAndAppendAttachments: (files: File[]) => Promise<void>
 }
 
 export const SimpleNoteContent = memo(
@@ -68,7 +70,7 @@ export const SimpleNoteContent = memo(
       onBlurAtTop
     })
 
-    const { onDrop, onPaste, imperativeHandlers } = useEditorFileHandlers({
+    const { onDrop, onPaste, imperativeHandlers, uploadAndAppendAttachments } = useEditorFileHandlers({
       enabled: canUploadAttachments,
       upload,
       editor
@@ -79,6 +81,7 @@ export const SimpleNoteContent = memo(
       ref,
       () => ({
         clearAndBlur: () => editor.chain().setContent(EMPTY_HTML).blur().run(),
+        insertReaction: (props) => !!editor.commands.insertReaction(props),
         focus: (pos) => {
           if (pos === 'start') {
             editor.commands.focus('start')
@@ -112,10 +115,11 @@ export const SimpleNoteContent = memo(
             }
           }
         },
+        uploadAndAppendAttachments,
         ...imperativeHandlers,
         editor
       }),
-      [editor, imperativeHandlers]
+      [editor, imperativeHandlers, uploadAndAppendAttachments]
     )
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -126,7 +130,7 @@ export const SimpleNoteContent = memo(
     })
 
     return (
-      <div ref={containerRef} className="relative min-h-[160px]">
+      <div ref={containerRef} className="relative min-h-[100px]">
         <LayeredHotkeys
           keys={ADD_ATTACHMENT_SHORTCUT}
           callback={() => {

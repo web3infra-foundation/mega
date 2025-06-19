@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { Card, Tabs, TabsProps,Timeline,} from 'antd';
 // import { CommentOutlined, MergeOutlined, CloseCircleOutlined, PullRequestOutlined } from '@ant-design/icons';
-import { ChevronRightCircleIcon, ChevronSelectIcon,AlarmIcon,ClockIcon} from '@gitmono/ui/Icons'
+import { ChevronRightCircleIcon, ChevronSelectIcon,AlarmIcon,ClockIcon, PicturePlusIcon} from '@gitmono/ui/Icons'
 import { formatDistance, fromUnixTime } from 'date-fns';
 import MRComment from '@/components/MrView/MRComment';
 import { useRouter } from 'next/router';
@@ -27,6 +27,8 @@ import { EMPTY_HTML } from '@/atoms/markdown'
 import { useHandleBottomScrollOffset } from '@/components/NoteEditor/useHandleBottomScrollOffset'
 import { trimHtml } from '@/utils/trimHtml'
 import { toast } from 'react-hot-toast'
+import { ComposerReactionPicker } from '@/components/Reactions/ComposerReactionPicker';
+import { useUploadHelpers } from '@/hooks/useUploadHelpers';
 
 interface MRDetail {
     status: string,
@@ -46,7 +48,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const { id : tempId, title } = router.query;
     const { scope } = useScope()
     const [login, _setLogin] = useState(true);
-
+    const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false)
     const id = typeof tempId === 'string' ? tempId : '';
     const { data: MrDetailData } = useGetMrDetail(id)
     const mrDetail = MrDetailData?.data as MRDetail | undefined
@@ -129,6 +131,9 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
     const onKeyDownScrollHandler = useHandleBottomScrollOffset({
       editor: editorRef.current?.editor
     })
+    const { dropzone } = useUploadHelpers({
+      upload: editorRef.current?.uploadAndAppendAttachments
+    })
 
     const tab_items: TabsProps['items'] = [
       {
@@ -138,6 +143,7 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
           <div className="prose flex flex-col w-full">
             <Timeline items={conv_items}/>
             <h2>Add a comment</h2>
+            <input {...dropzone.getInputProps()} />
             <div className='border p-6 rounded-lg'>
               <SimpleNoteContent
                 commentId="temp" //  Temporary filling, replacement later
@@ -146,6 +152,18 @@ const  MRDetailPage:PageWithLayout<any> = () =>{
                 content={EMPTY_HTML}
                 autofocus={true}
                 onKeyDown={onKeyDownScrollHandler}
+              />
+              <Button
+                variant='plain'
+                iconOnly={<PicturePlusIcon />}
+                accessibilityLabel='Add files'
+                onClick={dropzone.open}
+                tooltip='Add files'
+              />
+              <ComposerReactionPicker
+                editorRef={editorRef}
+                open={isReactionPickerOpen}
+                onOpenChange={setIsReactionPickerOpen}
               />
             </div>
             <div className="flex gap-2 justify-end">
