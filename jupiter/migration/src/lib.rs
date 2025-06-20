@@ -5,6 +5,7 @@ mod m20250314_025943_init;
 mod m20250427_031332_add_mr_refs_tag;
 mod m20250605_013340_alter_mega_mr_index;
 mod m20250613_033821_alter_user_id;
+mod m20250618_065050_add_label;
 
 pub struct Migrator;
 
@@ -16,6 +17,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250427_031332_add_mr_refs_tag::Migration),
             Box::new(m20250605_013340_alter_mega_mr_index::Migration),
             Box::new(m20250613_033821_alter_user_id::Migration),
+            Box::new(m20250618_065050_add_label::Migration),
         ]
     }
 }
