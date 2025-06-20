@@ -2,7 +2,7 @@ use callisto::mega_issue;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::api::mr::MegaConversation;
+use crate::api::{label::LabelItem, mr::MegaConversation};
 
 pub mod issue_router;
 
@@ -11,7 +11,8 @@ pub struct IssueItem {
     pub link: String,
     pub title: String,
     pub status: String,
-    pub owner: i64,
+    pub user_id: String,
+    pub labels: Vec<LabelItem>,
     pub open_timestamp: i64,
     pub closed_at: Option<i64>,
     pub updated_at: i64,
@@ -23,10 +24,11 @@ impl From<mega_issue::Model> for IssueItem {
             link: value.link,
             title: value.title,
             status: value.status.to_string(),
-            owner: value.owner,
+            user_id: value.user_id,
             open_timestamp: value.created_at.and_utc().timestamp(),
             closed_at: value.closed_at.map(|dt| dt.and_utc().timestamp()),
             updated_at: value.updated_at.and_utc().timestamp(),
+            labels: vec![]
         }
     }
 }
@@ -58,4 +60,11 @@ impl From<mega_issue::Model> for IssueDetail {
             conversations: vec![],
         }
     }
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct LabelUpdatePayload {
+    label_ids: Vec<i64>,
+    item_id: i64,
+    link: String
 }

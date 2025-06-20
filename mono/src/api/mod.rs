@@ -26,6 +26,7 @@ use crate::api::oauth::campsite_store::CampsiteApiStore;
 pub mod api_router;
 pub mod error;
 pub mod issue;
+pub mod label;
 pub mod lfs;
 pub mod mr;
 pub mod oauth;

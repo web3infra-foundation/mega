@@ -40,7 +40,7 @@ interface Props {
 export interface Item {
   closed_at?: number | null
   link: string
-  owner: number
+  user_id: string
   title: string
   status: string
   open_timestamp: number
@@ -314,7 +314,7 @@ export function IssuesContent({ searching }: Props) {
                     rightIcon={<ChatBubbleIcon />}
                   >
                     <div className='text-xs text-[#59636e]'>
-                      {i.link} · {i.owner} {i.status}{' '}
+                      {i.link} · {i.user_id} {i.status}{' '}
                       {formatDistance(fromUnixTime(i.open_timestamp), new Date(), { addSuffix: true })}
                     </div>
                   </ListItem>
