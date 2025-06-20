@@ -42,7 +42,7 @@ export default function IssueNewPage() {
   const submit = useCallback(
     () => {
       const currentContentHTML = editorRef.current?.editor?.getHTML() ?? '<p></p>';
-      
+
       if (trimHtml(currentContentHTML) === '' || !title) {
         toast.error('please fill the issue list first!')
         return
@@ -116,7 +116,12 @@ export default function IssueNewPage() {
           </div>
         </div>
           <Flex justify={'flex-end'}>
-            <Button type={'submit'} loading={loadings[3]} onClick={() => submit()}>
+            <Button
+              type={'submit'}
+              loading={loadings[3]}
+              disabled={!title}
+              onClick={() => submit()}
+            >
               Submit New Issue
             </Button>
           </Flex>
