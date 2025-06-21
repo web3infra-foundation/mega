@@ -37,8 +37,7 @@ impl SessionStore for CampsiteApiStore {
             // println!("Raw response: {}", text);
             let campsite_user = resp
                 .json::<CampsiteUserJson>()
-                .await
-                .context("failed to deserialize response as JSON")?;
+                .await?;
             let login_user: LoginUser = campsite_user.into();
             session
                 .insert("user", &login_user)

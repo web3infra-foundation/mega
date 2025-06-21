@@ -45,6 +45,14 @@ impl<T> CommonResult<T> {
             err_message: err_message.to_string(),
         }
     }
+
+    pub fn common_failed() -> Self {
+        CommonResult {
+            req_result: false,
+            data: None,
+            err_message: String::from("API request error"),
+        }
+    }
 }
 
 #[derive(Deserialize, ToSchema)]

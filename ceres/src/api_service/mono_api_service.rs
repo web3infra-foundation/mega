@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use tokio::process::Command;
 
 use callisto::sea_orm_active_enums::ConvTypeEnum;
-use callisto::{mega_blob, mega_tree, raw_blob};
+use callisto::{mega_blob, mega_mr, mega_tree, raw_blob};
 use common::errors::MegaError;
 use jupiter::context::Context;
 use jupiter::storage::batch_save_model;
@@ -20,7 +20,6 @@ use mercury::internal::object::tree::{Tree, TreeItem, TreeItemMode};
 
 use crate::api_service::ApiHandler;
 use crate::model::git::CreateFileInfo;
-use crate::protocol::mr::MergeRequest;
 
 #[derive(Clone)]
 pub struct MonoApiService {
@@ -233,7 +232,7 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-    pub async fn merge_mr(&self, user_id: String, mr: &mut MergeRequest) -> Result<(), MegaError> {
+    pub async fn merge_mr(&self, user_id: String, mr: mega_mr::Model) -> Result<(), MegaError> {
         let storage = self.context.services.mono_storage.clone();
         let refs = storage.get_ref(&mr.path).await.unwrap().unwrap();
 
@@ -259,18 +258,16 @@ impl MonoApiService {
                 storage.remove_none_mr_refs(&mr.path).await.unwrap();
                 // TODO: self.clean_dangling_commits().await;
             }
-            // update mr
-            mr.merge();
             // add conversation
             self.context
-                .mr_stg()
-                .add_mr_conversation(&mr.link, user_id, ConvTypeEnum::Merged, None)
+                .issue_stg()
+                .add_conversation(&mr.link, &user_id, None, ConvTypeEnum::Merged)
                 .await
                 .unwrap();
             // update mr status last
             self.context
                 .mr_stg()
-                .update_mr(mr.clone().into())
+                .merge_mr(mr)
                 .await
                 .unwrap();
         } else {

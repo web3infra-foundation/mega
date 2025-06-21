@@ -1,4 +1,5 @@
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Json, Response};
+use common::model::CommonResult;
 use http::StatusCode;
 
 #[derive(Debug)]
@@ -8,7 +9,8 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         tracing::error!("Application error: {:#}", self.0);
 
-        (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong").into_response()
+        let body = Json(CommonResult::<()>::common_failed());
+        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
     }
 }
 
