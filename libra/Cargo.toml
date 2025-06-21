@@ -22,7 +22,7 @@ futures = { workspace = true }
 futures-util = { workspace = true }
 gemini = { workspace = true, optional = true }
 hex = { workspace = true }
-imara-diff = { workspace = true }
+imara-diff.workspace = true
 indicatif = { workspace = true }
 infer = { workspace = true }
 lazy_static = { workspace = true }
