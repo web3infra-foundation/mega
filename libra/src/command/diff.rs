@@ -397,6 +397,7 @@ mod test {
     use crate::utils::test;
     use serial_test::serial;
     use std::fs;
+    use std::time::Instant;
     use tempfile::tempdir;
 
     use super::*;
