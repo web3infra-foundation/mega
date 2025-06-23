@@ -1,7 +1,7 @@
+use crate::server::ssh_server::{start_server, SshOptions};
 use clap::{ArgMatches, Args, Command, FromArgMatches};
-use context::AppContext;
-use crate::{server::ssh_server::{start_server, SshOptions}};
 use common::errors::MegaResult;
+use context::AppContext;
 
 pub fn cli() -> Command {
     SshOptions::augment_args_for_update(Command::new("ssh").about("Start Git SSH server"))

@@ -13,9 +13,7 @@ members = [
     "saturn",
     "orion",
     "orion-server",
-    "third-party",
     "observatory",
-    "scorpio",
     "context",
 ]
 default-members = ["mega", "mono", "libra", "aries", "orion", "orion-server"]

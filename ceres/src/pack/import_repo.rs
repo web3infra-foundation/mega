@@ -18,7 +18,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use callisto::{mega_tree, raw_blob, sea_orm_active_enums::RefTypeEnum};
 use common::errors::MegaError;
-use jupiter::{storage::Storage, storage::batch_save_model};
+use jupiter::{storage::batch_save_model, storage::Storage};
 use mercury::{
     errors::GitError,
     internal::{

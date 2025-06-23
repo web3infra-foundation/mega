@@ -185,7 +185,11 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
-    if pack_protocol.storage.config().authentication.enable_http_auth
+    if pack_protocol
+        .storage
+        .config()
+        .authentication
+        .enable_http_auth
         && !http_auth(req.headers(), &pack_protocol.storage).await
     {
         return auth_failed();

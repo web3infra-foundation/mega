@@ -5,7 +5,6 @@ use axum::{Json, Router};
 use clap::Parser;
 use common::config::Config;
 use jupiter::storage::Storage;
-use vault::integration::VaultCore;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -13,6 +12,7 @@ use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::decompression::RequestDecompressionLayer;
 use tower_http::trace::TraceLayer;
+use vault::integration::VaultCore;
 
 use super::api;
 

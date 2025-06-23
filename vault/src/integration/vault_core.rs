@@ -151,26 +151,22 @@ impl VaultCoreInterface for VaultCore {
             .map_err(|_| MegaError::with_message("Failed to delete from vault API"))
     }
 
-    fn write_secret(
-        &self,
-        name: &str,
-        data: Option<Map<String, Value>>,
-    ) -> Result<(), MegaError> {
-        self.write_api(&format!("secret/{}", name), data)
+    fn write_secret(&self, name: &str, data: Option<Map<String, Value>>) -> Result<(), MegaError> {
+        self.write_api(format!("secret/{}", name), data)
             .map_err(|_| MegaError::with_message(format!("Failed to write secret: {}", name)))?;
         Ok(())
     }
 
     fn read_secret(&self, name: &str) -> Result<Option<Map<String, Value>>, MegaError> {
         let resp = self
-            .read_api(&format!("secret/{}", name))
+            .read_api(format!("secret/{}", name))
             .map_err(|_| MegaError::with_message(format!("Failed to read secret: {}", name)))?;
 
-        Ok(resp.map(|r| r.data).flatten())
+        Ok(resp.and_then(|r| r.data))
     }
 
     fn delete_secret(&self, name: &str) -> Result<(), MegaError> {
-        self.delete_api(&format!("secret/{}", name))
+        self.delete_api(format!("secret/{}", name))
             .map_err(|_| MegaError::with_message(format!("Failed to delete secret: {}", name)))?;
         Ok(())
     }

@@ -20,14 +20,11 @@ fn save_to_vault(vault: &VaultCore, key: String, value: String) {
 fn get_from_vault(vault: &VaultCore, key: String) -> Option<String> {
     let key_f = format!("ca_{key}");
     match vault.read_secret(key_f.as_str()).unwrap() {
-        Some(res) => res
-            .get(key_f.as_str())
-            .map(|v| {
-                v.as_str()
-                    .map(|vv| String::from(vv.trim_matches(char::is_control)))
-            })
-            .flatten(),
-        None => return None,
+        Some(res) => res.get(key_f.as_str()).and_then(|v| {
+            v.as_str()
+                .map(|vv| String::from(vv.trim_matches(char::is_control)))
+        }),
+        None => None,
     }
 }
 

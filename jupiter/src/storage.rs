@@ -182,13 +182,8 @@ where
     E: EntityTrait,
     A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
 {
-    let onconflict = OnConflict::new().do_nothing().to_owned().into();
-    batch_save_model_with_conflict(
-        connection,
-        save_models,
-        onconflict,
-    )
-    .await
+    let onconflict = OnConflict::new().do_nothing().to_owned();
+    batch_save_model_with_conflict(connection, save_models, onconflict).await
 }
 
 /// Performs batch saving of models in the database with conflict resolution.

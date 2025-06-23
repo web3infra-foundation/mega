@@ -26,9 +26,17 @@
 //! // Refresh all migrations (development only)
 //! apply_migrations(&db, true).await?;
 //! ```
-//!
-//! # Safety
-//!
+use sea_orm::DatabaseConnection;
+use sea_orm_migration::prelude::*;
+use sea_orm_migration::schema::big_integer;
+use tracing::log;
+
+use common::errors::MegaError;
+
+mod m20250314_025943_init;
+mod m20250427_031332_add_mr_refs_tag;
+mod m20250605_013340_alter_mega_mr_index;
+mod m20250610_000001_add_vault_storage;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -39,10 +47,28 @@
 /// # Returns
 ///
 /// A `ColumnDef` configured as a primary key big integer column
+fn pk_bigint<T: IntoIden>(name: T) -> ColumnDef {
+    big_integer(name).primary_key().take()
+}
+
 
 /// The main migrator struct that implements the migration trait.
 ///
 /// This struct is responsible for managing all database migrations in the correct order.
+pub struct Migrator;
+
+
+#[async_trait::async_trait]
+impl MigratorTrait for Migrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(m20250314_025943_init::Migration),
+            Box::new(m20250427_031332_add_mr_refs_tag::Migration),
+            Box::new(m20250605_013340_alter_mega_mr_index::Migration),
+            Box::new(m20250610_000001_add_vault_storage::Migration),
+        ]
+    }
+}
 
 /// Applies database migrations to the given database connection.
 ///
@@ -62,41 +88,7 @@
 /// - Database connection fails
 /// - Migration SQL execution fails
 /// - Schema validation errors occur
-use sea_orm::DatabaseConnection;
-use sea_orm_migration::prelude::*;
-use sea_orm_migration::schema::big_integer;
-use tracing::log;
-
-use common::errors::MegaError;
-
-mod m20250314_025943_init;
-mod m20250427_031332_add_mr_refs_tag;
-mod m20250605_013340_alter_mega_mr_index;
-mod m20250610_000001_add_vault_storage;
-
-pub(self) fn pk_bigint<T: IntoIden>(name: T) -> ColumnDef {
-    big_integer(name).primary_key().take()
-}
-
-pub struct Migrator;
-
-#[async_trait::async_trait]
-impl MigratorTrait for Migrator {
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![
-            Box::new(m20250314_025943_init::Migration),
-            Box::new(m20250427_031332_add_mr_refs_tag::Migration),
-            Box::new(m20250605_013340_alter_mega_mr_index::Migration),
-            Box::new(m20250610_000001_add_vault_storage::Migration),
-        ]
-    }
-}
-
-
-pub async fn apply_migrations(
-    db: &DatabaseConnection,
-    refresh: bool,
-) -> Result<(), MegaError> {
+pub async fn apply_migrations(db: &DatabaseConnection, refresh: bool) -> Result<(), MegaError> {
     match refresh {
         true => Migrator::refresh(db).await,
         false => Migrator::up(db, None).await,

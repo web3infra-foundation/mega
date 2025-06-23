@@ -73,7 +73,8 @@ impl P2PRelay {
 
         tokio::spawn(async move {
             while let Some((peer_id, nostr_event)) = rx.recv().await {
-                wrapped.clone()
+                wrapped
+                    .clone()
                     .send_nostr_event(peer_id, nostr_event)
                     .await
                     .unwrap();
@@ -170,7 +171,8 @@ impl P2PRelay {
                 self.git_clone_handle_receive(connection.clone()).await?;
             }
             "REQUEST_LFS" => {
-                self.lfs_connection_map.insert(key.to_string(), connection.clone());
+                self.lfs_connection_map
+                    .insert(key.to_string(), connection.clone());
             }
             "RESPONSE_LFS" => {
                 self.lfs_handle_receive(connection.clone()).await?;
@@ -182,9 +184,12 @@ impl P2PRelay {
     }
 
     fn _remove_close_connection(&self) {
-        self.msg_connection_map.retain(|_, v| v.close_reason().is_some());
-        self.git_objects_connection_map.retain(|_, v| v.close_reason().is_some());
-        self.lfs_connection_map.retain(|_, v| v.close_reason().is_some());
+        self.msg_connection_map
+            .retain(|_, v| v.close_reason().is_some());
+        self.git_objects_connection_map
+            .retain(|_, v| v.close_reason().is_some());
+        self.lfs_connection_map
+            .retain(|_, v| v.close_reason().is_some());
         self.req_id_map.retain(|_, v| v.close_reason().is_some());
     }
 
@@ -249,11 +254,16 @@ impl P2PRelay {
                     };
                     match storage.insert_or_update_node(node).await {
                         Ok(_) => {
-                            self.send_back(data, "ok".as_bytes().to_vec(), connection_clone).await?
+                            self.send_back(data, "ok".as_bytes().to_vec(), connection_clone)
+                                .await?
                         }
                         Err(_) => {
-                            self.send_back_err(data, "Ping with error".to_string(), connection_clone)
-                                .await?
+                            self.send_back_err(
+                                data,
+                                "Ping with error".to_string(),
+                                connection_clone,
+                            )
+                            .await?
                         }
                     }
                 }
@@ -302,7 +312,8 @@ impl P2PRelay {
                         send.finish()?;
                     }
                     let from_connection = connection_clone;
-                    self.req_id_map.insert(data.req_id.to_string(), from_connection.clone());
+                    self.req_id_map
+                        .insert(data.req_id.to_string(), from_connection.clone());
                 }
                 Action::Callback => {
                     {
@@ -338,12 +349,20 @@ impl P2PRelay {
                     let storage = relay_storage.clone();
                     match storage.insert_or_update_repo_info(repo_info_model).await {
                         Ok(_) => {
-                            self.send_back(data, repo_info.identifier.into_bytes(), connection.clone())
-                                .await?
+                            self.send_back(
+                                data,
+                                repo_info.identifier.into_bytes(),
+                                connection.clone(),
+                            )
+                            .await?
                         }
                         Err(_) => {
-                            self.send_back_err(data, "Repo share failed".to_string(), connection.clone())
-                                .await?
+                            self.send_back_err(
+                                data,
+                                "Repo share failed".to_string(),
+                                connection.clone(),
+                            )
+                            .await?
                         }
                     }
                 }
@@ -365,8 +384,7 @@ impl P2PRelay {
                                 continue;
                             }
                         };
-                    let relay_msg =
-                        self.nostr_handle( client_msg, data.from.clone()).await;
+                    let relay_msg = self.nostr_handle(client_msg, data.from.clone()).await;
                     self.send_back(
                         data,
                         relay_msg.as_json().as_bytes().to_vec(),
@@ -379,11 +397,16 @@ impl P2PRelay {
                         Ok(peers) => {
                             let peers: Vec<Node> = peers.iter().map(|p| p.clone().into()).collect();
                             let res = serde_json::to_string(&peers)?;
-                            self.send_back(data, res.into_bytes(), connection.clone()).await?
+                            self.send_back(data, res.into_bytes(), connection.clone())
+                                .await?
                         }
                         Err(_) => {
-                            self.send_back_err(data, "Get peers failed".to_string(), connection.clone())
-                                .await?
+                            self.send_back_err(
+                                data,
+                                "Get peers failed".to_string(),
+                                connection.clone(),
+                            )
+                            .await?
                         }
                     };
                 }
@@ -407,18 +430,24 @@ impl P2PRelay {
                                 }
                             }
                             let res = serde_json::to_string(&repo_list.clone())?;
-                            self.send_back(data, res.into_bytes(), connection.clone()).await?
+                            self.send_back(data, res.into_bytes(), connection.clone())
+                                .await?
                         }
                         Err(_) => {
-                            self.send_back_err(data, "Get repos failed".to_string(), connection.clone())
-                                .await?
+                            self.send_back_err(
+                                data,
+                                "Get repos failed".to_string(),
+                                connection.clone(),
+                            )
+                            .await?
                         }
                     };
                 }
             }
 
             {
-                let peers: Vec<String> = self.msg_connection_map
+                let peers: Vec<String> = self
+                    .msg_connection_map
                     .iter()
                     .map(|entry| entry.key().clone())
                     .collect();
@@ -430,11 +459,7 @@ impl P2PRelay {
         }
     }
 
-    async fn nostr_handle(
-        &self,
-        client_message: ClientMessage,
-        from: String,
-    ) -> RelayMessage {
+    async fn nostr_handle(&self, client_message: ClientMessage, from: String) -> RelayMessage {
         let relay_storage = self.storage.relay_storage().clone();
         match client_message {
             ClientMessage::Event(nostr_event) => {
@@ -470,7 +495,8 @@ impl P2PRelay {
                     .unwrap();
 
                 //Event is forwarded to subscribed nodes
-                let _ = self.transfer_git_event_to_subscribers(nostr_event.clone(), from)
+                let _ = self
+                    .transfer_git_event_to_subscribers(nostr_event.clone(), from)
                     .await;
                 RelayMessage::new_ok(nostr_event.id, true, "ok".to_string())
             }

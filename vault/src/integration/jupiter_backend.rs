@@ -25,7 +25,10 @@ impl Backend for JupiterBackend {
         })
     }
 
-    fn get(&self, key: &str) -> Result<Option<rusty_vault::storage::BackendEntry>, rusty_vault::errors::RvError> {
+    fn get(
+        &self,
+        key: &str,
+    ) -> Result<Option<rusty_vault::storage::BackendEntry>, rusty_vault::errors::RvError> {
         let service = self.ctx.vault_storage();
         self.rt.block_on(async move {
             match service.load(key).await {
@@ -41,7 +44,10 @@ impl Backend for JupiterBackend {
         })
     }
 
-    fn put(&self, entry: &rusty_vault::storage::BackendEntry) -> Result<(), rusty_vault::errors::RvError> {
+    fn put(
+        &self,
+        entry: &rusty_vault::storage::BackendEntry,
+    ) -> Result<(), rusty_vault::errors::RvError> {
         let service = self.ctx.vault_storage();
         self.rt.block_on(async move {
             match service.save(&entry.key, entry.value.clone()).await {

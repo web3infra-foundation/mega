@@ -1,7 +1,7 @@
+use crate::server::https_server::{self};
 use clap::{ArgMatches, Args, Command, FromArgMatches};
-use context::AppContext;
-use crate::{ server::https_server::{self}};
 use common::{errors::MegaResult, model::CommonHttpOptions};
+use context::AppContext;
 
 pub fn cli() -> Command {
     CommonHttpOptions::augment_args_for_update(Command::new("http").about("Start Mega HTTP server"))

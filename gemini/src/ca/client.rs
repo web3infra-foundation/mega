@@ -1,9 +1,9 @@
 use anyhow::Result;
 use anyhow::{anyhow, Ok};
-use rcgen::{CertificateParams, KeyPair};
 use quinn::rustls::pki_types::pem::PemObject;
 use quinn::rustls::pki_types::CertificateDer;
 use quinn::rustls::pki_types::PrivateKeyDer;
+use rcgen::{CertificateParams, KeyPair};
 
 use crate::p2p::client::P2PClient;
 
@@ -23,7 +23,10 @@ impl P2PClient {
         }
     }
 
-    pub async fn get_user_cert_from_ca(&self, ca: impl AsRef<str>) -> Result<(CertificateDer<'static>, PrivateKeyDer<'static>)> {
+    pub async fn get_user_cert_from_ca(
+        &self,
+        ca: impl AsRef<str>,
+    ) -> Result<(CertificateDer<'static>, PrivateKeyDer<'static>)> {
         let name = self.get_peer_id();
         // Request to ca
         let url = format!("{}/api/v1/ca/certificates/{name}", ca.as_ref());
@@ -44,7 +47,8 @@ impl P2PClient {
         let key = KeyPair::from_pem(&key)?;
         let user_csr = params.serialize_request(&key)?;
         //request a new cert
-        let response = self.http_client
+        let response = self
+            .http_client
             .post(url)
             .body(user_csr.pem().unwrap())
             .send()
@@ -59,10 +63,12 @@ impl P2PClient {
         let key = self.get_user_key();
         let key = PrivateKeyDer::from_pem_slice(key.as_bytes())?;
         Ok((cert, key))
-
     }
 
-    pub async fn get_ca_cert_from_ca(&self, ca: impl AsRef<str>) -> Result<CertificateDer<'static>> {
+    pub async fn get_ca_cert_from_ca(
+        &self,
+        ca: impl AsRef<str>,
+    ) -> Result<CertificateDer<'static>> {
         //request to ca
         let url = format!("{}/api/v1/ca/certificates/ca", ca.as_ref());
         let url = add_http_to_url(url);

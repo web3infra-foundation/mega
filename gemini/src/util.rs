@@ -50,14 +50,20 @@ pub async fn repo_alias_to_identifier(peer_id: impl AsRef<str>, alias: impl AsRe
     format!("p2p://{}/{}", peer_id.as_ref(), alias.as_ref())
 }
 
-pub async fn repo_path_to_identifier(peer_id: impl AsRef<str>, repo_path: impl AsRef<str>) -> String {
+pub async fn repo_path_to_identifier(
+    peer_id: impl AsRef<str>,
+    repo_path: impl AsRef<str>,
+) -> String {
     if repo_path.as_ref().starts_with("/") {
         return format!("p2p://{}{}.git", peer_id.as_ref(), repo_path.as_ref());
     }
     format!("p2p://{}/{}.git", peer_id.as_ref(), repo_path.as_ref())
 }
 
-pub async fn get_ztm_app_tunnel_bound_name(local_peer_id: impl AsRef<str>, remote_peer_id: impl AsRef<str>) -> String {
+pub async fn get_ztm_app_tunnel_bound_name(
+    local_peer_id: impl AsRef<str>,
+    remote_peer_id: impl AsRef<str>,
+) -> String {
     format!(
         "{}_{}",
         get_short_peer_id(local_peer_id),

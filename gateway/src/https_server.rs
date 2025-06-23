@@ -115,9 +115,7 @@ pub fn check_run_with_p2p(context: AppContext, p2p: P2pOptions) {
 
             let client = context.client.wrapped_client();
             tokio::spawn(async move {
-                if let Err(e) =
-                    client.run(bootstrap_node).await
-                {
+                if let Err(e) = client.run(bootstrap_node).await {
                     tracing::error!("P2P client closed:{}", e)
                 }
             });

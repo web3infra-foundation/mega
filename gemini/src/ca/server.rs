@@ -19,7 +19,7 @@ static ROOT_KEY: &str = "root_key";
 static USER_KEY_PRE: &str = "user_";
 
 pub fn get_root_cert_pem(vault: &VaultCore) -> String {
-    match get_from_vault(vault,ROOT_CERT.to_string()) {
+    match get_from_vault(vault, ROOT_CERT.to_string()) {
         Some(cert) => cert,
         None => init_self_signed_cert(vault).0,
     }

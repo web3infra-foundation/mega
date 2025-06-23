@@ -1,179 +1,181 @@
 use std::collections::HashSet;
 
-use reqwest::get;
+use reqwest::{get, Client};
 
-use crate::{p2p::client::P2PClient, util::handle_response, LFSInfo, LFSInfoPostBody, LFSInfoRes};
+use crate::{util::handle_response, LFSInfo, LFSInfoPostBody, LFSInfoRes};
 
-impl P2PClient {
-    /// share lfs
-    ///
-    /// ## paras
-    /// - `bootstrap_node`: bootstrap_node
-    /// - `file_hash`: file_hash
-    /// - `hash_type`: hash_type
-    /// - `file_size`: file_size
-    /// - `origin`: origin
-    ///
-    /// ## Example
-    /// Here is an example of the JSON payload:
-    /// ```json
-    /// {
-    ///  "bootstrap_node":"https://gitmono.org/relay",
-    ///  "file_hash":"52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6",
-    ///  "hash_type":"sha256",
-    ///  "file_size":199246498,
-    ///  "origin":"p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6"
-    ///}
-    /// ```
-    /// This method will send a Post request to the relay to share lfs
-    ///
-    pub async fn share_lfs(
-        &self,
-        file_hash: String,
-        hash_type: String,
-        file_size: i64,
-        origin: String,
-    ) {
-        let lfs = LFSInfoPostBody {
-            file_hash,
-            hash_type,
-            file_size,
-            peer_id: self.get_peer_id(),
-            origin,
-        };
-        tracing::info!("Share lfs {:?}", lfs);
-        let json = serde_json::to_string(&lfs).unwrap();
+/// share lfs
+///
+/// ## paras
+/// - `bootstrap_node`: bootstrap_node
+/// - `file_hash`: file_hash
+/// - `hash_type`: hash_type
+/// - `file_size`: file_size
+/// - `origin`: origin
+///
+/// ## Example
+/// Here is an example of the JSON payload:
+/// ```json
+/// {
+///  "bootstrap_node":"https://gitmono.org/relay",
+///  "file_hash":"52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6",
+///  "hash_type":"sha256",
+///  "file_size":199246498,
+///  "origin":"p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6"
+///}
+/// ```
+/// This method will send a Post request to the relay to share lfs
+///
+pub async fn share_lfs(
+    peer_id: String,
+    bootstrap_node: String,
+    file_hash: String,
+    hash_type: String,
+    file_size: i64,
+    origin: String,
+) {
+    let lfs = LFSInfoPostBody {
+        file_hash,
+        hash_type,
+        file_size,
+        peer_id,
+        origin,
+    };
+    tracing::info!("Share lfs {:?}", lfs);
+    let json = serde_json::to_string(&lfs).unwrap();
 
-        let url = format!("{}/api/v1/lfs_share", self.get_bootstrap_node());
-        let response = self
-            .http_client
-            .post(url)
-            .header("content-type", "application/json")
-            .body(json)
-            .send()
-            .await
-            .unwrap();
+    let client = Client::new();
+    let url = format!("{}/api/v1/lfs_share", bootstrap_node);
+    let response = client
+        .post(url)
+        .header("content-type", "application/json")
+        .body(json)
+        .send()
+        .await
+        .unwrap();
 
-        if response.status().is_success() {
-            tracing::info!("Share lfs {} successfully!", lfs.file_hash);
-        } else {
-            let context = response.text().await.unwrap();
-            tracing::error!("Share lfs {} failed,{}", lfs.file_hash, context);
-        }
+    if response.status().is_success() {
+        tracing::info!("Share lfs {} successfully!", lfs.file_hash);
+    } else {
+        let context = response.text().await.unwrap();
+        tracing::error!("Share lfs {} failed,{}", lfs.file_hash, context);
     }
+}
 
-    /// get lfs chunks info
-    ///
-    /// ## paras
-    /// - `bootstrap_node`: bootstrap_node
-    /// - `file_hash`: file_hash
-    ///
-    /// for example
-    /// ```json
-    /// {
-    ///  "bootstrap_node":"https://gitmono.org/relay",
-    ///  "file_hash":"52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6",
-    ///}
-    /// ```
-    /// This method will send a GET request to the relay to get lfs chunks info
-    ///
-    pub async fn get_lfs_chunks_info(&self, file_hash: String) -> Option<LFSInfoRes> {
-        let url = format!(
-            "{}/api/v1/lfs_chunk?file_hash={}",
-            self.get_bootstrap_node(),
-            file_hash
-        );
-        let lfs_info: LFSInfoRes = match get(url.clone()).await {
-            Ok(response) => {
-                if !response.status().is_success() {
-                    println!("Get lfs chuncks info failed  {}", url);
-                    return None;
-                }
-                let body = response.text().await.unwrap();
-                let lfs_info: LFSInfoRes = serde_json::from_str(&body).unwrap();
-                lfs_info
-            }
-            Err(_) => {
-                println!("Get lfs chuncks info failed {}", url);
+/// get lfs chunks info
+///
+/// ## paras
+/// - `bootstrap_node`: bootstrap_node
+/// - `file_hash`: file_hash
+///
+/// for example
+/// ```json
+/// {
+///  "bootstrap_node":"https://gitmono.org/relay",
+///  "file_hash":"52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6",
+///}
+/// ```
+/// This method will send a GET request to the relay to get lfs chunks info
+///
+pub async fn get_lfs_chunks_info(bootstrap_node: String, file_hash: String) -> Option<LFSInfoRes> {
+    let url = format!(
+        "{}/api/v1/lfs_chunk?file_hash={}",
+        bootstrap_node, file_hash
+    );
+    let lfs_info: LFSInfoRes = match get(url.clone()).await {
+        Ok(response) => {
+            if !response.status().is_success() {
+                println!("Get lfs chuncks info failed  {}", url);
                 return None;
             }
-        };
-        Some(lfs_info)
-    }
-
-    /// create lfs download local ports
-    ///
-    /// ## Paras
-    /// - `bootstrap_node`: bootstrap_node
-    /// - `ztm_agent_port`: ztm_agent_port
-    /// - `file_uri`: file_uri
-    ///
-    /// for example
-    /// ```json
-    /// {
-    ///  "bootstrap_node":"https://gitmono.org/relay",
-    ///  "ztm_agent_port":777,
-    ///  "file_uri":"p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6"
-    ///}
-    /// ```
-    /// ## Return
-    /// local_port1, local_port2,...
-    ///
-    /// Each port is for a remote peer
-    pub async fn create_lfs_download_tunnel(&self, file_uri: String) -> Result<Vec<u16>, String> {
-        let file_hash = match self.get_file_hash_from_origin(file_uri) {
-            Ok(file_hash) => file_hash,
-            Err(_) => {
-                return Err("invalid file_uri".to_string());
-            }
-        };
-        // get public lfs by bootstrap_node
-        let url = format!("{}/api/v1/lfs_list", self.get_bootstrap_node());
-        let request_result = reqwest::get(url.clone()).await;
-        let response_text = match handle_response(request_result).await {
-            Ok(s) => s,
-            Err(s) => {
-                tracing::error!("GET {url} failed,{s}");
-                return Err(s);
-            }
-        };
-        let lfs_list: Vec<LFSInfo> = match serde_json::from_slice(response_text.as_bytes()) {
-            Ok(p) => p,
-            Err(e) => {
-                tracing::error!("{}", e);
-                return Err(e.to_string());
-            }
-        };
-        let peer_id = self.get_peer_id();
-        let peer_list: HashSet<String> = lfs_list
-            .iter()
-            .filter(|x| x.file_hash == file_hash && x.peer_online && x.peer_id != peer_id)
-            .map(|x| x.peer_id.clone())
-            .collect();
-        tracing::info!("Search lfs[{}] download peer:{:?}", file_hash, peer_list);
-
-        let tunnel_list: Vec<u16> = vec![];
-        // for peer_id in peer_list {
-        //     match get_or_create_remote_mega_tunnel(ztm_agent_port, peer_id).await {
-        //         Ok(port) => {
-        //             tunnel_list.push(port);
-        //         }
-        //         Err(s) => {
-        //             tracing::error!("{}", s);
-        //         }
-        //     }
-        // }
-        Ok(tunnel_list)
-    }
-
-    pub fn get_file_hash_from_origin(&self, origin: String) -> Result<String, String> {
-        // p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6
-        let words: Vec<&str> = origin.split('/').collect();
-        if words.len() <= 4 {
-            return Err("invalid origin".to_string());
+            let body = response.text().await.unwrap();
+            let lfs_info: LFSInfoRes = serde_json::from_str(&body).unwrap();
+            lfs_info
         }
-        Ok(words.get(4).unwrap().to_string())
+        Err(_) => {
+            println!("Get lfs chuncks info failed {}", url);
+            return None;
+        }
+    };
+    Some(lfs_info)
+}
+
+/// create lfs download local ports
+///
+/// ## Paras
+/// - `bootstrap_node`: bootstrap_node
+/// - `ztm_agent_port`: ztm_agent_port
+/// - `file_uri`: file_uri
+///
+/// for example
+/// ```json
+/// {
+///  "bootstrap_node":"https://gitmono.org/relay",
+///  "ztm_agent_port":777,
+///  "file_uri":"p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6"
+///}
+/// ```
+/// ## Return
+/// local_port1, local_port2,...
+///
+/// Each port is for a remote peer
+pub async fn create_lfs_download_tunnel(
+    peer_id: String,
+    bootstrap_node: String,
+    _ztm_agent_port: u16,
+    file_uri: String,
+) -> Result<Vec<u16>, String> {
+    let file_hash = match get_file_hash_from_origin(file_uri) {
+        Ok(file_hash) => file_hash,
+        Err(_) => {
+            return Err("invalid file_uri".to_string());
+        }
+    };
+    // get public lfs by bootstrap_node
+    let url = format!("{bootstrap_node}/api/v1/lfs_list");
+    let request_result = reqwest::get(url.clone()).await;
+    let response_text = match handle_response(request_result).await {
+        Ok(s) => s,
+        Err(s) => {
+            tracing::error!("GET {url} failed,{s}");
+            return Err(s);
+        }
+    };
+    let lfs_list: Vec<LFSInfo> = match serde_json::from_slice(response_text.as_bytes()) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("{}", e);
+            return Err(e.to_string());
+        }
+    };
+    let peer_list: HashSet<String> = lfs_list
+        .iter()
+        .filter(|x| x.file_hash == file_hash && x.peer_online && x.peer_id != peer_id)
+        .map(|x| x.peer_id.clone())
+        .collect();
+    tracing::info!("Search lfs[{}] download peer:{:?}", file_hash, peer_list);
+
+    let tunnel_list: Vec<u16> = vec![];
+    // for peer_id in peer_list {
+    //     match get_or_create_remote_mega_tunnel(ztm_agent_port, peer_id).await {
+    //         Ok(port) => {
+    //             tunnel_list.push(port);
+    //         }
+    //         Err(s) => {
+    //             tracing::error!("{}", s);
+    //         }
+    //     }
+    // }
+    Ok(tunnel_list)
+}
+
+pub fn get_file_hash_from_origin(origin: String) -> Result<String, String> {
+    // p2p://t14id7uQxwneJ2PnPtaA3GSUwxTx6HTaq1UkayQVWSPT/sha256/52c90a86cb034b7a1c4beb79304fa76bd0a6cbb7b168c3a935076c714bd1c6b6
+    let words: Vec<&str> = origin.split('/').collect();
+    if words.len() <= 4 {
+        return Err("invalid origin".to_string());
     }
+    Ok(words.get(4).unwrap().to_string())
 }
 
 #[cfg(test)]

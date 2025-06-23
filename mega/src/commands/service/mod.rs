@@ -5,7 +5,6 @@
 //!
 
 use clap::{ArgMatches, Command};
-use std::sync::Arc;
 
 use common::{config::Config, errors::MegaResult};
 use context::AppContext;

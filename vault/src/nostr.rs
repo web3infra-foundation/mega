@@ -1,4 +1,4 @@
-use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey, rand};
 use tracing::log;
 
 use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
@@ -24,29 +24,32 @@ pub fn generate_nostr_id() -> (String, (SecretKey, PublicKey)) {
 }
 
 impl VaultCore {
-
     /// Initialize the Nostr ID if it's not found.
     /// - return: `(Nostr ID, secret_key)`
     /// - You can get `Public Key` by just `base58::decode(nostr)`
     pub fn load_nostr_pair(&self) -> (String, String) {
-        self.read_secret(NOSTR_IDENTITY_KEY).expect("Failed to read Nostr ID from vault").map(|data| {
-            let nostr = data["nostr"].as_str().unwrap().to_string();
-            let secret_key = data["secret_key"].as_str().unwrap().to_string();
-            (nostr, secret_key)
-        }).unwrap_or_else(|| {
-            log::debug!("Nostr ID not found in vault, generating new one...");
-            let (nostr, (secret_key, _)) = generate_nostr_id();
-            let data = serde_json::json!({
-                "nostr": nostr,
-                "secret_key": secret_key.display_secret().to_string(),
+        self.read_secret(NOSTR_IDENTITY_KEY)
+            .expect("Failed to read Nostr ID from vault")
+            .map(|data| {
+                let nostr = data["nostr"].as_str().unwrap().to_string();
+                let secret_key = data["secret_key"].as_str().unwrap().to_string();
+                (nostr, secret_key)
             })
-            .as_object()
-            .unwrap()
-            .clone();
+            .unwrap_or_else(|| {
+                log::debug!("Nostr ID not found in vault, generating new one...");
+                let (nostr, (secret_key, _)) = generate_nostr_id();
+                let data = serde_json::json!({
+                    "nostr": nostr,
+                    "secret_key": secret_key.display_secret().to_string(),
+                })
+                .as_object()
+                .unwrap()
+                .clone();
 
-            self.write_secret(NOSTR_IDENTITY_KEY, Some(data.clone())).expect("Failed to write Nostr ID to vault");
-            (nostr, secret_key.display_secret().to_string())
-        })
+                self.write_secret(NOSTR_IDENTITY_KEY, Some(data.clone()))
+                    .expect("Failed to write Nostr ID to vault");
+                (nostr, secret_key.display_secret().to_string())
+            })
     }
 
     /// Initialize the Nostr ID and return it along with the secret key.
@@ -62,7 +65,6 @@ impl VaultCore {
         secp256k1::Keypair::from_seckey_str(&secp, &sk).unwrap()
     }
 }
-
 
 #[cfg(test)]
 mod tests {

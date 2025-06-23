@@ -22,7 +22,12 @@ pub struct GitEventReq {
 }
 
 impl GitEventReq {
-    pub async fn to_git_event(&self, peer_id: String, identifier: String, commit: String) -> GitEvent {
+    pub async fn to_git_event(
+        &self,
+        peer_id: String,
+        identifier: String,
+        commit: String,
+    ) -> GitEvent {
         GitEvent {
             peer: peer_id,
             uri: identifier,

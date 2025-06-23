@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use openssl::asn1::Asn1Time;
 use openssl::x509::X509;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
 
@@ -101,7 +101,7 @@ impl VaultCore {
             .clone();
 
         // config role
-        self.write_api(&format!("pki/roles/{}", ROLE), Some(role_data))
+        self.write_api(format!("pki/roles/{}", ROLE), Some(role_data))
             .expect("Failed to configure role");
     }
 
@@ -116,7 +116,7 @@ impl VaultCore {
             .clone();
 
         // issue cert
-        let resp = self.write_api(&format!("pki/issue/{}", ROLE), Some(issue_data));
+        let resp = self.write_api(format!("pki/issue/{}", ROLE), Some(issue_data));
         let resp_body = resp.unwrap();
         let cert_data = resp_body.unwrap().data.unwrap();
 
@@ -213,7 +213,7 @@ mod tests_raw {
         storage,
         storage::barrier_aes_gcm,
     };
-    use serde_json::{json, Map, Value};
+    use serde_json::{Map, Value, json};
 
     async fn test_read_api(
         core: &Core,

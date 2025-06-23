@@ -4,9 +4,9 @@
 /// using asynchronous operations.
 use smallvec::smallvec;
 
+pub use pgp::KeyType;
 pub use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
 use pgp::types::SecretKeyTrait;
-pub use pgp::KeyType;
 use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder};
 
 use crate::integration::vault_core::{VaultCore, VaultCoreInterface};

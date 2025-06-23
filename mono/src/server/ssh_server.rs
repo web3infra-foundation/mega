@@ -17,7 +17,7 @@ use common::model::CommonHttpOptions;
 use tokio::sync::Mutex;
 use vault::integration::vault_core::VaultCoreInterface;
 
-use crate::{ git_protocol::ssh::SshServer};
+use crate::git_protocol::ssh::SshServer;
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {

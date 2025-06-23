@@ -27,7 +27,9 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
     } else {
         sqlite_connection(db_config).await.unwrap()
     };
-    apply_migrations(&conn, false).await.expect("Failed to apply migrations");
+    apply_migrations(&conn, false)
+        .await
+        .expect("Failed to apply migrations");
 
     conn
 }
