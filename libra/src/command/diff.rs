@@ -406,7 +406,7 @@ mod test {
     /// Verifies parameter requirements, conflicts and default values are handled correctly.
     fn test_args() {
         {
-            let args = DiffArgs::try_parse_from(["$iff", "--old", "old", "--new", "new", "paths"]);
+            let args = DiffArgs::try_parse_from(["diff", "--old", "old", "--new", "new", "paths"]);
             assert!(args.is_ok());
             let args = args.unwrap();
             assert_eq!(args.old, Some("old".to_string()));
