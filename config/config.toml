@@ -61,7 +61,7 @@ import_dir = "/third-party"
 admin = "admin"
 
 # Set serveral root dirs in directory init
-root_dirs = ["third-party", "project", "doc", "release"]
+root_dirs = ["third-party", "project", "doc", "release", "model"]
 
 [pack]
 # The maximum memory used by decode
